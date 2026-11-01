@@ -6,13 +6,7 @@ import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerifica
 import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerificationVerifyResponse;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailVerificationService
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 管理账号激活和邮箱所有权验证领域服务，统一验证码签发、验证、首次设密与重放防护规则。
- * @status : create
+ * 管理账号激活和邮箱所有权验证领域服务，统一验证码签发、验证、首次设密与重放防护规则。
  */
 public interface AdminEmailVerificationService {
 
@@ -33,9 +27,13 @@ public interface AdminEmailVerificationService {
     void issue(Long accountId, String purpose, String locale, String requestIp, String userAgent,
                boolean enforceRateLimit);
 
-    /** 校验邮箱验证码，并按用途完成验证或签发首次设密令牌。 */
+    /**
+     * 校验邮箱验证码，并按用途完成验证或签发首次设密令牌。
+     */
     EmailVerificationVerifyResponse verify(EmailVerificationVerifyRequest request, String clientIp);
 
-    /** 原子消费动作令牌，完成新账号首次设密和激活。 */
+    /**
+     * 原子消费动作令牌，完成新账号首次设密和激活。
+     */
     AccountActivationCompleteResponse completeActivation(AccountActivationCompleteRequest request, String clientIp);
 }

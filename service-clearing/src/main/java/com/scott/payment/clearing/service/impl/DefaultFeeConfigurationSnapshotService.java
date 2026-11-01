@@ -52,32 +52,24 @@ import java.util.function.LongSupplier;
 import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.CURRENT_SCHEMA_VERSION;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultFeeConfigurationSnapshotService
- * @date : 2026-08-26 10:05
- * @email : scott_x@163.com
- * @description : 清分费用快照加载实现，验证动作冻结 JSON 后仅按其确切版本从 Redis、Slave、Master 降级，禁止查询最新费率。
- * @status : create
+ * 清分费用配置快照加载服务。
+ *
+ * <p>优先使用交易动作已经冻结且哈希校验通过的快照；快照缺失或损坏时，只允许按原费用方案版本号从
+ * 版本缓存、从库和主库回源。禁止查询“当前生效版本”，否则历史交易会因配置变更产生不同的费用结果。</p>
+ *
+ * <p>Redis 仅用于加速不可变版本读取，不是财务事实来源。缓存故障可以降级，身份、版本或哈希不一致
+ * 必须终止清分，不能通过降级掩盖数据完整性问题。</p>
  */
 @Slf4j
 @Service
 public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationSnapshotService {
 
     /**
-     * {@code CACHE_TTL}常量，统一 {@code DefaultFeeConfigurationSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 不可变费用版本缓存的基础有效期。
      */
     private static final Duration CACHE_TTL = Duration.ofDays(30);
     /**
-     * {@code CACHE_JITTER_BOUND}常量，统一 {@code DefaultFeeConfigurationSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 最多增加一天随机抖动，避免大量版本缓存同时失效。
      */
     private static final long CACHE_JITTER_BOUND = Duration.ofDays(1).toSeconds() + 1;
 
@@ -98,6 +90,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
      * @param redisTemplate 不可变版本缓存
      * @param keyResolver 环境隔离 Redis Key 解析器
      * @param objectMapper 平台 Jackson 配置
+     * @param metrics 费用版本来源低基数指标
      */
     @Autowired
     public DefaultFeeConfigurationSnapshotService(ClearingTransactionMerchantSnapshotMapper snapshotMapper,
@@ -110,7 +103,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 () -> ThreadLocalRandom.current().nextLong(Long.MAX_VALUE));
     }
 
-    /** 包级测试构造器，用固定随机源验证 TTL 抖动而不改变生产缓存协议。 */
+    /**
+     * 包级测试构造器，用固定随机源验证 TTL 抖动而不改变生产缓存协议。
+     */
     DefaultFeeConfigurationSnapshotService(ClearingTransactionMerchantSnapshotMapper snapshotMapper,
                                            FeeVersionQueryService queryService,
                                            StringRedisTemplate redisTemplate,
@@ -128,7 +123,11 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         this.randomLongSupplier = randomLongSupplier;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 加载交易动作冻结的确切费用版本。
+     *
+     * <p>动作身份、分片时间、费用版本和摘要均属于完整性边界；任一字段不一致都不得继续资金计算。</p>
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public FeeVersionSnapshot load(String merchantId,
@@ -167,7 +166,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         FeeVersionSnapshot rebuilt = freeze(configuration, row.getFeeSnapshotTime(), schemaVersion);
         validateSnapshotIdentity(rebuilt, row);
         if (!constantTimeEquals(row.getFeeSnapshotHash(), rebuilt.snapshotHash())) {
-            log.warn("event: CLEARING_FEE_SNAPSHOT_HASH_MISMATCH transactionId: {} feePlanVersionId: {}",
+            log.warn("清分费用快照哈希不一致, event: CLEARING_FEE_SNAPSHOT_HASH_MISMATCH, transactionId: {}, feePlanVersionId: {}",
                     row.getTransactionId(), row.getFeePlanVersionId());
             throw failure(ClearingFailureCodeEnum.FEE_SNAPSHOT_HASH_MISMATCH,
                     "exact fee version does not reproduce frozen action hash");
@@ -175,7 +174,11 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return rebuilt;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 为人工复核后的重算加载指定不可变费用版本。
+     *
+     * <p>调用方必须明确给出商户、方案、版本和定价锁定时间；该入口同样不允许选择最新版本。</p>
+     */
     @Override
     public FeeVersionSnapshot loadForRecalculation(String merchantId,
                                                    Long feePlanId,
@@ -192,7 +195,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 metrics.recordFeeSource("SLAVE");
             }
         } catch (RuntimeException exception) {
-            log.warn("event: CLEARING_RECALCULATION_FEE_VERSION_SLAVE_FALLBACK feePlanVersionId: {} exceptionType: {}",
+            log.warn("清分重算费用版本从库查询失败并回退主库, event: CLEARING_RECALCULATION_FEE_VERSION_SLAVE_FALLBACK, feePlanVersionId: {}, exceptionType: {}",
                     feePlanVersionId, exception.getClass().getSimpleName());
         }
         if (configuration == null) {
@@ -237,7 +240,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                     && constantTimeEquals(row.getFeeSnapshotHash(), calculated);
             return new FrozenSnapshotRead(snapshot, valid);
         } catch (RuntimeException | JsonProcessingException exception) {
-            log.warn("event: CLEARING_FEE_SNAPSHOT_JSON_INVALID transactionId: {} exceptionType: {}",
+            log.warn("清分冻结费用快照解析或校验失败, event: CLEARING_FEE_SNAPSHOT_JSON_INVALID, transactionId: {}, exceptionType: {}",
                     row.getTransactionId(), exception.getClass().getSimpleName());
             return new FrozenSnapshotRead(null, false);
         }
@@ -262,7 +265,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
             validateConfigurationIdentity(entry.configuration(), row);
             return entry.configuration();
         } catch (RuntimeException | JsonProcessingException exception) {
-            log.warn("event: CLEARING_FEE_VERSION_CACHE_READ_FAILED feePlanVersionId: {} exceptionType: {}",
+            log.warn("清分费用版本缓存读取失败并回退数据库, event: CLEARING_FEE_VERSION_CACHE_READ_FAILED, feePlanVersionId: {}, exceptionType: {}",
                     row.getFeePlanVersionId(), exception.getClass().getSimpleName());
             return null;
         }
@@ -283,7 +286,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 metrics.recordFeeSource("SLAVE");
             }
         } catch (RuntimeException exception) {
-            log.warn("event: CLEARING_FEE_VERSION_SLAVE_FALLBACK feePlanVersionId: {} exceptionType: {}",
+            log.warn("清分费用版本从库查询失败并回退主库, event: CLEARING_FEE_VERSION_SLAVE_FALLBACK, feePlanVersionId: {}, exceptionType: {}",
                     row.getFeePlanVersionId(), exception.getClass().getSimpleName());
             configuration = null;
         }
@@ -307,7 +310,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return freeze(configuration, lockTime, CURRENT_SCHEMA_VERSION);
     }
 
-    /** 历史快照回源时沿用其 schema 和哈希算法，禁止用当前版本摘要误判历史数据。 */
+    /**
+     * 历史快照回源时沿用其 schema 和哈希算法，禁止用当前版本摘要误判历史数据。
+     */
     private FeeVersionSnapshot freeze(FeeVersionConfigurationDTO configuration,
                                       LocalDateTime lockTime,
                                       int schemaVersion) {
@@ -348,7 +353,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 reserve, RefundFeeReturnPolicy.NONE, configuration.rules(), hash);
     }
 
-    /** 排除 snapshotHash 自身后重建规范哈希材料，用于校验持久化快照未被修改。 */
+    /**
+     * 排除 snapshotHash 自身后重建规范哈希材料，用于校验持久化快照未被修改。
+     */
     private String hash(FeeVersionSnapshot snapshot) {
         if (snapshot.schemaVersion() == 3) {
             LegacyFeeSnapshotHashMaterial legacy = new LegacyFeeSnapshotHashMaterial(
@@ -380,12 +387,14 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
             redisTemplate.opsForValue().set(versionKey(configuration.feePlanVersionId()),
                     canonicalJson(entry), CACHE_TTL.plusSeconds(jitter));
         } catch (RuntimeException exception) {
-            log.warn("event: CLEARING_FEE_VERSION_CACHE_WRITE_FAILED feePlanVersionId: {} exceptionType: {}",
+            log.warn("清分费用版本缓存写入失败但不影响本次计算, event: CLEARING_FEE_VERSION_CACHE_WRITE_FAILED, feePlanVersionId: {}, exceptionType: {}",
                     configuration.feePlanVersionId(), exception.getClass().getSimpleName());
         }
     }
 
-    /** 数据库快照行必须与请求商户、动作、费用版本和分片时间完全一致。 */
+    /**
+     * 数据库快照行必须与请求商户、动作、费用版本和分片时间完全一致。
+     */
     private void validateRowIdentity(ClearingTransactionMerchantSnapshotDO row,
                                      String merchantId,
                                      String operationId,
@@ -410,7 +419,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 反序列化后的快照身份必须与动作冻结列及 SHA-256 一致。 */
+    /**
+     * 反序列化后的快照身份必须与动作冻结列及 SHA-256 一致。
+     */
     private void validateSnapshotIdentity(FeeVersionSnapshot snapshot,
                                           ClearingTransactionMerchantSnapshotDO row) {
         if (snapshot == null || !Objects.equals(snapshot.merchantId(), row.getMerchantId())
@@ -422,7 +433,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 缓存或主从降级配置只能返回请求中的确切不可变版本。 */
+    /**
+     * 缓存或主从降级配置只能返回请求中的确切不可变版本。
+     */
     private void validateConfigurationIdentity(FeeVersionConfigurationDTO configuration,
                                                ClearingTransactionMerchantSnapshotDO row) {
         if (configuration == null) {
@@ -442,15 +455,23 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /**
+     * 构造带稳定失败码的费用快照异常，供清分状态机受控落库。
+     */
     private ClearingProcessingException failure(ClearingFailureCodeEnum code, String message) {
         return new ClearingProcessingException(code, message);
     }
 
+    /**
+     * 为不可变费用版本生成跨实例一致的缓存业务键。
+     */
     private String versionKey(Long versionId) {
         return keyResolver.businessKey("fee", "version", String.valueOf(versionId));
     }
 
-    /** 使用字段顺序稳定的专用 ObjectMapper 序列化哈希材料，禁止替换为普通业务 JSON 配置。 */
+    /**
+     * 使用字段顺序稳定的专用 ObjectMapper 序列化哈希材料，禁止替换为普通业务 JSON 配置。
+     */
     private String canonicalJson(Object value) {
         try {
             return canonicalMapper.writeValueAsString(value);
@@ -459,7 +480,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** v5 哈希忽略 BigDecimal 尾随零，快照 JSON 本身仍保留原业务精度。 */
+    /**
+     * v5 哈希忽略 BigDecimal 尾随零，快照 JSON 本身仍保留原业务精度。
+     */
     private String canonicalHashJson(Object value) {
         try {
             return hashMapper.writeValueAsString(value);
@@ -468,7 +491,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 对 UTF-8 规范 JSON 计算小写十六进制 SHA-256 摘要。 */
+    /**
+     * 对 UTF-8 规范 JSON 计算小写十六进制 SHA-256 摘要。
+     */
     private String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -478,13 +503,18 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 以固定时间摘要比较校验费用快照完整性，避免普通字符串比较泄露逐字符匹配信息。 */
+    /**
+     * 以固定时间摘要比较校验费用快照完整性，避免普通字符串比较泄露逐字符匹配信息。
+     */
     private boolean constantTimeEquals(String expected, String actual) {
         return expected != null && actual != null && MessageDigest.isEqual(
                 expected.getBytes(StandardCharsets.US_ASCII),
                 actual.getBytes(StandardCharsets.US_ASCII));
     }
 
+    /**
+     * 复制业务 JSON 配置并启用稳定字段和映射顺序，用于生成可复算的快照原文。
+     */
     @SuppressWarnings("deprecation")
     private ObjectMapper canonicalMapper(ObjectMapper source) {
         ObjectMapper copy = source.copy();
@@ -495,10 +525,16 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return copy;
     }
 
+    /**
+     * 创建哈希专用序列化器，使数值相等但尾随零不同的金额产生相同哈希材料。
+     */
     private ObjectMapper normalizedHashMapper(ObjectMapper source) {
         ObjectMapper copy = source.copy();
         SimpleModule module = new SimpleModule();
         module.addSerializer(BigDecimal.class, new JsonSerializer<>() {
+            /**
+             * 写出移除尾随零后的十进制数值，保持费用快照哈希的数值语义。
+             */
             @Override
             public void serialize(BigDecimal value,
                                   JsonGenerator generator,
@@ -510,9 +546,15 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return copy;
     }
 
+    /**
+     * 已冻结费用快照及其持久化哈希校验结果。
+     */
     private record FrozenSnapshotRead(FeeVersionSnapshot snapshot, boolean hashValid) {
     }
 
+    /**
+     * 当前快照协议参与哈希的完整材料，包含结算周期策略。
+     */
     private record FeeSnapshotHashMaterial(int schemaVersion,
                                            String merchantId,
                                            Long feePlanId,
@@ -529,6 +571,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                                            List<FeeRuleConfigurationSnapshot> rules) {
     }
 
+    /**
+     * 历史快照协议参与哈希的兼容材料，不包含后续新增的结算周期策略。
+     */
     private record LegacyFeeSnapshotHashMaterial(int schemaVersion,
                                                  String merchantId,
                                                  Long feePlanId,

@@ -13,13 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CacheInvalidationOutboxMetrics
- * @date : 2026-07-31 10:20
- * @email : scott_x@163.com
- * @description : 缓存失效 Outbox 低基数指标记录器，以固定队列类型暴露到期批次、饱和和发布结果，不读取或输出事件业务标识
- * @status : create
+ * 缓存失效 Outbox 低基数指标记录器，以固定队列类型暴露到期批次、饱和和发布结果，不读取或输出事件业务标识
  */
 @Component
 public class CacheInvalidationOutboxMetrics {
@@ -189,9 +183,13 @@ public class CacheInvalidationOutboxMetrics {
      * 缓存失效 Outbox 类型。
      */
     public enum Outbox {
-        /** 商户启停、密钥和 IP 策略变更后的安全缓存失效队列。 */
+        /**
+         * 商户启停、密钥和 IP 策略变更后的安全缓存失效队列。
+         */
         MERCHANT_SECURITY,
-        /** 风控规则发布后的 generation 切换与缓存失效队列。 */
+        /**
+         * 风控规则发布后的 generation 切换与缓存失效队列。
+         */
         RISK_RULE
     }
 
@@ -199,11 +197,17 @@ public class CacheInvalidationOutboxMetrics {
      * Outbox 批处理结果。
      */
     public enum BatchOutcome {
-        /** 本批到期事件全部成功或幂等完成。 */
+        /**
+         * 本批到期事件全部成功或幂等完成。
+         */
         SUCCESS,
-        /** 本批至少一个事件失败并保留待重试。 */
+        /**
+         * 本批至少一个事件失败并保留待重试。
+         */
         PARTIAL,
-        /** 查询或批处理在取得可信结果前异常终止。 */
+        /**
+         * 查询或批处理在取得可信结果前异常终止。
+         */
         ERROR
     }
 
@@ -211,9 +215,13 @@ public class CacheInvalidationOutboxMetrics {
      * Outbox 单事件结果。
      */
     public enum EventOutcome {
-        /** 单事件成功发布或命中幂等完成状态。 */
+        /**
+         * 单事件成功发布或命中幂等完成状态。
+         */
         SUCCESS,
-        /** 单事件发布失败，仍由持久 Outbox 保留并重试。 */
+        /**
+         * 单事件发布失败，仍由持久 Outbox 保留并重试。
+         */
         FAILED
     }
 }

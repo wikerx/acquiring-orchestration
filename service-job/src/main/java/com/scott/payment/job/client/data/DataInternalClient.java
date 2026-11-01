@@ -5,13 +5,7 @@ import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueCl
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationReconcileClientRequestDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataInternalClient
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-job 调用 service-data 异步数据补偿接口的客户端契约，当前承载商户通知到期重试
- * @status : create
+ * service-job 调用 service-data 异步数据补偿接口的客户端契约，当前承载商户通知到期重试
  */
 public interface DataInternalClient {
 

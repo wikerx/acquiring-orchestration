@@ -34,13 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelExportServiceImpl
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 导出服务实现
- * @status : create
+ * Excel 导出服务实现
  *
  * <p>统一处理响应头、导出标题、表头国际化、列宽样式和空数据导出，
  * 让业务代码只负责准备导出 DTO 数据。</p>

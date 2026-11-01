@@ -5,6 +5,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.CaptureChannelResultTransactionService;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
@@ -15,13 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultCaptureChannelResultTransactionService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Capture 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进 Capture 动作。
- * @status : create
+ * 请款渠道结果的独立事务服务。
+ *
+ * <p>只对本地已准备的请款动作执行状态 CAS。CAS 成功后才允许更新累计请款事实并同事务写入
+ * 终态 Outbox；动作缺失、重复响应或晚到响应均不得根据瞬时渠道结果补造交易。</p>
  */
 @Service
 public class DefaultCaptureChannelResultTransactionService implements CaptureChannelResultTransactionService {
@@ -57,20 +55,24 @@ public class DefaultCaptureChannelResultTransactionService implements CaptureCha
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void recordCaptureChannelResult(CapturePreparationResultDTO preparationResultDTO,
-                                           PaymentChannelInvokeResultDTO invokeResultDTO) {
+    public boolean recordCaptureChannelResult(CapturePreparationResultDTO preparationResultDTO,
+                                              PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (preparationResultDTO == null || preparationResultDTO.getResultDTO() == null) {
-            return;
+            return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
-        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+        // 重新读取主库动作与原交易主单，后续 CAS 必须基于当前持久化状态而不是准备阶段快照。
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
-        if (operationDO == null) {
-            return;
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
+                resultDTO.getRootTransactionDateTime(), resultDTO.getOperationId());
+        if (operationDO == null || sourceOrderDO == null) {
+            return false;
         }
+        // 累计请款金额由持久化成功动作计算，只有该状态更新获胜时才会改变。
         boolean statusChanged = transactionRecordService.completeCaptureChannelResult(
                 operationDO,
-                preparationResultDTO.getSourceOrderDO(),
+                sourceOrderDO,
                 preparationResultDTO.getCommandDTO(),
                 preparationResultDTO.getRouteResultDTO(),
                 invokeResultDTO,
@@ -79,9 +81,12 @@ public class DefaultCaptureChannelResultTransactionService implements CaptureCha
         if (statusChanged && isTerminal(resultDTO)) {
             saveStatusChanged(preparationResultDTO, resultDTO);
         }
+        return statusChanged;
     }
 
-    /** 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。 */
+    /**
+     * 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。
+     */
     private void saveStatusChanged(CapturePreparationResultDTO preparationResultDTO,
                                    PaymentCreateResultDTO resultDTO) {
         lifecycleEventService.saveStatusChanged(
@@ -94,7 +99,9 @@ public class DefaultCaptureChannelResultTransactionService implements CaptureCha
                 preparationResultDTO.getCommandDTO().getTransactionDateTime());
     }
 
-    /** 判断渠道映射结果是否已经进入不可逆成功或失败终态。 */
+    /**
+     * 判断渠道映射结果是否已经进入不可逆成功或失败终态。
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());

@@ -4,13 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogMqProperties
- * @date : 2026-06-20 01:31
- * @email : scott_x@163.com
- * @description : 操作日志 RocketMQ 配置属性
- * @status : create
+ * 操作日志 RocketMQ 配置属性
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.operation-log.mq")

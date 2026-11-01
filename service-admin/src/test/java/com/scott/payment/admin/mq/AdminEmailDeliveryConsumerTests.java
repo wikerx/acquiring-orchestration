@@ -12,17 +12,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailDeliveryConsumerTests
- * @date : 2026-08-21 18:30
- * @email : scott_x@163.com
- * @description : 管理端邮件 MQ 消费入口契约测试，确保毒消息不会被 Broker 静默确认
- * @status : create
+ * 管理端邮件 MQ 消费入口契约测试，确保毒消息不会被 Broker 静默确认
  */
 class AdminEmailDeliveryConsumerTests {
 
-    /** 完整的管理端邮件定位消息应进入数据库 CAS 投递服务。 */
+    /**
+     * 完整的管理端邮件定位消息应进入数据库 CAS 投递服务。
+     */
     @Test
     void shouldDeliverValidMessage() {
         AdminEmailDeliveryService deliveryService = mock(AdminEmailDeliveryService.class);
@@ -35,7 +31,9 @@ class AdminEmailDeliveryConsumerTests {
         verify(deliveryService).deliver(message);
     }
 
-    /** 反序列化失败必须抛出异常交给 RocketMQ 重试。 */
+    /**
+     * 反序列化失败必须抛出异常交给 RocketMQ 重试。
+     */
     @Test
     void shouldRejectMalformedPayload() {
         AdminEmailDeliveryService deliveryService = mock(AdminEmailDeliveryService.class);
@@ -48,7 +46,9 @@ class AdminEmailDeliveryConsumerTests {
         verify(deliveryService, never()).deliver(org.mockito.ArgumentMatchers.any());
     }
 
-    /** 当前消费组收到跨应用定位消息时必须拒绝，避免错误确认。 */
+    /**
+     * 当前消费组收到跨应用定位消息时必须拒绝，避免错误确认。
+     */
     @Test
     void shouldRejectCrossApplicationMessage() {
         AdminEmailDeliveryService deliveryService = mock(AdminEmailDeliveryService.class);
@@ -61,7 +61,9 @@ class AdminEmailDeliveryConsumerTests {
         verify(deliveryService, never()).deliver(org.mockito.ArgumentMatchers.any());
     }
 
-    /** 创建最小合法邮件定位消息。 */
+    /**
+     * 创建最小合法邮件定位消息。
+     */
     private EmailDeliveryMessage message(String appCode) {
         EmailDeliveryMessage message = new EmailDeliveryMessage();
         message.setMessageId("email-admin-1-0");

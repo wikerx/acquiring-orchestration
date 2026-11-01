@@ -15,13 +15,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFinanceDataSourceContractTests
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户费率、资金账户和余额流水只读查询的数据源路由契约测试。
- * @status : create
+ * 商户费率、资金账户和余额流水只读查询的数据源路由契约测试。
  */
 class MerchantFinanceDataSourceContractTests {
 
@@ -32,7 +26,6 @@ class MerchantFinanceDataSourceContractTests {
      */
     @Test
     void shouldRouteOrdinaryMerchantFinanceQueriesToSlave() throws NoSuchMethodException {
-        System.out.println("数据源契约：验证商户账户和流水普通查询使用 SLAVE");
         assertThat(MerchantFinanceServiceImpl.class.getAnnotation(DS.class)).isNull();
         assertDataSource(DataSourceName.SLAVE, List.of(
                 method("getFundAccount", String.class),
@@ -47,7 +40,6 @@ class MerchantFinanceDataSourceContractTests {
      */
     @Test
     void shouldRoutePersistentActiveFeeCacheMissToMaster() throws NoSuchMethodException {
-        System.out.println("数据源契约：验证商户当前费率缓存未命中使用 MASTER 权威回源");
         assertDataSource(DataSourceName.MASTER, List.of(
                 method("getCurrentFee", String.class)
         ));

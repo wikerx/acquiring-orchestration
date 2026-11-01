@@ -7,13 +7,7 @@ import org.springframework.core.task.TaskDecorator;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TraceContextTaskDecorator
- * @date : 2026-07-26 00:00
- * @email : scott_x@163.com
- * @description : 调度中心线程池 traceId 传播装饰器，在异步执行前恢复提交线程的 MDC 和 TraceContext，执行完成后清理线程上下文。
- * @status : create
+ * 调度中心线程池 traceId 传播装饰器，在异步执行前恢复提交线程的 MDC 和 TraceContext，执行完成后清理线程上下文。
  */
 public class TraceContextTaskDecorator implements TaskDecorator {
 

@@ -8,17 +8,13 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementEventOutboxMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 结算事件 Outbox 数据访问接口；通过事件唯一键、短租约和 version CAS 支撑 MQ 至少一次发送，不假设网络发送与成功标记原子。
- * @status : create
+ * 结算事件 Outbox 数据访问接口；通过事件唯一键、短租约和 version CAS 支撑 MQ 至少一次发送，不假设网络发送与成功标记原子。
  */
 public interface SettlementEventOutboxMapper {
 
-    /** 锁定一条到期或 PROCESSING 超时事件。 */
+    /**
+     * 锁定一条到期或 PROCESSING 超时事件。
+     */
     @Select("""
             SELECT *
             FROM settlement_event_outbox
@@ -30,7 +26,9 @@ public interface SettlementEventOutboxMapper {
             """)
     SettlementEventOutboxDO selectNextDueForUpdate(@Param("now") LocalDateTime now);
 
-    /** 领取有限期发送租约，崩溃后可由其它实例恢复。 */
+    /**
+     * 领取有限期发送租约，崩溃后可由其它实例恢复。
+     */
     @Update("""
             UPDATE settlement_event_outbox
             SET event_status = 'PROCESSING',
@@ -49,7 +47,9 @@ public interface SettlementEventOutboxMapper {
               @Param("expectedVersion") long expectedVersion,
               @Param("now") LocalDateTime now);
 
-    /** 发送成功后以租约所有者和版本 CAS 标记 SENT。 */
+    /**
+     * 发送成功后以租约所有者和版本 CAS 标记 SENT。
+     */
     @Update("""
             UPDATE settlement_event_outbox
             SET event_status = 'SENT',
@@ -69,7 +69,9 @@ public interface SettlementEventOutboxMapper {
                  @Param("expectedVersion") long expectedVersion,
                  @Param("now") LocalDateTime now);
 
-    /** 发送失败释放租约并写入服务层计算的有上限指数退避时间。 */
+    /**
+     * 发送失败释放租约并写入服务层计算的有上限指数退避时间。
+     */
     @Update("""
             UPDATE settlement_event_outbox
             SET event_status = 'FAILED',

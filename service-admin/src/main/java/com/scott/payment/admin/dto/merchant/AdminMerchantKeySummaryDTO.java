@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantKeySummaryDTO
- * @date : 2026-06-19 22:06
- * @email : scott_x@163.com
- * @description : 管理后台商户密钥摘要响应 DTO
- * @status : create
+ * 管理后台商户密钥摘要响应 DTO
  *
  * <p>用于商户列表或详情页展示当前生效密钥的轻量摘要，不包含完整敏感材料原文。</p>
  */

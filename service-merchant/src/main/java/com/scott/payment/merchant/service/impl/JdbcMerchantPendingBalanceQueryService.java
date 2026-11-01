@@ -24,34 +24,44 @@ import java.time.ZoneId;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantPendingBalanceQueryService
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 商户端在途余额 JDBC 实现；只读取 transaction 副本分片，并以标签币种隔离正向与逆向交易净额。
- * @status : create
+ * 商户端在途余额 JDBC 实现；只读取 transaction 副本分片，并以标签币种隔离正向与逆向交易净额。
  */
 @Service
 public class JdbcMerchantPendingBalanceQueryService implements MerchantPendingBalanceQueryService {
 
-    /** 交易成功终态编码。 */
+    /**
+     * 交易成功终态编码。
+     */
     private static final String SUCCESS = "SUCCESS";
-    /** 尚未完成交易结算的状态编码。 */
+    /**
+     * 尚未完成交易结算的状态编码。
+     */
     private static final String NOT_SETTLED = "NOT_SETTLED";
-    /** 会形成商户待结算资金的正向和逆向交易动作。 */
+    /**
+     * 会形成商户待结算资金的正向和逆向交易动作。
+     */
     private static final List<String> FUND_TRANSACTION_TYPES = List.of(
             "PAYMENT", "CAPTURE", "PRE_AUTH_COMPLETION", "REFUND", "CHARGEBACK");
-    /** 在途净额中按负方向计算的逆向交易动作。 */
+    /**
+     * 在途净额中按负方向计算的逆向交易动作。
+     */
     private static final List<String> DEBIT_TRANSACTION_TYPES = List.of("REFUND", "CHARGEBACK");
 
-    /** 使用统一超时预算的交易查询 JDBC 模板。 */
+    /**
+     * 使用统一超时预算的交易查询 JDBC 模板。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** transaction 逻辑数据源普通读执行器，内部路由到已配置从库。 */
+    /**
+     * transaction 逻辑数据源普通读执行器，内部路由到已配置从库。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
-    /** 已发布最早交易季度的起始时间，用于约束 ShardingSphere 路由范围。 */
+    /**
+     * 已发布最早交易季度的起始时间，用于约束 ShardingSphere 路由范围。
+     */
     private final LocalDateTime registeredNodeBegin;
-    /** Asia/Shanghai 系统业务时钟，用于排除尚未发生的未来交易。 */
+    /**
+     * Asia/Shanghai 系统业务时钟，用于排除尚未发生的未来交易。
+     */
     private final Clock clock;
 
     /**
@@ -92,7 +102,13 @@ public class JdbcMerchantPendingBalanceQueryService implements MerchantPendingBa
         this.clock = clock;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 从交易逻辑副本按标签币种汇总当前商户成功但尚未结算的资金动作净额。
+     * 退款等借记动作按负数计入，不跨币种相加。
+     *
+     * @param merchantId 认证商户号，不允许为空
+     * @return 标签币种维度的在途资金净额
+     */
     @Override
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<PendingBalanceAggregate> sumPendingBalances(String merchantId) {
@@ -124,7 +140,13 @@ public class JdbcMerchantPendingBalanceQueryService implements MerchantPendingBa
                 """, parameters, BeanPropertyRowMapper.newInstance(PendingBalanceAggregate.class)));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 从保证金清分状态按原币种汇总尚未完成结算入账的余额。
+     * 已形成且完成入账的保证金释放候选不会重复计入。
+     *
+     * @param merchantId 认证商户号，不允许为空
+     * @return 原币种维度的未结算保证金余额
+     */
     @Override
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<ReserveBalanceAggregate> sumUnsettledReserveBalances(String merchantId) {
@@ -165,7 +187,9 @@ public class JdbcMerchantPendingBalanceQueryService implements MerchantPendingBa
                 """, parameters, BeanPropertyRowMapper.newInstance(ReserveBalanceAggregate.class)));
     }
 
-    /** 拒绝空认证商户号，避免交易聚合退化为跨商户查询。 */
+    /**
+     * 拒绝空认证商户号，避免交易聚合退化为跨商户查询。
+     */
     private String requireMerchantId(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant context missing");
@@ -173,7 +197,9 @@ public class JdbcMerchantPendingBalanceQueryService implements MerchantPendingBa
         return merchantId.trim();
     }
 
-    /** 将最早已发布 yyyy0Q 物理节点转换为闭开查询范围的起点。 */
+    /**
+     * 将最早已发布 yyyy0Q 物理节点转换为闭开查询范围的起点。
+     */
     private static LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
         return physicalNodes == null ? LocalDateTime.of(1970, 1, 1, 0, 0)
                 : physicalNodes.stream()

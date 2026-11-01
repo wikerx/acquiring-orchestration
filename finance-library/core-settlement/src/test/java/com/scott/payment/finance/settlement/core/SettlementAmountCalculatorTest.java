@@ -19,13 +19,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAmountCalculatorTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证多原币种结算按统一批次汇率计算，保持行级未舍入值并只对最终目标净额舍入一次。
- * @status : create
+ * 验证多原币种结算按统一批次汇率计算，保持行级未舍入值并只对最终目标净额舍入一次。
  */
 class SettlementAmountCalculatorTest {
 

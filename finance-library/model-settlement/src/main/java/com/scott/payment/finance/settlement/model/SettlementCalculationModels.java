@@ -9,57 +9,48 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementCalculationModels
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 定义批次原币种金额换汇和跨币种费用组限额求值的不可变输入输出，不重新计算清分费用组件。
- * @status : create
+ * 定义批次原币种金额换汇和跨币种费用组限额求值的不可变输入输出，不重新计算清分费用组件。
  */
 public final class SettlementCalculationModels {
 
+    /**
+     * 禁止实例化仅承载结算计算契约的工具类。
+     */
     private SettlementCalculationModels() {
     }
 
-    /** 商户视角的目标净额方向。 */
+    /**
+     * 商户视角的目标净额方向。
+     */
     public enum AmountDirection {
         /**
          * CREDIT 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         CREDIT,
         DEBIT
     }
 
-    /** 清分费用原子组件类型；限额调整仅由结算结果生成，不作为输入。 */
+    /**
+     * 清分费用原子组件类型；限额调整仅由结算结果生成，不作为输入。
+     */
     public enum FeeComponentKind {
         /**
          * PERCENTAGE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         PERCENTAGE,
         FIXED
     }
 
-    /** 结算统一求值后命中的费用边界。 */
+    /**
+     * 结算统一求值后命中的费用边界。
+     */
     public enum AppliedLimit {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         NONE,
         /**
          * MINIMUM 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         MINIMUM,
         MAXIMUM
@@ -74,6 +65,9 @@ public final class SettlementCalculationModels {
      */
     public record AmountLine(String lineNo, Money sourceAmount, AmountDirection direction) {
 
+        /**
+         * 校验来源明细号、非负原币种金额和商户视角方向。
+         */
         public AmountLine {
             lineNo = requireText(lineNo, "amount line number");
             requireNonNegative(sourceAmount, "source amount");
@@ -94,6 +88,9 @@ public final class SettlementCalculationModels {
                                     int targetCurrencyExponent,
                                     RoundingMode roundingMode) {
 
+        /**
+         * 固化待换算明细、目标币种精度及最终舍入规则。
+         */
         public ConversionCommand {
             lines = List.copyOf(Objects.requireNonNull(lines, "amount lines are required"));
             if (lines.isEmpty()) {
@@ -120,6 +117,9 @@ public final class SettlementCalculationModels {
                                       BigDecimal directRate,
                                       BigDecimal unroundedTargetAmount) {
 
+        /**
+         * 校验单条换算审计事实，不对未舍入目标金额再次取整。
+         */
         public ConvertedAmountLine {
             lineNo = requireText(lineNo, "amount line number");
             requireNonNegative(sourceAmount, "source amount");
@@ -140,6 +140,9 @@ public final class SettlementCalculationModels {
                                    BigDecimal unroundedTargetNetAmount,
                                    Money targetNetAmount) {
 
+        /**
+         * 固化逐行换算证据、未舍入净额和最终目标币种净额。
+         */
         public ConversionResult {
             convertedLines = List.copyOf(Objects.requireNonNull(convertedLines, "converted lines are required"));
             Objects.requireNonNull(unroundedTargetNetAmount, "unrounded target net amount is required");
@@ -158,6 +161,9 @@ public final class SettlementCalculationModels {
                                     FeeComponentKind componentKind,
                                     Money sourceAmount) {
 
+        /**
+         * 校验清分费用组件身份、类型和原币种金额口径。
+         */
         public FeeComponentInput {
             componentNo = requireText(componentNo, "fee component number");
             Objects.requireNonNull(componentKind, "fee component kind is required");
@@ -187,6 +193,9 @@ public final class SettlementCalculationModels {
                                   int targetCurrencyExponent,
                                   RoundingMode roundingMode) {
 
+        /**
+         * 固化费用组组件、USD 限额和目标结算币种计算规则。
+         */
         public FeeGroupCommand {
             feeGroupNo = requireText(feeGroupNo, "fee group number");
             components = List.copyOf(Objects.requireNonNull(components, "fee components are required"));
@@ -216,6 +225,9 @@ public final class SettlementCalculationModels {
                                         BigDecimal directRate,
                                         BigDecimal unroundedTargetAmount) {
 
+        /**
+         * 校验单条费用组件换算证据并保留未舍入目标金额。
+         */
         public ConvertedFeeComponent {
             componentNo = requireText(componentNo, "fee component number");
             Objects.requireNonNull(componentKind, "fee component kind is required");
@@ -246,6 +258,9 @@ public final class SettlementCalculationModels {
                                  BigDecimal limitAdjustmentAmount,
                                  Money finalFee) {
 
+        /**
+         * 固化费用组件换算、上下限应用和最终费用结果。
+         */
         public FeeGroupResult {
             feeGroupNo = requireText(feeGroupNo, "fee group number");
             convertedComponents = List.copyOf(
@@ -259,6 +274,12 @@ public final class SettlementCalculationModels {
         }
     }
 
+    /**
+     * 校验可选费用限额使用 USD 且金额非负。
+     *
+     * @param value     可选金额
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireOptionalUsd(Money value, String fieldName) {
         if (value == null) {
             return;
@@ -269,6 +290,12 @@ public final class SettlementCalculationModels {
         }
     }
 
+    /**
+     * 校验金额对象存在且数值非负。
+     *
+     * @param value     待校验金额
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireNonNegative(Money value, String fieldName) {
         if (value == null) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -278,6 +305,12 @@ public final class SettlementCalculationModels {
         }
     }
 
+    /**
+     * 校验十进制金额存在且非负。
+     *
+     * @param value     待校验数值
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireNonNegative(BigDecimal value, String fieldName) {
         if (value == null) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -287,18 +320,37 @@ public final class SettlementCalculationModels {
         }
     }
 
+    /**
+     * 校验可选十进制金额在提供时非负。
+     *
+     * @param value     可选数值
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireOptionalNonNegative(BigDecimal value, String fieldName) {
         if (value != null && value.signum() < 0) {
             throw new IllegalArgumentException(fieldName + " must not be negative");
         }
     }
 
+    /**
+     * 校验汇率等比例数值严格大于零。
+     *
+     * @param value     待校验数值
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requirePositive(BigDecimal value, String fieldName) {
         if (value == null || value.signum() <= 0) {
             throw new IllegalArgumentException(fieldName + " must be positive");
         }
     }
 
+    /**
+     * 去除必填标识文本首尾空白并拒绝空值。
+     *
+     * @param value     原始文本
+     * @param fieldName 错误消息使用的字段名
+     * @return 规范化文本
+     */
     private static String requireText(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -306,6 +358,12 @@ public final class SettlementCalculationModels {
         return value.trim();
     }
 
+    /**
+     * 将目标币种规范化为 ISO 4217 三位大写代码。
+     *
+     * @param value 原始币种
+     * @return 规范化币种
+     */
     private static String normalizeCurrency(String value) {
         String normalized = requireText(value, "target currency").toUpperCase(Locale.ROOT);
         if (normalized.length() != 3) {
@@ -314,6 +372,11 @@ public final class SettlementCalculationModels {
         return normalized;
     }
 
+    /**
+     * 校验目标币种 exponent 处于平台支持的零到八位范围。
+     *
+     * @param value 币种小数位
+     */
     private static void requireExponent(int value) {
         if (value < 0 || value > 8) {
             throw new IllegalArgumentException("target currency exponent must be between 0 and 8");

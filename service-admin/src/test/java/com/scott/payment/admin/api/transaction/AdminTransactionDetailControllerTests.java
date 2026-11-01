@@ -2,13 +2,13 @@ package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
 import com.scott.payment.admin.application.transaction.AdminMerchantNotificationRetryApplicationService;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
-import java.util.Map;
-
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -18,17 +18,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionDetailControllerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理后台交易详情接口契约测试，验证列表返回的毫秒交易时间可直接用于分片详情查询。
- * @status : create
+ * 管理后台交易详情接口契约测试，验证列表返回的毫秒交易时间可直接用于分片详情查询。
  */
 class AdminTransactionDetailControllerTests {
 
-    /** 详情接口使用的逻辑交易号；测试明确不从该值解析分片时间。 */
+    /**
+     * 详情接口使用的逻辑交易号；测试明确不从该值解析分片时间。
+     */
     private static final String TRANSACTION_ID = "202607140001";
     private static final LocalDateTime TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 7, 14, 12, 30, 45, 233_000_000);
@@ -64,8 +60,12 @@ class AdminTransactionDetailControllerTests {
         AdminTransactionApplicationService applicationService = mock(AdminTransactionApplicationService.class);
         AdminMerchantNotificationRetryApplicationService retryApplicationService =
                 mock(AdminMerchantNotificationRetryApplicationService.class);
+        MerchantNotificationResponse notification = new MerchantNotificationResponse();
+        notification.setNotifyId("notification-a");
+        MerchantNotificationDetailResponse detailResponse = new MerchantNotificationDetailResponse();
+        detailResponse.setNotification(notification);
         when(applicationService.merchantNotificationDetail("notification-a", TRANSACTION_DATE_TIME))
-                .thenReturn(Map.of("notification", Map.of("notifyId", "notification-a"), "deliveryLogs", java.util.List.of()));
+                .thenReturn(detailResponse);
         MockMvc mockMvc = standaloneSetup(new AdminTransactionMerchantNotificationController(
                 applicationService, retryApplicationService)).build();
 

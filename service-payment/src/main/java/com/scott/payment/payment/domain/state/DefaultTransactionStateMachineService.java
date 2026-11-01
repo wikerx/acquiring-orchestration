@@ -10,13 +10,7 @@ import java.math.BigDecimal;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionStateMachineService
- * @date : 2026-07-14 19:35
- * @email : scott_x@163.com
- * @description : 收单交易状态机默认实现，位于 service-payment 领域状态层，集中保护授权、请款、退款和撤销等资金动作的状态与金额边界。
- * @status : create
+ * 收单交易状态机默认实现，位于 service-payment 领域状态层，集中保护授权、请款、退款和撤销等资金动作的状态与金额边界。
  */
 @Service
 public class DefaultTransactionStateMachineService implements TransactionStateMachineService {
@@ -130,6 +124,9 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验正值金额。
+     */
     private void validatePositiveAmount(BigDecimal requestAmount, PaymentTransactionTypeEnum nextTransactionType) {
         if (requestAmount == null || requestAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), nextTransactionType.getCode() + " amount must be greater than zero");
@@ -174,6 +171,9 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验后续动作金额未超过可用余额。
+     */
     private void validateAvailableAmount(BigDecimal requestAmount,
                                          BigDecimal availableAmount,
                                          PaymentTransactionTypeEnum nextTransactionType) {
@@ -184,6 +184,9 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验撤销金额符合原交易约束。
+     */
     private void validateVoidAmount(TransactionOrderDO sourceOrderDO) {
         BigDecimal capturedAmount = sourceOrderDO.getCapturedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getCapturedAmount();
         BigDecimal refundedAmount = sourceOrderDO.getRefundedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getRefundedAmount();

@@ -7,13 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentPreparedChannelRequestDTO
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 渠道调用预生成身份 DTO，位于 service-payment 服务 DTO 层，承载已在本地准备事务中提交的 request_id、渠道交易身份和查询扩展标识。
- * @status : create
+ * 渠道调用预生成身份 DTO，位于 service-payment 服务 DTO 层，承载已在本地准备事务中提交的 request_id、渠道交易身份和查询扩展标识。
  */
 @Data
 public class PaymentPreparedChannelRequestDTO implements Serializable {

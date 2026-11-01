@@ -8,13 +8,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantJwtKeyDO
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 商户 JWT 签名密钥数据库实体
- * @status : create
+ * OpenAPI 商户 JWT 签名密钥数据库实体
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

@@ -15,13 +15,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogServiceImplTests
- * @date : 2026-08-03 00:00
- * @email : scott_x@163.com
- * @description : 验证任务运行日志的开始、结束时间使用同一应用时钟和 JDBC 参数时区语义。
- * @status : create
+ * 验证任务运行日志的开始、结束时间使用同一应用时钟和 JDBC 参数时区语义。
  */
 class JobRunLogServiceImplTests {
 

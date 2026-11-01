@@ -38,33 +38,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantSettlementQueryService
- * @date : 2026-09-01 22:35
- * @email : scott_x@163.com
- * @description : 使用交易逻辑数据源本地查询 Merchant 结算数据；所有主表和关联表均绑定可信 merchantId，并限制日期跨度、分页预算和可见终态。
- * @status : update
+ * 使用交易逻辑数据源本地查询 Merchant 结算数据；所有主表和关联表均绑定可信 merchantId，并限制日期跨度、分页预算和可见终态。
  */
 @Service
 public class JdbcMerchantSettlementQueryService implements MerchantSettlementQueryService {
 
-    /**
-     * 默认页大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int DEFAULT_PAGE_SIZE = 10;
-    /**
-     * {@code MAX_DATE_SPAN_DAYS}常量，统一 {@code JdbcMerchantSettlementQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> BATCH_TYPES = Set.of(
             "REGULAR", "RESERVE_RELEASE", "REVERSAL", "ADJUSTMENT");
@@ -188,7 +167,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
 
-    /** 创建生产查询服务，沿用交易逻辑数据源的超时和结果预算。 */
+    /**
+     * 创建生产查询服务，沿用交易逻辑数据源的超时和结果预算。
+     */
     @Autowired
     public JdbcMerchantSettlementQueryService(DataSource dataSource,
                                               TransactionLogicalReadExecutor readExecutor,
@@ -197,7 +178,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         this(factory.create(dataSource, shardingProperties), readExecutor, shardingProperties);
     }
 
-    /** 创建可注入 JDBC 模板的查询服务，供定向契约测试使用。 */
+    /**
+     * 创建可注入 JDBC 模板的查询服务，供定向契约测试使用。
+     */
     public JdbcMerchantSettlementQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                               TransactionLogicalReadExecutor readExecutor,
                                               TransactionShardingProperties shardingProperties) {
@@ -206,7 +189,13 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 从结算副本分页查询当前商户已入账或已冲正的结算批次摘要。
+     *
+     * @param merchantId 认证商户号
+     * @param request 批次状态、业务日期和分页条件
+     * @return 当前商户结算批次分页结果
+     */
     @Override
     public PageResult<BatchSummary> searchBatches(String merchantId, BatchQuery request) {
         String scopedMerchantId = requireMerchantId(merchantId);
@@ -214,7 +203,13 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> batchPage(scopedMerchantId, query));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询当前商户指定结算批次的金额、状态和汇率明细。
+     *
+     * @param merchantId 认证商户号
+     * @param settlementBatchNo 结算批次号
+     * @return 当前商户可见的批次详情
+     */
     @Override
     public BatchDetail getBatch(String merchantId, String settlementBatchNo) {
         String scopedMerchantId = requireMerchantId(merchantId);
@@ -222,7 +217,14 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> batchDetail(scopedMerchantId, batchNo, false));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询当前商户指定结算批次的入账凭证视图。
+     * 仅允许读取已入账或已冲正批次，避免把处理中结果作为凭证展示。
+     *
+     * @param merchantId 认证商户号
+     * @param settlementBatchNo 结算批次号
+     * @return 可作为商户凭证展示的批次详情
+     */
     @Override
     public BatchDetail getVoucher(String merchantId, String settlementBatchNo) {
         String scopedMerchantId = requireMerchantId(merchantId);
@@ -230,7 +232,15 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> batchDetail(scopedMerchantId, batchNo, true));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询当前商户指定批次的结算结果汇总行。
+     *
+     * @param merchantId 认证商户号
+     * @param settlementBatchNo 结算批次号
+     * @param pageNo 页码
+     * @param pageSize 每页记录数
+     * @return 按支付维度和金额方向汇总的结果分页
+     */
     @Override
     public PageResult<SummaryLine> searchResultSummaries(String merchantId,
                                                          String settlementBatchNo,
@@ -242,7 +252,13 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> resultSummaryPage(scopedMerchantId, batchNo, page));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按交易、批次和业务条件分页查询当前商户的结算交易视图。
+     *
+     * @param merchantId 认证商户号
+     * @param request 交易筛选和分页条件
+     * @return 当前商户结算交易分页结果
+     */
     @Override
     public PageResult<TransactionSettlement> searchTransactionItems(String merchantId,
                                                                     TransactionItemQuery request) {
@@ -251,7 +267,16 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> transactionPage(scopedMerchantId, query));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询当前商户指定批次和交易的结算组成项。
+     *
+     * @param merchantId 认证商户号
+     * @param settlementBatchNo 结算批次号
+     * @param transactionId 平台交易号
+     * @param pageNo 页码
+     * @param pageSize 每页记录数
+     * @return 费用、保证金和净额等组成项分页结果
+     */
     @Override
     public PageResult<TransactionItem> searchTransactionComponents(String merchantId,
                                                                    String settlementBatchNo,
@@ -264,7 +289,15 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> transactionComponentPage(scopedMerchantId, query));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询当前商户指定交易的渠道勾兑记录。
+     * 交易时间参与分片定位，禁止根据当前 MID 或当前路由推断历史交易位置。
+     *
+     * @param merchantId 认证商户号
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 原交易分片时间
+     * @return 该交易对应的渠道勾兑记录
+     */
     @Override
     public List<ReconciliationRecord> findReconciliationRecordsByTransaction(
             String merchantId,
@@ -275,7 +308,14 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> reconciliationRecords(scopedMerchantId, query));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询当前商户指定交易的活动清分事实。
+     *
+     * @param merchantId 认证商户号
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 原交易分片时间
+     * @return 活动清分详情；尚未清分时返回空
+     */
     @Override
     public ClearingDetail findClearingDetailByTransaction(String merchantId,
                                                            String transactionId,
@@ -285,7 +325,16 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> clearingDetail(scopedMerchantId, query));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询当前商户指定交易跨清分修订的结算组成历史。
+     *
+     * @param merchantId 认证商户号
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 原交易分片时间
+     * @param pageNo 页码
+     * @param pageSize 每页记录数
+     * @return 该交易的结算组成历史分页结果
+     */
     @Override
     public PageResult<TransactionItem> searchTransactionItemsByTransaction(String merchantId,
                                                                            String transactionId,
@@ -298,7 +347,13 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> transactionHistoryPage(scopedMerchantId, query));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按业务日期和状态分页查询当前商户保证金明细。
+     *
+     * @param merchantId 认证商户号
+     * @param request 保证金筛选和分页条件
+     * @return 当前商户保证金明细分页结果
+     */
     @Override
     public PageResult<ReserveItem> searchReserveItems(String merchantId, ReserveItemQuery request) {
         String scopedMerchantId = requireMerchantId(merchantId);
@@ -306,7 +361,16 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> reservePage(scopedMerchantId, query));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询当前商户指定交易跨清分修订的保证金历史。
+     *
+     * @param merchantId 认证商户号
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 原交易分片时间
+     * @param pageNo 页码
+     * @param pageSize 每页记录数
+     * @return 该交易的保证金历史分页结果
+     */
     @Override
     public PageResult<ReserveItem> searchReserveItemsByTransaction(String merchantId,
                                                                    String transactionId,
@@ -319,7 +383,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> reserveHistoryPage(scopedMerchantId, query));
     }
 
-    /** 查询 POSTED/REVERSED 批次，并从净入账结果行提取商户最关心的交易数和净额。 */
+    /**
+     * 查询 POSTED/REVERSED 批次，并从净入账结果行提取商户最关心的交易数和净额。
+     */
     private PageResult<BatchSummary> batchPage(String merchantId, BatchQuery query) {
         StringBuilder where = new StringBuilder("""
                 WHERE batch.merchant_id = :merchantId
@@ -396,7 +462,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return detail;
     }
 
-    /** 凭证使用完整不可变汇总快照，普通详情和列表仍使用分页查询。 */
+    /**
+     * 凭证使用完整不可变汇总快照，普通详情和列表仍使用分页查询。
+     */
     private List<SummaryLine> resultSummaries(String merchantId, String batchNo) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("merchantId", merchantId)
@@ -422,7 +490,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 """, parameters, BeanPropertyRowMapper.newInstance(SummaryLine.class));
     }
 
-    /** 使用批次维度唯一索引分页读取商户可见的结算汇总。 */
+    /**
+     * 使用批次维度唯一索引分页读取商户可见的结算汇总。
+     */
     private PageResult<SummaryLine> resultSummaryPage(String merchantId,
                                                       String batchNo,
                                                       PageWindow page) {
@@ -536,7 +606,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return PageResult.of(total, query.getPageNo(), query.getPageSize(), records);
     }
 
-    /** 批次内一笔交易的财务组件独立分页，供列表展开核对。 */
+    /**
+     * 批次内一笔交易的财务组件独立分页，供列表展开核对。
+     */
     private PageResult<TransactionItem> transactionComponentPage(String merchantId,
                                                                  TransactionComponentQuery query) {
         String where = """
@@ -562,7 +634,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 TransactionItem.class);
     }
 
-    /** 按候选真实交易身份查询已入账或已冲正的商户财务组件。 */
+    /**
+     * 按候选真实交易身份查询已入账或已冲正的商户财务组件。
+     */
     private PageResult<TransactionItem> transactionHistoryPage(String merchantId,
                                                                TransactionHistoryQuery query) {
         String where = """
@@ -591,7 +665,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 "item.create_time DESC, item.id DESC", query.pageNo(), query.pageSize(), TransactionItem.class);
     }
 
-    /** 按交易精确身份读取当前认证商户的动作状态。 */
+    /**
+     * 按交易精确身份读取当前认证商户的动作状态。
+     */
     private List<ReconciliationRecord> reconciliationRecords(String merchantId,
                                                               TransactionIdentityQuery query) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
@@ -611,7 +687,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 BeanPropertyRowMapper.newInstance(ReconciliationRecord.class));
     }
 
-    /** 商户清分详情只返回商户核账所需字段，并在摘要和明细查询中重复绑定 merchantId。 */
+    /**
+     * 商户清分详情只返回商户核账所需字段，并在摘要和明细查询中重复绑定 merchantId。
+     */
     private ClearingDetail clearingDetail(String merchantId, TransactionIdentityQuery query) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("merchantId", merchantId)
@@ -750,7 +828,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 "action.action_time DESC, action.id DESC", query.getPageNo(), query.getPageSize(), ReserveItem.class);
     }
 
-    /** 按原支付交易身份查询当前商户跨批次的完整保证金动作。 */
+    /**
+     * 按原支付交易身份查询当前商户跨批次的完整保证金动作。
+     */
     private PageResult<ReserveItem> reserveHistoryPage(String merchantId, TransactionHistoryQuery query) {
         String where = """
                 WHERE reserve_state.original_transaction_id = :transactionId
@@ -780,6 +860,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 "action.action_time DESC, action.id DESC", query.pageNo(), query.pageSize(), ReserveItem.class);
     }
 
+    /**
+     * 构建规范化分页窗口并限制单页大小。
+     */
     private <T> PageResult<T> page(String columns, String from, String where,
                                    MapSqlParameterSource parameters, String orderBy,
                                    int pageNo, int pageSize, Class<T> type) {
@@ -793,6 +876,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return PageResult.of(total, pageNo, pageSize, rows);
     }
 
+    /**
+     * 校验并规范化批次查询条件。
+     */
     private BatchQuery normalizeBatchQuery(BatchQuery request) {
         BatchQuery query = request == null ? new BatchQuery() : request;
         normalizeRangeAndPage(query.getBeginBusinessDate(), query.getEndBusinessDate(), query.getPageNo(), query.getPageSize(),
@@ -803,6 +889,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return query;
     }
 
+    /**
+     * 校验并规范化交易查询条件。
+     */
     private TransactionItemQuery normalizeTransactionQuery(TransactionItemQuery request) {
         TransactionItemQuery query = request == null ? new TransactionItemQuery() : request;
         normalizeRangeAndPage(query.getBeginBusinessDate(), query.getEndBusinessDate(), query.getPageNo(), query.getPageSize(),
@@ -818,6 +907,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return query;
     }
 
+    /**
+     * 校验并规范化交易组成项查询条件。
+     */
     private TransactionComponentQuery normalizeTransactionComponentQuery(String settlementBatchNo,
                                                                           String transactionId,
                                                                           Integer pageNo,
@@ -832,6 +924,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 page.pageNo(), page.pageSize());
     }
 
+    /**
+     * 校验并规范化保证金查询条件。
+     */
     private ReserveItemQuery normalizeReserveQuery(ReserveItemQuery request) {
         ReserveItemQuery query = request == null ? new ReserveItemQuery() : request;
         normalizeRangeAndPage(query.getBeginBusinessDate(), query.getEndBusinessDate(), query.getPageNo(), query.getPageSize(),
@@ -849,6 +944,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return query;
     }
 
+    /**
+     * 追加交易组件存在性过滤，并绑定认证商户范围。
+     */
     private void appendTransactionExistsFilter(StringBuilder where, TransactionItemQuery query) {
         if (query.getPaymentType() == null && query.getPaymentMethod() == null
                 && query.getTransactionType() == null && query.getFeeCategory() == null) {
@@ -871,6 +969,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         where.append(" )\n");
     }
 
+    /**
+     * 校验可选业务日期区间完整且未超过最大查询跨度。
+     */
     private void validateOptionalDateRange(LocalDate begin, LocalDate end) {
         if ((begin == null) != (end == null)
                 || begin != null && (begin.isAfter(end)
@@ -879,6 +980,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         }
     }
 
+    /**
+     * 校验并规范化交易历史查询条件。
+     */
     private TransactionHistoryQuery normalizeTransactionHistoryQuery(String transactionId,
                                                                       LocalDateTime transactionDateTime,
                                                                       Integer pageNo,
@@ -896,6 +1000,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 normalizedTransactionId, transactionDateTime, normalizedPageNo, normalizedPageSize);
     }
 
+    /**
+     * 校验并规范化分页。
+     */
     private PageWindow normalizePage(Integer pageNo, Integer pageSize) {
         int normalizedPageNo = pageNo == null ? 1 : pageNo;
         int normalizedPageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
@@ -905,6 +1012,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return new PageWindow(normalizedPageNo, normalizedPageSize);
     }
 
+    /**
+     * 校验并规范化平台交易号与精确分片时间。
+     */
     private TransactionIdentityQuery normalizeTransactionIdentity(String transactionId,
                                                                     LocalDateTime transactionDateTime) {
         String normalizedTransactionId = optionalText(transactionId, 64);
@@ -937,6 +1047,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         pageSizeSetter.accept(normalizedPageSize);
     }
 
+    /**
+     * 校验可选交易时间区间完整且未超过最大查询跨度。
+     */
     private void validateOptionalTimeRange(LocalDateTime begin, LocalDateTime end) {
         if ((begin == null) != (end == null)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -946,11 +1059,17 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         }
     }
 
+    /**
+     * 构建结算查询共用参数。
+     */
     private MapSqlParameterSource commonParameters(String merchantId, LocalDate begin, LocalDate end) {
         return new MapSqlParameterSource().addValue("merchantId", merchantId)
                 .addValue("beginDate", begin).addValue("endDate", end);
     }
 
+    /**
+     * 构建结算交易历史查询参数。
+     */
     private MapSqlParameterSource transactionHistoryParameters(String merchantId,
                                                                 TransactionHistoryQuery query) {
         return new MapSqlParameterSource()
@@ -959,18 +1078,27 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 .addValue("transactionDateTime", query.transactionDateTime());
     }
 
+    /**
+     * 读取并规范化认证商户号，缺失时拒绝查询。
+     */
     private String requireMerchantId(String value) {
         String merchantId = optionalText(value, 64);
         if (merchantId == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         return merchantId;
     }
 
+    /**
+     * 读取并校验必填结算批次号。
+     */
     private String requireBatchNo(String value) {
         String batchNo = optionalBatchNo(value);
         if (batchNo == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         return batchNo;
     }
 
+    /**
+     * 校验结算批次属于当前认证商户。
+     */
     private void requireAccessibleBatch(String merchantId, String batchNo) {
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -986,6 +1114,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         }
     }
 
+    /**
+     * 规范化可选结算批次号并校验编码格式。
+     */
     private String optionalBatchNo(String value) {
         String batchNo = optionalText(value, 32);
         if (batchNo != null && !batchNo.matches("SB\\d{8}-\\d{8}")) {
@@ -994,6 +1125,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return batchNo;
     }
 
+    /**
+     * 规范化可选币种。
+     */
     private String optionalCurrency(String value) {
         String currency = optionalText(value, 3);
         if (currency == null) return null;
@@ -1002,6 +1136,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return currency;
     }
 
+    /**
+     * 规范化可选枚举。
+     */
     private String optionalEnum(String value, Set<String> values) {
         String normalized = optionalText(value, 32);
         if (normalized == null) return null;
@@ -1010,6 +1147,9 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return normalized;
     }
 
+    /**
+     * 规范化可选文本。
+     */
     private String optionalText(String value, int maxLength) {
         if (!StringUtils.hasText(value)) return null;
         String normalized = value.trim();
@@ -1017,22 +1157,34 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return normalized;
     }
 
+    /**
+     * 结算交易历史查询的商户隔离与分页参数。
+     */
     private record TransactionHistoryQuery(String transactionId,
                                            LocalDateTime transactionDateTime,
                                            int pageNo,
                                            int pageSize) {
     }
 
+    /**
+     * 结算交易详情使用的平台交易身份。
+     */
     private record TransactionIdentityQuery(String transactionId,
                                             LocalDateTime transactionDateTime) {
     }
 
+    /**
+     * 结算交易组成项查询条件。
+     */
     private record TransactionComponentQuery(String settlementBatchNo,
                                              String transactionId,
                                              int pageNo,
                                              int pageSize) {
     }
 
+    /**
+     * 数据库分页查询使用的偏移量和行数。
+     */
     private record PageWindow(int pageNo, int pageSize) {
     }
 }

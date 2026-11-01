@@ -8,19 +8,15 @@ import org.springframework.stereotype.Service;
 import java.time.YearMonth;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HolidayCalendarCachePolicy
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 结算节假日月视图缓存读取策略，在可靠失效窗口或 Redis 状态未知时回源主库
- * @status : create
+ * 结算节假日月视图缓存读取策略，在可靠失效窗口或 Redis 状态未知时回源主库
  */
 @Slf4j
 @Service
 public class HolidayCalendarCachePolicy {
 
-    /** 永久缓存失效门禁。 */
+    /**
+     * 永久缓存失效门禁。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
     /**
@@ -61,8 +57,8 @@ public class HolidayCalendarCachePolicy {
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: HOLIDAY_CALENDAR_CACHE_GUARD_CHECK_FAILED "
-                            + "businessKey: {} exceptionType: {}",
+                    "节假日日历缓存保护检查失败, event: HOLIDAY_CALENDAR_CACHE_GUARD_CHECK_FAILED, "
+                            + "businessKey: {}, exceptionType: {}",
                     businessKey,
                     exception.getClass().getSimpleName()
             );

@@ -8,13 +8,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthAccountDTO
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 登录账号基础响应
- * @status : create
+ * 登录账号基础响应
  */
 @Data
 public class AuthAccountDTO implements Serializable {

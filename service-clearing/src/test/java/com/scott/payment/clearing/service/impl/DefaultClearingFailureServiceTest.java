@@ -36,13 +36,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingFailureServiceTest
- * @date : 2026-08-26 16:00
- * @email : scott_x@163.com
- * @description : 验证受控清分失败在独立事务中进入等待、失败或人工复核，并原子写入绝对定时重试 Outbox。
- * @status : create
+ * 验证受控清分失败在独立事务中进入等待、失败或人工复核，并原子写入绝对定时重试 Outbox。
  */
 class DefaultClearingFailureServiceTest {
 

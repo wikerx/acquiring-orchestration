@@ -9,13 +9,7 @@ import java.lang.reflect.Method;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorOnlineControllerContractTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 在线用户查询权限和强制下线审计注解契约测试。
- * @status : create
+ * 在线用户查询权限和强制下线审计注解契约测试。
  */
 class MonitorOnlineControllerContractTest {
 

@@ -5,16 +5,13 @@ import org.springframework.util.StringUtils;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EmailTemplateCacheKey
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 已启用邮件模板缓存业务键规范化工具，统一模板编码大小写与语言组合格式
- * @status : create
+ * 已启用邮件模板缓存业务键规范化工具，统一模板编码大小写与语言组合格式
  */
 public final class EmailTemplateCacheKey {
 
+    /**
+     * 禁止实例化邮件模板缓存键工具类。
+     */
     private EmailTemplateCacheKey() {
     }
 

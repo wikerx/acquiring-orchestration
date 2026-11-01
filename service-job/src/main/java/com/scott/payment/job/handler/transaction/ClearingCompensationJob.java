@@ -23,79 +23,49 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingCompensationJob
- * @date : 2026-09-01 22:30
- * @email : scott_x@163.com
- * @description : 按单季度复合游标分页触发清分补偿；Job 只限制范围和页数，不访问交易库、不覆盖清分终态也不依赖业务开关。
- * @status : update
+ * 按单季度复合游标分页触发清分补偿；Job 只限制范围和页数，不访问交易库、不覆盖清分终态也不依赖业务开关。
  */
 @Component
 public class ClearingCompensationJob implements JobHandler {
 
     /**
-     * 任务编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 清分补偿任务编码，用于任务配置和运行记录关联。
      */
     public static final String JOB_CODE = "CLEARING_COMPENSATION";
+
     /**
-     * {@code HANDLER_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 清分补偿处理器编码，用于调度中心定位本处理器。
      */
     public static final String HANDLER_CODE = "clearingCompensation";
-    /**
-     * {@code DEFAULT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int DEFAULT_LIMIT = 200;
-    /**
-     * {@code MAX_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int MAX_LIMIT = 1000;
-    /**
-     * {@code DEFAULT_MAX_PAGES}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int DEFAULT_MAX_PAGES = 20;
-    /**
-     * {@code MAX_PAGES}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int MAX_PAGES = 100;
     private static final Set<String> MODES = Set.of("DRY_RUN", "SHADOW_WRITE");
 
     private final ClearingInternalClient client;
     private final Clock clock;
 
+    /**
+     * 创建清分补偿任务，并使用 UTC 系统时钟计算默认扫描窗口。
+     *
+     * @param client 清分服务内部客户端
+     */
     @Autowired
     public ClearingCompensationJob(ClearingInternalClient client) {
         this(client, Clock.systemUTC());
     }
 
+    /**
+     * 创建可注入时钟的清分补偿任务，供时间边界测试稳定复现。
+     *
+     * @param client 清分服务内部客户端
+     * @param clock  默认扫描窗口使用的时钟
+     */
     ClearingCompensationJob(ClearingInternalClient client, Clock clock) {
         this.client = client;
         this.clock = clock;
@@ -178,7 +148,9 @@ public class ClearingCompensationJob implements JobHandler {
                 + ", writes=" + writes + ", truncated=" + hasMore, result);
     }
 
-    /** 将空模式收敛为 DRY_RUN，并拒绝任何未显式支持的写入模式。 */
+    /**
+     * 将空模式收敛为 DRY_RUN，并拒绝任何未显式支持的写入模式。
+     */
     private String normalizeMode(String value) {
         String normalized = StringUtils.hasText(value)
                 ? value.trim().toUpperCase(Locale.ROOT) : "DRY_RUN";
@@ -189,6 +161,15 @@ public class ClearingCompensationJob implements JobHandler {
         return normalized;
     }
 
+    /**
+     * 规范化分页参数，并拒绝超出单次任务处理上限的取值。
+     *
+     * @param value        请求值
+     * @param defaultValue 未提供时使用的默认值
+     * @param max          允许的最大值
+     * @param field        参数名称
+     * @return 经过边界校验的正整数
+     */
     private int normalize(Integer value, int defaultValue, int max, String field) {
         int normalized = value == null ? defaultValue : value;
         if (normalized < 1 || normalized > max) {
@@ -198,7 +179,9 @@ public class ClearingCompensationJob implements JobHandler {
         return normalized;
     }
 
-    /** 校验左闭右开时间范围有效且不跨物理季度，避免跨分表扫描。 */
+    /**
+     * 校验左闭右开时间范围有效且不跨物理季度，避免跨分表扫描。
+     */
     private void validateRange(LocalDateTime begin, LocalDateTime end) {
         if (begin == null || end == null || !begin.isBefore(end)
                 || !quarterStart(begin).equals(quarterStart(end.minusNanos(1)))) {
@@ -207,11 +190,24 @@ public class ClearingCompensationJob implements JobHandler {
         }
     }
 
+    /**
+     * 计算给定时刻所在自然季度的起始时刻。
+     *
+     * @param value 待定位的时刻
+     * @return 所在季度第一天零点
+     */
     private LocalDateTime quarterStart(LocalDateTime value) {
         int month = ((value.getMonthValue() - 1) / 3) * 3 + 1;
         return LocalDateTime.of(value.getYear(), Month.of(month), 1, 0, 0);
     }
 
+    /**
+     * 返回两个时刻中较晚的一个，避免默认扫描窗口越过当前季度边界。
+     *
+     * @param left  第一个时刻
+     * @param right 第二个时刻
+     * @return 较晚时刻
+     */
     private LocalDateTime later(LocalDateTime left, LocalDateTime right) {
         return left.isAfter(right) ? left : right;
     }

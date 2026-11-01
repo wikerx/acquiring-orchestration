@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysJobTaskDO
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 系统任务任务数据对象
- * @status : create
+ * 系统调度任务持久化对象。
  */
 @Data
 @TableName("sys_job_task")

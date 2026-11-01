@@ -19,20 +19,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConversionPreviewCalculatorTest
- * @date : 2026-08-25 19:40
- * @email : scott_x@163.com
- * @description : 验证后台预览可显式使用汇率统一求值跨币种费用，而原清分结果仍保持待结算汇率状态。
- * @status : create
+ * 验证后台预览可显式使用汇率统一求值跨币种费用，而原清分结果仍保持待结算汇率状态。
  */
 class FeeConversionPreviewCalculatorTest {
 
-    /** Admin 预览转换标签币种百分比组件后应用 USD 限额，不修改清分组件事实。 */
+    /**
+     * Admin 预览转换标签币种百分比组件后应用 USD 限额，不修改清分组件事实。
+     */
     @Test
     void shouldEvaluateCrossCurrencyFeeForAdminPreviewOnly() {
-        System.out.println("结算预览：验证4.60 EUR加1 USD换算为6.06 USD后应用5 USD上限");
         Money labelAmount = amount("200", "EUR", 2);
         FeeRuleSnapshot rule = new FeeRuleSnapshot(10L, FeeMode.STANDARD, new BigDecimal("2.3"),
                 amount("1", "USD", 2), amount("1.5", "USD", 2), amount("5", "USD", 2),
@@ -51,10 +46,11 @@ class FeeConversionPreviewCalculatorTest {
         assertThat(preview.appliedLimit()).isEqualTo(MAXIMUM);
     }
 
-    /** 标签币种百分比组件转换为 USD 预览时，必须显式提供标签币种到 USD 的直接汇率。 */
+    /**
+     * 标签币种百分比组件转换为 USD 预览时，必须显式提供标签币种到 USD 的直接汇率。
+     */
     @Test
     void shouldRejectPreviewWithoutLabelToUsdRate() {
-        System.out.println("费用预览汇率：验证EUR百分比费用缺少EUR到USD直接汇率时拒绝求值");
         Money labelAmount = amount("100", "EUR", 2);
         FeeRuleSnapshot rule = new FeeRuleSnapshot(11L, FeeMode.STANDARD, BigDecimal.ONE,
                 amount("1", "USD", 2), null, null,

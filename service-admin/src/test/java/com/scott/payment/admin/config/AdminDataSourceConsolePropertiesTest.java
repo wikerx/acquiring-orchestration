@@ -10,13 +10,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDataSourceConsolePropertiesTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 数据源外部控制台 Spring Boot 配置绑定测试。
- * @status : create
+ * 数据源外部控制台 Spring Boot 配置绑定测试。
  */
 class AdminDataSourceConsolePropertiesTest {
 

@@ -1,28 +1,29 @@
 package com.scott.payment.openapi.api.rest.payment.v1;
 
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.openapi.result.OpenApiResponseFactory;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPaymentResponseFactory
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Builds the OpenAPI transport envelope while transaction results remain inside encrypted data.
- * @status : create
+ * 支付接口的 OpenAPI 响应适配器。
+ *
+ * <p>适配器只构造请求成功的外层协议信封，支付结果继续由加密 data 内的交易字段表达。</p>
  */
 public final class OpenApiPaymentResponseFactory {
 
+    /**
+     * 支付响应适配器只提供静态方法，不允许实例化。
+     */
     private OpenApiPaymentResponseFactory() {
     }
 
     /**
-     * 将支付核心内部结果转换为 OpenAPI 响应模型，并保持商户可见状态语义一致。
-     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
-     * @return 符合 OpenAPI 契约的支付响应
+     * 将已经完成交易结果投影的支付响应包装为 OpenAPI 请求成功信封。
+     *
+     * @param response 支付业务响应，交易结果由对象内部字段表达
+     * @return 外层固定为请求处理成功的 OpenAPI 响应
      */
     public static CommonResult<PaymentCreateVO> from(PaymentCreateVO response) {
-        return CommonResult.success(response);
+        return OpenApiResponseFactory.success(response);
     }
 }

@@ -44,13 +44,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingCalculationServiceTest
- * @date : 2026-08-26 09:25
- * @email : scott_x@163.com
- * @description : 验证清分编排保持标签币种百分比、USD固定费和上下限、独立标签币种保证金的业务边界。
- * @status : create
+ * 验证清分编排保持标签币种百分比、USD固定费和上下限、独立标签币种保证金的业务边界。
  */
 class DefaultClearingCalculationServiceTest {
 
@@ -463,7 +457,9 @@ class DefaultClearingCalculationServiceTest {
         assertThat(result.required()).isFalse();
     }
 
-    /** 授权类动作不产生应结本金或保证金，但仍可按明确配置收取动作手续费。 */
+    /**
+     * 授权类动作不产生应结本金或保证金，但仍可按明确配置收取动作手续费。
+     */
     @Test
     void calculateShouldChargeConfiguredAuthorizationFeesWithoutPrincipal() {
         for (String transactionType : List.of(
@@ -479,7 +475,9 @@ class DefaultClearingCalculationServiceTest {
         }
     }
 
-    /** 请款和拒付申诉形成贷记本金，退款和拒付形成借记本金，均使用动作自身批准金额。 */
+    /**
+     * 请款和拒付申诉形成贷记本金，退款和拒付形成借记本金，均使用动作自身批准金额。
+     */
     @Test
     void calculateShouldClassifySettlementBearingActionPrincipalDirection() {
         for (String transactionType : List.of("CAPTURE", "PRE_AUTH_COMPLETION", "REPRESENTMENT")) {
@@ -496,7 +494,9 @@ class DefaultClearingCalculationServiceTest {
         }
     }
 
-    /** 撤销成功不形成应结本金；没有明确撤销收费规则时清分结果为不需要清分。 */
+    /**
+     * 撤销成功不形成应结本金；没有明确撤销收费规则时清分结果为不需要清分。
+     */
     @Test
     void calculateShouldLeaveVoidWithoutFinancialFactsWhenNoRuleMatches() {
         ClearingCalculationResult result = service.calculate(commandForTransactionType("VOID", "UNMATCHED"));

@@ -16,26 +16,26 @@ import java.util.List;
 import java.util.Properties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSmtpEmailSender
- * @date : 2026-08-02 23:40
- * @email : scott_x@163.com
- * @description : Admin SMTP 外部系统适配器，只发送冻结记录，不负责投递状态流转或重试决策
- * @status : create
+ * Admin SMTP 外部系统适配器，只发送冻结记录，不负责投递状态流转或重试决策
  */
 @Component
 public class AdminSmtpEmailSender {
 
-    /** SMTP 密码解密组件，运行时密钥缺失时拒绝发送。 */
+    /**
+     * SMTP 密码解密组件，运行时密钥缺失时拒绝发送。
+     */
     private final EmailPayloadCrypto payloadCrypto;
 
-    /** 创建 Admin SMTP 适配器。 */
+    /**
+     * 创建 Admin SMTP 适配器。
+     */
     public AdminSmtpEmailSender(EmailPayloadCrypto payloadCrypto) {
         this.payloadCrypto = payloadCrypto;
     }
 
-    /** 将已解密正文发送到记录冻结的收件人列表。 */
+    /**
+     * 将已解密正文发送到记录冻结的收件人列表。
+     */
     public void send(EmailAccountDO account, EmailSendRecordDO record, String content, boolean html) {
         try {
             JavaMailSenderImpl sender = buildMailSender(account);
@@ -62,7 +62,9 @@ public class AdminSmtpEmailSender {
         }
     }
 
-    /** 根据冻结账户配置创建单次使用的 SMTP 客户端。 */
+    /**
+     * 根据冻结账户配置创建单次使用的 SMTP 客户端。
+     */
     private JavaMailSenderImpl buildMailSender(EmailAccountDO account) {
         JavaMailSenderImpl sender = new JavaMailSenderImpl();
         sender.setHost(account.getSmtpHost());
@@ -85,7 +87,9 @@ public class AdminSmtpEmailSender {
         return sender;
     }
 
-    /** 将数据库 JSON 地址数组解析为 JavaMail 接收的字符串数组。 */
+    /**
+     * 将数据库 JSON 地址数组解析为 JavaMail 接收的字符串数组。
+     */
     private String[] parseEmailArray(String value) {
         if (!StringUtils.hasText(value)) {
             return new String[0];

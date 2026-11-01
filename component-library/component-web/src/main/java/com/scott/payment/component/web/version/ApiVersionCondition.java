@@ -7,13 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiVersionCondition
- * @date : 2026-05-28 18:16
- * @email : scott_x@163.com
- * @description : REST API 版本匹配条件
- * @status : create
+ * REST API 版本匹配条件
  */
 public class ApiVersionCondition implements RequestCondition<ApiVersionCondition> {
 

@@ -10,13 +10,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationalMetricsTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证清分指标只使用低基数业务结果，并按实际数量累计补偿扫描。
- * @status : create
+ * 验证清分指标只使用低基数业务结果，并按实际数量累计补偿扫描。
  */
 class ClearingOperationalMetricsTest {
 

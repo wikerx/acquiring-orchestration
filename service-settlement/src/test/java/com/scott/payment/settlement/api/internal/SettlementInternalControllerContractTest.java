@@ -18,13 +18,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalControllerContractTest
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证结算内部命令接口路径、HTTP 方法、操作审计和参数校验契约
- * @status : create
+ * 验证结算内部命令接口路径、HTTP 方法、操作审计和参数校验契约
  */
 class SettlementInternalControllerContractTest {
 

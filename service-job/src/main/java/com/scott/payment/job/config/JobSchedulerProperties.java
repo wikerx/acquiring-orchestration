@@ -5,13 +5,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerProperties
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务调度配置属性
- * @status : create
+ * 任务调度配置属性
  */
 @Data
 @ConfigurationProperties(prefix = "job.scheduler")

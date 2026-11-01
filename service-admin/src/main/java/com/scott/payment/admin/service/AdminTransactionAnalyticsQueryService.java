@@ -8,13 +8,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.Ove
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsResponse;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionAnalyticsQueryService
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 管理端交易分析只读服务契约，负责按统一首笔交易口径查询总览和商户表现，不处理 HTTP 或权限校验。
- * @status : create
+ * 管理端交易分析只读服务契约，负责按统一首笔交易口径查询总览和商户表现，不处理 HTTP 或权限校验。
  */
 public interface AdminTransactionAnalyticsQueryService {
 

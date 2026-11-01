@@ -6,13 +6,7 @@ import java.io.Serializable;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestHeaderDTO
- * @date : 2026-05-28 17:48
- * @email : scott_x@163.com
- * @description : openAPI请求头请求模型，位于 商户开放接口服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
- * @status : create
+ * 统一安全链路验证后的商户请求头上下文，业务层只能读取该可信对象。
  */
 @Data
 public class OpenApiRequestHeaderDTO implements Serializable {
@@ -21,11 +15,6 @@ public class OpenApiRequestHeaderDTO implements Serializable {
      * 序列化版本号，用于保证请求头上下文对象在链路传递时的反序列化兼容性。
      */
     private static final long serialVersionUID = 1L;
-
-    /**
-     * 原始 Authorization 请求头，默认承载商户按 HS256 生成的 JWT token。
-     */
-    private String authorization;
 
     /**
      * JWT Payload 中的 merchantId，代表支付平台为商户分配的唯一商户号。

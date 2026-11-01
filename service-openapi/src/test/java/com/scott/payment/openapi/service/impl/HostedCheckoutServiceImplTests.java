@@ -1,20 +1,22 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.HostedCheckoutProperties;
@@ -34,6 +36,7 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -48,24 +51,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutServiceImplTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout OpenAPI 服务测试，覆盖商户绑定、Token 不透明性、金额币种和页面状态映射。
- * @status : create
+ * Hosted Checkout OpenAPI 服务测试，覆盖商户绑定、Token 不透明性、金额币种和页面状态映射。
  */
 @Slf4j
 class HostedCheckoutServiceImplTests {
 
-    /** 单元测试 Token 摘要盐值，不得复用于运行环境。 */
+    /**
+     * 单元测试 Token 摘要盐值，不得复用于运行环境。
+     */
     private static final String TOKEN_PEPPER = "unit-test-hosted-checkout-token-pepper";
 
-    /** 模拟浏览器持有的不透明原始 Token，用于验证日志与下游请求不泄露明文。 */
+    /**
+     * 模拟浏览器持有的不透明原始 Token，用于验证日志与下游请求不泄露明文。
+     */
     private static final String RAW_OPAQUE_TOKEN = "raw-browser-token-123";
 
-    /** 支付服务固定响应时间，用于校验浏览器倒计时校准字段的时区转换。 */
+    /**
+     * 支付服务固定响应时间，用于校验浏览器倒计时校准字段的时区转换。
+     */
     private static final LocalDateTime CHECKOUT_SERVER_TIME = LocalDateTime.of(2026, 8, 20, 21, 30);
 
     @AfterEach
@@ -103,7 +106,13 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(captured.getRetryAllowed()).isEqualTo(1);
         assertThat(captured.getMerchantDisplayName()).isEqualTo("Demo Sub Merchant");
-        assertThat(captured.getAllowedPaymentMethods()).isEmpty();
+        assertThat(captured.getAllowedPaymentMethods()).singleElement()
+                .satisfies(method -> {
+                    assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD");
+                    assertThat(method.getChannelCode()).isNull();
+                    assertThat(method.getBrands()).isEmpty();
+                    assertThat(method.getThreeDsMode()).isNull();
+                });
         assertThat(captured.getSubMerchantInfoJson()).contains("Demo Sub Merchant");
         assertThat(captured.getPayerInfoJson()).contains("203.0.113.9");
         assertThat(captured.getBillingInfoJson()).contains("billing@example.com");
@@ -117,14 +126,19 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
-    void shouldLeavePaymentMethodSelectionToPlatformConfiguration() {
+    void shouldLimitHostedCheckoutV1ToBankCardWithoutPinningAChannel() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
         bindRequestContext("200001");
 
         checkoutService.createSession("encrypted-request-body", buildCreateRequest("200001"));
 
-        assertThat(paymentInternalClient.sessionCreateRequest.getAllowedPaymentMethods()).isEmpty();
+        assertThat(paymentInternalClient.sessionCreateRequest.getAllowedPaymentMethods()).singleElement()
+                .satisfies(method -> {
+                    assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD");
+                    assertThat(method.getChannelCode()).isNull();
+                    assertThat(method.getBrands()).isEmpty();
+                });
         assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(paymentInternalClient.sessionCreateRequest.getRetryAllowed()).isEqualTo(1);
     }
@@ -138,7 +152,7 @@ class HostedCheckoutServiceImplTests {
         assertThatThrownBy(() -> checkoutService.createSession("encrypted-request-body", buildCreateRequest("200002")))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.MERCHANT_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.MERCHANT_INVALID.getCode());
         assertThat(paymentInternalClient.sessionCreateRequest).isNull();
     }
 
@@ -153,7 +167,7 @@ class HostedCheckoutServiceImplTests {
         assertThatThrownBy(() -> checkoutService.createSession("encrypted-request-body", requestDTO))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.PARAM_INVALID.getCode());
         assertThat(paymentInternalClient.sessionCreateRequest).isNull();
     }
 
@@ -249,7 +263,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCardDataEnvelope().getKeyId()).isEqualTo("checkout-card-v1");
         assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
-        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
+        assertThat(captured.getPayerIp()).isEqualTo("198.51.100.11");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
         assertThat(captured.getBrowserInfoJson()).doesNotContain(RAW_OPAQUE_TOKEN);
         assertThat(captured.getBrowserInfoJson())
@@ -302,7 +316,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getAuthenticationDataJsonMasked()).doesNotContain("raw-cres-value", "raw-cavv-value");
         assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
-        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
+        assertThat(captured.getPayerIp()).isEqualTo("198.51.100.11");
         assertThat(captured.getBrowserInfoJson()).contains("\"language\":\"en-US\"");
     }
 
@@ -316,10 +330,12 @@ class HostedCheckoutServiceImplTests {
         properties.setTokenPepper(TOKEN_PEPPER);
         properties.setDefaultExpireMinutes(30);
         properties.setMaxExpireMinutes(120);
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("test");
         return new HostedCheckoutServiceImpl(
                 paymentInternalClient,
                 properties,
-                new HostedCheckoutUrlPolicy(),
+                new HostedCheckoutUrlPolicy(environment),
                 new StubSystemConfigService(checkoutFrontendBaseUrl),
                 new OpenApiRequestContext(),
                 new OpenApiKeyMaterialFactory(),
@@ -334,8 +350,10 @@ class HostedCheckoutServiceImplTests {
     private void bindRequestContext(String merchantId, String forwardedFor) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/rest/checkout/v1/session");
-        request.setRemoteAddr("198.51.100.11");
+        request.setRemoteAddr("10.0.0.20");
         request.addHeader("X-Forwarded-For", forwardedFor);
+        request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP,
+                "203.0.113.9, 10.0.0.1".equals(forwardedFor) ? "198.51.100.11" : forwardedFor);
         request.addHeader("Origin", "https://merchant.example");
         request.addHeader("Referer", "https://merchant.example/order");
         request.addHeader("User-Agent", "JUnit");
@@ -345,6 +363,8 @@ class HostedCheckoutServiceImplTests {
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, "v1");
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, "checkout");
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
 
@@ -551,14 +571,18 @@ class HostedCheckoutServiceImplTests {
 
     private static class StubSystemConfigService implements OpenApiSystemConfigService {
 
-        /** 测试用收银台前端根地址。 */
+        /**
+         * 测试用收银台前端根地址。
+         */
         private final String checkoutFrontendBaseUrl;
 
         private StubSystemConfigService(String checkoutFrontendBaseUrl) {
             this.checkoutFrontendBaseUrl = checkoutFrontendBaseUrl;
         }
 
-        /** 对所有受测配置键返回固定前端地址，使测试不依赖数据库或配置中心。 */
+        /**
+         * 对所有受测配置键返回固定前端地址，使测试不依赖数据库或配置中心。
+         */
         @Override
         public String requiredEnabledValue(String configKey) {
             return checkoutFrontendBaseUrl;
@@ -567,86 +591,118 @@ class HostedCheckoutServiceImplTests {
 
     private static class CapturingCheckoutClient implements PaymentInternalClient {
 
-        /** 捕获的会话创建请求，用于断言商户、订单、金额和回调配置。 */
+        /**
+         * 捕获的会话创建请求，用于断言商户、订单、金额和回调配置。
+         */
         private PaymentCheckoutClientDTOs.SessionCreateRequest sessionCreateRequest;
 
-        /** 捕获的会话查询请求，用于断言不透明 Token 的下游传递方式。 */
+        /**
+         * 捕获的会话查询请求，用于断言不透明 Token 的下游传递方式。
+         */
         private PaymentCheckoutClientDTOs.SessionQueryRequest sessionQueryRequest;
 
-        /** 捕获的支付提交请求，用于断言卡数据和 3DS 参数的最小传递范围。 */
+        /**
+         * 捕获的支付提交请求，用于断言卡数据和 3DS 参数的最小传递范围。
+         */
         private PaymentCheckoutClientDTOs.PaymentSubmitRequest paymentSubmitRequest;
 
-        /** 捕获的 3DS 回跳请求，用于断言令牌摘要、敏感载荷脱敏和卡密文续传。 */
+        /**
+         * 捕获的 3DS 回跳请求，用于断言令牌摘要、敏感载荷脱敏和卡密文续传。
+         */
         private PaymentCheckoutClientDTOs.ThreeDsReturnRequest threeDsReturnRequest;
 
-        /** 本测试桩不覆盖授权交易，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖授权交易，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖普通支付交易，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖普通支付交易，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖预授权交易，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖预授权交易，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖增量授权，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖增量授权，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖请款，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖请款，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖预授权完成，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖预授权完成，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖退款，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖退款，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖撤销，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖撤销，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖交易查询，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖交易查询，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖渠道回调落库，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖渠道回调落库，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
-        public TransactionChannelCallbackClientResponseDTO recordChannelCallback(
+        public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
                 TransactionChannelCallbackClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 本测试桩不覆盖商户响应日志更新，调用即表示 Hosted Checkout 测试路径越界。 */
+        /**
+         * 本测试桩不覆盖商户响应日志更新，调用即表示 Hosted Checkout 测试路径越界。
+         */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 捕获会话创建请求并返回确定性 CREATED 响应。 */
+        /**
+         * 捕获会话创建请求并返回确定性 CREATED 响应。
+         */
         @Override
         public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
@@ -661,7 +717,9 @@ class HostedCheckoutServiceImplTests {
             return responseDTO;
         }
 
-        /** 捕获会话查询请求并返回可支付页面所需的最小商户和订单视图。 */
+        /**
+         * 捕获会话查询请求并返回可支付页面所需的最小商户和订单视图。
+         */
         @Override
         public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
@@ -694,7 +752,9 @@ class HostedCheckoutServiceImplTests {
             return responseDTO;
         }
 
-        /** 捕获支付提交请求并返回 PROCESSING，防止测试把受理误判为成功。 */
+        /**
+         * 捕获支付提交请求并返回 PROCESSING，防止测试把受理误判为成功。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
                 PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
@@ -706,14 +766,18 @@ class HostedCheckoutServiceImplTests {
             return responseDTO;
         }
 
-        /** 当前测试不覆盖轮询分支，调用即表示用例准备不完整。 */
+        /**
+         * 当前测试不覆盖轮询分支，调用即表示用例准备不完整。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
                 PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
 
-        /** 捕获 3DS 回跳请求并返回下一阶段动作，验证新 nonce 能透传到浏览器。 */
+        /**
+         * 捕获 3DS 回跳请求并返回下一阶段动作，验证新 nonce 能透传到浏览器。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
@@ -738,7 +802,9 @@ class HostedCheckoutServiceImplTests {
             return responseDTO;
         }
 
-        /** 当前测试不覆盖卡 BIN 解析，调用即表示用例准备不完整。 */
+        /**
+         * 当前测试不覆盖卡 BIN 解析，调用即表示用例准备不完整。
+         */
         @Override
         public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
                 PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {

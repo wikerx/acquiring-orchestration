@@ -10,13 +10,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementMenuSqlContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Merchant 交易结算与保证金结算菜单迁移契约，保护只读接口、路由及默认授权边界。
- * @status : create
+ * Merchant 交易结算与保证金结算菜单迁移契约，保护只读接口、路由及默认授权边界。
  */
 class MerchantSettlementMenuSqlContractTest {
 

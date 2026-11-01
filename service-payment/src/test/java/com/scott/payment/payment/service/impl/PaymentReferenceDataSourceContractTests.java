@@ -10,13 +10,7 @@ import java.lang.reflect.Method;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentReferenceDataSourceContractTests
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 支付 BIN 缓存失效后的数据库回源使用独立只读从库事务。
- * @status : create
+ * 支付 BIN 缓存失效后的数据库回源使用独立只读从库事务。
  */
 class PaymentReferenceDataSourceContractTests {
 

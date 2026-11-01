@@ -7,13 +7,7 @@ import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiErrorResponseSupport
- * @date : 2026-06-03 23:04
- * @email : scott_x@163.com
- * @description : 开放接口兜底错误响应辅助类
- * @status : create
+ * 开放接口兜底错误响应辅助类
  */
 final class OpenApiErrorResponseSupport {
 
@@ -27,6 +21,9 @@ final class OpenApiErrorResponseSupport {
      */
     private static final String HEADER_AUTHORIZATION = "authorization";
 
+    /**
+     * 禁止实例化 OpenAPI 错误响应投影工具类。
+     */
     private OpenApiErrorResponseSupport() {
     }
 

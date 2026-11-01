@@ -8,25 +8,21 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReserveAdjustmentService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 经双人复核的保证金标签币种差额调整边界；不读取汇率、不写商户余额。
- * @status : update
+ * 经双人复核的保证金标签币种差额调整边界；不读取汇率、不写商户余额。
  */
 public interface ReserveAdjustmentService {
 
-    /** 人工复核决定；只允许批准或拒绝，不能由调用方直接传入持久化终态。 */
+    /**
+     * 人工复核决定；只允许批准或拒绝，不能由调用方直接传入持久化终态。
+     */
     enum ReviewDecision {
         /**
-         * APPROVE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
+         * 复核通过并在同一事务生成保证金调整事实。
          */
         APPROVE,
+        /**
+         * 复核拒绝，申请终结且不生成任何资金事实。
+         */
         REJECT
     }
 

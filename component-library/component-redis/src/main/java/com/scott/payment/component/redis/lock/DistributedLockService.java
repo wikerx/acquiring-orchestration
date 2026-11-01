@@ -4,13 +4,7 @@ import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DistributedLockService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 分布式互斥锁统一入口，要求所有等待和租约都有明确边界。
- * @status : create
+ * 分布式互斥锁统一入口，要求所有等待和租约都有明确边界。
  */
 public interface DistributedLockService {
 

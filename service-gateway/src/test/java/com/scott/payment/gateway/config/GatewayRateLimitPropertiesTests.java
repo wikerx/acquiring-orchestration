@@ -8,7 +8,9 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 Gateway 限流配置在应用启动阶段拒绝非法资源边界。 */
+/**
+ * 验证 Gateway 限流配置在应用启动阶段拒绝非法资源边界。
+ */
 class GatewayRateLimitPropertiesTests {
 
     @Test

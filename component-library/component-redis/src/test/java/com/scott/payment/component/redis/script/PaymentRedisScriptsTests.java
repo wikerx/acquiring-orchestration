@@ -8,13 +8,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisScriptsTests
- * @date : 2026-07-30 09:41
- * @email : scott_x@163.com
- * @description : 验证组件 Lua 脚本能够按稳定版本从 classpath 加载并保持返回契约
- * @status : create
+ * 验证组件 Lua 脚本能够按稳定版本从 classpath 加载并保持返回契约
  */
 @Slf4j
 class PaymentRedisScriptsTests {
@@ -56,7 +50,9 @@ class PaymentRedisScriptsTests {
         log.info("MQ 去重 Lua 资源测试完成，结果: 原子双桶与容量保护语句均存在");
     }
 
-    /** Set 去重脚本必须原子完成成员写入和首次写入时的过期设置。 */
+    /**
+     * Set 去重脚本必须原子完成成员写入和首次写入时的过期设置。
+     */
     @Test
     void shouldLoadVersionedSetDedupAddScript() {
         var script = PaymentRedisScripts.setDedupAddV1();
@@ -85,7 +81,9 @@ class PaymentRedisScriptsTests {
         log.info("token 租约释放 Lua 资源测试完成，结果: 比较后删除契约存在");
     }
 
-    /** token 租约续期脚本只有在持有者一致时才能延长发布锁。 */
+    /**
+     * token 租约续期脚本只有在持有者一致时才能延长发布锁。
+     */
     @Test
     void shouldLoadVersionedTokenLeaseRenewScript() {
         var script = PaymentRedisScripts.tokenLeaseRenewV1();
@@ -129,7 +127,9 @@ class PaymentRedisScriptsTests {
         assertThat(script.getSha1()).matches("[0-9a-f]{40}");
     }
 
-    /** Card BIN 发布脚本必须按单个分片限制每个前缀字段的候选数量。 */
+    /**
+     * Card BIN 发布脚本必须按单个分片限制每个前缀字段的候选数量。
+     */
     @Test
     void shouldBoundCardBinPrefixCandidatesDuringPublication() {
         var script = PaymentRedisScripts.cardBinBucketAppendV1();

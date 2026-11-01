@@ -18,49 +18,22 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccessApprovalNotificationService
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 商户来源网址和 IP 白名单审批邮件服务，在审批事务提交后通知商户联系人，邮件异常不影响审批结果。
- * @status : create
+ * 商户来源网址和 IP 白名单审批邮件服务，在审批事务提交后通知商户联系人，邮件异常不影响审批结果。
  */
 @Slf4j
 @Service
 public class MerchantAccessApprovalNotificationService {
 
     /**
-     * 类型来源URL，用于区分 {@code MerchantAccessApprovalNotificationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户来源网址配置的审批类型编码。
      */
     public static final String TYPE_SOURCE_URL = "SOURCE_URL";
+
     /**
-     * {@code TYPE_IP_WHITELIST}，用于区分 {@code MerchantAccessApprovalNotificationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户 IP 白名单配置的审批类型编码。
      */
     public static final String TYPE_IP_WHITELIST = "IP_WHITELIST";
-    /**
-     * 场景常量，统一 {@code MerchantAccessApprovalNotificationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String SCENE = "MERCHANT_ACCESS_CONFIG_APPROVAL";
-    /**
-     * 时间格式化器常量，统一 {@code MerchantAccessApprovalNotificationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final AdminEmailService emailService;
@@ -102,6 +75,9 @@ public class MerchantAccessApprovalNotificationService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -109,6 +85,9 @@ public class MerchantAccessApprovalNotificationService {
         });
     }
 
+    /**
+     * 发送当前邮件任务并记录发送结果。
+     */
     private void send(BaseMerchantInfoDO merchant,
                       String configType,
                       String configValue,
@@ -144,11 +123,15 @@ public class MerchantAccessApprovalNotificationService {
             request.setVariables(variables);
             emailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("merchant access approval email failed, merchantId: {}, configType: {}, templateCode: {}, exceptionType: {}",
+            log.warn("商户访问配置审批通知发送失败, event: ADMIN_MERCHANT_ACCESS_NOTICE_FAILED, merchantId: {}, configType: {}, "
+                            + "templateCode: {}, exceptionType: {}",
                     merchant.getMerchantId(), configType, templateCode, exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 读取并校验邮件模板编码。
+     */
     private String templateCode(String configType, MerchantAccessApprovalStatus approvalStatus) {
         String prefix = TYPE_SOURCE_URL.equals(configType)
                 ? "MERCHANT_SOURCE_URL" : "MERCHANT_IP_WHITELIST";

@@ -22,13 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationRetryJob
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : 商户通知低频对账任务，驱动 service-data 将到期任务重新可靠入 MQ，所有兼容模式均禁止直接访问商户端点。
- * @status : create
+ * 商户通知低频对账任务，驱动 service-data 将到期任务重新可靠入 MQ，所有兼容模式均禁止直接访问商户端点。
  */
 @Component
 @Slf4j
@@ -44,17 +38,27 @@ public class MerchantNotificationRetryJob implements JobHandler {
      */
     public static final String HANDLER_CODE = "merchantNotificationRetry";
 
-    /** 单次季度扫描默认最多处理 5 条通知，限制补偿任务的外发影响范围。 */
+    /**
+     * 单次季度扫描默认最多处理 5 条通知，限制补偿任务的外发影响范围。
+     */
     private static final int DEFAULT_LIMIT = 5;
 
-    /** 单次季度扫描硬上限，避免误配置对积压通知进行大批量外发。 */
+    /**
+     * 单次季度扫描硬上限，避免误配置对积压通知进行大批量外发。
+     */
     private static final int MAX_LIMIT = 5;
 
-    /** 延迟 MQ 主链路模式。 */
+    /**
+     * 延迟 MQ 主链路模式。
+     */
     private static final String MODE_MQ = "MQ";
-    /** 兼容旧任务参数的显式季度补偿模式，内部接口仍只负责重新入 MQ。 */
+    /**
+     * 兼容旧任务参数的显式季度补偿模式，内部接口仍只负责重新入 MQ。
+     */
     private static final String MODE_JOB = "JOB";
-    /** 兼容旧任务参数的组合补偿模式，两条内部链路均只负责重新入 MQ。 */
+    /**
+     * 兼容旧任务参数的组合补偿模式，两条内部链路均只负责重新入 MQ。
+     */
     private static final String MODE_HYBRID = "HYBRID";
 
     /**
@@ -118,7 +122,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
         }
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
         long startNanos = System.nanoTime();
-        log.info("event: JOB_HANDLER_SCAN_START traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} limit: {}",
+        log.info("商户通知重试扫描开始, event: JOB_HANDLER_SCAN_START, traceId: {}, jobId: {}, handler: {}, runId: {}, shardIndex: {}, shardTotal: {}, paramsSummary: {}, scanRanges: {}, limit: {}",
                 context == null ? TraceContext.getTraceId() : context.getTraceId(),
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
@@ -136,7 +140,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 successCount = notify(transactionDateTime, request, limit);
             } catch (RuntimeException exception) {
                 failCount++;
-                log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED traceId: {} jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
+                log.warn("商户通知重试分片失败, event: JOB_HANDLER_SCAN_ITEM_FAILED, traceId: {}, jobId: {}, handler: {}, runId: {}, scanRange: {}, failureReason: {}",
                         context == null ? TraceContext.getTraceId() : context.getTraceId(),
                         context == null ? null : context.getJobId(),
                         HANDLER_CODE,
@@ -149,7 +153,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
             totalSuccessCount += safeSuccessCount;
             result.put(transactionDateTime.toString(), safeSuccessCount);
         }
-        log.info("event: JOB_HANDLER_SCAN_END traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+        log.info("商户通知重试扫描结束, event: JOB_HANDLER_SCAN_END, traceId: {}, jobId: {}, handler: {}, runId: {}, shardIndex: {}, shardTotal: {}, scanRanges: {}, scannedCount: {}, successCount: {}, failureCount: {}, skipCount: {}, failureReasons: {}, durationMs: {}",
                 context == null ? TraceContext.getTraceId() : context.getTraceId(),
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
@@ -166,7 +170,9 @@ public class MerchantNotificationRetryJob implements JobHandler {
         return JobExecuteResult.success("merchant notification retry finished, successCount=" + totalSuccessCount, result);
     }
 
-    /** 返回 MQ 对账需要的显式季度；空集合由 service-data 展开全部已发布节点。 */
+    /**
+     * 返回 MQ 对账需要的显式季度；空集合由 service-data 展开全部已发布节点。
+     */
     private List<LocalDateTime> requestedReconcileTimes(MerchantNotificationRetryRequest request) {
         if (request.getTransactionDateTimes() != null && !request.getTransactionDateTimes().isEmpty()) {
             return request.getTransactionDateTimes();
@@ -176,7 +182,9 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 : List.of(request.getTransactionDateTime());
     }
 
-    /** 按请求类型执行单笔精确补偿或季度有界扫描。 */
+    /**
+     * 按请求类型执行单笔精确补偿或季度有界扫描。
+     */
     private Integer notify(LocalDateTime transactionDateTime,
                            MerchantNotificationRetryRequest request,
                            int limit) {
@@ -252,7 +260,9 @@ public class MerchantNotificationRetryJob implements JobHandler {
         return Math.min(limit, MAX_LIMIT);
     }
 
-    /** 校验灰度模式，空值默认使用 MQ 主链路。 */
+    /**
+     * 校验灰度模式，空值默认使用 MQ 主链路。
+     */
     private String normalizeMode(String mode) {
         if (!StringUtils.hasText(mode)) {
             return MODE_MQ;

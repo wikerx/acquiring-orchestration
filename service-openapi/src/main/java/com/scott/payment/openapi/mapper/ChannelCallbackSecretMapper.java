@@ -5,13 +5,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackSecretMapper
- * @date : 2026-09-19 00:00
- * @email : scott_x@163.com
- * @description : 回调验签只读 Mapper，仅从 channel_mid_config 提取指定 MID 的 callbackSecret JSON 字段，不返回整段敏感元数据。
- * @status : create
+ * 回调验签只读 Mapper，仅从 channel_mid_config 提取指定 MID 的 callbackSecret JSON 字段，不返回整段敏感元数据。
  */
 @Mapper
 public interface ChannelCallbackSecretMapper {

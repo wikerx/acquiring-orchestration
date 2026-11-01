@@ -30,18 +30,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminRefundQueryServiceTests
- * @date : 2026-08-08 00:50
- * @email : scott_x@163.com
- * @description : 管理端退款本地查询测试，验证逻辑表 SQL、统一筛选条件和 ShardingSphere 普通读路由。
- * @status : create
+ * 管理端退款本地查询测试，验证逻辑表 SQL、统一筛选条件和 ShardingSphere 普通读路由。
  */
 @Slf4j
 class JdbcAdminRefundQueryServiceTests {
 
-    /** 退款分页和统计必须在 transaction 普通读作用域内使用同一组筛选条件。 */
+    /**
+     * 退款分页和统计必须在 transaction 普通读作用域内使用同一组筛选条件。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void searchShouldUseLogicalTablesAndReplicaEligibleReadScope() throws Exception {
@@ -86,7 +82,9 @@ class JdbcAdminRefundQueryServiceTests {
         log.info("结果：退款分页、状态统计和金额统计均在transaction普通读作用域执行");
     }
 
-    /** 非法金额范围必须在进入读作用域和访问数据库前失败。 */
+    /**
+     * 非法金额范围必须在进入读作用域和访问数据库前失败。
+     */
     @Test
     void searchShouldRejectInvalidAmountRangeBeforeDatabaseAccess() {
         log.info("用例：验证退款最小金额大于最大金额时拒绝访问数据库");
@@ -108,7 +106,9 @@ class JdbcAdminRefundQueryServiceTests {
         log.info("结果：非法金额范围在数据库访问前被拒绝");
     }
 
-    /** 退款详情首查必须绑定交易号和毫秒级真实分片时间。 */
+    /**
+     * 退款详情首查必须绑定交易号和毫秒级真实分片时间。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldBindExactTransactionShardTime() {
@@ -140,7 +140,9 @@ class JdbcAdminRefundQueryServiceTests {
         log.info("结果：退款详情使用精确毫秒分片时间且未执行范围扫描");
     }
 
-    /** 退款和撤销列表必须返回对应商户通知任务的当前状态。 */
+    /**
+     * 退款和撤销列表必须返回对应商户通知任务的当前状态。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void searchShouldExposeCurrentMerchantNotificationStatus() throws Exception {

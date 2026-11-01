@@ -5,13 +5,7 @@ import com.scott.payment.component.mq.message.BaseMqMessage;
 import java.time.Instant;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqProducer
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 消息发送服务接口
- * @status : create
+ * 消息发送服务接口
  */
 public interface MqProducer {
 

@@ -2,21 +2,29 @@ package com.scott.payment.gateway.controller;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayFallbackController
- * @date : 2026-05-29 23:35
- * @email : scott_x@163.com
- * @description : 网关兜底响应控制器，用于统一处理未命中路由的非法请求
- * @status : create
+ * 网关兜底响应控制器，用于统一处理未命中路由的非法请求
  */
 @RestController
 public class GatewayFallbackController {
+
+    /**
+     * 返回商户 OpenAPI 未命中已发布路由时的 V1.3 响应。
+     *
+     * @return HTTP 404 与 A3002；不泄露 Gateway 路由表或服务发现信息
+     */
+    @RequestMapping("/gateway/fallback/openapi-not-found")
+    public ResponseEntity<CommonResult<Void>> openApiNotFound() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(CommonResult.error(OpenApiResultCode.API_NOT_FOUND));
+    }
 
     /**
      * 返回未命中网关白名单路由的统一 JSON 响应。

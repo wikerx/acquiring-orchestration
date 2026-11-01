@@ -24,63 +24,21 @@ import java.util.Objects;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiMerchantKeyMaterialService
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : openAPI商户密钥材料服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * openAPI商户密钥材料服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public class OpenApiMerchantKeyMaterialService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code OpenApiMerchantKeyMaterialService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int NOT_DELETED = 0;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int ENABLED = 1;
-    /**
-     * 副本失效秒数常量，统一 {@code OpenApiMerchantKeyMaterialService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int COPY_EXPIRE_SECONDS = 60;
-    /**
-     * {@code JWT_ALGORITHM}常量，统一 {@code OpenApiMerchantKeyMaterialService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String JWT_ALGORITHM = "HS256";
-    /**
-     * 报文算法，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
-    /**
-     * 密钥版本格式化器，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final BaseMerchantInfoMapper merchantInfoMapper;
@@ -413,6 +371,11 @@ public class OpenApiMerchantKeyMaterialService {
         }
     }
 
+    /**
+     * 生成并原子覆盖商户响应 RSA 密钥对，私钥仅保存在服务端受控存储。
+     *
+     * @param merchantId 商户号
+     */
     private void rotateMerchantResponseKey(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial generated = keyMaterialFactory.generateMerchantResponseRsaKey(merchantId);
@@ -436,34 +399,75 @@ public class OpenApiMerchantKeyMaterialService {
         }
     }
 
+    /**
+     * 根据材料快照生成平台请求公钥下载文件。
+     *
+     * @param snapshot 商户完整密钥材料快照
+     * @param format 下载格式
+     * @return 公钥下载文件
+     */
     private OpenApiKeyDownloadFile platformPublicKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String publicKey = requireText(publicKey(snapshot.platformKey()), "平台请求公钥未配置");
         return keyExportService.platformPublicKeyFile(merchantId, publicKey, format);
     }
 
+    /**
+     * 根据材料快照生成平台请求私钥下载文件，仅供受控运维导出。
+     *
+     * @param snapshot 商户完整密钥材料快照
+     * @param format 下载格式
+     * @return 私钥下载文件
+     */
     private OpenApiKeyDownloadFile platformPrivateKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String privateKey = requireText(platformPrivateKey(snapshot.platformKey()), "平台请求私钥未配置");
         return keyExportService.platformPrivateKeyFile(merchantId, privateKey, format);
     }
 
+    /**
+     * 根据材料快照生成商户响应解密私钥下载文件。
+     *
+     * @param snapshot 商户完整密钥材料快照
+     * @param format 下载格式
+     * @return 商户响应私钥下载文件
+     */
     private OpenApiKeyDownloadFile merchantResponsePrivateKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String privateKey = requireText(privateKey(snapshot.responseKey()), "商户响应私钥未配置");
         return keyExportService.merchantResponsePrivateKeyFile(merchantId, privateKey, format);
     }
 
+    /**
+     * 根据材料快照生成商户响应公钥下载文件。
+     *
+     * @param snapshot 商户完整密钥材料快照
+     * @param format 下载格式
+     * @return 商户响应公钥下载文件
+     */
     private OpenApiKeyDownloadFile merchantResponsePublicKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String publicKey = requireText(responsePublicKey(snapshot.responseKey()), "商户响应公钥未配置");
         return keyExportService.merchantResponsePublicKeyFile(merchantId, publicKey, format);
     }
 
+    /**
+     * 生成包含配置模板和必要密钥文件的商户 SDK 接入包。
+     *
+     * @param snapshot 商户完整密钥材料快照
+     * @return ZIP 接入包
+     */
     private OpenApiKeyDownloadFile sdkKit(MaterialSnapshot snapshot) {
         return keyExportService.sdkKit(exportContext(snapshot));
     }
 
+    /**
+     * 按明确密钥类型返回允许复制的材料，复合轮换类型和完整接入包拒绝文本复制。
+     *
+     * @param snapshot 商户完整密钥材料快照
+     * @param keyType 请求的材料类型
+     * @return 允许复制的材料文本
+     */
     private String copyContent(MaterialSnapshot snapshot, OpenApiKeyType keyType) {
         return switch (keyType) {
             case JWT_KEY -> requireText(secret(snapshot.jwtKey()), "商户 JWT 密钥未配置");
@@ -479,6 +483,12 @@ public class OpenApiMerchantKeyMaterialService {
         };
     }
 
+    /**
+     * 从数据库材料快照构建商户接入导出上下文。
+     *
+     * @param snapshot 商户完整密钥材料快照
+     * @return 接入包导出上下文
+     */
     private OpenApiKeyExportContext exportContext(MaterialSnapshot snapshot) {
         BaseMerchantJwtKeyDO jwtKey = snapshot.jwtKey();
         return new OpenApiKeyExportContext(
@@ -491,6 +501,12 @@ public class OpenApiMerchantKeyMaterialService {
         );
     }
 
+    /**
+     * 将 JWT 密钥状态、算法、版本和不可逆指纹填入管理视图。
+     *
+     * @param vo 管理端密钥材料视图
+     * @param row 当前 JWT 密钥记录
+     */
     private void fillJwt(OpenApiMerchantKeyMaterialVO vo, BaseMerchantJwtKeyDO row) {
         if (row == null) {
             vo.setJwtKeyStatus("NOT_CONFIGURED");
@@ -503,6 +519,12 @@ public class OpenApiMerchantKeyMaterialService {
         vo.setJwtUpdatedTime(row.getGmtModified());
     }
 
+    /**
+     * 将平台请求加密密钥的非敏感元数据填入管理视图。
+     *
+     * @param vo 管理端密钥材料视图
+     * @param row 当前平台载荷密钥记录
+     */
     private void fillPlatform(OpenApiMerchantKeyMaterialVO vo, BasePlatformPayloadKeyDO row) {
         if (row == null) {
             vo.setPlatformPayloadKeyStatus("NOT_CONFIGURED");
@@ -515,6 +537,12 @@ public class OpenApiMerchantKeyMaterialService {
         vo.setPlatformPayloadUpdatedTime(row.getGmtModified());
     }
 
+    /**
+     * 将商户响应密钥的非敏感元数据和私钥可用性填入管理视图。
+     *
+     * @param vo 管理端密钥材料视图
+     * @param row 当前商户响应密钥记录
+     */
     private void fillResponse(OpenApiMerchantKeyMaterialVO vo, BaseMerchantResponseKeyDO row) {
         if (row == null) {
             vo.setMerchantResponseKeyStatus("NOT_CONFIGURED");
@@ -528,6 +556,12 @@ public class OpenApiMerchantKeyMaterialService {
         vo.setMerchantResponsePrivateKeyAvailable(StringUtils.hasText(row.getPrivateKeyPkcs8Base64()));
     }
 
+    /**
+     * 一次性加载商户及三类当前密钥记录，供同一管理操作保持一致视图。
+     *
+     * @param merchantId 商户号
+     * @return 当前密钥材料快照
+     */
     private MaterialSnapshot loadSnapshot(String merchantId) {
         BaseMerchantInfoDO merchant = selectMerchant(merchantId);
         return new MaterialSnapshot(
@@ -538,6 +572,12 @@ public class OpenApiMerchantKeyMaterialService {
         );
     }
 
+    /**
+     * 查询未删除商户并在不存在时返回明确业务错误。
+     *
+     * @param merchantId 商户号
+     * @return 商户记录
+     */
     private BaseMerchantInfoDO selectMerchant(String merchantId) {
         String normalized = requireText(merchantId, "商户号不能为空");
         BaseMerchantInfoDO row = merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
@@ -550,6 +590,12 @@ public class OpenApiMerchantKeyMaterialService {
         return row;
     }
 
+    /**
+     * 查询当前启用且生效时间最新的商户 JWT 密钥。
+     *
+     * @param merchantId 商户号
+     * @return 当前启用密钥，不存在时返回 null
+     */
     private BaseMerchantJwtKeyDO selectJwtKey(String merchantId) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
                 .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
@@ -559,7 +605,9 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
-    /** 查询最新 JWT 记录，包括已停用记录，供显式启停操作使用。 */
+    /**
+     * 查询最新 JWT 记录，包括已停用记录，供显式启停操作使用。
+     */
     private BaseMerchantJwtKeyDO selectLatestJwtKey(String merchantId) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
                 .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
@@ -569,6 +617,12 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询商户当前平台请求载荷 RSA 密钥记录。
+     *
+     * @param merchantId 商户号
+     * @return 平台载荷密钥记录，不存在时返回 null
+     */
     private BasePlatformPayloadKeyDO selectPlatformKey(String merchantId) {
         return platformPayloadKeyMapper.selectOne(Wrappers.<BasePlatformPayloadKeyDO>lambdaQuery()
                 .eq(BasePlatformPayloadKeyDO::getMerchantId, merchantId)
@@ -576,6 +630,12 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询商户当前响应加密 RSA 密钥记录。
+     *
+     * @param merchantId 商户号
+     * @return 商户响应密钥记录，不存在时返回 null
+     */
     private BaseMerchantResponseKeyDO selectResponseKey(String merchantId) {
         return responseKeyMapper.selectOne(Wrappers.<BaseMerchantResponseKeyDO>lambdaQuery()
                 .eq(BaseMerchantResponseKeyDO::getMerchantId, merchantId)
@@ -583,6 +643,12 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 校验导出请求明确指定密钥材料类型。
+     *
+     * @param request 密钥导出请求
+     * @return 请求的密钥类型
+     */
     private OpenApiKeyType requireKeyType(OpenApiKeyExportRequest request) {
         if (request == null || request.getKeyType() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "keyType 不能为空");
@@ -590,6 +656,12 @@ public class OpenApiMerchantKeyMaterialService {
         return request.getKeyType();
     }
 
+    /**
+     * 按密钥材料类型选择不改变语义的默认下载格式。
+     *
+     * @param keyType 密钥材料类型
+     * @return 默认下载格式
+     */
     private OpenApiKeyExportFormat defaultDownloadFormat(OpenApiKeyType keyType) {
         Objects.requireNonNull(keyType, "keyType can not be null");
         return switch (keyType) {
@@ -610,38 +682,93 @@ public class OpenApiMerchantKeyMaterialService {
         return StringUtils.hasText(value) ? keyMaterialFactory.fingerprint(value) : null;
     }
 
+    /**
+     * 将数据库启用值转换为管理端稳定状态文本。
+     *
+     * @param enabled 数据库启用值
+     * @return ENABLED 或 DISABLED
+     */
     private String status(Integer enabled) {
         return Objects.equals(enabled, ENABLED) ? "ENABLED" : "DISABLED";
     }
 
+    /**
+     * 从可空 JWT 密钥记录读取密钥正文。
+     *
+     * @param row JWT 密钥记录
+     * @return 密钥正文或 null
+     */
     private String secret(BaseMerchantJwtKeyDO row) {
         return row == null ? null : row.getMerchantKey();
     }
 
+    /**
+     * 从可空平台载荷密钥记录读取 X.509 公钥正文。
+     *
+     * @param row 平台载荷密钥记录
+     * @return 公钥正文或 null
+     */
     private String publicKey(BasePlatformPayloadKeyDO row) {
         return row == null ? null : row.getPublicKeyX509Base64();
     }
 
+    /**
+     * 从可空平台载荷密钥记录读取 PKCS#8 私钥正文。
+     *
+     * @param row 平台载荷密钥记录
+     * @return 私钥正文或 null
+     */
     private String platformPrivateKey(BasePlatformPayloadKeyDO row) {
         return row == null ? null : row.getPrivateKeyPkcs8Base64();
     }
 
+    /**
+     * 从可空商户响应密钥记录读取 PKCS#8 私钥正文。
+     *
+     * @param row 商户响应密钥记录
+     * @return 私钥正文或 null
+     */
     private String privateKey(BaseMerchantResponseKeyDO row) {
         return row == null ? null : row.getPrivateKeyPkcs8Base64();
     }
 
+    /**
+     * 从可空商户响应密钥记录读取 X.509 公钥正文。
+     *
+     * @param row 商户响应密钥记录
+     * @return 公钥正文或 null
+     */
     private String responsePublicKey(BaseMerchantResponseKeyDO row) {
         return row == null ? null : row.getPublicKeyX509Base64();
     }
 
+    /**
+     * 读取 JWT 算法，历史空值使用平台固定默认算法。
+     *
+     * @param row JWT 密钥记录
+     * @return JWT 算法
+     */
     private String jwtAlgorithm(BaseMerchantJwtKeyDO row) {
         return nullToDefault(row == null ? null : row.getAlgorithm(), JWT_ALGORITHM);
     }
 
+    /**
+     * 读取 JWT 有效期秒数，历史空值使用受控默认值。
+     *
+     * @param row JWT 密钥记录
+     * @return JWT 有效期秒数
+     */
     private Long jwtExpiresSeconds(BaseMerchantJwtKeyDO row) {
         return nullToDefault(row == null ? null : row.getExpiresSeconds(), 180L);
     }
 
+    /**
+     * 校验密钥材料或配置文本存在，并只返回去除首尾空白后的值。
+     *
+     * @param value 待校验文本
+     * @param message 缺失时使用的受控错误文案
+     * @return 规范化非空文本
+     */
     private String requireText(String value, String message) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
@@ -649,19 +776,46 @@ public class OpenApiMerchantKeyMaterialService {
         return value.trim();
     }
 
+    /**
+     * 对空白文本使用受控默认值。
+     *
+     * @param value 候选文本
+     * @param defaultValue 默认文本
+     * @return 原值或默认值
+     */
     private String nullToDefault(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
+    /**
+     * 读取并校验商户接入包使用的 OpenAPI 基础地址。
+     *
+     * @return 非空基础地址
+     */
     private String openApiBaseUrl() {
         String baseUrl = baseUrlResolver == null ? null : baseUrlResolver.resolve();
         return requireText(baseUrl, "OpenAPI 基础地址未配置");
     }
 
+    /**
+     * 对空数值使用受控默认值。
+     *
+     * @param value 候选数值
+     * @param defaultValue 默认数值
+     * @return 原值或默认值
+     */
     private Long nullToDefault(Long value, Long defaultValue) {
         return value == null ? defaultValue : value;
     }
 
+    /**
+     * 同一管理操作读取的商户及三类密钥材料快照。
+     *
+     * @param merchant 商户记录
+     * @param jwtKey 当前 JWT 密钥记录
+     * @param platformKey 当前平台载荷密钥记录
+     * @param responseKey 当前商户响应密钥记录
+     */
     private record MaterialSnapshot(BaseMerchantInfoDO merchant,
                                     BaseMerchantJwtKeyDO jwtKey,
                                     BasePlatformPayloadKeyDO platformKey,

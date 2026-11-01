@@ -13,13 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutInternalController
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : 代付internal HTTP 控制器，位于 代付服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 承接服务间代付请求，并将已校验的命令交给代付应用服务编排。
  */
 @RestController
 @RequestMapping("/internal/payout")

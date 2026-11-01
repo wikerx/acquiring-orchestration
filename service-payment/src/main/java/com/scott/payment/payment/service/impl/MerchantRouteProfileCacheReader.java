@@ -33,45 +33,63 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRouteProfileCacheReader
- * @date : 2026-08-01 15:35
- * @email : scott_x@163.com
- * @description : 使用六次有界批量主库查询构建 merchant:route 永久快照，禁止把渠道敏感元数据写入 Redis
- * @status : create
+ * 商户路由永久快照的主库构建器。
+ *
+ * <p>通过有界批量查询聚合商户绑定、MID、渠道、支付能力、币种和卡品牌，并只缓存路由决策所需
+ * 的非敏感字段。MID 密码、API Key、证书、私钥和 metadataValueJson 永不进入该 Redis 快照；
+ * 缓存重建固定读取主库，避免复制延迟重新写入旧配置。</p>
  */
 @Service
 public class MerchantRouteProfileCacheReader {
 
-    /** 数据库未删除标识。 */
+    /**
+     * 数据库未删除标识。
+     */
     private static final long NOT_DELETED = 0L;
 
-    /** 数据库启用标识。 */
+    /**
+     * 数据库启用标识。
+     */
     private static final int ENABLED = 1;
 
-    /** 收单业务类型。 */
+    /**
+     * 收单业务类型。
+     */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
 
-    /** 范围字段的全量匹配标识。 */
+    /**
+     * 范围字段的全量匹配标识。
+     */
     private static final String ALL = "ALL";
 
-    /** 商户渠道绑定 Mapper。 */
+    /**
+     * 商户渠道绑定 Mapper。
+     */
     private final PaymentMerchantChannelMidBindingMapper midBindingMapper;
 
-    /** 渠道 MID Mapper。 */
+    /**
+     * 渠道 MID Mapper。
+     */
     private final PaymentChannelMidConfigMapper midConfigMapper;
 
-    /** 渠道基础信息 Mapper。 */
+    /**
+     * 渠道基础信息 Mapper。
+     */
     private final PaymentChannelInfoMapper channelInfoMapper;
 
-    /** 渠道支付能力 Mapper。 */
+    /**
+     * 渠道支付能力 Mapper。
+     */
     private final PaymentChannelPaymentCapabilityMapper capabilityMapper;
 
-    /** 渠道能力币种 Mapper。 */
+    /**
+     * 渠道能力币种 Mapper。
+     */
     private final PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
 
-    /** 渠道能力卡品牌 Mapper。 */
+    /**
+     * 渠道能力卡品牌 Mapper。
+     */
     private final PaymentChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
 
     /**
@@ -102,20 +120,26 @@ public class MerchantRouteProfileCacheReader {
         return load(merchantId);
     }
 
-    /** 失效 pending 或门禁未知时绕过 Redis 并读取主库。 */
+    /**
+     * 失效 pending 或门禁未知时绕过 Redis 并读取主库。
+     */
     @DS(DataSourceName.MASTER)
     public MerchantRouteProfile findFresh(String merchantId) {
         return load(merchantId);
     }
 
-    /** 仅供缓存门面在识别到旧结构快照时原 Key 在线升级。 */
+    /**
+     * 仅供缓存门面在识别到旧结构快照时原 Key 在线升级。
+     */
     @DS(DataSourceName.MASTER)
     @CachePut(cacheNames = PaymentCacheNames.MERCHANT_ROUTE, key = "#p0")
     public MerchantRouteProfile refreshCached(String merchantId) {
         return load(merchantId);
     }
 
-    /** 使用批量查询组装不含渠道凭据的商户路由快照。 */
+    /**
+     * 使用批量查询组装不含渠道凭据的商户路由快照。
+     */
     private MerchantRouteProfile load(String merchantId) {
         MerchantRouteProfile profile = new MerchantRouteProfile();
         profile.setSchemaVersion(MerchantRouteProfile.CURRENT_SCHEMA_VERSION);
@@ -132,6 +156,7 @@ public class MerchantRouteProfileCacheReader {
             return profile;
         }
 
+        // 后续查询只使用上一层得到的有限 ID 集合，避免按商户触发全表或 N+1 查询。
         Set<Long> midIds = ids(bindings.stream().map(MerchantChannelMidBindingDO::getMidConfigId).toList());
         if (midIds.isEmpty()) {
             return profile;
@@ -213,6 +238,7 @@ public class MerchantRouteProfileCacheReader {
             }
             for (ChannelPaymentCapabilityDO capability
                     : capabilitiesByChannel.getOrDefault(channel.getId(), List.of())) {
+                // 可路由币种必须同时被渠道能力与 MID 范围允许，交集为空的候选直接排除。
                 List<String> supportedCurrencies = intersectCurrencies(
                         currenciesByCapability.getOrDefault(capability.getId(), List.of()),
                         mid.getCurrencyScope()
@@ -233,13 +259,16 @@ public class MerchantRouteProfileCacheReader {
         return profile;
     }
 
-    /** 将渠道运行时配置的非敏感字段展平为稳定缓存对象。 */
+    /**
+     * 将渠道运行时配置的非敏感字段展平为稳定缓存对象。
+     */
     private RouteOption toOption(MerchantChannelMidBindingDO binding,
                                  ChannelMidConfigDO mid,
                                  ChannelInfoDO channel,
                                  ChannelPaymentCapabilityDO capability,
                                  List<String> supportedCurrencies,
                                  List<String> supportedCardBrands) {
+        // 只复制路由选择需要的公开运行参数，禁止调用或复制 mid.getMetadataValueJson()。
         RouteOption option = new RouteOption();
         option.setBindingId(binding.getId());
         option.setBindingStatus(binding.getBindingStatus());
@@ -281,7 +310,9 @@ public class MerchantRouteProfileCacheReader {
         return option;
     }
 
-    /** 计算能力币种与 MID 币种范围的稳定交集。 */
+    /**
+     * 计算能力币种与 MID 币种范围的稳定交集。
+     */
     private List<String> intersectCurrencies(List<String> capabilityCurrencies, String midScope) {
         ArrayList<String> normalizedCurrencies = capabilityCurrencies.stream()
                 .filter(StringUtils::hasText)
@@ -296,7 +327,9 @@ public class MerchantRouteProfileCacheReader {
         return normalizedCurrencies;
     }
 
-    /** 将逗号分隔范围转换为大写集合；空值和 ALL 表示不限制。 */
+    /**
+     * 将逗号分隔范围转换为大写集合；空值和 ALL 表示不限制。
+     */
     private Set<String> scopeValues(String scope) {
         if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
             return Set.of();
@@ -311,24 +344,32 @@ public class MerchantRouteProfileCacheReader {
         return values;
     }
 
-    /** 过滤空主键并保持数据库顺序。 */
+    /**
+     * 过滤空主键并保持数据库顺序。
+     */
     private Set<Long> ids(List<Long> source) {
         return source.stream().filter(java.util.Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    /** 按非空主键建立索引，重复记录保留第一条。 */
+    /**
+     * 按非空主键建立索引，重复记录保留第一条。
+     */
     private <T> Map<Long, T> index(List<T> rows, Function<T, Long> idExtractor) {
         return rows.stream().filter(row -> idExtractor.apply(row) != null)
                 .collect(Collectors.toMap(idExtractor, Function.identity(), (left, right) -> left));
     }
 
-    /** 兼容 Mapper 测试替身或异常实现返回 null。 */
+    /**
+     * 兼容 Mapper 测试替身或异常实现返回 null。
+     */
     private <T> List<T> safeList(List<T> source) {
         return source == null ? List.of() : source;
     }
 
-    /** 使用固定 Locale 规范化渠道和币种编码。 */
+    /**
+     * 使用固定 Locale 规范化渠道和币种编码。
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }

@@ -13,13 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TraceIdFilter
- * @date : 2026-07-26 15:20
- * @email : scott_x@163.com
- * @description : Servlet 请求 traceId 过滤器，在业务处理前绑定 TraceContext 和 MDC，并在响应结束后清理线程上下文。
- * @status : create
+ * Servlet 请求 traceId 过滤器，在业务处理前绑定 TraceContext 和 MDC，并在响应结束后清理线程上下文。
  */
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -50,7 +44,8 @@ public class TraceIdFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } catch (ServletException | IOException | RuntimeException exception) {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-            log.warn("event: HTTP_REQUEST_ERROR traceId: {} method: {} path: {} status: {} durationMs: {} exceptionType: {}",
+            log.warn("HTTP 请求处理失败, event: HTTP_REQUEST_ERROR, traceId: {}, method: {}, path: {}, "
+                            + "status: {}, durationMs: {}, exceptionType: {}",
                     traceId,
                     request.getMethod(),
                     request.getRequestURI(),
@@ -60,7 +55,8 @@ public class TraceIdFilter extends OncePerRequestFilter {
             throw exception;
         } finally {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-            log.debug("event: HTTP_REQUEST_END traceId: {} method: {} path: {} status: {} responseContentType: {} durationMs: {}",
+            log.debug("HTTP 请求处理完成, event: HTTP_REQUEST_END, traceId: {}, method: {}, path: {}, "
+                            + "status: {}, responseContentType: {}, durationMs: {}",
                     traceId,
                     request.getMethod(),
                     request.getRequestURI(),

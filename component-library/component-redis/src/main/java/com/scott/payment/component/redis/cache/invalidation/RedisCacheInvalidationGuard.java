@@ -16,13 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisCacheInvalidationGuard
- * @date : 2026-07-31 00:00
- * @email : scott_x@163.com
- * @description : Redis 基础设施层的受管缓存失效门禁，负责以 token 租约保护数据库变更至缓存精确删除完成之间的一致性窗口
- * @status : update
+ * Redis 基础设施层的受管缓存失效门禁，负责以 token 租约保护数据库变更至缓存精确删除完成之间的一致性窗口
  *
  * <p>门禁只保护显式登记的共享缓存。管理端在数据库事务写入前获取门禁，读取端在门禁存在期间
  * 绕过 Redis 并查询主库，Outbox 在事务提交后删除缓存并按 token 释放门禁。</p>

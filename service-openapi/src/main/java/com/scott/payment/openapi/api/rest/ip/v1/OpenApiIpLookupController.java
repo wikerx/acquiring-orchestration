@@ -12,23 +12,19 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.scott.payment.component.core.model.CommonResult.success;
+import static com.scott.payment.openapi.result.OpenApiResponseFactory.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIpLookupController
- * @date : 2026-08-11 15:44
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 归属检索入口，密文请求和成功响应由统一安全链路解密、校验和加密
- * @status : create
+ * 商户 OpenAPI IP 归属检索入口，密文请求和成功响应由统一安全链路解密、校验和加密
  */
 @ApiVersion(apiVersion = 1)
 @RestController
 @RequestMapping("/api/rest/ip/{version}")
 public class OpenApiIpLookupController {
 
-    /** 商户基础数据检索应用服务，不允许为空。 */
+    /**
+     * 商户基础数据检索应用服务，不允许为空。
+     */
     private final OpenApiReferenceDataApplicationService applicationService;
 
     /**

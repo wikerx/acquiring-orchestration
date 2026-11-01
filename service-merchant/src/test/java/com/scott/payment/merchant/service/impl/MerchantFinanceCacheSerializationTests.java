@@ -15,13 +15,7 @@ import java.util.ArrayList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFinanceCacheSerializationTests
- * @date : 2026-08-18 20:20
- * @email : scott_x@163.com
- * @description : 验证商户当前生效费率满足统一 Redis 精确类型白名单和金额精度约束。
- * @status : create
+ * 验证商户当前生效费率满足统一 Redis 精确类型白名单和金额精度约束。
  */
 @Slf4j
 class MerchantFinanceCacheSerializationTests {

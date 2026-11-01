@@ -11,13 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalClientPropertiesTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Admin 清分内部客户端在启动前拒绝不可信地址、身份和签名配置。
- * @status : create
+ * 验证 Admin 清分内部客户端在启动前拒绝不可信地址、身份和签名配置。
  */
 class ClearingInternalClientPropertiesTest {
 
@@ -81,5 +75,12 @@ class ClearingInternalClientPropertiesTest {
         assertThatThrownBy(invalidTimeout::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("timeouts");
+
+        ClearingInternalClientProperties overLimit = new ClearingInternalClientProperties();
+        overLimit.setInternalSecret("unit-test-clearing-internal-secret-32-bytes");
+        overLimit.setReadTimeoutMillis(60_001);
+        assertThatThrownBy(overLimit::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("60000ms");
     }
 }

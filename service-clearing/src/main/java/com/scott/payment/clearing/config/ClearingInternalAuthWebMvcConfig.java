@@ -9,13 +9,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalAuthWebMvcConfig
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分内部接口 HMAC、防重放和调用方白名单配置。
- * @status : update
+ * 清分内部接口 HMAC、防重放和调用方白名单配置。
  */
 @Configuration
 @EnableConfigurationProperties(InternalServiceAuthProperties.class)
@@ -25,6 +19,9 @@ public class ClearingInternalAuthWebMvcConfig implements WebMvcConfigurer {
     private final InternalRequestReplayGuard replayGuard;
     private final ClearingProperties clearingProperties;
 
+    /**
+     * 创建内部鉴权配置，并在注册拦截器前校验共享签名配置。
+     */
     public ClearingInternalAuthWebMvcConfig(InternalServiceAuthProperties authProperties,
                                             InternalRequestReplayGuard replayGuard,
                                             ClearingProperties clearingProperties) {

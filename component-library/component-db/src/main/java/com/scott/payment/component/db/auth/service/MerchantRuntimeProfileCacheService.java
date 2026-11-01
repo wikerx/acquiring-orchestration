@@ -3,13 +3,7 @@ package com.scott.payment.component.db.auth.service;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRuntimeProfileCacheService
- * @date : 2026-07-30 21:35
- * @email : scott_x@163.com
- * @description : 完整商户资料共享缓存契约，统一管理跨服务查询、写后刷新和删除失效行为
- * @status : create
+ * 完整商户资料共享缓存契约，统一管理跨服务查询、写后刷新和删除失效行为
  */
 public interface MerchantRuntimeProfileCacheService {
 

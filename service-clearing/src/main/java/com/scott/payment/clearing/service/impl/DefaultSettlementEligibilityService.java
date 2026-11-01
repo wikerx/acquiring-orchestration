@@ -14,16 +14,24 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
-/** 默认交易结算周期计算；历史 v3 快照保持原有交易日立即可结算语义。 */
+/**
+ * 默认交易结算周期计算；历史 v3 快照保持原有交易日立即可结算语义。
+ */
 @Service
 public class DefaultSettlementEligibilityService implements SettlementEligibilityService {
 
     private final ClearingSettlementEligibilityMapper mapper;
 
+    /**
+     * 创建结算资格日期服务，并注入工作日历和历史结算查询依赖。
+     */
     public DefaultSettlementEligibilityService(ClearingSettlementEligibilityMapper mapper) {
         this.mapper = mapper;
     }
 
+    /**
+     * 按冻结结算策略计算交易最早可结算日，首次周期使用初始延迟配置。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public LocalDate calculate(String merchantId, LocalDate transactionDate, FeeVersionSnapshot snapshot) {
@@ -44,6 +52,9 @@ public class DefaultSettlementEligibilityService implements SettlementEligibilit
         return alignFrequency(delayed, policy);
     }
 
+    /**
+     * 从交易日向后选择第 N 个已确认工作日，并要求期间日历连续完整。
+     */
     private LocalDate addConfirmedWorkdays(LocalDate startDate, int days) {
         LocalDate result = mapper.selectNthConfirmedWorkday(startDate, days - 1);
         if (result == null || mapper.countConfirmedCalendarDays(startDate, result)
@@ -54,6 +65,9 @@ public class DefaultSettlementEligibilityService implements SettlementEligibilit
         return result;
     }
 
+    /**
+     * 将延迟后的日期顺延到冻结策略允许的结算周期边界。
+     */
     private LocalDate alignFrequency(LocalDate date, SettlementPolicySnapshot policy) {
         return switch (policy.settlementFrequency()) {
             case "DAILY" -> date;
@@ -64,11 +78,17 @@ public class DefaultSettlementEligibilityService implements SettlementEligibilit
         };
     }
 
+    /**
+     * 将日期顺延到当周或下一周的指定 ISO 星期日。
+     */
     private LocalDate alignWeekly(LocalDate date, int isoDay) {
         int delta = Math.floorMod(isoDay - date.getDayOfWeek().getValue(), 7);
         return date.plusDays(delta);
     }
 
+    /**
+     * 以冻结锚点为基准，将日期顺延到对应的双周结算日。
+     */
     private LocalDate alignBiweekly(LocalDate date, SettlementPolicySnapshot policy) {
         LocalDate anchor = alignWeekly(policy.frequencyAnchorDate(), policy.frequencyDay());
         if (!anchor.isBefore(date)) {
@@ -79,6 +99,9 @@ public class DefaultSettlementEligibilityService implements SettlementEligibilit
         return anchor.plusDays(periods * 14);
     }
 
+    /**
+     * 将日期顺延到当月或下月的固定结算日。
+     */
     private LocalDate alignMonthly(LocalDate date, int monthDay) {
         LocalDate current = date.withDayOfMonth(monthDay);
         return current.isBefore(date) ? date.plusMonths(1).withDayOfMonth(monthDay) : current;

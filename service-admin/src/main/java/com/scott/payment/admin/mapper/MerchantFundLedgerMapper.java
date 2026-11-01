@@ -6,13 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFundLedgerMapper
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 不可变资金流水查询访问，不提供更新或删除能力。
- * @status : create
+ * 不可变资金流水查询访问，不提供更新或删除能力。
  */
 public interface MerchantFundLedgerMapper extends BaseMapper<MerchantFundLedgerDO> {
 

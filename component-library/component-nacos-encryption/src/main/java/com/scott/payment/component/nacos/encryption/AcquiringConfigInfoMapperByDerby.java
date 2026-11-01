@@ -5,14 +5,8 @@ import com.alibaba.nacos.plugin.datasource.model.MapperContext;
 import com.alibaba.nacos.plugin.datasource.model.MapperResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AcquiringConfigInfoMapperByDerby
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : Nacos 2.3.2 Derby config_info Mapper 兼容实现；在启动全量 Dump 阶段同步读取
+ * Nacos 2.3.2 Derby config_info Mapper 兼容实现；在启动全量 Dump 阶段同步读取
  * encrypted_data_key，确保 cipher-* 配置经历容器重启后仍可解密。
- * @status : create
  */
 public final class AcquiringConfigInfoMapperByDerby extends ConfigInfoMapperByDerby {
 

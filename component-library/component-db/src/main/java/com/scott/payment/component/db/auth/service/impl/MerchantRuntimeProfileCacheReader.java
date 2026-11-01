@@ -17,13 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.Semaphore;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRuntimeProfileCacheReader
- * @date : 2026-07-30 21:25
- * @email : scott_x@163.com
- * @description : 完整商户资料缓存读写器，负责主库加载、事务提交后的精确缓存更新
- * @status : create
+ * 完整商户资料缓存读写器，负责主库加载、事务提交后的精确缓存更新
  */
 @Service
 public class MerchantRuntimeProfileCacheReader {
@@ -138,6 +132,13 @@ public class MerchantRuntimeProfileCacheReader {
         return profile;
     }
 
+    /**
+     * 在并发许可保护下从主库加载完整商户运行资料。
+     *
+     * @param merchantId 已规范化的商户号
+     * @return 商户运行资料，不存在时返回 null
+     * @throws ServiceException 数据库回源并发达到上限时抛出
+     */
     private MerchantRuntimeProfile load(String merchantId) {
         if (!databaseLoadPermits.tryAcquire()) {
             throw new ServiceException(

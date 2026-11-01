@@ -10,13 +10,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundApprovalRecoveryScheduler
- * @date : 2026-08-06 15:20
- * @email : scott_x@163.com
- * @description : 退款审批恢复调度器，驱动审批过期和稳定执行事件补偿，不直接执行渠道退款。
- * @status : create
+ * 退款审批恢复调度器，驱动审批过期和稳定执行事件补偿，不直接执行渠道退款。
  */
 @Slf4j
 @Component
@@ -52,7 +46,8 @@ public class RefundApprovalRecoveryScheduler {
                 properties.getExecutionRecoveryStaleSeconds(),
                 properties.getExecutionRecoveryBatchSize());
         if (expired > 0 || recovered > 0) {
-            log.info("event: REFUND_APPROVAL_RECOVERY expired: {} executionRecovered: {}", expired, recovered);
+            log.info("退款审批恢复批次完成, event: REFUND_APPROVAL_RECOVERY, expired: {}, executionRecovered: {}",
+                    expired, recovered);
         }
     }
 }

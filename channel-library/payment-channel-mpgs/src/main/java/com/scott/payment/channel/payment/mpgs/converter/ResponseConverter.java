@@ -1,0 +1,235 @@
+package com.scott.payment.channel.payment.mpgs.converter;
+
+import com.scott.payment.channel.payment.mpgs.model.response.ResponsePayload;
+import com.scott.payment.channel.payment.mpgs.model.response.ResponseSummary;
+import com.scott.payment.channel.payment.mpgs.support.ChannelCode;
+
+import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
+import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse.PaymentMethodSummary;
+import org.springframework.util.StringUtils;
+
+/**
+ * MPGS 响应映射器，位于 payment-channel-mpgs 渠道实现层，负责保留渠道真实失败原因并映射统一渠道状态；不决定商户或付款人展示文案。
+ */
+public class ResponseConverter {
+
+    private final TradeStatusMapper tradeStatusMapper;
+
+    private final ResponseCodeMapper responseCodeMapper;
+
+    /**
+     * 创建 MPGS 响应映射器。
+     */
+    public ResponseConverter() {
+        this(new TradeStatusMapper(), new ResponseCodeMapper());
+    }
+
+    /**
+     * 创建 MPGS 响应映射器。
+     *
+     * @param tradeStatusMapper 交易状态映射器
+     * @param responseCodeMapper   错误码映射器
+     */
+    public ResponseConverter(TradeStatusMapper tradeStatusMapper, ResponseCodeMapper responseCodeMapper) {
+        this.tradeStatusMapper = tradeStatusMapper;
+        this.responseCodeMapper = responseCodeMapper;
+    }
+
+    /**
+     * 映射 MPGS 响应。
+     *
+     * @param request  渠道统一请求
+     * @param response MPGS 原始响应字段
+     * @return 渠道统一响应
+     */
+    public ChannelPaymentResponse toChannelResponse(com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest request,
+                                                     ResponsePayload response) {
+        ChannelPaymentResponse target = new ChannelPaymentResponse();
+        target.setChannelCode(ChannelCode.MPGS);
+        target.setOperationId(request.getOperationId());
+        target.setTransactionId(request.getTransactionId());
+        target.setChannelOrderNo(request.getChannelOrderNo());
+        target.setChannelTransactionId(request.getChannelTransactionId());
+        if (response == null) {
+            target.setChannelTradeStatus(tradeStatusMapper.map(null));
+            target.setRawChannelStatus(null);
+            target.setChannelResponseCode(responseCodeMapper.responseCode(null));
+            target.setChannelResponseMessage(responseCodeMapper.responseMessage(null));
+            return target;
+        }
+        target.setChannelTradeStatus(tradeStatusMapper.map(response));
+        target.setRawChannelStatus(response.getResult());
+        target.setChannelResponseCode(responseCodeMapper.responseCode(response));
+        target.setChannelResponseMessage(responseCodeMapper.responseMessage(response));
+        ResponseSummary summary = responseSummary(response);
+        if (response.getOrder() != null && response.getOrder().getId() != null) {
+            target.setChannelOrderNo(response.getOrder().getId());
+        }
+        if (response.getTransaction() != null && response.getTransaction().getId() != null) {
+            target.setChannelTransactionId(response.getTransaction().getId());
+        }
+        if (response.getTransaction() != null) {
+            target.setChannelCurrency(response.getTransaction().getCurrency());
+            target.setChannelAmount(response.getTransaction().getAmount());
+        }
+        target.setAuthCode(summary.getAuthorizationCode());
+        target.setPaymentMethodSummary(paymentMethodSummary(summary));
+        target.setRawResponse(summary.toRawResponseMap());
+        return target;
+    }
+
+    /**
+     * 提取 MPGS 类型化响应摘要。
+     * <p>
+     * Map 只作为渠道公共扩展字段向后兼容；MPGS 自身字段在这里先落入类型化对象，避免业务代码散落字符串 key。
+     *
+     * @param response MPGS 响应载荷
+     * @return MPGS 响应摘要
+     */
+    ResponseSummary responseSummary(ResponsePayload response) {
+        ResponsePayload.Response gatewayResponse = response.getResponse();
+        ResponsePayload.CardSecurityCode cardSecurityCode = gatewayResponse == null ? null : gatewayResponse.getCardSecurityCode();
+        ResponsePayload.AuthorizationResponse authorizationResponse = response.getAuthorizationResponse();
+        ResponsePayload.ErrorPayload error = response.getError();
+        ResponsePayload.Order order = response.getOrder();
+        ResponsePayload.Chargeback chargeback = order == null ? null : order.getChargeback();
+        ResponsePayload.Transaction transaction = response.getTransaction();
+        ResponsePayload.Acquirer acquirer = transaction == null ? null : transaction.getAcquirer();
+        ResponsePayload.SourceOfFunds sourceOfFunds = response.getSourceOfFunds();
+        ResponsePayload.Provided provided = sourceOfFunds == null ? null : sourceOfFunds.getProvided();
+        ResponsePayload.Card card = provided == null ? null : provided.getCard();
+        ResponsePayload.Expiry expiry = card == null ? null : card.getExpiry();
+        ResponsePayload.Risk risk = response.getRisk();
+        ResponsePayload.RiskResponse riskResponse = risk == null ? null : risk.getResponse();
+        ResponsePayload.Review review = riskResponse == null ? null : riskResponse.getReview();
+        return ResponseSummary.builder()
+                .result(response.getResult())
+                .gatewayEntryPoint(response.getGatewayEntryPoint())
+                .merchant(response.getMerchant())
+                .version(response.getVersion())
+                .gatewayCode(gatewayResponse == null ? null : gatewayResponse.getGatewayCode())
+                .gatewayRecommendation(gatewayResponse == null ? null : gatewayResponse.getGatewayRecommendation())
+                .acquirerCode(gatewayResponse == null ? null : gatewayResponse.getAcquirerCode())
+                .acquirerMessage(gatewayResponse == null ? null : gatewayResponse.getAcquirerMessage())
+                .cardSecurityGatewayCode(cardSecurityCode == null ? null : cardSecurityCode.getGatewayCode())
+                .cardSecurityAcquirerCode(cardSecurityCode == null ? null : cardSecurityCode.getAcquirerCode())
+                .authorizationResponseCode(authorizationResponse == null ? null : authorizationResponse.getResponseCode())
+                .authorizationStan(authorizationResponse == null ? null : authorizationResponse.getStan())
+                .authorizationTransactionIdentifier(authorizationResponse == null ? null : authorizationResponse.getTransactionIdentifier())
+                .financialNetworkCode(authorizationResponse == null ? null : authorizationResponse.getFinancialNetworkCode())
+                .posEntryMode(authorizationResponse == null ? null : authorizationResponse.getPosEntryMode())
+                .posData(authorizationResponse == null ? null : authorizationResponse.getPosData())
+                .processingCode(authorizationResponse == null ? null : authorizationResponse.getProcessingCode())
+                .commercialCard(authorizationResponse == null ? null : authorizationResponse.getCommercialCard())
+                .commercialCardIndicator(authorizationResponse == null ? null : authorizationResponse.getCommercialCardIndicator())
+                .errorCause(error == null ? null : error.getCause())
+                .errorExplanation(error == null ? null : error.getExplanation())
+                .errorField(error == null ? null : error.getField())
+                .errorValidationType(error == null ? null : error.getValidationType())
+                .orderId(order == null ? null : order.getId())
+                .orderStatus(order == null ? null : order.getStatus())
+                .orderReference(order == null ? null : order.getReference())
+                .orderAmount(order == null ? null : order.getAmount())
+                .orderCurrency(order == null ? null : order.getCurrency())
+                .orderAuthenticationStatus(order == null ? null : order.getAuthenticationStatus())
+                .orderCreationTime(order == null ? null : order.getCreationTime())
+                .orderLastUpdatedTime(order == null ? null : order.getLastUpdatedTime())
+                .orderMerchantAmount(order == null ? null : order.getMerchantAmount())
+                .orderMerchantCurrency(order == null ? null : order.getMerchantCurrency())
+                .merchantCategoryCode(order == null ? null : order.getMerchantCategoryCode())
+                .totalAuthorizedAmount(order == null ? null : order.getTotalAuthorizedAmount())
+                .totalCapturedAmount(order == null ? null : order.getTotalCapturedAmount())
+                .totalRefundedAmount(order == null ? null : order.getTotalRefundedAmount())
+                .chargebackAmount(chargeback == null ? null : chargeback.getAmount())
+                .chargebackCurrency(chargeback == null ? null : chargeback.getCurrency())
+                .transactionId(transaction == null ? null : transaction.getId())
+                .transactionType(transaction == null ? null : transaction.getType())
+                .transactionAmount(transaction == null ? null : transaction.getAmount())
+                .transactionCurrency(transaction == null ? null : transaction.getCurrency())
+                .transactionAuthenticationStatus(transaction == null ? null : transaction.getAuthenticationStatus())
+                .authorizationCode(transaction == null ? null : transaction.getAuthorizationCode())
+                .transactionReference(transaction == null ? null : transaction.getReference())
+                .acquirerReference(acquirer == null ? null : acquirer.getTransactionId())
+                .receipt(transaction == null ? null : transaction.getReceipt())
+                .transactionStan(transaction == null ? null : transaction.getStan())
+                .terminal(transaction == null ? null : transaction.getTerminal())
+                .source(transaction == null ? null : transaction.getSource())
+                .acquirerBatch(acquirer == null ? null : acquirer.getBatch())
+                .acquirerDate(acquirer == null ? null : acquirer.getDate())
+                .acquirerId(acquirer == null ? null : acquirer.getId())
+                .acquirerMerchantId(acquirer == null ? null : acquirer.getMerchantId())
+                .acquirerSettlementDate(acquirer == null ? null : acquirer.getSettlementDate())
+                .acquirerTimeZone(acquirer == null ? null : acquirer.getTimeZone())
+                .sourceOfFundsType(sourceOfFunds == null ? null : sourceOfFunds.getType())
+                .cardBrand(card == null ? null : card.getBrand())
+                .cardScheme(card == null ? null : card.getScheme())
+                .cardNumberMasked(card == null ? null : card.getNumber())
+                .cardExpiryMonth(expiry == null ? null : expiry.getMonth())
+                .cardExpiryYear(expiry == null ? null : expiry.getYear())
+                .issuerCountryCode(card == null ? null : card.getIssuerCountryCode())
+                .fundingMethod(card == null ? null : card.getFundingMethod())
+                .storedOnFile(card == null ? null : card.getStoredOnFile())
+                .riskGatewayCode(riskResponse == null ? null : riskResponse.getGatewayCode())
+                .riskProvider(riskResponse == null ? null : riskResponse.getProvider())
+                .riskReviewDecision(review == null ? null : review.getDecision())
+                .riskTotalScore(riskResponse == null ? null : riskResponse.getTotalScore())
+                .timeOfRecord(response.getTimeOfRecord())
+                .timeOfLastUpdate(response.getTimeOfLastUpdate())
+                .build();
+    }
+
+    /**
+     * 将 MPGS 返回的卡摘要映射为渠道统一支付工具摘要。
+     *
+     * @param summary MPGS 响应摘要
+     * @return 渠道统一支付工具摘要；无有效字段时返回 null
+     */
+    private PaymentMethodSummary paymentMethodSummary(ResponseSummary summary) {
+        if (summary == null || !hasPaymentMethodSummary(summary)) {
+            return null;
+        }
+        PaymentMethodSummary paymentMethodSummary = new PaymentMethodSummary();
+        paymentMethodSummary.setPaymentMethod(summary.getSourceOfFundsType());
+        paymentMethodSummary.setPaymentBrand(summary.getCardBrand());
+        paymentMethodSummary.setScheme(summary.getCardScheme());
+        paymentMethodSummary.setCardNumberMasked(summary.getCardNumberMasked());
+        paymentMethodSummary.setExpiryMonth(summary.getCardExpiryMonth());
+        paymentMethodSummary.setExpiryYear(summary.getCardExpiryYear());
+        paymentMethodSummary.setIssuerCountry(summary.getIssuerCountryCode());
+        paymentMethodSummary.setFundingMethod(summary.getFundingMethod());
+        paymentMethodSummary.setStoredOnFile(summary.getStoredOnFile());
+        paymentMethodSummary.setCscResult(firstText(summary.getCardSecurityGatewayCode(), summary.getCardSecurityAcquirerCode()));
+        return paymentMethodSummary;
+    }
+
+    /**
+     * 判断响应摘要是否包含可安全保存的支付工具信息。
+     *
+     * @param summary MPGS 响应摘要
+     * @return true 表示至少存在一个支付工具摘要字段
+     */
+    private boolean hasPaymentMethodSummary(ResponseSummary summary) {
+        return StringUtils.hasText(summary.getSourceOfFundsType())
+                || StringUtils.hasText(summary.getCardBrand())
+                || StringUtils.hasText(summary.getCardScheme())
+                || StringUtils.hasText(summary.getCardNumberMasked())
+                || StringUtils.hasText(summary.getIssuerCountryCode())
+                || StringUtils.hasText(summary.getFundingMethod())
+                || StringUtils.hasText(summary.getStoredOnFile());
+    }
+
+    /**
+     * 返回首个非空文本。
+     *
+     * @param values 候选文本
+     * @return 首个非空文本，全部为空时返回 null
+     */
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+}

@@ -7,13 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelI18nMessageResolver
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 导出国际化文案解析器
- * @status : create
+ * Excel 导出国际化文案解析器
  *
  * <p>统一从 Spring MessageSource 解析 Excel 导出所需的标题、表头、状态值和元信息文案，
  * 避免把国际化文本硬编码在 Java 代码中，方便与前端语言配置长期保持一致。</p>

@@ -5,8 +5,8 @@ job:
     base-url: ${JOB_CLEARING_BASE_URL:http://service-clearing}
     # 参数说明：建立清分内部连接的最大等待时间，单位毫秒。
     connect-timeout-millis: ${JOB_CLEARING_CONNECT_TIMEOUT_MILLIS:3000}
-    # 参数说明：等待单批清分补偿响应的最大时间，单位毫秒，必须覆盖有界批次 P99。
-    read-timeout-millis: ${JOB_CLEARING_READ_TIMEOUT_MILLIS:120000}
+    # 参数说明：等待单批清分补偿响应的最大时间，默认 30 秒且硬上限 60 秒；超时后由任务重试接管。
+    read-timeout-millis: ${JOB_CLEARING_READ_TIMEOUT_MILLIS:30000}
     # 参数说明：写入清分内部签名头的固定调用方标识，必须保持 service-job。
     internal-caller: service-job
     # 参数说明：Job 到 Clearing 调用边的当前 HMAC 密钥引用。
@@ -14,8 +14,8 @@ job:
   data-client:
     # service-data 建连超时，单位毫秒。
     connect-timeout-millis: ${JOB_DATA_CLIENT_CONNECT_TIMEOUT_MILLIS:3000}
-    # 单批最多 5 条通知，每条回调最坏耗时由 service-data 控制；读取超时必须覆盖完整有界批次。
-    read-timeout-millis: ${JOB_DATA_CLIENT_READ_TIMEOUT_MILLIS:240000}
+    # 单次内部补偿批次必须在 30 秒内返回；长耗时工作由 service-data 异步执行并通过任务状态恢复。
+    read-timeout-millis: ${JOB_DATA_CLIENT_READ_TIMEOUT_MILLIS:30000}
     # 参数说明：写入 Data 内部签名头的固定调用方标识，必须保持 service-job。
     internal-caller: service-job
     # 参数说明：Job 到 Data 调用边的当前 HMAC 密钥引用，用于通知和数据补偿命令。

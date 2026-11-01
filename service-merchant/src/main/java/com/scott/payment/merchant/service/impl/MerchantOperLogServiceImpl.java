@@ -19,13 +19,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOperLogServiceImpl
- * @date : 2026-06-20 10:46
- * @email : scott_x@163.com
- * @description : 写入和查询商户端操作审计日志，使用 idempotent_key 唯一约束吸收 MQ 重复投递
- * @status : create
+ * 写入和查询商户端操作审计日志，使用幂等键唯一约束吸收 MQ 重复投递。
  */
 @Service
 public class MerchantOperLogServiceImpl implements MerchantOperLogService {

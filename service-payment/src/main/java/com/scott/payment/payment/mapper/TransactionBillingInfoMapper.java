@@ -8,17 +8,13 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionBillingInfoMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Mapper for the transaction billing snapshot logical table.
- * @status : create
+ * Mapper for the transaction billing snapshot logical table.
  */
 public interface TransactionBillingInfoMapper extends BaseMapper<TransactionBillingInfoDO> {
 
-    /** Query the initial billing snapshot through the exact shard key. */
+    /**
+     * Query the initial billing snapshot through the exact shard key.
+     */
     @Select("""
             SELECT id, billing_info_id, transaction_id, operation_id,
                    first_name, last_name, email, phone,

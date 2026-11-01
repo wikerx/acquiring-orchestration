@@ -7,24 +7,12 @@ import org.springframework.stereotype.Component;
 import java.math.BigInteger;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingAutoIncrementValueCalculator
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表自动自增值calculator协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 分表自动自增值calculator协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  */
 @Component
 public class ShardingAutoIncrementValueCalculator {
 
-    /**
-     * {@code BIGINT_MAX_VALUE}常量，统一 {@code ShardingAutoIncrementValueCalculator} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final BigInteger BIGINT_MAX_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
 
     /**
@@ -59,6 +47,13 @@ public class ShardingAutoIncrementValueCalculator {
         return new ShardingAutoIncrementRange(prefix, startValue.longValueExact(), maxValue.longValueExact());
     }
 
+    /**
+     * 校验季度编号序列宽度和起止值可在该宽度内安全表示。
+     *
+     * @param sequenceWidth 序列十进制位数
+     * @param startSequence 起始序列值
+     * @param maxSequence 最大序列值
+     */
     private void validateSequence(int sequenceWidth, long startSequence, long maxSequence) {
         if (sequenceWidth < 1 || sequenceWidth > 12) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "sequence width must be between 1 and 12");

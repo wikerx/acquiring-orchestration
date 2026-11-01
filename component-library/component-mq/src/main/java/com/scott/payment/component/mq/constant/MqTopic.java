@@ -1,13 +1,7 @@
 package com.scott.payment.component.mq.constant;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqTopic
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 消息主题常量定义
- * @status : create
+ * 消息主题常量定义
  */
 public final class MqTopic {
 
@@ -66,9 +60,14 @@ public final class MqTopic {
      */
     public static final String CHECKOUT_CARD_VAULT = "acquiring_checkout_card_vault_topic";
 
-    /** 跨服务缓存 generation 变更 Topic，只承载命名空间和发布凭证。 */
+    /**
+     * 跨服务缓存 generation 变更 Topic，只承载命名空间和发布凭证。
+     */
     public static final String CACHE_INVALIDATION = "acquiring_cache_invalidation_topic";
 
+    /**
+     * 禁止实例化 RocketMQ 主题常量类。
+     */
     private MqTopic() {
     }
 }

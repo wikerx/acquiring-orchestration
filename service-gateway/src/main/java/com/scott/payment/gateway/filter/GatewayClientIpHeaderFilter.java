@@ -13,18 +13,19 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayClientIpHeaderFilter
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 网关客户端 IP 透传过滤器，位于 service-gateway 过滤层，统一覆盖可信 X-Gateway-Client-Ip 供 OpenAPI 白名单校验使用。
- * @status : create
+ * 网关客户端 IP 透传过滤器，位于 service-gateway 过滤层，统一覆盖可信 X-Gateway-Client-Ip 供 OpenAPI 白名单校验使用。
  */
 @Component
 public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
+
+    /**
+     * Gateway 进程内保存可信客户端 IP 的 exchange attribute，外部请求无法注入。
+     */
+    public static final String GATEWAY_CLIENT_IP_ATTRIBUTE =
+            GatewayClientIpHeaderFilter.class.getName() + ".CLIENT_IP";
 
     /**
      * Gateway 写给下游服务的可信客户端 IP 请求头。
@@ -41,7 +42,9 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
      */
     private final GatewayClientIpProperties clientIpProperties;
 
-    /** 仅接受配置网段内的直接上游代理，并用于从右向左剥离可信代理链。 */
+    /**
+     * 仅接受配置网段内的直接上游代理，并用于从右向左剥离可信代理链。
+     */
     private final TrustedProxyMatcher trustedProxyMatcher;
 
     /**
@@ -68,6 +71,9 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
                 .headers(headers -> headers.remove(HEADER_GATEWAY_CLIENT_IP));
         if (StringUtils.hasText(clientIp)) {
             requestBuilder.header(HEADER_GATEWAY_CLIENT_IP, clientIp);
+            exchange.getAttributes().put(GATEWAY_CLIENT_IP_ATTRIBUTE, clientIp);
+        } else {
+            exchange.getAttributes().remove(GATEWAY_CLIENT_IP_ATTRIBUTE);
         }
         return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
     }
@@ -97,7 +103,10 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
         if (clientIpProperties.isTrustForwardedHeader()
                 && remoteIp != null
                 && trustedProxyMatcher.matches(remoteIp)) {
-            String forwardedFor = request.getHeaders().getFirst(HEADER_X_FORWARDED_FOR);
+            List<String> forwardedValues = request.getHeaders().get(HEADER_X_FORWARDED_FOR);
+            String forwardedFor = forwardedValues != null && forwardedValues.size() == 1
+                    ? forwardedValues.get(0)
+                    : null;
             String forwardedClientIp = firstUntrustedForwardedIp(forwardedFor);
             if (StringUtils.hasText(forwardedClientIp)) {
                 return forwardedClientIp;
@@ -106,6 +115,12 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
         return remoteIp;
     }
 
+    /**
+     * 从 TCP 连接读取并规范化直接上游地址，不信任任何请求头。
+     *
+     * @param request 当前网关请求
+     * @return 规范化远端 IP；连接未提供地址时返回 {@code null}
+     */
     private String remoteIp(ServerHttpRequest request) {
         InetSocketAddress remoteAddress = request.getRemoteAddress();
         if (remoteAddress == null || remoteAddress.getAddress() == null) {

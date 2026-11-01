@@ -19,18 +19,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionLifecycleEventServiceTests
- * @date : 2026-08-02 23:10
- * @email : scott_x@163.com
- * @description : 交易生命周期事件公开契约测试，验证只有成功或失败终态才能在当前事务中写入 FIFO Outbox。
- * @status : create
+ * 交易生命周期事件公开契约测试，验证只有成功或失败终态才能在当前事务中写入 FIFO Outbox。
  */
 @Slf4j
 class DefaultTransactionLifecycleEventServiceTests {
 
-    /** 非终态状态变更不得形成可被 Data 消费的商户通知事件。 */
+    /**
+     * 非终态状态变更不得形成可被 Data 消费的商户通知事件。
+     */
     @Test
     void shouldRejectNonTerminalStatusWithoutSavingOutbox() {
         log.info("测试生命周期事件终态边界，关键输入: PROCESSING");
@@ -53,7 +49,9 @@ class DefaultTransactionLifecycleEventServiceTests {
         log.info("生命周期事件终态边界测试完成，结果: 未写入 Outbox");
     }
 
-    /** 成功和失败终态都必须写入带真实交易分片时间的 Outbox。 */
+    /**
+     * 成功和失败终态都必须写入带真实交易分片时间的 Outbox。
+     */
     @Test
     void shouldSaveSuccessAndFailedTerminalEvents() {
         log.info("测试生命周期终态事件写入，关键输入: SUCCESS、FAILED");
@@ -94,7 +92,9 @@ class DefaultTransactionLifecycleEventServiceTests {
         log.info("生命周期终态事件写入测试完成，结果: 两条 Outbox 均保留状态和真实分片时间");
     }
 
-    /** 调用公开契约保存指定终态事件。 */
+    /**
+     * 调用公开契约保存指定终态事件。
+     */
     private void saveStatusChanged(TransactionLifecycleEventService lifecycleEventService,
                                    String transactionId,
                                    String operationId,

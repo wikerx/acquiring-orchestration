@@ -7,13 +7,7 @@ import com.scott.payment.clearing.domain.state.ClearingStateEnum;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingProjectionService
- * @date : 2026-08-26 18:30
- * @email : scott_x@163.com
- * @description : 在调用方清分事务内同步动作和生命周期查询投影；不拥有权威清分状态、交易状态或结算状态。
- * @status : create
+ * 在调用方清分事务内同步动作和生命周期查询投影；不拥有权威清分状态、交易状态或结算状态。
  */
 public interface ClearingProjectionService {
 

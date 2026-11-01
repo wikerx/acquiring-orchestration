@@ -20,13 +20,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailPreparationFailureRecorder
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 邮件准备失败记录器；在独立事务中保存脱敏的 CLOSED 记录，避免原准备事务回滚后管理端无迹可查。
- * @status : create
+ * 邮件准备失败记录器；在独立事务中保存脱敏的 CLOSED 记录，避免原准备事务回滚后管理端无迹可查。
  */
 @Service
 public class AdminEmailPreparationFailureRecorder {
@@ -38,7 +32,9 @@ public class AdminEmailPreparationFailureRecorder {
 
     private final EmailSendRecordMapper recordMapper;
 
-    /** 创建邮件准备失败记录器。 */
+    /**
+     * 创建邮件准备失败记录器。
+     */
     public AdminEmailPreparationFailureRecorder(EmailSendRecordMapper recordMapper) {
         this.recordMapper = recordMapper;
     }
@@ -88,6 +84,9 @@ public class AdminEmailPreparationFailureRecorder {
         return result;
     }
 
+    /**
+     * 填充操作人。
+     */
     private void fillOperator(EmailSendRecordDO row) {
         InternalAuthAccount operator = InternalAuthContextHolder.get();
         if (operator == null) {
@@ -99,30 +98,48 @@ public class AdminEmailPreparationFailureRecorder {
                 ? operator.getLoginAccount() : "system");
     }
 
+    /**
+     * 生成全局唯一的邮件任务号。
+     */
     private String generateEmailNo(LocalDateTime now) {
         return "EMAIL_FAIL_" + DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").format(now)
                 + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 将业务编码规范化为大写，空值使用默认编码。
+     */
     private String upperOrDefault(String value, String defaultValue) {
         String normalized = trimUpper(value);
         return StringUtils.hasText(normalized) ? normalized : defaultValue;
     }
 
+    /**
+     * 在文本为空时返回默认值。
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         String normalized = trim(value);
         return StringUtils.hasText(normalized) ? normalized : defaultValue;
     }
 
+    /**
+     * 去除文本空白并规范化为大写编码。
+     */
     private String trimUpper(String value) {
         String normalized = trim(value);
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 返回默认列表。
+     */
     private List<String> defaultList(List<String> value) {
         return value == null ? List.of() : value;
     }

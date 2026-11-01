@@ -7,13 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisPropertiesTests
- * @date : 2026-07-29 16:00
- * @email : scott_x@163.com
- * @description : 验证 Redis Key 的环境隔离、输入约束和 Cluster 同槽摘要能力
- * @status : update
+ * 验证 Redis Key 的环境隔离、输入约束和 Cluster 同槽摘要能力
  */
 @Slf4j
 class PaymentRedisPropertiesTests {

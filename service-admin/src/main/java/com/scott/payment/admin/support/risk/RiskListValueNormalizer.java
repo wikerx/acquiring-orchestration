@@ -18,60 +18,19 @@ import java.util.HexFormat;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskListValueNormalizer
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 收单风控名单匹配值归一化组件，负责管理端录入值到脱敏值、哈希、区间数值的转换。
- * @status : create
+ * 收单风控名单匹配值归一化组件，负责管理端录入值到脱敏值、哈希、区间数值的转换。
  */
 @Component
 public class RiskListValueNormalizer {
 
-    /**
-     * {@code CARD_BIN_MIN_LENGTH}常量，统一 {@code RiskListValueNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int CARD_BIN_MIN_LENGTH = 6;
-    /**
-     * {@code CARD_BIN_MAX_LENGTH}常量，统一 {@code RiskListValueNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int CARD_BIN_MAX_LENGTH = 11;
-    /**
-     * {@code CARD_MIN_LENGTH}常量，统一 {@code RiskListValueNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int CARD_MIN_LENGTH = 12;
-    /**
-     * {@code CARD_MAX_LENGTH}常量，统一 {@code RiskListValueNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int CARD_MAX_LENGTH = 19;
     private static final String EMAIL_USERNAME_REGEX = "^(?!\\.)(?!.*\\.\\.)(?!.*\\.$)[A-Z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$";
     private static final String EMAIL_DOMAIN_REGEX = "^(?=.{1,253}$)(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\\.)+[A-Z]{2,63}$";
     private static final String POSTAL_CODE_REGEX = "^(?=.{2,20}$)[A-Z0-9]+(?:[ -][A-Z0-9]+)*$";
 
-    /**
-     * {@code sensitiveValueCrypto}字段，保存 {@code RiskListValueNormalizer} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private final RiskSensitiveValueCrypto sensitiveValueCrypto;
 
     /**
@@ -141,6 +100,9 @@ public class RiskListValueNormalizer {
         return sensitiveValueCrypto.decrypt(cipherText);
     }
 
+    /**
+     * 规范化卡。
+     */
     private NormalizedValue normalizeCard(RiskDTOs.RiskListSaveRequest request) {
         String cardNo = digits(requiredPlain(request));
         if (cardNo.length() < CARD_MIN_LENGTH || cardNo.length() > CARD_MAX_LENGTH) {
@@ -149,6 +111,9 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(SensitiveDataMaskUtils.maskPan(cardNo), sha256(cardNo), sensitiveValueCrypto.encrypt(cardNo));
     }
 
+    /**
+     * 规范化卡 BIN。
+     */
     private NormalizedValue normalizeCardBin(RiskDTOs.RiskListSaveRequest request) {
         String start = digits(defaultIfBlank(request.getMatchValueStart(), request.getMatchValuePlain()));
         String end = digits(defaultIfBlank(request.getMatchValueEnd(), start));
@@ -168,6 +133,9 @@ public class RiskListValueNormalizer {
         return NormalizedValue.range(masked, sha256(normalizedStart + "-" + normalizedEnd), normalizedStart, normalizedEnd, startNumber.toString(), endNumber.toString(), null);
     }
 
+    /**
+     * 规范化部署节点 IP。
+     */
     private NormalizedValue normalizeIp(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
         String start = defaultIfBlank(request.getMatchValueStart(), request.getMatchValuePlain());
         String end = request.getMatchValueEnd();
@@ -198,6 +166,9 @@ public class RiskListValueNormalizer {
                 startIp.original(), endIp.original(), startIp.number().toString(), endIp.number().toString(), null, startIp.version());
     }
 
+    /**
+     * 规范化国家或地区。
+     */
     private NormalizedValue normalizeCountry(RiskDTOs.RiskListSaveRequest request) {
         String country = upper(defaultIfBlank(request.getCountryAlpha3(), request.getMatchValuePlain()));
         if (!StringUtils.hasText(country) || country.length() != 3) {
@@ -206,16 +177,25 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(country, sha256(country), null);
     }
 
+    /**
+     * 将电话号码规范化为 E.164 兼容的数字匹配值。
+     */
     private NormalizedValue normalizePhone(RiskDTOs.RiskListSaveRequest request) {
         String phone = requiredPlain(request).replaceAll("\\s+", "");
         return NormalizedValue.fixed(SensitiveDataMaskUtils.maskMobile(phone), sha256(phone), sensitiveValueCrypto.encrypt(phone));
     }
 
+    /**
+     * 规范化邮件。
+     */
     private NormalizedValue normalizeEmail(RiskDTOs.RiskListSaveRequest request) {
         String email = normalizedEmail(requiredPlain(request));
         return NormalizedValue.fixed(SensitiveDataMaskUtils.maskEmail(email), sha256(email), sensitiveValueCrypto.encrypt(email));
     }
 
+    /**
+     * 规范化邮件地址或域名名单值。
+     */
     private NormalizedValue normalizeEmailOrDomain(RiskDTOs.RiskListSaveRequest request) {
         String value = requiredPlain(request).trim();
         if (value.contains("@")) {
@@ -224,6 +204,9 @@ public class RiskListValueNormalizer {
         return normalizeEmailDomain(request);
     }
 
+    /**
+     * 规范化邮箱用户名名单值。
+     */
     private NormalizedValue normalizeEmailUsername(RiskDTOs.RiskListSaveRequest request) {
         String username = requiredPlain(request).trim().toLowerCase(Locale.ROOT);
         if (!username.toUpperCase(Locale.ROOT).matches(EMAIL_USERNAME_REGEX)) {
@@ -232,6 +215,9 @@ public class RiskListValueNormalizer {
         return normalizeSimple(username, true);
     }
 
+    /**
+     * 规范化完整邮箱地址。
+     */
     private String normalizedEmail(String rawEmail) {
         String email = rawEmail.trim().toLowerCase(Locale.ROOT);
         int atIndex = email.indexOf('@');
@@ -246,11 +232,17 @@ public class RiskListValueNormalizer {
         return username + "@" + domain;
     }
 
+    /**
+     * 规范化邮箱域名名单值。
+     */
     private NormalizedValue normalizeEmailDomain(RiskDTOs.RiskListSaveRequest request) {
         String domain = normalizeDomain(requiredPlain(request));
         return NormalizedValue.fixed(domain, sha256(domain), null);
     }
 
+    /**
+     * 将国际化域名规范化为小写 ASCII 域名。
+     */
     private String normalizeDomain(String rawDomain) {
         String domain = rawDomain.trim().toLowerCase(Locale.ROOT);
         while (domain.startsWith("@")) {
@@ -267,6 +259,9 @@ public class RiskListValueNormalizer {
         return domain;
     }
 
+    /**
+     * 规范化商户。
+     */
     private NormalizedValue normalizeMerchant(RiskDTOs.RiskListSaveRequest request) {
         String merchantId = defaultIfBlank(request.getMatchValuePlain(), request.getMatchValueMasked());
         if (!StringUtils.hasText(merchantId)) {
@@ -275,6 +270,9 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(merchantId, sha256(merchantId), null);
     }
 
+    /**
+     * 规范化邮政编码名单值。
+     */
     private NormalizedValue normalizePostalCode(RiskDTOs.RiskListSaveRequest request) {
         String displayValue = requiredPlain(request).trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
         if (!displayValue.matches(POSTAL_CODE_REGEX)) {
@@ -284,6 +282,9 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(displayValue, sha256(lookupValue), null);
     }
 
+    /**
+     * 规范化无需专用解析规则的名单值。
+     */
     private NormalizedValue normalizeSimple(String value, boolean sensitive) {
         String normalized = value.trim();
         String masked = sensitive && normalized.length() > 8
@@ -292,10 +293,16 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(masked, sha256(normalized.toLowerCase(Locale.ROOT)), sensitive ? sensitiveValueCrypto.encrypt(normalized) : null);
     }
 
+    /**
+     * 判断当前功能编码是否属于国家或地区名单。
+     */
     private boolean isCountryFunction(String code) {
         return "country".equals(code) || code.endsWith("Country") || code.contains("Country");
     }
 
+    /**
+     * 判断风险名单功能是否包含敏感值。
+     */
     private boolean isSensitiveFunction(String code) {
         return code.contains("Fingerprint")
                 || code.contains("Name")
@@ -306,12 +313,18 @@ public class RiskListValueNormalizer {
                 || code.contains("Customer");
     }
 
+    /**
+     * 校验卡 BIN。
+     */
     private void validateCardBin(String value, String label) {
         if (value.length() < CARD_BIN_MIN_LENGTH || value.length() > CARD_BIN_MAX_LENGTH) {
             throw invalid("BIN必须为 6-11 位纯数字");
         }
     }
 
+    /**
+     * 解析 IP。
+     */
     private ParsedIp parseIp(String ip) {
         if (!StringUtils.hasText(ip)) {
             throw invalid("请输入IP地址");
@@ -323,6 +336,9 @@ public class RiskListValueNormalizer {
         return parseIpv4(value);
     }
 
+    /**
+     * 解析并规范化 IPv4 地址或 CIDR 网段。
+     */
     private ParsedIp parseIpv4(String value) {
         String[] parts = value.split("\\.", -1);
         if (parts.length != 4) {
@@ -345,6 +361,9 @@ public class RiskListValueNormalizer {
         return new ParsedIp(value, "IPV4", number, segments);
     }
 
+    /**
+     * 解析并规范化 IPv6 地址或 CIDR 网段。
+     */
     private ParsedIp parseIpv6(String value) {
         if (!value.matches("[0-9a-fA-F:]+")) {
             throw invalid("IP地址格式不正确");
@@ -364,6 +383,9 @@ public class RiskListValueNormalizer {
         }
     }
 
+    /**
+     * 统计两个规范化名单值中不同的分段数量。
+     */
     private int differingSegmentCount(int[] startSegments, int[] endSegments) {
         int count = 0;
         for (int index = 0; index < startSegments.length; index++) {
@@ -374,12 +396,18 @@ public class RiskListValueNormalizer {
         return count;
     }
 
+    /**
+     * 拒绝同时提交多个互斥的范围表达式。
+     */
     private void rejectMultipleRanges(String value) {
         if (value != null && (value.contains(",") || value.contains(";") || value.contains("\n"))) {
             throw invalid("一次只能录入一个IP区间");
         }
     }
 
+    /**
+     * 获取风险名单原始匹配值，并在缺失时拒绝保存请求。
+     */
     private String requiredPlain(RiskDTOs.RiskListSaveRequest request) {
         String plain = defaultIfBlank(request.getMatchValuePlain(), request.getMatchValueMasked());
         if (!StringUtils.hasText(plain)) {
@@ -388,6 +416,9 @@ public class RiskListValueNormalizer {
         return plain;
     }
 
+    /**
+     * 提取文本中的数字字符。
+     */
     private String digits(String value) {
         if (!StringUtils.hasText(value)) {
             throw invalid("请输入数字值");
@@ -399,6 +430,9 @@ public class RiskListValueNormalizer {
         return digits;
     }
 
+    /**
+     * 在不改变原值的前提下补齐文本长度。
+     */
     private String rightPad(String value, int length, char ch) {
         if (value.length() >= length) {
             return value;
@@ -406,14 +440,23 @@ public class RiskListValueNormalizer {
         return value + String.valueOf(ch).repeat(length - value.length());
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 在文本为空时返回默认值。
+     */
     private String defaultIfBlank(String value, String fallback) {
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
@@ -423,6 +466,9 @@ public class RiskListValueNormalizer {
         }
     }
 
+    /**
+     * 构建风险名单参数校验异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
@@ -486,7 +532,13 @@ public class RiskListValueNormalizer {
 
     }
 
+    /**
+     * 封装规范化 IP 地址及其地址族。
+     */
     private record ParsedIp(String original, String version, BigInteger number, int[] segments) {
+        /**
+         * 创建已解析的 IP 地址值对象。
+         */
         private ParsedIp {
             segments = Arrays.copyOf(segments, segments.length);
         }

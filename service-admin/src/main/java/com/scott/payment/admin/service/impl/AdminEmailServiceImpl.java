@@ -61,167 +61,42 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailServiceImpl
- * @date : 2026-07-04 16:11
- * @email : scott_x@163.com
- * @description : 管理邮件账户、模板和发送记录；业务邮件只冻结加密记录与 Outbox，测试邮箱保留显式同步发送
- * @status : create
+ * 管理邮件账户、模板和发送记录；业务邮件只冻结加密记录与 Outbox，测试邮箱保留显式同步发送
  */
 @Service
 public class AdminEmailServiceImpl implements AdminEmailService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * {@code YES}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int YES = 1;
-    /**
-     * 编号常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int NO = 0;
-    /**
-     * {@code VERIFY_UNVERIFIED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int VERIFY_UNVERIFIED = 0;
-    /**
-     * {@code VERIFY_SUCCESS}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int VERIFY_SUCCESS = 1;
-    /**
-     * {@code VERIFY_FAILED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int VERIFY_FAILED = 2;
-    /**
-     * {@code SEND_PENDING}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int SEND_PENDING = EmailDeliveryStatus.PENDING.getCode();
-    /** 同步测试邮件发送过程中使用的中间状态。 */
+    /**
+     * 同步测试邮件发送过程中使用的中间状态。
+     */
     private static final int SEND_SENDING = EmailDeliveryStatus.SENDING.getCode();
-    /**
-     * {@code SEND_SUCCESS}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int SEND_SUCCESS = EmailDeliveryStatus.SUCCESS.getCode();
-    /**
-     * {@code SEND_FAILED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int SEND_FAILED = EmailDeliveryStatus.CLOSED.getCode();
-    /**
-     * {@code COMMON_SCENE}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String COMMON_SCENE = "COMMON";
     /**
      * 全局通用发件账户应用编码，用于没有应用专属发件账户时兜底。
      */
     private static final String APP_COMMON = "COMMON";
-    /**
-     * 范围系统常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String SCOPE_SYSTEM = "SYSTEM";
-    /**
-     * 范围商户常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String SCOPE_MERCHANT = "MERCHANT";
-    /**
-     * {@code SMTP_PROVIDER}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String SMTP_PROVIDER = "SMTP";
-    /**
-     * 默认语言区域常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DEFAULT_LOCALE = "zh-CN";
-    /**
-     * {@code CONTENT_HTML}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CONTENT_HTML = "HTML";
-    /**
-     * {@code TEMPLATE_VARIABLE_PATTERN}，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final Pattern TEMPLATE_VARIABLE_PATTERN = Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_]*)}");
+
+    /**
+     * 邮件模板变量名称允许的格式，防止无效敏感变量配置绕过快照脱敏。
+     */
+    private static final Pattern VARIABLE_NAME_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
     private final EmailAccountMapper accountMapper;
     private final EmailTemplateMapper templateMapper;
     private final EmailSendRecordMapper recordMapper;
@@ -229,21 +104,38 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * 系统参数配置服务，用于邮件模板注入平台访问地址等公共变量。
      */
     private final AdminConfigService adminConfigService;
-    /** 邮件正文和 SMTP 密码的运行时密钥加密组件。 */
+    /**
+     * 邮件正文和 SMTP 密码的运行时密钥加密组件。
+     */
     private final EmailPayloadCrypto payloadCrypto;
-    /** Admin 邮件异步投递编排。 */
+    /**
+     * Admin 邮件异步投递编排。
+     */
     private final AdminEmailDeliveryService deliveryService;
-    /** 测试邮箱场景使用的同步 SMTP 边界。 */
+    /**
+     * 测试邮箱场景使用的同步 SMTP 边界。
+     */
     private final AdminSmtpEmailSender smtpEmailSender;
-    /** 邮件默认重试配置。 */
+    /**
+     * 邮件默认重试配置。
+     */
     private final EmailDeliveryProperties deliveryProperties;
-    /** 跨系统已启用邮件模板快照读取器。 */
+    /**
+     * 跨系统已启用邮件模板快照读取器。
+     */
     private final EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
-    /** 已启用邮件模板缓存的事务门禁与 Outbox 可靠失效协调器。 */
+    /**
+     * 已启用邮件模板缓存的事务门禁与 Outbox 可靠失效协调器。
+     */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
-    /** 邮件准备事务失败后的独立失败记录器。 */
+    /**
+     * 邮件准备事务失败后的独立失败记录器。
+     */
     private final AdminEmailPreparationFailureRecorder preparationFailureRecorder;
 
+    /**
+     * 创建管理端邮件配置与发送记录服务。
+     */
     public AdminEmailServiceImpl(EmailAccountMapper accountMapper,
                                  EmailTemplateMapper templateMapper,
                                  EmailSendRecordMapper recordMapper,
@@ -687,7 +579,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         }
     }
 
-    /** 将内部异常分类为稳定错误码，不把异常原文或敏感数据写入发送记录。 */
+    /**
+     * 将内部异常分类为稳定错误码，不把异常原文或敏感数据写入发送记录。
+     */
     private String preparationErrorCode(RuntimeException exception) {
         if (exception instanceof ServiceException) {
             return "EMAIL_CONFIGURATION_INVALID";
@@ -721,6 +615,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toSendResult(record);
     }
 
+    /**
+     * 构建管理账户查询条件。
+     */
     private LambdaQueryWrapper<EmailAccountDO> accountQueryWrapper(EmailAccountQuery query) {
         return Wrappers.<EmailAccountDO>lambdaQuery()
                 .eq(EmailAccountDO::getDeleted, NOT_DELETED)
@@ -739,6 +636,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                 .orderByDesc(EmailAccountDO::getUpdateTime);
     }
 
+    /**
+     * 构建邮件模板查询条件。
+     */
     private LambdaQueryWrapper<EmailTemplateDO> templateQueryWrapper(EmailTemplateQuery query) {
         return Wrappers.<EmailTemplateDO>lambdaQuery()
                 .eq(EmailTemplateDO::getDeleted, NOT_DELETED)
@@ -753,6 +653,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                 .orderByDesc(EmailTemplateDO::getId);
     }
 
+    /**
+     * 构建邮件记录分页查询条件。
+     */
     private LambdaQueryWrapper<EmailSendRecordDO> recordQueryWrapper(EmailRecordQuery query) {
         return Wrappers.<EmailSendRecordDO>lambdaQuery()
                 // 列表只读取展示字段，避免投递密文进入查询结果，并降低分页查询的网络与内存开销。
@@ -815,6 +718,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                 .orderByDesc(EmailSendRecordDO::getCreateTime);
     }
 
+    /**
+     * 填充账户。
+     */
     private void fillAccount(EmailAccountDO row, EmailAccountSaveRequest request, boolean create, LocalDateTime now) {
         row.setAccountName(trim(request.getAccountName()));
         row.setAppCode(trimUpper(request.getAppCode()));
@@ -852,6 +758,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         validateAccountScope(row);
     }
 
+    /**
+     * 校验账户范围。
+     */
     private void validateAccountScope(EmailAccountDO row) {
         if (SCOPE_MERCHANT.equals(row.getScopeType()) && !StringUtils.hasText(row.getMerchantId())) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
@@ -863,6 +772,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         }
     }
 
+    /**
+     * 填充模板。
+     */
     private void fillTemplate(EmailTemplateDO row, EmailTemplateSaveRequest request, LocalDateTime now) {
         row.setTemplateCode(trimUpper(request.getTemplateCode()));
         row.setTemplateName(trim(request.getTemplateName()));
@@ -880,6 +792,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         row.setUpdateTime(now);
     }
 
+    /**
+     * 构建记录。
+     */
     private EmailSendRecordDO buildRecord(EmailSendRequest request, EmailTemplateDO template, EmailAccountDO account) {
         LocalDateTime now = LocalDateTime.now();
         EmailSendRecordDO record = new EmailSendRecordDO();
@@ -910,6 +825,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return record;
     }
 
+    /**
+     * 填充账户快照。
+     */
     private void fillAccountSnapshot(EmailSendRecordDO record, EmailAccountDO account) {
         record.setAccountId(account.getId());
         record.setAccountCode(account.getAccountCode());
@@ -919,6 +837,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         record.setReplyToEmail(account.getReplyToEmail());
     }
 
+    /**
+     * 执行邮件发送并记录最终发送事实。
+     */
     private EmailSendResult doSend(EmailSendRecordDO record, EmailAccountDO account, String content, boolean html) {
         LocalDateTime start = LocalDateTime.now();
         record.setSendStartTime(start);
@@ -945,6 +866,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toSendResult(record);
     }
 
+    /**
+     * 查询账户。
+     */
     private EmailAccountDO selectAccount(String appCode, String merchantId, String sceneCode) {
         String normalizedAppCode = defaultIfBlank(trimUpper(appCode), APP_COMMON);
         String normalizedSceneCode = defaultIfBlank(trimUpper(sceneCode), COMMON_SCENE);
@@ -968,6 +892,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "未找到可用发件账户");
     }
 
+    /**
+     * 构建账户路由关系查询条件。
+     */
     private LambdaQueryWrapper<EmailAccountDO> accountRouteWrapper(String appCode, String scopeType, String merchantId, String sceneCode) {
         return Wrappers.<EmailAccountDO>lambdaQuery()
                 .eq(EmailAccountDO::getDeleted, NOT_DELETED)
@@ -981,6 +908,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                 .orderByDesc(EmailAccountDO::getUpdateTime);
     }
 
+    /**
+     * 清除同维度的既有默认资金账户标记。
+     */
     private void clearDefaultAccount(EmailAccountDO row, Long excludeId) {
         accountMapper.update(null, Wrappers.<EmailAccountDO>lambdaUpdate()
                 .eq(EmailAccountDO::getDeleted, NOT_DELETED)
@@ -994,6 +924,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                 .set(EmailAccountDO::getUpdateTime, LocalDateTime.now()));
     }
 
+    /**
+     * 计算邮件模板缺失的必填变量。
+     */
     private Set<String> missingVariables(String template, Map<String, Object> variables) {
         Set<String> required = extractVariables(template);
         required.removeIf(key -> variables != null && variables.containsKey(key) && variables.get(key) != null);
@@ -1021,6 +954,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return enriched;
     }
 
+    /**
+     * 从邮件模板中提取变量占位符集合。
+     */
     private Set<String> extractVariables(String template) {
         Set<String> variables = new LinkedHashSet<>();
         if (!StringUtils.hasText(template)) {
@@ -1033,6 +969,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return variables;
     }
 
+    /**
+     * 使用受控变量渲染邮件模板内容。
+     */
     private String render(String template, Map<String, Object> variables) {
         Matcher matcher = TEMPLATE_VARIABLE_PATTERN.matcher(template);
         StringBuilder builder = new StringBuilder();
@@ -1044,6 +983,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return builder.toString();
     }
 
+    /**
+     * 脱敏邮件主题和正文中的敏感内容。
+     */
     private String maskSensitiveContent(String template, Map<String, Object> variables, List<String> sensitiveNames) {
         if (CollectionUtils.isEmpty(sensitiveNames)) {
             return render(template, variables);
@@ -1057,6 +999,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return render(template, masked);
     }
 
+    /**
+     * 脱敏邮件模板变量中的敏感值。
+     */
     private Map<String, Object> maskVariables(Map<String, Object> variables, List<String> sensitiveNames) {
         Map<String, Object> masked = new LinkedHashMap<>(variables);
         for (String name : sensitiveNames) {
@@ -1067,17 +1012,46 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return masked;
     }
 
+    /**
+     * 将敏感变量 JSON 数组解析为经过格式校验的变量名列表。
+     *
+     * <p>非法配置不能降级为空列表，否则敏感变量会按普通变量写入邮件快照。</p>
+     *
+     * @param json 敏感变量名称 JSON 数组
+     * @return 去除首尾空格和重复项后的变量名列表
+     * @throws ServiceException JSON 结构或变量名格式非法
+     */
     private List<String> parseStringList(String json) {
         if (!StringUtils.hasText(json)) {
             return List.of();
         }
         try {
-            return JSON.parseArray(json, String.class);
-        } catch (Exception ignored) {
-            return List.of();
+            List<String> names = JSON.parseArray(json, String.class);
+            if (names == null || names.stream().anyMatch(name -> !StringUtils.hasText(name)
+                    || !VARIABLE_NAME_PATTERN.matcher(name.trim()).matches())) {
+                throw invalidSensitiveVariableNames();
+            }
+            return names.stream().map(String::trim).distinct().toList();
+        } catch (ServiceException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw invalidSensitiveVariableNames();
         }
     }
 
+    /**
+     * 创建不包含原始配置内容的敏感变量配置异常。
+     *
+     * @return 参数格式异常
+     */
+    private ServiceException invalidSensitiveVariableNames() {
+        return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                "Sensitive variable names must be a JSON array of valid variable names");
+    }
+
+    /**
+     * 规范化 JSONArray。
+     */
     private String normalizeJsonArray(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -1090,6 +1064,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         }
     }
 
+    /**
+     * 基于原邮件记录创建独立的重试记录。
+     */
     private EmailSendRecordDO copyRetryRecord(EmailSendRecordDO source) {
         LocalDateTime now = LocalDateTime.now();
         EmailSendRecordDO record = new EmailSendRecordDO();
@@ -1130,6 +1107,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return record;
     }
 
+    /**
+     * 校验并获取账户。
+     */
     private EmailAccountDO requireAccount(Long id) {
         if (id == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "id is required");
@@ -1143,6 +1123,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return row;
     }
 
+    /**
+     * 校验并获取模板。
+     */
     private EmailTemplateDO requireTemplate(Long id) {
         EmailTemplateDO row = templateMapper.selectOne(Wrappers.<EmailTemplateDO>lambdaQuery()
                 .eq(EmailTemplateDO::getId, id)
@@ -1153,6 +1136,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return row;
     }
 
+    /**
+     * 从启用模板缓存读取指定语言模板，不存在时返回业务错误。
+     */
     private EmailTemplateDO requireEnabledTemplate(String templateCode, String locale) {
         EnabledEmailTemplateSnapshot snapshot = enabledTemplateCacheReader.findEnabled(
                 trimUpper(templateCode),
@@ -1177,14 +1163,18 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return row;
     }
 
-    /** 在当前业务事务内登记指定已启用邮件模板快照的可靠失效。 */
+    /**
+     * 在当前业务事务内登记指定已启用邮件模板快照的可靠失效。
+     */
     private void prepareEnabledTemplateInvalidation(String templateCode, String locale) {
         cacheInvalidationCoordinator.prepare(
                 PaymentCacheNames.EMAIL_TEMPLATE_ENABLED,
                 EmailTemplateCacheKey.of(templateCode, locale));
     }
 
-    /** 模板身份未变化时协调器自动去重，发生变化时同时登记新旧精确业务键。 */
+    /**
+     * 模板身份未变化时协调器自动去重，发生变化时同时登记新旧精确业务键。
+     */
     private void prepareEnabledTemplateInvalidations(String previousCode,
                                                       String previousLocale,
                                                       String currentCode,
@@ -1197,6 +1187,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         }
     }
 
+    /**
+     * 校验并获取记录。
+     */
     private EmailSendRecordDO requireRecord(Long id) {
         EmailSendRecordDO row = recordMapper.selectOne(Wrappers.<EmailSendRecordDO>lambdaQuery()
                 .eq(EmailSendRecordDO::getId, id)
@@ -1207,6 +1200,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return row;
     }
 
+    /**
+     * 校验资金账户编码不存在重复记录。
+     */
     private void ensureAccountCodeUnique(String code, Long excludeId) {
         Long count = accountMapper.selectCount(Wrappers.<EmailAccountDO>lambdaQuery()
                 .eq(EmailAccountDO::getAccountCode, code)
@@ -1217,6 +1213,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         }
     }
 
+    /**
+     * 校验邮件模板编码不存在重复配置。
+     */
     private void ensureTemplateUnique(String code, String locale, Long excludeId) {
         Long count = templateMapper.selectCount(Wrappers.<EmailTemplateDO>lambdaQuery()
                 .eq(EmailTemplateDO::getTemplateCode, code)
@@ -1228,6 +1227,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         }
     }
 
+    /**
+     * 转换为账户响应。
+     */
     private EmailAccountResponse toAccountResponse(EmailAccountDO row) {
         EmailAccountResponse response = new EmailAccountResponse();
         response.setId(row.getId());
@@ -1268,6 +1270,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return response;
     }
 
+    /**
+     * 转换为模板响应。
+     */
     private EmailTemplateResponse toTemplateResponse(EmailTemplateDO row) {
         EmailTemplateResponse response = new EmailTemplateResponse();
         response.setId(row.getId());
@@ -1292,6 +1297,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return response;
     }
 
+    /**
+     * 转换为记录响应。
+     */
     private EmailRecordResponse toRecordResponse(EmailSendRecordDO row) {
         EmailRecordResponse response = new EmailRecordResponse();
         response.setId(row.getId());
@@ -1337,6 +1345,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return response;
     }
 
+    /**
+     * 将邮件记录实体转换为发送结果响应。
+     */
     private EmailSendResult toSendResult(EmailSendRecordDO record) {
         EmailSendResult result = new EmailSendResult();
         result.setRecordId(record.getId());
@@ -1347,6 +1358,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return result;
     }
 
+    /**
+     * 填充操作人。
+     */
     private void fillOperator(EmailSendRecordDO record) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -1357,6 +1371,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         record.setOperatorName(currentOperatorName());
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -1371,10 +1388,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return "system";
     }
 
+    /**
+     * 规范化状态。
+     */
     private Integer normalizeStatus(Integer status) {
         return status != null && status == ENABLED ? ENABLED : DISABLED;
     }
 
+    /**
+     * 解析收件人 JSON 数组。
+     */
     private String[] parseEmailArray(String json) {
         if (!StringUtils.hasText(json)) {
             return new String[0];
@@ -1386,27 +1409,45 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         }
     }
 
+    /**
+     * 返回默认列表。
+     */
     private <T> List<T> defaultList(List<T> source) {
         return source == null ? List.of() : source;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
+    /**
+     * 去除文本空白并规范化为大写编码。
+     */
     private String trimUpper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
+    /**
+     * 在文本为空时返回默认值。
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
+    /**
+     * 在值为空时返回默认值。
+     */
     private Integer defaultIfNull(Integer value, Integer defaultValue) {
         return value == null ? defaultValue : value;
     }
 
+    /**
+     * 按持久化字段上限截断文本。
+     */
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
@@ -1414,10 +1455,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return value.substring(0, maxLength);
     }
 
+    /**
+     * 生成全局唯一的业务编码。
+     */
     private String generateCode(String prefix) {
         return prefix + "_" + System.currentTimeMillis();
     }
 
+    /**
+     * 加密待持久化的敏感配置值。
+     */
     private String encryptSecret(String plainText) {
         try {
             return payloadCrypto.encrypt(plainText);

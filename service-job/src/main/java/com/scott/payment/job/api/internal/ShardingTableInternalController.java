@@ -12,13 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTableInternalController
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表internal HTTP 控制器，位于 调度任务服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 分表表internal HTTP 控制器，位于 调度任务服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  */
 @RestController
 @RequestMapping("/internal/job/sharding")

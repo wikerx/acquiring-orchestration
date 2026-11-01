@@ -21,13 +21,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantDictServiceImpl
- * @date : 2026-07-20 00:00
- * @email : scott_x@163.com
- * @description : 商户dict服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 商户字典查询服务，按字典类型返回已启用且允许商户使用的条目。
  */
 @Service
 public class MerchantDictServiceImpl implements MerchantDictService {
@@ -85,7 +79,9 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 page.getRecords().stream().map(MerchantDictConverter.INSTANCE::toResponse).toList());
     }
 
-    /** 判断请求是否为可使用有限期快照的纯下拉查询。 */
+    /**
+     * 判断请求是否为可使用有限期快照的纯下拉查询。
+     */
     private boolean isEnabledOptionQuery(DictDataQuery query) {
         return StringUtils.hasText(query.getDictType())
                 && !StringUtils.hasText(query.getDictLabel())
@@ -94,7 +90,9 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 && (query.getStatus() == null || query.getStatus() == ENABLED);
     }
 
-    /** 将指定字典的启用快照按请求页码切分为标准分页响应。 */
+    /**
+     * 将指定字典的启用快照按请求页码切分为标准分页响应。
+     */
     private PageResult<DictDataResponse> pageCachedOptions(DictDataQuery query) {
         String locale = StringUtils.hasText(query.getLocale()) ? query.getLocale().trim() : DEFAULT_LOCALE;
         List<DictionaryOptionSnapshot> snapshots = dictionaryOptionCacheReader.findEnabled(

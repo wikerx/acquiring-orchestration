@@ -14,13 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobAuthWebMvcConfig
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务认证WebMvc配置类
- * @status : create
+ * 任务认证WebMvc配置类
  */
 @Configuration
 @EnableConfigurationProperties(InternalServiceAuthProperties.class)

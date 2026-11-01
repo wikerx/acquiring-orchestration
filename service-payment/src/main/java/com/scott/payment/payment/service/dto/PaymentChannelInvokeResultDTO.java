@@ -8,13 +8,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelInvokeResultDTO
- * @date : 2026-07-14 19:20
- * @email : scott_x@163.com
- * @description : 收单渠道调用结果 DTO，位于 service-payment 服务 DTO 层，承载渠道请求、同步响应、异常和耗时，供交易审计日志落库使用。
- * @status : create
+ * 收单渠道调用结果 DTO，位于 service-payment 服务 DTO 层，承载渠道请求、同步响应、异常和耗时，供交易审计日志落库使用。
  */
 @Data
 public class PaymentChannelInvokeResultDTO implements Serializable {
@@ -80,6 +74,14 @@ public class PaymentChannelInvokeResultDTO implements Serializable {
      * 异常摘要，禁止包含完整卡号、CVV、密钥或 Authorization 头。
      */
     private String exceptionMessage;
+
+    /**
+     * 受控渠道调用失败原因，只记录平台枚举值，不保存异常原文。
+     * <p>
+     * 该字段与 outcomeUncertain 共同表达来源证据：前者说明失败发生在哪一类边界，后者决定资金动作能否进入失败终态。
+     * </p>
+     */
+    private String failureReasonCode;
 
     /**
      * 渠道结果是否不确定。仅当请求可能已经到达渠道但平台无法取得可信结果时为 true，

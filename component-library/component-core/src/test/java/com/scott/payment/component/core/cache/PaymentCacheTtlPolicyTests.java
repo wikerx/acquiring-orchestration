@@ -11,13 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCacheTtlPolicyTests
- * @date : 2026-07-30 21:10
- * @email : scott_x@163.com
- * @description : 验证 Spring Cache 与直连 Redis 共用的 TTL 抖动边界和非法配置拒绝规则
- * @status : create
+ * 验证 Spring Cache 与直连 Redis 共用的 TTL 抖动边界和非法配置拒绝规则
  */
 @Slf4j
 class PaymentCacheTtlPolicyTests {

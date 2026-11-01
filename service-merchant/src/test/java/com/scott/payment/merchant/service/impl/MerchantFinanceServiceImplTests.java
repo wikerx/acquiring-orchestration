@@ -43,17 +43,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFinanceServiceImplTests
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户财务只读服务测试，验证当前费率、账户和流水查询始终绑定认证商户号。
- * @status : create
+ * 商户财务只读服务测试，验证当前费率、账户和流水查询始终绑定认证商户号。
  */
 class MerchantFinanceServiceImplTests {
 
-    /** 初始化纯单元测试中解析 Lambda 查询条件所需的表元数据。 */
+    /**
+     * 初始化纯单元测试中解析 Lambda 查询条件所需的表元数据。
+     */
     @BeforeEach
     void setUpTableMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -66,7 +62,9 @@ class MerchantFinanceServiceImplTests {
         TableInfoHelper.initTableInfo(assistant, FundLedgerDO.class);
     }
 
-    /** 当前费率查询必须限定商户方案、认证商户号和当前 ACTIVE 版本。 */
+    /**
+     * 当前费率查询必须限定商户方案、认证商户号和当前 ACTIVE 版本。
+     */
     @Test
     void shouldScopeCurrentFeeToAuthenticatedMerchantAndActiveVersion() {
         Fixture fixture = new Fixture();
@@ -94,14 +92,15 @@ class MerchantFinanceServiceImplTests {
 
         CurrentFeeResponse response = fixture.service.getCurrentFee("M10001");
 
-        System.out.println("当前费率查询：验证商户号 M10001 及 ACTIVE v3 查询边界");
         assertThat(response.getVersionNo()).isEqualTo(3);
         assertThat(response.getDisplayName()).isEqualTo("当前商户费率");
         assertThat(hasParams(planQuery.get(), "M10001", "MERCHANT", "ENABLED")).isTrue();
         assertThat(hasParams(versionQuery.get(), 21L, 11L, "ACTIVE")).isTrue();
     }
 
-    /** 同一多选配置展开的原子规则必须还原为一条商户可读逻辑规则。 */
+    /**
+     * 同一多选配置展开的原子规则必须还原为一条商户可读逻辑规则。
+     */
     @Test
     void shouldRestoreGroupedFeeRulesForMerchantDisplay() {
         Fixture fixture = new Fixture();
@@ -126,7 +125,6 @@ class MerchantFinanceServiceImplTests {
 
         CurrentFeeResponse response = fixture.service.getCurrentFee("M10001");
 
-        System.out.println("商户费率规则聚合：验证四条原子规则还原为一条多选逻辑规则");
         assertThat(response.getRules()).singleElement().satisfies(rule -> {
             assertThat(rule.getRuleName()).isEqualTo("卡支付交易手续费");
             assertThat(rule.getTransactionTypes()).containsExactly("AUTHORIZATION", "PAYMENT");
@@ -135,7 +133,9 @@ class MerchantFinanceServiceImplTests {
         });
     }
 
-    /** 多选规则聚合后的当前费率必须能够写入项目统一 Redis 缓存。 */
+    /**
+     * 多选规则聚合后的当前费率必须能够写入项目统一 Redis 缓存。
+     */
     @Test
     void shouldRoundTripGroupedCurrentFeeThroughRegisteredRedisSerializer() {
         Fixture fixture = new Fixture();
@@ -160,11 +160,12 @@ class MerchantFinanceServiceImplTests {
 
         Object restored = serializer.deserialize(serializer.serialize(response));
 
-        System.out.println("商户费率缓存：验证多选规则聚合结果可通过统一 Redis 序列化器往返处理");
         assertThat(restored).usingRecursiveComparison().isEqualTo(response);
     }
 
-    /** 余额流水查询必须同时限定认证商户号和该商户账户ID。 */
+    /**
+     * 余额流水查询必须同时限定认证商户号和该商户账户ID。
+     */
     @Test
     void shouldScopeLedgerQueryToMerchantAndOwnedAccount() {
         Fixture fixture = new Fixture();
@@ -191,7 +192,6 @@ class MerchantFinanceServiceImplTests {
 
         PageResult<FundLedgerResponse> response = fixture.service.pageLedgers("M10001", new DetailQuery());
 
-        System.out.println("余额流水查询：验证商户号 M10001 与账户 31 双重隔离");
         assertThat(response.getRecords()).singleElement().satisfies(item -> {
             assertThat(item.getLedgerNo()).isEqualTo("FL10001");
             assertThat(item.getAmount()).isEqualByComparingTo("12.50");
@@ -200,7 +200,9 @@ class MerchantFinanceServiceImplTests {
         assertThat(hasParams(ledgerQuery.get(), "M10001", 31L)).isTrue();
     }
 
-    /** 在途与未结算保证金必须分别按原标签币种汇总。 */
+    /**
+     * 在途与未结算保证金必须分别按原标签币种汇总。
+     */
     @Test
     void shouldKeepDerivedBalancesSeparatedByOriginalCurrency() {
         Fixture fixture = new Fixture();
@@ -216,7 +218,6 @@ class MerchantFinanceServiceImplTests {
 
         FundAccountResponse response = fixture.service.getFundAccount("M10001");
 
-        System.out.println("派生余额汇总：验证在途和未结算保证金均按原币种独立展示");
         assertThat(response.getPendingBalances()).hasSize(2);
         assertThat(response.getPendingBalances().get(0).getCurrency()).isEqualTo("EUR");
         assertThat(response.getPendingBalances().get(0).getAmount()).isEqualByComparingTo("50");
@@ -229,7 +230,9 @@ class MerchantFinanceServiceImplTests {
         assertThat(response.getSettlementAllowed()).isTrue();
     }
 
-    /** 商户端必须与管理端保持同一冻结口径：冻结账户不得继续发起结算。 */
+    /**
+     * 商户端必须与管理端保持同一冻结口径：冻结账户不得继续发起结算。
+     */
     @Test
     void shouldDisableSettlementCapabilityForFrozenAccount() {
         Fixture fixture = new Fixture();
@@ -248,7 +251,9 @@ class MerchantFinanceServiceImplTests {
         assertThat(response.getReverseTransactionAllowed()).isFalse();
     }
 
-    /** 余额流水查询应包含入账起止时间，且结束时间不得早于开始时间。 */
+    /**
+     * 余额流水查询应包含入账起止时间，且结束时间不得早于开始时间。
+     */
     @Test
     void shouldFilterAndValidateLedgerPostedTimeRange() {
         Fixture fixture = new Fixture();
@@ -266,7 +271,6 @@ class MerchantFinanceServiceImplTests {
 
         fixture.service.pageLedgers("M10001", query);
 
-        System.out.println("余额流水入账时间：验证查询条件包含闭区间并拒绝反向时间范围");
         assertThat(hasParams(ledgerQuery.get(), start, end)).isTrue();
         DetailQuery invalidQuery = new DetailQuery();
         invalidQuery.setPostedStartTime(end);

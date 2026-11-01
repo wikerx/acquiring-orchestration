@@ -17,13 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionRecordService
- * @date : 2026-07-14 17:45
- * @email : scott_x@163.com
- * @description : 交易事实记录服务，位于 service-payment 服务层，负责冻结 transaction_date_time 并通过交易逻辑表持久化主单、动作单和状态历史。
- * @status : create
+ * 交易事实记录服务，位于 service-payment 服务层，负责冻结 transaction_date_time 并通过交易逻辑表持久化主单、动作单和状态历史。
  */
 public interface TransactionRecordService {
 
@@ -120,7 +114,23 @@ public interface TransactionRecordService {
      */
     TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId);
 
-    /** 按动作分片键读取可向商户返回的支付工具脱敏摘要。 */
+    /**
+     * 从交易主库强一致读取生命周期主单。
+     * <p>
+     * 用于状态推进前及 CAS 冲突后的权威读取，确保累计授权、请款、退款等资金汇总与已提交终态一致。
+     * </p>
+     *
+     * @param transactionDateTime 生命周期根主单分片时间
+     * @param operationId 平台内部生命周期关联标识
+     * @return 主库中的生命周期主单
+     */
+    default TransactionOrderDO findOrderPrimary(LocalDateTime transactionDateTime, String operationId) {
+        return findOrder(transactionDateTime, operationId);
+    }
+
+    /**
+     * 按动作分片键读取可向商户返回的支付工具脱敏摘要。
+     */
     default TransactionPaymentMethodInfoDO findPaymentMethodInfo(
             String transactionId,
             LocalDateTime transactionDateTime) {
@@ -197,6 +207,22 @@ public interface TransactionRecordService {
     }
 
     /**
+     * 从交易主库强一致读取当前动作事实。
+     * <p>
+     * 用于状态推进前及 CAS 冲突后的权威读取，避免读写分离副本延迟导致同步响应与已提交终态不一致。
+     * </p>
+     *
+     * @param sourceTransactionId 平台交易 ID
+     * @param sourceTransactionDateTime 原始交易分片时间
+     * @return 主库中的当前动作事实
+     */
+    default TransactionOperationDO findSourceOperationByTransactionIdPrimary(
+            String sourceTransactionId,
+            LocalDateTime sourceTransactionDateTime) {
+        return findSourceOperationByTransactionId(sourceTransactionId, sourceTransactionDateTime);
+    }
+
+    /**
      * 按商户订单号查询同一订单下的交易动作。
      * <p>
      * 查询必须携带动作时间和根主单时间。指定 transactionId 时只路由动作所在季度；未指定时从根主单季度扫描到当前季度。
@@ -213,6 +239,22 @@ public interface TransactionRecordService {
                                                                String transactionId,
                                                                LocalDateTime transactionDateTime,
                                                                LocalDateTime rootTransactionDateTime);
+
+    /**
+     * 查询同一交易生命周期内的全部动作事实。
+     *
+     * <p>请款和增量授权在原主单行锁内使用该结果累计标签金额，禁止从交易金额反推商户累计金额。</p>
+     *
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 生命周期根交易时间
+     * @param endTime 当前动作决策时间
+     * @return 按动作顺序排列的生命周期动作
+     */
+    default List<TransactionOperationDO> findOperationsByOperationId(String operationId,
+                                                                     LocalDateTime beginTime,
+                                                                     LocalDateTime endTime) {
+        return List.of();
+    }
 
     /**
      * 按商户订单号查询同一订单下的首次起点交易动作。
@@ -336,6 +378,21 @@ public interface TransactionRecordService {
      */
     default TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
         return null;
+    }
+
+    /**
+     * 从交易主库强一致读取恢复已准备交易所需的原资金渠道请求。
+     * <p>
+     * 用于数据库渠道提交抢占冲突和 3DS 恢复路径，避免读写分离副本延迟导致刚写入的请求不可见，
+     * 或用旧请求状态构造与已提交事实不一致的同步响应。
+     * </p>
+     *
+     * @param operationDO 已从主库读取的交易动作单
+     * @return 主库中的原资金动作渠道请求，不存在时返回 null
+     */
+    default TransactionChannelRequestDO findOriginalChannelRequestForQueryPrimary(
+            TransactionOperationDO operationDO) {
+        return findOriginalChannelRequestForQuery(operationDO);
     }
 
     /**

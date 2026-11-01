@@ -11,7 +11,6 @@ import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
 import com.scott.payment.component.db.sharding.ShardingTableDdlService;
 import com.scott.payment.component.db.sharding.ShardingTableInspectionResult;
 import com.scott.payment.component.db.sharding.ShardingTableSchemaInspector;
-import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingRuleChecksum;
 import com.scott.payment.component.job.executor.JobExecuteContext;
@@ -38,20 +37,16 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateServiceImpl
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreate服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 分表表precreate服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreateService {
 
     private final TransactionShardingGovernanceProperties shardingProperties;
 
-    /** 当前已发布交易逻辑规则，用于生成仅增加已验证季度的候选版本。 */
+    /**
+     * 当前已发布交易逻辑规则，用于生成仅增加已验证季度的候选版本。
+     */
     private final TransactionShardingProperties transactionShardingProperties;
     private final ShardingQuarterResolver quarterResolver;
     private final ShardingPhysicalTableNameResolver tableNameResolver;
@@ -214,6 +209,12 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
                 .toList();
     }
 
+    /**
+     * 根据任务开关生成本次需要检查或创建的季度集合。
+     *
+     * @param request 分表预创建请求
+     * @return 保持当前季度、下一季度顺序且不重复的目标列表
+     */
     private List<ShardingQuarter> targetQuarters(ShardingTablePreCreateRequest request) {
         ShardingQuarter current = quarterResolver.currentQuarter(shardingProperties);
         Set<ShardingQuarter> quarters = new LinkedHashSet<>();
@@ -226,6 +227,14 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         return new ArrayList<>(quarters);
     }
 
+    /**
+     * 对一条逻辑表规则逐季度执行预创建，并汇总每张物理表结果。
+     *
+     * @param rule           逻辑表治理规则
+     * @param targetQuarters 目标季度
+     * @param request        分表预创建请求
+     * @param result         当前任务汇总结果
+     */
     private void processRule(TransactionShardingGovernanceProperties.TableRule rule,
                              List<ShardingQuarter> targetQuarters,
                              ShardingTablePreCreateRequest request,
@@ -241,6 +250,14 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         }
     }
 
+    /**
+     * 检查或创建单张季度物理表，并持久化表结构与号段检查事实。
+     *
+     * @param rule    逻辑表治理规则
+     * @param quarter 目标季度
+     * @param request 分表预创建请求
+     * @return 单张物理表的执行和校验结果
+     */
     private ShardingTablePreCreateTableResult processTable(TransactionShardingGovernanceProperties.TableRule rule,
                                                            ShardingQuarter quarter,
                                                            ShardingTablePreCreateRequest request) {
@@ -317,7 +334,9 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         return "MATCHED";
     }
 
-    /** 在规则结束前按滚动季度窗口发出续期告警，不恢复历史查询跨度限制。 */
+    /**
+     * 在规则结束前按滚动季度窗口发出续期告警，不恢复历史查询跨度限制。
+     */
     private void addExpiryWarnings(
             ShardingTablePreCreateResult result,
             List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules) {
@@ -388,7 +407,9 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
                 : "FIX_BLOCKERS_AND_REPEAT_DRY_RUN");
     }
 
-    /** 判断单表是否满足加入 actualDataNodes 的全部结构和号段门禁。 */
+    /**
+     * 判断单表是否满足加入 actualDataNodes 的全部结构和号段门禁。
+     */
     private boolean isPublicationReadyTable(ShardingTablePreCreateTableResult tableResult) {
         return Set.of("CREATED", "SKIPPED").contains(tableResult.getStatus())
                 && "MATCHED".equals(tableResult.getSchemaCheckStatus())
@@ -426,7 +447,14 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         return "sharding governance operation failed: " + exception.getClass().getSimpleName();
     }
 
-    private void collectSummary(ShardingTablePreCreateResult result, ShardingTablePreCreateTableResult tableResult) {
+    /**
+     * 按单表执行状态归集成功、跳过、结构不一致和失败列表。
+     *
+     * @param result      当前任务汇总结果
+     * @param tableResult 单张物理表执行结果
+     */
+    private void collectSummary(ShardingTablePreCreateResult result,
+                                ShardingTablePreCreateTableResult tableResult) {
         switch (tableResult.getStatus()) {
             case "CREATED" -> result.getCreatedTables().add(tableResult.getPhysicalTable());
             case "SKIPPED", "DRY_RUN" -> result.getSkippedTables().add(tableResult.getPhysicalTable());
@@ -436,6 +464,15 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         }
     }
 
+    /**
+     * 新增或更新物理表治理记录，保存季度号段、结构检查和失败摘要。
+     *
+     * @param rule          逻辑表治理规则
+     * @param quarter       目标季度
+     * @param tableResult   单表执行结果
+     * @param existedBefore 执行前物理表是否存在
+     * @param errorMessage  不含连接信息的失败摘要
+     */
     private void savePhysicalTable(TransactionShardingGovernanceProperties.TableRule rule,
                                    ShardingQuarter quarter,
                                    ShardingTablePreCreateTableResult tableResult,
@@ -476,12 +513,25 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         }
     }
 
+    /**
+     * 按唯一物理表名查询已有治理记录。
+     *
+     * @param physicalTable 物理表名
+     * @return 已有治理记录；不存在时返回 {@code null}
+     */
     private SysShardingPhysicalTableDO findPhysicalTable(String physicalTable) {
         return physicalTableMapper.selectOne(new LambdaQueryWrapper<SysShardingPhysicalTableDO>()
                 .eq(SysShardingPhysicalTableDO::getPhysicalTable, physicalTable)
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 将本次执行状态映射为物理表登记状态。
+     *
+     * @param status        本次执行状态
+     * @param existedBefore 执行前物理表是否存在
+     * @return CREATED、EXISTS、MISSING 或 FAILED
+     */
     private String toTableStatus(String status, boolean existedBefore) {
         return switch (status) {
             case "CREATED" -> "CREATED";
@@ -492,6 +542,16 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         };
     }
 
+    /**
+     * 保存本次预创建任务的触发来源、执行统计、耗时和安全失败摘要。
+     *
+     * @param batchNo     任务批次号
+     * @param request     分表预创建请求
+     * @param context     调度执行上下文
+     * @param result      当前任务汇总结果
+     * @param start       任务开始时刻
+     * @param errorMessage 不含连接信息的失败摘要
+     */
     private void saveCreateLog(String batchNo,
                                ShardingTablePreCreateRequest request,
                                JobExecuteContext context,
@@ -521,6 +581,13 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         createLogMapper.insert(log);
     }
 
+    /**
+     * 根据顶层异常和单表结果计算本批任务状态。
+     *
+     * @param result       当前任务汇总结果
+     * @param errorMessage 顶层失败摘要
+     * @return SUCCESS、PARTIAL_FAILED 或 FAILED
+     */
     private String runStatus(ShardingTablePreCreateResult result, String errorMessage) {
         if (StringUtils.hasText(errorMessage)) {
             return "FAILED";

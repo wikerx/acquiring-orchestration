@@ -7,18 +7,14 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantConfigServiceImpl
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户配置服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 商户门户配置查询服务，从系统参数中读取商户端可用配置。
  */
 @Service
 public class MerchantConfigServiceImpl implements MerchantConfigService {
 
-    /** 跨服务统一系统参数读取服务。 */
+    /**
+     * 跨服务统一系统参数读取服务。
+     */
     private final SystemConfigReadService systemConfigReadService;
 
     /**

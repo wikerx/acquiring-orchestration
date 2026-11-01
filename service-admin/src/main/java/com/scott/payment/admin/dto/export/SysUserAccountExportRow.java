@@ -7,13 +7,7 @@ import java.time.LocalDateTime;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserAccountExportRow
- * @date : 2026-06-20 01:15
- * @email : scott_x@163.com
- * @description : sys用户账号导出行模型，位于 运营后台服务，定义 Excel 列及运营可见值，不承载数据库写入规则。
- * @status : create
+ * sys用户账号导出行模型，用于运营后台，定义 Excel 列及运营可见值，不承载数据库写入规则。
  */
 @Data
 public class SysUserAccountExportRow {

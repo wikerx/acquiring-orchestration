@@ -1,13 +1,7 @@
 package com.scott.payment.component.web.operation.constant;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationTypeConstants
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统操作日志业务类型常量
- * @status : create
+ * 管理类系统操作日志业务类型常量
  */
 public final class OperationTypeConstants {
 

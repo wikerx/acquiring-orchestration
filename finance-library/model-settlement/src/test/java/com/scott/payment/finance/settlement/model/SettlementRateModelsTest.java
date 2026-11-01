@@ -14,13 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRateModelsTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证结算汇率矩阵的币种规范化、不可变性、批次单目标币种和币种对唯一约束。
- * @status : create
+ * 验证结算汇率矩阵的币种规范化、不可变性、批次单目标币种和币种对唯一约束。
  */
 class SettlementRateModelsTest {
 

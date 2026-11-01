@@ -28,41 +28,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRefundApplicationService
- * @date : 2026-08-06 16:10
- * @email : scott_x@163.com
- * @description : 商户退款应用服务，在 service-merchant 内强制认证商户查询边界、编排导出并生成统一商户可见处理说明。
- * @status : create
+ * 商户退款应用服务，在 service-merchant 内强制认证商户查询边界、编排导出并生成统一商户可见处理说明。
  */
 @Service
 public class MerchantRefundApplicationService {
 
-    /**
-     * {@code EXPORT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int EXPORT_PAGE_SIZE = 500;
-    /**
-     * {@code EXPORT_LEASE_TIME}常量，统一 {@code MerchantRefundApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code MerchantRefundApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final MerchantRefundQueryService refundQueryService;
@@ -158,6 +130,9 @@ public class MerchantRefundApplicationService {
         }
     }
 
+    /**
+     * 仅使用商户可见响应信息补充退款展示字段。
+     */
     private void applyMerchantVisibleMessage(RefundRecord refund) {
         if ("PENDING".equals(refund.getApprovalStatus())) {
             refund.setMerchantVisibleMessage("退款申请待平台处理");
@@ -174,6 +149,9 @@ public class MerchantRefundApplicationService {
         }
     }
 
+    /**
+     * 按受控批次分页导出当前商户退款记录。
+     */
     private void exportExcel(String merchantId,
                              RefundQuery query,
                              String operator,
@@ -198,6 +176,9 @@ public class MerchantRefundApplicationService {
                         .build(), response);
     }
 
+    /**
+     * 加载单页退款导出数据并应用商户可见错误信息。
+     */
     private List<MerchantRefundExportRow> loadExportPage(String merchantId, RefundQuery query, int pageNo) {
         query.setPageNo(pageNo);
         query.setPageSize(EXPORT_PAGE_SIZE);

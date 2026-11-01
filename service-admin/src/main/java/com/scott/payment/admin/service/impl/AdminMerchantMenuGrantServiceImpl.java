@@ -38,32 +38,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantMenuGrantServiceImpl
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户菜单授权服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理端商户菜单授权服务实现，用于运营后台，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrantService {
 
-    /**
-     * {@code ROOT_PARENT_ID}，用于定位 {@code AdminMerchantMenuGrantServiceImpl} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long ROOT_PARENT_ID = 0L;
-    /**
-     * {@code GRANT_SOURCE_ADMIN}常量，统一 {@code AdminMerchantMenuGrantServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String GRANT_SOURCE_ADMIN = "ADMIN";
 
     private final SysAppMapper sysAppMapper;
@@ -148,6 +128,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         permissionIds.forEach(permissionId -> insertPermissionGrant(merchantApp.getId(), normalizedMerchantId, permissionId, now));
     }
 
+    /**
+     * 校验商户。
+     */
     private String validateMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
@@ -184,6 +167,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return app;
     }
 
+    /**
+     * 加载商户可见菜单树。
+     */
     private List<SysMenuDTO> loadMerchantMenuTree(Long appId) {
         List<SysMenuDTO> menus = sysMenuMapper.selectList(
                         Wrappers.<SysMenuDO>lambdaQuery()
@@ -197,6 +183,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return buildMenuTree(menus);
     }
 
+    /**
+     * 加载商户可分配权限列表。
+     */
     private List<SysPermissionDTO> loadMerchantPermissions(Long appId) {
         return sysPermissionMapper.selectList(
                         Wrappers.<SysPermissionDO>lambdaQuery()
@@ -210,6 +199,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
                 .toList();
     }
 
+    /**
+     * 加载指定商户当前已授权的菜单主键。
+     */
     private List<Long> loadCheckedMenuIds(Long appId, String merchantId) {
         return sysMerchantMenuGrantMapper.selectList(
                         Wrappers.<SysMerchantMenuGrantDO>lambdaQuery()
@@ -223,6 +215,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
                 .toList();
     }
 
+    /**
+     * 加载指定商户当前已授权的权限记录。
+     */
     private List<SysPermissionDO> loadCheckedPermissions(Long appId, String merchantId) {
         List<Long> permissionIds = sysMerchantPermissionGrantMapper.selectList(
                         Wrappers.<SysMerchantPermissionGrantDO>lambdaQuery()
@@ -245,6 +240,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         );
     }
 
+    /**
+     * 校验菜单主键集合均有效且可授权。
+     */
     private void validateMenuIds(Long appId, Set<Long> menuIds) {
         if (menuIds.isEmpty()) {
             return;
@@ -261,6 +259,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         }
     }
 
+    /**
+     * 校验权限主键集合均有效且可授权。
+     */
     private void validatePermissionIds(Long appId, Set<Long> permissionIds) {
         if (permissionIds.isEmpty()) {
             return;
@@ -277,6 +278,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         }
     }
 
+    /**
+     * 校验权限均属于允许授权的菜单范围。
+     */
     private void validatePermissionMenuScope(Long appId, Set<Long> menuIds, Set<Long> permissionIds) {
         if (permissionIds.isEmpty()) {
             return;
@@ -297,6 +301,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         }
     }
 
+    /**
+     * 软删除菜单授权关系。
+     */
     private void softDeleteMenuGrants(Long appId, String merchantId) {
         sysMerchantMenuGrantMapper.selectList(
                 Wrappers.<SysMerchantMenuGrantDO>lambdaQuery()
@@ -311,6 +318,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         });
     }
 
+    /**
+     * 软删除权限授权关系。
+     */
     private void softDeletePermissionGrants(Long appId, String merchantId) {
         sysMerchantPermissionGrantMapper.selectList(
                 Wrappers.<SysMerchantPermissionGrantDO>lambdaQuery()
@@ -325,6 +335,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         });
     }
 
+    /**
+     * 新增商户菜单授权记录。
+     */
     private void insertMenuGrant(Long appId, String merchantId, Long menuId, LocalDateTime now) {
         SysMerchantMenuGrantDO grant = new SysMerchantMenuGrantDO();
         grant.setMerchantId(merchantId);
@@ -338,6 +351,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         sysMerchantMenuGrantMapper.insert(grant);
     }
 
+    /**
+     * 新增商户权限授权记录。
+     */
     private void insertPermissionGrant(Long appId, String merchantId, Long permissionId, LocalDateTime now) {
         SysMerchantPermissionGrantDO grant = new SysMerchantPermissionGrantDO();
         grant.setMerchantId(merchantId);
@@ -351,6 +367,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         sysMerchantPermissionGrantMapper.insert(grant);
     }
 
+    /**
+     * 规范化授权主键集合，去除空值和重复项。
+     */
     private Set<Long> normalizeIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptySet();
@@ -361,6 +380,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 转换为菜单授权数据对象。
+     */
     private SysMenuDTO toMenuDTO(SysMenuDO menu) {
         SysMenuDTO dto = new SysMenuDTO();
         dto.setMenuId(menu.getId());
@@ -381,6 +403,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return dto;
     }
 
+    /**
+     * 转换为权限授权数据对象。
+     */
     private SysPermissionDTO toPermissionDTO(SysPermissionDO permission) {
         SysPermissionDTO dto = new SysPermissionDTO();
         dto.setPermissionId(permission.getId());
@@ -394,6 +419,9 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return dto;
     }
 
+    /**
+     * 构建菜单层级树。
+     */
     private List<SysMenuDTO> buildMenuTree(List<SysMenuDTO> menus) {
         Map<Long, SysMenuDTO> nodeMap = menus.stream()
                 .collect(Collectors.toMap(SysMenuDTO::getMenuId, item -> item, (left, right) -> left, LinkedHashMap::new));

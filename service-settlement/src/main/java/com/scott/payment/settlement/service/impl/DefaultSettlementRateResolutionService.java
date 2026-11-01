@@ -24,13 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementRateResolutionService
- * @date : 2026-08-26 22:40
- * @email : scott_x@163.com
- * @description : 一次批量查询全部跨币种报价，按默认来源、优先级、方向、生效时间和主键确定唯一批次直接汇率。
- * @status : create
+ * 一次批量查询全部跨币种报价，按默认来源、优先级、方向、生效时间和主键确定唯一批次直接汇率。
  */
 @Service
 public class DefaultSettlementRateResolutionService implements SettlementRateResolutionService {
@@ -81,7 +75,9 @@ public class DefaultSettlementRateResolutionService implements SettlementRateRes
         return RateMatrix.of(locked);
     }
 
-    /** 校验请求币种均为规范 ISO 代码且同币种 exponent 唯一，并与目标 exponent 一致。 */
+    /**
+     * 校验请求币种均为规范 ISO 代码且同币种 exponent 唯一，并与目标 exponent 一致。
+     */
     private Map<String, Integer> validateExponents(Set<SettlementCurrency> currencies,
                                                    SettlementCurrency target) {
         Map<String, Integer> exponents = new HashMap<>();
@@ -102,7 +98,9 @@ public class DefaultSettlementRateResolutionService implements SettlementRateRes
         return exponents;
     }
 
-    /** 从有效报价中确定性选择来源，归一正向/反向报价并保留原始方向和生效时间。 */
+    /**
+     * 从有效报价中确定性选择来源，归一正向/反向报价并保留原始方向和生效时间。
+     */
     private LockedRate resolveCross(String sourceCurrency,
                                     int sourceExponent,
                                     SettlementCurrency target,
@@ -125,7 +123,9 @@ public class DefaultSettlementRateResolutionService implements SettlementRateRes
         return normalizer.normalize(quote, sourceExponent, target.exponent());
     }
 
-    /** 按优先级、最新生效时间、报价 ID 建立确定性报价选择顺序。 */
+    /**
+     * 按优先级、最新生效时间、报价 ID 建立确定性报价选择顺序。
+     */
     private Comparator<SettlementRateQuoteDO> quoteComparator(CurrencyPair pair) {
         return Comparator
                 .comparingInt((SettlementRateQuoteDO row) -> Integer.valueOf(1).equals(row.getDefaultSource()) ? 0 : 1)
@@ -138,7 +138,9 @@ public class DefaultSettlementRateResolutionService implements SettlementRateRes
                         Comparator.nullsLast(Comparator.reverseOrder()));
     }
 
-    /** 判断报价是否覆盖请求币种对，允许正向或反向原始报价。 */
+    /**
+     * 判断报价是否覆盖请求币种对，允许正向或反向原始报价。
+     */
     private boolean matches(SettlementRateQuoteDO row, CurrencyPair pair) {
         return row != null && row.getFinalRate() != null && row.getFinalRate().signum() > 0
                 && row.getSourceCode() != null && row.getEffectiveTime() != null
@@ -146,7 +148,9 @@ public class DefaultSettlementRateResolutionService implements SettlementRateRes
                     && pair.sourceCurrency().equals(row.getQuoteCurrency())));
     }
 
-    /** 判断原始报价方向是否与 sourceCurrency 到 targetCurrency 一致。 */
+    /**
+     * 判断原始报价方向是否与 sourceCurrency 到 targetCurrency 一致。
+     */
     private boolean isDirect(SettlementRateQuoteDO row, CurrencyPair pair) {
         return pair.sourceCurrency().equals(row.getBaseCurrency())
                 && pair.targetCurrency().equals(row.getQuoteCurrency());

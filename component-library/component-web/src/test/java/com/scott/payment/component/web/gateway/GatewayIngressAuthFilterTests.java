@@ -13,20 +13,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayIngressAuthFilterTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证受保护收银台路径只接受 service-gateway 签发的短时请求。
- * @status : create
+ * 验证受保护收银台路径只接受 service-gateway 签发的短时请求。
  */
 class GatewayIngressAuthFilterTests {
 
     private static final long NOW = 1786176000000L;
     private static final String SECRET = "0123456789abcdef0123456789abcdef";
 
-    /** 未携带网关签名的收银台直连请求必须在控制器之前被拒绝。 */
+    /**
+     * 未携带网关签名的收银台直连请求必须在控制器之前被拒绝。
+     */
     @Test
     void shouldRejectDirectCheckoutRequest() throws Exception {
         GatewayIngressAuthFilter filter = filter(properties(SECRET));
@@ -41,7 +37,9 @@ class GatewayIngressAuthFilterTests {
         assertTrue(response.getContentAsString().contains("service-gateway"));
     }
 
-    /** 合法签名必须放行，且签名覆盖原始查询串。 */
+    /**
+     * 合法签名必须放行，且签名覆盖原始查询串。
+     */
     @Test
     void shouldAllowFreshGatewaySignedRequest() throws Exception {
         GatewayIngressAuthFilter filter = filter(properties(SECRET));
@@ -54,9 +52,52 @@ class GatewayIngressAuthFilterTests {
 
         assertTrue(invoked.get());
         assertEquals(200, response.getStatus());
+        assertTrue(GatewayIngressAuthFilter.isGatewayAuthenticated(request));
     }
 
-    /** 即使签名正确，超过允许时间窗的请求也不能直达收银台控制器。 */
+    /**
+     * UAT/生产开启门户保护后，管理端和商户端直连请求必须被拒绝。
+     */
+    @Test
+    void shouldProtectPortalPathsWhenEnabled() throws Exception {
+        GatewayIngressAuthProperties properties = properties(SECRET);
+        properties.setProtectPortalPaths(true);
+        GatewayIngressAuthFilter filter = filter(properties);
+        MockHttpServletRequest request = request("POST", "/admin/auth/login", null);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("unsigned portal request must not reach controller");
+        });
+
+        assertEquals(401, response.getStatus());
+    }
+
+    /**
+     * 门户请求签名必须绑定 Gateway 解析的客户端 IP。
+     */
+    @Test
+    void shouldAllowSignedPortalRequestAndMarkItAuthenticated() throws Exception {
+        GatewayIngressAuthProperties properties = properties(SECRET);
+        properties.setProtectPortalPaths(true);
+        GatewayIngressAuthFilter filter = filter(properties);
+        MockHttpServletRequest request = request("POST", "/merchant/auth/login", null);
+        request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP, "198.51.100.9");
+        sign(request, NOW, "nonce-portal", SECRET);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+        });
+
+        assertEquals(200, response.getStatus());
+        assertTrue(GatewayIngressAuthFilter.isGatewayAuthenticated(request));
+        assertTrue(GatewayIngressAuthFilter.isGatewayClientIpAuthenticated(request));
+        assertEquals("198.51.100.9", TrustedClientIpResolver.resolve(request));
+    }
+
+    /**
+     * 即使签名正确，超过允许时间窗的请求也不能直达收银台控制器。
+     */
     @Test
     void shouldRejectExpiredGatewaySignature() throws Exception {
         GatewayIngressAuthFilter filter = filter(properties(SECRET));
@@ -71,7 +112,9 @@ class GatewayIngressAuthFilterTests {
         assertEquals(401, response.getStatus());
     }
 
-    /** 保护路径已开启但密钥未配置时必须失败关闭，不能退化为直连放行。 */
+    /**
+     * 保护路径已开启但密钥未配置时必须失败关闭，不能退化为直连放行。
+     */
     @Test
     void shouldFailClosedWhenSecretIsMissing() throws Exception {
         GatewayIngressAuthFilter filter = filter(properties(""));
@@ -85,11 +128,13 @@ class GatewayIngressAuthFilterTests {
         assertEquals(503, response.getStatus());
     }
 
-    /** 其他业务路径不属于收银台入口，不得因 Gateway 密钥配置而被公共过滤器拦截。 */
+    /**
+     * 其他业务路径不属于收银台入口，不得因 Gateway 密钥配置而被公共过滤器拦截。
+     */
     @Test
     void shouldLeaveNonCheckoutPathsUnchanged() throws Exception {
         GatewayIngressAuthFilter filter = filter(properties(""));
-        MockHttpServletRequest request = request("POST", "/admin/auth/login", null);
+        MockHttpServletRequest request = request("GET", "/actuator/health", null);
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean invoked = new AtomicBoolean();
 
@@ -170,6 +215,8 @@ class GatewayIngressAuthFilterTests {
         properties.setAcceptLegacySignature(true);
         GatewayIngressAuthFilter filter = filter(properties);
         MockHttpServletRequest request = request("POST", "/api/rest/payment/v1/payment", null);
+        request.setRemoteAddr("192.0.2.10");
+        request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.99");
         signLegacy(request, NOW, "nonce-legacy-enabled", SECRET);
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean invoked = new AtomicBoolean();
@@ -178,6 +225,9 @@ class GatewayIngressAuthFilterTests {
 
         assertTrue(invoked.get());
         assertEquals(200, response.getStatus());
+        assertTrue(GatewayIngressAuthFilter.isGatewayAuthenticated(request));
+        assertFalse(GatewayIngressAuthFilter.isGatewayClientIpAuthenticated(request));
+        assertEquals("192.0.2.10", TrustedClientIpResolver.resolve(request));
     }
 
     private GatewayIngressAuthFilter filter(GatewayIngressAuthProperties properties) {

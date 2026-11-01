@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewSummaryMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 预审计算汇总只追加数据访问接口；金额按来源和目标币种维度保存，禁止数据库层跨币种聚合。
- * @status : create
+ * 预审计算汇总只追加数据访问接口；金额按来源和目标币种维度保存，禁止数据库层跨币种聚合。
  */
 public interface SettlementReviewSummaryMapper {
 
@@ -41,6 +35,14 @@ public interface SettlementReviewSummaryMapper {
             """)
     int insertBatchIdempotent(@Param("rows") List<SettlementReviewSummaryDO> rows);
 
+    /**
+     * 创建批次，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 写操作；实现必须沿用 结算服务 既有权限、幂等键、唯一约束和事务边界。
+     * </p>
+     * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Insert("""
             <script>
             INSERT INTO settlement_review_summary

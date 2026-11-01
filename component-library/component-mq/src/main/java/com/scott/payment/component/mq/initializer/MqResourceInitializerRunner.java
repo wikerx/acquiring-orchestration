@@ -5,13 +5,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqResourceInitializerRunner
- * @date : 2026-06-20 22:56
- * @email : scott_x@163.com
- * @description : RocketMQ 资源初始化启动 Runner
- * @status : create
+ * RocketMQ 资源初始化启动 Runner
  */
 @Slf4j
 public class MqResourceInitializerRunner implements ApplicationRunner {
@@ -51,7 +45,8 @@ public class MqResourceInitializerRunner implements ApplicationRunner {
             if (failFast) {
                 throw exception;
             }
-            log.error("RocketMQ 资源初始化失败，已按 failFast=false 降级继续启动，异常类型：{}",
+            log.error("RocketMQ 资源初始化失败并降级继续启动, event: ROCKET_MQ_RESOURCE_INITIALIZATION_FAILED, "
+                            + "failFast: false, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }

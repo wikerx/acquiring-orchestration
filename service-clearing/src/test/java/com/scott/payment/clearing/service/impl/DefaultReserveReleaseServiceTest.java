@@ -1,5 +1,7 @@
 package com.scott.payment.clearing.service.impl;
 
+import com.scott.payment.clearing.domain.model.SettlementCandidateDependencyPlan;
+import com.scott.payment.clearing.domain.state.SettlementCandidateDependencyType;
 import com.scott.payment.clearing.entity.ClearingMerchantSettlementProfileDO;
 import com.scott.payment.clearing.entity.ClearingReserveDetailDO;
 import com.scott.payment.clearing.entity.ClearingReserveStateDO;
@@ -25,13 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultReserveReleaseServiceTest
- * @date : 2026-08-26 18:35
- * @email : scott_x@163.com
- * @description : 验证到期保证金在单条主库事务中追加RELEASE明细、清零剩余负债并生成独立结算候选。
- * @status : create
+ * 验证到期保证金在单条主库事务中追加RELEASE明细、清零剩余负债并生成独立结算候选。
  */
 class DefaultReserveReleaseServiceTest {
 
@@ -43,10 +39,11 @@ class DefaultReserveReleaseServiceTest {
     private final DefaultReserveReleaseService service = new DefaultReserveReleaseService(
             reserveMapper, profileMapper, candidateService, new ReserveCalculator());
 
-    /** 到期释放必须使用当前剩余标签币种金额，并形成可独立结算的稳定动作。 */
+    /**
+     * 到期释放必须使用当前剩余标签币种金额，并形成可独立结算的稳定动作。
+     */
     @Test
     void releaseShouldAppendLabelCurrencyFactAndCreateReserveReleaseCandidate() {
-        System.out.println("保证金到期释放：验证8 EUR剩余负债生成独立RELEASE明细和候选");
         LocalDateTime originalTime = LocalDateTime.of(2026, 1, 1, 10, 0);
         ClearingReserveStateDO state = state(originalTime);
         ClearingReserveDetailDO hold = hold(originalTime);
@@ -75,13 +72,24 @@ class DefaultReserveReleaseServiceTest {
         assertThat(detail.getRemainingAmount()).isZero();
         assertThat(detail.getTransactionDateTime())
                 .isEqualTo(LocalDateTime.of(2026, 8, 26, 18, 30));
+        ArgumentCaptor<SettlementCandidateDependencyPlan> dependencyCaptor =
+                ArgumentCaptor.forClass(SettlementCandidateDependencyPlan.class);
         verify(candidateService).createReserveRelease(
                 eq("RS-1"), eq(4), eq(result.releaseTransactionId()),
                 eq(detail.getTransactionDateTime()), eq("M-1"), eq("USD"),
-                eq(LocalDate.of(2026, 8, 26)), eq(LocalDateTime.of(2026, 8, 26, 10, 30)));
+                eq(LocalDate.of(2026, 8, 26)), dependencyCaptor.capture(),
+                eq(LocalDateTime.of(2026, 8, 26, 10, 30)));
+        SettlementCandidateDependencyPlan dependency = dependencyCaptor.getValue();
+        assertThat(dependency.sourceFinanceStateId()).isEqualTo("FS-1");
+        assertThat(dependency.sourceRevision()).isEqualTo(1);
+        assertThat(dependency.sourceTransactionId()).isEqualTo("PAY-1");
+        assertThat(dependency.dependencyTypes())
+                .containsExactly(SettlementCandidateDependencyType.RESERVE_HOLD_POSTED);
     }
 
-    /** 已经返还或释放完毕的状态必须幂等跳过，不追加第二条保证金事实。 */
+    /**
+     * 已经返还或释放完毕的状态必须幂等跳过，不追加第二条保证金事实。
+     */
     @Test
     void releaseShouldSkipAlreadyFinalReserveState() {
         LocalDateTime originalTime = LocalDateTime.of(2026, 1, 1, 10, 0);
@@ -129,6 +137,7 @@ class DefaultReserveReleaseServiceTest {
         ClearingReserveDetailDO row = new ClearingReserveDetailDO();
         row.setReserveClearingDetailNo("HOLD-1");
         row.setReserveActionType("HOLD");
+        row.setClearingRevision(1);
         row.setReserveCurrency("EUR");
         row.setReserveCurrencyExponent(2);
         row.setPaymentType("BANK_CARD");

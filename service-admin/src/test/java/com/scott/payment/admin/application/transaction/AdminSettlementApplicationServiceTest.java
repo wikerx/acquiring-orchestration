@@ -9,6 +9,8 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalBatch
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchSearchRequest;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -25,13 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementApplicationServiceTest
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证 Admin 结算查询边界及资金命令绑定可信登录操作人的应用服务测试
- * @status : create
+ * 验证 Admin 结算查询边界及资金命令绑定可信登录操作人的应用服务测试
  */
 class AdminSettlementApplicationServiceTest {
 
@@ -120,7 +116,9 @@ class AdminSettlementApplicationServiceTest {
         request.setExpectedVersion(5L);
         request.setReason(" approved after ledger review ");
         HttpServletRequest servletRequest = mock(HttpServletRequest.class);
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn("10.0.0.8, 10.0.0.9");
+        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("10.0.0.8");
+        when(servletRequest.getAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE))
+                .thenReturn(Boolean.TRUE);
         when(servletRequest.getHeader("User-Agent")).thenReturn("JUnit Admin");
 
         service.cancel(" SB20260826-00000001 ", request, servletRequest);
@@ -155,7 +153,9 @@ class AdminSettlementApplicationServiceTest {
         request.setExpectedVersion(12L);
         request.setReason(" rate is available; retry locking ");
         HttpServletRequest servletRequest = mock(HttpServletRequest.class);
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn("10.0.0.8");
+        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("10.0.0.8");
+        when(servletRequest.getAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE))
+                .thenReturn(Boolean.TRUE);
         when(servletRequest.getHeader("User-Agent")).thenReturn("JUnit Admin");
 
         service.retry(" SB20260826-00000001 ", request, servletRequest);

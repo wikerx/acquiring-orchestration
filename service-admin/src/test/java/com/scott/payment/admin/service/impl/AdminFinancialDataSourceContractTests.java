@@ -28,20 +28,15 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFinancialDataSourceContractTests
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 费用、资金账户和结算日历的数据源路由契约测试，防止类级主库注解覆盖查询方法。
- * @status : create
+ * 费用、资金账户和结算日历的数据源路由契约测试，防止类级主库注解覆盖查询方法。
  */
 class AdminFinancialDataSourceContractTests {
 
-    /** 验证财务相关服务禁止声明类级数据源，所有路由必须由具体方法表达。 */
+    /**
+     * 验证财务相关服务禁止声明类级数据源，所有路由必须由具体方法表达。
+     */
     @Test
     void shouldNotDeclareClassLevelDataSource() {
-        System.out.println("数据源契约：验证费用、资金账户和节假日日历服务没有类级 @DS");
         assertThat(List.of(AdminFeeServiceImpl.class, AdminFundAccountServiceImpl.class,
                         AdminHolidayCalendarServiceImpl.class, AdminSettlementRateResolver.class,
                         JdbcAdminTransactionFundQueryService.class))
@@ -79,7 +74,6 @@ class AdminFinancialDataSourceContractTests {
      */
     @Test
     void shouldRouteFinancialQueriesToSlave() throws NoSuchMethodException {
-        System.out.println("数据源契约：验证费用、资金和日历普通只读查询使用 SLAVE");
         assertDataSource(DataSourceName.SLAVE, List.of(
                 method(AdminFeeServiceImpl.class, "pageTemplates", FeePlanQuery.class),
                 method(AdminFeeServiceImpl.class, "getTemplate", Long.class),
@@ -105,7 +99,6 @@ class AdminFinancialDataSourceContractTests {
      */
     @Test
     void shouldRoutePersistentCalendarCacheMissToMaster() throws NoSuchMethodException {
-        System.out.println("数据源契约：验证常驻日历缓存未命中使用 MASTER 权威回源");
         assertDataSource(DataSourceName.MASTER, List.of(
                 method(AdminHolidayCalendarServiceImpl.class, "getMonth", int.class, int.class)
         ));
@@ -118,7 +111,6 @@ class AdminFinancialDataSourceContractTests {
      */
     @Test
     void shouldRouteFinancialMutationsToMaster() throws NoSuchMethodException {
-        System.out.println("数据源契约：验证费用、资金和日历写操作使用 MASTER 与事务");
         List<Method> methods = List.of(
                 method(AdminFeeServiceImpl.class, "createTemplate", FeeTemplateCreateRequest.class,
                         Long.class, String.class),

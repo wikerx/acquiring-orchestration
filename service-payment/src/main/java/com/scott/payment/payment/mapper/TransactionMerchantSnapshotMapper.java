@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMerchantSnapshotMapper
- * @date : 2026-08-14 16:00
- * @email : scott_x@163.com
- * @description : 交易商户快照 Mapper，仅按平台交易号和真实分片时间访问 transaction_merchant_snapshot 逻辑表。
- * @status : create
+ * 交易商户快照 Mapper，仅按平台交易号和真实分片时间访问 transaction_merchant_snapshot 逻辑表。
  */
 public interface TransactionMerchantSnapshotMapper extends BaseMapper<TransactionMerchantSnapshotDO> {
 

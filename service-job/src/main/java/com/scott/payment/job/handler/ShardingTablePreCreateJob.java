@@ -12,13 +12,7 @@ import com.scott.payment.job.service.ShardingTablePreCreateService;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateJob
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sharding Table Pre Create Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
- * @status : create
+ * 调度分片物理表预创建，并将结构不一致或建表失败转换为任务失败结果。
  */
 @Component
 public class ShardingTablePreCreateJob implements JobHandler {
@@ -33,13 +27,6 @@ public class ShardingTablePreCreateJob implements JobHandler {
      */
     public static final String HANDLER_CODE = "shardingTablePreCreate";
 
-    /**
-     * {@code shardingTablePreCreateService} 依赖，用于 {@code ShardingTablePreCreateJob} 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * </p>
-     */
     private final ShardingTablePreCreateService shardingTablePreCreateService;
 
     /**

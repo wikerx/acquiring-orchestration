@@ -10,13 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelRequestDO
- * @date : 2026-07-14 19:30
- * @email : scott_x@163.com
- * @description : 交易渠道请求实体，位于 service-payment 持久化层，保存一次渠道请求的核心字段、同步响应摘要和平台成功判断。
- * @status : create
+ * 交易渠道请求实体，位于 service-payment 持久化层，保存一次渠道请求的核心字段、同步响应摘要和平台成功判断。
  */
 @Data
 @TableName("transaction_channel_request")
@@ -24,13 +18,7 @@ public class TransactionChannelRequestDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * {@code TransactionChannelRequestDO} 数据库主键，用于唯一标识当前记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
+
     @TableId(type = IdType.AUTO)
     private Long id;
 

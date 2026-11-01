@@ -8,17 +8,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RequestHeaderParams
- * @date : 2026-08-10 15:33
- * @email : scott_x@163.com
- * @description : HTTP 请求元数据采集工具，统一脱敏 Header 和查询/Form 参数且不读取 JSON 请求体
- * @status : create
+ * HTTP 请求元数据采集工具，统一脱敏 Header 和查询/Form 参数且不读取 JSON 请求体
  */
 public class RequestHeaderParams {
 
-    private RequestHeaderParams(){}
+    /**
+     * 禁止实例化 HTTP 请求元数据采集工具类。
+     */
+    private RequestHeaderParams() {
+    }
 
     /**
      * 获取请求中的所有 Header。
@@ -111,18 +109,7 @@ public class RequestHeaderParams {
      * @return 客户端 IP
      */
     private static String getClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-
-        String realIp = request.getHeader("X-Real-IP");
-
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-
+        // component-core 无法验证 Gateway HMAC，因此只能记录 TCP 对端地址。
         return request.getRemoteAddr();
     }
 

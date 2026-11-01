@@ -21,13 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseCardBinController
- * @date : 2026-07-04 00:00
- * @email : scott_x@163.com
- * @description : 卡 BIN 库管理接口，位于 service-admin 接口层，负责权限控制、操作日志和 HTTP 请求映射。
- * @status : create
+ * 卡 BIN 库管理接口，位于 service-admin 接口层，负责权限控制、操作日志和 HTTP 请求映射。
  */
 @RestController
 @RequestMapping("/admin/base/card-bin")

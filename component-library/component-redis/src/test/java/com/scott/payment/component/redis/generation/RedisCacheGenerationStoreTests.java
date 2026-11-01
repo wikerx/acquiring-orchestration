@@ -19,13 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisCacheGenerationStoreTests
- * @date : 2026-07-30 11:10
- * @email : scott_x@163.com
- * @description : 验证缓存代际存储对正常读取和发布门禁的公共行为契约
- * @status : create
+ * 验证缓存代际存储对正常读取和发布门禁的公共行为契约
  */
 class RedisCacheGenerationStoreTests {
 

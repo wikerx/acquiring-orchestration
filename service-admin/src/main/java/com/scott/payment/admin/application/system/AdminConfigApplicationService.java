@@ -20,13 +20,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminConfigApplicationService
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台系统参数配置应用服务
- * @status : create
+ * 管理后台系统参数配置应用服务
  */
 @Service
 public class AdminConfigApplicationService {

@@ -9,13 +9,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalAuthWebMvcConfig
- * @date : 2026-08-26 21:10
- * @email : scott_x@163.com
- * @description : 结算内部接口 HMAC、Redis nonce 防重放和调用服务身份双层拦截配置。
- * @status : create
+ * 结算内部接口 HMAC、Redis nonce 防重放和调用服务身份双层拦截配置。
  */
 @Configuration
 @EnableConfigurationProperties(InternalServiceAuthProperties.class)

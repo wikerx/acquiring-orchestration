@@ -3,13 +3,7 @@ package com.scott.payment.data.service;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationDeliveryService
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知投递契约，负责数据库任务抢占、HTTP 回调、重试状态和尝试日志，不修改支付订单事实
- * @status : create
+ * service-data 商户通知投递契约，负责数据库任务抢占、HTTP 回调、重试状态和尝试日志，不修改支付订单事实
  */
 public interface MerchantNotificationDeliveryService {
 

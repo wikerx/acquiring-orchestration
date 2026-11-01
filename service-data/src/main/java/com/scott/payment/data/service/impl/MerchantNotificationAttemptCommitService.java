@@ -24,32 +24,43 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationAttemptCommitService
- * @date : 2026-08-20 23:30
- * @email : scott_x@163.com
- * @description : 在同一交易分片事务中原子提交商户回调尝试日志、任务结果和自动重试 Outbox
- * @status : create
+ * 在同一交易分片事务中原子提交商户回调尝试日志、任务结果和自动重试 Outbox。
+ *
+ * <p>任何日志写入、任务版本 CAS 或 Outbox 写入失败都会回滚本次提交，防止任务状态与
+ * 后续重试意图分离。</p>
  */
 @Slf4j
 @Service
 public class MerchantNotificationAttemptCommitService {
 
-    /** 可继续自动重试的任务状态。 */
+    /**
+     * 可继续自动重试的任务状态。
+     */
     private static final String STATUS_FAILED = "FAILED";
-    /** 自动或人工回调不再继续重试的任务状态。 */
+    /**
+     * 自动或人工回调不再继续重试的任务状态。
+     */
     private static final String STATUS_CLOSED = "CLOSED";
-    /** 交易分表和绝对投递时间统一使用的平台时区。 */
+    /**
+     * 交易分表和绝对投递时间统一使用的平台时区。
+     */
     private static final String PLATFORM_ZONE_ID = "Asia/Shanghai";
-    /** 自动重试 Outbox 自身允许的最大 MQ 发布次数。 */
+    /**
+     * 自动重试 Outbox 自身允许的最大 MQ 发布次数。
+     */
     private static final int OUTBOX_MAX_RETRY_COUNT = 8;
 
-    /** 通知任务状态 Mapper。 */
+    /**
+     * 通知任务状态 Mapper。
+     */
     private final DataMerchantNotificationMapper notificationMapper;
-    /** 通知尝试日志 Mapper。 */
+    /**
+     * 通知尝试日志 Mapper。
+     */
     private final DataMerchantNotificationLogMapper notificationLogMapper;
-    /** 同分片交易 Outbox Mapper。 */
+    /**
+     * 同分片交易 Outbox Mapper。
+     */
     private final DataMerchantNotificationRetryOutboxMapper outboxMapper;
 
     /**
@@ -137,34 +148,54 @@ public class MerchantNotificationAttemptCommitService {
             int failedVersion = processingVersion + 1;
             if (outboxMapper.insert(buildOutbox(task, failedVersion, currentAttemptNo + 1,
                     nextRetryTime, finishedTime)) != 1) {
-                log.error("event: DATA_MERCHANT_NOTIFY_RETRY_OUTBOX_INSERT_FAILED traceId: {} notifyId: {} transactionId: {} expectedVersion: {}",
+                log.error("商户通知重试 Outbox 写入失败, event: DATA_MERCHANT_NOTIFY_RETRY_OUTBOX_INSERT_FAILED, traceId: {}, notifyId: {}, transactionId: {}, expectedVersion: {}",
                         TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), failedVersion);
                 throw new IllegalStateException("merchant notification retry outbox was not inserted");
             }
         }
     }
 
-    /** 写入单次尝试日志，失败时使当前结果事务整体回滚。 */
+    /**
+     * 写入单次尝试日志，失败时使当前结果事务整体回滚。
+     *
+     * @param attemptLog 本次脱敏回调尝试日志
+     */
     private void insertAttemptLog(DataMerchantNotificationLogDO attemptLog) {
         if (notificationLogMapper.insert(attemptLog) != 1) {
             throw new IllegalStateException("merchant notification attempt log was not inserted");
         }
     }
 
-    /** 要求任务状态 CAS 恰好更新一行。 */
+    /**
+     * 要求任务状态 CAS 恰好更新一行。
+     *
+     * @param affectedRows 状态更新影响行数
+     * @param task 当前通知任务快照
+     * @param targetStatus 本次要求写入的目标状态
+     * @param expectedVersion PROCESSING 状态预期版本
+     */
     private void requireSingleStateUpdate(int affectedRows,
                                           DataMerchantNotificationTaskDO task,
                                           String targetStatus,
                                           int expectedVersion) {
         if (affectedRows != 1) {
-            log.error("event: DATA_MERCHANT_NOTIFY_STATE_CONFLICT traceId: {} notifyId: {} transactionId: {} merchantId: {} targetStatus: {} expectedVersion: {} affectedRows: {}",
+            log.error("商户通知状态迁移冲突, event: DATA_MERCHANT_NOTIFY_STATE_CONFLICT, traceId: {}, notifyId: {}, transactionId: {}, merchantId: {}, targetStatus: {}, expectedVersion: {}, affectedRows: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                     targetStatus, expectedVersion, affectedRows);
             throw new IllegalStateException("merchant notification state transition conflict");
         }
     }
 
-    /** 构造不包含商户 HTTP 协议数据的交易 Outbox 快照。 */
+    /**
+     * 构造不包含商户 HTTP 协议数据的交易 Outbox 快照。
+     *
+     * @param task 当前通知任务快照
+     * @param expectedVersion FAILED 状态提交后的任务版本
+     * @param nextAttemptNo 下一次自动尝试序号
+     * @param deliverAt 下一次允许投递时间
+     * @param now 当前结果提交时间
+     * @return 与通知任务位于同一交易分片的重试 Outbox 记录
+     */
     private DataMerchantNotificationRetryOutboxDO buildOutbox(DataMerchantNotificationTaskDO task,
                                                                int expectedVersion,
                                                                int nextAttemptNo,
@@ -216,7 +247,13 @@ public class MerchantNotificationAttemptCommitService {
         return event;
     }
 
-    /** 使用任务号和失败状态版本生成稳定、定长 Outbox 事件号。 */
+    /**
+     * 使用任务号和失败状态版本生成稳定、定长 Outbox 事件号。
+     *
+     * @param notifyId 通知任务唯一标识
+     * @param expectedVersion FAILED 状态提交后的任务版本
+     * @return 可用于 MQ 和数据库幂等的稳定事件号
+     */
     private String eventNo(String notifyId, int expectedVersion) {
         String source = notifyId + ":" + expectedVersion;
         return "MNR-" + UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));

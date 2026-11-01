@@ -1,13 +1,7 @@
 package com.scott.payment.component.core.auth;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalAuthChecker
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 内部管理类接口 token 与资源权限校验器
- * @status : create
+ * 内部管理类接口 token 与资源权限校验器
  */
 public interface InternalAuthChecker {
 

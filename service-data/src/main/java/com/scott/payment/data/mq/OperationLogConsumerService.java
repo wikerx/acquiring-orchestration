@@ -12,25 +12,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogConsumerService
- * @date : 2026-08-01 14:40
- * @email : scott_x@163.com
- * @description : Admin 与 Merchant 操作日志共享消费编排，统一处理反序列化、辅助幂等、失败释放和追踪上下文
- * @status : create
+ * Admin 与 Merchant 操作日志共享消费编排，统一处理反序列化、辅助幂等、失败释放和追踪上下文
  */
 @Slf4j
 @Service
 public class OperationLogConsumerService {
 
-    /** 操作日志事务写入服务。 */
+    /**
+     * 操作日志事务写入服务。
+     */
     private final OperationLogPersistenceService persistenceService;
 
-    /** Redis MQ 辅助幂等服务。 */
+    /**
+     * Redis MQ 辅助幂等服务。
+     */
     private final IdempotentService idempotentService;
 
-    /** 操作日志 MQ 公共配置。 */
+    /**
+     * 操作日志 MQ 公共配置。
+     */
     private final OperationLogMqProperties properties;
 
     /**
@@ -70,15 +70,15 @@ public class OperationLogConsumerService {
             );
             if (acquireResult == IdempotentAcquireResult.DUPLICATE) {
                 if (persistenceService.existsByIdempotentKey(idempotentKey)) {
-                    log.info("event: DATA_OPERATION_LOG_DUPLICATE source: {} traceId: {} messageId: {} durationMs: {}",
+                    log.info("操作日志消息幂等命中, event: DATA_OPERATION_LOG_DUPLICATE, source: {}, traceId: {}, messageId: {}, durationMs: {}",
                             source, TraceContext.getTraceId(), message.getMessageId(), elapsedMillis(startNanos));
                     return;
                 }
-                log.warn("event: DATA_OPERATION_LOG_STALE_REDIS_CLAIM source: {} traceId: {} messageId: {} action: continueToDatabaseUniqueConstraint",
+                log.warn("操作日志 Redis 占用与数据库事实不一致, event: DATA_OPERATION_LOG_STALE_REDIS_CLAIM, source: {}, traceId: {}, messageId: {}, action: continueToDatabaseUniqueConstraint",
                         source, TraceContext.getTraceId(), message.getMessageId());
             }
             if (acquireResult == IdempotentAcquireResult.FALLBACK) {
-                log.warn("event: DATA_OPERATION_LOG_IDEMPOTENT_FALLBACK source: {} traceId: {} messageId: {} action: continueToDatabaseUniqueConstraint",
+                log.warn("操作日志 Redis 幂等服务降级, event: DATA_OPERATION_LOG_IDEMPOTENT_FALLBACK, source: {}, traceId: {}, messageId: {}, action: continueToDatabaseUniqueConstraint",
                         source, TraceContext.getTraceId(), message.getMessageId());
             }
             try {
@@ -87,7 +87,7 @@ public class OperationLogConsumerService {
                 releaseForRetry(source, idempotentKey, acquireResult, message, exception);
                 throw exception;
             }
-            log.info("event: DATA_OPERATION_LOG_CONSUMED source: {} traceId: {} messageId: {} merchantId: {} module: {} operation: {} status: {} durationMs: {}",
+            log.info("操作日志消息消费完成, event: DATA_OPERATION_LOG_CONSUMED, source: {}, traceId: {}, messageId: {}, merchantId: {}, module: {}, operation: {}, status: {}, durationMs: {}",
                     source,
                     TraceContext.getTraceId(),
                     message.getMessageId(),
@@ -110,13 +110,13 @@ public class OperationLogConsumerService {
      */
     private OperationLogMessage parseMessage(OperationLogSource source, String payload) {
         if (!StringUtils.hasText(payload)) {
-            log.error("event: DATA_OPERATION_LOG_INVALID source: {} reason: emptyPayload", source);
+            log.error("操作日志消息为空, event: DATA_OPERATION_LOG_INVALID, source: {}, reason: emptyPayload", source);
             throw new IllegalArgumentException("operation log payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, OperationLogMessage.class);
         } catch (RuntimeException exception) {
-            log.error("event: DATA_OPERATION_LOG_INVALID source: {} payloadLength: {} exceptionType: {}",
+            log.error("操作日志消息解析失败, event: DATA_OPERATION_LOG_INVALID, source: {}, payloadLength: {}, exceptionType: {}",
                     source, payload.length(), exception.getClass().getSimpleName());
             throw new IllegalArgumentException("operation log payload is invalid", exception);
         }
@@ -163,7 +163,7 @@ public class OperationLogConsumerService {
             );
         } catch (RuntimeException releaseException) {
             originalException.addSuppressed(releaseException);
-            log.error("event: DATA_OPERATION_LOG_IDEMPOTENT_RELEASE_FAILED source: {} traceId: {} messageId: {}",
+            log.error("操作日志 Redis 幂等占用释放失败, event: DATA_OPERATION_LOG_IDEMPOTENT_RELEASE_FAILED, source: {}, traceId: {}, messageId: {}",
                     source, TraceContext.getTraceId(), message.getMessageId(), releaseException);
         }
     }

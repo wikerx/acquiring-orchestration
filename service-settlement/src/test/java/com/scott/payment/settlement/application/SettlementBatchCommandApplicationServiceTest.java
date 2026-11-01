@@ -41,13 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchCommandApplicationServiceTest
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证结算批次认领、审批、入账前取消和入账后独立冲正的状态与资金幂等边界
- * @status : create
+ * 验证结算批次认领、审批、入账前取消和入账后独立冲正的状态与资金幂等边界
  */
 class SettlementBatchCommandApplicationServiceTest {
 
@@ -76,7 +70,9 @@ class SettlementBatchCommandApplicationServiceTest {
                 resultMapper, fundMapper, reserveMapper, projectionMapper);
     }
 
-    /** 取消尚未入账批次时，候选恢复 READY，认领关系只迁移为 RELEASED。 */
+    /**
+     * 取消尚未入账批次时，候选恢复 READY，认领关系只迁移为 RELEASED。
+     */
     @Test
     void shouldCancelBeforePostingAndReleaseExactlyAllCandidates() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 15, 0);
@@ -105,7 +101,9 @@ class SettlementBatchCommandApplicationServiceTest {
         assertThat(audit.getValue().getOperatorRoleSnapshot()).isEqualTo("SETTLEMENT_OPERATOR");
     }
 
-    /** 同一请求键重复提交必须返回首次结果，不得再次锁定批次或改变候选。 */
+    /**
+     * 同一请求键重复提交必须返回首次结果，不得再次锁定批次或改变候选。
+     */
     @Test
     void shouldTreatRepeatedCancellationAsIdempotent() {
         SettlementBatchCancellationAuditDO existing = cancellationAuditRow("CANCEL-REQ-1", 2);
@@ -121,7 +119,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(relationMapper, never()).releaseCancelledBatch(any(), any());
     }
 
-    /** 请求键不得跨批次复用，冲突时不能进入任何批次状态机。 */
+    /**
+     * 请求键不得跨批次复用，冲突时不能进入任何批次状态机。
+     */
     @Test
     void shouldRejectCancellationRequestKeyUsedByAnotherBatch() {
         SettlementBatchCancellationAuditDO existing = cancellationAuditRow("CANCEL-REQ-1", 2);
@@ -139,7 +139,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(candidateMapper, never()).releaseCancelledBatch(any(), any());
     }
 
-    /** 并发重放在等待批次行锁后必须回读首次审计结果。 */
+    /**
+     * 并发重放在等待批次行锁后必须回读首次审计结果。
+     */
     @Test
     void shouldReplayCancellationFoundAfterBatchLock() {
         SettlementBatchDO batch = originalBatch("CANCELLED");
@@ -158,7 +160,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(batchMapper, never()).insertCancellationAudit(any());
     }
 
-    /** 过期页面版本必须在批次状态和候选更新前失败。 */
+    /**
+     * 过期页面版本必须在批次状态和候选更新前失败。
+     */
     @Test
     void shouldRejectStaleCancellationVersionBeforeMutation() {
         SettlementBatchDO batch = originalBatch("CLAIMED");
@@ -177,7 +181,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(batchMapper, never()).insertCancellationAudit(any());
     }
 
-    /** 汇率锁定重试耗尽进入人工复核后，可受控恢复全部候选并重新交给异步处理器。 */
+    /**
+     * 汇率锁定重试耗尽进入人工复核后，可受控恢复全部候选并重新交给异步处理器。
+     */
     @Test
     void shouldRetryExhaustedRateLockingBatchAndRestoreExactlyAllCandidates() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 5, 10, 0);
@@ -209,7 +215,9 @@ class SettlementBatchCommandApplicationServiceTest {
         assertThat(audit.getValue().getOperatorAccountId()).isEqualTo(88L);
     }
 
-    /** 同一恢复请求重放只返回首次结果，不得再次改变批次或候选。 */
+    /**
+     * 同一恢复请求重放只返回首次结果，不得再次改变批次或候选。
+     */
     @Test
     void shouldTreatRepeatedRateLockingRecoveryAsIdempotent() {
         SettlementBatchRecoveryAuditDO existing = recoveryAuditRow("RETRY-REQ-1", 371);
@@ -225,7 +233,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(relationMapper, never()).restoreManualReviewBatch(any(), any());
     }
 
-    /** 过期页面版本不得恢复人工复核批次。 */
+    /**
+     * 过期页面版本不得恢复人工复核批次。
+     */
     @Test
     void shouldRejectStaleRateLockingRecoveryVersion() {
         SettlementBatchDO batch = exhaustedRateLockingBatch();
@@ -242,7 +252,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(batchMapper, never()).retryExhaustedRateLocking(any(), anyLong(), any());
     }
 
-    /** 资金入账或其他阶段的人工复核不得借用汇率恢复入口。 */
+    /**
+     * 资金入账或其他阶段的人工复核不得借用汇率恢复入口。
+     */
     @Test
     void shouldRejectManualRecoveryOutsideExhaustedRateLocking() {
         for (String stage : List.of("LEDGER_POSTING", "RESULT_CALCULATION")) {
@@ -261,7 +273,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(batchMapper, never()).retryExhaustedRateLocking(any(), anyLong(), any());
     }
 
-    /** 候选或关系恢复数量不完整必须终止命令，事务层负责回滚此前批次 CAS。 */
+    /**
+     * 候选或关系恢复数量不完整必须终止命令，事务层负责回滚此前批次 CAS。
+     */
     @Test
     void shouldRejectIncompleteRateLockingRecovery() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 5, 10, 5);
@@ -280,7 +294,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(batchMapper, never()).insertRecoveryAudit(any());
     }
 
-    /** 人工复核批次允许取消并把全部候选释放回 READY。 */
+    /**
+     * 人工复核批次允许取消并把全部候选释放回 READY。
+     */
     @Test
     void shouldCancelManualReviewBatchAndReleaseAllCandidates() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 5, 10, 10);
@@ -303,7 +319,9 @@ class SettlementBatchCommandApplicationServiceTest {
         assertThat(audit.getValue().getReleasedCandidateCount()).isEqualTo(371);
     }
 
-    /** 已入账批次通过独立 REVERSAL 批次冲正资金，但交易投影必须保留原结算事实。 */
+    /**
+     * 已入账批次通过独立 REVERSAL 批次冲正资金，但交易投影必须保留原结算事实。
+     */
     @Test
     void shouldReversePostedBatchWithOppositeLedgerAndProjection() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 16, 0);
@@ -372,19 +390,25 @@ class SettlementBatchCommandApplicationServiceTest {
         assertThat(reversedTask.getSettlementDate()).isEqualTo(originalTask.getSettlementDate());
     }
 
-    /** 保证金借方调整冲正追加反向动作并回减借方累计，不创建交易投影。 */
+    /**
+     * 保证金借方调整冲正追加反向动作并回减借方累计，不创建交易投影。
+     */
     @Test
     void shouldReverseDebitAdjustmentWithoutTransactionProjectionTask() {
         assertAdjustmentReversal("DEBIT", "CREDIT", "110.00");
     }
 
-    /** 保证金贷方调整冲正追加反向动作并回减贷方累计，不创建交易投影。 */
+    /**
+     * 保证金贷方调整冲正追加反向动作并回减贷方累计，不创建交易投影。
+     */
     @Test
     void shouldReverseCreditAdjustmentWithoutTransactionProjectionTask() {
         assertAdjustmentReversal("CREDIT", "DEBIT", "90.00");
     }
 
-    /** 冻结账户只允许被动入账，不得执行结算批次主动冲正。 */
+    /**
+     * 冻结账户只允许被动入账，不得执行结算批次主动冲正。
+     */
     @Test
     void shouldRejectReversalForFrozenSettlementAccount() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 16, 0);
@@ -502,7 +526,9 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(batchMapper).markReversed(original.getSettlementBatchNo(), 1L, now);
     }
 
-    /** 原批次已完成冲正时，同一命令重放只返回既有冲正批次号。 */
+    /**
+     * 原批次已完成冲正时，同一命令重放只返回既有冲正批次号。
+     */
     @Test
     void shouldReturnExistingCompletedReversalWithoutPostingAgain() {
         SettlementBatchDO original = originalBatch("REVERSED");

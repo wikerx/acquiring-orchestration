@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFeeVersionSnapshotMapper
- * @date : 2026-08-25 22:40
- * @email : scott_x@163.com
- * @description : Payment 对现有商户费用表的只读 Mapper，按商户读取 ACTIVE 指针并按明确版本一次聚合规则和阶梯，禁止执行费用写入。
- * @status : create
+ * Payment 对现有商户费用表的只读 Mapper，按商户读取 ACTIVE 指针并按明确版本一次聚合规则和阶梯，禁止执行费用写入。
  */
 public interface MerchantFeeVersionSnapshotMapper {
 

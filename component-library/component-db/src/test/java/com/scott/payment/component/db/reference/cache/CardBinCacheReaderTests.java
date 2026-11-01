@@ -15,13 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinCacheReaderTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 共享 Card BIN 查询入口的输入规范、快照命中、权威未命中和单次从库降级测试
- * @status : update
+ * 共享 Card BIN 查询入口的输入规范、快照命中、权威未命中和单次从库降级测试
  */
 class CardBinCacheReaderTests {
 

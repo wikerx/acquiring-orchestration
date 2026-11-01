@@ -6,13 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinExportRow
- * @date : 2026-07-04 00:00
- * @email : scott_x@163.com
- * @description : 卡 BIN 导出行对象，位于 service-admin 导出传输层，用于控制导出字段顺序、标题和时间展示。
- * @status : create
+ * 卡 BIN 导出行对象，位于 service-admin 导出传输层，用于控制导出字段顺序、标题和时间展示。
  */
 @Data
 public class CardBinExportRow {

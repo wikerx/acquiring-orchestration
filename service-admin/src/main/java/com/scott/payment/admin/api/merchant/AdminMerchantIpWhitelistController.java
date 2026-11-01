@@ -1,7 +1,6 @@
 package com.scott.payment.admin.api.merchant;
 
 import com.scott.payment.admin.application.merchant.AdminMerchantIpWhitelistApplicationService;
-import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistQuery;
@@ -31,13 +30,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistController
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 IP 白名单管理接口，位于 service-admin 接口层，负责后台精确 IP 白名单的权限校验、参数接收和 HTTP 映射。
- * @status : create
+ * 商户 IP 白名单管理接口，位于 service-admin 接口层，负责后台精确 IP 白名单的权限校验、参数接收和 HTTP 映射。
  */
 @RestController
 @RequestMapping("/admin/merchant/ip-whitelist")
@@ -148,19 +141,6 @@ public class AdminMerchantIpWhitelistController {
     public CommonResult<MerchantIpWhitelistResponse> approveWhitelist(@PathVariable("id") Long id,
                                                                        @Valid @RequestBody MerchantIpWhitelistApprovalRequest request) {
         return success(whitelistApplicationService.approveWhitelist(id, request));
-    }
-
-    /**
-     * 更新商户维度 IP 白名单校验开关。
-     *
-     * @param request 开关请求
-     * @return 当前配置视图
-     */
-    @PutMapping("/config")
-    @RequiresPermission("merchant:ip-whitelist:config")
-    @OperationLog(moduleName = "商户IP白名单管理", businessType = OperationTypeConstants.UPDATE, operation = "切换商户IP白名单校验")
-    public CommonResult<MerchantIpWhitelistResponse> updateConfig(@Valid @RequestBody MerchantIpWhitelistConfigRequest request) {
-        return success(whitelistApplicationService.updateConfig(request));
     }
 
     /**

@@ -12,15 +12,60 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuntimeMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控运行时 Mapper。
- * @status : create
+ * 风控运行时 Mapper。
  */
 public interface RiskRuntimeMapper {
+
+    /**
+     * 全局规则始终适用，商户级规则仅在商户显式开通对应功能时适用。
+     */
+    String MERCHANT_LIST_SCOPE_PREDICATE = """
+                    merchant_scope = 'GLOBAL'
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1
+                            FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = #{moduleType}
+                              AND config.function_code = #{functionCode}
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
+            """;
+
+    /**
+     * 查询商户是否显式开通指定可选风控功能。
+     */
+    @Select("""
+            SELECT COUNT(1)
+            FROM risk_merchant_function_config
+            WHERE merchant_id = #{merchantId}
+              AND module_type = #{moduleType}
+              AND function_code = #{functionCode}
+              AND enabled = 1
+              AND deleted = 0
+            """)
+    long countEnabledMerchantFunction(@Param("merchantId") String merchantId,
+                                      @Param("moduleType") String moduleType,
+                                      @Param("functionCode") String functionCode);
+
+    /**
+     * 批量读取商户已开通功能的模块和功能组合键。
+     *
+     * @param merchantId 当前商户号
+     * @return {@code moduleType:functionCode} 组合键
+     */
+    @Select("""
+            SELECT CONCAT(module_type, ':', function_code)
+            FROM risk_merchant_function_config
+            WHERE merchant_id = #{merchantId}
+              AND enabled = 1
+              AND deleted = 0
+            """)
+    List<String> selectEnabledMerchantFunctionKeys(@Param("merchantId") String merchantId);
 
     /**
      * 统计受控名单表中当前商户可用的启用规则。
@@ -39,12 +84,26 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1
+                            FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = #{moduleType}
+                              AND config.function_code = #{functionCode}
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             </script>
             """)
     long countActiveListRules(@Param("tableName") String tableName,
-                              @Param("merchantId") String merchantId);
+                              @Param("merchantId") String merchantId,
+                              @Param("moduleType") String moduleType,
+                              @Param("functionCode") String functionCode);
 
     /**
      * 加载精确哈希名单的完整有效快照。
@@ -78,8 +137,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -123,8 +181,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -167,8 +224,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -210,8 +266,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -256,8 +311,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      CASE region_match_level WHEN 'CITY' THEN 0 WHEN 'STATE' THEN 1 ELSE 2 END,
@@ -266,6 +320,8 @@ public interface RiskRuntimeMapper {
             LIMIT #{maxRows}
             """)
     List<RiskRuleSnapshotRow> selectActiveRegionSnapshotRows(
+            @Param("moduleType") String moduleType,
+            @Param("functionCode") String functionCode,
             @Param("merchantId") String merchantId,
             @Param("maxRows") int maxRows);
 
@@ -301,17 +357,15 @@ public interface RiskRuntimeMapper {
 
     /**
      * 按不可逆摘要查询当前生效且商户范围优先的风控名单命中记录。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
+     *
      * @param tableName 经白名单选择的风控物理表名，禁止由外部请求直接拼接
      * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
      * @param functionCode 风控功能编码，用于标识本次名单匹配能力
      * @param functionName 风控功能名称，用于生成运营可读的命中原因
      * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param merchantId 当前商户号，商户级规则优先于全局规则
      * @param matchValueHash 待匹配值的不可逆摘要，禁止传入或记录原始敏感值
-     * @return 查询得到的业务对象、分页结果或空结果
+     * @return 优先级最高的首条摘要命中；未命中时返回 {@code null}
      */
     @Select("""
             <script>
@@ -330,8 +384,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND match_value_hash = #{matchValueHash}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END, update_time DESC, id DESC
@@ -348,18 +401,16 @@ public interface RiskRuntimeMapper {
 
     /**
      * 按 IP 版本和数值区间查询当前生效的风控名单命中记录。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
+     *
      * @param tableName 经白名单选择的风控物理表名，禁止由外部请求直接拼接
      * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
      * @param functionCode 风控功能编码，用于标识本次名单匹配能力
      * @param functionName 风控功能名称，用于生成运营可读的命中原因
      * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param merchantId 当前商户号，商户级规则优先于全局规则
      * @param ipVersion IP 协议版本，只允许平台支持的 IPv4 或 IPv6 编码
      * @param numericValue 已规范化的数值边界值，用于执行 BIN 或 IP 区间包含判断
-     * @return 查询得到的业务对象、分页结果或空结果
+     * @return 覆盖当前 IP 数值的最高优先级规则；未命中时返回 {@code null}
      */
     @Select("""
             <script>
@@ -378,8 +429,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND ip_version = #{ipVersion}
               AND match_value_start_number &lt;= #{numericValue}
@@ -399,17 +449,15 @@ public interface RiskRuntimeMapper {
 
     /**
      * 按卡 BIN 数值区间查询当前生效且商户范围优先的风控名单记录。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
+     *
      * @param tableName 经白名单选择的风控物理表名，禁止由外部请求直接拼接
      * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
      * @param functionCode 风控功能编码，用于标识本次名单匹配能力
      * @param functionName 风控功能名称，用于生成运营可读的命中原因
      * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param merchantId 当前商户号，商户级规则优先于全局规则
      * @param numericValue 已规范化的数值边界值，用于执行 BIN 或 IP 区间包含判断
-     * @return 查询得到的业务对象、分页结果或空结果
+     * @return 覆盖当前 BIN 数值的最高优先级规则；未命中时返回 {@code null}
      */
     @Select("""
             <script>
@@ -428,8 +476,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND match_value_start_number &lt;= #{numericValue}
               AND match_value_end_number &gt;= #{numericValue}
@@ -467,8 +514,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND country_alpha3 = #{countryAlpha3}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END, update_time DESC, id DESC
@@ -507,8 +553,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND country_alpha3 = #{countryAlpha3}
               AND (
@@ -543,15 +588,13 @@ public interface RiskRuntimeMapper {
 
     /**
      * 按来源主机精确查询当前生效的 AML 风控名单命中记录。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
+     *
      * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
      * @param functionCode 风控功能编码，用于标识本次名单匹配能力
      * @param functionName 风控功能名称，用于生成运营可读的命中原因
      * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
      * @param sourceHost 已规范化的来源主机名，用于 AML 来源地址精确匹配
-     * @return 查询得到的业务对象、分页结果或空结果
+     * @return 更新时间最新的首条 AML 来源主机命中；未命中时返回 {@code null}
      */
     @Select("""
             SELECT id AS ruleId,
@@ -600,6 +643,14 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
               AND source_host = #{sourceHost}
             ORDER BY update_time DESC, id DESC
             LIMIT 1
@@ -636,6 +687,14 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
             ORDER BY update_time DESC, id DESC
             LIMIT #{maxRows}
             """)
@@ -656,14 +715,23 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
             """)
     long countActiveSourceUrlRules(@Param("merchantId") String merchantId);
 
     /**
-     * 统计{@code countActiveSourceUrlHit}，返回分页、扫描或报表汇总所需的数量结果。
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @param sourceHost 已规范化的来源主机名，用于 AML 来源地址精确匹配
-     * @return 当前方法计算的数量、版本或状态数值
+     * 统计当前商户已审核、已启用且仍生效的来源主机白名单命中数。
+     *
+     * @param merchantId 当前商户号
+     * @param sourceHost 已规范化的来源主机名
+     * @return 当前主机的有效白名单记录数量
      */
     @Select("""
             SELECT COUNT(1)
@@ -674,48 +742,25 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
               AND source_host = #{sourceHost}
             """)
     long countActiveSourceUrlHit(@Param("merchantId") String merchantId,
                                  @Param("sourceHost") String sourceHost);
 
     /**
-     * 读取商户 OpenAPI 访问配置中的 IP 白名单开关。
+     * 统计当前商户已审核且已启用的接入 IP 白名单命中数。
      *
      * @param merchantId 当前商户号
-     * @return 数据库开关值；尚未配置时返回 {@code null}
-     */
-    @Select("""
-            SELECT ip_whitelist_enabled
-            FROM merchant_openapi_access_config
-            WHERE deleted = 0
-              AND merchant_id = #{merchantId}
-            ORDER BY gmt_modified DESC, id DESC
-            LIMIT 1
-            """)
-    Integer selectMerchantIpWhitelistEnabled(@Param("merchantId") String merchantId);
-
-    /**
-     * 统计商户当前启用的精确 IP 白名单记录。
-     *
-     * @param merchantId 当前商户号
-     * @return 启用记录数量
-     */
-    @Select("""
-            SELECT COUNT(1)
-            FROM merchant_ip_whitelist
-            WHERE deleted = 0
-              AND approval_status = 1
-              AND status = 1
-              AND merchant_id = #{merchantId}
-            """)
-    long countActiveMerchantIpWhitelist(@Param("merchantId") String merchantId);
-
-    /**
-     * 统计{@code countMerchantIpWhitelistHit}，返回分页、扫描或报表汇总所需的数量结果。
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param ipValue 待规范化的可识别信息，仅允许以脱敏、哈希或数值区间形式参与匹配
-     * @return 当前方法计算的数量、版本或状态数值
+     * @param ipValue 已完成格式校验的请求 IP
+     * @return 当前 IP 的有效白名单记录数量
      */
     @Select("""
             SELECT COUNT(1)
@@ -755,7 +800,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
               AND (
@@ -809,7 +865,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
@@ -841,7 +908,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
             </script>
@@ -876,7 +954,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
@@ -990,7 +1079,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'frequency'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      threshold_count ASC,
@@ -1032,7 +1132,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'frequency'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      threshold_count ASC,
@@ -1048,11 +1159,9 @@ public interface RiskRuntimeMapper {
 
     /**
      * 按卡 BIN 最长区间优先规则解析发卡国家或地区。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param numericValue 已规范化的数值边界值，用于执行 BIN 或 IP 区间包含判断
-     * @return 查询得到的业务对象、分页结果或空结果
+     *
+     * @param numericValue 右补零到平台统一长度的卡 BIN 数值
+     * @return 区间跨度最小且更新时间最新的发卡国家命中；未命中时返回 {@code null}
      */
     @Select("""
             SELECT id AS ruleId,
@@ -1105,7 +1214,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'threeDs'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND (channel_code = 'ALL' OR channel_code = #{channelCode})
               AND (payment_method = 'ALL' OR payment_method = #{paymentMethod})
@@ -1180,7 +1300,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'threeDs'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      priority ASC,

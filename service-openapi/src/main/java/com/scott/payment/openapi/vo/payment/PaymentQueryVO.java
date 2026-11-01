@@ -10,13 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentQueryVO
- * @date : 2026-07-17 21:14
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 交易查询响应 VO，按商户订单返回关联交易动作列表，避免和创建类接口的单对象 transactionInfo 契约混用。
- * @status : create
+ * 商户 OpenAPI 交易查询响应 VO，按商户订单返回关联交易动作列表，避免和创建类接口的单对象 transactionInfo 契约混用。
  */
 @Data
 public class PaymentQueryVO implements Serializable {
@@ -33,19 +27,29 @@ public class PaymentQueryVO implements Serializable {
      */
     private PaymentCreateVO.OrderInfoVO orderInfo;
 
-    /** 首次交易保存的商品或服务明细。 */
+    /**
+     * 首次交易保存的商品或服务明细。
+     */
     private List<PaymentCreateVO.GoodsInfoVO> goodsInfo = new ArrayList<>();
 
-    /** 首次交易保存的持卡人账单信息。 */
+    /**
+     * 首次交易保存的持卡人账单信息。
+     */
     private PaymentCreateVO.BillingCardHolderInfoVO billingCardHolderInfo;
 
-    /** 首次交易保存的付款人信息。 */
+    /**
+     * 首次交易保存的付款人信息。
+     */
     private PaymentCreateVO.PayerInfoVO payerInfo;
 
-    /** 首次交易保存的收货人信息。 */
+    /**
+     * 首次交易保存的收货人信息。
+     */
     private PaymentCreateVO.ShippingInfoVO shippingInfo;
 
-    /** 查询目标动作可向商户返回的 3DS 安全字段子集。 */
+    /**
+     * 查询目标动作可向商户返回的 3DS 安全字段子集。
+     */
     private PaymentCreateVO.ThreeDsInfoVO threeDSInfo;
 
     /**
@@ -76,7 +80,9 @@ public class PaymentQueryVO implements Serializable {
          */
         private String sourceTransactionId;
 
-        /** 后续动作源交易发生时间；首次交易不返回。 */
+        /**
+         * 后续动作源交易发生时间；首次交易不返回。
+         */
         private OffsetDateTime sourceTransactionDateTime;
 
         /**
@@ -94,15 +100,43 @@ public class PaymentQueryVO implements Serializable {
          */
         private String transactionType;
 
-        /** 当前动作交易状态。 */
+        /**
+         * 当前动作交易状态。
+         */
         private String transactionStatus;
+
+        /**
+         * 内部处理阶段仅用于结果投影和 Java 兼容读取，不输出给商户。
+         */
+        @JSONField(serialize = false)
+        private String processStage;
+
+        /**
+         * OpenAPI 投影使用的受控失败原因码，不属于商户查询响应契约。
+         */
+        @JSONField(serialize = false)
+        private String failReasonCode;
+
+        /**
+         * OpenAPI 投影使用的安全失败说明，不属于商户查询响应契约。
+         */
+        @JSONField(serialize = false)
+        private String failReasonMessage;
+
+        /**
+         * 内部等待原因码，仅用于选择现有 code/message，不直接返回商户。
+         */
+        @JSONField(serialize = false)
+        private String pendingReasonCode;
 
         /**
          * 交易发生时间，按交易业务时区展示。
          */
         private OffsetDateTime transactionDateTime;
 
-        /** 生命周期根主单时间仅供内部兼容，商户响应不输出。 */
+        /**
+         * 生命周期根主单时间仅供内部兼容，商户响应不输出。
+         */
         @JSONField(serialize = false)
         private OffsetDateTime rootTransactionDateTime;
 
@@ -146,10 +180,14 @@ public class PaymentQueryVO implements Serializable {
          */
         private String merchantWebsite;
 
-        /** Hosted Checkout 结果页返回地址。 */
+        /**
+         * Hosted Checkout 结果页返回地址。
+         */
         private String redirectUrl;
 
-        /** Hosted Checkout 创建会话语言。 */
+        /**
+         * Hosted Checkout 创建会话语言。
+         */
         private String language;
     }
 }

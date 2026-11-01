@@ -11,17 +11,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxMapper
- * @date : 2026-08-02 22:10
- * @email : scott_x@163.com
- * @description : 非交易可靠 MQ Outbox 数据访问接口，只执行参数化 Insert、查询和状态 CAS
- * @status : create
+ * 非交易可靠 MQ Outbox 数据访问接口，只执行参数化 Insert、查询和状态 CAS
  */
 public interface ReliableMqOutboxMapper {
 
-    /** 在调用方事务中写入消息意图。 */
+    /**
+     * 在调用方事务中写入消息意图。
+     */
     @Insert("""
             INSERT INTO sys_mq_outbox (
                 event_id, topic, tag, producer_service, trace_id, payload_json,
@@ -37,15 +33,21 @@ public interface ReliableMqOutboxMapper {
             """)
     int insert(ReliableMqOutboxDO event);
 
-    /** 按唯一事件号查询消息。 */
+    /**
+     * 按唯一事件号查询消息。
+     */
     @Select("SELECT * FROM sys_mq_outbox WHERE event_id = #{eventId}")
     ReliableMqOutboxDO selectByEventId(@Param("eventId") String eventId);
 
-    /** 按事件号检查记录是否可见，供从库复制确认使用。 */
+    /**
+     * 按事件号检查记录是否可见，供从库复制确认使用。
+     */
     @Select("SELECT COUNT(1) FROM sys_mq_outbox WHERE event_id = #{eventId}")
     int countByEventId(@Param("eventId") String eventId);
 
-    /** 查询已到投递时间的消息。 */
+    /**
+     * 查询已到投递时间的消息。
+     */
     @Select("""
             SELECT *
             FROM sys_mq_outbox
@@ -60,7 +62,9 @@ public interface ReliableMqOutboxMapper {
                                       @Param("now") LocalDateTime now,
                                       @Param("limit") int limit);
 
-    /** CAS 抢占一条待投递消息。 */
+    /**
+     * CAS 抢占一条待投递消息。
+     */
     @Update("""
             UPDATE sys_mq_outbox
             SET event_status = 'PROCESSING',
@@ -77,7 +81,9 @@ public interface ReliableMqOutboxMapper {
               @Param("version") Integer version,
               @Param("now") LocalDateTime now);
 
-    /** CAS 标记投递成功。 */
+    /**
+     * CAS 标记投递成功。
+     */
     @Update("""
             UPDATE sys_mq_outbox
             SET event_status = 'SENT',
@@ -95,7 +101,9 @@ public interface ReliableMqOutboxMapper {
                  @Param("version") Integer version,
                  @Param("now") LocalDateTime now);
 
-    /** CAS 记录失败、重试等待或关闭状态。 */
+    /**
+     * CAS 记录失败、重试等待或关闭状态。
+     */
     @Update("""
             UPDATE sys_mq_outbox
             SET event_status = #{targetStatus},
@@ -116,7 +124,9 @@ public interface ReliableMqOutboxMapper {
                    @Param("failureReason") String failureReason,
                    @Param("now") LocalDateTime now);
 
-    /** 恢复投递进程崩溃后遗留的 PROCESSING 消息。 */
+    /**
+     * 恢复投递进程崩溃后遗留的 PROCESSING 消息。
+     */
     @Update("""
             UPDATE sys_mq_outbox
             SET event_status = CASE
@@ -140,7 +150,9 @@ public interface ReliableMqOutboxMapper {
                      @Param("staleBefore") LocalDateTime staleBefore,
                      @Param("now") LocalDateTime now);
 
-    /** 查询低基数 Outbox 运维指标快照。 */
+    /**
+     * 查询低基数 Outbox 运维指标快照。
+     */
     @Select("""
             SELECT
               COALESCE(SUM(CASE WHEN event_status = 'INIT' THEN 1 ELSE 0 END), 0) AS init_count,
@@ -154,7 +166,9 @@ public interface ReliableMqOutboxMapper {
             """)
     ReliableMqOutboxMetricsSnapshot selectMetricsSnapshot(@Param("producerService") String producerService);
 
-    /** 使用事件号和版本 CAS 将一条 CLOSED 消息恢复为待投递状态。 */
+    /**
+     * 使用事件号和版本 CAS 将一条 CLOSED 消息恢复为待投递状态。
+     */
     @Update("""
             UPDATE sys_mq_outbox
             SET event_status = 'RETRY_WAIT',

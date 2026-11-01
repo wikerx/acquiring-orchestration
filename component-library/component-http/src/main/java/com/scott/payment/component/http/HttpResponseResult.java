@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HttpResponseResult
- * @date : 2026-05-28 11:25
- * @email : scott_x@163.com
- * @description : HTTP 响应结果模型
- * @status : create
+ * HTTP 响应结果模型
  */
 @Data
 public class HttpResponseResult implements Serializable {

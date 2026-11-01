@@ -1,0 +1,4 @@
+interface:
+  display_name: "Acquiring Backend Development"
+  short_description: "Govern safe Vexra backend changes"
+  default_prompt: "Use $acquiring-backend-development to plan, implement, and verify this backend change against the repository rules."

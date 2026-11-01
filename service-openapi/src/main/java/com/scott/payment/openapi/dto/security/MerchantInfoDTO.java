@@ -4,13 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantInfoDTO
- * @date : 2026-05-30 09:20
- * @email : scott_x@163.com
- * @description : 商户基础信息查询结果
- * @status : create
+ * 商户基础信息查询结果
  */
 @Data
 @NoArgsConstructor
@@ -41,7 +35,9 @@ public class MerchantInfoDTO {
      */
     private Integer merchantStatus;
 
-    /** Default merchant locale. */
+    /**
+     * Default merchant locale.
+     */
     private String defaultLocale;
 
     /**

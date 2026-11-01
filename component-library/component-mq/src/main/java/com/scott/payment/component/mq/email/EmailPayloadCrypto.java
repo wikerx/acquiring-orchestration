@@ -13,27 +13,31 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EmailPayloadCrypto
- * @date : 2026-08-02 23:40
- * @email : scott_x@163.com
- * @description : 异步邮件投递正文加密组件，使用运行时密钥和随机 IV 保护 OTP、临时密码等敏感模板变量
- * @status : create
+ * 异步邮件投递正文加密组件，使用运行时密钥和随机 IV 保护 OTP、临时密码等敏感模板变量
  */
 @Component
 public class EmailPayloadCrypto {
 
-    /** AES-GCM 认证标签长度。 */
+    /**
+     * AES-GCM 认证标签长度。
+     */
     private static final int TAG_BITS = 128;
-    /** 每条密文独立生成的 GCM IV 长度。 */
+    /**
+     * 每条密文独立生成的 GCM IV 长度。
+     */
     private static final int IV_LENGTH = 12;
-    /** 密文分隔符。 */
+    /**
+     * 密文分隔符。
+     */
     private static final String CIPHER_SEPARATOR = ".";
-    /** 安全随机数生成器。 */
+    /**
+     * 安全随机数生成器。
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    /** 由运行时配置派生的 AES 密钥；缺少配置时为空并在使用时拒绝。 */
+    /**
+     * 由运行时配置派生的 AES 密钥；缺少配置时为空并在使用时拒绝。
+     */
     private final byte[] secretKey;
 
     /**
@@ -99,14 +103,18 @@ public class EmailPayloadCrypto {
         }
     }
 
-    /** 校验运行时已提供邮件加密密钥。 */
+    /**
+     * 校验运行时已提供邮件加密密钥。
+     */
     private void requireKey() {
         if (secretKey == null) {
             throw new IllegalStateException("email encryption secret is not configured");
         }
     }
 
-    /** 通过 SHA-256 将运行时密钥派生为固定长度 AES 密钥。 */
+    /**
+     * 通过 SHA-256 将运行时密钥派生为固定长度 AES 密钥。
+     */
     private byte[] deriveKey(String secret) {
         if (!StringUtils.hasText(secret)) {
             return null;

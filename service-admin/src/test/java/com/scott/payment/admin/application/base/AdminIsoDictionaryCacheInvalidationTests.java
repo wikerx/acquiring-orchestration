@@ -1,6 +1,14 @@
 package com.scott.payment.admin.application.base;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.admin.converter.IsoCountryConverter;
+import com.scott.payment.admin.converter.IsoCurrencyConverter;
+import com.scott.payment.admin.dto.base.IsoCountryDTOs;
+import com.scott.payment.admin.dto.base.IsoCurrencyDTOs;
+import com.scott.payment.admin.dto.base.RegionCurrencyDTOs.CreateRequest;
+import com.scott.payment.admin.dto.base.RegionCurrencyDTOs.StatusUpdateRequest;
+import com.scott.payment.admin.dto.base.RegionCurrencyDTOs.UpdateRequest;
+import com.scott.payment.admin.dto.base.IsoStatusUpdateRequest;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
@@ -12,57 +20,54 @@ import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.mapstruct.factory.Mappers;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminIsoDictionaryCacheInvalidationTests
- * @date : 2026-07-30 21:55
- * @email : scott_x@163.com
- * @description : 管理端国家、币种和地区币种写操作后的 ISO 字典缓存显式失效测试
- * @status : create
+ * 管理端国家、币种和地区币种写操作后的 ISO 字典缓存显式失效测试
  */
 @Slf4j
 class AdminIsoDictionaryCacheInvalidationTests {
 
-    /** 所有 ISO 写入口必须在主库事务内绑定数据库修改和缓存 Outbox。 */
+    /**
+     * 所有 ISO 写入口必须在主库事务内绑定数据库修改和缓存 Outbox。
+     */
     @Test
     void shouldRunAllIsoMutationsInsideMasterTransactions() throws Exception {
         assertMasterTransaction(AdminBaseCountryApplicationService.class,
-                "createCountry", IsoCountryDO.class);
+                "createCountry", IsoCountryDTOs.SaveRequest.class);
         assertMasterTransaction(AdminBaseCountryApplicationService.class,
-                "updateCountry", Long.class, IsoCountryDO.class);
+                "updateCountry", Long.class, IsoCountryDTOs.SaveRequest.class);
         assertMasterTransaction(AdminBaseCountryApplicationService.class,
-                "updateStatus", Long.class, Map.class);
+                "updateStatus", Long.class, IsoStatusUpdateRequest.class);
         assertMasterTransaction(AdminBaseCountryApplicationService.class,
                 "removeCountry", Long.class);
         assertMasterTransaction(AdminBaseCurrencyApplicationService.class,
-                "createCurrency", IsoCurrencyDO.class);
+                "createCurrency", IsoCurrencyDTOs.SaveRequest.class);
         assertMasterTransaction(AdminBaseCurrencyApplicationService.class,
-                "updateCurrency", Long.class, IsoCurrencyDO.class);
+                "updateCurrency", Long.class, IsoCurrencyDTOs.SaveRequest.class);
         assertMasterTransaction(AdminBaseCurrencyApplicationService.class,
-                "updateStatus", Long.class, Map.class);
+                "updateStatus", Long.class, IsoStatusUpdateRequest.class);
         assertMasterTransaction(AdminBaseCurrencyApplicationService.class,
                 "removeCurrency", Long.class);
         assertMasterTransaction(AdminBaseRegionCurrencyApplicationService.class,
-                "createRegionCurrency", Map.class);
+                "createRegionCurrency", CreateRequest.class);
         assertMasterTransaction(AdminBaseRegionCurrencyApplicationService.class,
-                "updateRegionCurrency", Long.class, Map.class);
+                "updateRegionCurrency", Long.class, UpdateRequest.class);
         assertMasterTransaction(AdminBaseRegionCurrencyApplicationService.class,
                 "removeRegionCurrency", Long.class);
         assertMasterTransaction(AdminBaseRegionCurrencyApplicationService.class,
-                "updateStatus", Long.class, Map.class);
+                "updateStatus", Long.class, StatusUpdateRequest.class);
     }
 
     /**
@@ -74,18 +79,20 @@ class AdminIsoDictionaryCacheInvalidationTests {
         IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
         IsoDictionaryCacheInvalidator invalidator = mock(IsoDictionaryCacheInvalidator.class);
         AdminBaseCountryApplicationService service = countryService(countryMapper, invalidator);
-        IsoCountryDO country = new IsoCountryDO();
-        country.setAlpha2Code("US");
-        country.setAlpha3Code("USA");
+        IsoCountryDTOs.SaveRequest request = new IsoCountryDTOs.SaveRequest();
+        request.setAlpha2Code("US");
+        request.setAlpha3Code("USA");
 
-        service.createCountry(country);
+        service.createCountry(request);
 
-        verify(countryMapper).insert(country);
+        verify(countryMapper).insert(any(IsoCountryDO.class));
         verify(invalidator).evictCountries();
         log.info("管理端国家资料缓存失效验证完成，结果: insert 后已调用国家缓存失效");
     }
 
-    /** 国家编辑、启停和逻辑删除必须全部进入同一个国家缓存可靠失效入口。 */
+    /**
+     * 国家编辑、启停和逻辑删除必须全部进入同一个国家缓存可靠失效入口。
+     */
     @Test
     void shouldEvictCountryCacheAfterEveryCountryMutation() {
         IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
@@ -97,8 +104,10 @@ class AdminIsoDictionaryCacheInvalidationTests {
         when(countryMapper.selectById(1L)).thenReturn(country);
         AdminBaseCountryApplicationService service = countryService(countryMapper, invalidator);
 
-        service.updateCountry(1L, new IsoCountryDO());
-        service.updateStatus(1L, Map.of("status", 0));
+        service.updateCountry(1L, new IsoCountryDTOs.SaveRequest());
+        IsoStatusUpdateRequest countryStatusRequest = new IsoStatusUpdateRequest();
+        countryStatusRequest.setStatus(0);
+        service.updateStatus(1L, countryStatusRequest);
         service.removeCountry(1L);
 
         verify(countryMapper, times(3)).updateById(country);
@@ -120,14 +129,18 @@ class AdminIsoDictionaryCacheInvalidationTests {
         when(currencyMapper.selectById(1L)).thenReturn(currency);
         AdminBaseCurrencyApplicationService service = currencyService(currencyMapper, invalidator);
 
-        service.updateStatus(1L, Map.of("status", 0));
+        IsoStatusUpdateRequest currencyStatusRequest = new IsoStatusUpdateRequest();
+        currencyStatusRequest.setStatus(0);
+        service.updateStatus(1L, currencyStatusRequest);
 
         verify(currencyMapper).updateById(currency);
         verify(invalidator).evictCurrencies();
         log.info("管理端币种缓存失效验证完成，结果: update 后已调用币种缓存失效");
     }
 
-    /** 币种新增、编辑和逻辑删除必须全部删除全量、代码与展示三个永久读模型。 */
+    /**
+     * 币种新增、编辑和逻辑删除必须全部删除全量、代码与展示三个永久读模型。
+     */
     @Test
     void shouldEvictCurrencyCacheAfterEveryCurrencyMutation() {
         IsoCurrencyMapper currencyMapper = mock(IsoCurrencyMapper.class);
@@ -139,14 +152,14 @@ class AdminIsoDictionaryCacheInvalidationTests {
         when(currencyMapper.selectById(1L)).thenReturn(existing);
         AdminBaseCurrencyApplicationService service = currencyService(currencyMapper, invalidator);
 
-        IsoCurrencyDO created = new IsoCurrencyDO();
+        IsoCurrencyDTOs.SaveRequest created = new IsoCurrencyDTOs.SaveRequest();
         created.setAlpha3Code("EUR");
         created.setIconKey("flag:EU");
         service.createCurrency(created);
-        service.updateCurrency(1L, new IsoCurrencyDO());
+        service.updateCurrency(1L, new IsoCurrencyDTOs.SaveRequest());
         service.removeCurrency(1L);
 
-        verify(currencyMapper).insert(created);
+        verify(currencyMapper).insert(any(IsoCurrencyDO.class));
         verify(currencyMapper, times(2)).updateById(existing);
         verify(invalidator, times(3)).evictCurrencies();
     }
@@ -169,14 +182,18 @@ class AdminIsoDictionaryCacheInvalidationTests {
                 invalidator
         );
 
-        service.updateRegionCurrency(1L, Map.of("currencyAlpha3Code", "USD"));
+        UpdateRequest updateRequest = new UpdateRequest();
+        updateRequest.setCurrencyAlpha3Code("USD");
+        service.updateRegionCurrency(1L, updateRequest);
 
         verify(countryMapper).updateById(country);
         verify(invalidator).evictCountries();
         log.info("地区币种映射缓存失效验证完成，结果: 映射更新后已失效国家缓存");
     }
 
-    /** 地区币种入口修改国家状态时必须复用公共 ISO 国家缓存失效链路。 */
+    /**
+     * 地区币种入口修改国家状态时必须复用公共 ISO 国家缓存失效链路。
+     */
     @Test
     void shouldEvictPublicCountryCacheAfterRegionCountryStatusChange() {
         IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
@@ -189,13 +206,17 @@ class AdminIsoDictionaryCacheInvalidationTests {
                 mock(IsoCurrencyMapper.class),
                 invalidator);
 
-        service.updateStatus(1L, Map.of("status", 0));
+        StatusUpdateRequest statusRequest = new StatusUpdateRequest();
+        statusRequest.setStatus(0);
+        service.updateStatus(1L, statusRequest);
 
         verify(countryMapper).updateById(country);
         verify(invalidator).evictCountries();
     }
 
-    /** 地区币种新增和删除本质上都会修改国家默认币种，必须复用国家缓存失效链路。 */
+    /**
+     * 地区币种新增和删除本质上都会修改国家默认币种，必须复用国家缓存失效链路。
+     */
     @Test
     void shouldEvictCountryCacheAfterRegionCurrencyCreateAndRemove() {
         IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
@@ -209,7 +230,10 @@ class AdminIsoDictionaryCacheInvalidationTests {
                 invalidator
         );
 
-        service.createRegionCurrency(Map.of("countryId", "1", "currencyAlpha3Code", "USD"));
+        CreateRequest createRequest = new CreateRequest();
+        createRequest.setCountryId(1L);
+        createRequest.setCurrencyAlpha3Code("USD");
+        service.createRegionCurrency(createRequest);
         service.removeRegionCurrency(1L);
 
         verify(countryMapper, times(2)).updateById(country);
@@ -228,6 +252,7 @@ class AdminIsoDictionaryCacheInvalidationTests {
             IsoDictionaryCacheInvalidator invalidator) {
         return new AdminBaseCountryApplicationService(
                 mapper,
+                Mappers.getMapper(IsoCountryConverter.class),
                 invalidator,
                 mock(ExcelExportService.class),
                 mock(ExcelI18nMessageResolver.class),
@@ -247,6 +272,7 @@ class AdminIsoDictionaryCacheInvalidationTests {
             IsoDictionaryCacheInvalidator invalidator) {
         return new AdminBaseCurrencyApplicationService(
                 mapper,
+                Mappers.getMapper(IsoCurrencyConverter.class),
                 invalidator,
                 mock(ExcelExportService.class),
                 mock(ExcelI18nMessageResolver.class),
@@ -276,7 +302,9 @@ class AdminIsoDictionaryCacheInvalidationTests {
         );
     }
 
-    /** 校验指定写方法使用方法级主库路由和回滚事务。 */
+    /**
+     * 校验指定写方法使用方法级主库路由和回滚事务。
+     */
     private void assertMasterTransaction(Class<?> serviceType,
                                          String methodName,
                                          Class<?>... parameterTypes) throws Exception {

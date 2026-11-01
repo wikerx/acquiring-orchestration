@@ -3,49 +3,40 @@ package com.scott.payment.payment.domain.refund;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundApprovalStatusEnum
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 退款审批状态枚举，限定普通审批工作队列的单向状态流转。
- * @status : create
+ * 退款审批状态枚举，限定普通审批工作队列的单向状态流转。
  */
 @Getter
 public enum RefundApprovalStatusEnum {
 
     /**
-     * PENDING 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 审批单等待有权限的操作人作出决定，允许迁移为通过、拒绝或过期。
      */
     PENDING("PENDING", false),
+
     /**
-     * APPROVED 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 审批已通过且退款执行事件已写入 Outbox，属于不可逆终态。
      */
     APPROVED("APPROVED", true),
+
     /**
-     * REJECTED 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 审批被人工拒绝，退款动作不得继续执行，属于不可逆终态。
      */
     REJECTED("REJECTED", true),
+
     /**
-     * EXPIRED 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 审批在有效期内未完成而关闭，退款动作不得继续执行，属于不可逆终态。
      */
     EXPIRED("EXPIRED", true);
 
     private final String code;
     private final boolean terminal;
 
+    /**
+     * 创建审批状态并标记其是否为终态。
+     *
+     * @param code 持久化和接口使用的稳定状态编码
+     * @param terminal 是否禁止继续发生状态迁移
+     */
     RefundApprovalStatusEnum(String code, boolean terminal) {
         this.code = code;
         this.terminal = terminal;

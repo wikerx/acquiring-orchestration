@@ -6,13 +6,7 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIncrementalAuthorizationApplicationService
- * @date : 2026-07-14 19:20
- * @email : scott_x@163.com
- * @description : openAPIincremental授权应用服务，位于 商户开放接口服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户增量授权应用入口，保留原授权关联信息并委托支付服务推进交易生命周期。
  */
 @Service
 public class OpenApiIncrementalAuthorizationApplicationService {

@@ -6,13 +6,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentApplication
- * @date : 2026-05-28 09:28
- * @email : scott_x@163.com
- * @description : 支付application协作组件，位于 支付核心服务，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 收单支付核心服务启动入口，启用交易编排、渠道执行和后台补偿调度。
  */
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
 @EnableScheduling

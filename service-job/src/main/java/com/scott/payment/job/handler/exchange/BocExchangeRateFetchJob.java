@@ -12,33 +12,16 @@ import com.scott.payment.job.exchange.service.ExchangeRateFetchService;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BocExchangeRateFetchJob
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : Boc Exchange Rate Fetch Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
- * @status : create
+ * 调度中国银行外汇牌价拉取，并将抓取结果转换为统一任务执行结果。
  */
 @Component
 public class BocExchangeRateFetchJob implements JobHandler {
 
     /**
-     * {@code HANDLER_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 中国银行汇率拉取处理器编码，用于调度中心定位本处理器。
      */
     public static final String HANDLER_CODE = "bocExchangeRateFetchJob";
 
-    /**
-     * {@code exchangeRateFetchService} 依赖，用于 {@code BocExchangeRateFetchJob} 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
-     * </p>
-     */
     private final ExchangeRateFetchService exchangeRateFetchService;
 
     /**

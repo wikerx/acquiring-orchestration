@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.openapi.converter.OpenApiReferenceDataConverter;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
@@ -11,21 +12,19 @@ import com.scott.payment.openapi.vo.reference.IpLookupVO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiReferenceDataServiceImpl
- * @date : 2026-08-11 15:44
- * @email : scott_x@163.com
- * @description : 商户基础数据检索服务实现，经受控缓存读取归属结果并隔离数据库内部字段
- * @status : create
+ * 商户基础数据检索服务实现，经受控缓存读取归属结果并隔离数据库内部字段
  */
 @Service
 public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataService {
 
-    /** 商户基础数据缓存读层；缓存故障时查询从库。 */
+    /**
+     * 商户基础数据缓存读层；缓存故障时查询从库。
+     */
     private final OpenApiReferenceDataCacheReader cacheReader;
 
-    /** 公共结果到 OpenAPI VO 的字段转换器，不允许为空。 */
+    /**
+     * 公共结果到 OpenAPI VO 的字段转换器，不允许为空。
+     */
     private final OpenApiReferenceDataConverter converter;
 
     /**
@@ -51,7 +50,10 @@ public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataServ
         try {
             return converter.toIpLookupVO(cacheReader.lookupIp(requestDTO.getIpAddress()));
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "ipAddress must be a valid IPv4 or IPv6 literal");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    "ipAddress",
+                    "IP address must be a valid IPv4 or IPv6 literal");
         }
     }
 
@@ -66,7 +68,10 @@ public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataServ
         try {
             return converter.toCardBinLookupVO(cacheReader.lookupCardBin(requestDTO.getCardBin()));
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "cardBin must contain at least 6 digits");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    "cardBin",
+                    "card BIN must contain at least 6 digits");
         }
     }
 }

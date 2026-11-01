@@ -17,42 +17,18 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NbpExchangeRateJsonParser
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 解析波兰国家银行 Table C JSON，将外币兑 PLN 的官方 bid/ask 映射为平台即期买入价和即期卖出价。
- * @status : create
+ * 解析波兰国家银行 Table C JSON，将外币兑 PLN 的官方 bid/ask 映射为平台即期买入价和即期卖出价。
  */
 @Component
 public class NbpExchangeRateJsonParser {
 
     /**
-     * 表c常量，统一 {@code NbpExchangeRateJsonParser} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * NBP 官方买卖报价表类型，只接受包含 bid/ask 的 Table C。
      */
     private static final String TABLE_C = "C";
-    /**
-     * {@code QUOTE_CURRENCY}，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private static final String QUOTE_CURRENCY = "PLN";
-    /**
-     * 币种编码正则模式，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private static final Pattern CURRENCY_CODE_PATTERN = Pattern.compile("^[A-Z]{3}$");
 
     /**
@@ -126,10 +102,21 @@ public class NbpExchangeRateJsonParser {
         return item;
     }
 
+    /**
+     * 判断外部报价是否为有效正数。
+     *
+     * @param value 外部报价
+     * @return true 表示可以参与汇率生成
+     */
     private boolean isPositive(BigDecimal value) {
         return value != null && value.compareTo(BigDecimal.ZERO) > 0;
     }
 
+    /**
+     * 构造不暴露外部响应正文的稳定解析异常。
+     *
+     * @return NBP 响应无效异常
+     */
     private ServiceException invalidResponse() {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "NBP Table C response is invalid");
     }
@@ -140,13 +127,19 @@ public class NbpExchangeRateJsonParser {
     @Data
     private static class NbpTableResponse {
 
-        /** 报价表类型，当前只接受 C。 */
+        /**
+         * 报价表类型，当前只接受 C。
+         */
         private String table;
 
-        /** 汇率生效日期，格式 yyyy-MM-dd。 */
+        /**
+         * 汇率生效日期，格式 yyyy-MM-dd。
+         */
         private String effectiveDate;
 
-        /** 当日外币兑 PLN 买卖报价。 */
+        /**
+         * 当日外币兑 PLN 买卖报价。
+         */
         private List<NbpRateResponse> rates;
     }
 
@@ -156,16 +149,24 @@ public class NbpExchangeRateJsonParser {
     @Data
     private static class NbpRateResponse {
 
-        /** NBP 返回的币种名称。 */
+        /**
+         * NBP 返回的币种名称。
+         */
         private String currency;
 
-        /** ISO 4217 三位币种代码。 */
+        /**
+         * ISO 4217 三位币种代码。
+         */
         private String code;
 
-        /** NBP 买入价，单位为 PLN/一单位外币。 */
+        /**
+         * NBP 买入价，单位为 PLN/一单位外币。
+         */
         private BigDecimal bid;
 
-        /** NBP 卖出价，单位为 PLN/一单位外币。 */
+        /**
+         * NBP 卖出价，单位为 PLN/一单位外币。
+         */
         private BigDecimal ask;
     }
 }

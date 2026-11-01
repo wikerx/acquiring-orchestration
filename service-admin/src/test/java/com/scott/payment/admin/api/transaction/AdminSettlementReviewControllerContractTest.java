@@ -12,13 +12,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReviewControllerContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Admin 预审查询和每个 Maker-Checker 命令均使用独立最小权限及操作审计。
- * @status : create
+ * 验证 Admin 预审查询和每个 Maker-Checker 命令均使用独立最小权限及操作审计。
  */
 class AdminSettlementReviewControllerContractTest {
 

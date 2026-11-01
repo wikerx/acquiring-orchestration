@@ -4,13 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ObjectStorageProperties
- * @date : 2026-09-21 09:40
- * @email : scott_x@163.com
- * @description : 商户端 S3 兼容对象存储配置，支持 MinIO 与 AWS S3 平滑切换
- * @status : create
+ * 商户资料 S3 兼容对象存储配置，支持 MinIO 与 AWS S3 实现切换。
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.object-storage")

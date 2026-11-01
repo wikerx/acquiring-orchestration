@@ -17,18 +17,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SecurityInterceptAuditConsumerTests
- * @date : 2026-08-01 18:00
- * @email : scott_x@163.com
- * @description : service-data 安全拦截审计消费测试，覆盖重复消息、Redis 降级与数据库失败重试
- * @status : create
+ * service-data 安全拦截审计消费测试，覆盖重复消息、Redis 降级与数据库失败重试
  */
 @Slf4j
 class SecurityInterceptAuditConsumerTests {
 
-    /** Redis 判定重复时应跳过数据库写入。 */
+    /**
+     * Redis 判定重复时应跳过数据库写入。
+     */
     @Test
     void shouldSkipRedisDuplicate() {
         log.info("测试安全审计重复消费，关键输入: Redis DUPLICATE");
@@ -41,7 +37,9 @@ class SecurityInterceptAuditConsumerTests {
         log.info("安全审计重复消费完成，结果: 未访问数据库");
     }
 
-    /** Redis 残留标记没有对应数据库事件时必须继续写库。 */
+    /**
+     * Redis 残留标记没有对应数据库事件时必须继续写库。
+     */
     @Test
     void shouldPersistWhenRedisDuplicateHasNoDatabaseFact() {
         Fixture fixture = fixture(IdempotentAcquireResult.DUPLICATE);
@@ -52,7 +50,9 @@ class SecurityInterceptAuditConsumerTests {
         verify(fixture.persistenceService()).persist(fixture.message());
     }
 
-    /** 畸形 JSON 必须触发 MQ 重试，不能静默丢弃安全审计事件。 */
+    /**
+     * 畸形 JSON 必须触发 MQ 重试，不能静默丢弃安全审计事件。
+     */
     @Test
     void shouldRejectMalformedPayload() {
         Fixture fixture = fixture(IdempotentAcquireResult.ACQUIRED);
@@ -65,7 +65,9 @@ class SecurityInterceptAuditConsumerTests {
                 org.mockito.ArgumentMatchers.any(SecurityInterceptAuditMessage.class));
     }
 
-    /** Redis 不可用时应继续依赖数据库唯一键。 */
+    /**
+     * Redis 不可用时应继续依赖数据库唯一键。
+     */
     @Test
     void shouldContinueToDatabaseWhenRedisFallsBack() {
         log.info("测试安全审计 Redis 降级，关键输入: FALLBACK");
@@ -81,7 +83,9 @@ class SecurityInterceptAuditConsumerTests {
         log.info("安全审计 Redis 降级完成，结果: 继续由数据库最终幂等");
     }
 
-    /** 数据库失败时应释放 ACQUIRED 占用并上抛异常。 */
+    /**
+     * 数据库失败时应释放 ACQUIRED 占用并上抛异常。
+     */
     @Test
     void shouldReleaseAcquiredClaimWhenDatabaseFails() {
         log.info("测试安全审计失败重试，关键输入: ACQUIRED、数据库异常");
@@ -98,7 +102,9 @@ class SecurityInterceptAuditConsumerTests {
         log.info("安全审计失败重试完成，结果: Redis 占用已释放且原异常上抛");
     }
 
-    /** 缺少最小事件字段的消息不得进入 Redis 或数据库。 */
+    /**
+     * 缺少最小事件字段的消息不得进入 Redis 或数据库。
+     */
     @Test
     void shouldRejectInvalidMessage() {
         log.info("测试安全审计畸形消息，关键输入: 缺少 eventNo");
@@ -120,7 +126,9 @@ class SecurityInterceptAuditConsumerTests {
         log.info("安全审计畸形消息测试完成，结果: 已拒绝且未进入持久化链路");
     }
 
-    /** 创建指定 Redis 获取结果的消费者测试夹具。 */
+    /**
+     * 创建指定 Redis 获取结果的消费者测试夹具。
+     */
     private Fixture fixture(IdempotentAcquireResult acquireResult) {
         SecurityInterceptAuditPersistenceService persistenceService =
                 mock(SecurityInterceptAuditPersistenceService.class);
@@ -136,7 +144,9 @@ class SecurityInterceptAuditConsumerTests {
                 properties, message, JsonUtils.toJsonString(message));
     }
 
-    /** 创建包含最小合法事件字段的脱敏审计消息。 */
+    /**
+     * 创建包含最小合法事件字段的脱敏审计消息。
+     */
     private SecurityInterceptAuditMessage message() {
         SecurityInterceptAuditMessage message = new SecurityInterceptAuditMessage();
         message.setMessageId("MSG-SEC-001");
@@ -147,7 +157,9 @@ class SecurityInterceptAuditConsumerTests {
         return message;
     }
 
-    /** 安全拦截审计消费测试依赖集合。 */
+    /**
+     * 安全拦截审计消费测试依赖集合。
+     */
     private record Fixture(SecurityInterceptAuditConsumer consumer,
                            SecurityInterceptAuditPersistenceService persistenceService,
                            IdempotentService idempotentService,

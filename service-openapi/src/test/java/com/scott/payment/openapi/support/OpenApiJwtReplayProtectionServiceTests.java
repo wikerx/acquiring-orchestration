@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
 import org.junit.jupiter.api.Test;
@@ -26,13 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiJwtReplayProtectionServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : OpenAPI JWT 防重放 Redis 行为测试。
- * @status : create
+ * OpenAPI JWT 防重放 Redis 行为测试。
  */
 class OpenApiJwtReplayProtectionServiceTests {
 
@@ -49,6 +43,19 @@ class OpenApiJwtReplayProtectionServiceTests {
                             .hasRootCauseInstanceOf(IllegalStateException.class)
                             .hasRootCauseMessage("OpenAPI JWT replay protection requires StringRedisTemplate");
                 });
+    }
+
+    /**
+     * 未配置防重放开关时应默认失败关闭，防止部署漏配导致 JWT 可重放。
+     */
+    @Test
+    void shouldRequireReplayProtectionByDefault() {
+        contextRunner.run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure())
+                    .hasRootCauseInstanceOf(IllegalStateException.class)
+                    .hasRootCauseMessage("OpenAPI JWT replay protection requires StringRedisTemplate");
+        });
     }
 
     @Test
@@ -74,13 +81,13 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "jwt-id",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.AUTHORIZATION_JWT_INVALID.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.AUTHENTICATION_FAILED.getCode()));
         assertThatThrownBy(() -> service.checkAndMark(
                 "M202607290001",
                 null,
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.AUTHORIZATION_JWT_INVALID.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.AUTHENTICATION_FAILED.getCode()));
     }
 
     @Test
@@ -140,7 +147,7 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "duplicated-jti",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.AUTHORIZATION_JWT_INVALID.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.SECURITY_REPLAY_REJECTED.getCode()));
     }
 
     @Test
@@ -165,7 +172,7 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "connection-failure-jti",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode()));
     }
 
     @Test
@@ -190,7 +197,7 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "unknown-write-result-jti",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode()));
     }
 
     @Test
@@ -259,7 +266,7 @@ class OpenApiJwtReplayProtectionServiceTests {
         @Bean
         OpenApiJwtReplayProtectionService replayProtectionService(
                 ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-                @Value("${openapi.security.replay.required:false}") boolean replayRequired,
+                @Value("${openapi.security.replay.required:true}") boolean replayRequired,
                 PaymentRedisProperties redisProperties) {
             return new OpenApiJwtReplayProtectionService(
                     stringRedisTemplateProvider,

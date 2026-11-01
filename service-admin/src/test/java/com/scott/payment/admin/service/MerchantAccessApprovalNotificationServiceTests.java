@@ -19,13 +19,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccessApprovalNotificationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户访问配置审批邮件的事务时机和失败隔离测试。
- * @status : create
+ * 商户访问配置审批邮件的事务时机和失败隔离测试。
  */
 class MerchantAccessApprovalNotificationServiceTests {
 

@@ -6,6 +6,7 @@ import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetRequ
 import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetRequestResponse;
 import com.scott.payment.admin.service.AdminPasswordResetService;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证找回密码 HTTP 编排只使用网关覆盖写入的可信客户端 IP。 */
+/**
+ * 验证找回密码 HTTP 编排只使用网关覆盖写入的可信客户端 IP。
+ */
 @ExtendWith(MockitoExtension.class)
 class AdminPasswordResetApplicationServiceTest {
 
@@ -39,6 +42,8 @@ class AdminPasswordResetApplicationServiceTest {
         PasswordResetRequest request = new PasswordResetRequest();
         PasswordResetRequestResponse expected = new PasswordResetRequestResponse();
         when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("203.0.113.10");
+        when(servletRequest.getAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE))
+                .thenReturn(Boolean.TRUE);
         when(servletRequest.getHeader("User-Agent")).thenReturn("JUnit browser");
         when(passwordResetService.requestReset(request, "203.0.113.10", "JUnit browser")).thenReturn(expected);
 
@@ -53,7 +58,6 @@ class AdminPasswordResetApplicationServiceTest {
     void shouldFallBackToRemoteAddressWhenGatewayHeaderIsInvalid() {
         PasswordResetConfirmRequest request = new PasswordResetConfirmRequest();
         PasswordResetConfirmResponse expected = new PasswordResetConfirmResponse();
-        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("attacker.example");
         when(servletRequest.getRemoteAddr()).thenReturn("127.0.0.1");
         when(passwordResetService.confirm(request, "127.0.0.1")).thenReturn(expected);
 

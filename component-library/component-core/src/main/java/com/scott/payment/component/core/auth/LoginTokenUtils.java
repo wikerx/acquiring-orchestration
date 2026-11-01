@@ -10,13 +10,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LoginTokenUtils
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统登录会话 token 工具
- * @status : create
+ * 管理类系统登录会话 token 工具
  */
 public final class LoginTokenUtils {
 
@@ -30,6 +24,9 @@ public final class LoginTokenUtils {
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 禁止实例化登录令牌工具类。
+     */
     private LoginTokenUtils() {
     }
 

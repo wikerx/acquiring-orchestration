@@ -12,13 +12,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskTimingServiceImpl
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务任务时间计算服务实现
- * @status : create
+ * 调度任务触发时间计算服务实现。
  */
 @Service
 public class JobTaskTimingServiceImpl implements JobTaskTimingService {

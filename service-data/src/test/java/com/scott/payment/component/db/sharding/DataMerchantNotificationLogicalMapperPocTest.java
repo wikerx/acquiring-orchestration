@@ -26,23 +26,26 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationLogicalMapperPocTest
- * @date : 2026-08-02 02:18
- * @email : scott_x@163.com
- * @description : 通过真实 Data Mapper 验证通知逻辑表的单分片抢占、终态 CAS、季度恢复和日志路由。
- * @status : create
+ * 通过真实 Data Mapper 验证通知逻辑表的单分片抢占、终态 CAS、季度恢复和日志路由。
  */
 class DataMerchantNotificationLogicalMapperPocTest {
 
-    /** 同时承载两个季度物理表的隔离主库连接池。 */
+    /**
+     * 同时承载两个季度物理表的隔离主库连接池。
+     */
     private HikariDataSource primary;
-    /** 由三表测试规则创建、测试结束后关闭的 ShardingSphere 数据源。 */
+    /**
+     * 由三表测试规则创建、测试结束后关闭的 ShardingSphere 数据源。
+     */
     private DataSource shardingDataSource;
-    /** 绕过逻辑路由验证真实物理表状态的只读测试入口。 */
+    /**
+     * 绕过逻辑路由验证真实物理表状态的只读测试入口。
+     */
     private JdbcTemplate direct;
 
+    /**
+     * 初始化分片逻辑表、Mapper 和并发测试数据源。
+     */
     @BeforeEach
     void setUp() throws Exception {
         primary = new HikariDataSource();
@@ -69,6 +72,9 @@ class DataMerchantNotificationLogicalMapperPocTest {
                 configuration.buildSystemProperties(properties));
     }
 
+    /**
+     * 关闭测试数据源并释放内存数据库资源。
+     */
     @AfterEach
     void tearDown() throws Exception {
         if (shardingDataSource instanceof AutoCloseable closeable) {
@@ -76,6 +82,9 @@ class DataMerchantNotificationLogicalMapperPocTest {
         }
     }
 
+    /**
+     * 验证并发抢占只成功一次，且季度恢复不能覆盖已提交终态。
+     */
     @Test
     void shouldAllowOnlyOneClaimAndProtectTerminalStateAcrossQuarterRecovery() {
         LocalDateTime q3Time = LocalDateTime.of(2026, 8, 2, 2, 0);
@@ -142,6 +151,9 @@ class DataMerchantNotificationLogicalMapperPocTest {
                 "SELECT COUNT(*) FROM transaction_merchant_notification_log_202604", Integer.class)).isZero();
     }
 
+    /**
+     * 创建加载通知 Mapper 的 MyBatis 测试会话工厂。
+     */
     private SqlSessionFactory sqlSessionFactory() {
         MybatisConfiguration configuration = new MybatisConfiguration();
         configuration.setMapUnderscoreToCamelCase(true);
@@ -154,6 +166,9 @@ class DataMerchantNotificationLogicalMapperPocTest {
         return new MybatisSqlSessionFactoryBuilder().build(configuration);
     }
 
+    /**
+     * 向指定季度物理表写入一条待处理通知任务。
+     */
     private void seedNotification(Long id,
                                   String notifyId,
                                   String transactionId,
@@ -174,6 +189,9 @@ class DataMerchantNotificationLogicalMapperPocTest {
                 transactionDateTime, version, updateTime);
     }
 
+    /**
+     * 构造与通知尝试身份一致的脱敏日志记录。
+     */
     private DataMerchantNotificationLogDO notificationLog(LocalDateTime transactionDateTime, LocalDateTime now) {
         DataMerchantNotificationLogDO result = new DataMerchantNotificationLogDO();
         result.setNotifyLogId("notify-log-q3");
@@ -192,6 +210,9 @@ class DataMerchantNotificationLogicalMapperPocTest {
         return result;
     }
 
+    /**
+     * 查询指定交易通知任务的当前持久化状态。
+     */
     private String status(Long id, String suffix) {
         return direct.queryForObject(
                 "SELECT notify_status FROM transaction_merchant_notification_" + suffix + " WHERE id = ?",
@@ -199,6 +220,9 @@ class DataMerchantNotificationLogicalMapperPocTest {
                 id);
     }
 
+    /**
+     * 创建并初始化通知任务与日志测试表。
+     */
     private void createPhysicalTables() {
         for (String suffix : List.of("202603", "202604")) {
             direct.execute("CREATE TABLE transaction_merchant_notification_" + suffix + " ("

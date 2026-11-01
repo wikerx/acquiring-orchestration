@@ -4,13 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ServerSecurityMaterialDTO
- * @date : 2026-05-30 09:20
- * @email : scott_x@163.com
- * @description : 服务端内部密钥材料查询结果
- * @status : create
+ * 服务端内部密钥材料查询结果
  */
 @Data
 @NoArgsConstructor

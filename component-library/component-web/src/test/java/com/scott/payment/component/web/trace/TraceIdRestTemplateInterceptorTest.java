@@ -15,13 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TraceIdRestTemplateInterceptorTest
- * @date : 未确认
- * @email : scott_x@163.com
- * @description : Trace ID Rest Template Interceptor Test 拦截组件，位于 公共组件库，处理请求链路中的 traceId、鉴权、来源信息、上下文绑定或安全校验。
- * @status : create
+ * Trace ID Rest Template Interceptor Test 拦截组件，位于 公共组件库，处理请求链路中的 traceId、鉴权、来源信息、上下文绑定或安全校验。
  */
 class TraceIdRestTemplateInterceptorTest {
 

@@ -4,13 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemConfigKeys
- * @date : 2026-07-04 00:00
- * @email : scott_x@163.com
- * @description : 系统参数键名常量，位于 service-admin 常量层，统一约束平台访问地址等跨功能配置，避免邮件模板和配置服务散落硬编码。
- * @status : create
+ * 系统参数键名常量，位于 service-admin 常量层，统一约束平台访问地址等跨功能配置，避免邮件模板和配置服务散落硬编码。
  */
 public final class SystemConfigKeys {
 
@@ -54,6 +48,9 @@ public final class SystemConfigKeys {
             "adminSystemBaseUrl", ADMIN_FRONTEND_BASE_URL
     );
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private SystemConfigKeys() {
     }
 }

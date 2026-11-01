@@ -15,13 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeServiceImpl
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务执行器节点服务实现
- * @status : create
+ * 任务执行器节点服务实现
  */
 @Slf4j
 @Service
@@ -105,7 +99,7 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
                         offlineBefore,
                         currentNodeId);
                 if (affectedRows > 0) {
-                    log.info("event: JOB_EXECUTOR_NODE_OFFLINE_MARKED affectedRows: {} candidateCount: {} offlineBefore: {}",
+                    log.info("离线执行节点已标记, event: JOB_EXECUTOR_NODE_OFFLINE_MARKED, affectedRows: {}, candidateCount: {}, offlineBefore: {}",
                             affectedRows,
                             candidateNodeIds.size(),
                             offlineBefore);
@@ -113,7 +107,7 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
                 return;
             } catch (PessimisticLockingFailureException exception) {
                 if (attempt >= MARK_OFFLINE_MAX_RETRY) {
-                    log.warn("event: JOB_EXECUTOR_NODE_OFFLINE_FAILED reason: lockConflict attempts: {} offlineBefore: {} exceptionType: {}",
+                    log.warn("离线执行节点标记失败, event: JOB_EXECUTOR_NODE_OFFLINE_FAILED, reason: lockConflict, attempts: {}, offlineBefore: {}, exceptionType: {}",
                             attempt,
                             offlineBefore,
                             exception.getClass().getSimpleName());
@@ -151,7 +145,7 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
      */
     private boolean sleepBeforeRetry(int attempt, PessimisticLockingFailureException exception) {
         long backoffMillis = DEADLOCK_RETRY_BACKOFF_MILLIS * attempt;
-        log.info("event: JOB_EXECUTOR_NODE_OFFLINE_RETRY reason: lockConflict attempt: {} backoffMillis: {} exceptionType: {}",
+        log.info("离线执行节点标记重试, event: JOB_EXECUTOR_NODE_OFFLINE_RETRY, reason: lockConflict, attempt: {}, backoffMillis: {}, exceptionType: {}",
                 attempt,
                 backoffMillis,
                 exception.getClass().getSimpleName());
@@ -160,7 +154,7 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
             return true;
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
-            log.info("event: JOB_EXECUTOR_NODE_OFFLINE_RETRY_ABORTED reason: threadInterrupted attempt: {}", attempt);
+            log.info("离线执行节点标记重试终止, event: JOB_EXECUTOR_NODE_OFFLINE_RETRY_ABORTED, reason: threadInterrupted, attempt: {}", attempt);
             return false;
         }
     }

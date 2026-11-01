@@ -17,18 +17,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationAuditConsumerTests
- * @date : 2026-08-01 14:50
- * @email : scott_x@163.com
- * @description : service-data 风控审计消费测试，覆盖重复消息、Redis 降级和数据库失败释放
- * @status : create
+ * service-data 风控审计消费测试，覆盖重复消息、Redis 降级和数据库失败释放
  */
 @Slf4j
 class RiskEvaluationAuditConsumerTests {
 
-    /** Redis 重复结果应跳过数据库写入。 */
+    /**
+     * Redis 重复结果应跳过数据库写入。
+     */
     @Test
     void shouldSkipRedisDuplicate() {
         log.info("测试风控审计重复消费，关键输入: Redis DUPLICATE");
@@ -41,7 +37,9 @@ class RiskEvaluationAuditConsumerTests {
         log.info("风控审计重复消费完成，结果: 未访问数据库");
     }
 
-    /** Redis 残留标记缺少数据库记录时必须继续写库。 */
+    /**
+     * Redis 残留标记缺少数据库记录时必须继续写库。
+     */
     @Test
     void shouldPersistWhenRedisDuplicateHasNoDatabaseFact() {
         Fixture fixture = fixture(IdempotentAcquireResult.DUPLICATE);
@@ -52,7 +50,9 @@ class RiskEvaluationAuditConsumerTests {
         verify(fixture.persistenceService()).persist(fixture.message());
     }
 
-    /** 畸形 JSON 必须触发 MQ 重试，不能被当作成功消费。 */
+    /**
+     * 畸形 JSON 必须触发 MQ 重试，不能被当作成功消费。
+     */
     @Test
     void shouldRejectMalformedPayload() {
         Fixture fixture = fixture(IdempotentAcquireResult.ACQUIRED);
@@ -65,7 +65,9 @@ class RiskEvaluationAuditConsumerTests {
                 org.mockito.ArgumentMatchers.any(RiskEvaluationAuditMessage.class));
     }
 
-    /** 缺少数据库幂等键的消息必须触发 Broker 重试。 */
+    /**
+     * 缺少数据库幂等键的消息必须触发 Broker 重试。
+     */
     @Test
     void shouldRejectMessageWithoutRiskRecordNo() {
         Fixture fixture = fixture(IdempotentAcquireResult.ACQUIRED);
@@ -78,7 +80,9 @@ class RiskEvaluationAuditConsumerTests {
                 org.mockito.ArgumentMatchers.any(RiskEvaluationAuditMessage.class));
     }
 
-    /** Redis 不可用时应继续依赖数据库唯一键。 */
+    /**
+     * Redis 不可用时应继续依赖数据库唯一键。
+     */
     @Test
     void shouldContinueToDatabaseWhenRedisFallsBack() {
         log.info("测试风控审计 Redis 降级，关键输入: FALLBACK");
@@ -94,7 +98,9 @@ class RiskEvaluationAuditConsumerTests {
         log.info("风控审计 Redis 降级完成，结果: 继续数据库最终幂等");
     }
 
-    /** 数据库失败时应释放 ACQUIRED 占用并上抛异常触发重试。 */
+    /**
+     * 数据库失败时应释放 ACQUIRED 占用并上抛异常触发重试。
+     */
     @Test
     void shouldReleaseAcquiredClaimWhenDatabaseFails() {
         log.info("测试风控审计失败重试，关键输入: ACQUIRED、数据库异常");
@@ -111,7 +117,9 @@ class RiskEvaluationAuditConsumerTests {
         log.info("风控审计失败重试完成，结果: Redis 占用已释放且原异常上抛");
     }
 
-    /** 创建指定 Redis 结果的消费者测试夹具。 */
+    /**
+     * 创建指定 Redis 结果的消费者测试夹具。
+     */
     private Fixture fixture(IdempotentAcquireResult acquireResult) {
         RiskAuditPersistenceService persistenceService = mock(RiskAuditPersistenceService.class);
         IdempotentService idempotentService = mock(IdempotentService.class);
@@ -134,7 +142,9 @@ class RiskEvaluationAuditConsumerTests {
         );
     }
 
-    /** 风控审计消费测试依赖集合。 */
+    /**
+     * 风控审计消费测试依赖集合。
+     */
     private record Fixture(RiskEvaluationAuditConsumer consumer,
                            RiskAuditPersistenceService persistenceService,
                            IdempotentService idempotentService,

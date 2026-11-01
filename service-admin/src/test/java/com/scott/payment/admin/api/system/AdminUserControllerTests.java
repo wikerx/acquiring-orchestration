@@ -28,13 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserControllerTests
- * @date : 2026-08-10 19:38
- * @email : scott_x@163.com
- * @description : 后台用户详情接口契约测试，验证账号主键经标准分层进入缓存资料查询用例
- * @status : create
+ * 后台用户详情接口契约测试，验证账号主键经标准分层进入缓存资料查询用例
  */
 @Slf4j
 class AdminUserControllerTests {
@@ -60,7 +54,9 @@ class AdminUserControllerTests {
         log.info("后台用户详情接口验证完成，结果: 请求已转发至应用服务");
     }
 
-    /** 新增用户时角色主键必须随请求进入应用服务，以便在同一事务内完成授权。 */
+    /**
+     * 新增用户时角色主键必须随请求进入应用服务，以便在同一事务内完成授权。
+     */
     @Test
     void shouldCreateUserWithRoleIds() throws Exception {
         AdminUserApplicationService applicationService = mock(AdminUserApplicationService.class);
@@ -80,7 +76,9 @@ class AdminUserControllerTests {
         assertEquals(List.of(11L, 12L), captor.getValue().getRoleIds());
     }
 
-    /** 编辑用户时显式空角色集合必须保留，空集合表示清空而不是忽略角色变更。 */
+    /**
+     * 编辑用户时显式空角色集合必须保留，空集合表示清空而不是忽略角色变更。
+     */
     @Test
     void shouldUpdateUserWithExplicitEmptyRoleIds() throws Exception {
         AdminUserApplicationService applicationService = mock(AdminUserApplicationService.class);
@@ -101,7 +99,9 @@ class AdminUserControllerTests {
         assertTrue(captor.getValue().getRoleIds().isEmpty());
     }
 
-    /** 新增弹窗查询角色选项时使用独立接口，不需要伪造尚不存在的账号ID。 */
+    /**
+     * 新增弹窗查询角色选项时使用独立接口，不需要伪造尚不存在的账号ID。
+     */
     @Test
     void shouldQueryAssignableRoleOptionsForCreateDialog() throws Exception {
         AdminUserApplicationService applicationService = mock(AdminUserApplicationService.class);

@@ -6,13 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysPermissionDO
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 权限资源数据库实体
- * @status : create
+ * 权限资源数据库实体
  */
 @Data
 @TableName("sys_permission")

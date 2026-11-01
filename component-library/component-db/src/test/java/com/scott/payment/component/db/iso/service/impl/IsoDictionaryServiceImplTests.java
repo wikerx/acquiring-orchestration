@@ -46,13 +46,7 @@ import static org.mockito.Mockito.when;
 import org.mockito.ArgumentCaptor;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoDictionaryServiceImplTests
- * @date : 2026-07-30 21:45
- * @email : scott_x@163.com
- * @description : ISO 国家与币种常驻缓存短 Key、数据库兜底边界和管理端精确失效行为单元测试
- * @status : update
+ * ISO 国家与币种常驻缓存短 Key、数据库兜底边界和管理端精确失效行为单元测试
  */
 @Slf4j
 class IsoDictionaryServiceImplTests {
@@ -65,7 +59,9 @@ class IsoDictionaryServiceImplTests {
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), IsoCurrencyDO.class);
     }
 
-    /** 单个国家代码应通过固定 Hash 的一次 HMGET 命中，避免读取并反序列化全量列表。 */
+    /**
+     * 单个国家代码应通过固定 Hash 的一次 HMGET 命中，避免读取并反序列化全量列表。
+     */
     @Test
     void shouldReadCountryCodeFromHashWithOneHmget() {
         Fixture fixture = fixture();
@@ -82,7 +78,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.valueOperations(), never()).get("acquiring:dev:iso:country:all");
     }
 
-    /** 多个国家代码只有全部映射到同一条权威记录时才算命中。 */
+    /**
+     * 多个国家代码只有全部映射到同一条权威记录时才算命中。
+     */
     @Test
     void shouldRequireAllCountryCodeAliasesToResolveToSameRecord() {
         Fixture fixture = fixture();
@@ -103,7 +101,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.countryMapper(), never()).selectList(any());
     }
 
-    /** 完整 Hash 中缺少查询字段代表权威未命中，不能重复回源数据库。 */
+    /**
+     * 完整 Hash 中缺少查询字段代表权威未命中，不能重复回源数据库。
+     */
     @Test
     void shouldTreatMissingCountryFieldInReadyHashAsAuthoritativeEmpty() {
         Fixture fixture = fixture();
@@ -115,7 +115,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.countryMapper(), never()).selectList(any());
     }
 
-    /** Hash 尚未建立时从 SLAVE 全量加载一次，并用一次 HSET 写入完整代码别名。 */
+    /**
+     * Hash 尚未建立时从 SLAVE 全量加载一次，并用一次 HSET 写入完整代码别名。
+     */
     @Test
     void shouldRebuildCountryCodeHashFromOneDatabaseSnapshot() {
         Fixture fixture = fixture();
@@ -141,7 +143,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.countryMapper(), times(1)).selectList(any());
     }
 
-    /** 代码 Hash 缺失但全量快照存在时，必须直接复用快照建立索引，不能再次扫描国家表。 */
+    /**
+     * 代码 Hash 缺失但全量快照存在时，必须直接复用快照建立索引，不能再次扫描国家表。
+     */
     @Test
     void shouldBuildCountryCodeHashFromExistingFullSnapshot() {
         Fixture fixture = fixture();
@@ -160,7 +164,9 @@ class IsoDictionaryServiceImplTests {
         );
     }
 
-    /** 全量快照仍处于管理端失效门禁时，不得用旧快照重新建立永久国家代码索引。 */
+    /**
+     * 全量快照仍处于管理端失效门禁时，不得用旧快照重新建立永久国家代码索引。
+     */
     @Test
     void shouldNotRebuildCountryCodeHashWhileSnapshotInvalidationIsPending() {
         CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
@@ -177,7 +183,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.hashOperations(), never()).putAll(anyString(), anyMap());
     }
 
-    /** Redis 不可用时仅执行一次携带全部代码条件的 SLAVE 精确 SQL。 */
+    /**
+     * Redis 不可用时仅执行一次携带全部代码条件的 SLAVE 精确 SQL。
+     */
     @Test
     void shouldQueryCountryByAllCodesWhenRedisIsUnavailable() {
         Fixture fixture = fixture();
@@ -198,7 +206,9 @@ class IsoDictionaryServiceImplTests {
                 .contains("US", "USA", "840", 1, 0);
     }
 
-    /** 无代码时保留现有全量缓存路径。 */
+    /**
+     * 无代码时保留现有全量缓存路径。
+     */
     @Test
     void shouldUseFullCountrySnapshotWhenNoCodesAreProvided() {
         log.info("验证国家查询无代码时复用 Redis 全量快照");
@@ -210,7 +220,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.countryMapper(), never()).selectList(any());
     }
 
-    /** 币种代码 Hash 使用相同的单次读取、AND 语义与权威未命中规则。 */
+    /**
+     * 币种代码 Hash 使用相同的单次读取、AND 语义与权威未命中规则。
+     */
     @Test
     void shouldReadCurrencyCodesFromHashAndRejectConflictingAliases() {
         Fixture fixture = fixture();
@@ -224,7 +236,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.currencyMapper(), never()).selectList(any());
     }
 
-    /** 币种 Hash 缺失时全量重建；Redis 故障时精确 SQL 才承担兜底。 */
+    /**
+     * 币种 Hash 缺失时全量重建；Redis 故障时精确 SQL 才承担兜底。
+     */
     @Test
     void shouldRebuildCurrencyHashAndUseExactSqlOnlyWhenRedisFails() {
         Fixture fixture = fixture();
@@ -314,7 +328,9 @@ class IsoDictionaryServiceImplTests {
         log.info("ISO 国家字典常驻写入测试完成，结果: 仅写短 Key 且未设置 TTL");
     }
 
-    /** 国家字典业务变更必须同时失效全量快照和固定代码 Hash。 */
+    /**
+     * 国家字典业务变更必须同时失效全量快照和固定代码 Hash。
+     */
     @Test
     void shouldEvictCountrySnapshotAndCodeHashAfterBusinessMutation() {
         log.info("测试 ISO 国家字典显式失效，关键输入: 管理端完成国家资料变更");
@@ -328,7 +344,9 @@ class IsoDictionaryServiceImplTests {
         log.info("ISO 国家字典显式失效测试完成，结果: 全量快照和代码 Hash 均被精确删除");
     }
 
-    /** 数据库合法返回零条启用记录时，空数组就是权威快照。 */
+    /**
+     * 数据库合法返回零条启用记录时，空数组就是权威快照。
+     */
     @Test
     void shouldCacheAndReturnEmptySnapshotWhenDatabaseReturnsEmpty() {
         Fixture fixture = fixture();
@@ -341,7 +359,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.valueOperations()).set("acquiring:dev:iso:country:all", "[]");
     }
 
-    /** Redis 中已经缓存的空数组必须直接返回，不能再次访问数据库。 */
+    /**
+     * Redis 中已经缓存的空数组必须直接返回，不能再次访问数据库。
+     */
     @Test
     void shouldTreatCachedEmptyArrayAsPresentSnapshot() {
         Fixture fixture = fixture();
@@ -353,7 +373,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.valueOperations(), never()).set(anyString(), anyString());
     }
 
-    /** 数据库故障且没有旧快照时必须返回明确服务不可用，不能伪造内置业务数据。 */
+    /**
+     * 数据库故障且没有旧快照时必须返回明确服务不可用，不能伪造内置业务数据。
+     */
     @Test
     void shouldFailWhenDatabaseReadFailsWithoutCachedSnapshot() {
         Fixture fixture = fixture();
@@ -393,7 +415,9 @@ class IsoDictionaryServiceImplTests {
         log.info("ISO 币种字典常驻快照测试完成，结果: 仅访问统一短 Key");
     }
 
-    /** 币种展示快照必须使用独立版本键，不能复用金额计算字典缓存。 */
+    /**
+     * 币种展示快照必须使用独立版本键，不能复用金额计算字典缓存。
+     */
     @Test
     void shouldReadCurrencyPresentationSnapshotFromVersionedKey() {
         Fixture fixture = fixture();
@@ -407,7 +431,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.valueOperations(), never()).get("acquiring:dev:iso:currency:all");
     }
 
-    /** 数据库展示记录应写入版本化永久缓存，非法历史图标键必须降级为空。 */
+    /**
+     * 数据库展示记录应写入版本化永久缓存，非法历史图标键必须降级为空。
+     */
     @Test
     void shouldWriteSafeCurrencyPresentationSnapshotAfterDatabaseLoad() {
         Fixture fixture = fixture();
@@ -429,7 +455,9 @@ class IsoDictionaryServiceImplTests {
         );
     }
 
-    /** 币种维护后必须同时失效全量快照、固定代码 Hash 和展示快照。 */
+    /**
+     * 币种维护后必须同时失效全量快照、固定代码 Hash 和展示快照。
+     */
     @Test
     void shouldEvictCurrencyCodeHashAndSnapshotsTogether() {
         Fixture fixture = fixture();
@@ -441,7 +469,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.redisTemplate()).delete("acquiring:dev:iso:currency:presentation-v1");
     }
 
-    /** 管理端事务环境必须为每个固定国家缓存键登记独立的可靠失效事件。 */
+    /**
+     * 管理端事务环境必须为每个固定国家缓存键登记独立的可靠失效事件。
+     */
     @Test
     void shouldPrepareManagedInvalidationForEveryCountryCacheKey() {
         ManagedCacheInvalidationCoordinator coordinator = mock(ManagedCacheInvalidationCoordinator.class);
@@ -454,7 +484,9 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.redisTemplate(), never()).delete(anyString());
     }
 
-    /** 币种变更必须让全量、代码和展示三个永久读模型一起越过从库可见性门禁。 */
+    /**
+     * 币种变更必须让全量、代码和展示三个永久读模型一起越过从库可见性门禁。
+     */
     @Test
     void shouldPrepareManagedInvalidationForEveryCurrencyCacheKey() {
         ManagedCacheInvalidationCoordinator coordinator = mock(ManagedCacheInvalidationCoordinator.class);

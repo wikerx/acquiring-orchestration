@@ -15,22 +15,12 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementFeeGroupCalculator
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 在目标结算币种统一求值标签币种百分比组件、USD 固定费和 USD 上下限，不修改原清分费用事实。
- * @status : create
+ * 在目标结算币种统一求值标签币种百分比组件、USD 固定费和 USD 上下限，不修改原清分费用事实。
  */
 public final class SettlementFeeGroupCalculator {
 
     /**
      * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 

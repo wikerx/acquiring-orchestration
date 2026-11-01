@@ -19,13 +19,11 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionChannelMatchResultTransactionService
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 主动渠道查询结果事务默认实现，位于 service-payment 服务实现层，使用 REQUIRES_NEW 保存查询结果并通过 CAS 推进平台状态。
- * @status : create
+ * 主动渠道查询结果的独立事务服务。
+ *
+ * <p>渠道查询原始证据与平台状态分开保存。只有解析为确定终态且状态 CAS 获胜时才推进交易并
+ * 同事务写生命周期 Outbox；查询仍处理中、查询失败或平台已终态时，只更新勾兑摘要，不能
+ * 把不确定结果覆盖成支付失败。</p>
  */
 @Service
 public class DefaultTransactionChannelMatchResultTransactionService implements TransactionChannelMatchResultTransactionService {
@@ -68,6 +66,8 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                                    PaymentChannelInvokeResultDTO invokeResultDTO,
                                    ChannelTransactionStatusResolution resolution,
                                    LocalDateTime matchTime) {
+        applyQueryReferences(operationDO, invokeResultDTO);
+        // 先更新原请求的查询证据；与后续状态推进处于同一事务，任一步失败都会整体回滚。
         transactionRecordService.updateOriginalChannelRequestByQuery(
                 operationDO,
                 originalRequestDO,
@@ -75,6 +75,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 resolution == null ? null : resolution.getTargetStatus(),
                 resolution == null ? null : resolution.getFailReasonCode());
         TransactionOrderDO orderDO = findLifecycleOrder(operationDO);
+        // completeByChannelCallback 复用统一终态 CAS，保证主动查询与异步回调竞争时只有一方获胜。
         boolean statusChanged = transactionRecordService.completeByChannelCallback(
                 operationDO,
                 orderDO,
@@ -113,7 +114,9 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 operationDO.getTransactionDateTime(), operationDO.getOperationId());
     }
 
-    /** 保存平台终态交易的渠道查询摘要，不进入交易状态机。 */
+    /**
+     * 保存平台终态交易的渠道查询摘要，不进入交易状态机。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -124,6 +127,8 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                                          String matchResult,
                                          LocalDateTime matchTime,
                                          String failReason) {
+        applyQueryReferences(operationDO, invokeResultDTO);
+        // 平台终态保持不变，此分支仅补充渠道查询与勾兑审计事实。
         transactionRecordService.updateOriginalChannelRequestByQuery(
                 operationDO,
                 originalRequestDO,
@@ -166,7 +171,9 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 "PENDING", matchResult, matchTime, nextMatchTime, failReason);
     }
 
-    /** 保存 PENDING、MISMATCHED 或 FAILED 勾兑摘要。 */
+    /**
+     * 保存 PENDING、MISMATCHED 或 FAILED 勾兑摘要。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -178,6 +185,8 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                                       LocalDateTime matchTime,
                                       LocalDateTime nextMatchTime,
                                       String failReason) {
+        applyQueryReferences(operationDO, invokeResultDTO);
+        // 仅 PENDING 安排下次查询；MISMATCHED/FAILED 等待人工或独立恢复流程，避免自动热循环。
         LocalDateTime persistedNextMatchTime = "PENDING".equals(matchStatus) ? nextMatchTime : null;
         transactionRecordService.updateOriginalChannelRequestByQuery(
                 operationDO,
@@ -205,9 +214,37 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 failReason);
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(TransactionOperationDO operationDO) {
         return operationDO != null
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus()));
+    }
+
+    /**
+     * 将查询返回的真实渠道身份和参考字段合并到本次状态 CAS 输入。
+     */
+    private void applyQueryReferences(TransactionOperationDO operationDO,
+                                      PaymentChannelInvokeResultDTO invokeResultDTO) {
+        if (operationDO == null || invokeResultDTO == null || invokeResultDTO.getChannelResponse() == null) {
+            return;
+        }
+        var response = invokeResultDTO.getChannelResponse();
+        operationDO.setChannelOrderNo(firstText(response.getChannelOrderNo(), operationDO.getChannelOrderNo()));
+        operationDO.setChannelTransactionId(firstText(
+                response.getChannelTransactionId(), operationDO.getChannelTransactionId()));
+        operationDO.setAuthCode(firstText(response.getAuthCode(), operationDO.getAuthCode()));
+        operationDO.setRrn(firstText(response.getRrn(), operationDO.getRrn()));
+        operationDO.setAcquirerReferenceNo(firstText(
+                response.getAcquirerReferenceNo(), operationDO.getAcquirerReferenceNo()));
+    }
+
+    /**
+     * 返回首个非空文本。
+     */
+    private String firstText(String first, String second) {
+        return StringUtils.hasText(first) ? first : second;
     }
 }

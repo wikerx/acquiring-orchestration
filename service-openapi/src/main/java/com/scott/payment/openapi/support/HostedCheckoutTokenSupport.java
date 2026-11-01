@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.Mac;
@@ -12,13 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutTokenSupport
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout token 摘要支撑。
- * @status : create
+ * Hosted Checkout token 摘要支撑。
  */
 public final class HostedCheckoutTokenSupport {
 
@@ -27,6 +22,9 @@ public final class HostedCheckoutTokenSupport {
      */
     public static final String TOKEN_HASH_ALG = "HMAC_SHA256";
 
+    /**
+     * 令牌摘要工具类不允许实例化。
+     */
     private HostedCheckoutTokenSupport() {
     }
 
@@ -38,15 +36,21 @@ public final class HostedCheckoutTokenSupport {
      * @return 可用于查询 token 摘要表的十六进制摘要
      */
     public static String hmacSha256Hex(String value, String pepper) {
-        if (!StringUtils.hasText(value) || !StringUtils.hasText(pepper)) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "checkout token can not be hashed");
+        if (!StringUtils.hasText(value)) {
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING,
+                    "checkoutToken",
+                    "checkout token is required");
+        }
+        if (!StringUtils.hasText(pepper)) {
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "checkout token pepper is unavailable");
         }
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(pepper.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException | InvalidKeyException exception) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "checkout token hash failed");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "checkout token hash failed");
         }
     }
 }

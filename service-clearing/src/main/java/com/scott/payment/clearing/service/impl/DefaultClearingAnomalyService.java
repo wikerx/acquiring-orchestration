@@ -16,29 +16,22 @@ import java.time.LocalDateTime;
 import java.util.HexFormat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingAnomalyService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 默认清分异常案件服务，复用交易异常逻辑表并使用确定性去重键。
- * @status : update
+ * 默认清分异常案件服务，复用交易异常逻辑表并使用确定性去重键。
  */
 @Service
 public class DefaultClearingAnomalyService implements ClearingAnomalyService {
 
     /**
-     * {@code SUMMARY_MAX_LENGTH}常量，统一 {@code DefaultClearingAnomalyService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 异常摘要允许落库的最大字符数，避免排障文本超过异常表字段容量。
      */
     private static final int SUMMARY_MAX_LENGTH = 512;
 
     private final ClearingTransactionAbnormalEventMapper mapper;
     private final ClearingOperationalMetrics metrics;
 
+    /**
+     * 创建清分异常服务，并注入异常持久化与监控指标依赖。
+     */
     public DefaultClearingAnomalyService(ClearingTransactionAbnormalEventMapper mapper,
                                          ClearingOperationalMetrics metrics) {
         this.mapper = mapper;
@@ -46,7 +39,7 @@ public class DefaultClearingAnomalyService implements ClearingAnomalyService {
     }
 
     /**
-     * 记录记录，写入安全、审计或链路排障所需的脱敏上下文。
+     * 记录清分异常，使用确定性摘要键保证同一异常重复上报时只累计出现次数。
      * @param operation 当前交易动作事实，包含交易身份、状态、版本和分片定位信息
      * @param financeStateId 业务记录主键或主键集合，用于精确定位当前操作对象
      * @param revision 清分修订号，用于区分同一动作的不可变清分版本
@@ -101,7 +94,9 @@ public class DefaultClearingAnomalyService implements ClearingAnomalyService {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 关闭指定交易分片上仍处于开启状态的清分异常，并记录解决引用号。
+     */
     @Override
     public void resolve(String transactionId, LocalDateTime transactionDateTime,
                         String referenceId, LocalDateTime now) {
@@ -112,6 +107,9 @@ public class DefaultClearingAnomalyService implements ClearingAnomalyService {
         mapper.resolveActiveClearingCases(transactionId, transactionDateTime, referenceId, now);
     }
 
+    /**
+     * 校验异常记录所需的交易身份、财务状态版本和安全摘要均完整有效。
+     */
     private void requireRecord(ClearingOperationFacts operation, String financeStateId, int revision,
                                ClearingAnomalyTypeEnum anomalyType, String failureCode,
                                String summary, LocalDateTime now) {
@@ -123,6 +121,9 @@ public class DefaultClearingAnomalyService implements ClearingAnomalyService {
         }
     }
 
+    /**
+     * 将受控异常类型映射为运营告警级别。
+     */
     private String level(ClearingAnomalyTypeEnum type) {
         return switch (type) {
             case FINANCIAL_MISMATCH -> "CRITICAL";
@@ -131,12 +132,18 @@ public class DefaultClearingAnomalyService implements ClearingAnomalyService {
         };
     }
 
+    /**
+     * 移除摘要中的控制字符并按数据库容量截断，避免日志注入和字段溢出。
+     */
     private String sanitize(String value) {
         String normalized = value.replaceAll("[\\r\\n\\t]+", " ").trim();
         return normalized.length() <= SUMMARY_MAX_LENGTH
                 ? normalized : normalized.substring(0, SUMMARY_MAX_LENGTH);
     }
 
+    /**
+     * 对稳定异常材料计算 SHA-256 摘要，作为异常记录的去重依据。
+     */
     private String hash(String material) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

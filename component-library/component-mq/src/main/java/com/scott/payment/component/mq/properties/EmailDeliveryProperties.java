@@ -4,31 +4,39 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EmailDeliveryProperties
- * @date : 2026-08-02 23:40
- * @email : scott_x@163.com
- * @description : 业务邮件异步投递、退避重试、处理中超时恢复和批量重投参数
- * @status : create
+ * 业务邮件异步投递、退避重试、处理中超时恢复和批量重投参数
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.email.delivery")
 public class EmailDeliveryProperties {
 
-    /** 是否启用业务邮件 MQ 消费与恢复任务。 */
+    /**
+     * 是否启用业务邮件 MQ 消费与恢复任务。
+     */
     private boolean enabled = false;
-    /** 业务邮件默认最大重试次数，不包含首次发送。 */
+    /**
+     * 业务邮件默认最大重试次数，不包含首次发送。
+     */
     private int defaultMaxRetryCount = 3;
-    /** 第一次重试等待秒数，后续按指数退避。 */
+    /**
+     * 第一次重试等待秒数，后续按指数退避。
+     */
     private long retryDelaySeconds = 30L;
-    /** 单次退避等待上限秒数。 */
+    /**
+     * 单次退避等待上限秒数。
+     */
     private long maxRetryDelaySeconds = 3600L;
-    /** SENDING 状态允许占用的最大秒数，必须大于 SMTP 读写超时。 */
+    /**
+     * SENDING 状态允许占用的最大秒数，必须大于 SMTP 读写超时。
+     */
     private long processingTimeoutSeconds = 300L;
-    /** 每次重投扫描的最大记录数。 */
+    /**
+     * 每次重投扫描的最大记录数。
+     */
     private int batchSize = 100;
-    /** 重投与超时恢复任务间隔毫秒数。 */
+    /**
+     * 重投与超时恢复任务间隔毫秒数。
+     */
     private long relayIntervalMillis = 30000L;
 
     /**

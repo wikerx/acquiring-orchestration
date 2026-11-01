@@ -12,17 +12,13 @@ import java.lang.reflect.Method;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminCardBinCacheAnnotationsTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 管理端 Card BIN 写入口事务契约测试，确保数据变更通过 generation 协调器而非全量缓存清理注解处理。
- * @status : create
+ * 管理端 Card BIN 写入口事务契约测试，确保数据变更通过 generation 协调器而非全量缓存清理注解处理。
  */
 class AdminCardBinCacheAnnotationsTests {
 
-    /** 所有 BIN 写入口必须使用主库事务且不再执行 allEntries 全量清理。 */
+    /**
+     * 所有 BIN 写入口必须使用主库事务且不再执行 allEntries 全量清理。
+     */
     @Test
     void shouldUseMasterTransactionWithoutAllEntriesEvictionForEveryMutation() throws Exception {
         assertMutation("create", CardBinDTOs.CardBinSaveRequest.class);
@@ -32,7 +28,9 @@ class AdminCardBinCacheAnnotationsTests {
         assertMutation("initFromLegacyDb");
     }
 
-    /** 校验单个 Card BIN 写入口的数据源、事务和 generation 失效配置。 */
+    /**
+     * 校验单个 Card BIN 写入口的数据源、事务和 generation 失效配置。
+     */
     private void assertMutation(String methodName, Class<?>... parameterTypes) throws Exception {
         Method method = AdminBaseCardBinApplicationService.class.getMethod(methodName, parameterTypes);
         DS dataSource = AnnotatedElementUtils.findMergedAnnotation(method, DS.class);

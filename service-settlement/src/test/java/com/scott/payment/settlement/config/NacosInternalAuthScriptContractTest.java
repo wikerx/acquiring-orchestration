@@ -10,13 +10,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NacosInternalAuthScriptContractTest
- * @date : 2026-09-02 22:10
- * @email : scott_x@163.com
- * @description : 验证 Nacos 内部鉴权脚本兼容旧点号键，并统一生成保留注释的标准嵌套 YAML。
- * @status : create
+ * 验证 Nacos 内部鉴权脚本兼容旧点号键，并统一生成保留注释的标准嵌套 YAML。
  */
 class NacosInternalAuthScriptContractTest {
 
@@ -26,7 +20,9 @@ class NacosInternalAuthScriptContractTest {
     @TempDir
     Path tempDir;
 
-    /** 旧配置必须可读取；同步输出只能保留一个 acquiring 根节点并使用标准嵌套结构。 */
+    /**
+     * 旧配置必须可读取；同步输出只能保留一个 acquiring 根节点并使用标准嵌套结构。
+     */
     @Test
     void scriptShouldConvertLegacyDottedBundleToDocumentedNestedYaml() throws Exception {
         Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
@@ -72,7 +68,9 @@ class NacosInternalAuthScriptContractTest {
         assertThat(yaml.lines().filter("acquiring:"::equals).count()).isEqualTo(1);
     }
 
-    /** 无 acquiring 业务根节点时允许新增一次；已有嵌套配置再次规范化必须保持内容稳定。 */
+    /**
+     * 无 acquiring 业务根节点时允许新增一次；已有嵌套配置再次规范化必须保持内容稳定。
+     */
     @Test
     void scriptShouldAppendOneRootAndKeepNestedBundleStable() throws Exception {
         Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
@@ -104,7 +102,9 @@ class NacosInternalAuthScriptContractTest {
         assertThat(yaml.lines().filter("acquiring:"::equals).count()).isEqualTo(1);
     }
 
-    /** 重复 acquiring 根节点会导致 YAML 覆盖语义不确定，脚本必须在发布前失败关闭。 */
+    /**
+     * 重复 acquiring 根节点会导致 YAML 覆盖语义不确定，脚本必须在发布前失败关闭。
+     */
     @Test
     void scriptShouldRejectDuplicateAcquiringRoots() throws Exception {
         Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
@@ -131,7 +131,9 @@ class NacosInternalAuthScriptContractTest {
         assertThat(processOutput).contains("duplicate acquiring roots");
     }
 
-    /** 模板已有未受控 internal-auth 节点时禁止再次插入同名 key，避免 YAML 后值覆盖前值。 */
+    /**
+     * 模板已有未受控 internal-auth 节点时禁止再次插入同名 key，避免 YAML 后值覆盖前值。
+     */
     @Test
     void scriptShouldRejectUnmanagedInternalAuthNode() throws Exception {
         Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
@@ -158,7 +160,9 @@ class NacosInternalAuthScriptContractTest {
         assertThat(processOutput).contains("unmanaged internal-auth node");
     }
 
-    /** 服务配置携带职责外调用边等同越权，校验必须在发布前拒绝。 */
+    /**
+     * 服务配置携带职责外调用边等同越权，校验必须在发布前拒绝。
+     */
     @Test
     void scriptShouldRejectUnexpectedServiceEdge() throws Exception {
         Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
@@ -180,6 +184,44 @@ class NacosInternalAuthScriptContractTest {
 
         assertThat(exitCode).isNotZero();
         assertThat(processOutput).contains("least-privilege edge validation failed");
+    }
+
+    /**
+     * 服务模板同步必须保留 Admin/Merchant 已配置的稳定 MFA 密钥，避免发布后再次触发启动门禁。
+     */
+    @Test
+    void scriptShouldPreserveRuntimeMfaSecretsDuringServiceConfigSync() throws Exception {
+        Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
+        Path current = tempDir.resolve("current-mfa.yaml");
+        Path template = tempDir.resolve("template-mfa.yaml");
+        Path output = tempDir.resolve("output-mfa.yaml");
+        Files.writeString(current, "payment:\n"
+                + "  mfa:\n"
+                + "    secret: \"" + OLD_SECRET + "\"\n"
+                + "    previous-secrets: " + NEW_SECRET + "\n", StandardCharsets.UTF_8);
+        Files.writeString(template, "payment:\n"
+                + "  mfa:\n"
+                + "    secret: ${PAYMENT_MFA_SECRET:}\n"
+                + "    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}\n"
+                + "    allow-ephemeral-test-secret: false\n", StandardCharsets.UTF_8);
+
+        String command = "source \"$1\"\n"
+                + "work_dir=\"$2\"\n"
+                + "preserve_service_runtime_secrets service-admin \"$3\" \"$4\" \"$5\"\n";
+        Process process = new ProcessBuilder(
+                "bash", "-c", command, "bash",
+                script.toString(), tempDir.toString(), current.toString(), template.toString(), output.toString())
+                .redirectErrorStream(true)
+                .start();
+        String processOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+
+        assertThat(exitCode).as(processOutput).isZero();
+        assertThat(Files.readString(output))
+                .contains("    secret: " + OLD_SECRET)
+                .contains("    previous-secrets: " + NEW_SECRET)
+                .contains("    allow-ephemeral-test-secret: false")
+                .doesNotContain("${PAYMENT_MFA_SECRET:}", "${PAYMENT_MFA_PREVIOUS_SECRETS:}");
     }
 
     private String legacyConfiguration() {

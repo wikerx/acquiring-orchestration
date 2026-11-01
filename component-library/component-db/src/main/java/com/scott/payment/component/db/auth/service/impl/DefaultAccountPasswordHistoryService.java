@@ -15,28 +15,28 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultAccountPasswordHistoryService
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 默认密码历史实现；仅加载最近四条哈希进行恒定算法比对，并在换密事务内归档旧哈希。
- * @status : create
+ * 默认密码历史实现；仅加载最近四条哈希进行恒定算法比对，并在换密事务内归档旧哈希。
  */
 @Service
 public class DefaultAccountPasswordHistoryService implements AccountPasswordHistoryService {
 
-    /** PCI 密码复用防护要求检查的最近历史数量。 */
+    /**
+     * PCI 密码复用防护要求检查的最近历史数量。
+     */
     private static final int HISTORY_CHECK_COUNT = 4;
 
     private final SysAccountPasswordHistoryMapper historyMapper;
 
-    /** 创建密码历史服务。 */
+    /**
+     * 创建密码历史服务。
+     */
     public DefaultAccountPasswordHistoryService(SysAccountPasswordHistoryMapper historyMapper) {
         this.historyMapper = historyMapper;
     }
 
-    /** 校验当前及最近四个旧密码，错误消息不透露命中了哪一条历史。 */
+    /**
+     * 校验当前及最近四个旧密码，错误消息不透露命中了哪一条历史。
+     */
     @Override
     public void assertNotRecentlyUsed(SysAccountDO account, String candidatePassword) {
         if (account == null || !StringUtils.hasText(candidatePassword)) {
@@ -58,7 +58,9 @@ public class DefaultAccountPasswordHistoryService implements AccountPasswordHist
         }
     }
 
-    /** 将即将被替换的密码哈希材料写入历史表。 */
+    /**
+     * 将即将被替换的密码哈希材料写入历史表。
+     */
     @Override
     public void recordCurrentPassword(SysAccountDO account, LocalDateTime changedAt) {
         if (account == null || account.getId() == null || !StringUtils.hasText(account.getPasswordHash())
@@ -88,11 +90,24 @@ public class DefaultAccountPasswordHistoryService implements AccountPasswordHist
         historyMapper.insert(row);
     }
 
+    /**
+     * 使用历史盐值验证候选密码是否与某次历史哈希匹配。
+     *
+     * @param candidatePassword 候选密码明文，仅在当前校验调用内使用
+     * @param salt 历史密码盐值
+     * @param hash 历史密码哈希
+     * @return 历史材料完整且密码匹配时返回 true
+     */
     private boolean matches(String candidatePassword, String salt, String hash) {
         return StringUtils.hasText(salt) && StringUtils.hasText(hash)
                 && PasswordHashUtils.matches(candidatePassword, salt, hash);
     }
 
+    /**
+     * 创建统一的近期密码重复校验异常。
+     *
+     * @return 不包含密码材料的参数异常
+     */
     private ServiceException reusedPassword() {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "new password was used recently");
     }

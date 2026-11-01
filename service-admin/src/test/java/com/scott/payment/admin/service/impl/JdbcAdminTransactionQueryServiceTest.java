@@ -1,14 +1,24 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountChangeResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionStatusHistoryResponse;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,7 +33,6 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,15 +49,26 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminTransactionQueryServiceTest
- * @date : 2026-07-21 20:20
- * @email : scott_x@163.com
- * @description : 管理后台交易 JDBC 查询服务单元测试，验证交易详情聚合日志查询按表结构生成 SQL，避免无软删字段日志表拼接 deleted 条件。
- * @status : create
+ * 管理后台交易 JDBC 查询服务单元测试，验证交易详情聚合日志查询按表结构生成 SQL，避免无软删字段日志表拼接 deleted 条件。
  */
 class JdbcAdminTransactionQueryServiceTest {
+
+    /**
+     * F 类描述故障来源而非交易终态，后台筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。
+     */
+    @Test
+    void merchantResponseCodeFilterShouldNotInferStatusFromFailureOriginCode() {
+        JdbcAdminTransactionQueryService service = buildService(mock(NamedParameterJdbcTemplate.class));
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F1000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F2000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F3000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "T0003")).isEqualTo("FAILED");
+    }
 
     @Test
     void historicalPaymentShouldShowAuthorizationAndCaptureWithoutDuplicatingPersistedLog() {
@@ -61,26 +81,30 @@ class JdbcAdminTransactionQueryServiceTest {
         operation.setTransactionAmount(new BigDecimal("31.02"));
         operation.setOperationTime(order.getTransactionDateTime());
         LocalDateTime successTime = order.getTransactionDateTime().plusSeconds(2);
-        Map<String, Object> successHistory = Map.of(
-                "transactionId", "transaction-a", "statusObject", "OPERATION",
-                "toStatus", "SUCCESS", "statusTime", successTime);
+        TransactionStatusHistoryResponse successHistory = new TransactionStatusHistoryResponse();
+        successHistory.setTransactionId("transaction-a");
+        successHistory.setStatusObject("OPERATION");
+        successHistory.setToStatus("SUCCESS");
+        successHistory.setStatusTime(successTime);
 
-        List<Map<String, Object>> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
+        List<TransactionAmountChangeResponse> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(successHistory), List.of());
 
         assertThat(changes).hasSize(1);
-        assertThat(changes.get(0)).containsEntry("changeSource", "INITIAL_OPERATION")
-                .containsEntry("changeTime", successTime)
-                .containsEntry("authorizedAfter", new BigDecimal("31.02"))
-                .containsEntry("capturedAfter", new BigDecimal("31.02"))
-                .containsEntry("availableCaptureAfter", BigDecimal.ZERO)
-                .containsEntry("availableRefundAfter", new BigDecimal("31.02"));
+        assertThat(changes.get(0).getChangeSource()).isEqualTo("INITIAL_OPERATION");
+        assertThat(changes.get(0).getChangeTime()).isEqualTo(successTime);
+        assertThat(changes.get(0).getAuthorizedAfter()).isEqualByComparingTo("31.02");
+        assertThat(changes.get(0).getCapturedAfter()).isEqualByComparingTo("31.02");
+        assertThat(changes.get(0).getAvailableCaptureAfter()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(changes.get(0).getAvailableRefundAfter()).isEqualByComparingTo("31.02");
         assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(successHistory), changes)).hasSize(1);
-        Map<String, Object> refund = Map.of("transactionId", "refund-a", "changeType", "REFUND");
+        TransactionAmountChangeResponse refund = new TransactionAmountChangeResponse();
+        refund.setTransactionId("refund-a");
+        refund.setChangeType("REFUND");
         assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(successHistory), List.of(refund)))
-                .extracting(row -> row.get("changeType"))
+                .extracting(TransactionAmountChangeResponse::getChangeType)
                 .containsExactly("PAYMENT", "REFUND");
     }
 
@@ -93,19 +117,21 @@ class JdbcAdminTransactionQueryServiceTest {
         operation.setTransactionStatus("SUCCESS");
         operation.setTransactionAmount(new BigDecimal("16.56"));
 
-        List<Map<String, Object>> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
+        List<TransactionAmountChangeResponse> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(), List.of());
 
-        assertThat(changes.get(0)).containsEntry("authorizedAfter", new BigDecimal("16.56"))
-                .containsEntry("capturedAfter", BigDecimal.ZERO)
-                .containsEntry("availableCaptureAfter", new BigDecimal("16.56"))
-                .containsEntry("availableRefundAfter", BigDecimal.ZERO);
+        assertThat(changes.get(0).getAuthorizedAfter()).isEqualByComparingTo("16.56");
+        assertThat(changes.get(0).getCapturedAfter()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(changes.get(0).getAvailableCaptureAfter()).isEqualByComparingTo("16.56");
+        assertThat(changes.get(0).getAvailableRefundAfter()).isEqualByComparingTo(BigDecimal.ZERO);
         operation.setTransactionStatus("FAILED");
         assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(), List.of())).isEmpty();
     }
 
-    /** 3DS 展示应优先读取支付方式快照，并用 Hosted Checkout 尝试补齐历史记录。 */
+    /**
+     * 3DS 展示应优先读取支付方式快照，并用 Hosted Checkout 尝试补齐历史记录。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void threeDsEnrichmentShouldUseSnapshotAndCheckoutFallbackInBatches() {
@@ -175,7 +201,9 @@ class JdbcAdminTransactionQueryServiceTest {
         verify(jdbcTemplate, never()).queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class));
     }
 
-    /** ShardingSphere 模式必须通过 transaction 逻辑数据源执行固定逻辑表 SQL。 */
+    /**
+     * ShardingSphere 模式必须通过 transaction 逻辑数据源执行固定逻辑表 SQL。
+     */
     @Test
     void pageOrdersShouldUseTransactionLogicalTableWithoutPhysicalResolution() throws NoSuchMethodException {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
@@ -223,7 +251,169 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(query.getPageSize()).isEqualTo(7);
     }
 
-    /** 详情首查必须使用列表返回的毫秒分片时间精确定位动作单。 */
+    /**
+     * 支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationSummaryShouldAggregateLabelAmountsWithLabelCurrencyExponent() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        ResultSet jpyAmount = operationSummaryResultSet("SUCCESS", null, null, "JPY", 2L, "1200");
+        ResultSet kwdAmount = operationSummaryResultSet("FAILED", null, null, "KWD", 1L, "12.345");
+        ResultSet jpyPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "JPY", 2L, "1200");
+        ResultSet kwdPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "KWD", 1L, "12.345");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    if (sql.contains("AS payment_method")) {
+                        return List.of(mapper.mapRow(jpyPayment, 0), mapper.mapRow(kwdPayment, 1));
+                    }
+                    return List.of(mapper.mapRow(jpyAmount, 0), mapper.mapRow(kwdAmount, 1));
+                });
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 10, 17, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 10, 18, 0, 0));
+
+        TransactionOperationSummaryResponse response = ReflectionTestUtils.invokeMethod(service, "operationSummary", query);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getTotalCount()).isEqualTo(3L);
+        assertThat(response.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                        org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        assertThat(response.getPaymentMethodSummaries()).singleElement().satisfies(payment -> {
+            assertThat(payment.getCount()).isEqualTo(3L);
+            assertThat(payment.getPaymentMethod()).isEqualTo("BANK_CARD");
+            assertThat(payment.getPaymentBrand()).isEqualTo("VISA");
+            assertThat(payment.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                    .containsExactly(
+                            org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                            org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        });
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(2)).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> assertThat(sql)
+                .contains("o.label_currency", "o.label_amount")
+                .doesNotContain("o.transaction_currency", "o.transaction_amount", "o.currency_exponent"));
+    }
+
+    private ResultSet operationSummaryResultSet(String transactionStatus,
+                                                String paymentMethod,
+                                                String paymentBrand,
+                                                String currency,
+                                                long count,
+                                                String amount) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn(transactionStatus);
+        when(resultSet.getString("payment_method")).thenReturn(paymentMethod);
+        when(resultSet.getString("payment_brand")).thenReturn(paymentBrand);
+        when(resultSet.getString("currency")).thenReturn(currency);
+        when(resultSet.getLong("count")).thenReturn(count);
+        when(resultSet.getBigDecimal("amount")).thenReturn(new BigDecimal(amount));
+        return resultSet;
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchOrdersShouldReturnFullQuerySummaryIncludingCapturedAndProcessing() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        ResultSet hkdSummary = orderSummaryResultSet(
+                "HKD", 2, 7L, 5L, 1L, 1L, 4L,
+                "1000.10", "800.10", "700.10", "100.00");
+        ResultSet usdSummary = orderSummaryResultSet(
+                "USD", 2, 3L, 1L, 1L, 1L, 0L,
+                "200.00", "100.00", "0.00", "50.00");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    if (!sql.contains("GROUP BY COALESCE(transaction_currency")) {
+                        return Collections.emptyList();
+                    }
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    return List.of(mapper.mapRow(hkdSummary, 0), mapper.mapRow(usdSummary, 1));
+                });
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 10, 17, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 10, 18, 0, 0));
+
+        TransactionOrderSearchResponse response = service.searchOrders(query);
+
+        assertThat(response.getPage().getTotal()).isEqualTo(10L);
+        assertThat(response.getSummary().getTotalCount()).isEqualTo(10L);
+        assertThat(response.getSummary().getSuccessCount()).isEqualTo(6L);
+        assertThat(response.getSummary().getFailedCount()).isEqualTo(2L);
+        assertThat(response.getSummary().getProcessingCount()).isEqualTo(2L);
+        assertThat(response.getSummary().getCapturedCount()).isEqualTo(4L);
+        assertThat(response.getSummary().getAmountSummaries()).satisfiesExactly(
+                amount -> assertThat(amount).extracting(
+                        "currency", "currencyExponent", "amount")
+                        .containsExactly("HKD", 2, new BigDecimal("1000.10")),
+                amount -> assertThat(amount).extracting(
+                        "currency", "currencyExponent", "amount")
+                        .containsExactly("USD", 2, new BigDecimal("200.00")));
+        assertThat(response.getSummary().getSuccessAmountSummaries()).extracting("currency", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("HKD", new BigDecimal("800.10")),
+                        org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("100.00")));
+        assertThat(response.getSummary().getCapturedAmountSummaries()).extracting("currency", "amount")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("HKD", new BigDecimal("700.10")));
+        assertThat(response.getSummary().getFailedAmountSummaries()).extracting("currency", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("HKD", new BigDecimal("100.00")),
+                        org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("50.00")));
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(1)).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        String summarySql = sqlCaptor.getAllValues().stream()
+                .filter(sql -> sql.contains("GROUP BY COALESCE(transaction_currency"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(summarySql)
+                .contains("SUM(CASE WHEN transaction_status = 'SUCCESS' THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN transaction_status = 'FAILED' THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN transaction_status IN ('PENDING', 'PROCESSING') THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN captured_amount > 0 THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN captured_amount > 0 THEN captured_amount ELSE 0 END)")
+                .contains("GROUP BY COALESCE(transaction_currency, 'UNKNOWN'), currency_exponent")
+                .contains("FROM transaction_order")
+                .doesNotContain("transaction_order_2026");
+    }
+
+    private ResultSet orderSummaryResultSet(String currency,
+                                            int currencyExponent,
+                                            long totalCount,
+                                            long successCount,
+                                            long failedCount,
+                                            long processingCount,
+                                            long capturedCount,
+                                            String totalAmount,
+                                            String successAmount,
+                                            String capturedAmount,
+                                            String failedAmount) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("currency")).thenReturn(currency);
+        when(resultSet.getInt("currency_exponent")).thenReturn(currencyExponent);
+        when(resultSet.wasNull()).thenReturn(false);
+        when(resultSet.getLong("total_count")).thenReturn(totalCount);
+        when(resultSet.getLong("success_count")).thenReturn(successCount);
+        when(resultSet.getLong("failed_count")).thenReturn(failedCount);
+        when(resultSet.getLong("processing_count")).thenReturn(processingCount);
+        when(resultSet.getLong("captured_count")).thenReturn(capturedCount);
+        when(resultSet.getBigDecimal("total_amount")).thenReturn(new BigDecimal(totalAmount));
+        when(resultSet.getBigDecimal("success_amount")).thenReturn(new BigDecimal(successAmount));
+        when(resultSet.getBigDecimal("captured_amount")).thenReturn(new BigDecimal(capturedAmount));
+        when(resultSet.getBigDecimal("failed_amount")).thenReturn(new BigDecimal(failedAmount));
+        return resultSet;
+    }
+
+    /**
+     * 详情首查必须使用列表返回的毫秒分片时间精确定位动作单。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldBindExactShardingTimeInFirstQuery() {
@@ -248,7 +438,9 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(paramsCaptor.getValue().hasValue("transactionDateTimeEnd")).isFalse();
     }
 
-    /** 交易详情应按当前交易号和精确分片时间返回已有的账单、付款人和收货信息。 */
+    /**
+     * 交易详情应按当前交易号和精确分片时间返回已有的账单、付款人和收货信息。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldReturnPersistedPartyInformationFromExactShard() throws Exception {
@@ -352,7 +544,9 @@ class JdbcAdminTransactionQueryServiceTest {
         });
     }
 
-    /** 当前交易没有附属快照时，详情字段应保持为空且不伪造占位对象。 */
+    /**
+     * 当前交易没有附属快照时，详情字段应保持为空且不伪造占位对象。
+     */
     @Test
     void partyInformationQueriesShouldReturnNullWhenSnapshotsDoNotExist() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
@@ -373,7 +567,9 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(shippingInfo).isNull();
     }
 
-    /** 人工重发资格查询必须同时限定真实分片时间、交易终态和通知可重发状态。 */
+    /**
+     * 人工重发资格查询必须同时限定真实分片时间、交易终态和通知可重发状态。
+     */
     @Test
     void callbackRetryEligibilityShouldUseExactShardAndTerminalStatus() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
@@ -403,23 +599,27 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionTime);
     }
 
-    /** 商户回调详情必须按通知号和页面传入的真实分片时间查询任务及每次投递日志。 */
+    /**
+     * 商户回调详情必须按通知号和页面传入的真实分片时间查询任务及每次投递日志。
+     */
     @Test
     void merchantNotificationDetailShouldUseExactShardAndReturnAttemptLogs() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 4, 18, 29, 44, 988_000_000);
-        Map<String, Object> notification = new LinkedHashMap<>();
-        notification.put("notifyId", "notification-a");
+        MerchantNotificationResponse notification = new MerchantNotificationResponse();
+        notification.setNotifyId("notification-a");
         LocalDateTime firstResponseTime = transactionTime.plusSeconds(2);
         LocalDateTime secondResponseTime = transactionTime.plusSeconds(4);
-        Map<String, Object> firstAttempt = new LinkedHashMap<>();
-        firstAttempt.put("attemptNo", 1);
-        firstAttempt.put("create_time", firstResponseTime);
-        Map<String, Object> secondAttempt = new LinkedHashMap<>();
-        secondAttempt.put("attemptNo", 2);
-        secondAttempt.put("create_time", secondResponseTime);
-        secondAttempt.put("response_body_json_masked", "succeed");
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
+        MerchantNotificationDeliveryLogResponse firstAttempt = new MerchantNotificationDeliveryLogResponse();
+        firstAttempt.setAttemptNo(1);
+        firstAttempt.setHttpMethod("POST");
+        firstAttempt.setResponseTime(firstResponseTime);
+        MerchantNotificationDeliveryLogResponse secondAttempt = new MerchantNotificationDeliveryLogResponse();
+        secondAttempt.setAttemptNo(2);
+        secondAttempt.setHttpMethod("POST");
+        secondAttempt.setResponseTime(secondResponseTime);
+        secondAttempt.setResponseBodyJsonMasked("succeed");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0, String.class)
                         .contains("transaction_merchant_notification_log")
                         ? List.of(firstAttempt, secondAttempt)
@@ -427,22 +627,25 @@ class JdbcAdminTransactionQueryServiceTest {
         JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
                 jdbcTemplate, mock(AdminRiskTimelineQueryService.class));
 
-        Map<String, Object> detail = service.merchantNotificationDetail("notification-a", transactionTime);
+        MerchantNotificationDetailResponse detail =
+                service.merchantNotificationDetail("notification-a", transactionTime);
 
-        assertThat(detail.get("notification")).isEqualTo(notification);
-        assertThat((List<Map<String, Object>>) detail.get("deliveryLogs"))
-                .extracting(row -> row.get("attemptNo"), row -> row.get("httpMethod"), row -> row.get("responseTime"))
+        assertThat(detail.getNotification()).isEqualTo(notification);
+        assertThat(detail.getDeliveryLogs())
+                .extracting(
+                        MerchantNotificationDeliveryLogResponse::getAttemptNo,
+                        MerchantNotificationDeliveryLogResponse::getHttpMethod,
+                        MerchantNotificationDeliveryLogResponse::getResponseTime)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(1, "POST", firstResponseTime),
                         org.assertj.core.groups.Tuple.tuple(2, "POST", secondResponseTime));
-        assertThat((List<Map<String, Object>>) detail.get("deliveryLogs"))
+        assertThat(detail.getDeliveryLogs())
                 .last()
-                .satisfies(row -> assertThat(row)
-                        .containsEntry("responseBodyJsonMasked", "succeed"));
+                .satisfies(row -> assertThat(row.getResponseBodyJsonMasked()).isEqualTo("succeed"));
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(jdbcTemplate, org.mockito.Mockito.times(2))
-                .queryForList(sqlCaptor.capture(), paramsCaptor.capture());
+                .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
         assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> {
             assertThat(sql).contains("notify_id = :notifyId");
             assertThat(sql).contains("transaction_date_time = :transactionDateTime");
@@ -456,7 +659,9 @@ class JdbcAdminTransactionQueryServiceTest {
         });
     }
 
-    /** 详情附属日志触及未登记季度时必须明确失败，禁止伪装为空日志列表。 */
+    /**
+     * 详情附属日志触及未登记季度时必须明确失败，禁止伪装为空日志列表。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldPropagateMissingQuarterFromOptionalInteractionLog() {
@@ -476,11 +681,6 @@ class JdbcAdminTransactionQueryServiceTest {
                     if (sql.contains("FROM transaction_operation")) {
                         return List.of(operation);
                     }
-                    return Collections.emptyList();
-                });
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
-                .thenAnswer(invocation -> {
-                    String sql = invocation.getArgument(0, String.class);
                     if (sql.contains("FROM transaction_merchant_api_interaction_log")) {
                         throw new TransactionDataUnavailableException(
                                 "transaction_merchant_api_interaction_log", "2026-Q2", "test-001");
@@ -564,7 +764,9 @@ class JdbcAdminTransactionQueryServiceTest {
                 });
     }
 
-    /** 操作单列表必须按当前页交易号和分片时间批量返回商户通知任务的最新状态。 */
+    /**
+     * 操作单列表必须按当前页交易号和分片时间批量返回商户通知任务的最新状态。
+     */
     @ParameterizedTest
     @ValueSource(strings = {"SUCCESS", "FAILED", "CLOSED"})
     @SuppressWarnings("unchecked")
@@ -628,7 +830,9 @@ class JdbcAdminTransactionQueryServiceTest {
                 .isEqualTo(List.of("transaction-a"));
     }
 
-    /** 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。 */
+    /**
+     * 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationMapperShouldUsePersistedHostedCheckoutSource() throws Exception {
@@ -646,15 +850,54 @@ class JdbcAdminTransactionQueryServiceTest {
     }
 
     /**
+     * 管理端可查看受控渠道摘要，但商户与付款人预览必须使用各自的安全文案。
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationMapperShouldSeparateInternalMerchantAndPayerMessages() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn("FAILED");
+        when(resultSet.getString("process_stage")).thenReturn("FINISHED");
+        when(resultSet.getString("fail_reason_code")).thenReturn("CHANNEL_DECLINED");
+        when(resultSet.getString("channel_code")).thenReturn("MPGS");
+        when(resultSet.getString("channel_response_code")).thenReturn("DECLINED");
+        when(resultSet.getString("channel_response_message")).thenReturn("Transaction failed");
+        when(resultSet.getString("channel_order_no")).thenReturn("REF-1");
+        RowMapper<TransactionOperationResponse> mapper =
+                (RowMapper<TransactionOperationResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "operationMapper", false);
+
+        TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
+
+        assertThat(row.getOpenApiResultCode())
+                .isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode())
+                .isEqualTo(row.getMerchantResponseCode());
+        assertThat(row.getInternalResultMessage()).isEqualTo(
+                "Channel processing failed (code: DECLINED, message: Transaction failed). "
+                        + "Please check the original order or contact platform support.");
+        assertThat(row.getMerchantResponseMessage())
+                .isEqualTo("The transaction was declined by the issuer bank. Check the original order, "
+                        + "then ask the payer to contact their bank or use another payment method when applicable.")
+                .doesNotContain("MPGS", "DECLINED", "Transaction failed", "REF-1");
+        assertThat(row.getPayerResultMessage())
+                .isEqualTo("The transaction was declined. Please contact your card issuer or try a different payment method.")
+                .doesNotContain("MPGS", "DECLINED", "Transaction failed", "REF-1");
+    }
+
+    /**
      * 状态历史表没有 deleted 字段，详情聚合查询不应拼接 deleted = 0。
      */
     @Test
-    void selectMapsByOperationIdShouldSkipDeletedConditionWhenTableHasNoSoftDeleteColumn() {
+    void selectDetailRowsShouldSkipDeletedConditionWhenTableHasNoSoftDeleteColumn() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(Collections.emptyList());
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
 
-        invokeSelectMapsByOperationId(service, "transaction_status_history");
+        invokeSelectDetailRowsByOperationId(
+                service, "transaction_status_history", "id, status_history_id", mock(RowMapper.class));
 
         String sql = captureQuerySql(jdbcTemplate);
         assertThat(sql).contains("FROM transaction_status_history");
@@ -669,12 +912,14 @@ class JdbcAdminTransactionQueryServiceTest {
      * 渠道请求表包含 deleted 字段，详情聚合查询仍应保留软删过滤。
      */
     @Test
-    void selectMapsByOperationIdShouldKeepDeletedConditionWhenTableHasSoftDeleteColumn() {
+    void selectDetailRowsShouldKeepDeletedConditionWhenTableHasSoftDeleteColumn() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(Collections.emptyList());
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
 
-        invokeSelectMapsByOperationId(service, "transaction_channel_request");
+        invokeSelectDetailRowsByOperationId(
+                service, "transaction_channel_request", "id, request_id", mock(RowMapper.class));
 
         String sql = captureQuerySql(jdbcTemplate);
         assertThat(sql).contains("FROM transaction_channel_request");
@@ -683,76 +928,100 @@ class JdbcAdminTransactionQueryServiceTest {
     }
 
     /**
-     * JDBC Map 查询会返回数据库下划线字段名，详情响应必须转换成前端读取的驼峰字段名。
+     * 渠道交互详情使用强类型映射，数据库字段名不得泄漏到 API 属性命名。
      */
     @Test
-    void selectMapsByOperationIdShouldReturnCamelCaseKeysForFrontendDetail() {
-        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("interaction_log_id", "CI202607211953505260922");
-        row.put("transaction_id", "202607211953505070920");
-        row.put("request_body_json_masked", "{\"apiOperation\":\"PAY\"}");
-        row.put("response_body_json_masked", "{\"result\":\"ERROR\"}");
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+    @SuppressWarnings("unchecked")
+    void channelInteractionMapperShouldReturnTypedFrontendFields() throws Exception {
+        JdbcAdminTransactionQueryService service = buildService(mock(NamedParameterJdbcTemplate.class));
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("interaction_log_id")).thenReturn("CI202607211953505260922");
+        when(resultSet.getString("transaction_id")).thenReturn("202607211953505070920");
+        when(resultSet.getString("request_body_json_masked")).thenReturn("{\"apiOperation\":\"PAY\"}");
+        when(resultSet.getString("response_body_json_masked")).thenReturn("{\"result\":\"ERROR\"}");
+        RowMapper<ChannelInteractionLogResponse> mapper =
+                (RowMapper<ChannelInteractionLogResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "channelInteractionLogMapper");
 
-        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(service, "transaction_channel_interaction_log");
+        ChannelInteractionLogResponse response = mapper.mapRow(resultSet, 0);
 
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0)).containsEntry("interactionLogId", "CI202607211953505260922");
-        assertThat(rows.get(0)).containsEntry("transactionId", "202607211953505070920");
-        assertThat(rows.get(0)).containsEntry("requestBodyJsonMasked", "{\"apiOperation\":\"PAY\"}");
-        assertThat(rows.get(0)).containsEntry("responseBodyJsonMasked", "{\"result\":\"ERROR\"}");
-        assertThat(rows.get(0)).doesNotContainKeys("interaction_log_id", "transaction_id", "request_body_json_masked", "response_body_json_masked");
+        assertThat(response.getInteractionLogId()).isEqualTo("CI202607211953505260922");
+        assertThat(response.getTransactionId()).isEqualTo("202607211953505070920");
+        assertThat(response.getRequestBodyJsonMasked()).isEqualTo("{\"apiOperation\":\"PAY\"}");
+        assertThat(response.getResponseBodyJsonMasked()).isEqualTo("{\"result\":\"ERROR\"}");
     }
 
     /**
      * JDBC 的 BIGINT 主键必须在 JSON 序列化前转为字符串，避免浏览器按 IEEE-754 number 解析后丢失尾数。
      */
     @Test
-    void selectMapsByOperationIdShouldReturnNumericIdentifiersAsStrings() {
-        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        Map<String, Object> row = new LinkedHashMap<>();
+    @SuppressWarnings("unchecked")
+    void merchantNotificationLogMapperShouldReturnNumericIdentifiersAsStrings() throws Exception {
+        JdbcAdminTransactionQueryService service = buildService(mock(NamedParameterJdbcTemplate.class));
+        ResultSet resultSet = mock(ResultSet.class);
         LocalDateTime responseTime = LocalDateTime.of(2026, 3, 1, 12, 0, 0, 123_000_000);
-        row.put("id", 202603000000000825L);
-        row.put("account_id", 42L);
-        row.put("duration_millis", 123L);
-        row.put("create_time", responseTime);
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+        when(resultSet.getString("id")).thenReturn("202603000000000825");
+        when(resultSet.getInt("duration_millis")).thenReturn(123);
+        when(resultSet.getTimestamp("create_time")).thenReturn(java.sql.Timestamp.valueOf(responseTime));
+        RowMapper<MerchantNotificationDeliveryLogResponse> mapper =
+                (RowMapper<MerchantNotificationDeliveryLogResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "merchantNotificationDeliveryLogMapper");
 
-        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(
-                service, "transaction_merchant_notification_log");
+        MerchantNotificationDeliveryLogResponse response = mapper.mapRow(resultSet, 0);
 
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0)).containsEntry("id", "202603000000000825");
-        assertThat(rows.get(0)).containsEntry("accountId", "42");
-        assertThat(rows.get(0)).containsEntry("durationMillis", 123L);
-        assertThat(rows.get(0)).containsEntry("httpMethod", "POST");
-        assertThat(rows.get(0)).containsEntry("responseTime", responseTime);
+        assertThat(response.getId()).isEqualTo("202603000000000825");
+        assertThat(response.getDurationMillis()).isEqualTo(123);
+        assertThat(response.getHttpMethod()).isEqualTo("POST");
+        assertThat(response.getResponseTime()).isEqualTo(responseTime);
     }
 
-    /** 管理端通知详情只能返回脱敏 URL，完整通知配置快照不得进入查询结果或 JSON 响应。 */
+    /**
+     * 商户通知列表必须使用显式安全投影，禁止返回完整回调地址和明文通知载荷。
+     */
+    @Test
+    void merchantNotificationPageShouldExcludeSensitiveDeliveryFields() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(1L);
+        MerchantNotificationResponse notification = new MerchantNotificationResponse();
+        notification.setNotifyId("notify-a");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of(notification));
+        MerchantNotificationQuery query = new MerchantNotificationQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 7, 21, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 7, 22, 0, 0));
+
+        assertThat(service.pageMerchantNotifications(query).getRecords())
+                .containsExactly(notification);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getValue())
+                .contains("target_url_masked", "payload_json_masked")
+                .doesNotContain("callback_url", " payload_json,")
+                .doesNotContain("notify_config_snapshot_json", "SELECT *");
+    }
+
+    /**
+     * 管理端通知详情只能返回脱敏 URL，完整通知配置快照不得进入查询结果或 JSON 响应。
+     */
     @Test
     void merchantNotificationDetailShouldExcludeSensitiveConfigSnapshot() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("notify_id", "notify-a");
-        row.put("notify_config_snapshot_json", "{\"callbackUrl\":\"https://merchant.example/callback?token=secret\"}");
-        row.put("target_url_masked", "https://merchant.example/callback?***");
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of(new MerchantNotificationResponse()));
+        String projection = (String) ReflectionTestUtils.getField(
+                JdbcAdminTransactionQueryService.class, "TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION");
 
-        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(
-                service, "transaction_merchant_notification");
+        invokeSelectDetailRowsByOperationId(
+                service, "transaction_merchant_notification", projection, mock(RowMapper.class));
 
         String sql = captureQuerySql(jdbcTemplate);
         assertThat(sql).contains("target_url_masked");
         assertThat(sql).doesNotContain("notify_config_snapshot_json");
-        assertThat(rows).singleElement().satisfies(result -> {
-            assertThat(result).containsEntry("targetUrlMasked", "https://merchant.example/callback?***");
-            assertThat(result).doesNotContainKey("notifyConfigSnapshotJson");
-        });
     }
 
     private JdbcAdminTransactionQueryService buildService(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -761,21 +1030,32 @@ class JdbcAdminTransactionQueryServiceTest {
                 mock(AdminRiskTimelineQueryService.class));
     }
 
+    /**
+     * 调用强类型详情查询私有方法，供 SQL 过滤和安全投影测试复用。
+     */
     @SuppressWarnings("unchecked")
-    private List<java.util.Map<String, Object>> invokeSelectMapsByOperationId(JdbcAdminTransactionQueryService service,
-                                                                              String logicalTable) {
-        return (List<java.util.Map<String, Object>>) ReflectionTestUtils.invokeMethod(
+    private <T> List<T> invokeSelectDetailRowsByOperationId(JdbcAdminTransactionQueryService service,
+                                                             String logicalTable,
+                                                             String projection,
+                                                             RowMapper<T> rowMapper) {
+        return (List<T>) ReflectionTestUtils.invokeMethod(
                 service,
-                "selectMapsByOperationId",
+                "selectDetailRowsByOperationId",
                 logicalTable,
+                projection,
                 LocalDateTime.of(2026, 7, 21, 0, 0),
                 LocalDateTime.of(2026, 7, 21, 23, 59),
-                "OP202607211953260920709");
+                "OP202607211953260920709",
+                rowMapper);
     }
 
+    /**
+     * 捕获详情查询 SQL。
+     */
     private String captureQuerySql(NamedParameterJdbcTemplate jdbcTemplate) {
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate).queryForList(sqlCaptor.capture(), any(MapSqlParameterSource.class));
+        verify(jdbcTemplate).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         return sqlCaptor.getValue();
     }
 

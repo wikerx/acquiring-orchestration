@@ -18,13 +18,7 @@ import org.springframework.util.StringUtils;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionQueryCacheInvalidationConsumer
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 交易查询缓存失效消费者，消费有序生命周期事件并以 generation 推进补偿同步写路径的 Redis 失效。
- * @status : create
+ * 交易查询缓存失效消费者，消费有序生命周期事件并以 generation 推进补偿同步写路径的 Redis 失效。
  */
 @Slf4j
 @Component
@@ -52,7 +46,11 @@ public class TransactionQueryCacheInvalidationConsumer implements RocketMQListen
 
     private final TransactionQueryCacheService transactionQueryCacheService;
 
-    /** @param transactionQueryCacheService 订单级查询缓存 generation 服务 */
+    /**
+     * 创建交易查询缓存失效消费者。
+     *
+     * @param transactionQueryCacheService 订单级查询缓存 generation 服务
+     */
     public TransactionQueryCacheInvalidationConsumer(TransactionQueryCacheService transactionQueryCacheService) {
         this.transactionQueryCacheService = transactionQueryCacheService;
     }
@@ -75,13 +73,16 @@ public class TransactionQueryCacheInvalidationConsumer implements RocketMQListen
             if (!invalidated) {
                 throw new IllegalStateException("transaction query cache generation advancement failed");
             }
-            log.info("event: TRANSACTION_QUERY_CACHE_INVALIDATED traceId: {} messageId: {} eventType: {}",
+            log.info("交易查询缓存已失效, event: TRANSACTION_QUERY_CACHE_INVALIDATED, traceId: {}, messageId: {}, eventType: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getEventType());
         } finally {
             TraceContext.clear();
         }
     }
 
+    /**
+     * 解析消息 JSON 并校验基础结构。
+     */
     private TransactionEventMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
             throw new IllegalArgumentException("transaction query cache invalidation payload is empty");
@@ -93,6 +94,9 @@ public class TransactionQueryCacheInvalidationConsumer implements RocketMQListen
         }
     }
 
+    /**
+     * 判断消息是否包含完整业务身份。
+     */
     private boolean valid(TransactionEventMessage message) {
         return message != null
                 && StringUtils.hasText(message.getMessageId())

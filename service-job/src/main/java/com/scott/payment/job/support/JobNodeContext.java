@@ -9,63 +9,33 @@ import java.net.InetAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobNodeContext
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心执行节点上下文
- * @status : create
+ * 调度中心执行节点上下文
  */
 @Component
 public class JobNodeContext {
 
     /**
-     * {@code appName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 当前调度服务的应用名称，参与组成执行节点唯一标识。
      */
     private final String appName;
     /**
-     * {@code configuredHost}，表示远程服务主机、商户域名或渠道访问域名。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * Nacos 显式配置的节点地址，未配置时按注册信息和本机地址回退。
      */
     private final String configuredHost;
     /**
-     * {@code port}字段，保存 任务节点上下文 当前处理所需的业务取值。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 当前服务端口，参与组成执行节点唯一标识。
      */
     private final int port;
     /**
-     * {@code registration}字段，保存 任务节点上下文 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 服务注册信息，用于配置未指定地址时解析当前节点主机。
      */
     private final Registration registration;
     /**
-     * {@code jobSchedulerProperties}字段，保存 任务节点上下文 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * </p>
+     * 调度器节点配置，提供注册标签和最大并发任务数。
      */
     private final JobSchedulerProperties jobSchedulerProperties;
     /**
-     * {@code runningCount}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 当前节点正在执行的任务数，用于本地并发容量判断。
      */
     private final AtomicInteger runningCount = new AtomicInteger();
 

@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
@@ -18,7 +18,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 验证 IP 与 Card BIN 解密明文只接受协议声明的单个字符串字段。 */
+/**
+ * 验证 IP 与 Card BIN 解密明文只接受协议声明的单个字符串字段。
+ */
 class OpenApiReferenceDataPayloadDecoderTests {
 
     private final OpenApiPayloadCrypto crypto = mock(OpenApiPayloadCrypto.class);
@@ -62,7 +64,7 @@ class OpenApiReferenceDataPayloadDecoderTests {
         assertThatThrownBy(() -> decode(json, receiver))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.PARAM_INVALID.getCode());
     }
 
     private Object decode(String json, Class<?> receiver) {

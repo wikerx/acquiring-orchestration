@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -11,13 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestContext
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : openAPI上下文协作组件，位于 商户开放接口服务，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 读取当前请求中已经验证的商户身份和 OpenAPI 安全上下文，禁止业务层重新信任请求字段。
  */
 @Component
 public class OpenApiRequestContext {
@@ -31,7 +25,7 @@ public class OpenApiRequestContext {
         HttpServletRequest request = currentRequest();
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         if (headerDTO == null) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "openapi request header context missing");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "openapi request header context missing");
         }
         return headerDTO;
     }
@@ -44,7 +38,7 @@ public class OpenApiRequestContext {
     public String getRequiredMerchantId() {
         String merchantId = getRequiredHeader().getMerchantId();
         if (merchantId == null || merchantId.isBlank()) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "openapi merchantId missing");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "openapi merchantId missing");
         }
         return merchantId;
     }

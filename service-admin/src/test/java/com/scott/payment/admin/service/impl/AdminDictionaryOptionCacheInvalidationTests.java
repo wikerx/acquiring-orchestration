@@ -31,17 +31,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictionaryOptionCacheInvalidationTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 管理端字典类型和字典项全部写入口的共享下拉缓存失效契约测试
- * @status : create
+ * 管理端字典类型和字典项全部写入口的共享下拉缓存失效契约测试
  */
 class AdminDictionaryOptionCacheInvalidationTests {
 
-    /** 初始化 MyBatis-Plus Lambda 查询所需实体元数据。 */
+    /**
+     * 初始化 MyBatis-Plus Lambda 查询所需实体元数据。
+     */
     @BeforeEach
     void setUpTableMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -50,7 +46,9 @@ class AdminDictionaryOptionCacheInvalidationTests {
         TableInfoHelper.initTableInfo(assistant, SysDictDataDO.class);
     }
 
-    /** 所有字典数据库写入口必须固定使用主库和回滚事务。 */
+    /**
+     * 所有字典数据库写入口必须固定使用主库和回滚事务。
+     */
     @Test
     void shouldRunAllDictionaryMutationsInsideMasterTransactions() throws Exception {
         assertMutation("saveDictType", SysDictTypeSaveRequest.class);
@@ -61,7 +59,9 @@ class AdminDictionaryOptionCacheInvalidationTests {
         assertMutation("deleteDictDataById", Long.class);
     }
 
-    /** 新增字典项时新旧分组相同，只允许删除一次精确缓存键。 */
+    /**
+     * 新增字典项时新旧分组相同，只允许删除一次精确缓存键。
+     */
     @Test
     void shouldEvictOneExactKeyAfterDictionaryItemCreation() {
         Fixture fixture = fixture();
@@ -75,7 +75,9 @@ class AdminDictionaryOptionCacheInvalidationTests {
         );
     }
 
-    /** 字典项语言分组发生变化时必须同时删除旧键和新键。 */
+    /**
+     * 字典项语言分组发生变化时必须同时删除旧键和新键。
+     */
     @Test
     void shouldEvictOldAndNewKeysAfterDictionaryItemLocaleChange() {
         Fixture fixture = fixture();
@@ -95,7 +97,9 @@ class AdminDictionaryOptionCacheInvalidationTests {
         );
     }
 
-    /** 类型变更和人工刷新必须清空有限且规模较小的字典下拉缓存。 */
+    /**
+     * 类型变更和人工刷新必须清空有限且规模较小的字典下拉缓存。
+     */
     @Test
     void shouldClearOptionCacheAfterTypeMutationAndManualRefresh() {
         Fixture fixture = fixture();

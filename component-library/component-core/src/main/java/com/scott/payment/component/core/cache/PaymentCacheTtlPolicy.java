@@ -4,13 +4,7 @@ import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCacheTtlPolicy
- * @date : 2026-07-30 21:10
- * @email : scott_x@163.com
- * @description : 统一计算 Spring Cache 与直连 Redis 的有界 TTL 抖动，避免业务方法散落随机过期算法
- * @status : create
+ * 统一计算 Spring Cache 与直连 Redis 的有界 TTL 抖动，避免业务方法散落随机过期算法
  */
 public final class PaymentCacheTtlPolicy {
 
@@ -19,6 +13,9 @@ public final class PaymentCacheTtlPolicy {
      */
     public static final int MAX_JITTER_PERCENT = 50;
 
+    /**
+     * 禁止实例化缓存生命周期策略工具类。
+     */
     private PaymentCacheTtlPolicy() {
     }
 

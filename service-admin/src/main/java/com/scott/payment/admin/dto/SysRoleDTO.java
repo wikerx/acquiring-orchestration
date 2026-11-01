@@ -6,13 +6,7 @@ import java.time.LocalDateTime;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysRoleDTO
- * @date : 2026-06-07 08:26
- * @email : scott_x@163.com
- * @description : Admin 角色 DTO，承载角色编码、名称、数据范围、排序和启停状态。
- * @status : create
+ * Admin 角色 DTO，承载角色编码、名称、数据范围、排序和启停状态。
  */
 @Data
 public class SysRoleDTO {

@@ -5,13 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuntimeLookupValue
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控名单查询输入值。
- * @status : create
+ * 风控名单查询输入值。
  */
 @Data
 public class RiskRuntimeLookupValue {

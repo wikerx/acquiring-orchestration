@@ -1,8 +1,9 @@
 package com.scott.payment.openapi;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
@@ -14,13 +15,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantClientResponseDecryptWithoutDatabaseTests
- * @date : 2026-06-02 21:45
- * @email : scott_x@163.com
- * @description : 不连接数据库的商户响应解密测试，使用固定商户响应密钥模拟商户解密 OpenAPI 响应 data
- * @status : create
+ * 不连接数据库的商户响应解密测试，使用固定商户响应密钥模拟商户解密 OpenAPI 响应 data
  */
 @Slf4j
 class MerchantClientResponseDecryptWithoutDatabaseTests {
@@ -67,8 +62,8 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                         "amount", 12389.45,
                         "currency", "USD"),
                 "transactionInfo", Map.of(
-                        "code", ApiResultEnum.SUCCESS.getCode(),
-                        "message", ApiResultEnum.SUCCESS.getMessage(),
+                        "code", OpenApiResultCode.TRANSACTION_SUCCESS.getCode(),
+                        "message", OpenApiResultCode.TRANSACTION_SUCCESS.getMessage(),
                         "transactionId", "202607160954270000001",
                         "transactionType", "AUTHORIZATION"),
                 "billingInfo", Map.of(
@@ -78,7 +73,8 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                         "transactionCurrency", "USD",
                         "transactionRate", "1.00000000")
         ));
-        log.info("响应参数明文：{}", plainResponseData);
+        log.info("响应参数明文摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(plainResponseData, keyMaterialFactory));
 
         String encryptedResponseData = payloadCrypto.encrypt(
                 plainResponseData,
@@ -87,28 +83,26 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
         log.info("响应参数加密完成，data摘要：{}",
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
 
-        String encryptedHttpResponse = JsonUtils.toJsonString(Map.of(
-                "code", ApiResultEnum.SUCCESS.getCode(),
-                "message", ApiResultEnum.SUCCESS.getMessage(),
-                "data", encryptedResponseData
-        ));
+        String encryptedHttpResponse = JsonUtils.toJsonString(
+                CommonResult.success(OpenApiResultCode.REQUEST_SUCCESS, encryptedResponseData));
         log.info("平台响应封装完成，响应摘要：{}",
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedHttpResponse, keyMaterialFactory));
 
-        Map<String, Object> responseMap = JsonUtils.parseObject(encryptedHttpResponse, new TypeReference<>() {
+        CommonResult<String> response = JsonUtils.parseObject(encryptedHttpResponse, new TypeReference<>() {
         });
         log.info("平台响应解析完成，code: {}，message: {}，data摘要: {}",
-                responseMap.get("code"),
-                responseMap.get("message"),
-                MerchantOpenApiTestSupport.safeSecretSummary(String.valueOf(responseMap.get("data")), keyMaterialFactory));
+                response.getCode(),
+                response.getMessage(),
+                MerchantOpenApiTestSupport.safeSecretSummary(response.getData(), keyMaterialFactory));
 
         String decryptedData = payloadCrypto.decrypt(
-                String.valueOf(responseMap.get("data")),
+                response.getData(),
                 payloadCrypto.readPrivateKey(MERCHANT_RESPONSE_PRIVATE_KEY_PKCS8_BASE64)
         );
-        log.info("商户响应data解密完成，明文data：{}", decryptedData);
+        log.info("商户响应data解密完成，明文data摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(decryptedData, keyMaterialFactory));
 
-        assertThat(responseMap.get("code")).isEqualTo(ApiResultEnum.SUCCESS.getCode());
+        assertThat(response.getCode()).isEqualTo(OpenApiResultCode.REQUEST_SUCCESS.getCode());
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedResponseData)).isEqualTo(5);
         assertThat(decryptedData).isEqualTo(plainResponseData);
         assertThat(decryptedData).doesNotContain("operationId", "dccEnabled", "edcEnabled");
@@ -116,8 +110,8 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                 MERCHANT_ID,
                 keyMaterialFactory.fingerprint(MERCHANT_RESPONSE_PUBLIC_KEY_X509_BASE64),
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
-        log.info("商户响应解密成功-响应私钥指纹：{}，解密后data：{}",
+        log.info("商户响应解密成功-响应私钥指纹：{}，解密后data摘要：{}",
                 keyMaterialFactory.fingerprint(MERCHANT_RESPONSE_PRIVATE_KEY_PKCS8_BASE64),
-                decryptedData);
+                MerchantOpenApiTestSupport.safePayloadSummary(decryptedData, keyMaterialFactory));
     }
 }

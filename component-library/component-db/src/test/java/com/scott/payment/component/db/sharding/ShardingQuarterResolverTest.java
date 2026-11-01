@@ -9,13 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingQuarterResolverTest
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sharding Quarter Resolver Test 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
+ * Sharding Quarter Resolver Test 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  */
 class ShardingQuarterResolverTest {
 

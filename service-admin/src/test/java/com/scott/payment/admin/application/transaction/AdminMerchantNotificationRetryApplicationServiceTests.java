@@ -21,18 +21,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantNotificationRetryApplicationServiceTests
- * @date : 2026-08-04 13:45
- * @email : scott_x@163.com
- * @description : 管理后台商户回调人工重发测试，校验精确分片时间和稳定请求号通过主库 Outbox 发布
- * @status : create
+ * 管理后台商户回调人工重发测试，校验精确分片时间和稳定请求号通过主库 Outbox 发布
  */
 @Slf4j
 class AdminMerchantNotificationRetryApplicationServiceTests {
 
-    /** 人工重发只发布可靠 MQ，不在 Admin 请求线程直接调用商户 URL。 */
+    /**
+     * 人工重发只发布可靠 MQ，不在 Admin 请求线程直接调用商户 URL。
+     */
     @Test
     void shouldPublishReliableRetryEventWithExactTransactionTime() {
         log.info("测试管理后台重发商户回调，关键输入: 交易号、真实分片时间和请求号");
@@ -71,7 +67,9 @@ class AdminMerchantNotificationRetryApplicationServiceTests {
         log.info("管理后台重发商户回调测试完成，结果: 可靠 MQ 消息已冻结真实分片时间");
     }
 
-    /** 非终态交易或不存在可重发通知任务时不得制造一个最终静默的 MQ 事件。 */
+    /**
+     * 非终态交易或不存在可重发通知任务时不得制造一个最终静默的 MQ 事件。
+     */
     @Test
     void shouldRejectWhenTransactionHasNoRetryableTerminalNotification() {
         ReliableMqPublisher publisher = mock(ReliableMqPublisher.class);

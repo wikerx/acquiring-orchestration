@@ -19,13 +19,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingProjectionService
- * @date : 2026-08-26 18:30
- * @email : scott_x@163.com
- * @description : 统一清分查询投影实现，以动作版本 CAS、生命周期真实分片定位和根主单行锁保证成功与失败路径口径一致。
- * @status : create
+ * 统一清分查询投影实现，以动作版本 CAS、生命周期真实分片定位和根主单行锁保证成功与失败路径口径一致。
  */
 @Service
 public class DefaultClearingProjectionService implements ClearingProjectionService {
@@ -45,7 +39,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         this.contextMapper = contextMapper;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 使用调用方已解析的分片定位更新动作投影和生命周期根投影。
+     */
     @Override
     public void updateWithLocator(ClearingOperationFacts operation,
                                   LocatorFacts currentLocator,
@@ -57,7 +53,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         updateProjection(operation, currentLocator, authoritativeStatus, failureCode, now);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 根据交易身份重新解析分片定位并更新动作投影和生命周期根投影。
+     */
     @Override
     public void updateResolvingLocator(ClearingOperationFacts operation,
                                        ClearingStateEnum authoritativeStatus,
@@ -69,7 +67,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         updateProjection(operation, toValidatedLocator(locator, operation), authoritativeStatus, failureCode, now);
     }
 
-    /** 先 CAS 更新动作投影，再按完整生命周期状态聚合根主单清分状态。 */
+    /**
+     * 先 CAS 更新动作投影，再按完整生命周期状态聚合根主单清分状态。
+     */
     private void updateProjection(ClearingOperationFacts operation,
                                   LocatorFacts currentLocator,
                                   ClearingStateEnum authoritativeStatus,
@@ -113,7 +113,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
                 order.getVersion(), orderStatus, now), "order clearing projection CAS");
     }
 
-    /** 将 locator 转换为强校验分片事实，拒绝缺失根交易时间的数据。 */
+    /**
+     * 将 locator 转换为强校验分片事实，拒绝缺失根交易时间的数据。
+     */
     private LocatorFacts toValidatedLocator(ClearingTransactionLocatorDO row,
                                             ClearingOperationFacts operation) {
         if (row == null) {
@@ -133,7 +135,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         return locator;
     }
 
-    /** 生命周期 locator 必须完整覆盖参与聚合的所有动作，避免部分状态误判。 */
+    /**
+     * 生命周期 locator 必须完整覆盖参与聚合的所有动作，避免部分状态误判。
+     */
     private List<LocatorFacts> validateLifecycleLocators(List<ClearingTransactionLocatorDO> rows,
                                                         LocatorFacts current,
                                                         ClearingOperationFacts operation) {
@@ -165,7 +169,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         return List.copyOf(result);
     }
 
-    /** 当前 locator 必须与动作交易号、操作号、商户和分片时间完全一致。 */
+    /**
+     * 当前 locator 必须与动作交易号、操作号、商户和分片时间完全一致。
+     */
     private void validateCurrentLocator(LocatorFacts locator, ClearingOperationFacts operation) {
         if (locator == null || !Objects.equals(locator.transactionId(), operation.transactionId())
                 || !Objects.equals(locator.operationId(), operation.operationId())
@@ -176,6 +182,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         }
     }
 
+    /**
+     * 校验投影更新所需的权威动作、状态、版本和统一处理时间。
+     */
     private void requireArguments(ClearingOperationFacts operation,
                                   ClearingStateEnum authoritativeStatus,
                                   LocalDateTime now) {
@@ -185,6 +194,9 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         }
     }
 
+    /**
+     * 返回有效的非负动作版本，防止无版本投影覆盖新数据。
+     */
     private int requiredVersion(Integer version) {
         if (version == null || version < 0) {
             throw new IllegalArgumentException("transaction operation version is invalid");
@@ -192,12 +204,18 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         return version;
     }
 
+    /**
+     * 要求投影条件写精确命中一行，否则按并发冲突处理。
+     */
     private void requireOne(int affected, String action) {
         if (affected != 1) {
             throw failure(ClearingFailureCodeEnum.CLEARING_CAS_CONFLICT, action + " did not affect one row");
         }
     }
 
+    /**
+     * 构造带稳定失败码的投影异常，供上层记录受控清分失败。
+     */
     private ClearingProcessingException failure(ClearingFailureCodeEnum code, String message) {
         return new ClearingProcessingException(code, message);
     }

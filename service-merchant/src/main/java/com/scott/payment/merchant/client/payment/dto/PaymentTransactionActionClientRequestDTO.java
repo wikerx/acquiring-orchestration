@@ -8,13 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionActionClientRequestDTO
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户后台调用 service-payment 发起交易后续动作的内部客户端请求，位于 service-merchant 客户端层，仅传递支付核心所需的退款动作上下文。
- * @status : create
+ * 商户后台调用 service-payment 发起交易后续动作的内部客户端请求，位于 service-merchant 客户端层，仅传递支付核心所需的退款动作上下文。
  */
 @Data
 public class PaymentTransactionActionClientRequestDTO implements Serializable {
@@ -72,16 +66,24 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
      */
     private String requestId;
 
-    /** 内部动作来源，商户后台固定为 MERCHANT_PORTAL。 */
+    /**
+     * 内部动作来源，商户后台固定为 MERCHANT_PORTAL。
+     */
     private String requestSource;
 
-    /** 当前认证商户账号 ID。 */
+    /**
+     * 当前认证商户账号 ID。
+     */
     private String applicantId;
 
-    /** 当前认证商户账号显示名快照。 */
+    /**
+     * 当前认证商户账号显示名快照。
+     */
     private String applicantName;
 
-    /** 商户填写的退款或撤销原因。 */
+    /**
+     * 商户填写的退款或撤销原因。
+     */
     private String requestReason;
 
     /**
@@ -102,11 +104,15 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
          */
         private String sourceTransactionId;
 
-        /** 源动作真实分片时间。 */
+        /**
+         * 源动作真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
 
-        /** 生命周期根主单真实分片时间。 */
+        /**
+         * 生命周期根主单真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 

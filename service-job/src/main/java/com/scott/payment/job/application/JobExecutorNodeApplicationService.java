@@ -8,13 +8,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeApplicationService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务执行器节点应用服务
- * @status : create
+ * 任务执行器节点应用服务
  */
 @Service
 public class JobExecutorNodeApplicationService {

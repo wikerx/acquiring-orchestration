@@ -53,17 +53,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFeeVersioningServiceTests
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 费用版本服务测试，验证主记录锁、模板快照复制隔离和提交人与审核人分离。
- * @status : create
+ * 费用版本服务测试，验证主记录锁、模板快照复制隔离和提交人与审核人分离。
  */
 class AdminFeeVersioningServiceTests {
 
-    /** 初始化纯单元测试所需的 MyBatis-Plus Lambda 字段元数据。 */
+    /**
+     * 初始化纯单元测试所需的 MyBatis-Plus Lambda 字段元数据。
+     */
     @BeforeEach
     void setUpTableMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -77,7 +73,9 @@ class AdminFeeVersioningServiceTests {
         TableInfoHelper.initTableInfo(assistant, BaseMerchantInfoDO.class);
     }
 
-    /** 创建模板草稿前必须锁定方案主记录，并在已有最大版本号上递增。 */
+    /**
+     * 创建模板草稿前必须锁定方案主记录，并在已有最大版本号上递增。
+     */
     @Test
     void shouldAllocateNextVersionWhilePlanIsLocked() {
         Fixture fixture = new Fixture();
@@ -105,13 +103,14 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.createTemplateVersion(1L, standardVersionRequest(), 8L, "提交人");
 
-        System.out.println("版本号分配：验证锁定方案后由 v3 创建可编辑草稿 v4");
         verify(fixture.planMapper).selectByIdForUpdate(1L);
         assertThat(inserted.get().getVersionNo()).isEqualTo(4);
         assertThat(inserted.get().getVersionStatus()).isEqualTo("DRAFT");
     }
 
-    /** 风控手续费试算必须按明确服务类型匹配，并将该维度写入审计快照。 */
+    /**
+     * 风控手续费试算必须按明确服务类型匹配，并将该维度写入审计快照。
+     */
     @Test
     void shouldMatchAndPersistRiskServiceTypeDuringSimulation() {
         Fixture fixture = new Fixture();
@@ -162,7 +161,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(insertedRecord.get().getMatchedRuleId()).isEqualTo(31L);
     }
 
-    /** 一次试算应汇总基础交易费和已选风控服务费，并只写入一条聚合审计记录。 */
+    /**
+     * 一次试算应汇总基础交易费和已选风控服务费，并只写入一条聚合审计记录。
+     */
     @Test
     void shouldAggregateSelectedRiskServicesIntoSingleSimulation() {
         Fixture fixture = new Fixture();
@@ -233,7 +234,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.simulationMapper, times(1)).insert(any(FeeSimulationRecordDO.class));
     }
 
-    /** 未选择风控服务时只计算基础费用，并保持单条审计记录。 */
+    /**
+     * 未选择风控服务时只计算基础费用，并保持单条审计记录。
+     */
     @Test
     void shouldKeepBaseSimulationWhenNoRiskServiceIsSelected() {
         Fixture fixture = simulationFixture(
@@ -256,7 +259,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.simulationMapper, times(1)).insert(any(FeeSimulationRecordDO.class));
     }
 
-    /** 重复的风控服务选择必须去重，避免同一服务重复收费。 */
+    /**
+     * 重复的风控服务选择必须去重，避免同一服务重复收费。
+     */
     @Test
     void shouldDeduplicateSelectedRiskServices() {
         FeeRuleDO transactionRule = atomicRule(
@@ -278,7 +283,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.simulationMapper, times(1)).insert(any(FeeSimulationRecordDO.class));
     }
 
-    /** 非法风控服务应在规则匹配前被拒绝，且不得写入试算审计。 */
+    /**
+     * 非法风控服务应在规则匹配前被拒绝，且不得写入试算审计。
+     */
     @Test
     void shouldRejectInvalidRiskServiceBeforeCalculation() {
         Fixture fixture = simulationFixture(
@@ -294,7 +301,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.simulationMapper, never()).insert(any(FeeSimulationRecordDO.class));
     }
 
-    /** 已选风控服务没有生效规则时，整次试算失败且不得留下部分审计。 */
+    /**
+     * 已选风控服务没有生效规则时，整次试算失败且不得留下部分审计。
+     */
     @Test
     void shouldRejectSimulationWhenSelectedRiskRuleIsMissing() {
         FeeRuleDO transactionRule = atomicRule(
@@ -312,7 +321,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.simulationMapper, never()).insert(any(FeeSimulationRecordDO.class));
     }
 
-    /** 免收费风控服务仍应返回零金额明细，便于页面解释命中的收费策略。 */
+    /**
+     * 免收费风控服务仍应返回零金额明细，便于页面解释命中的收费策略。
+     */
     @Test
     void shouldReturnZeroFeeDetailForNoChargeRiskService() {
         FeeRuleDO transactionRule = atomicRule(
@@ -336,7 +347,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.simulationMapper, times(1)).insert(any(FeeSimulationRecordDO.class));
     }
 
-    /** 标签币种与结算币种一致时，结算货币兑换费明确显示为不适用。 */
+    /**
+     * 标签币种与结算币种一致时，结算货币兑换费明确显示为不适用。
+     */
     @Test
     void shouldMarkSettlementFxFeeNotApplicableForSameCurrency() {
         FeeRuleDO transactionRule = atomicRule(
@@ -359,7 +372,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.ruleMapper, times(1)).selectList(any());
     }
 
-    /** 标签币种与结算币种不一致时，结算货币兑换费按独立无维度规则计费。 */
+    /**
+     * 标签币种与结算币种不一致时，结算货币兑换费按独立无维度规则计费。
+     */
     @Test
     void shouldCalculateSettlementFxFeeForDifferentCurrency() {
         FeeRuleDO transactionRule = atomicRule(
@@ -402,7 +417,9 @@ class AdminFeeVersioningServiceTests {
                         "HKD 100.00 * 10.00% * (HKD转USD结算汇率 0.125) = USD 1.25"));
     }
 
-    /** 不同币种但版本未配置兑换费时，保留未配置明细且不影响其他费用。 */
+    /**
+     * 不同币种但版本未配置兑换费时，保留未配置明细且不影响其他费用。
+     */
     @Test
     void shouldMarkSettlementFxFeeNotConfiguredWhenRuleIsMissing() {
         FeeRuleDO transactionRule = atomicRule(
@@ -432,7 +449,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(response.getEstimatedNetSettlementUsd()).isEqualByComparingTo("10");
     }
 
-    /** 拒付交易计算拒付手续费，普通交易只显示不适用状态。 */
+    /**
+     * 拒付交易计算拒付手续费，普通交易只显示不适用状态。
+     */
     @Test
     void shouldCalculateDisputeFeeOnlyForChargebackTransaction() {
         FeeRuleDO disputeRule = atomicRule(
@@ -459,7 +478,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("15");
     }
 
-    /** 主记录和逐项快照必须在同一试算中完整保存。 */
+    /**
+     * 主记录和逐项快照必须在同一试算中完整保存。
+     */
     @Test
     void shouldPersistCompleteSimulationDetailSnapshots() {
         FeeRuleDO transactionRule = atomicRule(
@@ -489,7 +510,9 @@ class AdminFeeVersioningServiceTests {
         });
     }
 
-    /** 历史列表批量加载逐项快照，并明确标记缺少快照的旧记录。 */
+    /**
+     * 历史列表批量加载逐项快照，并明确标记缺少快照的旧记录。
+     */
     @Test
     void shouldBatchLoadSimulationDetailsAndMarkLegacyRecords() {
         Fixture fixture = new Fixture();
@@ -524,7 +547,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(records.get(1).getFeeDetails()).isEmpty();
     }
 
-    /** 草稿保存必须原地更新当前版本，不能重复占用新版本号。 */
+    /**
+     * 草稿保存必须原地更新当前版本，不能重复占用新版本号。
+     */
     @Test
     void shouldUpdateTemplateDraftInPlace() {
         Fixture fixture = new Fixture();
@@ -546,7 +571,6 @@ class AdminFeeVersioningServiceTests {
         request.setRegularDelayDays(9);
         fixture.service.updateTemplateDraft(1L, 21L, request, 9L, "修改人");
 
-        System.out.println("模板草稿编辑：验证 v1 原地更新配置且记录最后保存人，不创建 v2");
         assertThat(draft.getVersionNo()).isEqualTo(1);
         assertThat(draft.getVersionStatus()).isEqualTo("DRAFT");
         assertThat(draft.getRegularDelayDays()).isEqualTo(9);
@@ -556,7 +580,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.versionMapper).updateById(draft);
     }
 
-    /** 只有显式提交动作才能把模板草稿转为待审核版本。 */
+    /**
+     * 只有显式提交动作才能把模板草稿转为待审核版本。
+     */
     @Test
     void shouldSubmitTemplateDraftForReview() {
         Fixture fixture = new Fixture();
@@ -571,7 +597,6 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.submitTemplateVersion(21L, 9L, "提交人");
 
-        System.out.println("模板提交审核：验证草稿显式转为待审核并锁定本次提交人");
         assertThat(draft.getVersionStatus()).isEqualTo("PENDING_REVIEW");
         assertThat(draft.getSubmitById()).isEqualTo(9L);
         assertThat(draft.getSubmitByName()).isEqualTo("提交人");
@@ -579,7 +604,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.versionMapper).updateById(draft);
     }
 
-    /** 待审核模板只能由原提交人撤回，撤回后恢复为可编辑草稿。 */
+    /**
+     * 待审核模板只能由原提交人撤回，撤回后恢复为可编辑草稿。
+     */
     @Test
     void shouldWithdrawPendingTemplateBySubmitter() {
         Fixture fixture = new Fixture();
@@ -594,12 +621,13 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.withdrawTemplateVersion(21L, 8L, "提交人");
 
-        System.out.println("模板撤回审核：验证原提交人可将待审核 v1 恢复为草稿");
         assertThat(pending.getVersionStatus()).isEqualTo("DRAFT");
         verify(fixture.versionMapper).updateById(pending);
     }
 
-    /** 非原提交人不能撤回待审核模板，避免越权篡改审核中的配置。 */
+    /**
+     * 非原提交人不能撤回待审核模板，避免越权篡改审核中的配置。
+     */
     @Test
     void shouldRejectTemplateWithdrawalByAnotherOperator() {
         Fixture fixture = new Fixture();
@@ -608,7 +636,6 @@ class AdminFeeVersioningServiceTests {
         pending.setSubmitByName("提交人");
         when(fixture.versionMapper.selectByIdForUpdate(21L)).thenReturn(pending);
 
-        System.out.println("模板撤回权限：验证账号 9 不能撤回账号 8 提交的待审核版本");
         assertThatThrownBy(() -> fixture.service.withdrawTemplateVersion(21L, 9L, "其他人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("只能由原提交人撤回");
@@ -616,7 +643,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.versionMapper, never()).updateById(any(FeePlanVersionDO.class));
     }
 
-    /** 多选匹配维度必须在保存版本时展开为可唯一匹配的原子规则。 */
+    /**
+     * 多选匹配维度必须在保存版本时展开为可唯一匹配的原子规则。
+     */
     @Test
     void shouldExpandSelectedDimensionsIntoAtomicRules() {
         Fixture fixture = new Fixture();
@@ -656,7 +685,6 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.createTemplateVersion(1L, request, 8L, "提交人");
 
-        System.out.println("规则批量展开：2 个交易类型与 2 个卡品牌生成 4 条原子规则");
         assertThat(insertedRules).hasSize(4);
         assertThat(insertedRules)
                 .extracting(ruleRow -> ruleRow.getTransactionType() + "|" + ruleRow.getPaymentType()
@@ -673,7 +701,9 @@ class AdminFeeVersioningServiceTests {
                 .containsOnly(insertedRules.get(0).getRuleGroupCode());
     }
 
-    /** 显式分组的原子规则应一次批量查询后还原为一个多选规则。 */
+    /**
+     * 显式分组的原子规则应一次批量查询后还原为一个多选规则。
+     */
     @Test
     void shouldRestoreExplicitRuleGroupAndBatchVersionDetailQueries() {
         Fixture fixture = new Fixture();
@@ -693,7 +723,6 @@ class AdminFeeVersioningServiceTests {
         FeePlanDetailResponse detail = fixture.service.getTemplate(1L);
 
         FeeRuleResponse logicalRule = detail.getCurrentVersion().getRules().get(0);
-        System.out.println("编辑回显：4 条显式分组原子规则还原为 1 条多选规则，详情查询不随版本数增长");
         assertThat(detail.getCurrentVersion().getRules()).hasSize(1);
         assertThat(logicalRule.getTransactionTypes()).containsExactly("PAYMENT", "CAPTURE");
         assertThat(logicalRule.getPaymentTypes()).containsExactly("BANK_CARD");
@@ -702,7 +731,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.tierMapper, times(1)).selectList(any());
     }
 
-    /** 无分组编码的历史规则只有形成完整维度组合时才允许合并。 */
+    /**
+     * 无分组编码的历史规则只有形成完整维度组合时才允许合并。
+     */
     @Test
     void shouldSafelyRestoreCompleteLegacyCartesianRules() {
         Fixture fixture = detailFixture(List.of(
@@ -713,13 +744,14 @@ class AdminFeeVersioningServiceTests {
 
         List<FeeRuleResponse> rules = fixture.service.getTemplate(1L).getCurrentVersion().getRules();
 
-        System.out.println("历史规则兼容：完整 2×1×2 原子组合安全还原为一个逻辑规则");
         assertThat(rules).hasSize(1);
         assertThat(rules.get(0).getTransactionTypes()).containsExactly("PAYMENT", "CAPTURE");
         assertThat(rules.get(0).getPaymentMethods()).containsExactly("VISA", "MASTERCARD");
     }
 
-    /** 历史原子规则缺少任一组合时必须逐条返回，避免编辑保存后制造不存在的匹配维度。 */
+    /**
+     * 历史原子规则缺少任一组合时必须逐条返回，避免编辑保存后制造不存在的匹配维度。
+     */
     @Test
     void shouldKeepIncompleteLegacyCartesianRulesAtomic() {
         Fixture fixture = detailFixture(List.of(
@@ -729,7 +761,6 @@ class AdminFeeVersioningServiceTests {
 
         List<FeeRuleResponse> rules = fixture.service.getTemplate(1L).getCurrentVersion().getRules();
 
-        System.out.println("历史规则兼容：不完整维度组合保持三条原子规则，禁止推导缺失组合");
         assertThat(rules).hasSize(3);
         assertThat(rules).allSatisfy(rule -> {
             assertThat(rule.getTransactionTypes()).hasSize(1);
@@ -738,7 +769,9 @@ class AdminFeeVersioningServiceTests {
         });
     }
 
-    /** 金额配置不同的历史原子规则不能仅凭维度形状合并。 */
+    /**
+     * 金额配置不同的历史原子规则不能仅凭维度形状合并。
+     */
     @Test
     void shouldNotGroupLegacyRulesWithDifferentFeeConfiguration() {
         Fixture fixture = detailFixture(List.of(
@@ -747,11 +780,12 @@ class AdminFeeVersioningServiceTests {
 
         List<FeeRuleResponse> rules = fixture.service.getTemplate(1L).getCurrentVersion().getRules();
 
-        System.out.println("历史规则兼容：不同费率配置保持独立，避免错误合并");
         assertThat(rules).hasSize(2);
     }
 
-    /** 阶梯定义不同的历史原子规则必须保持独立，即使主规则金额字段完全相同。 */
+    /**
+     * 阶梯定义不同的历史原子规则必须保持独立，即使主规则金额字段完全相同。
+     */
     @Test
     void shouldNotGroupLegacyRulesWithDifferentTierDefinitions() {
         FeeRuleDO visa = atomicRule(31L, 21L, "PAYMENT", "BANK_CARD", "VISA", null, "0");
@@ -767,11 +801,12 @@ class AdminFeeVersioningServiceTests {
 
         List<FeeRuleResponse> rules = fixture.service.getTemplate(1L).getCurrentVersion().getRules();
 
-        System.out.println("历史规则兼容：阶梯指纹不同的规则保持独立，避免错误合并");
         assertThat(rules).hasSize(2);
     }
 
-    /** ALL 代表全部卡品牌，不能与具体卡品牌同时选择。 */
+    /**
+     * ALL 代表全部卡品牌，不能与具体卡品牌同时选择。
+     */
     @Test
     void shouldRejectAllPaymentMethodMixedWithSpecificBrands() {
         Fixture fixture = new Fixture();
@@ -782,14 +817,15 @@ class AdminFeeVersioningServiceTests {
         FeeRuleRequest rule = request.getRules().get(0);
         rule.setPaymentMethods(List.of("ALL", "VISA"));
 
-        System.out.println("支付方式边界：验证 ALL 不能与 VISA 等具体卡品牌混选");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("不能同时选择 ALL 和具体卡品牌");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 非银行卡支付不参与卡品牌匹配，即使兼容请求残留卡品牌也必须统一保存为 ALL。 */
+    /**
+     * 非银行卡支付不参与卡品牌匹配，即使兼容请求残留卡品牌也必须统一保存为 ALL。
+     */
     @Test
     void shouldNormalizeNonBankCardPaymentMethodToAll() {
         Fixture fixture = new Fixture();
@@ -827,12 +863,13 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.createTemplateVersion(1L, request, 8L, "提交人");
 
-        System.out.println("非银行卡支付：忽略残留卡品牌并按 ALL 保存原子规则");
         assertThat(insertedRule.get().getPaymentType()).isEqualTo("PAYPAL");
         assertThat(insertedRule.get().getPaymentMethod()).isEqualTo("ALL");
     }
 
-    /** 不同批量输入展开到同一匹配维度时必须拒绝，避免数据库唯一键兜底报错。 */
+    /**
+     * 不同批量输入展开到同一匹配维度时必须拒绝，避免数据库唯一键兜底报错。
+     */
     @Test
     void shouldRejectDuplicateAtomicDimensionsAfterExpansion() {
         Fixture fixture = new Fixture();
@@ -844,14 +881,15 @@ class AdminFeeVersioningServiceTests {
         duplicate.setRuleName("另一配置名称");
         request.setRules(List.of(request.getRules().get(0), duplicate));
 
-        System.out.println("规则唯一性：验证批量展开后的相同原子匹配维度被服务层拒绝");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("费用匹配维度不能重复");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 新建模板 v1 可省略变更原因，但审计记录必须保存明确的系统原因。 */
+    /**
+     * 新建模板 v1 可省略变更原因，但审计记录必须保存明确的系统原因。
+     */
     @Test
     void shouldDefaultChangeReasonForFirstTemplateVersion() {
         Fixture fixture = new Fixture();
@@ -881,13 +919,14 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.createTemplate(request, 8L, "提交人");
 
-        System.out.println("首次创建模板：未填写原因时保存系统审计原因");
         assertThat(insertedVersion.get().getChangeReason()).isEqualTo("首次创建模板");
         assertThat(insertedVersion.get().getSettlementCurrency()).isNull();
         assertThat(insertedVersion.get().getVersionStatus()).isEqualTo("DRAFT");
     }
 
-    /** 商户首次独立配置可省略变更原因，但版本审计必须记录明确的首次配置原因。 */
+    /**
+     * 商户首次独立配置可省略变更原因，但版本审计必须记录明确的首次配置原因。
+     */
     @Test
     void shouldDefaultChangeReasonForFirstIndependentMerchantVersion() {
         Fixture fixture = new Fixture();
@@ -925,14 +964,15 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.createMerchantVersion("M10001", request, 8L, "提交人");
 
-        System.out.println("商户首次独立配置：未填写原因时保存系统审计原因");
         assertThat(insertedVersion.get().getChangeReason()).isEqualTo("首次配置");
         assertThat(insertedVersion.get().getOriginType()).isEqualTo("INDEPENDENT");
         assertThat(insertedVersion.get().getSettlementCurrency()).isEqualTo("USD");
         assertThat(insertedVersion.get().getVersionStatus()).isEqualTo("PENDING_REVIEW");
     }
 
-    /** 商户首次配置被拒绝后允许保留历史快照并创建下一待复核版本。 */
+    /**
+     * 商户首次配置被拒绝后允许保留历史快照并创建下一待复核版本。
+     */
     @Test
     void shouldCreateNextMerchantVersionAfterRejectedVersion() {
         Fixture fixture = new Fixture();
@@ -968,14 +1008,15 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.createMerchantVersion("M10001", request, 8L, "提交人");
 
-        System.out.println("商户拒绝后重提：保留已拒绝 v1，并创建待复核 v2");
         assertThat(rejected.getVersionStatus()).isEqualTo("REJECTED");
         assertThat(insertedVersion.get().getVersionNo()).isEqualTo(2);
         assertThat(insertedVersion.get().getVersionStatus()).isEqualTo("PENDING_REVIEW");
         assertThat(insertedVersion.get().getChangeReason()).isEqualTo("根据审核意见调整");
     }
 
-    /** 商户选择模板时复制当前版本，后续持久化对象不能复用模板规则和阶梯主键。 */
+    /**
+     * 商户选择模板时复制当前版本，后续持久化对象不能复用模板规则和阶梯主键。
+     */
     @Test
     void shouldCopyCurrentTemplateVersionWithoutSharingRuleRows() {
         Fixture fixture = new Fixture();
@@ -1036,7 +1077,6 @@ class AdminFeeVersioningServiceTests {
         FeePlanDetailResponse response = fixture.service.createMerchantVersion(
                 "M10001", request, 8L, "提交人");
 
-        System.out.println("模板复制隔离：验证商户 v1 保存来源模板 v3，但规则与阶梯使用独立主键");
         assertThat(response.getOriginType()).isEqualTo("TEMPLATE");
         assertThat(response.getSourceTemplateId()).isEqualTo(2L);
         assertThat(response.getSourceTemplateVersionNo()).isEqualTo(3);
@@ -1057,7 +1097,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(sourceTier.getFeeRuleId()).isEqualTo(40L);
     }
 
-    /** 模板已有历史版本时，提交新版本必须填写真实变更原因。 */
+    /**
+     * 模板已有历史版本时，提交新版本必须填写真实变更原因。
+     */
     @Test
     void shouldRequireChangeReasonForLaterTemplateVersion() {
         Fixture fixture = new Fixture();
@@ -1067,14 +1109,15 @@ class AdminFeeVersioningServiceTests {
         FeeVersionSaveRequest request = standardVersionRequest();
         request.setChangeReason(" ");
 
-        System.out.println("模板后续版本：v2 及以上仍必须填写变更原因");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("变更原因不能为空");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 阶梯采用左闭右开区间，非末档上界必须严格大于当前档下界。 */
+    /**
+     * 阶梯采用左闭右开区间，非末档上界必须严格大于当前档下界。
+     */
     @Test
     void shouldRejectTierUpperBoundEqualToLowerBound() {
         Fixture fixture = new Fixture();
@@ -1086,14 +1129,15 @@ class AdminFeeVersioningServiceTests {
                 tierRequest("0", "0", null, null),
                 tierRequest("0", null, null, null)));
 
-        System.out.println("阶梯边界：左闭右开区间的上界必须严格大于下界");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("阶梯上界必须大于下界");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 阶梯档位同时配置最低和最高费用时，最高费用不得小于最低费用。 */
+    /**
+     * 阶梯档位同时配置最低和最高费用时，最高费用不得小于最低费用。
+     */
     @Test
     void shouldRejectTierMaximumBelowMinimum() {
         Fixture fixture = new Fixture();
@@ -1103,14 +1147,15 @@ class AdminFeeVersioningServiceTests {
         rule.setTierMetric("AMOUNT");
         rule.setTiers(List.of(tierRequest("0", null, "5.00000001", "5.00000000")));
 
-        System.out.println("阶梯费用限制：最高费用不能小于最低费用");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("最低费用不能大于最高费用");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 最高费用等于最低费用属于合法边界，校验应继续执行后续计费模式规则。 */
+    /**
+     * 最高费用等于最低费用属于合法边界，校验应继续执行后续计费模式规则。
+     */
     @Test
     void shouldAllowEqualMinimumAndMaximum() {
         Fixture fixture = new Fixture();
@@ -1120,14 +1165,15 @@ class AdminFeeVersioningServiceTests {
         rule.setMaximumAmountUsd(new BigDecimal("5.00000000"));
         rule.setFeeMode("UNSUPPORTED");
 
-        System.out.println("费用限制边界：最高费用等于最低费用时继续执行后续规则校验");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("计费模式只允许 STANDARD 或 TIER");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 同一费用分类只能选择一种计费模式，不允许按不同匹配维度混用标准和阶梯规则。 */
+    /**
+     * 同一费用分类只能选择一种计费模式，不允许按不同匹配维度混用标准和阶梯规则。
+     */
     @Test
     void shouldRejectMixedFeeModesWithinSameCategory() {
         Fixture fixture = new Fixture();
@@ -1140,14 +1186,15 @@ class AdminFeeVersioningServiceTests {
         tierRule.setTiers(List.of(tierRequest("0", null, null, null)));
         request.setRules(List.of(request.getRules().get(0), tierRule));
 
-        System.out.println("计费模式互斥：同一费用分类不能同时配置标准和阶梯规则");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("同一费用分类只能选择一种计费模式");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 新版本的首次与常规结算周期共用单位，并独立保存保证金 T/D 周期。 */
+    /**
+     * 新版本的首次与常规结算周期共用单位，并独立保存保证金 T/D 周期。
+     */
     @Test
     void shouldNormalizeSettlementUnitAndPersistReserveUnit() {
         Fixture fixture = new Fixture();
@@ -1180,13 +1227,14 @@ class AdminFeeVersioningServiceTests {
         request.setRegularDelayUnit("T");
         fixture.service.createTemplateVersion(1L, request, 8L, "提交人");
 
-        System.out.println("结算周期：新版本统一使用 D 周期，同时保证金独立保存为 T+N");
         assertThat(insertedVersion.get().getReserveDelayUnit()).isEqualTo("T");
         assertThat(insertedVersion.get().getInitialDelayUnit()).isEqualTo("D");
         assertThat(insertedVersion.get().getInitialDelayUnit()).isEqualTo("D");
     }
 
-    /** 风控手续费必须按风控服务保存收费时点，并收敛为固定 USD 单笔费用。 */
+    /**
+     * 风控手续费必须按风控服务保存收费时点，并收敛为固定 USD 单笔费用。
+     */
     @Test
     void shouldNormalizeRiskFeeAsFixedUsdPerEvent() {
         Fixture fixture = new Fixture();
@@ -1228,7 +1276,6 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.createTemplateVersion(1L, request, 8L, "提交人");
 
-        System.out.println("风控费用：内风控成功或失败均收费时，保存固定 0.08 USD 单笔费用");
         assertThat(insertedRule.get().getRiskServiceType()).isEqualTo("INTERNAL");
         assertThat(insertedRule.get().getChargeTrigger()).isEqualTo("SUCCESS_OR_FAILURE");
         assertThat(insertedRule.get().getFeeMode()).isEqualTo("STANDARD");
@@ -1238,7 +1285,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(insertedRule.get().getMaximumAmountUsd()).isNull();
     }
 
-    /** 外风控和 3DS 仅允许不收费或调用即收费，禁止复用内风控成功收费语义。 */
+    /**
+     * 外风控和 3DS 仅允许不收费或调用即收费，禁止复用内风控成功收费语义。
+     */
     @Test
     void shouldRejectRiskTriggerNotSupportedByServiceType() {
         Fixture fixture = new Fixture();
@@ -1248,14 +1297,15 @@ class AdminFeeVersioningServiceTests {
         rule.setRiskServiceType("EXTERNAL");
         rule.setChargeTrigger("SUCCESS");
 
-        System.out.println("风控费用边界：外风控不允许配置交易成功收费");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("触发方式与风控类型不匹配");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 风控服务配置实际收费触发时，固定 USD 单笔费用必须大于零。 */
+    /**
+     * 风控服务配置实际收费触发时，固定 USD 单笔费用必须大于零。
+     */
     @Test
     void shouldRejectZeroFixedAmountForChargeableRiskFee() {
         Fixture fixture = new Fixture();
@@ -1266,14 +1316,15 @@ class AdminFeeVersioningServiceTests {
         rule.setChargeTrigger("ON_CALL");
         rule.setFixedAmountUsd(BigDecimal.ZERO);
 
-        System.out.println("风控费用边界：3DS 调用即收费时固定 USD 单笔费用必须大于零");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("固定 USD 金额必须大于 0");
         verify(fixture.versionMapper, never()).insert(any(FeePlanVersionDO.class));
     }
 
-    /** 结算货币兑换费保存为无业务匹配维度的唯一标准单笔规则。 */
+    /**
+     * 结算货币兑换费保存为无业务匹配维度的唯一标准单笔规则。
+     */
     @Test
     void shouldAcceptSettlementCurrencyConversionFeeCategory() {
         Fixture fixture = new Fixture();
@@ -1311,7 +1362,6 @@ class AdminFeeVersioningServiceTests {
         requestRule.setPaymentMethod("VISA");
         fixture.service.createTemplateVersion(1L, request, 8L, "提交人");
 
-        System.out.println("结算换汇费：固定名称、标准单笔模式和无业务匹配维度");
         assertThat(insertedRule.get().getFeeCategory()).isEqualTo("SETTLEMENT_FX_FEE");
         assertThat(insertedRule.get().getRuleName()).isEqualTo("结算货币兑换费");
         assertThat(insertedRule.get().getTransactionType()).isEqualTo("ALL");
@@ -1323,7 +1373,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(insertedRule.get().getTierMetric()).isNull();
     }
 
-    /** 同一费用版本最多允许一条结算货币兑换费，避免出现多条无维度规则。 */
+    /**
+     * 同一费用版本最多允许一条结算货币兑换费，避免出现多条无维度规则。
+     */
     @Test
     void shouldRejectMultipleSettlementCurrencyConversionFees() {
         Fixture fixture = new Fixture();
@@ -1334,14 +1386,15 @@ class AdminFeeVersioningServiceTests {
         second.setFeeCategory("SETTLEMENT_FX_FEE");
         request.setRules(List.of(first, second));
 
-        System.out.println("结算换汇费唯一性：同一版本提交两条时直接拒绝");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("只能配置一条");
         verify(fixture.planMapper, never()).selectByIdForUpdate(any());
     }
 
-    /** 结算货币兑换费不支持阶梯计费，后端不能依赖页面隐藏来保证规则。 */
+    /**
+     * 结算货币兑换费不支持阶梯计费，后端不能依赖页面隐藏来保证规则。
+     */
     @Test
     void shouldRejectTieredSettlementCurrencyConversionFee() {
         Fixture fixture = new Fixture();
@@ -1350,14 +1403,15 @@ class AdminFeeVersioningServiceTests {
         rule.setFeeCategory("SETTLEMENT_FX_FEE");
         rule.setFeeMode("TIER");
 
-        System.out.println("结算换汇费计费模式：非标准单笔请求直接拒绝");
         assertThatThrownBy(() -> fixture.service.createTemplateVersion(1L, request, 8L, "提交人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("只支持标准单笔");
         verify(fixture.planMapper, never()).selectByIdForUpdate(any());
     }
 
-    /** 商户结算币种只在费用版本复核通过时同步到商户资料与资金账户。 */
+    /**
+     * 商户结算币种只在费用版本复核通过时同步到商户资料与资金账户。
+     */
     @Test
     void shouldSynchronizeMerchantSettlementCurrencyOnApproval() {
         Fixture fixture = new Fixture();
@@ -1373,7 +1427,6 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.approveVersion(21L, "同意", 9L, "审核人");
 
-        System.out.println("结算币种：商户费用版本审核通过时同步 USD，并立即激活版本");
         verify(fixture.settlementCurrencyService)
                 .synchronizeApprovedCurrency("M10001", "USD", "审核人");
         verify(fixture.cacheInvalidationCoordinator)
@@ -1382,7 +1435,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(pending.getVersionStatus()).isEqualTo("ACTIVE");
     }
 
-    /** 提交人不能审核自己提交的费用版本。 */
+    /**
+     * 提交人不能审核自己提交的费用版本。
+     */
     @Test
     void shouldRejectSamePersonReview() {
         Fixture fixture = new Fixture();
@@ -1391,14 +1446,15 @@ class AdminFeeVersioningServiceTests {
         pending.setSubmitByName("同一人");
         when(fixture.versionMapper.selectByIdForUpdate(21L)).thenReturn(pending);
 
-        System.out.println("双人复核：验证提交账号 8 不能审核自己提交的待审核版本");
         assertThatThrownBy(() -> fixture.service.approveVersion(21L, "同意", 8L, "同一人"))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("提交人与审核人不能是同一人");
         verify(fixture.planMapper, never()).selectByIdForUpdate(any());
     }
 
-    /** 禁用模板只改变模板可选状态，不改变其当前生效版本。 */
+    /**
+     * 禁用模板只改变模板可选状态，不改变其当前生效版本。
+     */
     @Test
     void shouldDisableTemplateWithoutChangingCurrentVersion() {
         Fixture fixture = new Fixture();
@@ -1414,7 +1470,9 @@ class AdminFeeVersioningServiceTests {
         verify(fixture.planMapper).updateById(plan);
     }
 
-    /** 已禁用模板的新版本通过审核后仍保持禁用，避免审核动作意外恢复可选状态。 */
+    /**
+     * 已禁用模板的新版本通过审核后仍保持禁用，避免审核动作意外恢复可选状态。
+     */
     @Test
     void shouldKeepDisabledTemplateDisabledAfterVersionApproval() {
         Fixture fixture = new Fixture();
@@ -1565,7 +1623,9 @@ class AdminFeeVersioningServiceTests {
         return tier;
     }
 
-    /** 构造只读详情测试夹具，统一模拟一个当前生效版本及其原子规则。 */
+    /**
+     * 构造只读详情测试夹具，统一模拟一个当前生效版本及其原子规则。
+     */
     private static Fixture detailFixture(List<FeeRuleDO> rules, List<FeeRuleTierDO> tiers) {
         Fixture fixture = new Fixture();
         when(fixture.planMapper.selectOne(any()))
@@ -1577,7 +1637,9 @@ class AdminFeeVersioningServiceTests {
         return fixture;
     }
 
-    /** 构造费用详情聚合测试使用的原子规则。 */
+    /**
+     * 构造费用详情聚合测试使用的原子规则。
+     */
     private static FeeRuleDO atomicRule(Long id,
                                         Long versionId,
                                         String transactionType,
@@ -1604,7 +1666,9 @@ class AdminFeeVersioningServiceTests {
         return rule;
     }
 
-    /** 构造费用试算聚合测试使用的风控服务规则。 */
+    /**
+     * 构造费用试算聚合测试使用的风控服务规则。
+     */
     private static FeeRuleDO riskRule(Long id,
                                       Long versionId,
                                       String riskServiceType,
@@ -1620,7 +1684,9 @@ class AdminFeeVersioningServiceTests {
         return rule;
     }
 
-    /** 构造交易费用试算的公共输入。 */
+    /**
+     * 构造交易费用试算的公共输入。
+     */
     private static FeeSimulationRequest simulationRequest() {
         FeeSimulationRequest request = new FeeSimulationRequest();
         request.setMerchantId("M10001");
@@ -1658,7 +1724,9 @@ class AdminFeeVersioningServiceTests {
         return record;
     }
 
-    /** 构造使用 USD 恒等汇率的费用试算夹具。 */
+    /**
+     * 构造使用 USD 恒等汇率的费用试算夹具。
+     */
     private static Fixture simulationFixture(List<FeeRuleDO> rules, BigDecimal reserveRate) {
         Fixture fixture = new Fixture();
         FeePlanDO plan = merchantPlan(1L, "M10001");
@@ -1677,7 +1745,9 @@ class AdminFeeVersioningServiceTests {
         return fixture;
     }
 
-    /** 构造历史聚合测试使用的单档阶梯。 */
+    /**
+     * 构造历史聚合测试使用的单档阶梯。
+     */
     private static FeeRuleTierDO tier(Long id, Long ruleId, String percentageRate) {
         FeeRuleTierDO tier = new FeeRuleTierDO();
         tier.setId(id);

@@ -8,119 +8,100 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeCalculationModels
- * @date : 2026-08-25 19:20
- * @email : scott_x@163.com
- * @description : 定义清分和后台试算共用的不可变费用计算契约；百分比按标签币种，固定费和上下限按 USD，不包含汇率或数据库对象。
- * @status : create
+ * 定义清分和后台试算共用的不可变费用计算契约；百分比按标签币种，固定费和上下限按 USD，不包含汇率或数据库对象。
  */
 public final class FeeCalculationModels {
 
+    /**
+     * 禁止实例化仅承载费用计算契约的工具类。
+     */
     private FeeCalculationModels() {
     }
 
-    /** 费用规则计价模式。 */
+    /**
+     * 费用规则计价模式。
+     */
     public enum FeeMode {
         /**
          * STANDARD 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         STANDARD,
         TIER
     }
 
-    /** 阶梯累计指标。 */
+    /**
+     * 阶梯累计指标。
+     */
     public enum TierMetric {
         /**
          * COUNT 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         COUNT,
         AMOUNT
     }
 
-    /** 清分费用原子组件类型。 */
+    /**
+     * 清分费用原子组件类型。
+     */
     public enum FeeComponentType {
         /**
          * PERCENTAGE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         PERCENTAGE,
         /**
          * FIXED 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         FIXED,
         LIMIT_ADJUSTMENT
     }
 
-    /** 费用组件对商户应结金额的方向。 */
+    /**
+     * 费用组件对商户应结金额的方向。
+     */
     public enum EntryDirection {
         /**
          * DEBIT 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         DEBIT,
         CREDIT
     }
 
-    /** 当前费用组是否已经得到单币种最终金额。 */
+    /**
+     * 当前费用组是否已经得到单币种最终金额。
+     */
     public enum FeeEvaluationStatus {
         /**
          * FINAL AT CLEARING 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         FINAL_AT_CLEARING,
         PENDING_SETTLEMENT_RATE
     }
 
-    /** 最低和最高费用的求值状态。 */
+    /**
+     * 最低和最高费用的求值状态。
+     */
     public enum LimitEvaluationStatus {
         /**
          * NOT REQUIRED 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         NOT_REQUIRED,
         /**
          * FINAL AT CLEARING 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         FINAL_AT_CLEARING,
         PENDING_SETTLEMENT_RATE
     }
 
-    /** 同币种限额求值后实际采用的边界。 */
+    /**
+     * 同币种限额求值后实际采用的边界。
+     */
     public enum AppliedLimit {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         NONE,
         /**
          * MINIMUM 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         MINIMUM,
         MAXIMUM
@@ -145,6 +126,9 @@ public final class FeeCalculationModels {
                                   Money maximumFeeUsd,
                                   TierMetric tierMetric) {
 
+        /**
+         * 校验费用规则模式、百分比和 USD 固定费及上下限口径。
+         */
         public FeeRuleSnapshot {
             Objects.requireNonNull(ruleId, "rule id is required");
             Objects.requireNonNull(feeMode, "fee mode is required");
@@ -186,6 +170,9 @@ public final class FeeCalculationModels {
                                   Money minimumFeeUsd,
                                   Money maximumFeeUsd) {
 
+        /**
+         * 校验阶梯内可选费用金额非负且保持 USD 口径。
+         */
         public FeeTierSnapshot {
             requireNonNegative(fixedFeeUsd, "tier fixed fee");
             requireNonNegative(minimumFeeUsd, "tier minimum fee");
@@ -207,6 +194,9 @@ public final class FeeCalculationModels {
                               BigDecimal amountUsdBefore,
                               BigDecimal currentAmountUsd) {
 
+        /**
+         * 校验交易前累计笔数及同口径 USD 累计金额非负。
+         */
         public TierContext {
             if (countBefore < 0) {
                 throw new IllegalArgumentException("tier count before must not be negative");
@@ -240,6 +230,9 @@ public final class FeeCalculationModels {
                                         TierContext tierContext,
                                         RoundingMode roundingMode) {
 
+        /**
+         * 固化标签金额、冻结规则、阶梯上下文和舍入模式。
+         */
         public FeeCalculationCommand {
             Objects.requireNonNull(labelAmount, "label amount is required");
             requireNonNegative(labelAmount, "label amount");
@@ -269,6 +262,9 @@ public final class FeeCalculationModels {
                                Long ruleId,
                                Long tierId) {
 
+        /**
+         * 校验费用原子组件类型、方向、金额和来源规则身份。
+         */
         public FeeComponent {
             Objects.requireNonNull(componentType, "component type is required");
             Objects.requireNonNull(direction, "entry direction is required");
@@ -302,6 +298,9 @@ public final class FeeCalculationModels {
                                        Money minimumFeeUsd,
                                        Money maximumFeeUsd) {
 
+        /**
+         * 固化命中阶梯、费用组件、求值状态和限额事实。
+         */
         public FeeCalculationResult {
             matchedTierIds = matchedTierIds == null ? List.of() : List.copyOf(matchedTierIds);
             components = components == null ? List.of() : List.copyOf(components);
@@ -314,18 +313,37 @@ public final class FeeCalculationModels {
         }
     }
 
+    /**
+     * 校验可选金额在提供时非负。
+     *
+     * @param money     可选金额
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireNonNegative(Money money, String fieldName) {
         if (money != null && money.amount().signum() < 0) {
             throw new IllegalArgumentException(fieldName + " must not be negative");
         }
     }
 
+    /**
+     * 校验可选固定费或限额金额保持 USD 币种。
+     *
+     * @param money     可选金额
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireUsd(Money money, String fieldName) {
         if (money != null && !"USD".equals(money.currency())) {
             throw new IllegalArgumentException(fieldName + " must use USD");
         }
     }
 
+    /**
+     * 校验必填十进制累计值非负。
+     *
+     * @param amount    待校验数值
+     * @param fieldName 错误消息使用的字段名
+     * @return 原数值
+     */
     private static BigDecimal requireNonNegative(BigDecimal amount, String fieldName) {
         Objects.requireNonNull(amount, fieldName + " is required");
         if (amount.signum() < 0) {

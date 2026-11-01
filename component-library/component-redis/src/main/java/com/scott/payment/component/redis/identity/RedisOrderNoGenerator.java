@@ -1,13 +1,7 @@
 package com.scott.payment.component.redis.identity;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisOrderNoGenerator
- * @date : 2026-05-31 20:49
- * @email : scott_x@163.com
- * @description : Redis 分布式订单号生成服务
- * @status : create
+ * Redis 分布式订单号生成服务
  */
 public interface RedisOrderNoGenerator {
 

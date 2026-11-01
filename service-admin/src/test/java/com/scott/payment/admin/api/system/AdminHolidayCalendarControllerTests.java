@@ -18,17 +18,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminHolidayCalendarControllerTests
- * @date : 2026-08-18 20:15
- * @email : scott_x@163.com
- * @description : 节假日日历接口契约测试，验证年月查询参数在未保留 Java 参数名时仍能稳定绑定。
- * @status : create
+ * 节假日日历接口契约测试，验证年月查询参数在未保留 Java 参数名时仍能稳定绑定。
  */
 class AdminHolidayCalendarControllerTests {
 
-    /** 查询接口必须按显式参数名绑定年月并调用应用服务。 */
+    /**
+     * 查询接口必须按显式参数名绑定年月并调用应用服务。
+     */
     @Test
     void shouldBindYearAndMonthQueryParameters() throws Exception {
         AdminHolidayCalendarApplicationService applicationService = mock(AdminHolidayCalendarApplicationService.class);
@@ -43,7 +39,9 @@ class AdminHolidayCalendarControllerTests {
         verify(applicationService).getMonth(2026, 8);
     }
 
-    /** 年度确认接口必须按显式参数名绑定自然年。 */
+    /**
+     * 年度确认接口必须按显式参数名绑定自然年。
+     */
     @Test
     void shouldBindYearForCalendarConfirmation() throws Exception {
         AdminHolidayCalendarApplicationService applicationService = mock(AdminHolidayCalendarApplicationService.class);
@@ -56,7 +54,9 @@ class AdminHolidayCalendarControllerTests {
         verify(applicationService).confirmYear(2026);
     }
 
-    /** 年度导出接口必须按显式参数名绑定自然年并传递下载响应。 */
+    /**
+     * 年度导出接口必须按显式参数名绑定自然年并传递下载响应。
+     */
     @Test
     void shouldBindYearForCalendarExport() throws Exception {
         AdminHolidayCalendarApplicationService applicationService = mock(AdminHolidayCalendarApplicationService.class);

@@ -19,13 +19,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionEventOutboxService
- * @date : 2026-07-12 18:20
- * @email : scott_x@163.com
- * @description : 交易本地消息服务默认实现，位于 service-payment 服务实现层，只负责事务内落库，后续由 relay 投递 RocketMQ。
- * @status : create
+ * 交易 Outbox 的持久化与状态服务。
+ *
+ * <p>业务服务在拥有交易事实的同一数据库事务内写入 Outbox，本服务不直接访问 RocketMQ。
+ * Relay 通过版本 CAS 抢占并更新发送结果；所有查询和更新都携带交易业务时间，以便
+ * ShardingSphere 精确路由季度分表。</p>
  */
 @Service
 public class DefaultTransactionEventOutboxService implements TransactionEventOutboxService {
@@ -54,6 +52,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     @DS(DataSourceName.TRANSACTION)
     public void save(TransactionEventOutboxDO eventDO) {
         validateEvent(eventDO);
+        // 插入必须与调用方业务事务共同提交；影响行数异常时抛错，让业务事实一起回滚。
         requireSingleRow(eventOutboxMapper.insertLogical(eventDO));
     }
 
@@ -164,6 +163,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         }
         LocalDateTime actualNow = now == null ? LocalDateTime.now() : now;
         String safeFailReason = failReason;
+        // Outbox 只保存受控失败摘要，截断可防止异常正文挤占字段或携带完整报文。
         if (safeFailReason != null && safeFailReason.length() > 512) {
             safeFailReason = safeFailReason.substring(0, 512);
         }
@@ -203,11 +203,14 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         if ("INIT".equals(existing.getEventStatus())) {
             return true;
         }
+        // 恢复只重置投递状态，稳定 eventNo/messageKey 不变，消费者仍可按原消息号幂等。
         return eventOutboxMapper.rearmForRedeliveryLogical(
                 eventNo, transactionDateTime, eventType, now == null ? LocalDateTime.now() : now) == 1;
     }
 
-    /** 查询指定季度的 pending、CLOSED 和最老积压时间聚合快照。 */
+    /**
+     * 查询指定季度的 pending、CLOSED 和最老积压时间聚合快照。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public TransactionEventOutboxMetricsSnapshot metricsSnapshot(LocalDateTime eventTime) {
@@ -275,6 +278,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                     "unsupported transaction outbox delivery mode");
         }
         if (isPaymentTransactionLifecycleEvent(eventDO.getEventType())) {
+            // 同一 operation 的生命周期事件必须进入 FIFO Topic 并使用相同 messageGroup 保序。
             if (!MqTopic.PAYMENT_TRANSACTION_FIFO.equals(eventDO.getTopic())) {
                 throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                         "transaction lifecycle event requires the payment transaction FIFO topic");
@@ -284,6 +288,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                         "transaction lifecycle event requires messageGroup");
             }
             if (deliveryMode == TransactionEventDeliveryMode.AUTO) {
+                // 兼容历史未显式声明模式的生命周期事件，持久化前归一为 ORDERLY。
                 deliveryMode = TransactionEventDeliveryMode.ORDERLY;
             } else if (deliveryMode != TransactionEventDeliveryMode.ORDERLY) {
                 throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),

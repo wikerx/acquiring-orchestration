@@ -7,13 +7,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserRoleGrantRequest
- * @date : 2026-06-12 11:47
- * @email : scott_x@163.com
- * @description : sys用户角色授权请求模型，位于 运营后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
- * @status : create
+ * sys用户角色授权请求模型，用于运营后台，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  */
 @Data
 public class SysUserRoleGrantRequest {

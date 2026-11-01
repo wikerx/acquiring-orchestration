@@ -10,13 +10,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionMenuSqlContractTests
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证管理端交易、清分和结算菜单及权限迁移 SQL 的契约完整性
- * @status : create
+ * 验证管理端交易、清分和结算菜单及权限迁移 SQL 的契约完整性
  */
 class AdminTransactionMenuSqlContractTests {
 

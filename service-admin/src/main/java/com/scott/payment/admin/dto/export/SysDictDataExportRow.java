@@ -6,95 +6,40 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysDictDataExportRow
- * @date : 2026-06-19 23:50
- * @email : scott_x@163.com
- * @description : 字典数据导出行对象
- * @status : create
+ * 字典数据导出行对象
  */
 @Data
 public class SysDictDataExportRow {
 
-    /**
-     * {@code dictType}，用于区分 {@code SysDictDataExportRow} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     @ExcelExportColumn(order = 1, headerKey = "excel.dictData.dictType", width = 20)
     private String dictType;
 
-    /**
-     * {@code dictLabel}字段，保存 {@code SysDictDataExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     @ExcelExportColumn(order = 2, headerKey = "excel.dictData.dictLabel", width = 22)
     private String dictLabel;
 
-    /**
-     * {@code dictValue}字段，保存 {@code SysDictDataExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     @ExcelExportColumn(order = 3, headerKey = "excel.dictData.dictValue", width = 22)
     private String dictValue;
 
     /**
      * 语言区域标识，用于选择国际化文案和导出标题。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     @ExcelExportColumn(order = 4, headerKey = "excel.dictData.locale", width = 14)
     private String locale;
 
     /**
      * 排序号，数值越小越优先展示或匹配。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     @ExcelExportColumn(order = 5, headerKey = "excel.dictData.sortNo", width = 10)
     private Integer sortNo;
 
-    /**
-     * 状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     @ExcelExportColumn(order = 6, headerKey = "excel.dictData.status", width = 12)
     private String status;
 
-    /**
-     * 默认标识字段，保存 {@code SysDictDataExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     @ExcelExportColumn(order = 7, headerKey = "excel.dictData.defaultFlag", width = 12)
     private String defaultFlag;
 
     /**
      * 记录创建时刻，持久化精度为毫秒。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
-     * </p>
      */
     @ExcelExportColumn(order = 8, headerKey = "excel.dictData.createdAt", width = 22)
     private LocalDateTime createdAt;

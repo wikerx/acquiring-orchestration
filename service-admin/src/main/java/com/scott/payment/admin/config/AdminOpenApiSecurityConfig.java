@@ -20,13 +20,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminOpenApiSecurityConfig
- * @date : 2026-06-13 17:17
- * @email : scott_x@163.com
- * @description : Admin Open API Security Config 配置类，位于 运营后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
- * @status : create
+ * 管理端 OpenAPI 密钥接口安全配置，限定独立安全过滤链和访问规则。
  */
 @Configuration
 @EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)

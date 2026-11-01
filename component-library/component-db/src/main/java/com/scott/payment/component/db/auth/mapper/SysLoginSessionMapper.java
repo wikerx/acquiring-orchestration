@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysLoginSessionMapper
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 登录会话 Mapper
- * @status : create
+ * 登录会话 Mapper
  */
 public interface SysLoginSessionMapper extends BaseMapper<SysLoginSessionDO> {
 

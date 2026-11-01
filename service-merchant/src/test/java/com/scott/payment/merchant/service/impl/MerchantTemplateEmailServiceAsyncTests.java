@@ -23,17 +23,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTemplateEmailServiceAsyncTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Merchant 模板邮件只保存加密记录并进入可靠队列。
- * @status : create
+ * 验证 Merchant 模板邮件只保存加密记录并进入可靠队列。
  */
 class MerchantTemplateEmailServiceAsyncTests {
 
@@ -138,6 +133,39 @@ class MerchantTemplateEmailServiceAsyncTests {
         assertThat(record.getMaxRetryCount()).isZero();
         assertThat(record.getDeliveryContentCipher()).isEqualTo("cipher-content");
         verify(deliveryService).enqueue(record);
+    }
+
+    /**
+     * 非法敏感变量配置必须形成明确的准备失败记录，不能按无敏感字段继续发送。
+     */
+    @Test
+    void shouldRecordPreparationFailureWhenSensitiveVariableConfigurationIsInvalid() {
+        MerchantEmailAccountMapper accountMapper = mock(MerchantEmailAccountMapper.class);
+        MerchantEmailSendRecordMapper recordMapper = mock(MerchantEmailSendRecordMapper.class);
+        EnabledEmailTemplateCacheReader templateReader = mock(EnabledEmailTemplateCacheReader.class);
+        EmailPayloadCrypto payloadCrypto = mock(EmailPayloadCrypto.class);
+        MerchantEmailDeliveryService deliveryService = mock(MerchantEmailDeliveryService.class);
+        MerchantTemplateEmailServiceImpl service = new MerchantTemplateEmailServiceImpl(
+                accountMapper, recordMapper, new ObjectMapper(), payloadCrypto,
+                deliveryService, new EmailDeliveryProperties(), templateReader);
+        EnabledEmailTemplateSnapshot template = templateSnapshot();
+        template.setSensitiveVariableNames("not-json");
+        when(templateReader.findEnabled("MFA_CODE", "zh-CN")).thenReturn(template);
+        when(accountMapper.selectOne(any())).thenReturn(account());
+
+        service.sendByTemplate(new MerchantEmailSendCommand(
+                "MERCHANT", "M100", "M100", "Merchant", "MFA_CODE", "MERCHANT_MFA", "zh-CN",
+                List.of("masked@example.invalid"), Map.of("otp", "123456"), "MERCHANT_MFA", "12"));
+
+        ArgumentCaptor<MerchantEmailSendRecordDO> recordCaptor =
+                ArgumentCaptor.forClass(MerchantEmailSendRecordDO.class);
+        verify(recordMapper).insert(recordCaptor.capture());
+        MerchantEmailSendRecordDO record = recordCaptor.getValue();
+        assertThat(record.getSendStatus()).isEqualTo(EmailDeliveryStatus.CLOSED.getCode());
+        assertThat(record.getErrorCode()).isEqualTo("EMAIL_PREPARATION_FAILED");
+        assertThat(record.getErrorMessage()).contains("sensitive variable configuration is invalid");
+        verify(payloadCrypto, never()).encrypt(anyString());
+        verify(deliveryService, never()).enqueue(any());
     }
 
     private MerchantEmailTemplateDO template() {

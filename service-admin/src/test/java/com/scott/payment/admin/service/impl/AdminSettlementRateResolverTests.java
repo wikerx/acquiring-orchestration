@@ -24,13 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementRateResolverTests
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 费用试算结算汇率解析测试，验证 USD 恒等汇率、正向有效汇率选择和缺失阻断。
- * @status : create
+ * 费用试算结算汇率解析测试，验证 USD 恒等汇率、正向有效汇率选择和缺失阻断。
  */
 class AdminSettlementRateResolverTests {
 
@@ -38,7 +32,9 @@ class AdminSettlementRateResolverTests {
     private final ExchangeRateSourceMapper sourceMapper = mock(ExchangeRateSourceMapper.class);
     private final AdminSettlementRateResolver resolver = new AdminSettlementRateResolver(businessRateMapper, sourceMapper);
 
-    /** 初始化 Lambda 查询字段元数据。 */
+    /**
+     * 初始化 Lambda 查询字段元数据。
+     */
     @BeforeEach
     void setUpTableMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -47,14 +43,15 @@ class AdminSettlementRateResolverTests {
         TableInfoHelper.initTableInfo(assistant, ExchangeRateSourceDO.class);
     }
 
-    /** USD 标签币种直接使用恒等汇率，不访问汇率表。 */
+    /**
+     * USD 标签币种直接使用恒等汇率，不访问汇率表。
+     */
     @Test
     void shouldUseIdentityRateForUsd() {
         LocalDateTime valuationTime = LocalDateTime.of(2026, 8, 18, 10, 0);
 
         AdminSettlementRateResolver.ResolvedSettlementRate resolved = resolver.resolve("usd", valuationTime);
 
-        System.out.println("费用试算汇率：验证 USD 直接使用 1 且不读取业务汇率表");
         assertThat(resolved.rate()).isEqualByComparingTo(BigDecimal.ONE);
         assertThat(resolved.businessRateId()).isNull();
         assertThat(resolved.sourceCode()).isEqualTo("SYSTEM_IDENTITY");
@@ -62,7 +59,9 @@ class AdminSettlementRateResolverTests {
         verify(sourceMapper, never()).selectList(any());
     }
 
-    /** 多个有效正向汇率同时存在时，优先选择默认来源，再按来源优先级和生效时间排序。 */
+    /**
+     * 多个有效正向汇率同时存在时，优先选择默认来源，再按来源优先级和生效时间排序。
+     */
     @Test
     void shouldPreferDefaultEnabledDirectSettlementRateSource() {
         LocalDateTime valuationTime = LocalDateTime.of(2026, 8, 18, 10, 0);
@@ -78,18 +77,18 @@ class AdminSettlementRateResolverTests {
 
         AdminSettlementRateResolver.ResolvedSettlementRate resolved = resolver.resolve("EUR", valuationTime);
 
-        System.out.println("费用试算汇率：验证只在 EUR->USD 正向有效候选中优先选择默认来源 BOC");
         assertThat(resolved.businessRateId()).isEqualTo(11L);
         assertThat(resolved.rate()).isEqualByComparingTo("1.20");
         assertThat(resolved.sourceCode()).isEqualTo("BOC");
     }
 
-    /** 没有指定方向的有效结算汇率时必须失败，不能查询或计算反向汇率倒数。 */
+    /**
+     * 没有指定方向的有效结算汇率时必须失败，不能查询或计算反向汇率倒数。
+     */
     @Test
     void shouldRejectWhenDirectSettlementRateIsMissing() {
         when(businessRateMapper.selectList(any())).thenReturn(List.of());
 
-        System.out.println("费用试算汇率：验证 EUR->USD 缺失时直接阻断，不使用 USD->EUR 倒数");
         assertThatThrownBy(() -> resolver.resolve("EUR", LocalDateTime.of(2026, 8, 18, 10, 0)))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("EUR->USD")

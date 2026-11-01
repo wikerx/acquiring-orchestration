@@ -20,13 +20,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisIdempotentServiceImpl
- * @date : 2026-05-31 20:47
- * @email : scott_x@163.com
- * @description : 实现 Redis 辅助幂等；MQ 路径使用有界时间桶 ZSet，异常时显式降级到数据库唯一约束
- * @status : create
+ * 实现 Redis 辅助幂等；MQ 路径使用有界时间桶 ZSet，异常时显式降级到数据库唯一约束
  */
 @Slf4j
 @Service
@@ -431,13 +425,15 @@ public class RedisIdempotentServiceImpl implements IdempotentService {
                 return;
             }
             if (exception == null) {
-                log.warn("event: REDIS_MQ_IDEMPOTENT_FALLBACK stage=MQ_DEDUP namespace: {} reason: {} "
+                log.warn("Redis MQ 幂等校验降级, event: REDIS_MQ_IDEMPOTENT_FALLBACK, "
+                                + "stage: MQ_DEDUP, namespace: {}, reason: {}, "
                                 + "action: continueToDatabaseUniqueConstraint",
                         namespace, reason);
             } else {
-                log.warn("event: REDIS_MQ_IDEMPOTENT_FALLBACK stage=MQ_DEDUP namespace: {} reason: {} "
-                                + "action: continueToDatabaseUniqueConstraint",
-                        namespace, reason, exception);
+                log.warn("Redis MQ 幂等校验降级, event: REDIS_MQ_IDEMPOTENT_FALLBACK, "
+                                + "stage: MQ_DEDUP, namespace: {}, reason: {}, "
+                                + "action: continueToDatabaseUniqueConstraint, exceptionType: {}",
+                        namespace, reason, exception.getClass().getSimpleName(), exception);
             }
             fallbackWarningLogged = true;
         }

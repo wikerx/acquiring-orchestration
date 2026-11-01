@@ -63,84 +63,144 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPasswordResetServiceImpl
- * @date : 2026-10-14 00:00
- * @email : scott_x@163.com
- * @description : 管理后台找回密码服务实现；以虚拟请求、哈希验证码、一次性阶段令牌、MFA 防重放和事务内会话撤销收敛匿名改密风险。
- * @status : create
+ * 管理后台找回密码服务实现；以虚拟请求、哈希验证码、一次性阶段令牌、MFA 防重放和事务内会话撤销收敛匿名改密风险。
  */
 @Slf4j
 @Service
 public class AdminPasswordResetServiceImpl implements AdminPasswordResetService {
 
-    /** 重置申请已创建，等待校验邮件验证码的持久化状态。 */
+    /**
+     * 重置申请已创建，等待校验邮件验证码的持久化状态。
+     */
     private static final String STATE_PENDING_EMAIL = "PENDING_EMAIL";
-    /** 邮件验证码已通过，等待校验管理员 TOTP 的持久化状态。 */
+    /**
+     * 邮件验证码已通过，等待校验管理员 TOTP 的持久化状态。
+     */
     private static final String STATE_PENDING_MFA = "PENDING_MFA";
-    /** 身份验证已完成，允许在短期令牌有效期内提交新密码的状态。 */
+    /**
+     * 身份验证已完成，允许在短期令牌有效期内提交新密码的状态。
+     */
     private static final String STATE_READY = "READY";
-    /** 密码已更新且旧会话已注销的终态。 */
+    /**
+     * 密码已更新且旧会话已注销的终态。
+     */
     private static final String STATE_COMPLETED = "COMPLETED";
-    /** 邮件验证码或操作令牌超过有效期后的终态。 */
+    /**
+     * 邮件验证码或操作令牌超过有效期后的终态。
+     */
     private static final String STATE_EXPIRED = "EXPIRED";
-    /** 邮件验证码失败次数达到上限后的锁定终态。 */
+    /**
+     * 邮件验证码失败次数达到上限后的锁定终态。
+     */
     private static final String STATE_LOCKED = "LOCKED";
-    /** 账号或 MFA 状态不允许继续自助找回时的阻断终态。 */
+    /**
+     * 账号或 MFA 状态不允许继续自助找回时的阻断终态。
+     */
     private static final String STATE_BLOCKED = "BLOCKED";
-    /** 邮件验证完成后仍需校验 MFA 的下一步标识。 */
+    /**
+     * 邮件验证完成后仍需校验 MFA 的下一步标识。
+     */
     private static final String NEXT_MFA = "MFA";
-    /** 身份验证完成后允许设置新密码的下一步标识。 */
+    /**
+     * 身份验证完成后允许设置新密码的下一步标识。
+     */
     private static final String NEXT_RESET_PASSWORD = "RESET_PASSWORD";
-    /** 无法自助恢复、需要其他管理员介入的下一步标识。 */
+    /**
+     * 无法自助恢复、需要其他管理员介入的下一步标识。
+     */
     private static final String NEXT_ADMIN_SUPPORT = "ADMIN_SUPPORT";
-    /** 统一申请响应，避免通过返回内容探测账号是否存在或具备找回资格。 */
+    /**
+     * 统一申请响应，避免通过返回内容探测账号是否存在或具备找回资格。
+     */
     private static final String GENERIC_REQUEST_MESSAGE = "If the account is eligible, a verification email has been sent.";
-    /** 邮件验证码有效期，单位为秒，当前为 30 分钟。 */
+    /**
+     * 邮件验证码有效期，单位为秒，当前为 30 分钟。
+     */
     private static final int EMAIL_CODE_TTL_SECONDS = 30 * 60;
-    /** MFA 阶段令牌和最终重置令牌有效期，单位为秒。 */
+    /**
+     * MFA 阶段令牌和最终重置令牌有效期，单位为秒。
+     */
     private static final int ACTION_TOKEN_TTL_SECONDS = 300;
-    /** 开发阶段允许充分手工验收；单次申请连续失败 50 次后仍会立即锁定。 */
+    /**
+     * 开发阶段允许充分手工验收；单次申请连续失败 50 次后仍会立即锁定。
+     */
     private static final int MAX_EMAIL_VERIFY_ATTEMPTS = 50;
-    /** MFA 最大连续失败次数，达到上限后阻断本次流程并触发 MFA 锁定。 */
+    /**
+     * MFA 最大连续失败次数，达到上限后阻断本次流程并触发 MFA 锁定。
+     */
     private static final int MAX_MFA_VERIFY_ATTEMPTS = 5;
-    /** 开发阶段同一应用、同一账号指纹每小时最多申请 50 次；虚拟申请同样计数。 */
+    /**
+     * 开发阶段同一应用、同一账号指纹每小时最多申请 50 次；虚拟申请同样计数。
+     */
     private static final int ACCOUNT_REQUESTS_PER_HOUR = 50;
-    /** 开发阶段同一应用、同一客户端 IP 每小时最多申请 200 次。 */
+    /**
+     * 开发阶段同一应用、同一客户端 IP 每小时最多申请 200 次。
+     */
     private static final int IP_REQUESTS_PER_HOUR = 200;
-    /** 开发阶段同一账号连续申请邮件验证码的最短间隔为 6 秒。 */
+    /**
+     * 开发阶段同一账号连续申请邮件验证码的最短间隔为 6 秒。
+     */
     private static final int RESEND_COOLDOWN_SECONDS = 6;
-    /** TOTP 动态验证码的标准时间步长，单位为秒。 */
+    /**
+     * TOTP 动态验证码的标准时间步长，单位为秒。
+     */
     private static final int MFA_PERIOD_SECONDS = 30;
-    /** TOTP 校验允许前后偏移的时间步数量，用于容忍有限时钟误差。 */
+    /**
+     * TOTP 校验允许前后偏移的时间步数量，用于容忍有限时钟误差。
+     */
     private static final int MFA_WINDOW = 1;
-    /** 审计记录允许保存的 User-Agent 最大字符数。 */
+    /**
+     * 审计记录允许保存的 User-Agent 最大字符数。
+     */
     private static final int MAX_USER_AGENT_LENGTH = 500;
-    /** 邮件验证码长度，单位为字符。 */
+    /**
+     * 邮件验证码长度，单位为字符。
+     */
     private static final int EMAIL_CODE_LENGTH = 6;
-    /** 邮件验证码数字字符池；排除容易与字母混淆的 0 和 1。 */
+    /**
+     * 邮件验证码数字字符池；排除容易与字母混淆的 0 和 1。
+     */
     private static final String EMAIL_CODE_DIGITS = "23456789";
-    /** 邮件验证码小写字母字符池；排除容易与数字 1 混淆的小写 l。 */
+    /**
+     * 邮件验证码小写字母字符池；排除容易与数字 1 混淆的小写 l。
+     */
     private static final String EMAIL_CODE_LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
-    /** 邮件验证码大写字母字符池；排除容易与 0、1 混淆的 O 和 I。 */
+    /**
+     * 邮件验证码大写字母字符池；排除容易与 0、1 混淆的 O 和 I。
+     */
     private static final String EMAIL_CODE_UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    /** 在保证至少包含数字、大小写字母后，其余随机位置使用的完整字符池。 */
+    /**
+     * 在保证至少包含数字、大小写字母后，其余随机位置使用的完整字符池。
+     */
     private static final String EMAIL_CODE_CHARACTERS = EMAIL_CODE_DIGITS
             + EMAIL_CODE_LOWERCASE + EMAIL_CODE_UPPERCASE;
-    /** Redis 中同账号重发冷却窗口的限流作用域。 */
+    /**
+     * Redis 中同账号重发冷却窗口的限流作用域。
+     */
     private static final String RATE_SCOPE_COOLDOWN = "adminPasswordResetCooldown";
-    /** Redis 中同账号小时申请次数的限流作用域。 */
+    /**
+     * Redis 中同账号小时申请次数的限流作用域。
+     */
     private static final String RATE_SCOPE_ACCOUNT = "adminPasswordResetAccount";
-    /** Redis 中同客户端 IP 小时申请次数的限流作用域。 */
+    /**
+     * Redis 中同客户端 IP 小时申请次数的限流作用域。
+     */
     private static final String RATE_SCOPE_IP = "adminPasswordResetIp";
-    /** 邮件验证码验证阶段按 IP 单独限流，避免申请额度掩盖后续爆破。 */
+    /**
+     * 邮件验证码验证阶段按 IP 单独限流，避免申请额度掩盖后续爆破。
+     */
     private static final String RATE_SCOPE_EMAIL_VERIFY_IP = "adminPasswordResetEmailVerifyIp";
-    /** MFA 验证阶段按 IP 单独限流。 */
+    /**
+     * MFA 验证阶段按 IP 单独限流。
+     */
     private static final String RATE_SCOPE_MFA_VERIFY_IP = "adminPasswordResetMfaVerifyIp";
-    /** 最终改密阶段按 IP 单独限流。 */
+    /**
+     * 最终改密阶段按 IP 单独限流。
+     */
     private static final String RATE_SCOPE_CONFIRM_IP = "adminPasswordResetConfirmIp";
-    /** 用于生成和打乱一次性邮件验证码的密码学安全随机数源。 */
+    /**
+     * 用于生成和打乱一次性邮件验证码的密码学安全随机数源。
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final SystemAuthService systemAuthService;
@@ -154,7 +214,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
     private final AccountPasswordHistoryService passwordHistoryService;
     private final AdminConfigService configService;
 
-    /** 创建找回密码服务并注入认证、账号、MFA、会话、请求和邮件能力。 */
+    /**
+     * 创建找回密码服务并注入认证、账号、MFA、会话、请求和邮件能力。
+     */
     public AdminPasswordResetServiceImpl(SystemAuthService systemAuthService,
                                          SysAppMapper appMapper,
                                          SysAccountMapper accountMapper,
@@ -202,7 +264,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
                 normalizeLocale(request.getLocale()), now, false);
     }
 
-    /** 管理员操作只签发重置邮件，不修改密码、不产生临时明文密码，也不提前注销现有会话。 */
+    /**
+     * 管理员操作只签发重置邮件，不修改密码、不产生临时明文密码，也不提前注销现有会话。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -224,7 +288,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
                 normalizeLocale(locale), now, true);
     }
 
-    /** 统一持久化真实或虚拟重置请求，保证匿名和后台发起流程使用同一状态机。 */
+    /**
+     * 统一持久化真实或虚拟重置请求，保证匿名和后台发起流程使用同一状态机。
+     */
     private PasswordResetRequestResponse createResetRequest(SysAppDO app,
                                                             SysAccountDO eligibleAccount,
                                                             String accountFingerprint,
@@ -267,7 +333,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return response;
     }
 
-    /** 校验邮件验证码，成功后根据 MFA 状态签发短期阶段令牌或重置令牌。 */
+    /**
+     * 校验邮件验证码，成功后根据 MFA 状态签发短期阶段令牌或重置令牌。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = PasswordResetVerificationException.class)
@@ -324,7 +392,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return prepareResetToken(row, now);
     }
 
-    /** 校验 TOTP，拒绝过期、重放或锁定验证码，并在成功后签发一次性重置令牌。 */
+    /**
+     * 校验 TOTP，拒绝过期、重放或锁定验证码，并在成功后签发一次性重置令牌。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = PasswordResetVerificationException.class)
@@ -379,7 +449,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return prepareResetToken(row, now);
     }
 
-    /** 原子消费重置令牌，禁止复用当前密码，更新 PBKDF2 哈希并注销全部会话。 */
+    /**
+     * 原子消费重置令牌，禁止复用当前密码，更新 PBKDF2 哈希并注销全部会话。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = PasswordResetVerificationException.class)
@@ -436,6 +508,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return response;
     }
 
+    /**
+     * 查询并校验已启用的管理端应用。
+     */
     private SysAppDO requireAdminApp() {
         SysAppDO app = appMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_ADMIN)
@@ -448,6 +523,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return app;
     }
 
+    /**
+     * 对找回密码申请执行账号、客户端地址和重发冷却限流。
+     */
     private void enforceRequestRateLimit(Long appId, String accountFingerprint, String ip, LocalDateTime now) {
         String accountIdentity = appId + ":" + accountFingerprint;
         enforceDistributedRateLimit(RATE_SCOPE_COOLDOWN, accountIdentity, 1,
@@ -481,7 +559,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         enforceDistributedRateLimit(scope, normalizeIp(clientIp), IP_REQUESTS_PER_HOUR, Duration.ofHours(1));
     }
 
-    /** Redis 提供跨实例原子判定，数据库计数继续作为审计型第二层保护。 */
+    /**
+     * Redis 提供跨实例原子判定，数据库计数继续作为审计型第二层保护。
+     */
     private void enforceDistributedRateLimit(String scope, String identity, int limit, Duration window) {
         SlidingWindowRateLimitResult result = rateLimiter.tryAcquire(scope, identity, limit, window);
         if (!result.allowed()) {
@@ -490,6 +570,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         }
     }
 
+    /**
+     * 加锁查询找回密码请求，并校验请求存在。
+     */
     private SysPasswordResetRequestDO requireLockedRequest(String requestId) {
         SysPasswordResetRequestDO row = resetRequestMapper.selectByRequestNoForUpdate(requestId);
         if (row == null) {
@@ -499,6 +582,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return row;
     }
 
+    /**
+     * 签发一次性密码重置令牌并推进请求状态。
+     */
     private PasswordResetVerifyResponse prepareResetToken(SysPasswordResetRequestDO row, LocalDateTime now) {
         String resetToken = LoginTokenUtils.generateToken();
         row.setResetTokenHash(LoginTokenUtils.hashToken(resetToken));
@@ -512,6 +598,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
                 "Identity verified. Set a new password within five minutes.");
     }
 
+    /**
+     * 构建验证码校验响应。
+     */
     private PasswordResetVerifyResponse verifyResponse(String nextStep, String token, int expireSeconds, String message) {
         PasswordResetVerifyResponse response = new PasswordResetVerifyResponse();
         response.setNextStep(nextStep);
@@ -521,6 +610,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return response;
     }
 
+    /**
+     * 查询管理账号当前未删除的 MFA 配置。
+     */
     private SysAccountMfaDO loadMfa(Long appId, Long accountId) {
         return mfaMapper.selectOne(Wrappers.<SysAccountMfaDO>lambdaQuery()
                 .eq(SysAccountMfaDO::getAppId, appId)
@@ -529,6 +621,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 判断当前记录是否满足后续处理条件。
+     */
     private boolean eligible(SysAccountDO account) {
         return account != null
                 && Objects.equals(account.getStatus(), AuthConstants.ENABLED)
@@ -538,6 +633,12 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
                 && account.getEmailVerifiedAt() != null;
     }
 
+    /**
+     * 将尚未进入终态的找回密码请求标记为已过期。
+     *
+     * @param row 当前找回密码请求
+     * @param now 状态更新时间
+     */
     private void markExpiredIfNecessary(SysPasswordResetRequestDO row, LocalDateTime now) {
         if (!STATE_COMPLETED.equals(row.getState()) && !STATE_BLOCKED.equals(row.getState()) && !STATE_LOCKED.equals(row.getState())) {
             row.setState(STATE_EXPIRED);
@@ -546,6 +647,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         }
     }
 
+    /**
+     * 在事务提交后发送验证码邮件。
+     */
     private void sendVerificationEmailAfterCommit(SysAccountDO account,
                                                   SysPasswordResetRequestDO row,
                                                   String emailCode,
@@ -554,13 +658,15 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
             try {
                 sendVerificationEmail(account, row, emailCode, locale);
             } catch (RuntimeException exception) {
-                log.warn("admin password reset verification email preparation failed, accountId: {}, exceptionType: {}",
+                log.warn("管理员重置密码验证邮件发送失败, event: ADMIN_PASSWORD_RESET_VERIFICATION_EMAIL_FAILED, accountId: {}, exceptionType: {}",
                         account.getId(), exception.getClass().getSimpleName());
             }
         });
     }
 
-    /** 创建验证码邮件任务；后台人工发起时 CLOSED 状态会同步返回失败。 */
+    /**
+     * 创建验证码邮件任务；后台人工发起时 CLOSED 状态会同步返回失败。
+     */
     private void sendVerificationEmail(SysAccountDO account,
                                        SysPasswordResetRequestDO row,
                                        String emailCode,
@@ -583,6 +689,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         }
     }
 
+    /**
+     * 在事务提交后发送操作成功邮件。
+     */
     private void sendSuccessEmailAfterCommit(SysAccountDO account, SysPasswordResetRequestDO row, LocalDateTime now) {
         afterCommit(() -> {
             EmailSendRequest email = baseEmail(account, row, "ADMIN_PASSWORD_RESET_SUCCESS", "PASSWORD_RESET_SUCCESS",
@@ -597,6 +706,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         });
     }
 
+    /**
+     * 构建邮件发送任务基础数据。
+     */
     private EmailSendRequest baseEmail(SysAccountDO account,
                                        SysPasswordResetRequestDO row,
                                        String templateCode,
@@ -613,7 +725,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return email;
     }
 
-    /** 构造带请求号的管理端找回密码入口，管理员发起和登录页发起使用同一页面。 */
+    /**
+     * 构造带请求号的管理端找回密码入口，管理员发起和登录页发起使用同一页面。
+     */
     private String passwordResetUrl(String requestNo) {
         Map<String, String> values = configService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
         String baseUrl = values.get(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL);
@@ -628,21 +742,30 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
                 .toUriString();
     }
 
+    /**
+     * 发送邮件并将通知失败隔离于主业务事务。
+     */
     private void sendEmailSafely(EmailSendRequest email, String purpose, Long accountId) {
         try {
             emailService.sendByTemplate(email);
         } catch (RuntimeException exception) {
-            log.warn("admin {} email enqueue failed, accountId: {}, exceptionType: {}",
+            log.warn("管理员重置密码邮件入队失败, event: ADMIN_PASSWORD_RESET_EMAIL_ENQUEUE_FAILED, purpose: {}, accountId: {}, exceptionType: {}",
                     purpose, accountId, exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 在当前事务成功提交后执行延迟动作。
+     */
     private void afterCommit(Runnable task) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             task.run();
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -650,6 +773,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         });
     }
 
+    /**
+     * 使用常量时间比较安全令牌摘要。
+     */
     private boolean tokenMatches(String rawToken, String expectedHash) {
         if (!StringUtils.hasText(rawToken) || !StringUtils.hasText(expectedHash)) {
             return false;
@@ -659,6 +785,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return MessageDigest.isEqual(actual, expected);
     }
 
+    /**
+     * 生成邮件验证码并限制字符范围。
+     */
     private String generateEmailCode() {
         char[] code = new char[EMAIL_CODE_LENGTH];
         code[0] = randomCharacter(EMAIL_CODE_DIGITS);
@@ -676,10 +805,16 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return new String(code);
     }
 
+    /**
+     * 生成验证码允许字符集中的随机字符。
+     */
     private char randomCharacter(String candidates) {
         return candidates.charAt(SECURE_RANDOM.nextInt(candidates.length()));
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
@@ -693,38 +828,62 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         }
     }
 
+    /**
+     * 构建验证码校验失败异常。
+     */
     private PasswordResetVerificationException verificationFailed() {
         return new PasswordResetVerificationException();
     }
 
+    /**
+     * 判断安全令牌是否已过期。
+     */
     private boolean expired(LocalDateTime expireAt, LocalDateTime now) {
         return expireAt == null || !expireAt.isAfter(now);
     }
 
+    /**
+     * 规范化账户。
+     */
     private String normalizeAccount(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 规范化部署节点 IP。
+     */
     private String normalizeIp(String value) {
         return StringUtils.hasText(value) ? truncate(value.trim(), 64) : "unknown";
     }
 
+    /**
+     * 规范化邮件语言标签，未指定时使用管理端默认语言。
+     */
     private String normalizeLocale(String value) {
         return "en-US".equals(value) ? "en-US" : "zh-CN";
     }
 
+    /**
+     * 构建验证码操作安全通知。
+     */
     private String verificationSecurityNotice(String locale) {
         return "en-US".equals(normalizeLocale(locale))
                 ? "If you did not request this, ignore this email and contact another administrator."
                 : "如非本人操作，请忽略本邮件并联系其他管理员。";
     }
 
+    /**
+     * 构建安全操作成功通知。
+     */
     private String successSecurityNotice(String locale) {
         return "en-US".equals(normalizeLocale(locale))
                 ? "All previous sessions were signed out. Contact another administrator immediately if this was not you."
                 : "所有旧会话均已退出。如非本人操作，请立即联系其他管理员。";
     }
 
+    /**
+     * 按持久化字段上限截断文本。
+     */
     private String truncate(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -733,14 +892,23 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 
+    /**
+     * 将可为空的整数转换为非空计数值。
+     */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
 
+    /**
+     * 将可为空的数据库计数转换为非空长整型值。
+     */
     private long value(Long count) {
         return count == null ? 0L : count;
     }
 
+    /**
+     * 校验并返回大于零的数值。
+     */
     private boolean positive(Long count) {
         return value(count) > 0L;
     }
@@ -753,6 +921,9 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 阻止仅提供静态能力的类型被实例化。
+         */
         private PasswordResetVerificationException() {
             super(ApiResultEnum.UNAUTHORIZED.getCode(), "Verification failed or expired.");
         }

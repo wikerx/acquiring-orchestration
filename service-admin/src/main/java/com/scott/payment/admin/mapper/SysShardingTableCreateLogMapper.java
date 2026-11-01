@@ -5,13 +5,7 @@ import com.scott.payment.admin.entity.SysShardingTableCreateLogDO;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysShardingTableCreateLogMapper
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sys Sharding Table Create Log Mapper 映射组件，位于 运营后台服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
- * @status : create
+ * Sys Sharding Table Create Log 数据访问接口，负责对应持久化记录的查询和写入。
  */
 public interface SysShardingTableCreateLogMapper extends BaseMapper<SysShardingTableCreateLogDO> {
 }

@@ -9,17 +9,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionProductItemMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Mapper for transaction product item snapshots.
- * @status : create
+ * Mapper for transaction product item snapshots.
  */
 public interface TransactionProductItemMapper extends BaseMapper<TransactionProductItemDO> {
 
-    /** Query product lines in the original merchant order sequence. */
+    /**
+     * Query product lines in the original merchant order sequence.
+     */
     @Select("""
             SELECT id, product_item_id, transaction_id, operation_id,
                    merchant_id, merchant_order_no, item_sequence,

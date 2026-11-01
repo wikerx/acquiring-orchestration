@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutSessionMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 会话 Mapper。
- * @status : create
+ * Hosted Checkout 会话 Mapper。
  */
 public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckoutSessionDO> {
 
@@ -288,7 +282,9 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                       @Param("version") Integer version,
                       @Param("now") LocalDateTime now);
 
-    /** 查询已超过付款期限且尚未提交渠道的会话候选。 */
+    /**
+     * 查询已超过付款期限且尚未提交渠道的会话候选。
+     */
     @Select("""
             SELECT *
             FROM payment_checkout_session
@@ -303,7 +299,9 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
     List<PaymentCheckoutSessionDO> selectExpireDue(@Param("now") LocalDateTime now,
                                                    @Param("limit") int limit);
 
-    /** 将从未提交支付的会话按版本 CAS 推进到超时失败状态。 */
+    /**
+     * 将从未提交支付的会话按版本 CAS 推进到超时失败状态。
+     */
     @Update("""
             UPDATE payment_checkout_session
             SET checkout_status = 'FAILED',

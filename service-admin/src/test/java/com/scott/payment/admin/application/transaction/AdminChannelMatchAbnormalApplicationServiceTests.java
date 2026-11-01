@@ -22,18 +22,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelMatchAbnormalApplicationServiceTests
- * @date : 2026-08-08 00:10
- * @email : scott_x@163.com
- * @description : 管理端勾兑异常应用边界测试，验证案件查询由 service-admin 完成且处置客户端不参与只读请求。
- * @status : create
+ * 管理端勾兑异常应用边界测试，验证案件查询由 service-admin 完成且处置客户端不参与只读请求。
  */
 @Slf4j
 class AdminChannelMatchAbnormalApplicationServiceTests {
 
-    /** 勾兑异常分页必须调用本地查询服务。 */
+    /**
+     * 勾兑异常分页必须调用本地查询服务。
+     */
     @Test
     void searchShouldUseLocalQueryService() {
         log.info("用例：验证勾兑异常分页由service-admin本地查询服务执行");
@@ -51,7 +47,9 @@ class AdminChannelMatchAbnormalApplicationServiceTests {
         log.info("结果：案件分页仅访问本地查询服务，Payment客户端未被调用");
     }
 
-    /** 勾兑异常详情必须调用本地查询服务。 */
+    /**
+     * 勾兑异常详情必须调用本地查询服务。
+     */
     @Test
     void detailShouldUseLocalQueryService() {
         log.info("用例：验证勾兑异常详情由service-admin本地查询服务执行");

@@ -11,22 +11,22 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorTimeRangeNormalizer
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 系统监控时间范围规范器，补齐默认二十四小时范围、限制最长七天、转换数据库时区并计算统一时间桶粒度。
- * @status : create
+ * 系统监控时间范围规范器，补齐默认二十四小时范围、限制最长七天、转换数据库时区并计算统一时间桶粒度。
  */
 @Component
 public class MonitorTimeRangeNormalizer {
 
-    /** 交易和管理数据库统一使用的 IANA 时区。 */
+    /**
+     * 交易和管理数据库统一使用的 IANA 时区。
+     */
     public static final String DATABASE_ZONE_ID = "Asia/Shanghai";
-    /** 未提供时间范围时采用的默认查询跨度。 */
+    /**
+     * 未提供时间范围时采用的默认查询跨度。
+     */
     public static final Duration DEFAULT_RANGE = Duration.ofHours(24);
-    /** 单次系统监控查询允许的最大跨度。 */
+    /**
+     * 单次系统监控查询允许的最大跨度。
+     */
     public static final Duration MAX_RANGE = Duration.ofDays(7);
 
     /**

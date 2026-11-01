@@ -36,13 +36,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskManagementApplicationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理端风控评估记录查询测试。
- * @status : create
+ * 管理端风控评估记录查询测试。
  */
 class AdminRiskManagementApplicationServiceTests {
 
@@ -101,12 +95,13 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(MerchantAccessApprovalNotificationService.class)
         );
 
-        List<Map<String, Object>> records = service.pageEvaluations(new RiskDTOs.EvaluationQueryRequest())
+        List<RiskDTOs.RiskEvaluationResponse> records = service.pageEvaluations(
+                        new RiskDTOs.EvaluationQueryRequest())
                 .getRecords();
 
         assertThat(records).hasSize(2);
-        assertThat(records.get(0)).containsEntry("hit_count", 0);
-        assertThat(records.get(1)).containsEntry("hit_count", 3);
+        assertThat(records.get(0).getHitCount()).isZero();
+        assertThat(records.get(1).getHitCount()).isEqualTo(3);
     }
 
     @Test

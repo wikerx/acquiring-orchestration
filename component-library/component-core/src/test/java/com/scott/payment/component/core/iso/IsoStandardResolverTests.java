@@ -10,13 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoStandardResolverTests
- * @date : 2026-06-02 16:05
- * @email : scott_x@163.com
- * @description : ISO 国家与币种工具单元测试
- * @status : create
+ * ISO 国家与币种工具单元测试
  */
 class IsoStandardResolverTests {
 

@@ -16,13 +16,7 @@ import software.amazon.awssdk.services.s3.S3Configuration;
 import java.net.URI;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ObjectStorageConfiguration
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : 对象存储基础设施配置，按 Nacos 参数构建可连接 MinIO 或 AWS S3 的同步客户端
- * @status : create
+ * 对象存储基础设施配置，按 Nacos 参数构建可连接 MinIO 或 AWS S3 的同步客户端
  */
 @Configuration
 @EnableConfigurationProperties(ObjectStorageProperties.class)

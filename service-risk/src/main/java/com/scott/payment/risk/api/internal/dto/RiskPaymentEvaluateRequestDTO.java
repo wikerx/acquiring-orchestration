@@ -10,13 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskPaymentEvaluateRequestDTO
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单支付实时风控评估请求 DTO，位于 service-risk 内部接口 DTO 层；完整卡号只允许在内存中用于名单和频控匹配，禁止写日志、MQ 和交易库。
- * @status : create
+ * 收单支付实时风控评估请求 DTO，位于 service-risk 内部接口 DTO 层；完整卡号只允许在内存中用于名单和频控匹配，禁止写日志、MQ 和交易库。
  */
 @Data
 public class RiskPaymentEvaluateRequestDTO implements Serializable {
@@ -66,6 +60,11 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
     private String requestSource;
 
     /**
+     * 网关认证的接入客户端 IP，仅用于直连商户接入白名单。
+     */
+    private String ingressClientIp;
+
+    /**
      * 交易金额，主币种单位，不能为空且必须大于 0。
      */
     @NotNull(message = "amount is required")
@@ -94,7 +93,7 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
     private String sourceUrl;
 
     /**
-     * 付款人 IP，用于地域、频率和阻断名单判断。
+     * 付款人 IP，用于地域、频率和付款人名单判断，不参与商户接入白名单。
      */
     private String payerIp;
 
@@ -193,25 +192,45 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
      */
     private String billingCity;
 
-    /** 商户体系内付款人 ID。 */
+    /**
+     * 商户体系内付款人 ID。
+     */
     private String payerId;
-    /** 付款人姓名，仅用于内存名单匹配。 */
+    /**
+     * 付款人姓名，仅用于内存名单匹配。
+     */
     private String payerName;
-    /** 付款人邮箱，禁止日志明文输出。 */
+    /**
+     * 付款人邮箱，禁止日志明文输出。
+     */
     private String payerEmail;
-    /** 付款人手机号，禁止日志明文输出。 */
+    /**
+     * 付款人手机号，禁止日志明文输出。
+     */
     private String payerPhone;
-    /** 付款人国家或地区代码。 */
+    /**
+     * 付款人国家或地区代码。
+     */
     private String payerCountry;
-    /** 付款人街道地址。 */
+    /**
+     * 付款人街道地址。
+     */
     private String payerAddress;
-    /** 付款人邮编。 */
+    /**
+     * 付款人邮编。
+     */
     private String payerZip;
-    /** 付款人州、省或区域。 */
+    /**
+     * 付款人州、省或区域。
+     */
     private String payerRegion;
-    /** 付款人城市。 */
+    /**
+     * 付款人城市。
+     */
     private String payerCity;
-    /** 付款会话 ID，仅用于当前风控调用。 */
+    /**
+     * 付款会话 ID，仅用于当前风控调用。
+     */
     private String payerSessionId;
 
     /**
@@ -239,15 +258,25 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
      */
     private String shippingCountry;
 
-    /** 收货人姓名。 */
+    /**
+     * 收货人姓名。
+     */
     private String shippingName;
-    /** 收货人邮箱。 */
+    /**
+     * 收货人邮箱。
+     */
     private String shippingEmail;
-    /** 收货人手机号。 */
+    /**
+     * 收货人手机号。
+     */
     private String shippingPhone;
-    /** 收货州、省或区域。 */
+    /**
+     * 收货州、省或区域。
+     */
     private String shippingRegion;
-    /** 收货城市。 */
+    /**
+     * 收货城市。
+     */
     private String shippingCity;
 
     /**

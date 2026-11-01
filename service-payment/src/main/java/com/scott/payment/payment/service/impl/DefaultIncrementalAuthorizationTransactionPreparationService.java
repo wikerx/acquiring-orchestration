@@ -11,6 +11,7 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -48,98 +49,56 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultIncrementalAuthorizationTransactionPreparationService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Incremental Authorization 本地准备默认实现，确保渠道增量授权调用前提交幂等、动作单、渠道请求 INIT 和恢复入口。
- * @status : create
+ * 增量授权交易的本地准备服务。
+ *
+ * <p>在原授权主单锁内校验当前授权状态和未决资金动作，随后原子写入幂等占位、动作单、固定渠道请求
+ * 身份及 Outbox。上层只能在准备事务提交后调用渠道，避免并发增额基于同一旧授权额度重复通过。</p>
  */
 @Service
 public class DefaultIncrementalAuthorizationTransactionPreparationService implements IncrementalAuthorizationTransactionPreparationService {
 
     /**
-     * {@code CHANNEL_REQUEST_ID_PREFIX}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
-     * </p>
+     * 渠道请求记录号前缀；准备阶段生成后固定，供超时恢复、查询和回调关联。
      */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
     /**
-     * {@code CHANNEL_TRANSACTION_ID_PREFIX}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
-     * </p>
+     * 平台侧渠道交易号前缀；真实外呼和重试必须复用准备阶段生成的同一编号。
      */
     private static final String CHANNEL_TRANSACTION_ID_PREFIX = "CH";
 
     /**
-     * 交易动作范围常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易动作幂等作用域，避免与其他业务域的同名键互相覆盖。
      */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
     /**
-     * 默认时间时区常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 未显式提供时区时用于计算 UTC 分片时间的业务默认时区。
      */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
     /**
-     * {@code PAYMENT_TRANSACTION_AGGREGATE}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * Outbox 聚合类型，保证同一支付生命周期的事件按 operationId 聚合。
      */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
 
     /**
-     * {@code EVENT_STATUS_INIT}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * Outbox 初始状态，表示业务事实已提交但消息尚未投递。
      */
     private static final String EVENT_STATUS_INIT = "INIT";
 
     /**
-     * {@code DEFAULT_EVENT_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * Outbox 最大投递次数，超过上限后停止自动重试并进入人工处置。
      */
     private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
 
     /**
-     * 初始版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 新增记录的乐观锁初始版本。
      */
     private static final int INITIAL_VERSION = 0;
 
     /**
-     * {@code NOT_DELETED}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 新增记录的逻辑未删除标识。
      */
     private static final int NOT_DELETED = 0;
 
@@ -155,6 +114,16 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
 
     private final TransactionStateMachineService transactionStateMachineService;
 
+    /**
+     * 创建增量授权本地准备服务。
+     *
+     * @param isoDictionaryService 币种辅币位字典
+     * @param paymentChannelRouteService 原交易渠道和原 MID 恢复服务
+     * @param transactionIdempotencyService 动作幂等服务
+     * @param transactionEventOutboxService 可靠交易事件服务
+     * @param transactionRecordService 交易事实持久化服务
+     * @param transactionStateMachineService 增量授权金额和状态规则服务
+     */
     public DefaultIncrementalAuthorizationTransactionPreparationService(
             IsoDictionaryService isoDictionaryService,
             PaymentChannelRouteService paymentChannelRouteService,
@@ -189,7 +158,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         TransactionOrderDO resolvedSourceOrderDO = resolveSourceOrder(commandDTO);
+        // 主单锁把增量授权、请款和撤销对授权额度的竞争收敛为单点串行决策。
         TransactionOrderDO sourceOrderDO = lockSourceOrder(resolvedSourceOrderDO);
+        // 锁内使用数据库权威原交易身份计算指纹，阻止同一商户操作号替换金额或币种后重放。
         commandDTO.setRequestFingerprint(canonicalIncrementalAuthorizationRequestFingerprint(commandDTO, sourceOrderDO));
         return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .map(record -> IncrementalAuthorizationPreparationResultDTO.duplicate(
@@ -207,10 +178,18 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             String idempotencyKey,
             TransactionOrderDO sourceOrderDO) {
         if (transactionStateMachineService == null) {
-            throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(), "transaction state machine is not configured");
+            throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
+                    "transaction state machine is not configured");
         }
+        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan = calculateIncrementalAuthorizationAmountPlan(
+                commandDTO, sourceOrderDO);
+        applyIncrementalAuthorizationAmountPlan(commandDTO, sourceOrderDO, amountPlan);
+        // 状态机和未决动作扫描必须基于持锁后的同一快照，否则并发增额可能同时通过。
         transactionStateMachineService.validateFollowUpAction(
-                sourceOrderDO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION, commandDTO.getAmount(), commandDTO.getCurrency());
+                sourceOrderDO,
+                PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION,
+                commandDTO.getTransactionAmount(),
+                commandDTO.getTransactionCurrency());
         validateNoConflictingAuthorizationAction(commandDTO, sourceOrderDO, LocalDateTime.now());
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
@@ -224,21 +203,24 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 DEFAULT_TIME_ZONE,
                 commandDTO.getRequestFingerprint(),
                 now);
+        // 数据库唯一约束处理跨节点竞争；失败方只能复用同指纹的权威结果，不能创建第二个渠道请求。
         if (!transactionIdempotencyService.tryBegin(beginRecord)) {
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                     .map(record -> IncrementalAuthorizationPreparationResultDTO.duplicate(
                             resolveDuplicateIncrementalAuthorization(commandDTO, record)))
-                    .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                            "incremental authorization idempotency conflict record is missing"));
         }
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
                 commandDTO.getTransactionInfo().getSourceTransactionId(),
                 commandDTO.getTransactionInfo().getSourceTransactionDateTime());
-        normalizeIncrementalAuthorizationCommand(commandDTO, sourceOrderDO, sourceOperationDO);
+        bindIncrementalAuthorizationSourceChannelTransaction(commandDTO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildIncrementalAuthorizationResult(commandDTO, sourceOrderDO, transactionId);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         PaymentRouteResultDTO routeResultDTO;
         try {
+            // 增量授权必须沿用原授权冻结的渠道和 MID，重新路由会破坏渠道侧授权链。
             routeResultDTO = OriginalTransactionRouteResolver.restore(
                     paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
         } catch (ServiceException exception) {
@@ -271,6 +253,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         PaymentPreparedChannelRequestDTO preparedChannelRequestDTO = prepareChannelRequest(commandDTO, sourceOrderDO);
         PaymentChannelInvokeResultDTO preparedInvokeResultDTO = buildPreparedInvokeResult(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);
+        // 动作事实、固定请求身份和恢复事件先提交；上层看到 callChannel=true 后才执行真实渠道外呼。
         recordIncrementalAuthorizationPreparedFact(
                 commandDTO, sourceOrderDO, routeResultDTO, preparedInvokeResultDTO, resultDTO, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
@@ -288,6 +271,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return target;
     }
 
+    /**
+     * 读取并校验原交易主单。
+     */
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         String sourceTransactionId = transactionInfoDTO.getSourceTransactionId();
@@ -301,7 +287,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return sourceOrderDO;
     }
 
-    /** 锁定原授权主单，串行化增量授权与请款、预授权完成和撤销的额度竞争。 */
+    /**
+     * 锁定原授权主单，串行化增量授权与请款、预授权完成和撤销的额度竞争。
+     */
     private TransactionOrderDO lockSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null
                 || !StringUtils.hasText(sourceOrderDO.getOperationId())
@@ -311,7 +299,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return transactionRecordService.lockOrder(sourceOrderDO.getTransactionDateTime(), sourceOrderDO.getOperationId());
     }
 
-    /** 拒绝任何处理中请款、增量授权或撤销动作，确保增额基于确定的授权累计值。 */
+    /**
+     * 拒绝任何处理中请款、增量授权或撤销动作，确保增额基于确定的授权累计值。
+     */
     private void validateNoConflictingAuthorizationAction(PaymentCreateCommandDTO commandDTO,
                                                           TransactionOrderDO sourceOrderDO,
                                                           LocalDateTime now) {
@@ -320,24 +310,27 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         List<TransactionOperationDO> incrementalAuthorizations = transactionRecordService.findNonTerminalIncrementalAuthorizations(
                 commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), beginTime, endTime);
         if (!incrementalAuthorizations.isEmpty()) {
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+            throw new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode(),
                     "source transaction has a pending incremental authorization action");
         }
         String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
         List<TransactionOperationDO> captures = transactionRecordService.findNonTerminalCaptures(
                 commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), sourceTransactionId, beginTime, endTime);
         if (!captures.isEmpty()) {
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+            throw new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode(),
                     "source transaction has a pending capture action");
         }
         List<TransactionOperationDO> voids = transactionRecordService.findNonTerminalVoids(
                 commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), beginTime, endTime);
         if (!voids.isEmpty()) {
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+            throw new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode(),
                     "source transaction has a pending void action");
         }
     }
 
+    /**
+     * 返回两个时间中的较晚值。
+     */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
             return second;
@@ -348,29 +341,34 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return first.isAfter(second) ? first : second;
     }
 
-    /** 仅在请求指纹一致且原记录已有交易号时复用增量授权幂等结果。 */
+    /**
+     * 仅在请求指纹一致且原记录已有交易号时复用增量授权幂等结果。
+     */
     private PaymentCreateResultDTO resolveDuplicateIncrementalAuthorization(PaymentCreateCommandDTO commandDTO,
                                                                             TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getRequestFingerprint())
                 && !Objects.equals(record.getRequestFingerprint(), commandDTO.getRequestFingerprint())) {
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+            throw new ServiceException(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode(),
                     "merchant operation number already has a different request");
         }
         if (!StringUtils.hasText(record.getTransactionId())) {
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+            throw new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode(),
                     "merchant operation is being processed");
         }
         return toDuplicateResult(record);
     }
 
-    /** 对原交易、增额金额、币种和商户操作号生成稳定增量授权请求指纹。 */
+    /**
+     * 对原交易、增额金额、币种和商户操作号生成稳定增量授权请求指纹。
+     */
     private String canonicalIncrementalAuthorizationRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                                        TransactionOrderDO sourceOrderDO) {
         String sourceTransactionId = commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
         String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
                 ? commandDTO.getCurrency()
-                : sourceOrderDO == null ? null : sourceOrderDO.getTransactionCurrency();
+                : sourceOrderDO == null ? null : firstText(
+                        sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
         String canonical = String.join("|",
                 "v1",
                 "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
@@ -386,24 +384,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析指纹文本，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
+     * 指纹文本统一去除首尾空白并转大写，避免大小写差异绕过幂等冲突检测。
      */
     private String normalizeFingerprintText(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
-     * 解析指纹金额，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
-     * @return 构造、转换或解析后的业务值
+     * 指纹金额去除无意义尾零，使等值十进制金额命中同一幂等请求。
      */
     private String normalizeFingerprintAmount(BigDecimal amount) {
         if (amount == null) {
@@ -412,6 +400,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return amount.stripTrailingZeros().toPlainString();
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String source) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -423,24 +414,58 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析{@code normalizeIncrementalAuthorizationCommand}，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param sourceOrderDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param sourceOperationDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     * 按首笔授权冻结汇率计算增量授权的标签金额和渠道交易金额。
+     *
+     * @param commandDTO 增量授权命令
+     * @param sourceOrderDO 已锁定的原授权主单
+     * @return 冻结汇率金额方案
      */
-    private void normalizeIncrementalAuthorizationCommand(PaymentCreateCommandDTO commandDTO,
-                                                         TransactionOrderDO sourceOrderDO,
-                                                         TransactionOperationDO sourceOperationDO) {
+    private FrozenRateFollowUpAmountCalculator.AmountPlan calculateIncrementalAuthorizationAmountPlan(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOrderDO sourceOrderDO) {
+        String labelCurrency = firstText(sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
+        return FrozenRateFollowUpAmountCalculator.calculateIncrementalAuthorization(
+                sourceOrderDO,
+                commandDTO.getAmount(),
+                commandDTO.getCurrency(),
+                resolveCurrencyExponent(labelCurrency),
+                resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency()));
+    }
+
+    /**
+     * 把增量授权的标签口径、渠道交易口径和首笔冻结汇率写入内部命令。
+     *
+     * @param commandDTO 待归一的增量授权命令
+     * @param sourceOrderDO 原授权主单
+     * @param amountPlan 冻结汇率金额方案
+     */
+    private void applyIncrementalAuthorizationAmountPlan(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOrderDO sourceOrderDO,
+            FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan) {
         validateIncrementalAuthorizationMerchantOrderNo(commandDTO, sourceOrderDO);
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
-        commandDTO.setLabelCurrency(StringUtils.hasText(commandDTO.getCurrency())
-                ? normalizeCurrency(commandDTO.getCurrency())
-                : sourceOrderDO.getTransactionCurrency());
-        commandDTO.setLabelAmount(commandDTO.getAmount());
-        commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
+        commandDTO.setLabelCurrency(amountPlan.labelCurrency());
+        commandDTO.setLabelAmount(amountPlan.labelAmount());
+        commandDTO.setTransactionCurrency(amountPlan.transactionCurrency());
+        commandDTO.setTransactionAmount(amountPlan.transactionAmount());
+        commandDTO.setTransactionRate(amountPlan.transactionRate());
+        commandDTO.setRateSource(amountPlan.rateSource());
+        commandDTO.setRateTime(amountPlan.rateTime());
+        commandDTO.setDccEnabled(amountPlan.dccEnabled());
+        commandDTO.setEdcEnabled(amountPlan.edcEnabled());
+    }
+
+    /**
+     * 绑定原授权的渠道交易号，确保增量授权继续原渠道授权链。
+     *
+     * @param commandDTO 增量授权命令
+     * @param sourceOrderDO 原授权主单
+     * @param sourceOperationDO 原授权动作单
+     */
+    private void bindIncrementalAuthorizationSourceChannelTransaction(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOperationDO sourceOperationDO) {
         if (sourceOperationDO == null || !StringUtils.hasText(sourceOperationDO.getChannelTransactionId())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "source channel transaction id is required for INCREMENTAL_AUTHORIZATION");
@@ -448,13 +473,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         if (commandDTO.getTransactionInfo() != null) {
             commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
         }
-        commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setTransactionAmount(commandDTO.getAmount());
-        commandDTO.setTransactionRate(defaultTransactionRate());
-        commandDTO.setRateSource(null);
-        commandDTO.setRateTime(null);
-        commandDTO.setDccEnabled(0);
-        commandDTO.setEdcEnabled(0);
     }
 
     /**
@@ -476,6 +494,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         }
     }
 
+    /**
+     * 构建增量授权结果。
+     */
     private PaymentCreateResultDTO buildIncrementalAuthorizationResult(PaymentCreateCommandDTO commandDTO,
                                                                        TransactionOrderDO sourceOrderDO,
                                                                        String transactionId) {
@@ -488,11 +509,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         resultDTO.setMerchantId(commandDTO.getMerchantId());
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
-        resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        resultDTO.setAmount(toMinorAmount(commandDTO.getAmount(), sourceOrderDO.getTransactionCurrency()));
+        resultDTO.setCurrency(commandDTO.getTransactionCurrency());
+        resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
         return resultDTO;
     }
 
+    /**
+     * 构建渠道请求并补齐冻结路由身份。
+     */
     private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
                                                                   TransactionOrderDO sourceOrderDO) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
@@ -502,6 +526,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return prepared;
     }
 
+    /**
+     * 构建待提交的渠道调用结果。
+     */
     private PaymentChannelInvokeResultDTO buildPreparedInvokeResult(PaymentCreateCommandDTO commandDTO,
                                                                     PaymentRouteResultDTO routeResultDTO,
                                                                     String operationId,
@@ -534,7 +561,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return invokeResultDTO;
     }
 
-    /** 在渠道调用前持久化增量授权动作及请求事实，失败或重试不得重复占用授权额度。 */
+    /**
+     * 在渠道调用前持久化增量授权动作及请求事实，失败或重试不得重复占用授权额度。
+     */
     private void recordIncrementalAuthorizationPreparedFact(PaymentCreateCommandDTO commandDTO,
                                                             TransactionOrderDO sourceOrderDO,
                                                             PaymentRouteResultDTO routeResultDTO,
@@ -551,7 +580,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         transactionRecordService.recordFollowUpTransaction(recordDTO);
     }
 
-    /** 将增量授权创建事件写入同一交易生命周期的 FIFO Outbox。 */
+    /**
+     * 将增量授权创建事件写入同一交易生命周期的 FIFO Outbox。
+     */
     private void saveTransactionCreatedEvent(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId(resultDTO.getTransactionId());
@@ -594,7 +625,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         transactionEventOutboxService.save(eventDO);
     }
 
-    /** 保存增量授权准备结果快照，重复请求只能返回原结果且禁止重复调用渠道。 */
+    /**
+     * 保存增量授权准备结果快照，重复请求只能返回原结果且禁止重复调用渠道。
+     */
     private void completeIdempotency(String idempotencyKey, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         transactionIdempotencyService.complete(
                 TRANSACTION_OPERATION_SCOPE,
@@ -607,11 +640,15 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 JsonUtils.toJsonString(resultDTO));
     }
 
+    /**
+     * 构建幂等重复请求的返回结果。
+     */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
-                return resultDTO;
+                return PaymentPersistedResultSupport.overwriteLatestIdempotencyStatus(
+                        resultDTO, record.getTransactionStatus());
             }
         }
         PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
@@ -629,11 +666,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 构造{@code enrichIncrementalAuthorizationResult}对象，完成字段复制、格式标准化和敏感数据处理。
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param sourceOrderDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * 使用原授权累计金额与本次交易事实补全增量授权响应，不暴露渠道原始敏感载荷。
      */
     private void enrichIncrementalAuthorizationResult(PaymentCreateCommandDTO commandDTO,
                                                       TransactionOrderDO sourceOrderDO,
@@ -656,7 +689,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         resultDTO.setPaymentMethod(sourceOrderDO.getPaymentMethod());
         resultDTO.setPaymentBrand(sourceOrderDO.getPaymentBrand());
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
-        enrichMerchantResponse(resultDTO, channelResponse);
+        enrichMerchantResponse(resultDTO);
         resultDTO.setTotalAuthorizedAmount(sourceOrderDO.getAuthorizedAmount());
         resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
@@ -665,12 +698,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析回调地址，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
+     * 后续动作优先使用本次回调地址，未提供时继承交易信息中的原回调地址。
      */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
@@ -682,46 +710,16 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return null;
     }
 
-    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO,
-                                        com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse) {
-        resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
-        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO, channelResponse));
+    /**
+     * 补充商户可见响应字段。
+     */
+    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
+        PaymentOpenApiResultSupport.applyMerchantProjection(resultDTO);
     }
 
-    private String resolveMerchantResponseCode(String transactionStatus) {
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getCode();
-        }
-        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getCode();
-        }
-        return ApiResultEnum.PROCESSING.getCode();
-    }
-
-    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO,
-                                                  com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse response) {
-        if (resultDTO == null) {
-            return ApiResultEnum.PROCESSING.getMessage();
-        }
-        if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
-            return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
-                    ? ApiResultEnum.PAYMENT_SUCCESS.getMessage()
-                    : ApiResultEnum.PROCESSING.getMessage();
-        }
-        if (response == null || "ERROR".equalsIgnoreCase(response.getRawChannelStatus())) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        return firstText(joinCodeAndMessage(response.getChannelResponseCode(), response.getChannelResponseMessage()),
-                ApiResultEnum.PAYMENT_REJECTED.getMessage());
-    }
-
-    private String joinCodeAndMessage(String code, String message) {
-        if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
-            return code + ": " + message;
-        }
-        return firstText(code, message);
-    }
-
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -734,13 +732,19 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return null;
     }
 
+    /**
+     * 解析渠道订单号。
+     */
     private String resolveChannelOrderNo(TransactionOrderDO sourceOrderDO) {
-        return StringUtils.hasText(sourceOrderDO.getRootTransactionId())
-                ? sourceOrderDO.getRootTransactionId()
-                : sourceOrderDO.getLatestTransactionId();
+        return firstText(
+                sourceOrderDO.getChannelOrderNo(),
+                sourceOrderDO.getRootTransactionId(),
+                sourceOrderDO.getLatestTransactionId());
     }
 
-    /** 按 ISO 4217 币种精度精确转换最小货币单位，超精度输入直接失败。 */
+    /**
+     * 按 ISO 4217 币种精度精确转换最小货币单位，超精度输入直接失败。
+     */
     private Long toMinorAmount(BigDecimal amount, String currency) {
         try {
             return isoDictionaryService.toMinorUnit(amount, currency);
@@ -749,6 +753,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         }
     }
 
+    /**
+     * 解析币种辅币位数。
+     */
     private int resolveCurrencyExponent(String currency) {
         IsoCurrencyInfo currencyInfo = isoDictionaryService.getCurrency(currency)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency can not be resolved"));
@@ -758,14 +765,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return currencyInfo.defaultFractionDigits();
     }
 
-    private String normalizeCurrency(String currency) {
-        return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private BigDecimal defaultTransactionRate() {
-        return new BigDecimal("1.00000000");
-    }
-
+    /**
+     * 转换为响应中的子商户信息。
+     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -788,6 +790,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return isEmptySubMerchantInfo(target) ? null : target;
     }
 
+    /**
+     * 判断子商户信息是否为空。
+     */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || java.util.stream.Stream.of(
                 value.getSubId(),
@@ -806,6 +811,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 value.getChargeType()).allMatch(item -> !StringUtils.hasText(item));
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();

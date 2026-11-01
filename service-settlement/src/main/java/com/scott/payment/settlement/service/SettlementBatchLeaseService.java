@@ -6,13 +6,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchLeaseService
- * @date : 2026-08-26 22:30
- * @email : scott_x@163.com
- * @description : 结算批次数据库处理租约边界，提供跨实例排他获取和续租，不使用 Redis 或 JVM 锁代替主库状态。
- * @status : create
+ * 结算批次数据库处理租约边界，提供跨实例排他获取和续租，不使用 Redis 或 JVM 锁代替主库状态。
  */
 public interface SettlementBatchLeaseService {
 

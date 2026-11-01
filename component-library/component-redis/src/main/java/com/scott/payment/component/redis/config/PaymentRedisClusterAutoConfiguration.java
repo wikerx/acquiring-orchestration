@@ -27,13 +27,7 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisClusterAutoConfiguration
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 统一配置 Lettuce Master 读取策略和条件化 Redisson Cluster 客户端。
- * @status : create
+ * 统一配置 Lettuce Master 读取策略和条件化 Redisson Cluster 客户端。
  */
 @AutoConfiguration
 @ConditionalOnClass({RedissonClient.class, LettuceClientConfigurationBuilderCustomizer.class})
@@ -85,6 +79,13 @@ public class PaymentRedisClusterAutoConfiguration {
         );
     }
 
+    /**
+     * 根据 Spring Redis Cluster 和受控连接池配置构建 Redisson 客户端配置。
+     *
+     * @param redisProperties Spring Redis 连接配置
+     * @param redissonProperties Redisson 线程、连接池和超时配置
+     * @return 已校验的 Redisson 配置
+     */
     static Config buildRedissonConfig(RedisProperties redisProperties,
                                       PaymentRedissonProperties redissonProperties) {
         List<String> nodes = redisProperties.getCluster() == null

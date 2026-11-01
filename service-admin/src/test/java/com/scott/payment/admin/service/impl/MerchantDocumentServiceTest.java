@@ -31,38 +31,44 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantDocumentServiceTest
- * @date : 2026-09-14 19:15
- * @email : scott_x@163.com
- * @description : 商户资料对象存储单元测试，覆盖文件魔数、完整性摘要和删除一致性
- * @status : create
+ * 商户资料对象存储单元测试，覆盖文件魔数、完整性摘要和删除一致性
  */
 @Slf4j
 @ExtendWith(MockitoExtension.class)
 class MerchantDocumentServiceTest {
 
-    /** 商户主档数据访问替身。 */
+    /**
+     * 商户主档数据访问替身。
+     */
     @Mock
     private BaseMerchantInfoMapper merchantInfoMapper;
 
-    /** 文件元数据访问替身。 */
+    /**
+     * 文件元数据访问替身。
+     */
     @Mock
     private BizDocumentMapper documentMapper;
 
-    /** 对象存储 Bean 提供器替身。 */
+    /**
+     * 对象存储 Bean 提供器替身。
+     */
     @Mock
     private ObjectProvider<ObjectStorageService> storageProvider;
 
-    /** 对象存储实现替身。 */
+    /**
+     * 对象存储实现替身。
+     */
     @Mock
     private ObjectStorageService storageService;
 
-    /** 被测商户资料服务。 */
+    /**
+     * 被测商户资料服务。
+     */
     private MerchantDocumentService service;
 
-    /** 初始化 MyBatis-Plus 元数据和非敏感存储配置。 */
+    /**
+     * 初始化 MyBatis-Plus 元数据和非敏感存储配置。
+     */
     @BeforeEach
     void setUp() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -76,7 +82,9 @@ class MerchantDocumentServiceTest {
         service = new MerchantDocumentService(merchantInfoMapper, documentMapper, storageProvider, properties);
     }
 
-    /** PDF 文件应按魔数识别并只把私有对象定位保存到数据库。 */
+    /**
+     * PDF 文件应按魔数识别并只把私有对象定位保存到数据库。
+     */
     @Test
     void shouldUploadPdfAndPersistMetadata() {
         log.info("测试商户资料上传，关键输入: PDF魔数, 文件大小=9字节");
@@ -98,7 +106,9 @@ class MerchantDocumentServiceTest {
         log.info("商户资料上传完成，结果: MIME由魔数识别，数据库仅保存元数据和私有对象键");
     }
 
-    /** 扩展名或请求 MIME 合法但文件魔数非法时必须拒绝上传。 */
+    /**
+     * 扩展名或请求 MIME 合法但文件魔数非法时必须拒绝上传。
+     */
     @Test
     void shouldRejectFileWithUnsupportedMagicBytes() {
         log.info("测试商户资料魔数校验，关键输入: filename=license.pdf, 实际正文=plain text");
@@ -114,7 +124,9 @@ class MerchantDocumentServiceTest {
         log.info("商户资料魔数校验完成，结果: 扩展名伪装文件被拒绝且无存储副作用");
     }
 
-    /** 下载对象摘要与数据库记录不一致时必须拒绝返回文件正文。 */
+    /**
+     * 下载对象摘要与数据库记录不一致时必须拒绝返回文件正文。
+     */
     @Test
     void shouldRejectDownloadWhenSha256DoesNotMatch() {
         log.info("测试商户资料下载完整性，关键输入: 数据库摘要与对象正文不一致");
@@ -130,7 +142,9 @@ class MerchantDocumentServiceTest {
         log.info("商户资料下载完整性完成，结果: 摘要不一致时未向控制器返回文件正文");
     }
 
-    /** 无活动事务同步时，软删除元数据成功后应立即删除对象正文。 */
+    /**
+     * 无活动事务同步时，软删除元数据成功后应立即删除对象正文。
+     */
     @Test
     void shouldDeleteObjectAfterMetadataIsSoftDeleted() {
         log.info("测试商户资料删除，关键输入: documentId=10, 无活动事务同步");
@@ -145,7 +159,9 @@ class MerchantDocumentServiceTest {
         log.info("商户资料删除完成，结果: 元数据软删除成功后对象正文已清理");
     }
 
-    /** 构造不包含真实资料的测试商户。 */
+    /**
+     * 构造不包含真实资料的测试商户。
+     */
     private BaseMerchantInfoDO existingMerchant() {
         BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
         merchant.setId(1L);
@@ -154,7 +170,9 @@ class MerchantDocumentServiceTest {
         return merchant;
     }
 
-    /** 构造不包含真实文件内容的测试资料元数据。 */
+    /**
+     * 构造不包含真实文件内容的测试资料元数据。
+     */
     private BizDocumentDO existingDocument() {
         BizDocumentDO document = new BizDocumentDO();
         document.setId(10L);

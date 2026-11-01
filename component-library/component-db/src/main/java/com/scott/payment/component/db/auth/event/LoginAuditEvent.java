@@ -3,13 +3,7 @@ package com.scott.payment.component.db.auth.event;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LoginAuditEvent
- * @date : 2026-08-02 22:00
- * @email : scott_x@163.com
- * @description : 管理端与商户端登录审计事件，隔离认证事务和异步审计持久化，事件不得携带密码、验证码或令牌
- * @status : create
+ * 管理端与商户端登录审计事件，隔离认证事务和异步审计持久化，事件不得携带密码、验证码或令牌
  *
  * @param eventId 审计事件唯一编号，用于 Outbox 和消费端数据库幂等
  * @param appId 登录应用主键

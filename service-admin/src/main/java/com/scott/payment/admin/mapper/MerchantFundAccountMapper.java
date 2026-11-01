@@ -7,21 +7,19 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFundAccountMapper
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户资金账户开户、查询和余额变更锁数据访问。
- * @status : create
+ * 商户资金账户开户、查询和余额变更锁数据访问。
  */
 public interface MerchantFundAccountMapper extends BaseMapper<MerchantFundAccountDO> {
 
-    /** 按主键锁定资金账户，保证余额变更和流水入账串行执行。 */
+    /**
+     * 按主键锁定资金账户，保证余额变更和流水入账串行执行。
+     */
     @Select("SELECT * FROM merchant_fund_account WHERE id = #{id} AND deleted = 0 FOR UPDATE")
     MerchantFundAccountDO selectByIdForUpdate(@Param("id") Long id);
 
-    /** 幂等创建零余额账户，唯一索引兜底商户重复开户。 */
+    /**
+     * 幂等创建零余额账户，唯一索引兜底商户重复开户。
+     */
     @Insert("""
             INSERT IGNORE INTO merchant_fund_account (
                 account_no, merchant_id, settlement_currency, available_balance,

@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalClientConfig
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 清分管理内部客户端的直连和服务发现 HTTP 配置。
- * @status : create
+ * 清分管理内部客户端的直连和服务发现 HTTP 配置。
  */
 @Configuration
 @EnableConfigurationProperties(ClearingInternalClientProperties.class)
@@ -59,11 +53,14 @@ public class ClearingInternalClientConfig {
                                      TraceIdRestTemplateInterceptor interceptor,
                                      ClearingInternalClientProperties properties) {
         validate(properties);
-        return builder.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+        return builder.connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .readTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .additionalInterceptors(interceptor).build();
     }
 
+    /**
+     * 校验输入是否满足当前业务约束。
+     */
     private void validate(ClearingInternalClientProperties properties) {
         properties.validate();
     }

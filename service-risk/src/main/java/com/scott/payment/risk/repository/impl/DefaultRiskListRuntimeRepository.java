@@ -16,11 +16,9 @@ import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.config.RiskRuleCacheMode;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitReservation;
-import com.scott.payment.risk.domain.FrequencySuccessReservationResult;
 import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
-import com.scott.payment.risk.domain.RiskRuntimeCacheEntry;
 import com.scott.payment.risk.domain.RiskRuleSnapshot;
 import com.scott.payment.risk.domain.RiskRuleSnapshotRow;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
@@ -28,6 +26,8 @@ import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import com.scott.payment.risk.observability.RiskShadowComparisonMonitor;
 import com.scott.payment.risk.repository.RiskListRuntimeRepository;
+import com.scott.payment.risk.repository.runtime.FrequencyRuleRuntime;
+import com.scott.payment.risk.repository.runtime.RiskRuleCacheRuntime;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
 import com.scott.payment.risk.service.FrequencySuccessReservationService;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +48,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,43 +57,52 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskListRuntimeRepository
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Redis 优先的风控运行时仓储。
- * @status : create
+ * Redis 优先的风控运行时仓储。
  */
 @Slf4j
 @Service
 public class DefaultRiskListRuntimeRepository implements RiskListRuntimeRepository {
 
-    /** 金额进入 Redis Lua 前采用的固定小数位数，转换过程禁止隐式舍入。 */
+    /**
+     * 金额进入 Redis Lua 前采用的固定小数位数，转换过程禁止隐式舍入。
+     */
     private static final int INTERNAL_AMOUNT_SCALE = 6;
 
-    /** 规则 generation 状态使用的兼容命名空间，不直接作为新业务 Key 前缀。 */
+    /**
+     * 规则 generation 状态使用的兼容命名空间，不直接作为新业务 Key 前缀。
+     */
     private static final String RULE_CACHE_NAMESPACE = "risk-runtime-rule";
 
-    /** Lua 双精度整数可精确表达的上限，超过该值时拒绝执行资金计数脚本。 */
+    /**
+     * Lua 双精度整数可精确表达的上限，超过该值时拒绝执行资金计数脚本。
+     */
     private static final long MAX_SAFE_LUA_INTEGER = 9_007_199_254_740_991L;
 
-    /** 按规则时区自然日累计的限额类型。 */
+    /**
+     * 按规则时区自然日累计的限额类型。
+     */
     private static final String LIMIT_TYPE_DAILY = "DAILY";
 
-    /** 按规则时区周一至周日累计的限额类型。 */
+    /**
+     * 按规则时区周一至周日累计的限额类型。
+     */
     private static final String LIMIT_TYPE_WEEKLY = "WEEKLY";
 
-    /** 按规则时区自然月累计的限额类型。 */
+    /**
+     * 按规则时区自然月累计的限额类型。
+     */
     private static final String LIMIT_TYPE_MONTHLY = "MONTHLY";
 
-    /** 受版本控制的 Redis Lua 脚本类路径，脚本文件名仅由代码内常量提供。 */
+    /**
+     * 受版本控制的 Redis Lua 脚本类路径，脚本文件名仅由代码内常量提供。
+     */
     private static final String SCRIPT_BASE_PATH = "META-INF/payment/redis/scripts/v1/";
 
-    /** 持久化累计限额预占使用的唯一 Redis 计数投影标识。 */
+    /**
+     * 持久化累计限额预占使用的唯一 Redis 计数投影标识。
+     */
     private static final String CLUSTER_SAFE_COUNTER_MODE = "CLUSTER_SAFE";
 
     private static final DefaultRedisScript<Long> MERCHANT_LIMIT_RESERVE_SCRIPT =
@@ -101,60 +111,22 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     private static final DefaultRedisScript<Long> MERCHANT_LIMIT_ROLLBACK_SCRIPT =
             redisScript("merchant-limit-rollback.lua");
 
-    private static final DefaultRedisScript<Long> FREQUENCY_INCREMENT_SCRIPT =
-            redisScript("frequency-increment.lua");
-
     /**
      * 原子替换单个精确名单 Hash，避免读路径观察到只写入一部分字段的快照。
      */
     private static final DefaultRedisScript<Long> RISK_HASH_SNAPSHOT_REPLACE_SCRIPT =
             redisScript("risk-hash-snapshot-replace.lua");
 
-    /** 精确名单 Hash 内保存 generation、loaded 和 count 的保留字段。 */
+    /**
+     * 精确名单 Hash 内保存 generation、loaded 和 count 的保留字段。
+     */
     private static final String SNAPSHOT_META_FIELD = "@meta";
 
-    /** 超容量数据集使用的短 TTL 旁路标记后缀，标记值为规则 generation。 */
+    /**
+     * 超容量数据集使用的短 TTL 旁路标记后缀，标记值为规则 generation。
+     */
     private static final String SNAPSHOT_CAPACITY_BYPASS_SUFFIX = ":capacity-bypass";
 
-    /** 将规则中的全部元素拼成一个联合维度后共用单个计数器。 */
-    private static final String FREQUENCY_DIMENSION_COMBINATION = "ELEMENT_COMBINATION";
-
-    /** 为规则中的每个可用元素分别计数，任一维度超限即触发规则。 */
-    private static final String FREQUENCY_DIMENSION_ANY = "ANY_ELEMENT";
-
-    /** 频率规则 JSON 中代表卡号哈希的元素编码。 */
-    private static final String FREQUENCY_ELEMENT_CARD_NO = "cardNo";
-
-    /** 频率规则 JSON 中代表稳定卡指纹的元素编码。 */
-    private static final String FREQUENCY_ELEMENT_CARD_FINGERPRINT = "cardFingerprint";
-
-    /** 频率规则 JSON 中代表规范化 IP 摘要的元素编码。 */
-    private static final String FREQUENCY_ELEMENT_IP = "ip";
-
-    /** 频率规则 JSON 中代表规范化邮箱哈希的元素编码。 */
-    private static final String FREQUENCY_ELEMENT_EMAIL = "email";
-
-    /** 频率规则 JSON 中代表规范化手机号哈希的元素编码。 */
-    private static final String FREQUENCY_ELEMENT_PHONE = "phone";
-
-    /** 频率规则 JSON 中代表商户客户标识哈希的元素编码。 */
-    private static final String FREQUENCY_ELEMENT_CUSTOMER_ID = "customerId";
-
-    /** 频率规则 JSON 中代表设备指纹哈希的元素编码。 */
-    private static final String FREQUENCY_ELEMENT_DEVICE_FINGERPRINT = "deviceFingerprint";
-
-    /**
-     * 允许参与频控摘要的字段集合；未知字段不得形成静默降级的错误规则。
-     */
-    private static final Set<String> SUPPORTED_FREQUENCY_ELEMENTS = Set.of(
-            FREQUENCY_ELEMENT_CARD_NO,
-            FREQUENCY_ELEMENT_CARD_FINGERPRINT,
-            FREQUENCY_ELEMENT_IP,
-            FREQUENCY_ELEMENT_EMAIL,
-            FREQUENCY_ELEMENT_PHONE,
-            FREQUENCY_ELEMENT_CUSTOMER_ID,
-            FREQUENCY_ELEMENT_DEVICE_FINGERPRINT
-    );
 
     /**
      * 从固定类路径加载返回长整数的 Redis Lua 脚本。
@@ -169,28 +141,44 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         return script;
     }
 
-    /** 查询数据库规则、交易事实和预占基线的运行时 Mapper。 */
+    /**
+     * 查询数据库规则、交易事实和预占基线的运行时 Mapper。
+     */
     private final RiskRuntimeMapper riskRuntimeMapper;
 
-    /** 读写可降级风控规则缓存的 Redis String 基础服务。 */
+    /**
+     * 读写可降级风控规则缓存的 Redis String 基础服务。
+     */
     private final RedisStringService redisStringService;
 
-    /** 提供规则缓存 generation，用于发布后整体切换命名空间。 */
+    /**
+     * 提供规则缓存 generation，用于发布后整体切换命名空间。
+     */
     private final RedisCacheGenerationStore cacheGenerationStore;
 
-    /** 执行累计限额和频率计数 Lua 脚本的原生字符串模板。 */
+    /**
+     * 执行累计限额和频率计数 Lua 脚本的原生字符串模板。
+     */
     private final StringRedisTemplate stringRedisTemplate;
 
-    /** 风控运行开关、缓存 TTL、数据库基线模式和容量上限配置。 */
+    /**
+     * 风控运行开关、缓存 TTL、数据库基线模式和容量上限配置。
+     */
     private final RiskEvaluationProperties properties;
 
-    /** 按统一环境前缀构建 Redis 业务 Key 的配置组件。 */
+    /**
+     * 按统一环境前缀构建 Redis 业务 Key 的配置组件。
+     */
     private final PaymentRedisProperties redisProperties;
 
-    /** 持久化累计限额预占生命周期，作为 Redis 计数的补偿事实。 */
+    /**
+     * 持久化累计限额预占生命周期，作为 Redis 计数的补偿事实。
+     */
     private final MerchantLimitReservationStateService reservationStateService;
 
-    /** 原子维护频控成功次数名额，并由支付终态确认或释放。 */
+    /**
+     * 原子维护频控成功次数名额，并由支付终态确认或释放。
+     */
     private final FrequencySuccessReservationService frequencySuccessReservationService;
 
     /**
@@ -202,6 +190,16 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * Redis 业务指标记录器，不接收商户、规则、交易或 Key 维度。
      */
     private final RedisBusinessMetrics metrics;
+
+    /**
+     * 执行频率策略解析、Redis 原子计数和成功名额预占。
+     */
+    private final FrequencyRuleRuntime frequencyRuleRuntime;
+
+    /**
+     * 统一处理 generation Cache-Aside、空命中缓存和 Redis 异常回源。
+     */
+    private final RiskRuleCacheRuntime ruleCacheRuntime;
 
     /**
      * 创建 Redis 优先、数据库可回源的风控运行时仓储。
@@ -234,6 +232,9 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 redisProperties,
                 metricsProvider.getIfAvailable(RedisBusinessMetrics::noop)
         );
+        if (riskRuntimeMapper == null) {
+            throw new IllegalStateException("RiskRuntimeMapper is required for production risk evaluation");
+        }
     }
 
     /**
@@ -338,6 +339,17 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         this.properties = properties;
         this.redisProperties = redisProperties;
         this.metrics = metrics;
+        this.frequencyRuleRuntime = new FrequencyRuleRuntime(
+                this.stringRedisTemplate,
+                this.frequencySuccessReservationService,
+                this.properties,
+                this.redisProperties,
+                this.metrics);
+        this.ruleCacheRuntime = new RiskRuleCacheRuntime(
+                this.redisStringService,
+                this.cacheGenerationStore,
+                this.properties,
+                this.redisProperties);
     }
 
     /**
@@ -356,13 +368,13 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     public Optional<RiskListMatch> findListMatch(RiskListFunction function,
                                                  String merchantId,
                                                  RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || function == null || lookupValue == null || riskRuntimeMapper == null) {
+        if (function == null || lookupValue == null || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         RiskListFunction.requireKnownTable(function.getTableName());
         Supplier<Optional<RiskListMatch>> legacyLoader = () -> loadListMatch(function, merchantId, lookupValue);
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleCache(
+            return ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "match",
                     function.getModuleType().getCode(),
@@ -373,7 +385,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         }
         SnapshotListMatch snapshotResult = snapshotListMatch(function, merchantId, lookupValue);
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            Optional<RiskListMatch> legacyResult = ruleCache(
+            Optional<RiskListMatch> legacyResult = ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "match",
                     function.getModuleType().getCode(),
@@ -408,14 +420,18 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public boolean hasActiveListRule(RiskListFunction function, String merchantId) {
-        if (!properties.isRuntimeEnabled() || function == null || riskRuntimeMapper == null) {
+        if (function == null || riskRuntimeMapper == null) {
             return false;
         }
         RiskListFunction.requireKnownTable(function.getTableName());
         Supplier<Boolean> legacyLoader =
-                () -> riskRuntimeMapper.countActiveListRules(function.getTableName(), trim(merchantId)) > 0;
+                () -> riskRuntimeMapper.countActiveListRules(
+                        function.getTableName(),
+                        trim(merchantId),
+                        function.getModuleType().getCode(),
+                        function.getFunctionCode()) > 0;
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleBooleanCache(
+            return ruleCacheRuntime.resolveBoolean(
                     legacyLoader,
                     "list",
                     "active",
@@ -425,7 +441,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         }
         SnapshotListMatch snapshotResult = snapshotListMatch(function, merchantId, null);
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            boolean legacyResult = ruleBooleanCache(
+            boolean legacyResult = ruleCacheRuntime.resolveBoolean(
                     legacyLoader,
                     "list",
                     "active",
@@ -433,7 +449,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     safeMerchant(merchantId)
             );
             if (snapshotResult.available() && legacyResult != snapshotResult.anyRows()) {
-                log.warn("event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH dataset: {} comparison: ACTIVE_FLAG",
+                log.warn("风控规则快照影子比对不一致, event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH, dataset: {}, comparison: ACTIVE_FLAG",
                         function.name());
             }
             return legacyResult;
@@ -444,18 +460,53 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
+     * 从主库读取商户功能开通状态；平台全局规则不依赖该状态。
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public boolean isMerchantFunctionEnabled(RiskListFunction function, String merchantId) {
+        if (function == null || !StringUtils.hasText(merchantId)
+                || riskRuntimeMapper == null) {
+            return false;
+        }
+        return riskRuntimeMapper.countEnabledMerchantFunction(
+                trim(merchantId),
+                function.getModuleType().getCode(),
+                function.getFunctionCode()) > 0;
+    }
+
+    /**
+     * 通过单次主库查询返回商户已开通名单功能，避免同一交易按多个输入维度重复查询。
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public Set<RiskListFunction> findEnabledMerchantFunctions(String merchantId) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+            return Set.of();
+        }
+        Set<String> enabledKeys = Set.copyOf(
+                riskRuntimeMapper.selectEnabledMerchantFunctionKeys(trim(merchantId)));
+        EnumSet<RiskListFunction> enabledFunctions = EnumSet.noneOf(RiskListFunction.class);
+        for (RiskListFunction function : RiskListFunction.values()) {
+            String key = function.getModuleType().getCode() + ":" + function.getFunctionCode();
+            if (enabledKeys.contains(key)) {
+                enabledFunctions.add(function);
+            }
+        }
+        return Set.copyOf(enabledFunctions);
+    }
+
+    /**
      * 查询当前商户可用的来源主机白名单规则，命中时返回受控放行结论。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
-     * @return 查询得到的业务对象、分页结果或空结果
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值
+     * @return 数据库或快照命中时返回 PASS 明细；未配置或未命中时返回空
      */
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findSourceUrlRule(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId)
+        if (!StringUtils.hasText(merchantId)
                 || lookupValue == null || !StringUtils.hasText(lookupValue.getSourceHost()) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
@@ -474,7 +525,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             return Optional.of(matchedRule);
         };
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleCache(
+            return ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "source-url",
@@ -496,7 +547,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 .findFirst()
                 : Optional.empty();
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            Optional<RiskListMatch> legacyResult = ruleCache(
+            Optional<RiskListMatch> legacyResult = ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "source-url",
@@ -511,17 +562,15 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
 
     /**
      * 判断来源主机是否未命中商户白名单，并返回对应风控处置规则。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
-     * @return 查询得到的业务对象、分页结果或空结果
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值；主机缺失时仍需执行未命中判断
+     * @return 已配置有效白名单但当前主机未命中时返回 REJECT 明细；未配置或已命中时返回空
      */
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findSourceUrlRestrictionMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedMerchantId = merchantId.trim();
@@ -545,7 +594,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             ));
         };
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleCache(
+            return ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "source-url",
@@ -572,7 +621,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             ));
         }
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            Optional<RiskListMatch> legacyResult = ruleCache(
+            Optional<RiskListMatch> legacyResult = ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "source-url",
@@ -599,7 +648,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     /**
      * 查询当前请求 IP 是否命中已启用的商户 IP 白名单。
      *
-     * <p>仅在白名单开关开启或存在有效记录时执行命中判断；缓存 Key 使用 IP 摘要，
+     * <p>只匹配审核通过、已启用且未删除的 IP；缓存 Key 使用 IP 摘要，
      * 返回明细中的 IP 仅供受控风控审计使用，不得扩散到普通业务日志。</p>
      *
      * @param merchantId 当前商户号
@@ -609,7 +658,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantIpWhitelistHit(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedMerchantId = merchantId.trim();
@@ -617,10 +666,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         if (!StringUtils.hasText(ipValue)) {
             return Optional.empty();
         }
-        return ruleCache(() -> {
-            if (!merchantIpWhitelistConfigured(normalizedMerchantId)) {
-                return Optional.empty();
-            }
+        return ruleCacheRuntime.findMatch(() -> {
             if (riskRuntimeMapper.countMerchantIpWhitelistHit(normalizedMerchantId, ipValue) <= 0) {
                 return Optional.empty();
             }
@@ -638,43 +684,51 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * 检查已启用商户 IP 白名单但当前 IP 未命中的拒绝场景。
+     * 对商户业务 API 的 IP 白名单准入执行纵深校验。
      *
-     * @return 白名单启用且 IP 为空或未命中时的拒绝明细，否则返回空
+     * <p>有效名单为空、可信 IP 缺失或未命中均失败关闭；
+     * Hosted Checkout 在上层依据可信内部来源跳过本方法。</p>
+     *
+     * @return IP 准入未通过时的拒绝明细，命中有效白名单时返回空
      */
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantIpWhitelistMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedMerchantId = merchantId.trim();
         String ipValue = lookupValue == null ? null : lookupValue.getRawValue();
-        return ruleCache(() -> {
-            if (!merchantIpWhitelistConfigured(normalizedMerchantId)) {
-                return Optional.empty();
-            }
+        return ruleCacheRuntime.findMatch(() -> {
             if (StringUtils.hasText(ipValue)
                     && riskRuntimeMapper.countMerchantIpWhitelistHit(normalizedMerchantId, ipValue) > 0) {
                 return Optional.empty();
             }
-            return Optional.of(RiskListMatch.system(
-                    "merchantIpWhitelist",
-                    "商户IP白名单",
-                    "ip",
-                    StringUtils.hasText(ipValue) ? ipValue : "EMPTY",
-                    "HIGH",
-                    "REJECT",
-                    "merchant ip whitelist missed"
-            ));
+            String reason = StringUtils.hasText(ipValue)
+                    ? "merchant ip whitelist missed"
+                    : "merchant request ip missing";
+            return Optional.of(merchantIpWhitelistMiss(ipValue, reason));
         }, "merchant-ip-whitelist", "miss", normalizedMerchantId,
                 RedisKeyDigest.sha256(safeKey(ipValue)));
     }
 
-    private boolean merchantIpWhitelistConfigured(String merchantId) {
-        Integer enabled = riskRuntimeMapper.selectMerchantIpWhitelistEnabled(merchantId);
-        return (enabled != null && enabled == 1)
-                || riskRuntimeMapper.countActiveMerchantIpWhitelist(merchantId) > 0;
+    /**
+     * 构建商户 IP 白名单失败关闭明细。
+     *
+     * @param ipValue 可信请求 IP；缺失时使用明确空值标识
+     * @param reason 不包含敏感上下文的拒绝原因
+     * @return 固定高风险拒绝明细
+     */
+    private RiskListMatch merchantIpWhitelistMiss(String ipValue, String reason) {
+        return RiskListMatch.system(
+                "merchantIpWhitelist",
+                "商户IP白名单",
+                "ip",
+                StringUtils.hasText(ipValue) ? ipValue : "EMPTY",
+                "HIGH",
+                "REJECT",
+                reason
+        );
     }
 
     /**
@@ -685,7 +739,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantLimitRule(String merchantId, BigDecimal amount, String currency) {
-        if (!properties.isRuntimeEnabled() || amount == null || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
+        if (amount == null || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedCurrency = currency.trim().toUpperCase();
@@ -696,7 +750,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 normalizedCurrency
         ));
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleCache(
+            return ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "merchant-limit",
@@ -713,7 +767,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 .findFirst()
                 : Optional.empty();
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            Optional<RiskListMatch> legacyResult = ruleCache(
+            Optional<RiskListMatch> legacyResult = ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "merchant-limit",
@@ -753,7 +807,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @DS(DataSourceName.MASTER)
     public MerchantLimitEvaluation reserveCumulativeMerchantLimits(RiskPaymentEvaluateRequestDTO requestDTO,
                                                                    String riskRecordNo) {
-        if (!properties.isRuntimeEnabled() || requestDTO == null || riskRuntimeMapper == null
+        if (requestDTO == null || riskRuntimeMapper == null
                 || !StringUtils.hasText(requestDTO.getMerchantId())
                 || !StringUtils.hasText(requestDTO.getCurrency())) {
             return MerchantLimitEvaluation.empty();
@@ -809,7 +863,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                         requestDTO.getTransactionId(),
                         lifecycleManaged,
                         "merchant cumulative limit baseline failed");
-                log.warn("event: RISK_MERCHANT_LIMIT_BASELINE_FAILED merchantId: {} ruleId: {} limitType: {} exceptionType: {}",
+                log.warn("商户累计限额基线读取失败, event: RISK_MERCHANT_LIMIT_BASELINE_FAILED, merchantId: {}, ruleId: {}, limitType: {}, exceptionType: {}",
                         merchantId, rule.getRuleId(), rule.getHitElement(), exception.getClass().getSimpleName());
                 details.add(cumulativeLimitUnavailable(rule, "merchant cumulative limit baseline is unavailable"));
                 return new MerchantLimitEvaluation(details, List.of());
@@ -842,7 +896,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                             requestDTO.getTransactionId(),
                             true,
                             "reservation prepare failed");
-                    log.error("event: RISK_MERCHANT_LIMIT_PREPARE_FAILED merchantId: {} transactionId: {} ruleId: {} exceptionType: {}",
+                    log.error("商户累计限额预占意图创建失败, event: RISK_MERCHANT_LIMIT_PREPARE_FAILED, merchantId: {}, transactionId: {}, ruleId: {}, exceptionType: {}",
                             merchantId, requestDTO.getTransactionId(), rule.getRuleId(),
                             exception.getClass().getSimpleName());
                     details.add(cumulativeLimitUnavailable(rule, "merchant cumulative limit lifecycle is unavailable"));
@@ -936,14 +990,14 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public boolean hasActiveMerchantLimitRule(String merchantId, String currency) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(currency) || riskRuntimeMapper == null) {
             return false;
         }
         String normalizedCurrency = currency.trim().toUpperCase();
         Supplier<Boolean> legacyLoader =
                 () -> riskRuntimeMapper.countActiveMerchantLimitRules(trim(merchantId), normalizedCurrency) > 0;
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleBooleanCache(
+            return ruleCacheRuntime.resolveBoolean(
                     legacyLoader,
                     "rule",
                     "merchant-limit",
@@ -954,7 +1008,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         }
         SnapshotRows snapshot = merchantLimitSnapshot(merchantId, normalizedCurrency);
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            boolean legacyResult = ruleBooleanCache(
+            boolean legacyResult = ruleCacheRuntime.resolveBoolean(
                     legacyLoader,
                     "rule",
                     "merchant-limit",
@@ -963,7 +1017,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     normalizedCurrency
             );
             if (snapshot.available() && legacyResult != !snapshot.rows().isEmpty()) {
-                log.warn("event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH dataset: merchant-limit comparison: ACTIVE_FLAG");
+                log.warn("风控规则快照影子比对不一致, event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH, dataset: merchant-limit, comparison: ACTIVE_FLAG");
             }
             return legacyResult;
         }
@@ -1020,13 +1074,13 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                                                       RiskRuntimeLookupValue phoneLookup,
                                                       RiskRuntimeLookupValue customerIdLookup,
                                                       RiskRuntimeLookupValue deviceFingerprintLookup) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return List.of();
         }
         List<RiskListMatch> rules = activeFrequencyRules(merchantId.trim());
         List<RiskListMatch> details = new ArrayList<>(rules.size());
         for (RiskListMatch rule : rules) {
-            details.add(evaluateFrequencyRule(rule, merchantId, requestDTO,
+            details.add(frequencyRuleRuntime.evaluate(rule, merchantId, requestDTO,
                     cardNoLookup, cardFingerprintLookup, ipLookup, emailLookup, phoneLookup,
                     customerIdLookup, deviceFingerprintLookup));
         }
@@ -1034,7 +1088,10 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * {@inheritDoc}
+     * 释放指定交易尚未确认的全部频控成功名额。
+     *
+     * @param merchantId 当前商户号
+     * @param transactionId 支付系统交易号
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1056,24 +1113,22 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public boolean hasActiveFrequencyRule(String merchantId) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return false;
         }
         return !activeFrequencyRules(merchantId.trim()).isEmpty();
     }
 
     /**
-     * 查询{@code findIssuerCountryByCardBin}；筛选条件、分页上限和数据范围由方法参数共同限定。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param cardBinLookup 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 按规范化卡 BIN 数值解析发卡国家或地区，并按 generation 缓存查询结果。
+     *
+     * @param cardBinLookup 仅包含 BIN 展示片段和固定长度数值的查询值
+     * @return ISO alpha-3 国家或地区代码；输入无效或未命中时返回空
      */
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<String> findIssuerCountryByCardBin(RiskRuntimeLookupValue cardBinLookup) {
-        if (!properties.isRuntimeEnabled() || cardBinLookup == null || cardBinLookup.getNumericValue() == null
+        if (cardBinLookup == null || cardBinLookup.getNumericValue() == null
                 || riskRuntimeMapper == null) {
             return Optional.empty();
         }
@@ -1081,7 +1136,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 () -> Optional.ofNullable(riskRuntimeMapper.selectIssuerCountryByCardBin(
                         cardBinLookup.getNumericValue()
                 ));
-        return ruleCache(
+        return ruleCacheRuntime.findMatch(
                 legacyLoader,
                 "card-bin",
                 "issuer-country",
@@ -1105,8 +1160,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                                                    BigDecimal amount,
                                                    String currency,
                                                    String currentRiskLevel) {
-        if (!properties.isRuntimeEnabled()
-                || !StringUtils.hasText(channelCode)
+        if (!StringUtils.hasText(channelCode)
                 || amount == null
                 || !StringUtils.hasText(currency)
                 || riskRuntimeMapper == null) {
@@ -1128,7 +1182,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 riskWeight
         ));
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleCache(
+            return ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "three-ds",
@@ -1157,7 +1211,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 .findFirst()
                 : Optional.empty();
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            Optional<RiskListMatch> legacyResult = ruleCache(
+            Optional<RiskListMatch> legacyResult = ruleCacheRuntime.findMatch(
                     legacyLoader,
                     "rule",
                     "three-ds",
@@ -1313,7 +1367,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             }
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: RISK_RULE_HASH_SNAPSHOT_READ_FAILED keyDigest: {} exceptionType: {}",
+                    "风控哈希快照读取失败, event: RISK_RULE_HASH_SNAPSHOT_READ_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     exception.getClass().getSimpleName()
             );
@@ -1349,7 +1403,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         }
         if (serializedCharacters > properties.getRuleSnapshotMaxCharacters()) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED dataset: {} dimension: CHARACTERS count: {}",
+                    "风控规则快照超过容量上限, event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED, dataset: {}, dimension: CHARACTERS, count: {}",
                     function.name(),
                     serializedCharacters
             );
@@ -1406,7 +1460,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         } catch (RuntimeException exception) {
             // 当前请求继续使用刚从主库加载的集合；写失败不会改变真实规则判断。
             log.warn(
-                    "event: RISK_RULE_HASH_SNAPSHOT_WRITE_FAILED keyDigest: {} exceptionType: {}",
+                    "风控哈希快照写入失败, event: RISK_RULE_HASH_SNAPSHOT_WRITE_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     exception.getClass().getSimpleName()
             );
@@ -1434,7 +1488,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             }
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_READ_FAILED keyDigest: {} exceptionType: {}",
+                    "风控规则快照读取失败, event: RISK_RULE_SNAPSHOT_READ_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     exception.getClass().getSimpleName()
             );
@@ -1451,7 +1505,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         String snapshotJson = JsonUtils.toJsonString(snapshot);
         if (snapshotJson.length() > properties.getRuleSnapshotMaxCharacters()) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED keyDigest: {} dimension: CHARACTERS count: {}",
+                    "风控规则快照超过容量上限, event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED, keyDigest: {}, dimension: CHARACTERS, count: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     snapshotJson.length()
             );
@@ -1462,7 +1516,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             stringRedisTemplate.opsForValue().set(cacheKey, snapshotJson);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_WRITE_FAILED keyDigest: {} exceptionType: {}",
+                    "风控规则快照写入失败, event: RISK_RULE_SNAPSHOT_WRITE_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     exception.getClass().getSimpleName()
             );
@@ -1517,7 +1571,12 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     normalizedMerchantId,
                     queryLimit
             );
-            case REGION -> riskRuntimeMapper.selectActiveRegionSnapshotRows(normalizedMerchantId, queryLimit);
+            case REGION -> riskRuntimeMapper.selectActiveRegionSnapshotRows(
+                    function.getModuleType().getCode(),
+                    function.getFunctionCode(),
+                    normalizedMerchantId,
+                    queryLimit
+            );
             case SOURCE_HOST -> riskRuntimeMapper.selectActiveAmlSourceHostSnapshotRows(queryLimit);
         };
     }
@@ -1633,7 +1692,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             }
             return Optional.of(state.generation());
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_RULE_SNAPSHOT_GENERATION_FAILED exceptionType: {}",
+            log.warn("风控规则快照代际读取失败, event: RISK_RULE_SNAPSHOT_GENERATION_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
             return Optional.empty();
         }
@@ -1681,7 +1740,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         List<RiskRuleSnapshotRow> loaded = loader.get();
         List<RiskRuleSnapshotRow> safeRows = immutableSnapshotRows(loaded);
         if (safeRows.size() > properties.getRuleSnapshotMaxRows()) {
-            log.warn("event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED keyDigest: {} dimension: ROWS count: {}",
+            log.warn("风控规则快照超过容量上限, event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED, keyDigest: {}, dimension: ROWS, count: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     safeRows.size());
             markSnapshotCapacityBypass(cacheKey, generation);
@@ -1706,7 +1765,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             return Objects.equals(generation, stringRedisTemplate.opsForValue().get(bypassKey));
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_READ_FAILED keyDigest: {} exceptionType: {}",
+                    "风控快照容量旁路标记读取失败, event: RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_READ_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(bypassKey),
                     exception.getClass().getSimpleName()
             );
@@ -1727,7 +1786,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             stringRedisTemplate.opsForValue().set(bypassKey, generation, ttl);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_WRITE_FAILED keyDigest: {} exceptionType: {}",
+                    "风控快照容量旁路标记写入失败, event: RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_WRITE_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(bypassKey),
                     exception.getClass().getSimpleName()
             );
@@ -1954,7 +2013,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             }
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_READ_FAILED keyDigest: {} exceptionType: {}",
+                    "风控规则快照读取失败, event: RISK_RULE_SNAPSHOT_READ_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     exception.getClass().getSimpleName()
             );
@@ -1964,7 +2023,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         }
         List<RiskListMatch> matches = immutableList(loader.get());
         if (matches.size() > properties.getRuleSnapshotMaxRows()) {
-            log.warn("event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED keyDigest: {} dimension: ROWS count: {}",
+            log.warn("风控规则快照超过容量上限, event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED, keyDigest: {}, dimension: ROWS, count: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     matches.size());
             markSnapshotCapacityBypass(cacheKey, generation.get());
@@ -1974,7 +2033,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         String snapshotJson = JsonUtils.toJsonString(snapshot);
         if (snapshotJson.length() > properties.getRuleSnapshotMaxCharacters()) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED keyDigest: {} dimension: CHARACTERS count: {}",
+                    "风控规则快照超过容量上限, event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED, keyDigest: {}, dimension: CHARACTERS, count: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     snapshotJson.length()
             );
@@ -1985,7 +2044,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             stringRedisTemplate.opsForValue().set(cacheKey, snapshotJson);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: RISK_RULE_SNAPSHOT_WRITE_FAILED keyDigest: {} exceptionType: {}",
+                    "风控规则快照写入失败, event: RISK_RULE_SNAPSHOT_WRITE_FAILED, keyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(cacheKey),
                     exception.getClass().getSimpleName()
             );
@@ -2009,7 +2068,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         List<Long> legacyIds = immutableList(legacyRules).stream().map(RiskListMatch::getRuleId).toList();
         List<Long> snapshotIds = snapshot.matches().stream().map(RiskListMatch::getRuleId).toList();
         if (!legacyIds.equals(snapshotIds)) {
-            log.warn("event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH dataset: {} comparison: RULE_IDS", dataset);
+            log.warn("风控规则快照影子比对不一致, event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH, dataset: {}, comparison: RULE_IDS", dataset);
         }
     }
 
@@ -2031,7 +2090,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         Long legacyRuleId = legacyResult.map(RiskListMatch::getRuleId).orElse(null);
         Long snapshotRuleId = snapshotResult.map(RiskListMatch::getRuleId).orElse(null);
         if (!Objects.equals(legacyRuleId, snapshotRuleId)) {
-            log.warn("event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH dataset: {} comparison: RULE_ID", dataset);
+            log.warn("风控规则快照影子比对不一致, event: RISK_RULE_SNAPSHOT_SHADOW_MISMATCH, dataset: {}, comparison: RULE_ID", dataset);
         }
     }
 
@@ -2045,7 +2104,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         Supplier<List<RiskListMatch>> loader =
                 () -> riskRuntimeMapper.selectActiveFrequencyRules(trim(merchantId));
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleListCache(
+            return ruleCacheRuntime.findMatches(
                     loader,
                     "rule",
                     "frequency",
@@ -2061,7 +2120,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 )
         );
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            List<RiskListMatch> legacyRules = ruleListCache(
+            List<RiskListMatch> legacyRules = ruleCacheRuntime.findMatches(
                     loader,
                     "rule",
                     "frequency",
@@ -2081,7 +2140,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      */
     private List<RiskListMatch> activeCumulativeMerchantLimitRules(String merchantId, String currency) {
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleListCache(
+            return ruleCacheRuntime.findMatches(
                     () -> riskRuntimeMapper.selectActiveCumulativeMerchantLimitRules(trim(merchantId), currency),
                     "rule",
                     "merchant-limit",
@@ -2111,7 +2170,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 .toList()
                 : List.of();
         if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            List<RiskListMatch> legacyRules = ruleListCache(
+            List<RiskListMatch> legacyRules = ruleCacheRuntime.findMatches(
                     () -> riskRuntimeMapper.selectActiveCumulativeMerchantLimitRules(trim(merchantId), currency),
                     "rule",
                     "merchant-limit",
@@ -2155,292 +2214,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             case LIMIT_TYPE_MONTHLY -> 2;
             default -> 3;
         };
-    }
-
-    /**
-     * 执行单条频率规则的维度解析、Redis 原子计数和阈值判断。
-     *
-     * @return 始终可审计的 PASS、HIT 或 ERROR 明细
-     */
-    private RiskListMatch evaluateFrequencyRule(RiskListMatch rule,
-                                                String merchantId,
-                                                RiskPaymentEvaluateRequestDTO requestDTO,
-                                                RiskRuntimeLookupValue cardNoLookup,
-                                                RiskRuntimeLookupValue cardFingerprintLookup,
-                                                RiskRuntimeLookupValue ipLookup,
-                                                RiskRuntimeLookupValue emailLookup,
-                                                RiskRuntimeLookupValue phoneLookup,
-                                                RiskRuntimeLookupValue customerIdLookup,
-                                                RiskRuntimeLookupValue deviceFingerprintLookup) {
-        FrequencyPolicy policy = FrequencyPolicy.from(rule);
-        if (!policy.executable(properties)) {
-            return frequencyRuleUnavailable(rule, "transaction frequency rule configuration is invalid");
-        }
-        Map<String, String> elementValues = frequencyElementValues(
-                cardNoLookup, cardFingerprintLookup, ipLookup, emailLookup, phoneLookup,
-                customerIdLookup, deviceFingerprintLookup);
-        List<String> counterIdentities = policy.counterIdentities(elementValues);
-        List<String> keys = policy.counterKeys(
-                rule,
-                merchantId,
-                counterIdentities,
-                redisProperties
-        );
-        if (keys.isEmpty()) {
-            return frequencyRuleUnavailable(rule, "transaction frequency rule input is unavailable");
-        }
-        long highestCurrentCount = 0L;
-        boolean exceeded = false;
-        for (String counterKey : keys) {
-            Optional<Long> currentCount = incrementFrequency(
-                    counterKey,
-                    requestDTO == null ? null : requestDTO.getTransactionId(),
-                    policy.windowSeconds()
-            );
-            if (currentCount.isEmpty()) {
-                return frequencyRuleUnavailable(rule, "transaction frequency counter is unavailable");
-            }
-            highestCurrentCount = Math.max(highestCurrentCount, currentCount.get());
-            if (currentCount.get() > policy.allowedCount()) {
-                exceeded = true;
-            }
-        }
-        if (!exceeded && policy.successCount() > 0) {
-            RiskListMatch successReservationResult = reserveFrequencySuccessSlots(
-                    rule,
-                    merchantId,
-                    requestDTO,
-                    policy,
-                    counterIdentities,
-                    elementValues);
-            if (successReservationResult != null) {
-                return successReservationResult;
-            }
-        }
-        RiskListMatch detail = copyRule(rule);
-        detail.setHitElement("frequency");
-        detail.setHitValueMasked(policy.maskedHitValue(elementValues));
-        detail.setCurrentCount(highestCurrentCount);
-        detail.setMatchResult(exceeded ? "HIT" : "PASS");
-        if (exceeded) {
-            detail.setDecisionReason(StringUtils.hasText(rule.getDecisionReason())
-                    ? rule.getDecisionReason()
-                    : "transaction frequency limit hit");
-        } else {
-            detail.setDecisionAction("PASS");
-            detail.setDecisionReason("transaction frequency count " + highestCurrentCount
-                    + " is within limit " + policy.allowedCount() + ", allow");
-        }
-        metrics.recordOperation(
-                RedisBusinessMetrics.Feature.RISK_FREQUENCY,
-                RedisBusinessMetrics.Operation.EVALUATE,
-                exceeded
-                        ? RedisBusinessMetrics.Outcome.HIT
-                        : RedisBusinessMetrics.Outcome.SUCCESS,
-                0L
-        );
-        return detail;
-    }
-
-    /**
-     * 为全部适用维度预占成功次数名额；任一维度达到上限即阻断当前交易。
-     *
-     * @return 达到成功次数上限或基础设施不可用时返回阻断明细，全部预占成功返回 null
-     */
-    private RiskListMatch reserveFrequencySuccessSlots(RiskListMatch rule,
-                                                       String merchantId,
-                                                       RiskPaymentEvaluateRequestDTO requestDTO,
-                                                       FrequencyPolicy policy,
-                                                       List<String> counterIdentities,
-                                                       Map<String, String> elementValues) {
-        if (frequencySuccessReservationService == null
-                || rule == null
-                || rule.getRuleId() == null
-                || requestDTO == null
-                || !StringUtils.hasText(requestDTO.getTransactionId())) {
-            return frequencyRuleUnavailable(
-                    rule,
-                    "transaction frequency success reservation is unavailable");
-        }
-        for (String counterIdentity : counterIdentities) {
-            FrequencySuccessReservationResult result = frequencySuccessReservationService.reserve(
-                    merchantId.trim(),
-                    requestDTO.getTransactionId().trim(),
-                    rule.getRuleId(),
-                    counterIdentity,
-                    policy.successCount(),
-                    policy.windowSeconds());
-            if (result.outcome() == FrequencySuccessReservationResult.Outcome.UNAVAILABLE
-                    || result.outcome() == FrequencySuccessReservationResult.Outcome.CLOSED) {
-                return frequencyRuleUnavailable(
-                        rule,
-                        "transaction frequency success reservation is unavailable");
-            }
-            if (result.outcome() == FrequencySuccessReservationResult.Outcome.LIMIT_EXCEEDED) {
-                RiskListMatch detail = copyRule(rule);
-                detail.setHitElement("frequencySuccess");
-                detail.setHitValueMasked(policy.maskedHitValue(elementValues));
-                detail.setThresholdCount(policy.successCount());
-                detail.setCurrentCount(result.currentCount() + 1L);
-                detail.setMatchResult("HIT");
-                detail.setDecisionReason(StringUtils.hasText(rule.getDecisionReason())
-                        ? rule.getDecisionReason()
-                        : "successful transaction frequency limit hit");
-                metrics.recordOperation(
-                        RedisBusinessMetrics.Feature.RISK_FREQUENCY,
-                        RedisBusinessMetrics.Operation.EVALUATE,
-                        RedisBusinessMetrics.Outcome.HIT,
-                        0L);
-                return detail;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 将配置、输入或 Redis 计数器不可用统一映射为 ERROR/REVIEW。
-     *
-     * @param rule 原频率规则
-     * @param reason 不含敏感值的内部原因
-     * @return 不允许静默放行的人工复核明细
-     */
-    private RiskListMatch frequencyRuleUnavailable(RiskListMatch rule, String reason) {
-        metrics.recordOperation(
-                RedisBusinessMetrics.Feature.RISK_FREQUENCY,
-                RedisBusinessMetrics.Operation.EVALUATE,
-                RedisBusinessMetrics.Outcome.UNAVAILABLE,
-                0L
-        );
-        RiskListMatch detail = copyRule(rule);
-        detail.setHitElement("frequency");
-        detail.setHitValueMasked("COUNTER_UNAVAILABLE");
-        detail.setDecisionAction("REVIEW");
-        detail.setDecisionReason(reason);
-        detail.setMatchResult("ERROR");
-        return detail;
-    }
-
-    /**
-     * 使用 Cluster 同槽双 Key 执行固定窗口计数。
-     *
-     * <p>交易号仅以 SHA-256 摘要参与幂等；任一路径异常通过空结果交由上层 REVIEW。</p>
-     *
-     * @return 当前窗口计数；计数基础设施不可用时返回空
-     */
-    private Optional<Long> incrementFrequency(String counterKey,
-                                              String transactionId,
-                                              int windowSeconds) {
-        if (stringRedisTemplate == null || !StringUtils.hasText(transactionId)) {
-            log.warn("event: RISK_FREQUENCY_REDIS_UNAVAILABLE counterKeyDigest: {}",
-                    RedisKeyDigest.sha256(counterKey));
-            return Optional.empty();
-        }
-        String transactionDigest = RedisKeyDigest.sha256(transactionId.trim());
-        List<String> keys = List.of(
-                counterKey,
-                counterKey + ":transaction:" + transactionDigest
-        );
-        return executeFrequencyIncrement(keys, windowSeconds);
-    }
-
-    /**
-     * 用 Lua 原子完成固定窗口计数、交易去重和 TTL 设置。
-     *
-     * @param keys 聚合计数 Key 与交易幂等 Key
-     * @param windowSeconds 窗口和过期秒数
-     * @return 非负计数；脚本异常时返回空
-     */
-    private Optional<Long> executeFrequencyIncrement(List<String> keys,
-                                                     int windowSeconds) {
-        long startNanos = System.nanoTime();
-        try {
-            Long count = stringRedisTemplate.execute(
-                    FREQUENCY_INCREMENT_SCRIPT,
-                    keys,
-                    String.valueOf(windowSeconds)
-            );
-            if (count == null) {
-                throw new IllegalStateException("frequency counter script returned null");
-            }
-            recordRiskOperation(
-                    RedisBusinessMetrics.Feature.RISK_FREQUENCY,
-                    RedisBusinessMetrics.Outcome.SUCCESS,
-                    startNanos
-            );
-            return Optional.of(count);
-        } catch (RuntimeException exception) {
-            recordRiskOperation(
-                    RedisBusinessMetrics.Feature.RISK_FREQUENCY,
-                    RedisBusinessMetrics.Outcome.ERROR,
-                    startNanos
-            );
-            metrics.recordLuaFailure(
-                    RedisBusinessMetrics.Script.RISK_FREQUENCY_FIXED,
-                    metrics.classifyFailure(exception)
-            );
-            log.warn("event: RISK_FREQUENCY_COUNTER_FAILED counterKeyDigest: {} exceptionType: {}",
-                    RedisKeyDigest.sha256(keys.get(0)), exception.getClass().getSimpleName());
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * 汇总频率规则允许使用的查询摘要，不把敏感原文写入计数 Key。
-     *
-     * @return 仅包含当前请求可用元素的可变映射
-     */
-    private Map<String, String> frequencyElementValues(RiskRuntimeLookupValue cardNoLookup,
-                                                       RiskRuntimeLookupValue cardFingerprintLookup,
-                                                       RiskRuntimeLookupValue ipLookup,
-                                                       RiskRuntimeLookupValue emailLookup,
-                                                       RiskRuntimeLookupValue phoneLookup,
-                                                       RiskRuntimeLookupValue customerIdLookup,
-                                                       RiskRuntimeLookupValue deviceFingerprintLookup) {
-        Map<String, String> values = new java.util.HashMap<>();
-        putIfPresent(values, FREQUENCY_ELEMENT_CARD_NO, safeLookupHash(cardNoLookup));
-        putIfPresent(values, FREQUENCY_ELEMENT_CARD_FINGERPRINT, safeLookupHash(cardFingerprintLookup));
-        putIfPresent(values, FREQUENCY_ELEMENT_IP, safeLookupKey(ipLookup));
-        putIfPresent(values, FREQUENCY_ELEMENT_EMAIL, safeLookupHash(emailLookup));
-        putIfPresent(values, FREQUENCY_ELEMENT_PHONE, safeLookupHash(phoneLookup));
-        putIfPresent(values, FREQUENCY_ELEMENT_CUSTOMER_ID, safeLookupHash(customerIdLookup));
-        putIfPresent(values, FREQUENCY_ELEMENT_DEVICE_FINGERPRINT, safeLookupHash(deviceFingerprintLookup));
-        return values;
-    }
-
-    /**
-     * 仅将非空、已规范化的元素值加入频控维度。
-     */
-    private void putIfPresent(Map<String, String> values, String element, String value) {
-        if (StringUtils.hasText(value)) {
-            values.put(element, value.trim());
-        }
-    }
-
-    /**
-     * 安全读取风控查询值的不可逆匹配哈希。
-     *
-     * @return 查询值为空时返回 {@code null}
-     */
-    private String safeLookupHash(RiskRuntimeLookupValue lookupValue) {
-        return lookupValue == null ? null : lookupValue.getMatchValueHash();
-    }
-
-    /**
-     * 选择哈希、区间数值或原始规范值作为后续摘要输入。
-     *
-     * <p>返回值只会继续进入 {@link RedisKeyDigest#sha256(String)}，不得直接记录日志或写入 Key。</p>
-     */
-    private String safeLookupKey(RiskRuntimeLookupValue lookupValue) {
-        if (lookupValue == null) {
-            return null;
-        }
-        if (StringUtils.hasText(lookupValue.getMatchValueHash())) {
-            return lookupValue.getMatchValueHash();
-        }
-        if (lookupValue.getNumericValue() != null) {
-            return lookupValue.getNumericValue().toPlainString();
-        }
-        return lookupValue.getRawValue();
     }
 
     /**
@@ -2502,7 +2275,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         if (baselineMode == RiskBaselineMode.SHADOW) {
             recordBaselineShadow(legacyUnits, normalizedLifecycleUnits);
             if (legacyUnits != normalizedLifecycleUnits) {
-                log.info("event: RISK_MERCHANT_LIMIT_BASELINE_SHADOW_MISMATCH merchantId: {} ruleId: {} limitType: {} legacyUnits: {} lifecycleUnits: {}",
+                log.info("商户累计限额基线影子比对不一致, event: RISK_MERCHANT_LIMIT_BASELINE_SHADOW_MISMATCH, merchantId: {}, ruleId: {}, limitType: {}, legacyUnits: {}, lifecycleUnits: {}",
                         requestDTO.getMerchantId(),
                         rule.getRuleId(),
                         rule.getHitElement(),
@@ -2514,7 +2287,9 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         return normalizedLifecycleUnits;
     }
 
-    /** 从 primary 上的交易逻辑表读取同商户、同币种累计交易金额。 */
+    /**
+     * 从 primary 上的交易逻辑表读取同商户、同币种累计交易金额。
+     */
     private BigDecimal loadTransactionPeriodAmount(RiskPaymentEvaluateRequestDTO requestDTO,
                                                    String currency,
                                                    MerchantLimitPeriod period) {
@@ -2616,7 +2391,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     RedisBusinessMetrics.Script.RISK_CUMULATIVE_RESERVE,
                     metrics.classifyFailure(exception)
             );
-            log.warn("event: RISK_MERCHANT_LIMIT_RESERVE_FAILED aggregateKeyDigest: {} exceptionType: {}",
+            log.warn("商户累计限额 Redis 预占失败, event: RISK_MERCHANT_LIMIT_RESERVE_FAILED, aggregateKeyDigest: {}, exceptionType: {}",
                     RedisKeyDigest.sha256(reservation.aggregateKey()), exception.getClass().getSimpleName());
             return Optional.empty();
         }
@@ -2732,7 +2507,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                         RedisBusinessMetrics.Script.RISK_CUMULATIVE_ROLLBACK,
                         metrics.classifyFailure(exception)
                 );
-                log.error("event: RISK_MERCHANT_LIMIT_ROLLBACK_FAILED aggregateKeyDigest: {} exceptionType: {}",
+                log.error("商户累计限额 Redis 回滚失败, event: RISK_MERCHANT_LIMIT_ROLLBACK_FAILED, aggregateKeyDigest: {}, exceptionType: {}",
                         RedisKeyDigest.sha256(reservation.aggregateKey()), exception.getClass().getSimpleName());
             }
         }
@@ -2845,326 +2620,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      */
     private BigDecimal amountFromUnits(long amountUnits) {
         return BigDecimal.valueOf(amountUnits, INTERNAL_AMOUNT_SCALE);
-    }
-
-    /**
-     * 执行单规则结果的 Cache-Aside 读取，明确缓存“未命中”以抑制穿透。
-     *
-     * @return 缓存结果或数据库加载结果
-     */
-    private Optional<RiskListMatch> cache(RuleCacheKeys cacheKeys,
-                                          Supplier<Optional<RiskListMatch>> loader) {
-        for (String readKey : cacheKeys.readKeys()) {
-            CachedMatchLookup cached = readCache(readKey);
-            if (cached.cached()) {
-                writeCache(backfillTargets(cacheKeys, readKey), cached.match());
-                return cached.match();
-            }
-        }
-        Optional<RiskListMatch> loaded = loader.get();
-        writeCache(cacheKeys.writeKeys(), loaded);
-        return loaded;
-    }
-
-    /**
-     * 使用当前规则 generation 缓存单条匹配；generation 不可读时直接回源。
-     */
-    private Optional<RiskListMatch> ruleCache(Supplier<Optional<RiskListMatch>> loader,
-                                              String... segments) {
-        Optional<RuleCacheKeys> cacheKeys = currentRuleCacheKeys(segments);
-        return cacheKeys.map(keys -> cache(keys, loader)).orElseGet(loader);
-    }
-
-    /**
-     * 使用当前规则 generation 缓存布尔存在性，并为 {@code false} 使用较短 TTL。
-     */
-    private boolean ruleBooleanCache(Supplier<Boolean> loader, String... segments) {
-        Optional<RuleCacheKeys> cacheKeys = currentRuleCacheKeys(segments);
-        return cacheKeys.map(keys -> cachedBoolean(keys, loader))
-                .orElseGet(() -> Boolean.TRUE.equals(loader.get()));
-    }
-
-    /**
-     * 使用当前规则 generation 缓存规则集合，返回不可变快照。
-     */
-    private List<RiskListMatch> ruleListCache(Supplier<List<RiskListMatch>> loader, String... segments) {
-        Optional<RuleCacheKeys> cacheKeys = currentRuleCacheKeys(segments);
-        return cacheKeys.map(keys -> cachedList(keys, loader))
-                .orElseGet(() -> immutableList(loader.get()));
-    }
-
-    /**
-     * 读取当前 generation，并构造唯一的规则缓存 Key。
-     *
-     * <p>格式固定为
-     * {@code acquiring:{environment}:risk:runtime-rule:{generation}:{segments...}}。</p>
-     *
-     * @return 可读 generation 对应的有序 Key；存储不可用时返回空并安全回源数据库
-     */
-    private Optional<RuleCacheKeys> currentRuleCacheKeys(String... segments) {
-        if (cacheGenerationStore == null) {
-            return Optional.empty();
-        }
-        try {
-            RedisCacheGenerationState state = cacheGenerationStore.current(RULE_CACHE_NAMESPACE);
-            if (!state.cacheReadable() || !StringUtils.hasText(state.generation())) {
-                return Optional.empty();
-            }
-            String[] keySegments = new String[segments.length + 1];
-            keySegments[0] = state.generation();
-            System.arraycopy(segments, 0, keySegments, 1, segments.length);
-            String cacheKey = redisProperties.businessKey(
-                    "risk",
-                    "runtime-rule",
-                    keySegments
-            );
-            return Optional.of(new RuleCacheKeys(List.of(cacheKey), List.of(cacheKey)));
-        } catch (RuntimeException exception) {
-            log.warn("event: RISK_RULE_CACHE_GENERATION_FAILED exceptionType: {}",
-                    exception.getClass().getSimpleName());
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * 返回缓存命中后需要回填的写 Key，不重复刷新本次命中的源 Key TTL。
-     *
-     * @param cacheKeys 当前迁移模式的读写 Key
-     * @param sourceKey 本次缓存命中的物理 Key
-     * @return 需要回填的其他写 Key
-     */
-    private List<String> backfillTargets(RuleCacheKeys cacheKeys, String sourceKey) {
-        return cacheKeys.writeKeys().stream()
-                .filter(key -> !Objects.equals(key, sourceKey))
-                .toList();
-    }
-
-    /**
-     * 读取单规则缓存并区分“未缓存”与“已缓存空结果”。
-     *
-     * @return 带缓存状态的查询结果；Redis 或反序列化异常按未缓存处理
-     */
-    private CachedMatchLookup readCache(String cacheKey) {
-        if (redisStringService == null) {
-            return CachedMatchLookup.notCached();
-        }
-        try {
-            Object cached = redisStringService.get(cacheKey);
-            if (cached instanceof RiskListMatch match) {
-                return CachedMatchLookup.cached(Optional.of(match));
-            }
-            if (cached instanceof String text && StringUtils.hasText(text)) {
-                RiskRuntimeCacheEntry entry = JsonUtils.parseObject(text, RiskRuntimeCacheEntry.class);
-                if (entry != null) {
-                    return CachedMatchLookup.cached(entry.isFound()
-                            ? Optional.ofNullable(entry.getMatch())
-                            : Optional.empty());
-                }
-            }
-        } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKeyDigest: {} exceptionType: {}",
-                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
-        }
-        return CachedMatchLookup.notCached();
-    }
-
-    /**
-     * 向迁移模式指定的全部目标 Key 写入单规则结果。
-     *
-     * @param cacheKeys 有序写 Key；空列表表示本次无需回填
-     * @param match 规则命中或已确认的未命中
-     */
-    private void writeCache(List<String> cacheKeys, Optional<RiskListMatch> match) {
-        for (String cacheKey : cacheKeys) {
-            writeCache(cacheKey, match);
-        }
-    }
-
-    /**
-     * 写入单规则命中或空值包装对象，分别使用命中和未命中 TTL。
-     *
-     * <p>缓存失败仅影响加速，不改变数据库规则判断结果。</p>
-     *
-     * @param cacheKey 目标物理 Key
-     * @param match 规则命中或已确认的未命中
-     */
-    private void writeCache(String cacheKey, Optional<RiskListMatch> match) {
-        if (redisStringService == null) {
-            return;
-        }
-        try {
-            if (match.isPresent()) {
-                redisStringService.set(cacheKey,
-                        JsonUtils.toJsonString(RiskRuntimeCacheEntry.match(match.get())),
-                        Duration.ofSeconds(properties.getCacheHitTtlSeconds()));
-            } else {
-                redisStringService.set(cacheKey,
-                        JsonUtils.toJsonString(RiskRuntimeCacheEntry.match(null)),
-                        Duration.ofSeconds(properties.getCacheMissTtlSeconds()));
-            }
-        } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKeyDigest: {} exceptionType: {}",
-                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * 按迁移优先级读取布尔规则缓存，未命中时仅回源一次并写入全部目标 Key。
-     *
-     * @param cacheKeys 当前迁移模式的有序读写 Key
-     * @param loader 数据库回源函数
-     * @return 缓存值或数据库结果
-     */
-    private boolean cachedBoolean(RuleCacheKeys cacheKeys, Supplier<Boolean> loader) {
-        for (String readKey : cacheKeys.readKeys()) {
-            Optional<Boolean> cached = readBooleanCache(readKey);
-            if (cached.isPresent()) {
-                writeBooleanCache(backfillTargets(cacheKeys, readKey), cached.get());
-                return cached.get();
-            }
-        }
-        boolean loaded = Boolean.TRUE.equals(loader.get());
-        writeBooleanCache(cacheKeys.writeKeys(), loaded);
-        return loaded;
-    }
-
-    /**
-     * 读取单个布尔规则缓存，Redis 异常按未缓存处理。
-     *
-     * @param cacheKey 目标物理 Key
-     * @return 已缓存布尔值；未缓存或读取失败时为空
-     */
-    private Optional<Boolean> readBooleanCache(String cacheKey) {
-        if (redisStringService != null) {
-            try {
-                Object cached = redisStringService.get(cacheKey);
-                if (cached instanceof String text && StringUtils.hasText(text)) {
-                    return Optional.of(Boolean.parseBoolean(text));
-                }
-                if (cached instanceof Boolean value) {
-                    return Optional.of(value);
-                }
-            } catch (RuntimeException exception) {
-                log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKeyDigest: {} exceptionType: {}",
-                        RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
-            }
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * 向迁移模式指定的全部目标 Key 写入布尔规则缓存。
-     *
-     * @param cacheKeys 有序写 Key
-     * @param value 布尔规则结果
-     */
-    private void writeBooleanCache(List<String> cacheKeys, boolean value) {
-        for (String cacheKey : cacheKeys) {
-            writeBooleanCache(cacheKey, value);
-        }
-    }
-
-    /**
-     * 写入单个布尔规则缓存，true 使用命中 TTL，false 使用未命中 TTL。
-     *
-     * @param cacheKey 目标物理 Key
-     * @param value 布尔规则结果
-     */
-    private void writeBooleanCache(String cacheKey, boolean value) {
-        if (redisStringService == null) {
-            return;
-        }
-        try {
-            long ttlSeconds = value ? properties.getCacheHitTtlSeconds() : properties.getCacheMissTtlSeconds();
-            redisStringService.set(cacheKey, String.valueOf(value), Duration.ofSeconds(ttlSeconds));
-        } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKeyDigest: {} exceptionType: {}",
-                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * 按迁移优先级读取规则列表，未命中时仅回源一次并缓存不可变快照。
-     *
-     * @param cacheKeys 当前迁移模式的有序读写 Key
-     * @param loader 数据库回源函数
-     * @return 缓存列表或数据库结果
-     */
-    private List<RiskListMatch> cachedList(RuleCacheKeys cacheKeys,
-                                           Supplier<List<RiskListMatch>> loader) {
-        for (String readKey : cacheKeys.readKeys()) {
-            CachedListLookup cached = readListCache(readKey);
-            if (cached.cached()) {
-                writeListCache(backfillTargets(cacheKeys, readKey), cached.matches());
-                return cached.matches();
-            }
-        }
-        List<RiskListMatch> loaded = immutableList(loader.get());
-        writeListCache(cacheKeys.writeKeys(), loaded);
-        return loaded;
-    }
-
-    /**
-     * 读取单个规则列表缓存并区分未缓存与已缓存空列表。
-     *
-     * @param cacheKey 目标物理 Key
-     * @return 带缓存状态的不可变规则列表
-     */
-    private CachedListLookup readListCache(String cacheKey) {
-        if (redisStringService != null) {
-            try {
-                Object cached = redisStringService.get(cacheKey);
-                if (cached instanceof String text && StringUtils.hasText(text)) {
-                    RiskRuntimeCacheEntry entry = JsonUtils.parseObject(text, RiskRuntimeCacheEntry.class);
-                    if (entry != null) {
-                        return CachedListLookup.cached(entry.isFound()
-                                ? immutableList(entry.getMatches())
-                                : List.of());
-                    }
-                }
-            } catch (RuntimeException exception) {
-                log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKeyDigest: {} exceptionType: {}",
-                        RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
-            }
-        }
-        return CachedListLookup.notCached();
-    }
-
-    /**
-     * 向迁移模式指定的全部目标 Key 写入规则列表缓存。
-     *
-     * @param cacheKeys 有序写 Key
-     * @param matches 不可变规则列表
-     */
-    private void writeListCache(List<String> cacheKeys, List<RiskListMatch> matches) {
-        for (String cacheKey : cacheKeys) {
-            writeListCache(cacheKey, matches);
-        }
-    }
-
-    /**
-     * 写入单个规则列表缓存，空列表使用未命中 TTL。
-     *
-     * @param cacheKey 目标物理 Key
-     * @param matches 不可变规则列表
-     */
-    private void writeListCache(String cacheKey, List<RiskListMatch> matches) {
-        if (redisStringService == null) {
-            return;
-        }
-        try {
-            long ttlSeconds = matches.isEmpty()
-                    ? properties.getCacheMissTtlSeconds()
-                    : properties.getCacheHitTtlSeconds();
-            redisStringService.set(
-                    cacheKey,
-                    JsonUtils.toJsonString(RiskRuntimeCacheEntry.matches(matches)),
-                    Duration.ofSeconds(ttlSeconds)
-            );
-        } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKeyDigest: {} exceptionType: {}",
-                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
-        }
     }
 
     /**
@@ -3334,241 +2789,13 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * 频率规则解析结果，保留解析有效性以阻止格式错误后静默使用默认维度。
+     * 描述累计限额所在的自然时间桶和 Redis 存活时间。
      *
-     * @param elements      参与统计的受支持元素
-     * @param dimension     组合统计或任一元素统计
-     * @param windowSeconds 固定窗口秒数
-     * @param allowedCount  窗口允许的最大交易数
-     * @param successCount  窗口允许的最大成功交易数，0 表示不启用
-     * @param valid         JSON、窗口、阈值和维度是否通过基础校验
+     * @param beginTime 时间桶起点，包含该时间
+     * @param endTime 时间桶终点，不包含该时间
+     * @param bucket 用于 Redis Key 的稳定桶标识
+     * @param ttlSeconds 覆盖时间桶并保留补偿窗口的存活秒数
      */
-    private record FrequencyPolicy(List<String> elements,
-                                   String dimension,
-                                   int windowSeconds,
-                                   int allowedCount,
-                                   int successCount,
-                                   boolean valid) {
-
-        /**
-         * 从数据库规则字段和扩展 JSON 解析统一频控策略。
-         *
-         * @param rule 风控频率规则
-         * @return 不抛出解析异常的策略结果；格式错误通过 valid=false 交给上层 REVIEW
-         */
-        private static FrequencyPolicy from(RiskListMatch rule) {
-            List<String> elements = new ArrayList<>();
-            String dimension = FREQUENCY_DIMENSION_ANY;
-            Integer allowedCount = rule == null ? null : rule.getThresholdCount();
-            Integer successCount = 0;
-            Integer windowSeconds = rule == null ? null : rule.getTimeWindowSeconds();
-            boolean valid = rule != null;
-            if (rule != null && StringUtils.hasText(rule.getElementsJson())) {
-                try {
-                    Map<String, Object> policy = JsonUtils.parseObject(rule.getElementsJson(), Map.class);
-                    Object rawElements = policy == null ? null : policy.get("elements");
-                    if (rawElements instanceof List<?> list) {
-                        for (Object item : list) {
-                            if (item != null && StringUtils.hasText(String.valueOf(item))) {
-                                elements.add(String.valueOf(item).trim());
-                            }
-                        }
-                    }
-                    Object rawDimension = policy == null ? null : policy.get("statisticDimension");
-                    if (rawDimension != null && StringUtils.hasText(String.valueOf(rawDimension))) {
-                        dimension = String.valueOf(rawDimension).trim().toUpperCase(Locale.ROOT);
-                        if (!FREQUENCY_DIMENSION_COMBINATION.equals(dimension)
-                                && !FREQUENCY_DIMENSION_ANY.equals(dimension)) {
-                            valid = false;
-                        }
-                    }
-                    allowedCount = intValue(policy == null ? null : policy.get("allowedCount"), allowedCount);
-                    successCount = intValue(policy == null ? null : policy.get("successCount"), successCount);
-                    windowSeconds = intValue(policy == null ? null : policy.get("timeWindowSeconds"), windowSeconds);
-                } catch (RuntimeException exception) {
-                    valid = false;
-                }
-            }
-            if (elements.isEmpty()) {
-                elements.add(FREQUENCY_ELEMENT_CARD_FINGERPRINT);
-                elements.add(FREQUENCY_ELEMENT_IP);
-            }
-            int normalizedWindowSeconds = windowSeconds == null ? 3_600 : windowSeconds;
-            int normalizedAllowedCount = allowedCount == null ? 1 : allowedCount;
-            int normalizedSuccessCount = successCount == null ? 0 : successCount;
-            return new FrequencyPolicy(
-                    elements.stream().distinct().sorted().toList(),
-                    FREQUENCY_DIMENSION_COMBINATION.equals(dimension) ? FREQUENCY_DIMENSION_COMBINATION : FREQUENCY_DIMENSION_ANY,
-                    normalizedWindowSeconds,
-                    normalizedAllowedCount,
-                    normalizedSuccessCount,
-                    valid
-                            && normalizedWindowSeconds > 0
-                            && normalizedAllowedCount > 0
-                            && normalizedSuccessCount >= 0
-                            && normalizedSuccessCount <= normalizedAllowedCount
-            );
-        }
-
-        /**
-         * 校验规则不会超过部署允许的固定窗口和阈值。
-         *
-         * @param properties 风控部署容量上限
-         * @return 规则可以安全执行时返回 true
-         */
-        private boolean executable(RiskEvaluationProperties properties) {
-            return valid
-                    && properties != null
-                    && windowSeconds <= properties.getFrequencyMaxWindowSeconds()
-                    && allowedCount <= properties.getFrequencyMaxThresholdCount()
-                    && successCount <= properties.getFrequencyMaxThresholdCount()
-                    && !elements.isEmpty()
-                    && SUPPORTED_FREQUENCY_ELEMENTS.containsAll(elements);
-        }
-
-        private List<String> counterKeys(RiskListMatch rule,
-                                         String merchantId,
-                                         List<String> counterIdentities,
-                                         PaymentRedisProperties redisProperties) {
-            return counterIdentities.stream()
-                    .map(identity -> counterKey(rule, merchantId, identity, redisProperties))
-                    .toList();
-        }
-
-        private List<String> counterIdentities(Map<String, String> elementValues) {
-            if (FREQUENCY_DIMENSION_COMBINATION.equals(dimension)) {
-                List<String> parts = new ArrayList<>();
-                for (String element : elements) {
-                    String value = elementValues.get(element);
-                    if (!StringUtils.hasText(value)) {
-                        return List.of();
-                    }
-                    parts.add(element + "=" + value);
-                }
-                return List.of(RedisKeyDigest.sha256(String.join("&", parts)));
-            }
-            List<String> keys = new ArrayList<>();
-            for (String element : elements) {
-                String value = elementValues.get(element);
-                if (StringUtils.hasText(value)) {
-                    keys.add(RedisKeyDigest.sha256(element + "=" + value));
-                }
-            }
-            return keys;
-        }
-
-        private String maskedHitValue(Map<String, String> elementValues) {
-            return elements.stream()
-                    .filter(element -> StringUtils.hasText(elementValues.get(element)))
-                    .map(element -> element + "=HASH")
-                    .collect(Collectors.joining("&"));
-        }
-
-        private String counterKey(RiskListMatch rule,
-                                  String merchantId,
-                                  String elementKey,
-                                  PaymentRedisProperties redisProperties) {
-            long ruleId = rule == null || rule.getRuleId() == null ? 0L : rule.getRuleId();
-            String merchantSegment = safeMerchantSegment(merchantId);
-            String slotIdentity = ruleId + ":" + merchantSegment + ":" + elementKey;
-            return redisProperties.coLocatedBusinessKey(
-                    "risk",
-                    "frequency",
-                    slotIdentity,
-                    "counter"
-            );
-        }
-
-        private String safeMerchantSegment(String merchantId) {
-            return StringUtils.hasText(merchantId) ? merchantId.trim() : "GLOBAL";
-        }
-
-        private static Integer intValue(Object value, Integer fallback) {
-            if (value instanceof Number number) {
-                return number.intValue();
-            }
-            if (value != null && StringUtils.hasText(String.valueOf(value))) {
-                try {
-                    return Integer.parseInt(String.valueOf(value));
-                } catch (NumberFormatException ignored) {
-                    return fallback;
-                }
-            }
-            return fallback;
-        }
-    }
-
-    /**
-     * 单次规则缓存访问使用的有序读写 Key。
-     *
-     * @param readKeys 按优先级排列的物理读 Key
-     * @param writeKeys 按次选到首选排列的物理写 Key
-     */
-    private record RuleCacheKeys(List<String> readKeys, List<String> writeKeys) {
-
-        private RuleCacheKeys {
-            readKeys = readKeys == null ? List.of() : List.copyOf(readKeys);
-            writeKeys = writeKeys == null ? List.of() : List.copyOf(writeKeys);
-            if (readKeys.isEmpty() || writeKeys.isEmpty()) {
-                throw new IllegalArgumentException("Risk rule cache migration requires read and write Keys");
-            }
-        }
-    }
-
-    /**
-     * 单规则缓存读取结果，区分未缓存与已缓存空命中。
-     *
-     * @param cached Redis 是否已提供确定结果
-     * @param match 命中规则；已缓存未命中时为空
-     */
-    private record CachedMatchLookup(boolean cached, Optional<RiskListMatch> match) {
-
-        /**
-         * 创建“缓存未提供结果”的状态，允许调用方继续回源。
-         */
-        private static CachedMatchLookup notCached() {
-            return new CachedMatchLookup(false, Optional.empty());
-        }
-
-        /**
-         * 创建“缓存已回答”的状态，空 Optional 表示已缓存未命中。
-         */
-        private static CachedMatchLookup cached(Optional<RiskListMatch> match) {
-            return new CachedMatchLookup(true, match == null ? Optional.empty() : match);
-        }
-    }
-
-    /**
-     * 规则列表缓存读取结果，区分未缓存与已缓存空列表。
-     *
-     * @param cached Redis 是否已提供确定结果
-     * @param matches 不可变规则列表
-     */
-    private record CachedListLookup(boolean cached, List<RiskListMatch> matches) {
-
-        /**
-         * 创建“缓存未提供结果”的状态，允许调用方继续读取次选 Key 或回源。
-         *
-         * @return 未缓存状态
-         */
-        private static CachedListLookup notCached() {
-            return new CachedListLookup(false, List.of());
-        }
-
-        /**
-         * 创建“缓存已回答”的状态，空列表表示已缓存未配置任何规则。
-         *
-         * @param matches 缓存规则列表
-         * @return 已缓存状态
-         */
-        private static CachedListLookup cached(List<RiskListMatch> matches) {
-            return new CachedListLookup(
-                    true,
-                    matches == null || matches.isEmpty() ? List.of() : List.copyOf(matches)
-            );
-        }
-    }
-
     private record MerchantLimitPeriod(LocalDateTime beginTime,
                                        LocalDateTime endTime,
                                        String bucket,

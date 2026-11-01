@@ -7,13 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayClientIpProperties
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 网关客户端 IP 透传配置，位于 service-gateway 配置层，用于控制是否信任上游代理写入的转发头。
- * @status : create
+ * 网关客户端 IP 透传配置，位于 service-gateway 配置层，用于控制是否信任上游代理写入的转发头。
  */
 @ConfigurationProperties(prefix = "acquiring.gateway.client-ip")
 public class GatewayClientIpProperties {

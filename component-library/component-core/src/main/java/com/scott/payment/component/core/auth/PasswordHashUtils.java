@@ -10,13 +10,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PasswordHashUtils
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 后台与商户管理系统登录密码哈希工具
- * @status : create
+ * 后台与商户管理系统登录密码哈希工具
  */
 public final class PasswordHashUtils {
 
@@ -45,6 +39,9 @@ public final class PasswordHashUtils {
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 禁止实例化密码哈希工具类。
+     */
     private PasswordHashUtils() {
     }
 

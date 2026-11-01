@@ -4,13 +4,7 @@ import java.math.BigDecimal;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingFeeTierAccumulatorDelta
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 单条阶梯累计批量更新参数。
- * @status : update
+ * 单条阶梯累计批量更新参数。
  *
  * @param feeRuleId 冻结阶梯费用规则 ID
  * @param expectedVersion 加锁读取到的累计行版本
@@ -20,6 +14,9 @@ public record ClearingFeeTierAccumulatorDelta(Long feeRuleId,
                                               long expectedVersion,
                                               BigDecimal amountDelta) {
 
+    /**
+     * 校验阶梯规则身份、乐观锁版本和非负累计金额增量。
+     */
     public ClearingFeeTierAccumulatorDelta {
         if (feeRuleId == null || feeRuleId < 1 || expectedVersion < 0) {
             throw new IllegalArgumentException("tier accumulator identity and version are invalid");

@@ -16,13 +16,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantTransactionResultDetailService
- * @date : 2026-08-14 13:45
- * @email : scott_x@163.com
- * @description : 从认证和财务逻辑表读取商户可见结果，严格排除 CAVV、认证原文和未形成的结算数据。
- * @status : create
+ * 商户交易结果的认证与财务详情投影服务。
+ *
+ * <p>该服务只读取已持久化事实并生成商户受众允许看到的字段。CAVV、渠道认证原文、内部风控信息
+ * 和尚未形成的结算数据不得进入投影；管理端更详细的排障信息应由独立受众模型提供。</p>
  */
 @Service
 public class DefaultMerchantTransactionResultDetailService implements MerchantTransactionResultDetailService {
@@ -30,7 +27,9 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
     private final TransactionAuthenticationInfoMapper authenticationInfoMapper;
     private final TransactionFinanceStateMapper financeStateMapper;
 
-    /** 创建商户交易结果详情服务。 */
+    /**
+     * 创建商户交易结果详情服务。
+     */
     public DefaultMerchantTransactionResultDetailService(
             TransactionAuthenticationInfoMapper authenticationInfoMapper,
             TransactionFinanceStateMapper financeStateMapper) {
@@ -38,7 +37,11 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         this.financeStateMapper = financeStateMapper;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 加载商户可见的 3DS 认证摘要和交易资金状态。
+     *
+     * <p>仅投影公开协议允许的字段，不返回 CAVV、渠道认证原文或内部清结算证据。</p>
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public MerchantTransactionResultDetailDTO load(String transactionId, LocalDateTime transactionDateTime) {
@@ -52,6 +55,9 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         return target;
     }
 
+    /**
+     * 填充商户可见的 3DS 结果。
+     */
     private void fillThreeDs(MerchantTransactionResultDetailDTO target,
                              TransactionAuthenticationInfoDO source) {
         if (source == null) {
@@ -59,6 +65,7 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         }
         MerchantTransactionResultDetailDTO.ThreeDsInfoDTO threeDs =
                 new MerchantTransactionResultDetailDTO.ThreeDsInfoDTO();
+        // 仅投影协议允许的认证摘要，禁止复制 CAVV 或渠道原始认证报文。
         threeDs.setEci(source.getEci());
         threeDs.setDsTransactionId(source.getDsTransactionId());
         threeDs.setThreeDsVersion(source.getThreeDsVersion());
@@ -68,6 +75,9 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         target.setThreeDsInfo(threeDs);
     }
 
+    /**
+     * 转换为商户可见的 3DS 状态。
+     */
     private String toMerchantThreeDsStatus(TransactionAuthenticationInfoDO source) {
         if ("AUTHENTICATED".equals(source.getAuthenticationStatus())) {
             return "Y";
@@ -78,11 +88,15 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         return Integer.valueOf(1).equals(source.getChallengeRequired()) ? "C" : "U";
     }
 
+    /**
+     * 填充商户可见资金字段。
+     */
     private void fillFinance(MerchantTransactionResultDetailDTO target,
                              TransactionFinanceStateDO source) {
         if (source == null) {
             return;
         }
+        // 财务字段来自已形成的交易财务状态，不根据当前汇率或费率重新计算历史结果。
         target.setSettlementRate(source.getSettlementRate());
         target.setSettlementAmount(source.getSettlementAmount());
         target.setSettlementCurrency(source.getSettlementCurrency());

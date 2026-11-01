@@ -1,6 +1,6 @@
 package com.scott.payment.openapi;
 
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
@@ -22,13 +22,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantKeyCryptoUsageTests
- * @date : 2026-05-30 09:35
- * @email : scott_x@163.com
- * @description : 商户侧查询密钥、加密请求数据和解密响应数据测试
- * @status : create
+ * 商户侧查询密钥、加密请求数据和解密响应数据测试
  */
 @Slf4j
 @SpringBootTest(
@@ -41,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
-class MerchantKeyCryptoUsageTests {
+class MerchantKeyCryptoUsageTests extends OpenApiIsolatedMysqlIntegrationTest {
 
     /**
      * 测试商户号。
@@ -135,10 +129,10 @@ class MerchantKeyCryptoUsageTests {
                 clientMaterial.getMerchantId(),
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()));
-        log.info("商户请求加密成功-data段数：{}，data摘要：{}，解密后脱敏明文：{}",
+        log.info("商户请求加密成功-data段数：{}，data摘要：{}，解密后明文摘要：{}",
                 MerchantOpenApiTestSupport.compactPartCount(encryptedData),
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory),
-                SensitiveDataMaskUtils.maskJson(decryptedText));
+                MerchantOpenApiTestSupport.safePayloadSummary(decryptedText, keyMaterialFactory));
     }
 
     /**
@@ -157,11 +151,11 @@ class MerchantKeyCryptoUsageTests {
                     "currency": "USD"
                   },
                   "transactionInfo": {
-                    "code": "T200",
+                    "code": "%s",
                     "message": "Success",
                     "transactionId": "202607160954270000001"
                   }
-                }""";
+                }""".formatted(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
 
         String encryptedResponseData = payloadCrypto.encrypt(
                 plainResponseData,
@@ -176,9 +170,9 @@ class MerchantKeyCryptoUsageTests {
         log.info("平台响应加密成功-商户号：{}，密文摘要：{}",
                 MERCHANT_ID,
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
-        log.info("商户响应解密成功-使用商户响应私钥指纹：{}，响应明文：{}",
+        log.info("商户响应解密成功-使用商户响应私钥指纹：{}，响应明文摘要：{}",
                 keyMaterialFactory.fingerprint(onboardingMaterial.getMerchantResponsePrivateKeyPkcs8Base64()),
-                decryptedResponseData);
+                MerchantOpenApiTestSupport.safePayloadSummary(decryptedResponseData, keyMaterialFactory));
     }
 
     /**

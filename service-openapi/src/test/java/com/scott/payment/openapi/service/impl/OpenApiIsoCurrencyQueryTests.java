@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
@@ -32,13 +32,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoCurrencyQueryTests
- * @date : 2026-09-30 00:00
- * @email : scott_x@163.com
- * @description : 验证商户币种查询只接受 ISO 代码，条件查询走数据库且无条件查询走全量快照。
- * @status : create
+ * 验证商户币种查询只接受 ISO 代码，条件查询走数据库且无条件查询走全量快照。
  */
 class OpenApiIsoCurrencyQueryTests {
 
@@ -119,7 +113,7 @@ class OpenApiIsoCurrencyQueryTests {
         assertThatThrownBy(() -> query(json))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.PARAM_INVALID.getCode());
     }
 
     private List<IsoCurrencyVO> query(String json) {

@@ -1,13 +1,7 @@
 package com.scott.payment.admin.infrastructure.storage;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ObjectStorageService
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : 商户资料对象存储端口，屏蔽 MinIO 与 AWS S3 的实现差异且不暴露预签名直链
- * @status : create
+ * 商户资料对象存储端口，屏蔽 MinIO 与 AWS S3 的实现差异且不暴露预签名直链
  */
 public interface ObjectStorageService {
 

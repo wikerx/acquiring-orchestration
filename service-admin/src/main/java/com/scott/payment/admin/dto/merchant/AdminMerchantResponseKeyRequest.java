@@ -4,13 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantResponseKeyRequest
- * @date : 2026-06-19 22:07
- * @email : scott_x@163.com
- * @description : 管理后台商户响应密钥维护请求 DTO
- * @status : create
+ * 管理后台商户响应密钥维护请求 DTO
  *
  * <p>用于维护商户自管响应密钥材料，包含响应公钥以及可选的私钥和启用状态。</p>
  */

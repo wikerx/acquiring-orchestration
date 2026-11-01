@@ -9,13 +9,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewMakerCheckerSqlContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 结算预审 Maker-Checker 迁移合同，保护既有候选状态、唯一幂等和审计快照。
- * @status : create
+ * 结算预审 Maker-Checker 迁移合同，保护既有候选状态、唯一幂等和审计快照。
  */
 class SettlementReviewMakerCheckerSqlContractTest {
 

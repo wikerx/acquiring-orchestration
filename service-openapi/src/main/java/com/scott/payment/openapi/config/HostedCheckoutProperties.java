@@ -4,13 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutProperties
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 开放接口配置。
- * @status : create
+ * Hosted Checkout 开放接口配置。
  */
 @Data
 @ConfigurationProperties(prefix = "openapi.hosted-checkout")

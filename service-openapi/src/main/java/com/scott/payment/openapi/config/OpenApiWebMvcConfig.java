@@ -12,13 +12,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiWebMvcConfig
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Web Mvc Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
- * @status : create
+ * 注册商户 OpenAPI 安全拦截器和解密参数解析器，限定统一安全链路覆盖的路由范围。
  */
 @Configuration
 @EnableConfigurationProperties({OpenApiCallbackProperties.class, OpenApiMerchantSecretCacheProperties.class})

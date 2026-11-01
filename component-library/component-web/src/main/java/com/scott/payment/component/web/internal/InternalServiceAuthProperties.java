@@ -13,28 +13,30 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalServiceAuthProperties
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 内部服务调用签名配置，约束 /internal/** 接口的共享密钥、时间窗和白名单边界。
- * @status : create
+ * 内部服务调用签名配置，约束 /internal/** 接口的共享密钥、时间窗和白名单边界。
  */
 @Data
 @ConfigurationProperties(prefix = "internal-service.auth")
 public class InternalServiceAuthProperties {
 
-    /** 内部 HMAC 密钥最小长度，按 UTF-16 字符数执行启动门禁。 */
+    /**
+     * 内部 HMAC 密钥最小长度，按 UTF-16 字符数执行启动门禁。
+     */
     public static final int MIN_SECRET_LENGTH = 32;
 
-    /** 历史开发弱密钥，只用于启动时识别并拒绝。 */
+    /**
+     * 历史开发弱密钥，只用于启动时识别并拒绝。
+     */
     private static final String DEVELOPMENT_SECRET = "dev-internal-service-secret";
 
-    /** 调用方服务标识允许的格式。 */
+    /**
+     * 调用方服务标识允许的格式。
+     */
     private static final Pattern CALLER_PATTERN = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
 
-    /** 调用方路径授权使用的 Ant 路径匹配器。 */
+    /**
+     * 调用方路径授权使用的 Ant 路径匹配器。
+     */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
@@ -112,6 +114,12 @@ public class InternalServiceAuthProperties {
                 .anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
     }
 
+    /**
+     * 校验调用方身份格式、轮换密钥和最小内部路径权限。
+     *
+     * @param caller 调用方服务身份
+     * @param credential 调用方轮换凭据和路径权限
+     */
     private void validateCallerCredential(String caller, CallerCredential credential) {
         if (!StringUtils.hasText(caller) || !CALLER_PATTERN.matcher(caller).matches()) {
             throw new IllegalStateException("internal service caller identity is invalid");
@@ -136,6 +144,12 @@ public class InternalServiceAuthProperties {
         }
     }
 
+    /**
+     * 校验内部 HMAC 密钥已解析、不是历史弱密钥且满足最低长度。
+     *
+     * @param value 待校验密钥
+     * @param slot active 或 previous 密钥槽位
+     */
     private void validateSecret(String value, String slot) {
         if (!StringUtils.hasText(value) || value.contains("${")) {
             throw new IllegalStateException("internal service " + slot + " secret is required");
@@ -146,6 +160,12 @@ public class InternalServiceAuthProperties {
         }
     }
 
+    /**
+     * 校验认证时间窗口配置为正时长。
+     *
+     * @param value 配置时长
+     * @param propertyName 非敏感配置属性名
+     */
     private void requirePositiveDuration(Duration value, String propertyName) {
         if (value == null || value.isZero() || value.isNegative()) {
             throw new IllegalStateException(propertyName + " must be positive");
@@ -158,13 +178,19 @@ public class InternalServiceAuthProperties {
     @Data
     public static class CallerCredential {
 
-        /** 当前调用方签名使用的有效密钥。 */
+        /**
+         * 当前调用方签名使用的有效密钥。
+         */
         private String activeSecret;
 
-        /** 上一轮密钥，仅在滚动轮换窗口内保留，轮换完成后必须清空。 */
+        /**
+         * 上一轮密钥，仅在滚动轮换窗口内保留，轮换完成后必须清空。
+         */
         private String previousSecret;
 
-        /** 当前调用方允许访问的内部路径，支持 Ant 风格匹配。 */
+        /**
+         * 当前调用方允许访问的内部路径，支持 Ant 风格匹配。
+         */
         private List<String> allowedPaths = List.of();
     }
 }

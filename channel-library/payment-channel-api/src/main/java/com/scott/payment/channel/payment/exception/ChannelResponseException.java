@@ -1,13 +1,7 @@
 package com.scott.payment.channel.payment.exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelResponseException
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道响应异常，位于 payment-channel-api 异常层，用于表达响应缺失、格式错误或渠道明确拒绝；默认结果未知，适配器可对明确拒绝显式标记为确定失败。
- * @status : create
+ * 渠道响应异常，位于 payment-channel-api 异常层，用于表达响应缺失、格式错误或渠道明确拒绝；默认结果未知，适配器可对明确拒绝显式标记为确定失败。
  */
 public class ChannelResponseException extends ChannelException {
 

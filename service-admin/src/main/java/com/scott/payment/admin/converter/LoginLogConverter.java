@@ -5,13 +5,7 @@ import com.scott.payment.component.db.auth.entity.SysLoginLogDO;
 import org.mapstruct.Mapper;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LoginLogConverter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 登录日志对象转换器，位于 service-admin 转换层；负责登录日志实体到后台响应 DTO 的普通字段映射。
- * @status : create
+ * 登录日志对象转换器，位于 service-admin 转换层；负责登录日志实体到后台响应 DTO 的普通字段映射。
  */
 @Mapper(componentModel = "spring")
 public interface LoginLogConverter {

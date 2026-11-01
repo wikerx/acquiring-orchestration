@@ -25,19 +25,17 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : QuarterTableShardingAlgorithm
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : ShardingSphere 标准表分片算法，按 Asia/Shanghai 下的 transaction_date_time 精确或范围路由到已登记季度节点。
- * @status : create
+ * ShardingSphere 标准表分片算法，按 Asia/Shanghai 下的 transaction_date_time 精确或范围路由到已登记季度节点。
  */
 public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<Comparable<?>> {
 
-    /** 将带时区时间统一换算到数据库路由时区，禁止各服务按 JVM 默认时区分片。 */
+    /**
+     * 将带时区时间统一换算到数据库路由时区，禁止各服务按 JVM 默认时区分片。
+     */
     private ZoneId zoneId = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
-    /** 当前发布规则版本，仅用于缺失物理节点时提供可追踪的失败信息。 */
+    /**
+     * 当前发布规则版本，仅用于缺失物理节点时提供可追踪的失败信息。
+     */
     private String ruleVersion = "unpublished";
 
     /**
@@ -126,12 +124,16 @@ public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<
         return "QUARTER_BY_TRANSACTION_TIME";
     }
 
-    /** 下界为开区间时推进一个纳秒，确保季度边界不会误包含前一节点。 */
+    /**
+     * 下界为开区间时推进一个纳秒，确保季度边界不会误包含前一节点。
+     */
     private LocalDateTime adjustLower(LocalDateTime value, BoundType boundType) {
         return boundType == BoundType.OPEN ? value.plusNanos(1) : value;
     }
 
-    /** 上界为开区间时回退一个纳秒，确保季度边界不会误包含后一节点。 */
+    /**
+     * 上界为开区间时回退一个纳秒，确保季度边界不会误包含后一节点。
+     */
     private LocalDateTime adjustUpper(LocalDateTime value, BoundType boundType) {
         return boundType == BoundType.OPEN ? value.minusNanos(1) : value;
     }
@@ -171,18 +173,24 @@ public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<
         throw new IllegalArgumentException("unsupported transaction_date_time type: " + value.getClass().getSimpleName());
     }
 
-    /** 将交易时间转换为 YYYY0Q 物理表后缀。 */
+    /**
+     * 将交易时间转换为 YYYY0Q 物理表后缀。
+     */
     private String suffix(LocalDateTime dateTime) {
         return "%04d%02d".formatted(dateTime.getYear(), quarter(dateTime).quarter());
     }
 
-    /** 生成不含物理表名的季度诊断标签。 */
+    /**
+     * 生成不含物理表名的季度诊断标签。
+     */
     private String quarterLabel(LocalDateTime dateTime) {
         ShardingQuarter quarter = quarter(dateTime);
         return quarter.year() + "-Q" + quarter.quarter();
     }
 
-    /** 根据数据库本地时间计算所属自然季度。 */
+    /**
+     * 根据数据库本地时间计算所属自然季度。
+     */
     private ShardingQuarter quarter(LocalDateTime dateTime) {
         return new ShardingQuarter(dateTime.getYear(), (dateTime.getMonthValue() - 1) / 3 + 1);
     }
@@ -202,7 +210,9 @@ public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<
         return new ShardingQuarter(Integer.parseInt(value.substring(0, 4)), Integer.parseInt(value.substring(5, 6)));
     }
 
-    /** 枚举闭区间内的连续季度，用于检测 actualDataNodes 中间缺口。 */
+    /**
+     * 枚举闭区间内的连续季度，用于检测 actualDataNodes 中间缺口。
+     */
     private Set<ShardingQuarter> quartersBetween(ShardingQuarter lower, ShardingQuarter upper) {
         Set<ShardingQuarter> result = new LinkedHashSet<>();
         ShardingQuarter current = lower;
@@ -215,6 +225,12 @@ public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<
         return result;
     }
 
+    /**
+     * 物理表名称及其解析后的自然季度。
+     *
+     * @param targetName ShardingSphere 可用的物理表名称
+     * @param quarter 物理表对应自然季度
+     */
     private record NodeQuarter(String targetName, ShardingQuarter quarter) {
     }
 }

@@ -7,13 +7,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import java.lang.reflect.Method;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiRequestHandlerMapping
- * @date : 2026-05-28 18:16
- * @email : scott_x@163.com
- * @description : 支持 {version} 路径变量的 REST API 路由映射
- * @status : create
+ * 支持 {version} 路径变量的 REST API 路由映射
  */
 public class ApiRequestHandlerMapping extends RequestMappingHandlerMapping {
 

@@ -22,17 +22,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationAttemptCommitServiceTests
- * @date : 2026-08-20 23:35
- * @email : scott_x@163.com
- * @description : 验证商户回调结果提交服务生成安全重试事件并同时持久化尝试日志
- * @status : create
+ * 验证商户回调结果提交服务生成安全重试事件并同时持久化尝试日志
  */
 @Slf4j
 class MerchantNotificationAttemptCommitServiceTests {
 
+    /**
+     * 验证失败尝试、任务状态和重试 Outbox 原子提交且不泄露 HTTP 安全材料。
+     */
     @Test
     void shouldPersistAttemptAndRetryEventWithoutMerchantHttpProtocolData() {
         log.info("测试回调失败结果原子提交，关键输入: 第一次自动回调超时");
@@ -73,6 +70,9 @@ class MerchantNotificationAttemptCommitServiceTests {
         log.info("回调失败结果原子提交测试完成，结果: 日志、状态和安全 Outbox 均进入同一入口");
     }
 
+    /**
+     * 构造不包含真实敏感数据的商户通知任务。
+     */
     private DataMerchantNotificationTaskDO task() {
         DataMerchantNotificationTaskDO task = new DataMerchantNotificationTaskDO();
         task.setId(1L);
@@ -85,6 +85,9 @@ class MerchantNotificationAttemptCommitServiceTests {
         return task;
     }
 
+    /**
+     * 构造只含脱敏字段的商户通知尝试日志。
+     */
     private DataMerchantNotificationLogDO attemptLog() {
         DataMerchantNotificationLogDO logDO = new DataMerchantNotificationLogDO();
         logDO.setNotifyLogId("LOG-1");

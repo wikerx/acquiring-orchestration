@@ -72,9 +72,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** 手动交易或保证金结算预览、分段冻结、汇总和失败补偿的本地事务边界。 */
+/**
+ * 手动交易或保证金结算预览、分段冻结、汇总和失败补偿的本地事务边界。
+ */
 @Service
 public class SettlementManualReviewTransactionService {
+
 
     private static final int MAX_DAILY_SEQUENCE = 99_999_999;
     private static final Set<String> REVIEW_TYPES = Set.of("REGULAR", "RESERVE_RELEASE");
@@ -146,6 +149,12 @@ public class SettlementManualReviewTransactionService {
         this.clock = Objects.requireNonNull(clock, "settlement manual review clock is required");
     }
 
+    /**
+     * 创建冻结候选上界的预审快照；请求键重放必须与原筛选条件完全一致。
+     *
+     * @param command 预审范围、结算档案、筛选条件和可信操作人快照
+     * @return 预审任务及当前进度
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult preview(PreviewCommand command) {
@@ -165,6 +174,7 @@ public class SettlementManualReviewTransactionService {
         }
 
         Window window = maturedWindow(profile, clock.instant());
+        // 最大候选主键形成不可变上界，后续新进入 READY 的交易不得混入本次人工预审。
         Long snapshotMaxCandidateId = taskMapper.selectSnapshotMaxCandidateId(
                 command.merchantId(), command.settlementProfileId(), profile.getTargetCurrency(),
                 window.businessDate(), window.cutoffEndUtc(), command.reviewType(),
@@ -206,6 +216,14 @@ public class SettlementManualReviewTransactionService {
         return result(stored);
     }
 
+    /**
+     * 按期望版本启动预审任务，防止页面旧快照覆盖已推进状态。
+     *
+     * @param taskNo 预审任务号
+     * @param command 启动请求幂等键和期望版本
+     * @param expectedReviewType 调用入口允许的预审类型
+     * @return 启动后任务状态
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult start(String taskNo, StartCommand command, String expectedReviewType) {
@@ -240,6 +258,9 @@ public class SettlementManualReviewTransactionService {
         return result(task);
     }
 
+    /**
+     * 查询预审任务并校验调用入口对应的预审类型。
+     */
     @DS(DataSourceName.TRANSACTION)
     public TaskResult get(String taskNo, String expectedReviewType) {
         requireTaskNo(taskNo);
@@ -249,6 +270,9 @@ public class SettlementManualReviewTransactionService {
         return result(task);
     }
 
+    /**
+     * 以数据库租约领取一条到期任务；未命中任务时返回空。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public Optional<SettlementManualReviewTaskDO> claimNext(String owner,
@@ -274,6 +298,9 @@ public class SettlementManualReviewTransactionService {
         return Optional.of(task);
     }
 
+    /**
+     * 在固定分段内锁定候选并冻结预审事实；每次提交只推进一个任务版本。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void processClaimed(String taskNo, String owner, int chunkSize, LocalDateTime now) {
@@ -339,6 +366,9 @@ public class SettlementManualReviewTransactionService {
         }
     }
 
+    /**
+     * 对取消中的任务分段释放候选锁，全部释放后再进入终态。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void compensateClaimed(String taskNo, String owner, LocalDateTime now) {
@@ -368,6 +398,9 @@ public class SettlementManualReviewTransactionService {
         }
     }
 
+    /**
+     * 将处理异常分类为可重试退避或终态补偿，禁止无限重试。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void recordFailure(String taskNo,
@@ -441,6 +474,13 @@ public class SettlementManualReviewTransactionService {
         }
     }
 
+    /**
+     * 按任务业务时点解析并幂等固化结算汇率矩阵，后续处理始终复用该快照。
+     * 已存在的汇率直接返回，避免重试期间因实时汇率变化改变预审结果。
+     * @param task 已加锁读取的手动结算任务快照
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 符合当前条件的只读集合或映射结果
+     */
     private List<SettlementReviewRateDO> lockRates(SettlementManualReviewTaskDO task,
                                                    LocalDateTime now) {
         List<SettlementReviewRateDO> stored = safe(reviewRateMapper.selectByOrderNo(task.getReviewOrderNo()));
@@ -614,6 +654,14 @@ public class SettlementManualReviewTransactionService {
         return row;
     }
 
+    /**
+     * 将本段候选和不可变清分事实转换为预审关系快照，固化候选版本及来源指纹。
+     * @param reviewOrderNo 结算预审单号或冲正单号，用于定位唯一业务单据
+     * @param candidates 本次人工预审独占锁定的候选集合
+     * @param facts 候选对应的不可变清分事实
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 符合当前条件的只读集合或映射结果
+     */
     private List<SettlementReviewCandidateDO> reviewCandidates(String reviewOrderNo,
                                                                List<SettlementCandidateDO> candidates,
                                                                SettlementBatchFacts facts,
@@ -642,6 +690,13 @@ public class SettlementManualReviewTransactionService {
         return rows;
     }
 
+    /**
+     * 将预审计算摘要转换为持久化行，保持金额方向、币种和费用维度不变。
+     * @param reviewOrderNo 结算预审单号或冲正单号，用于定位唯一业务单据
+     * @param values 有界参数集合或键值片段，空元素按当前方法约定忽略或拒绝
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 符合当前条件的只读集合或映射结果
+     */
     private List<SettlementReviewSummaryDO> reviewSummaries(String reviewOrderNo,
                                                             List<SettlementResultSummaryDO> values,
                                                             LocalDateTime now) {
@@ -665,6 +720,13 @@ public class SettlementManualReviewTransactionService {
         }).toList();
     }
 
+    /**
+     * 将按业务时点锁定的汇率矩阵转换为预审汇率快照。
+     * @param task 提供预审单号和汇率来源时点的任务快照
+     * @param matrix 按任务业务时点解析的结算汇率矩阵，不得用实时汇率替换
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 符合当前条件的只读集合或映射结果
+     */
     private List<SettlementReviewRateDO> reviewRates(SettlementManualReviewTaskDO task,
                                                      RateMatrix matrix,
                                                      LocalDateTime now) {
@@ -688,6 +750,14 @@ public class SettlementManualReviewTransactionService {
                 }).toList();
     }
 
+    /**
+     * 构造{@code toLockedRates}对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
+     * </p>
+     * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private SettlementLockedRateMatrix toLockedRates(List<SettlementReviewRateDO> rows) {
         List<LockedRate> rates = new ArrayList<>(rows.size());
         Map<String, Long> ids = new LinkedHashMap<>();
@@ -744,6 +814,11 @@ public class SettlementManualReviewTransactionService {
         return new SettlementCurrency(row.getCurrency(), row.getCurrencyExponent());
     }
 
+    /**
+     * 通过按日序列表的乐观锁生成唯一预审单号；序列耗尽或并发更新失败时中断事务。
+     * @param businessDate 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String nextReviewOrderNo(LocalDate businessDate) {
         sequenceMapper.insertIfAbsent(businessDate);
         SettlementReviewDailySequenceDO sequence = sequenceMapper.selectForUpdate(businessDate);
@@ -773,6 +848,11 @@ public class SettlementManualReviewTransactionService {
                 LocalDateTime.ofInstant(cutoffEnd.toInstant(), ZoneOffset.UTC));
     }
 
+    /**
+     * 对预审业务范围、截止时点和候选快照边界生成稳定指纹。
+     * @param task 包含预审范围和候选快照上界的任务快照
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String scopeFingerprint(SettlementManualReviewTaskDO task) {
         return digest("manual-scope-v2", task.getReviewType(), task.getMerchantId(), task.getSettlementProfileId(),
                 task.getSettlementAccountId(), task.getTargetCurrency(), task.getPaymentType(),
@@ -780,6 +860,12 @@ public class SettlementManualReviewTransactionService {
                 task.getSnapshotMaxCandidateId(), task.getExpectedCandidateCount());
     }
 
+    /**
+     * 按稳定排序汇总分段结果和金额摘要，生成可在决策阶段复算的结果指纹。
+     * @param segments 有界参数集合或键值片段，空元素按当前方法约定忽略或拒绝
+     * @param summaries 按支付维度和金额方向聚合的预审摘要
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String resultFingerprint(List<SettlementReviewSegmentDO> segments,
                                      List<SettlementReviewSummaryDO> summaries) {
         List<Object> values = new ArrayList<>();
@@ -806,6 +892,13 @@ public class SettlementManualReviewTransactionService {
         return digest("result-segments-v1", values.toArray());
     }
 
+    /**
+     * 按分段顺序、候选边界和指定字段生成版本化指纹。
+     * @param version 指纹协议版本，变更规范化规则时必须同步升级
+     * @param segments 已固化的预审分段集合
+     * @param value 从每个分段提取参与指纹计算字段的函数
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String segmentFingerprint(String version,
                                       List<SettlementReviewSegmentDO> segments,
                                       java.util.function.Function<SettlementReviewSegmentDO, String> value) {
@@ -924,6 +1017,12 @@ public class SettlementManualReviewTransactionService {
         }
     }
 
+    /**
+     * 根据稳定业务身份生成可重复计算的幂等标识。
+     * @param prefix 稳定业务编号类型前缀，不参与摘要随机性
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String stableId(String prefix, String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

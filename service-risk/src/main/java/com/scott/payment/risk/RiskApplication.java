@@ -5,13 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskApplication
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 风控服务启动类，位于 service-risk 服务入口层，承载收单实时风控评估和后续规则引擎接入边界。
- * @status : create
+ * 风控服务启动类，位于 service-risk 服务入口层，承载收单实时风控评估和后续规则引擎接入边界。
  */
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
 @EnableScheduling

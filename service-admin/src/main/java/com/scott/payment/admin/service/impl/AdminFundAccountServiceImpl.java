@@ -49,80 +49,18 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFundAccountServiceImpl
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 资金账户、充值和扣减审批实现；实时聚合在途资金，并以账户锁串行化余额变动。
- * @status : create
+ * 资金账户、充值和扣减审批实现；实时聚合在途资金，并以账户锁串行化余额变动。
  */
 @Service
 public class AdminFundAccountServiceImpl implements AdminFundAccountService {
 
-    /**
-     * {@code BUILTIN_ADMIN_ACCOUNT}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String BUILTIN_ADMIN_ACCOUNT = "admin";
-    /**
-     * 等待审计常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String PENDING_AUDIT = "PENDING_AUDIT";
-    /**
-     * {@code PENDING_RECHECK}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String PENDING_RECHECK = "PENDING_RECHECK";
-    /**
-     * {@code POSTED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String POSTED = "POSTED";
-    /**
-     * {@code REJECTED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String REJECTED = "REJECTED";
-    /**
-     * {@code NORMAL}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String NORMAL = "NORMAL";
-    /**
-     * {@code FROZEN}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String FROZEN = "FROZEN";
-    /**
-     * {@code CLOSED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CLOSED = "CLOSED";
 
     private final MerchantFundAccountMapper accountMapper;
@@ -156,7 +94,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         this.merchantInfoMapper = merchantInfoMapper;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询商户资金账户，并按账户类型、币种和状态筛选。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundAccountResponse> pageAccounts(FundAccountQuery request) {
@@ -192,7 +132,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询资金账户余额、冻结金额和乐观锁版本详情。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public FundAccountResponse getAccount(Long id) {
@@ -204,7 +146,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                         .map(this::toCurrencyBalance).toList());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询指定资金账户的不可变资金流水。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundLedgerResponse> pageLedgers(Long accountId, FundDetailQuery request) {
@@ -243,7 +187,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                         recharges.get(row.getBusinessNo()), deductions.get(row.getBusinessNo()))).toList());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按商户、账户和业务单号分页查询全局资金流水。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundLedgerResponse> pageAllLedgers(FundDetailQuery request) {
@@ -301,7 +247,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询人工充值申请及其审核状态。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundRechargeResponse> pageRecharges(FundRechargeQuery request) {
@@ -331,7 +279,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                 .toList());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 创建人工充值申请，仅记录待审核指令，不直接增加账户余额。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -405,7 +355,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                 .last("LIMIT 1"));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 完成人工充值初审，并保持申请人与审核人分离。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -430,7 +382,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return rechargeResponse(recharge);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 完成人工充值复核，成功后以幂等业务键记账。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -476,7 +430,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return toRecharge(recharge, account, merchantName(account.getMerchantId()));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 拒绝尚未完成的人工充值申请，不产生资金流水。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -503,7 +459,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return rechargeResponse(recharge);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询人工扣款申请及其审核状态。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundDeductionResponse> pageDeductions(FundDeductionQuery request) {
@@ -535,7 +493,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                 .toList());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询指定人工扣款申请的金额、原因和审核轨迹。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public FundDeductionResponse getDeduction(Long id) {
@@ -550,7 +510,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return deductionResponse(deduction);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 创建人工扣款申请，仅记录待审核指令，不直接扣减账户余额。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -599,7 +561,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return toDeduction(deduction, account, merchantName(account.getMerchantId()));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 完成人工扣款初审，并保持申请人与审核人分离。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -624,7 +588,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return deductionResponse(deduction);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 完成人工扣款复核，校验余额后以幂等业务键记账。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -673,7 +639,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return toDeduction(deduction, account, merchantName(account.getMerchantId()));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 拒绝尚未完成的人工扣款申请，不产生资金流水。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -700,7 +668,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return deductionResponse(deduction);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 使用乐观锁变更资金账户状态，并记录操作原因和审计信息。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -728,6 +698,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return toAccount(account, merchantName(account.getMerchantId()), List.of(), List.of());
     }
 
+    /**
+     * 转换为账户。
+     */
     private FundAccountResponse toAccount(MerchantFundAccountDO account,
                                           String merchantName,
                                           List<CurrencyBalanceResponse> pendingBalances,
@@ -750,7 +723,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return response;
     }
 
-    /** 将标签币种在途聚合投影转换为账户详情响应。 */
+    /**
+     * 将标签币种在途聚合投影转换为账户详情响应。
+     */
     private CurrencyBalanceResponse toCurrencyBalance(PendingBalanceAggregate aggregate) {
         CurrencyBalanceResponse response = new CurrencyBalanceResponse();
         response.setCurrency(aggregate.getCurrency());
@@ -758,7 +733,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return response;
     }
 
-    /** 将未结算保证金聚合投影转换为原币种余额响应。 */
+    /**
+     * 将未结算保证金聚合投影转换为原币种余额响应。
+     */
     private CurrencyBalanceResponse toCurrencyBalance(ReserveBalanceAggregate aggregate) {
         CurrencyBalanceResponse response = new CurrencyBalanceResponse();
         response.setCurrency(aggregate.getCurrency());
@@ -983,11 +960,17 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return ledger;
     }
 
+    /**
+     * 将人工充值记录转换为管理端响应。
+     */
     private FundRechargeResponse rechargeResponse(MerchantFundRechargeDO recharge) {
         MerchantFundAccountDO account = requireAccount(recharge.getAccountId());
         return toRecharge(recharge, account, merchantName(recharge.getMerchantId()));
     }
 
+    /**
+     * 转换为充值。
+     */
     private FundRechargeResponse toRecharge(MerchantFundRechargeDO row,
                                             MerchantFundAccountDO account,
                                             String merchantName) {
@@ -1025,13 +1008,17 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return response;
     }
 
-    /** 按申请关联账户和商户名称构造扣减响应。 */
+    /**
+     * 按申请关联账户和商户名称构造扣减响应。
+     */
     private FundDeductionResponse deductionResponse(MerchantFundDeductionDO deduction) {
         MerchantFundAccountDO account = requireAccount(deduction.getAccountId());
         return toDeduction(deduction, account, merchantName(deduction.getMerchantId()));
     }
 
-    /** 将扣减审批持久化快照转换为管理端响应。 */
+    /**
+     * 将扣减审批持久化快照转换为管理端响应。
+     */
     private FundDeductionResponse toDeduction(MerchantFundDeductionDO row,
                                               MerchantFundAccountDO account,
                                               String merchantName) {
@@ -1085,7 +1072,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return deductionResponse(existing);
     }
 
-    /** 按客户端请求号读取未删除扣减申请，唯一键提供最终并发幂等保障。 */
+    /**
+     * 按客户端请求号读取未删除扣减申请，唯一键提供最终并发幂等保障。
+     */
     private MerchantFundDeductionDO findDeductionByRequestId(String requestId) {
         return deductionMapper.selectOne(Wrappers.<MerchantFundDeductionDO>lambdaQuery()
                 .eq(MerchantFundDeductionDO::getRequestId, requestId)
@@ -1093,7 +1082,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                 .last("LIMIT 1"));
     }
 
-    /** 通过主库排他锁读取扣减申请，串行化审批状态变更和最终入账。 */
+    /**
+     * 通过主库排他锁读取扣减申请，串行化审批状态变更和最终入账。
+     */
     private MerchantFundDeductionDO requireLockedDeduction(Long id) {
         MerchantFundDeductionDO deduction = deductionMapper.selectByIdForUpdate(id);
         if (deduction == null) {
@@ -1102,21 +1093,27 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return deduction;
     }
 
-    /** 校验扣减申请仍处于预期状态，拒绝重复审批或并发覆盖。 */
+    /**
+     * 校验扣减申请仍处于预期状态，拒绝重复审批或并发覆盖。
+     */
     private void requireDeductionStatus(MerchantFundDeductionDO deduction, String expectedStatus) {
         if (!expectedStatus.equals(deduction.getDeductionStatus())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "扣减申请状态已变化，请刷新后重试");
         }
     }
 
-    /** 校验服务层扣减金额边界，覆盖绕过 Controller 校验的内部调用。 */
+    /**
+     * 校验服务层扣减金额边界，覆盖绕过 Controller 校验的内部调用。
+     */
     private void validateDeductionAmount(BigDecimal amount) {
         if (amount == null || amount.signum() <= 0 || amount.compareTo(new BigDecimal("100000000")) > 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "扣减金额必须大于 0 且不超过 100,000,000");
         }
     }
 
-    /** 校验并规范化扣减类型。 */
+    /**
+     * 校验并规范化扣减类型。
+     */
     private String validateDeductionCategory(String value) {
         String category = upper(value);
         if (!Set.of("ACCOUNT_CORRECTION", "EXTRA_FEE", "PENALTY", "OTHER").contains(category)) {
@@ -1125,7 +1122,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return category;
     }
 
-    /** 返回用于不可变流水摘要的稳定中文扣减类型名称。 */
+    /**
+     * 返回用于不可变流水摘要的稳定中文扣减类型名称。
+     */
     private String deductionCategoryName(String category) {
         return switch (category) {
             case "ACCOUNT_CORRECTION" -> "账务更正";
@@ -1150,6 +1149,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return recharge;
     }
 
+    /**
+     * 校验并获取状态。
+     */
     private void requireStatus(MerchantFundRechargeDO recharge, String expectedStatus) {
         if (!expectedStatus.equals(recharge.getRechargeStatus())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "充值申请状态已变化，请刷新后重试");
@@ -1167,10 +1169,16 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return left != null && left.equals(right);
     }
 
+    /**
+     * 判断资金账户是否属于平台内置管理账户。
+     */
     private boolean isBuiltinAdmin(String loginAccount) {
         return BUILTIN_ADMIN_ACCOUNT.equals(loginAccount);
     }
 
+    /**
+     * 合并复核意见并限制字段长度。
+     */
     private String joinReviewComments(String auditComment, String recheckComment) {
         String audit = trimToNull(auditComment);
         String recheck = trimToNull(recheckComment);
@@ -1179,26 +1187,41 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return "审核：" + audit + "；复核：" + recheck;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 生成全局唯一的业务编码。
+     */
     private String generateCode(String prefix) {
         return prefix + UUID.randomUUID().toString().replace("-", "").substring(0, 24).toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 构建账户主键与账户信息索引。
+     */
     private Map<Long, MerchantFundAccountDO> accountMap(Set<Long> accountIds) {
         if (accountIds.isEmpty()) {
             return Map.of();
         }
-        return accountMapper.selectBatchIds(accountIds).stream()
+        return accountMapper.selectByIds(accountIds).stream()
                 .collect(Collectors.toMap(MerchantFundAccountDO::getId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 查询商户名称用于管理端展示。
+     */
     private String merchantName(String merchantId) {
         return merchantNames(Set.of(merchantId)).get(merchantId);
     }
 
+    /**
+     * 校验并获取账户。
+     */
     private MerchantFundAccountDO requireAccount(Long id) {
         MerchantFundAccountDO account = accountMapper.selectOne(Wrappers.<MerchantFundAccountDO>lambdaQuery()
                 .eq(MerchantFundAccountDO::getId, id)
@@ -1210,6 +1233,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return account;
     }
 
+    /**
+     * 批量查询商户号对应的名称。
+     */
     private Map<String, String> merchantNames(Set<String> merchantIds) {
         if (merchantIds.isEmpty()) {
             return Map.of();
@@ -1221,7 +1247,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                         BaseMerchantInfoDO::getMerchantName, (left, right) -> left));
     }
 
-    /** 将历史负余额状态归一为正常人工状态，负余额限制由可用余额实时派生。 */
+    /**
+     * 将历史负余额状态归一为正常人工状态，负余额限制由可用余额实时派生。
+     */
     private String normalizeManualStatus(String status) {
         return "NEGATIVE_BALANCE".equals(status) ? NORMAL : status;
     }
@@ -1285,11 +1313,16 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return StringUtils.hasText(balanceType) && !"AVAILABLE".equals(upper(balanceType));
     }
 
-    /** 去除查询条件首尾空白，空值保持为空。 */
+    /**
+     * 去除查询条件首尾空白，空值保持为空。
+     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }

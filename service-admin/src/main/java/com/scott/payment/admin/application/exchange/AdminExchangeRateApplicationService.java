@@ -37,24 +37,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminExchangeRateApplicationService
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : admin汇率汇率应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端汇率应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminExchangeRateApplicationService {
 
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminExchangeRateApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final AdminExchangeRateService adminExchangeRateService;
@@ -65,6 +52,9 @@ public class AdminExchangeRateApplicationService {
 
     private final ExcelLocaleResolver excelLocaleResolver;
 
+    /**
+     * 创建管理端汇率应用服务。
+     */
     public AdminExchangeRateApplicationService(AdminExchangeRateService adminExchangeRateService,
                                                ExcelExportService excelExportService,
                                                ExcelI18nMessageResolver excelI18nMessageResolver,
@@ -385,6 +375,9 @@ public class AdminExchangeRateApplicationService {
         return adminExchangeRateService.getUsageSnapshot(id);
     }
 
+    /**
+     * 按指定类型导出汇率管理数据。
+     */
     private <T> void export(String titleKey, String querySummary, List<T> rows, Class<T> rowClass,
                             String operator, Locale locale, HttpServletResponse response) {
         String exportTitle = excelI18nMessageResolver.resolve(titleKey, locale);
@@ -404,6 +397,9 @@ public class AdminExchangeRateApplicationService {
         );
     }
 
+    /**
+     * 转换为汇率源导出行数据。
+     */
     private ExchangeRateSourceExportRow toSourceExportRow(SourceResponse source, Locale locale) {
         ExchangeRateSourceExportRow row = new ExchangeRateSourceExportRow();
         row.setSourceCode(source.getSourceCode());
@@ -422,6 +418,9 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换为原始汇率导出行数据。
+     */
     private ExchangeRawRateExportRow toRawRateExportRow(RawRateResponse source, Locale locale) {
         ExchangeRawRateExportRow row = new ExchangeRawRateExportRow();
         row.setSourceCode(source.getSourceCode());
@@ -443,6 +442,9 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换为汇率规则导出行数据。
+     */
     private ExchangeRateRuleExportRow toRuleExportRow(RuleResponse source, Locale locale) {
         ExchangeRateRuleExportRow row = new ExchangeRateRuleExportRow();
         row.setRateType(resolveEnum("rateType", source.getRateType(), locale));
@@ -464,6 +466,9 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换为业务汇率导出行数据。
+     */
     private ExchangeBusinessRateExportRow toBusinessRateExportRow(BusinessRateResponse source, Locale locale) {
         ExchangeBusinessRateExportRow row = new ExchangeBusinessRateExportRow();
         row.setRateType(resolveEnum("rateType", source.getRateType(), locale));
@@ -484,6 +489,9 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换为汇率使用快照导出行数据。
+     */
     private ExchangeRateUsageSnapshotExportRow toUsageSnapshotExportRow(UsageSnapshotResponse source, Locale locale) {
         ExchangeRateUsageSnapshotExportRow row = new ExchangeRateUsageSnapshotExportRow();
         row.setRateType(resolveEnum("rateType", source.getRateType(), locale));
@@ -502,6 +510,9 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 解析枚举。
+     */
     private String resolveEnum(String group, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -509,18 +520,30 @@ public class AdminExchangeRateApplicationService {
         return excelI18nMessageResolver.resolve("excel.exchange.enum." + group + "." + value, locale);
     }
 
+    /**
+     * 解析状态。
+     */
     private String resolveStatus(Integer status, Locale locale) {
         return excelI18nMessageResolver.resolve(status != null && status == 1 ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
+    /**
+     * 将配置值解析为布尔值，并在非法文本时返回默认值。
+     */
     private String resolveBoolean(Integer value, Locale locale) {
         return excelI18nMessageResolver.resolve(value != null && value == 1 ? "excel.common.yes" : "excel.common.no", locale);
     }
 
+    /**
+     * 查询摘要。
+     */
     private String querySummary(Locale locale) {
         return excelI18nMessageResolver.resolve("excel.common.noCondition", locale);
     }
 
+    /**
+     * 生成导出文件使用的时间戳后缀。
+     */
     private String timestampSuffix() {
         return EXPORT_TIME_FORMATTER.format(LocalDateTime.now());
     }

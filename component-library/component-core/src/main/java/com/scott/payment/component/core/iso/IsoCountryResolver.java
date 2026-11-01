@@ -12,13 +12,7 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCountryResolver
- * @date : 2026-06-02 15:44
- * @email : scott_x@163.com
- * @description : ISO 3166 国家地区识别工具，支持 alpha-2、alpha-3、numeric、英文名、中文名、别名识别
- * @status : update
+ * ISO 3166 国家地区识别工具，支持 alpha-2、alpha-3、numeric、英文名、中文名、别名识别
  */
 public final class IsoCountryResolver {
 

@@ -1,13 +1,7 @@
 package com.scott.payment.channel.payment.exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelUnsupportedOperationException
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道不支持交易能力异常，位于 payment-channel-api 异常层，用于阻止不具备能力的渠道被错误调用。
- * @status : create
+ * 渠道不支持交易能力异常，位于 payment-channel-api 异常层，用于阻止不具备能力的渠道被错误调用。
  */
 public class ChannelUnsupportedOperationException extends ChannelException {
 

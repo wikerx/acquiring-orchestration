@@ -2,8 +2,9 @@ package com.scott.payment.openapi.security;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.db.auth.model.MerchantKeyMetadata;
 import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -28,13 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiMerchantSecretCache
- * @date : 2026-08-01 15:10
- * @email : scott_x@163.com
- * @description : OpenAPI 单实例短时敏感密钥缓存，以 merchant:keyMeta revision 隔离版本并从主库加载实际材料
- * @status : create
+ * OpenAPI 单实例短时敏感密钥缓存，以 merchant:keyMeta revision 隔离版本并从主库加载实际材料
  *
  * <p>JWT Secret 和 RSA 私钥绝不进入 Redis。每次访问先读取共享非敏感 revision；版本变化、TTL 到期
  * 或容量淘汰都会重新读取主库。Redis 异常由元数据服务降级主库，不允许用旧 revision 静默放行。</p>
@@ -42,40 +37,64 @@ import java.util.function.LongSupplier;
 @Service
 public class OpenApiMerchantSecretCache {
 
-    /** 数据库未删除标识。 */
+    /**
+     * 数据库未删除标识。
+     */
     private static final int NOT_DELETED = 0;
 
-    /** 数据库启用标识。 */
+    /**
+     * 数据库启用标识。
+     */
     private static final int ENABLED = 1;
 
-    /** 共享非敏感密钥版本缓存。 */
+    /**
+     * 共享非敏感密钥版本缓存。
+     */
     private final MerchantKeyMetadataCacheService metadataCacheService;
 
-    /** 商户 JWT 密钥 Mapper，只在本地缓存未命中时读取主库。 */
+    /**
+     * 商户 JWT 密钥 Mapper，只在本地缓存未命中时读取主库。
+     */
     private final MerchantJwtKeyMapper jwtKeyMapper;
 
-    /** 平台请求体密钥 Mapper，只在本地缓存未命中时读取主库。 */
+    /**
+     * 平台请求体密钥 Mapper，只在本地缓存未命中时读取主库。
+     */
     private final PlatformPayloadKeyMapper platformPayloadKeyMapper;
 
-    /** 商户响应密钥 Mapper，只在本地缓存未命中时读取主库。 */
+    /**
+     * 商户响应密钥 Mapper，只在本地缓存未命中时读取主库。
+     */
     private final MerchantResponseKeyMapper responseKeyMapper;
 
-    /** RSA 公私钥解析组件。 */
+    /**
+     * RSA 公私钥解析组件。
+     */
     private final OpenApiPayloadCrypto payloadCrypto;
 
-    /** 单实例密钥缓存边界配置。 */
+    /**
+     * 单实例密钥缓存边界配置。
+     */
     private final OpenApiMerchantSecretCacheProperties properties;
 
-    /** 单调时钟，避免系统时间回拨延长敏感材料驻留。 */
+    /**
+     * 单调时钟，避免系统时间回拨延长敏感材料驻留。
+     */
     private final LongSupplier nanoTime;
 
-    /** revision 维度敏感材料条目。 */
+    /**
+     * revision 维度敏感材料条目。
+     */
     private final ConcurrentHashMap<CacheKey, CacheEntry> entries = new ConcurrentHashMap<>();
 
-    /** 最近访问顺序生成器，用于容量淘汰。 */
+    /**
+     * 最近访问顺序生成器，用于容量淘汰。
+     */
     private final AtomicLong accessSequence = new AtomicLong();
 
-    /** 容量整理互斥对象，只保护淘汰选择，不包裹数据库读取。 */
+    /**
+     * 容量整理互斥对象，只保护淘汰选择，不包裹数据库读取。
+     */
     private final Object evictionMonitor = new Object();
 
     /**
@@ -99,7 +118,9 @@ public class OpenApiMerchantSecretCache {
                 payloadCrypto, properties, System::nanoTime);
     }
 
-    /** 创建可控制单调时钟的缓存实例，供 TTL 边界测试使用。 */
+    /**
+     * 创建可控制单调时钟的缓存实例，供 TTL 边界测试使用。
+     */
     OpenApiMerchantSecretCache(MerchantKeyMetadataCacheService metadataCacheService,
                                MerchantJwtKeyMapper jwtKeyMapper,
                                PlatformPayloadKeyMapper platformPayloadKeyMapper,
@@ -126,7 +147,7 @@ public class OpenApiMerchantSecretCache {
     public String getMerchantKey(String merchantId) {
         String secret = material(merchantId).merchantKey();
         if (!StringUtils.hasText(secret)) {
-            throw new ApiException(ApiResultEnum.MERCHANT_SIGNING_KEY_NOT_CONFIGURED);
+            throw new ApiException(OpenApiResultCode.MERCHANT_SIGNING_MATERIAL_MISSING);
         }
         return secret;
     }
@@ -141,7 +162,7 @@ public class OpenApiMerchantSecretCache {
     public PrivateKey getPlatformPrivateKey(String merchantId) {
         PrivateKey privateKey = material(merchantId).platformPrivateKey();
         if (privateKey == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, "platformPayloadKey");
         }
         return privateKey;
     }
@@ -156,7 +177,7 @@ public class OpenApiMerchantSecretCache {
     public PublicKey getPlatformPublicKey(String merchantId) {
         PublicKey publicKey = material(merchantId).platformPublicKey();
         if (publicKey == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, "platformPayloadKey");
         }
         return publicKey;
     }
@@ -171,7 +192,7 @@ public class OpenApiMerchantSecretCache {
     public PublicKey getMerchantResponsePublicKey(String merchantId) {
         PublicKey publicKey = material(merchantId).merchantResponsePublicKey();
         if (publicKey == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "merchantResponseKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_RESPONSE_KEY_MISSING, "merchantResponseKey");
         }
         return publicKey;
     }
@@ -200,12 +221,13 @@ public class OpenApiMerchantSecretCache {
      */
     private SecretMaterial material(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiResultEnum.PARAM_MISSING, "merchantId");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING, "merchantId", "merchant ID is required");
         }
         String normalizedMerchantId = merchantId.trim();
         MerchantKeyMetadata metadata = metadataCacheService.findKeyMetadata(normalizedMerchantId);
         if (metadata == null || !StringUtils.hasText(metadata.getRevision())) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "keyMetadata");
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, "keyMetadata");
         }
         CacheKey cacheKey = new CacheKey(normalizedMerchantId, metadata.getRevision());
         long now = nanoTime.getAsLong();
@@ -222,7 +244,9 @@ public class OpenApiMerchantSecretCache {
         return entry.material();
     }
 
-    /** 从主库读取当前 revision 指向的三类密钥材料并在内存中完成 RSA 解析。 */
+    /**
+     * 从主库读取当前 revision 指向的三类密钥材料并在内存中完成 RSA 解析。
+     */
     private SecretMaterial loadFromMaster(String merchantId, MerchantKeyMetadata metadata) {
         MerchantJwtKeyDO jwtKey = selectJwtKey(merchantId, metadata.getJwtKeyId());
         PlatformPayloadKeyDO platformKey = selectPlatformKey(merchantId, metadata.getPlatformKeyId());
@@ -238,7 +262,9 @@ public class OpenApiMerchantSecretCache {
         );
     }
 
-    /** 按 Redis 元数据记录 ID 精确查询当前启用 JWT Secret。 */
+    /**
+     * 按 Redis 元数据记录 ID 精确查询当前启用 JWT Secret。
+     */
     private MerchantJwtKeyDO selectJwtKey(String merchantId, Long keyId) {
         if (keyId == null) {
             return null;
@@ -252,7 +278,9 @@ public class OpenApiMerchantSecretCache {
                 .last("LIMIT 1"));
     }
 
-    /** 按 Redis 元数据记录 ID 精确查询当前启用平台请求体密钥对。 */
+    /**
+     * 按 Redis 元数据记录 ID 精确查询当前启用平台请求体密钥对。
+     */
     private PlatformPayloadKeyDO selectPlatformKey(String merchantId, Long keyId) {
         if (keyId == null) {
             return null;
@@ -266,7 +294,9 @@ public class OpenApiMerchantSecretCache {
                 .last("LIMIT 1"));
     }
 
-    /** 按 Redis 元数据记录 ID 精确查询当前启用商户响应公钥。 */
+    /**
+     * 按 Redis 元数据记录 ID 精确查询当前启用商户响应公钥。
+     */
     private MerchantResponseKeyDO selectResponseKey(String merchantId, Long keyId) {
         if (keyId == null) {
             return null;
@@ -280,12 +310,16 @@ public class OpenApiMerchantSecretCache {
                 .last("LIMIT 1"));
     }
 
-    /** 新 revision 生效后清除同商户的旧版本材料，缩短敏感信息驻留时间。 */
+    /**
+     * 新 revision 生效后清除同商户的旧版本材料，缩短敏感信息驻留时间。
+     */
     private void removeOlderMerchantRevisions(CacheKey currentKey) {
         entries.keySet().removeIf(key -> key.merchantId().equals(currentKey.merchantId()) && !key.equals(currentKey));
     }
 
-    /** 清理过期条目并按最近访问顺序收敛到配置容量。 */
+    /**
+     * 清理过期条目并按最近访问顺序收敛到配置容量。
+     */
     private void trimToCapacity(long now) {
         synchronized (evictionMonitor) {
             entries.entrySet().removeIf(entry -> entry.getValue().expiresAtNanos() <= now);
@@ -297,38 +331,54 @@ public class OpenApiMerchantSecretCache {
         }
     }
 
-    /** 使用单调时钟计算不溢出的到期点。 */
+    /**
+     * 使用单调时钟计算不溢出的到期点。
+     */
     private long expiresAt(long now) {
         long ttlNanos = properties.getTtl().toNanos();
         return Long.MAX_VALUE - now < ttlNanos ? Long.MAX_VALUE : now + ttlNanos;
     }
 
-    /** 获取当前条目数，供容量边界测试使用。 */
+    /**
+     * 获取当前条目数，供容量边界测试使用。
+     */
     int entryCount() {
         return entries.size();
     }
 
-    /** 商户号与 Redis revision 组成的本地版本隔离键。 */
+    /**
+     * 商户号与 Redis revision 组成的本地版本隔离键。
+     */
     private record CacheKey(String merchantId, String revision) {
     }
 
-    /** 当前版本解析后的敏感材料，仅允许保留在 JVM 内存。 */
+    /**
+     * 当前版本解析后的敏感材料，仅允许保留在 JVM 内存。
+     */
     private record SecretMaterial(String merchantKey,
                                   PrivateKey platformPrivateKey,
                                   PublicKey platformPublicKey,
                                   PublicKey merchantResponsePublicKey) {
     }
 
-    /** 带单调时钟到期点和最近访问顺序的本地缓存条目。 */
+    /**
+     * 带单调时钟到期点和最近访问顺序的本地缓存条目。
+     */
     private static final class CacheEntry {
 
-        /** 当前 revision 对应的解析后敏感材料，只驻留本 JVM。 */
+        /**
+         * 当前 revision 对应的解析后敏感材料，只驻留本 JVM。
+         */
         private final SecretMaterial material;
 
-        /** 基于单调时钟的到期点，单位纳秒。 */
+        /**
+         * 基于单调时钟的到期点，单位纳秒。
+         */
         private final long expiresAtNanos;
 
-        /** 最近访问顺序，用于容量超限时选择最久未使用条目。 */
+        /**
+         * 最近访问顺序，用于容量超限时选择最久未使用条目。
+         */
         private volatile long lastAccessOrder;
 
         /**
@@ -344,22 +394,30 @@ public class OpenApiMerchantSecretCache {
             this.lastAccessOrder = lastAccessOrder;
         }
 
-        /** 返回当前 revision 对应的敏感材料。 */
+        /**
+         * 返回当前 revision 对应的敏感材料。
+         */
         private SecretMaterial material() {
             return material;
         }
 
-        /** 返回基于单调时钟的到期点，单位纳秒。 */
+        /**
+         * 返回基于单调时钟的到期点，单位纳秒。
+         */
         private long expiresAtNanos() {
             return expiresAtNanos;
         }
 
-        /** 返回最近访问顺序，用于容量淘汰排序。 */
+        /**
+         * 返回最近访问顺序，用于容量淘汰排序。
+         */
         private long lastAccessOrder() {
             return lastAccessOrder;
         }
 
-        /** 使用新的全局访问顺序标记当前条目刚被读取。 */
+        /**
+         * 使用新的全局访问顺序标记当前条目刚被读取。
+         */
         private void touch(long accessOrder) {
             this.lastAccessOrder = accessOrder;
         }

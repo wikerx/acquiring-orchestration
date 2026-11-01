@@ -16,13 +16,11 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionIdempotencyService
- * @date : 2026-07-12 18:20
- * @email : scott_x@163.com
- * @description : 交易幂等服务默认实现，位于 service-payment 服务实现层，依赖 transaction_idempotency 唯一键兜底重复请求。
- * @status : create
+ * 支付交易请求的持久化幂等服务。
+ *
+ * <p>幂等身份由 scope 与标准化 key 共同定义，数据库唯一约束是并发请求的最终保护。
+ * 记录同时保存请求指纹和首次结果快照，用于区分“相同请求重放”与“同一幂等键参数冲突”；
+ * 终态同步使用条件更新，晚到回调或重复查询不得覆盖既有 SUCCESS/FAILED。</p>
  */
 @Service
 public class DefaultTransactionIdempotencyService implements TransactionIdempotencyService {
@@ -57,10 +55,14 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
      */
     private static final String PRE_AUTHORIZATION = "PRE_AUTHORIZATION";
 
-    /** 首次交易请求幂等范围。 */
+    /**
+     * 首次交易请求幂等范围。
+     */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
-    /** 商户订单支付流守卫范围。 */
+    /**
+     * 商户订单支付流守卫范围。
+     */
     private static final String MERCHANT_ORDER_FLOW_SCOPE = "MERCHANT_ORDER_FLOW";
 
     /**
@@ -134,6 +136,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     @Override
     public boolean tryBegin(TransactionIdempotencyDO record) {
         try {
+            // 不做先查后插；并发胜负必须由数据库唯一约束原子决定。
             idempotencyMapper.insert(record);
             return true;
         } catch (DataIntegrityViolationException exception) {
@@ -153,6 +156,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 || existingRecord.getVersion() == null) {
             return false;
         }
+        // 重启失败流时必须清除上一笔交易身份和结果，避免新请求复用旧 transactionId/快照。
         int affectedRows = idempotencyMapper.update(null, Wrappers.<TransactionIdempotencyDO>lambdaUpdate()
                 .set(TransactionIdempotencyDO::getMerchantId, replacement.getMerchantId())
                 .set(TransactionIdempotencyDO::getMerchantOrderNo, replacement.getMerchantOrderNo())
@@ -184,7 +188,10 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     }
 
     /**
-     * 渠道回调或主动查询只可把非终态首次交易幂等记录推进到终态，不能覆盖既有 SUCCESS/FAILED。
+     * 渠道回调或主动查询只可把非终态交易幂等记录推进到终态，不能覆盖既有 SUCCESS/FAILED。
+     *
+     * <p>TRANSACTION_OPERATION 覆盖首次支付和全部后续动作；MERCHANT_ORDER_FLOW 只会由首次交易创建。
+     * 不能按交易类型过滤前者，否则 Capture、Refund、Void 等异步终态仍会返回旧 PROCESSING 快照。</p>
      */
     @Override
     public int synchronizeInitialTransactionStatus(String transactionId, String transactionStatus) {
@@ -193,6 +200,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 && !PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus))) {
             return 0;
         }
+        // 仅更新非终态记录；终态不可被晚到渠道结果或重复消费反向覆盖。
         return idempotencyMapper.update(null, Wrappers.<TransactionIdempotencyDO>lambdaUpdate()
                 .set(TransactionIdempotencyDO::getTransactionStatus, transactionStatus)
                 .set(TransactionIdempotencyDO::getUpdateTime, LocalDateTime.now())
@@ -200,7 +208,6 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 .eq(TransactionIdempotencyDO::getTransactionId, transactionId)
                 .in(TransactionIdempotencyDO::getIdempotencyScope,
                         TRANSACTION_OPERATION_SCOPE, MERCHANT_ORDER_FLOW_SCOPE)
-                .in(TransactionIdempotencyDO::getTransactionType, PAYMENT, AUTHORIZATION, PRE_AUTHORIZATION)
                 .notIn(TransactionIdempotencyDO::getTransactionStatus,
                         PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentTransactionStatusEnum.FAILED.getCode())
                 .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED));
@@ -227,6 +234,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                          BigDecimal transactionAmount,
                          String transactionCurrency,
                          String resultSnapshot) {
+        // 首次完成写入业务身份和返回快照；同终态重放允许刷新快照，异终态覆盖被条件拒绝。
         idempotencyMapper.update(null, Wrappers.<TransactionIdempotencyDO>lambdaUpdate()
                 .set(TransactionIdempotencyDO::getOperationId, operationId)
                 .set(TransactionIdempotencyDO::getTransactionId, transactionId)
@@ -272,6 +280,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                                                         String timeZone,
                                                         String requestFingerprint,
                                                         LocalDateTime now) {
+        // 占位记录先进入 PROCESSING，业务结果必须在同一事务编排中通过 complete 补齐。
         TransactionIdempotencyDO record = new TransactionIdempotencyDO();
         record.setIdempotencyScope(scope);
         record.setIdempotencyKey(key);
@@ -292,6 +301,9 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
         return record;
     }
 
+    /**
+     * 规范化幂等键组成部分。
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }

@@ -27,30 +27,36 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqPublisher
- * @date : 2026-08-02 22:15
- * @email : scott_x@163.com
- * @description : 在调用方主库事务中冻结 MQ 消息并写入 Outbox，事务提交后触发一次即时投递
- * @status : create
+ * 在调用方主库事务中冻结 MQ 消息并写入 Outbox，事务提交后触发一次即时投递
  */
 @Slf4j
 @Service
 public class ReliableMqPublisher {
 
-    /** Outbox 持久化服务。 */
+    /**
+     * Outbox 持久化服务。
+     */
     private final ReliableMqOutboxStore outboxStore;
-    /** Outbox Relay。 */
+    /**
+     * Outbox Relay。
+     */
     private final ReliableMqOutboxRelayService relayService;
-    /** 提交后即时 Relay 执行器，避免继续占用请求线程的事务连接。 */
+    /**
+     * 提交后即时 Relay 执行器，避免继续占用请求线程的事务连接。
+     */
     private final TaskExecutor relayExecutor;
-    /** Outbox 配置。 */
+    /**
+     * Outbox 配置。
+     */
     private final ReliableMqOutboxProperties properties;
-    /** 当前生产服务名。 */
+    /**
+     * 当前生产服务名。
+     */
     private final String producerService;
 
-    /** 创建可靠消息发布器。 */
+    /**
+     * 创建可靠消息发布器。
+     */
     public ReliableMqPublisher(ReliableMqOutboxStore outboxStore,
                                ReliableMqOutboxRelayService relayService,
                                @Qualifier("reliableMqOutboxRelayExecutor") TaskExecutor relayExecutor,
@@ -98,7 +104,9 @@ public class ReliableMqPublisher {
         return event.getEventId();
     }
 
-    /** 在进入异步边界前补齐元数据并冻结不可变 JSON 载荷。 */
+    /**
+     * 在进入异步边界前补齐元数据并冻结不可变 JSON 载荷。
+     */
     ReliableMqOutboxDO prepareEvent(String topic, String tag, BaseMqMessage message) {
         Objects.requireNonNull(message, "mq message can not be null");
         if (!StringUtils.hasText(topic)) {
@@ -108,7 +116,9 @@ public class ReliableMqPublisher {
         return buildEvent(topic, tag, message);
     }
 
-    /** 使用事件唯一键保证重复发布只接受相同业务快照。 */
+    /**
+     * 使用事件唯一键保证重复发布只接受相同业务快照。
+     */
     private void persistEvent(ReliableMqOutboxDO event) {
         try {
             outboxStore.insert(event);
@@ -117,7 +127,9 @@ public class ReliableMqPublisher {
         }
     }
 
-    /** 补齐消息唯一编号、创建时间、traceId 和初始重试次数。 */
+    /**
+     * 补齐消息唯一编号、创建时间、traceId 和初始重试次数。
+     */
     private void fillMetadata(BaseMqMessage message) {
         if (!StringUtils.hasText(message.getMessageId())) {
             message.setMessageId(UUID.randomUUID().toString());
@@ -133,7 +145,9 @@ public class ReliableMqPublisher {
         }
     }
 
-    /** 构造不可变 Outbox 消息快照。 */
+    /**
+     * 构造不可变 Outbox 消息快照。
+     */
     private ReliableMqOutboxDO buildEvent(String topic, String tag, BaseMqMessage message) {
         LocalDateTime now = LocalDateTime.now();
         ReliableMqOutboxDO event = new ReliableMqOutboxDO();
@@ -176,7 +190,9 @@ public class ReliableMqPublisher {
         }
     }
 
-    /** 返回去除发布元数据后的业务载荷，用于重复事件冲突判断。 */
+    /**
+     * 返回去除发布元数据后的业务载荷，用于重复事件冲突判断。
+     */
     private Map<Object, Object> semanticPayload(String payloadJson) {
         Map<?, ?> parsed = JsonUtils.parseObject(payloadJson, Map.class);
         if (parsed == null) {
@@ -189,13 +205,18 @@ public class ReliableMqPublisher {
         return payload;
     }
 
-    /** 仅在数据库事务成功提交后触发 MQ 投递，失败时由定时 Relay 恢复。 */
+    /**
+     * 仅在数据库事务成功提交后触发 MQ 投递，失败时由定时 Relay 恢复。
+     */
     private void relayAfterCommit(String eventId) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             scheduleImmediateRelay(eventId);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在 Outbox 事件事务提交成功后调度即时投递，避免发送早于数据库事实。
+             */
             @Override
             public void afterCommit() {
                 scheduleImmediateRelay(eventId);
@@ -214,12 +235,14 @@ public class ReliableMqPublisher {
                 try {
                     relayService.relayEvent(eventId);
                 } catch (RuntimeException exception) {
-                    log.warn("event: RELIABLE_MQ_IMMEDIATE_RELAY_FAILED eventId: {} exceptionType: {}",
+                    log.warn("可靠消息立即投递失败, event: RELIABLE_MQ_IMMEDIATE_RELAY_FAILED, "
+                                    + "eventId: {}, exceptionType: {}",
                             eventId, exception.getClass().getSimpleName());
                 }
             });
         } catch (RuntimeException exception) {
-            log.warn("event: RELIABLE_MQ_IMMEDIATE_RELAY_REJECTED eventId: {} exceptionType: {}",
+            log.warn("可靠消息立即投递任务被拒绝, event: RELIABLE_MQ_IMMEDIATE_RELAY_REJECTED, "
+                            + "eventId: {}, exceptionType: {}",
                     eventId, exception.getClass().getSimpleName());
         }
     }

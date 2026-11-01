@@ -9,17 +9,13 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementResultMapper
- * @date : 2026-08-26 23:30
- * @email : scott_x@163.com
- * @description : 结算结果只追加和读取 Mapper；幂等冲突保留原事实，调用方必须回读验证完整业务身份。
- * @status : create
+ * 结算结果只追加和读取 Mapper；幂等冲突保留原事实，调用方必须回读验证完整业务身份。
  */
 public interface SettlementResultMapper {
 
-    /** 批量追加候选级结果行；批次唯一 LEDGER_POSTING 由资金提交服务在独立事务中生成。 */
+    /**
+     * 批量追加候选级结果行；批次唯一 LEDGER_POSTING 由资金提交服务在独立事务中生成。
+     */
     @Insert("""
             <script>
             INSERT INTO settlement_result_item
@@ -51,7 +47,9 @@ public interface SettlementResultMapper {
             """)
     int insertItemsIdempotent(@Param("rows") List<SettlementResultItemDO> rows);
 
-    /** 按候选和行号读取完整结果，用于幂等身份验证。 */
+    /**
+     * 按候选和行号读取完整结果，用于幂等身份验证。
+     */
     @Select("""
             SELECT *
             FROM settlement_result_item
@@ -61,7 +59,9 @@ public interface SettlementResultMapper {
     List<SettlementResultItemDO> selectItemsByBatch(
             @Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 只读取参与最终净额的候选财务组件，TRACE 和批次级入账行不会重复计入。 */
+    /**
+     * 只读取参与最终净额的候选财务组件，TRACE 和批次级入账行不会重复计入。
+     */
     @Select("""
             SELECT *
             FROM settlement_result_item
@@ -72,7 +72,9 @@ public interface SettlementResultMapper {
     List<SettlementResultItemDO> selectFinancialItemsByBatch(
             @Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 获取目标币种恒等汇率行，批次级净额必须显式引用该不可变汇率身份。 */
+    /**
+     * 获取目标币种恒等汇率行，批次级净额必须显式引用该不可变汇率身份。
+     */
     @Select("""
             SELECT id
             FROM settlement_batch_rate
@@ -86,7 +88,9 @@ public interface SettlementResultMapper {
     Long selectIdentityRateId(@Param("settlementBatchNo") String settlementBatchNo,
                               @Param("targetCurrency") String targetCurrency);
 
-    /** 数据库回读确保一个批次恰好只有一条最终入账结果。 */
+    /**
+     * 数据库回读确保一个批次恰好只有一条最终入账结果。
+     */
     @Select("""
             SELECT COUNT(1)
             FROM settlement_result_item
@@ -96,7 +100,9 @@ public interface SettlementResultMapper {
             """)
     int countLedgerPostingByBatch(@Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 锁定原批唯一净入账结果，冲正必须完整引用该不可变结果。 */
+    /**
+     * 锁定原批唯一净入账结果，冲正必须完整引用该不可变结果。
+     */
     @Select("""
             SELECT *
             FROM settlement_result_item
@@ -109,7 +115,9 @@ public interface SettlementResultMapper {
     SettlementResultItemDO selectNetPostingForUpdate(
             @Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 管理详情只读查询每批唯一最终净入账结果，不获取资金写锁。 */
+    /**
+     * 管理详情只读查询每批唯一最终净入账结果，不获取资金写锁。
+     */
     @Select("""
             SELECT *
             FROM settlement_result_item
@@ -120,7 +128,9 @@ public interface SettlementResultMapper {
             """)
     SettlementResultItemDO selectNetPosting(@Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 批量追加 FINANCIAL_COMPONENT 汇总，唯一维度冲突后必须回读验证金额和笔数。 */
+    /**
+     * 批量追加 FINANCIAL_COMPONENT 汇总，唯一维度冲突后必须回读验证金额和笔数。
+     */
     @Insert("""
             <script>
             INSERT INTO settlement_result_summary
@@ -140,7 +150,9 @@ public interface SettlementResultMapper {
             """)
     int insertSummariesIdempotent(@Param("rows") List<SettlementResultSummaryDO> rows);
 
-    /** 读取批次全部汇总用于幂等身份验证。 */
+    /**
+     * 读取批次全部汇总用于幂等身份验证。
+     */
     @Select("""
             SELECT *
             FROM settlement_result_summary

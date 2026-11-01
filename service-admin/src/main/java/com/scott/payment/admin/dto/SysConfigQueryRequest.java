@@ -5,13 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysConfigQueryRequest
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 系统参数配置查询请求
- * @status : create
+ * 系统参数配置查询请求
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

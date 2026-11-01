@@ -17,13 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisHashServiceImpl
- * @date : 2026-05-31 21:52
- * @email : scott_x@163.com
- * @description : 提供受配置门禁控制的通用 Hash 能力；默认不注册，业务启用前必须登记 Key、TTL 和字段容量
- * @status : create
+ * 提供受配置门禁控制的通用 Hash 能力；默认不注册，业务启用前必须登记 Key、TTL 和字段容量
  */
 @Service
 @ConditionalOnProperty(prefix = "payment.redis.generic", name = "hash-enabled", havingValue = "true")

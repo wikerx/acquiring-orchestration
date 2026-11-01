@@ -13,79 +13,73 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConfigurationSnapshotModels
- * @date : 2026-08-25 23:45
- * @email : scott_x@163.com
- * @description : 定义交易动作受理时冻结的不可变费用版本契约，固定百分比标签币种与 USD 固定费/上下限口径，不包含汇率、数据库或缓存访问。
- * @status : create
+ * 定义交易动作受理时冻结的不可变费用版本契约，固定百分比标签币种与 USD 固定费/上下限口径，不包含汇率、数据库或缓存访问。
  */
 public final class FeeConfigurationSnapshotModels {
 
-    /** 当前可生产清分的费用快照结构版本。 */
+    /**
+     * 当前可生产清分的费用快照结构版本。
+     */
     public static final int CURRENT_SCHEMA_VERSION = 5;
-    /** 最低可回放历史费用快照版本。 */
+    /**
+     * 最低可回放历史费用快照版本。
+     */
     public static final int MIN_SUPPORTED_SCHEMA_VERSION = 3;
 
-    /**
-     * ISO币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private static final Pattern ISO_CURRENCY = Pattern.compile("[A-Z]{3}");
     /**
-     * {@code SHA256}常量，统一 {@code FeeConfigurationSnapshotModels} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 费用快照规范化内容摘要的 SHA-256 小写十六进制格式。
      */
     private static final Pattern SHA256 = Pattern.compile("[0-9a-f]{64}");
     private static final Set<RoundingMode> SUPPORTED_ROUNDING_MODES =
             Set.of(RoundingMode.HALF_UP, RoundingMode.HALF_EVEN, RoundingMode.DOWN);
 
+    /**
+     * 禁止实例化仅承载费用版本快照契约的工具类。
+     */
     private FeeConfigurationSnapshotModels() {
     }
 
-    /** 百分比费用计算基数；一期只允许动作标签金额。 */
+    /**
+     * 百分比费用计算基数；一期只允许动作标签金额。
+     */
     public enum PercentageBasis {
         LABEL_AMOUNT
     }
 
-    /** 商户费用配置的固定币种口径，不是可由 Admin 修改的配置项。 */
+    /**
+     * 商户费用配置的固定币种口径，不是可由 Admin 修改的配置项。
+     */
     public enum FeeCurrencyPolicy {
         LABEL_PERCENTAGE_USD_FIXED_LIMITS
     }
 
-    /** 退款时原交易手续费返还策略。 */
+    /**
+     * 退款时原交易手续费返还策略。
+     */
     public enum RefundFeeReturnPolicy {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         NONE,
         /**
          * FULL 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         FULL,
         PROPORTIONAL
     }
 
-    /** 保证金计算基数；一期只允许原支付标签金额。 */
+    /**
+     * 保证金计算基数；一期只允许原支付标签金额。
+     */
     public enum ReserveBasis {
         LABEL_AMOUNT
     }
 
-    /** 退款保证金处理策略；一期按原支付比例返还。 */
+    /**
+     * 退款保证金处理策略；一期按原支付比例返还。
+     */
     public enum ReserveRefundPolicy {
         PROPORTIONAL_RETURN
     }
@@ -105,6 +99,9 @@ public final class FeeConfigurationSnapshotModels {
                                         int delayDays,
                                         ReserveRefundPolicy refundPolicy) {
 
+        /**
+         * 校验保证金比例、基数、留存周期和退款返还策略。
+         */
         public ReservePolicySnapshot {
             Objects.requireNonNull(reserveRate, "reserve rate is required");
             Objects.requireNonNull(reserveBasis, "reserve basis is required");
@@ -138,6 +135,9 @@ public final class FeeConfigurationSnapshotModels {
                                            Integer frequencyDay,
                                            LocalDate frequencyAnchorDate) {
 
+        /**
+         * 校验结算延迟、频率、频率日和相位锚点的一致性。
+         */
         public SettlementPolicySnapshot {
             if (!Set.of("D", "T").contains(delayUnit)) {
                 throw new IllegalArgumentException("settlement delay unit must be D or T");
@@ -160,7 +160,9 @@ public final class FeeConfigurationSnapshotModels {
             Objects.requireNonNull(frequencyAnchorDate, "settlement frequency anchor date is required");
         }
 
-        /** 仅用于回放 schema v3；历史行为是交易日立即可结算。 */
+        /**
+         * 仅用于回放 schema v3；历史行为是交易日立即可结算。
+         */
         public static SettlementPolicySnapshot legacyImmediate(LocalDate anchorDate) {
             return new SettlementPolicySnapshot("D", 0, 0, "DAILY", null, anchorDate);
         }
@@ -189,6 +191,9 @@ public final class FeeConfigurationSnapshotModels {
                                                FeeRuleSnapshot calculationRule,
                                                List<FeeTierSnapshot> tiers) {
 
+        /**
+         * 校验规则匹配维度，并确保规则主键与计算规则身份一致。
+         */
         public FeeRuleConfigurationSnapshot {
             requirePositive(ruleId, "rule id");
             requireText(feeCategory, "fee category");
@@ -240,6 +245,9 @@ public final class FeeConfigurationSnapshotModels {
                                      List<FeeRuleConfigurationSnapshot> rules,
                                      String snapshotHash) {
 
+        /**
+         * 校验费用快照版本、商户归属、结算策略、规则集合和内容摘要。
+         */
         public FeeVersionSnapshot {
             if (schemaVersion < MIN_SUPPORTED_SCHEMA_VERSION || schemaVersion > CURRENT_SCHEMA_VERSION) {
                 throw new IllegalArgumentException("unsupported fee snapshot schema version");
@@ -280,7 +288,9 @@ public final class FeeConfigurationSnapshotModels {
             }
         }
 
-        /** 兼容仅关注费用计算的既有调用方；新生产快照必须显式传入结算周期。 */
+        /**
+         * 兼容仅关注费用计算的既有调用方；新生产快照必须显式传入结算周期。
+         */
         public FeeVersionSnapshot(int schemaVersion,
                                   String merchantId,
                                   Long feePlanId,
@@ -306,12 +316,24 @@ public final class FeeConfigurationSnapshotModels {
         }
     }
 
+    /**
+     * 校验数据库标识存在且严格大于零。
+     *
+     * @param value     待校验标识
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requirePositive(Long value, String fieldName) {
         if (value == null || value <= 0) {
             throw new IllegalArgumentException(fieldName + " must be positive");
         }
     }
 
+    /**
+     * 校验费用匹配维度文本存在且非空白。
+     *
+     * @param value     待校验文本
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireText(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");

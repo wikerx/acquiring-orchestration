@@ -9,13 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionEventOutboxDO
- * @date : 2026-07-12 18:20
- * @email : scott_x@163.com
- * @description : 交易本地消息表实体，位于 service-payment 持久化层，用于把本地交易结果与 RocketMQ 投递解耦。
- * @status : create
+ * 交易本地消息表实体，位于 service-payment 持久化层，用于把本地交易结果与 RocketMQ 投递解耦。
  */
 @Data
 @TableName("transaction_event_outbox")

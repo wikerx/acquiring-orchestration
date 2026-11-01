@@ -5,13 +5,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationalMetricsScheduler
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 随服务自动启动的清分运维指标调度器；异常只记录固定类型并等待下一轮刷新。
- * @status : update
+ * 随服务自动启动的清分运维指标调度器；异常只记录固定类型并等待下一轮刷新。
  */
 @Slf4j
 @Component
@@ -19,6 +13,9 @@ public class ClearingOperationalMetricsScheduler {
 
     private final ClearingOperationalMetricsRefreshService refreshService;
 
+    /**
+     * 创建清分指标调度器，并注入只读指标刷新服务。
+     */
     public ClearingOperationalMetricsScheduler(ClearingOperationalMetricsRefreshService refreshService) {
         this.refreshService = refreshService;
     }
@@ -35,7 +32,7 @@ public class ClearingOperationalMetricsScheduler {
         try {
             refreshService.refresh();
         } catch (RuntimeException exception) {
-            log.error("event: CLEARING_OPERATIONAL_METRICS_REFRESH_FAILED exceptionType: {}",
+            log.error("清分运维指标刷新失败, event: CLEARING_OPERATIONAL_METRICS_REFRESH_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }

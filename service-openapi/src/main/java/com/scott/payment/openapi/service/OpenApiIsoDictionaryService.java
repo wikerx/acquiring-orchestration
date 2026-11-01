@@ -8,13 +8,7 @@ import com.scott.payment.openapi.vo.iso.IsoCurrencyVO;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoDictionaryService
- * @date : 2026-06-03 15:12
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI ISO 国家地区与币种查询服务
- * @status : create
+ * 商户 OpenAPI ISO 国家地区与币种查询服务
  */
 public interface OpenApiIsoDictionaryService {
 

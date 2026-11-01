@@ -20,13 +20,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementFeeGroupCalculatorTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证标签币种百分比组件与 USD 固定费、最低费和最高费只在结算批次目标币种统一求值。
- * @status : create
+ * 验证标签币种百分比组件与 USD 固定费、最低费和最高费只在结算批次目标币种统一求值。
  */
 class SettlementFeeGroupCalculatorTest {
 

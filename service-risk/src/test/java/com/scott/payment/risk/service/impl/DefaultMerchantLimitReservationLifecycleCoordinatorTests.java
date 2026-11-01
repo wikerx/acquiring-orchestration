@@ -20,16 +20,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantLimitReservationLifecycleCoordinatorTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 累计限额生命周期编排测试，验证 Redis 回滚必须先于持久状态取消且终态保持幂等。
- * @status : create
+ * 累计限额生命周期编排测试，验证 Redis 回滚必须先于持久状态取消且终态保持幂等。
  */
 class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
 
+    /**
+     * 验证按锁取消预占的支付状态入口保持事务边界。
+     */
     @Test
     void shouldKeepPaymentStatusEntryTransactionalForLockedCancellation() throws NoSuchMethodException {
         Transactional transactional = DefaultMerchantLimitReservationLifecycleCoordinator.class
@@ -39,6 +36,9 @@ class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
         assertThat(transactional).isNotNull();
     }
 
+    /**
+     * 验证确认预占时状态锁定和迁移加入同一生命周期事务。
+     */
     @Test
     void shouldJoinLifecycleTransactionWhenConfirmingReservation() throws NoSuchMethodException {
         Transactional transactional = DefaultMerchantLimitReservationStateService.class
@@ -49,6 +49,9 @@ class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
         assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
     }
 
+    /**
+     * 验证取消预占时先回滚 Redis，再持久化 CANCELLED 终态。
+     */
     @Test
     void shouldRollbackRedisBeforeMarkingReservationCancelled() {
         MerchantLimitReservationStateService stateService =
@@ -73,6 +76,9 @@ class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
         order.verify(stateService).cancelLocked(List.of(reserved), "payment failed");
     }
 
+    /**
+     * 验证确认后的迟到失败事件不回滚 Redis 计数投影。
+     */
     @Test
     void shouldNotRollbackRedisWhenLateFailureArrivesAfterConfirmation() {
         MerchantLimitReservationStateService stateService =
@@ -94,6 +100,9 @@ class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
         verify(counterService, never()).rollback(confirmed);
     }
 
+    /**
+     * 构造具有指定状态、版本和计数投影的预占事实。
+     */
     private MerchantLimitReservationDO reservation(MerchantLimitReservationStatus status) {
         MerchantLimitReservationDO reservation = new MerchantLimitReservationDO();
         reservation.setId(1L);

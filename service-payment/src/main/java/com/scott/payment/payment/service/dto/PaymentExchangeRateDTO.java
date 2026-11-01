@@ -7,13 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentExchangeRateDTO
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : 支付核心汇率快照 DTO，位于 service-payment 服务 DTO 层，用于把业务汇率表中的最终汇率带入交易落库。
- * @status : create
+ * 支付核心汇率快照 DTO，位于 service-payment 服务 DTO 层，用于把业务汇率表中的最终汇率带入交易落库。
  */
 @Data
 public class PaymentExchangeRateDTO implements Serializable {

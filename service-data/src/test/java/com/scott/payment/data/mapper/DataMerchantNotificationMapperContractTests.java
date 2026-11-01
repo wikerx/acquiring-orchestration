@@ -10,16 +10,13 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationMapperContractTests
- * @date : 2026-08-02 02:10
- * @email : scott_x@163.com
- * @description : 校验 service-data 通知逻辑表查询和状态 CAS 始终携带交易分片时间。
- * @status : create
+ * 校验 service-data 通知逻辑表查询和状态 CAS 始终携带交易分片时间。
  */
 class DataMerchantNotificationMapperContractTests {
 
+    /**
+     * 验证到期扫描和恢复查询只使用单季度左闭右开范围。
+     */
     @Test
     void dueScanAndRecoveryShouldUseOneQuarterHalfOpenRange() throws NoSuchMethodException {
         String dueSql = selectSql(DataMerchantNotificationMapper.class.getMethod(
@@ -52,6 +49,9 @@ class DataMerchantNotificationMapperContractTests {
                 .doesNotContain("last_attempt_no < max_retry_count");
     }
 
+    /**
+     * 验证通知点查和状态更新同时携带分片时间、版本和当前状态条件。
+     */
     @Test
     void notificationPointReadAndCasShouldCarryTransactionTimeVersionAndStatus() throws NoSuchMethodException {
         String readySql = selectSql(DataMerchantNotificationMapper.class.getMethod(
@@ -110,7 +110,9 @@ class DataMerchantNotificationMapperContractTests {
                 .doesNotContain("${");
     }
 
-    /** 人工重发必须显式排除仍在执行的自动五次计划，并保持精确分片和版本 CAS。 */
+    /**
+     * 人工重发必须显式排除仍在执行的自动五次计划，并保持精确分片和版本 CAS。
+     */
     @Test
     void manualRetryShouldUseExactShardAndControlledStates() throws NoSuchMethodException {
         String retryableSql = selectSql(DataMerchantNotificationMapper.class.getMethod(
@@ -141,18 +143,27 @@ class DataMerchantNotificationMapperContractTests {
                 .doesNotContain("AND notify_status = 'PROCESSING'");
     }
 
+    /**
+     * 读取 Mapper 方法的 Select 注解 SQL 供契约断言。
+     */
     private static String selectSql(Method method) {
         Select annotation = method.getAnnotation(Select.class);
         assertThat(annotation).isNotNull();
         return String.join("\n", annotation.value());
     }
 
+    /**
+     * 读取 Mapper 方法的 Update 注解 SQL 供契约断言。
+     */
     private static String updateSql(Method method) {
         Update annotation = method.getAnnotation(Update.class);
         assertThat(annotation).isNotNull();
         return String.join("\n", annotation.value());
     }
 
+    /**
+     * 断言查询 SQL 使用标准季度半开区间。
+     */
     private static void assertQuarterRange(String sql) {
         assertThat(sql)
                 .contains("transaction_date_time >= #{beginTime}")
@@ -160,6 +171,9 @@ class DataMerchantNotificationMapperContractTests {
                 .doesNotContain("${");
     }
 
+    /**
+     * 断言状态更新 SQL 同时校验分片键、版本和当前状态。
+     */
     private static void assertCas(String sql, String statusPredicate) {
         assertThat(sql)
                 .contains("UPDATE transaction_merchant_notification")

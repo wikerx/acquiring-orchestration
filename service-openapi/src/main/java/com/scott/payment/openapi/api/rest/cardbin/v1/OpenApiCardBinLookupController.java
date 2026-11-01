@@ -12,23 +12,19 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.scott.payment.component.core.model.CommonResult.success;
+import static com.scott.payment.openapi.result.OpenApiResponseFactory.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiCardBinLookupController
- * @date : 2026-08-11 15:44
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 卡 BIN 归属检索入口；安全链路负责加解密和防重放，长输入仅用前 11 位查询。
- * @status : create
+ * 商户 OpenAPI 卡 BIN 归属检索入口；安全链路负责加解密和防重放，长输入仅用前 11 位查询。
  */
 @ApiVersion(apiVersion = 1)
 @RestController
 @RequestMapping("/api/rest/card-bin/{version}")
 public class OpenApiCardBinLookupController {
 
-    /** 商户基础数据检索应用服务，不允许为空。 */
+    /**
+     * 商户基础数据检索应用服务，不允许为空。
+     */
     private final OpenApiReferenceDataApplicationService applicationService;
 
     /**

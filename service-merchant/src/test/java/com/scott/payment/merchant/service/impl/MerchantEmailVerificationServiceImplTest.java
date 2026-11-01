@@ -48,13 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantEmailVerificationServiceImplTest
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 商户账号激活和邮箱验证状态机测试，覆盖租户边界、失败锁定和令牌单次消费。
- * @status : create
+ * 商户账号激活和邮箱验证状态机测试，覆盖租户边界、失败锁定和令牌单次消费。
  */
 class MerchantEmailVerificationServiceImplTest {
 

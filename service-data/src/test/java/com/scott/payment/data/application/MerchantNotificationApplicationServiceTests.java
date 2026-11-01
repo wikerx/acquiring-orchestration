@@ -17,16 +17,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationApplicationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户通知补偿应用层输入和批次边界测试。
- * @status : create
+ * 商户通知补偿应用层输入和批次边界测试。
  */
 class MerchantNotificationApplicationServiceTests {
 
+    /**
+     * 验证应用层到期补偿将单季度批量限制收敛到五条。
+     */
     @Test
     void notifyDueShouldCapMqReconciliationBatchAtFive() {
         MerchantNotificationRetryReconciliationService reconciliationService =
@@ -44,6 +41,9 @@ class MerchantNotificationApplicationServiceTests {
         verify(reconciliationService).reconcile(5, List.of(transactionDateTime));
     }
 
+    /**
+     * 验证单笔通知完整传递交易分片时间和平台交易号。
+     */
     @Test
     void notifyTransactionShouldForwardExplicitShardTimeAndTransactionId() {
         MerchantNotificationRetryReconciliationService reconciliationService =
@@ -62,6 +62,9 @@ class MerchantNotificationApplicationServiceTests {
         verify(reconciliationService).reconcileTransaction(command.getTransactionId(), transactionDateTime);
     }
 
+    /**
+     * 验证缺少交易分片时间时在访问数据库前拒绝请求。
+     */
     @Test
     void notifyTransactionShouldRejectMissingShardTime() {
         MerchantNotificationApplicationService service =
@@ -75,6 +78,9 @@ class MerchantNotificationApplicationServiceTests {
                 .hasMessage("transaction_date_time is required");
     }
 
+    /**
+     * 验证对账入口只补发 MQ 事件并限制每季度批量。
+     */
     @Test
     void reconcileDueShouldUseMqReconciliationAndCapEachQuarterAtFive() {
         MerchantNotificationRetryReconciliationService reconciliationService =

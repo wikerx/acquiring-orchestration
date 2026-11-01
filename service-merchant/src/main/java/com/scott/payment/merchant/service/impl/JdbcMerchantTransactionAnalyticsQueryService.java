@@ -39,48 +39,72 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantTransactionAnalyticsQueryService
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 商户端交易分析 JDBC 实现，在每条统计 SQL 中强制 merchant_id，并仅从商户可见消息生成失败原因聚合。
- * @status : create
+ * 商户端交易分析 JDBC 实现，在每条统计 SQL 中强制 merchant_id，并仅从商户可见消息生成失败原因聚合。
  */
 @Service
 public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTransactionAnalyticsQueryService {
 
-    /** 交易操作逻辑表名，仅用于受控静态 SQL 拼装。 */
+    /**
+     * 交易操作逻辑表名，仅用于受控静态 SQL 拼装。
+     */
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
-    /** 商户可见失败描述所在的交易订单逻辑表名。 */
+    /**
+     * 商户可见失败描述所在的交易订单逻辑表名。
+     */
     private static final String TRANSACTION_ORDER_TABLE = "transaction_order";
-    /** 支付工具摘要逻辑表名，仅用于受控静态 SQL 拼装。 */
+    /**
+     * 支付工具摘要逻辑表名，仅用于受控静态 SQL 拼装。
+     */
     private static final String TRANSACTION_PAYMENT_METHOD_TABLE = "transaction_payment_method_info";
-    /** 单次统计允许扫描的最大自然日跨度。 */
+    /**
+     * 单次统计允许扫描的最大自然日跨度。
+     */
     private static final int MAX_QUERY_DAYS = 31;
-    /** 首笔收单操作在交易操作表中的固定序号。 */
+    /**
+     * 首笔收单操作在交易操作表中的固定序号。
+     */
     private static final int FIRST_OPERATION_SEQUENCE = 1;
-    /** 进入终态成功率分子的成功状态编码。 */
+    /**
+     * 进入终态成功率分子的成功状态编码。
+     */
     private static final String STATUS_SUCCESS = "SUCCESS";
-    /** 进入终态成功率分母的失败状态编码。 */
+    /**
+     * 进入终态成功率分母的失败状态编码。
+     */
     private static final String STATUS_FAILED = "FAILED";
-    /** 不进入终态成功率分母的待处理状态编码。 */
+    /**
+     * 不进入终态成功率分母的待处理状态编码。
+     */
     private static final String STATUS_PENDING = "PENDING";
-    /** 不进入终态成功率分母的处理中状态编码。 */
+    /**
+     * 不进入终态成功率分母的处理中状态编码。
+     */
     private static final String STATUS_PROCESSING = "PROCESSING";
-    /** 商户可见失败描述缺失时使用的合并维度编码。 */
+    /**
+     * 商户可见失败描述缺失时使用的合并维度编码。
+     */
     private static final String OTHER_FAILURE_REASON = "OTHER";
-    /** 页面未指定时使用的查询时区，也是交易表时间解释时区。 */
+    /**
+     * 页面未指定时使用的查询时区，也是交易表时间解释时区。
+     */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
-    /** MySQL 统计 Asia/Shanghai 自然日时使用的固定偏移。 */
+    /**
+     * MySQL 统计 Asia/Shanghai 自然日时使用的固定偏移。
+     */
     private static final String STORAGE_SQL_TIME_ZONE = "+08:00";
-    /** 允许进入首笔交易分析的收单交易类型集合。 */
+    /**
+     * 允许进入首笔交易分析的收单交易类型集合。
+     */
     private static final Set<String> SUPPORTED_TRANSACTION_TYPES = Set.of(
             "PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION");
 
-    /** 查询专用 JDBC 模板，使用交易查询统一语句超时。 */
+    /**
+     * 查询专用 JDBC 模板，使用交易查询统一语句超时。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 在 transaction 逻辑数据源执行允许读写分离的只读聚合。 */
+    /**
+     * 在 transaction 逻辑数据源执行允许读写分离的只读聚合。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
 
     /**
@@ -148,7 +172,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return transactionLogicalReadExecutor.read(() -> failuresNormalized(safeMerchantId, safeQuery));
     }
 
-    /** 在同一商户和逻辑数据源上下文完成总览的全部聚合。 */
+    /**
+     * 在同一商户和逻辑数据源上下文完成总览的全部聚合。
+     */
     private OverviewResponse overviewNormalized(String merchantId, AnalyticsQuery query) {
         OverviewResponse response = querySummary(merchantId, query);
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
@@ -164,7 +190,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return response;
     }
 
-    /** 查询上一周期核心指标，并按币种生成金额变化，避免浏览器使用浮点数比较资金数据。 */
+    /**
+     * 查询上一周期核心指标，并按币种生成金额变化，避免浏览器使用浮点数比较资金数据。
+     */
     private PeriodComparison queryPeriodComparison(String merchantId,
                                                    AnalyticsQuery previousQuery,
                                                    int periodDays,
@@ -183,7 +211,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return comparison;
     }
 
-    /** 合并当前和上一周期出现过的币种，使用 BigDecimal 计算差额与变化幅度。 */
+    /**
+     * 合并当前和上一周期出现过的币种，使用 BigDecimal 计算差额与变化幅度。
+     */
     private List<AmountComparisonMetric> compareSuccessAmounts(List<AmountMetric> currentAmounts,
                                                                List<AmountMetric> previousAmounts) {
         Map<AmountKey, AmountMetric> currentByCurrency = indexAmounts(currentAmounts);
@@ -212,7 +242,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return result;
     }
 
-    /** 将金额列表按币种和币种精度建立有序索引，二者共同构成金额比较口径。 */
+    /**
+     * 将金额列表按币种和币种精度建立有序索引，二者共同构成金额比较口径。
+     */
     private Map<AmountKey, AmountMetric> indexAmounts(List<AmountMetric> amounts) {
         Map<AmountKey, AmountMetric> indexed = new LinkedHashMap<>();
         if (amounts == null) {
@@ -225,12 +257,16 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return indexed;
     }
 
-    /** 返回金额指标值；缺失记录和空金额统一按零处理。 */
+    /**
+     * 返回金额指标值；缺失记录和空金额统一按零处理。
+     */
     private BigDecimal amountOrZero(AmountMetric metric) {
         return metric == null || metric.getAmount() == null ? BigDecimal.ZERO : metric.getAmount();
     }
 
-    /** 计算相对上一周期的绝对变化幅度；零基数新增由 NEW 方向表达而不返回无穷比例。 */
+    /**
+     * 计算相对上一周期的绝对变化幅度；零基数新增由 NEW 方向表达而不返回无穷比例。
+     */
     private BigDecimal changeRate(BigDecimal changeAmount, BigDecimal previousAmount) {
         if (previousAmount.signum() == 0) {
             return changeAmount.signum() == 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY) : null;
@@ -240,7 +276,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
                 .divide(previousAmount.abs(), 2, RoundingMode.HALF_UP);
     }
 
-    /** 使用精确金额判断变化方向，上一周期为零且本期为正时单独标记为新增。 */
+    /**
+     * 使用精确金额判断变化方向，上一周期为零且本期为正时单独标记为新增。
+     */
     private ComparisonDirection comparisonDirection(BigDecimal currentAmount, BigDecimal previousAmount) {
         if (previousAmount.signum() == 0 && currentAmount.signum() > 0) {
             return ComparisonDirection.NEW;
@@ -255,7 +293,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return ComparisonDirection.FLAT;
     }
 
-    /** 按当前查询覆盖的自然日数量确定上一周期平移天数。 */
+    /**
+     * 按当前查询覆盖的自然日数量确定上一周期平移天数。
+     */
     private int comparisonDays(AnalyticsQuery query) {
         ZoneId queryZone = resolveQueryZone(query.getQueryTimeZone());
         ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
@@ -267,7 +307,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return Math.toIntExact(Math.max(1L, Math.min(MAX_QUERY_DAYS, days)));
     }
 
-    /** 在查询时区将当前半开区间整体向前平移，保持今天、近七天和近三十天的同进度比较。 */
+    /**
+     * 在查询时区将当前半开区间整体向前平移，保持今天、近七天和近三十天的同进度比较。
+     */
     private AnalyticsQuery previousPeriodQuery(AnalyticsQuery currentQuery, int periodDays) {
         ZoneId queryZone = resolveQueryZone(currentQuery.getQueryTimeZone());
         ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
@@ -285,11 +327,15 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return previous;
     }
 
-    /** 币种和币种精度共同组成金额统计键，防止历史精度不同的数据被误合并。 */
+    /**
+     * 币种和币种精度共同组成金额统计键，防止历史精度不同的数据被误合并。
+     */
     private record AmountKey(String currency, Integer currencyExponent) {
     }
 
-    /** 失败分析只读取 merchant_visible_message，不读取渠道响应或内部失败原因。 */
+    /**
+     * 失败分析只读取 merchant_visible_message，不读取渠道响应或内部失败原因。
+     */
     private FailureResponse failuresNormalized(String merchantId, AnalyticsQuery query) {
         FailureResponse response = new FailureResponse();
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
@@ -300,7 +346,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return response;
     }
 
-    /** 查询核心计数指标，商户谓词是不可选条件。 */
+    /**
+     * 查询核心计数指标，商户谓词是不可选条件。
+     */
     private OverviewResponse querySummary(String merchantId, AnalyticsQuery query) {
         String sql = """
                 SELECT COUNT(1) AS total_count,
@@ -323,7 +371,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         });
     }
 
-    /** 查询成功金额，按币种和精度分组，禁止跨币种相加。 */
+    /**
+     * 查询成功金额，按币种和精度分组，禁止跨币种相加。
+     */
     private List<AmountMetric> querySuccessAmounts(String merchantId, AnalyticsQuery query) {
         String sql = """
                 SELECT COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
@@ -346,7 +396,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         });
     }
 
-    /** 查询自然日趋势；失败分析模式只保留失败交易，其他模式返回全部状态。 */
+    /**
+     * 查询自然日趋势；失败分析模式只保留失败交易，其他模式返回全部状态。
+     */
     private List<TrendMetric> queryTrend(String merchantId, AnalyticsQuery query, boolean failedOnly) {
         String failedPredicate = failedOnly ? " AND o.transaction_status = :failedStatus" : "";
         String sql = """
@@ -375,7 +427,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         });
     }
 
-    /** 根据受控维度选择统计 SQL，调用方不能传入任意列名或表达式。 */
+    /**
+     * 根据受控维度选择统计 SQL，调用方不能传入任意列名或表达式。
+     */
     private List<DimensionMetric> queryDimension(String merchantId,
                                                  AnalyticsQuery query,
                                                  String dimension,
@@ -432,7 +486,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         });
     }
 
-    /** 按商户可见消息统计失败原因，缺失消息统一使用 OTHER，避免回退到内部失败字段。 */
+    /**
+     * 按商户可见消息统计失败原因，缺失消息统一使用 OTHER，避免回退到内部失败字段。
+     */
     private List<DimensionMetric> queryFailureReasons(String merchantId, AnalyticsQuery query) {
         String sql = """
                 SELECT COALESCE(NULLIF(t.merchant_visible_message, ''), :otherFailureReason) AS dimension_key,
@@ -458,7 +514,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         });
     }
 
-    /** 构造首笔交易统一过滤条件，merchant_id 始终作为首个业务谓词。 */
+    /**
+     * 构造首笔交易统一过滤条件，merchant_id 始终作为首个业务谓词。
+     */
     private String baseWhere(AnalyticsQuery query) {
         StringBuilder where = new StringBuilder("""
                 o.deleted = 0
@@ -482,14 +540,18 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return where.toString();
     }
 
-    /** 构造支付工具摘要表连接条件，交易 ID 与分片时间必须同时匹配。 */
+    /**
+     * 构造支付工具摘要表连接条件，交易 ID 与分片时间必须同时匹配。
+     */
     private String paymentMethodJoin() {
         return "LEFT JOIN " + TRANSACTION_PAYMENT_METHOD_TABLE + " p"
                 + " ON p.transaction_id = o.transaction_id"
                 + " AND p.transaction_date_time = o.transaction_date_time";
     }
 
-    /** 构造命名参数，商户号只来自方法参数而非页面请求。 */
+    /**
+     * 构造命名参数，商户号只来自方法参数而非页面请求。
+     */
     private MapSqlParameterSource params(String merchantId, AnalyticsQuery query) {
         List<String> transactionTypes = StringUtils.hasText(query.getTransactionType())
                 ? List.of(query.getTransactionType()) : new ArrayList<>(SUPPORTED_TRANSACTION_TYPES);
@@ -512,7 +574,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
                 .addValue("otherFailureReason", OTHER_FAILURE_REASON);
     }
 
-    /** 归一化查询时间和枚举编码，并在访问数据库前拒绝超过 31 天的扫描。 */
+    /**
+     * 归一化查询时间和枚举编码，并在访问数据库前拒绝超过 31 天的扫描。
+     */
     private AnalyticsQuery normalize(AnalyticsQuery source) {
         AnalyticsQuery query = source == null ? new AnalyticsQuery() : source;
         ZoneId queryZone = resolveQueryZone(query.getQueryTimeZone());
@@ -537,7 +601,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return query;
     }
 
-    /** 将稀疏数据库趋势补齐为连续自然日序列。 */
+    /**
+     * 将稀疏数据库趋势补齐为连续自然日序列。
+     */
     private List<TrendMetric> fillTrendDates(AnalyticsQuery query, List<TrendMetric> rows) {
         Map<String, TrendMetric> indexed = new LinkedHashMap<>();
         rows.forEach(row -> indexed.put(row.getDate(), row));
@@ -561,7 +627,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return result;
     }
 
-    /** 按终态交易计算百分比，结果保留两位小数且不使用浮点数。 */
+    /**
+     * 按终态交易计算百分比，结果保留两位小数且不使用浮点数。
+     */
     private BigDecimal successRate(long successCount, long failedCount) {
         long terminalCount = successCount + failedCount;
         if (terminalCount == 0L) {
@@ -572,7 +640,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
                 .divide(BigDecimal.valueOf(terminalCount), 2, RoundingMode.HALF_UP);
     }
 
-    /** 解析页面查询时区，非法时区在访问数据库前返回参数错误。 */
+    /**
+     * 解析页面查询时区，非法时区在访问数据库前返回参数错误。
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : DEFAULT_QUERY_TIME_ZONE;
         try {
@@ -582,7 +652,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         }
     }
 
-    /** 兼容字典中的 UTC+8、GMT-5 等简写格式。 */
+    /**
+     * 兼容字典中的 UTC+8、GMT-5 等简写格式。
+     */
     private String normalizeZoneId(String zone) {
         String normalized = zone == null ? DEFAULT_QUERY_TIME_ZONE : zone.trim();
         String upper = normalized.toUpperCase(Locale.ROOT);
@@ -601,12 +673,16 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return normalized;
     }
 
-    /** 将页面本地时间转换到交易表的 Asia/Shanghai 存储时区。 */
+    /**
+     * 将页面本地时间转换到交易表的 Asia/Shanghai 存储时区。
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         return sourceTime.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
-    /** 为 MySQL 自然日聚合选择时区参数，常用固定时区不依赖系统时区表。 */
+    /**
+     * 为 MySQL 自然日聚合选择时区参数，常用固定时区不依赖系统时区表。
+     */
     private String sqlTimeZone(ZoneId queryZone, LocalDateTime storageReferenceTime) {
         if (DEFAULT_QUERY_TIME_ZONE.equals(queryZone.getId())) {
             return STORAGE_SQL_TIME_ZONE;
@@ -619,7 +695,9 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return queryZone.getId();
     }
 
-    /** 校验认证上下文商户号，缺失时在数据库访问前拒绝查询。 */
+    /**
+     * 校验认证上下文商户号，缺失时在数据库访问前拒绝查询。
+     */
     private String requireMerchantId(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant context missing");
@@ -627,25 +705,33 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
         return merchantId.trim();
     }
 
-    /** 仅在筛选值非空时追加预定义 SQL 片段，片段不接受页面输入。 */
+    /**
+     * 仅在筛选值非空时追加预定义 SQL 片段，片段不接受页面输入。
+     */
     private void appendTextFilter(StringBuilder sql, String value, String clause) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(clause);
         }
     }
 
-    /** 去除查询文本首尾空白，并将空文本归一化为 null。 */
+    /**
+     * 去除查询文本首尾空白，并将空文本归一化为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    /** 将枚举类查询文本归一化为大写编码，空文本保持 null。 */
+    /**
+     * 将枚举类查询文本归一化为大写编码，空文本保持 null。
+     */
     private String upperToNull(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
-    /** 将 JDBC 可空数值转换为币种精度，数据库 null 不设置默认精度。 */
+    /**
+     * 将 JDBC 可空数值转换为币种精度，数据库 null 不设置默认精度。
+     */
     private Integer nullableInteger(Object value) {
         return value instanceof Number number ? number.intValue() : null;
     }

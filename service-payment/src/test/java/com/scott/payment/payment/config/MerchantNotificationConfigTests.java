@@ -6,13 +6,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationConfigTests
- * @date : 2026-08-03 00:00
- * @email : scott_x@163.com
- * @description : 验证商户通知重试默认值、显式覆盖和启动边界门禁。
- * @status : create
+ * 验证商户通知重试默认值、显式覆盖和启动边界门禁。
  */
 class MerchantNotificationConfigTests {
 

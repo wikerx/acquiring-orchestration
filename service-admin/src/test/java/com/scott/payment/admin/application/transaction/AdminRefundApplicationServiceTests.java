@@ -22,18 +22,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRefundApplicationServiceTests
- * @date : 2026-08-08 00:10
- * @email : scott_x@163.com
- * @description : 管理端退款应用边界测试，验证只读请求由 service-admin 本地查询服务完成且不再调用 Payment 查询接口。
- * @status : create
+ * 管理端退款应用边界测试，验证只读请求由 service-admin 本地查询服务完成且不再调用 Payment 查询接口。
  */
 @Slf4j
 class AdminRefundApplicationServiceTests {
 
-    /** 管理端退款分页必须调用本地查询服务。 */
+    /**
+     * 管理端退款分页必须调用本地查询服务。
+     */
     @Test
     void searchShouldUseLocalQueryService() {
         log.info("用例：验证管理端退款分页由service-admin本地查询服务执行");
@@ -51,7 +47,9 @@ class AdminRefundApplicationServiceTests {
         log.info("结果：退款分页仅访问本地查询服务，Payment客户端未被调用");
     }
 
-    /** 管理端退款详情必须调用本地查询服务。 */
+    /**
+     * 管理端退款详情必须调用本地查询服务。
+     */
     @Test
     void detailShouldUseLocalQueryService() {
         log.info("用例：验证管理端退款详情由service-admin本地查询服务执行");

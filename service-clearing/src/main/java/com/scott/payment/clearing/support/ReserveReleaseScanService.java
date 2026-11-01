@@ -21,41 +21,25 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReserveReleaseScanService
- * @date : 2026-08-26 18:50
- * @email : scott_x@163.com
- * @description : 按已发布季度限量扫描到期保证金；扫描不持有长事务，每条候选由独立事务完成释放。
- * @status : create
+ * 到期保证金分片扫描服务。
+ *
+ * <p>仅遍历治理配置中已经发布且不晚于当前业务季度的物理节点。扫描本身不持有长事务，每条候选由
+ * {@link ReserveReleaseService} 在独立事务中执行版本校验和幂等释放；单条失败不会阻断其他候选。</p>
  */
 @Slf4j
 @Service
 public class ReserveReleaseScanService {
 
     /**
-     * 季度批次大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
+     * 每个季度单轮最多领取的候选数，限制调度压力和故障影响范围。
      */
     private static final int QUARTER_BATCH_SIZE = 200;
     /**
-     * 物理节点常量，统一 {@code ReserveReleaseScanService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 已发布交易分片后缀格式：四位年份、固定分隔位 0、一位季度。
      */
     private static final Pattern PHYSICAL_NODE = Pattern.compile("\\d{4}0[1-4]");
     /**
-     * {@code BUSINESS_ZONE}常量，统一 {@code ReserveReleaseScanService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 与交易分片路由一致的业务时区，避免服务器默认时区改变季度和业务日。
      */
     private static final ZoneId BUSINESS_ZONE = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
 
@@ -65,7 +49,14 @@ public class ReserveReleaseScanService {
     private final ClearingOperationalMetrics metrics;
     private final Clock clock;
 
-    /** 创建使用 UTC 时钟和固定交易路由时区的生产扫描服务。 */
+    /**
+     * 创建使用 UTC 时钟和固定交易路由时区的生产扫描服务。
+     *
+     * @param reserveMapper 到期保证金候选查询 Mapper
+     * @param releaseService 单条保证金幂等释放服务
+     * @param shardingProperties 已发布交易分片配置
+     * @param metrics 保证金释放低基数指标
+     */
     @Autowired
     public ReserveReleaseScanService(ClearingReserveMapper reserveMapper,
                                      ReserveReleaseService releaseService,
@@ -74,7 +65,9 @@ public class ReserveReleaseScanService {
         this(reserveMapper, releaseService, shardingProperties, metrics, Clock.systemUTC());
     }
 
-    /** 包级构造器用于固定测试时点，不改变生产调度行为。 */
+    /**
+     * 包级构造器用于固定测试时点，不改变生产调度行为。
+     */
     ReserveReleaseScanService(ClearingReserveMapper reserveMapper,
                               ReserveReleaseService releaseService,
                               TransactionShardingProperties shardingProperties,
@@ -129,15 +122,18 @@ public class ReserveReleaseScanService {
                 } catch (RuntimeException exception) {
                     failed++;
                     metrics.recordReserveRelease("FAILED");
-                    log.error("event: RESERVE_RELEASE_CANDIDATE_FAILED exceptionType: {}",
-                            exception.getClass().getSimpleName());
+                    log.error("到期保证金候选释放失败, event: RESERVE_RELEASE_CANDIDATE_FAILED, reserveStateId: {}, exceptionType: {}",
+                            candidate == null ? null : candidate.getReserveStateId(),
+                            exception.getClass().getSimpleName(), exception);
                 }
             }
         }
         return new ReserveReleaseScanResult(scanned, released, skipped, failed);
     }
 
-    /** 只扫描数据库治理表声明已发布的季度。 */
+    /**
+     * 只扫描数据库治理表声明已发布的季度。
+     */
     private List<LocalDateTime> publishedQuarters() {
         List<String> nodes = shardingProperties.getPhysicalNodes();
         if (nodes == null) {
@@ -146,6 +142,9 @@ public class ReserveReleaseScanService {
         return nodes.stream().map(this::quarterAnchor).distinct().sorted().toList();
     }
 
+    /**
+     * 将已发布物理节点后缀转换为季度起点，拒绝非治理格式。
+     */
     private LocalDateTime quarterAnchor(String suffix) {
         if (suffix == null || !PHYSICAL_NODE.matcher(suffix).matches()) {
             throw new IllegalStateException("transaction sharding physical node suffix must use yyyyQQ");
@@ -155,12 +154,17 @@ public class ReserveReleaseScanService {
         return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
+    /**
+     * 将业务时间归一到所属季度首日零点。
+     */
     private LocalDateTime quarterAnchor(LocalDateTime value) {
         int firstMonth = ((value.getMonthValue() - 1) / 3) * 3 + 1;
         return LocalDateTime.of(value.getYear(), firstMonth, 1, 0, 0);
     }
 
-    /** 扫描候选必须携带状态号、原支付身份和真实分片时间。 */
+    /**
+     * 扫描候选必须携带状态号、原支付身份和真实分片时间。
+     */
     private void validateCandidate(ClearingReserveStateDO candidate) {
         if (candidate == null || candidate.getReserveStateId() == null
                 || candidate.getReserveStateId().isBlank()
@@ -171,7 +175,9 @@ public class ReserveReleaseScanService {
         }
     }
 
-    /** 单轮扫描结果，不包含任何商户号、交易号或金额。 */
+    /**
+     * 单轮扫描结果，不包含任何商户号、交易号或金额。
+     */
     public record ReserveReleaseScanResult(int scanned, int released, int skipped, int failed) {
     }
 }

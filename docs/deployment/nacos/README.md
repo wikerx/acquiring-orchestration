@@ -120,6 +120,24 @@ Server 的兼容插件；本次配置整理不重启或改造 Nacos 容器。
 任何调用边密钥一旦出现在聊天、截图、日志或工单中，都必须视为已暴露，按“无停机密钥轮换”完成 prepare、activate、
 verify 和 retire-previous，不能继续沿用或只修改单边配置。
 
+### 进程级敏感配置
+
+风控敏感值加密密钥和本地默认登录凭据属于进程级安全门禁，保留在服务的 `application-{env}.yml` 中并由部署环境注入，
+不得写入公共 DataId、仓库模板、日志或工单正文。部署平台必须把下列变量作为 Secret 管理，并限制为对应服务进程可读：
+
+| 服务 | 环境变量 | 约束 |
+| --- | --- | --- |
+| `service-admin` | `PAYMENT_RISK_SECRET` | 当前风控敏感值加密主密钥，UTF-8 编码后不少于 32 字节；连接持久化数据的所有环境必须配置稳定独立密钥，缺失或弱密钥时服务启动失败。 |
+| `service-admin` | `PAYMENT_RISK_PREVIOUS_SECRETS` | 轮换期间只用于解密存量密文的历史密钥，使用逗号分隔，最多两个；不得与当前密钥重复，轮换完成后必须清空。 |
+| `service-merchant` | `MERCHANT_DEFAULT_LOGIN_CREDENTIAL_ENABLED` | 本地种子商户凭据接口开关，默认 `false`；只允许隔离的 `dev`、`test` 或 `local` profile 显式开启。 |
+| `service-merchant` | `MERCHANT_DEFAULT_LOGIN_ACCOUNT` | 开启本地凭据接口时使用的种子商户登录账号，必须与当前隔离环境的种子数据一致。 |
+| `service-merchant` | `MERCHANT_DEFAULT_LOGIN_PASSWORD` | 开启本地凭据接口时注入的初始密码，UTF-8 编码后不少于 12 字节；禁止使用固定默认口令。 |
+
+风控密钥轮换必须先把新密钥写入 `PAYMENT_RISK_SECRET`，把原当前密钥加入
+`PAYMENT_RISK_PREVIOUS_SECRETS`，滚动重启并验证新写入和存量密文均可读取；确认所有实例已经使用新密钥后，再清空历史密钥并完成第二次滚动重启。不得在轮换过程中删除仍用于存量密文的旧密钥，也不得在多个环境复用同一密钥。
+
+`service-merchant` 的 UAT、生产和 sample 配置固定关闭默认登录凭据接口，不读取上述开关、账号和密码变量。即使部署环境误注入变量，接口也不得加入匿名访问白名单。开发或测试联调结束后必须关闭开关并清除进程环境中的账号和密码。
+
 ### 环境初始化和 DataId 发布
 
 `scripts/manage-nacos-internal-auth.sh` 不打印密钥。`migrate` 负责把历史 cipher 配置迁到普通服务 DataId；

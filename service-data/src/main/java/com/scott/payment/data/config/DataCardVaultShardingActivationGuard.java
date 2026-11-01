@@ -6,13 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataCardVaultShardingActivationGuard
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 卡资料消费启动门禁，确保启用消费前交易分片规则已经接管卡资料逻辑表。
- * @status : create
+ * 卡资料消费启动门禁，确保启用消费前交易分片规则已经接管卡资料逻辑表。
  */
 @Component
 @ConditionalOnProperty(prefix = "data.card-vault", name = "enabled", havingValue = "true")

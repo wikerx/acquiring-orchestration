@@ -1,5 +1,8 @@
 package com.scott.payment.openapi.service.impl;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
@@ -15,10 +18,9 @@ import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDT
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
-import com.scott.payment.openapi.config.PaymentClientProperties;
 import com.scott.payment.openapi.converter.OpenApiRequestConverter;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
@@ -29,6 +31,7 @@ import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
+import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -39,6 +42,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,13 +51,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentServiceImplTests
- * @date : 2026-07-14 21:10
- * @email : scott_x@163.com
- * @description : OpenAPI 收单支付服务测试，验证独立交易入口能正确组装内部请求，并避免对外暴露按枚举分发的粗粒度接口。
- * @status : create
+ * OpenAPI 收单支付服务测试，验证独立交易入口能正确组装内部请求，并避免对外暴露按枚举分发的粗粒度接口。
  */
 class PaymentServiceImplTests {
 
@@ -94,6 +92,7 @@ class PaymentServiceImplTests {
                 .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
         assertThat(captured.getCallbackUrl()).isEqualTo("https://merchant.example/callback");
         assertThat(captured.getSourceUrl()).isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
+        assertThat(captured.getIngressClientIp()).isEqualTo("198.51.100.10");
         assertThat(captured.getPayerIp()).isEqualTo("203.0.113.10");
         assertThat(captured.getUserAgent()).isEqualTo("Mozilla/5.0");
         assertThat(captured.getRiskContext().getCustomerId()).isEqualTo("CUSTOMER-001");
@@ -101,6 +100,47 @@ class PaymentServiceImplTests {
         assertThat(captured.getRiskContext().getShippingAddress()).isEqualTo("2 Shipping St");
         assertThat(captured.getRiskContext().getShippingPostalCode()).isEqualTo("10003");
         assertThat(captured.getRiskContext().getShippingCountry()).isEqualTo("USA");
+    }
+
+    /**
+     * 验证交易日志保留定位上下文和对象元数据，同时不输出解密后的卡资料、个人信息或来源 URL 原值。
+     */
+    @Test
+    void shouldNotExposeDecryptedPaymentFieldsInApplicationLogs() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
+        ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
+        bindRequestContext();
+
+        Logger logger = (Logger) LoggerFactory.getLogger(PaymentServiceImpl.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            paymentService.createAuthorization("cipher-sensitive-marker", requestDTO);
+
+            String messages = appender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .collect(Collectors.joining("\n"));
+            assertThat(messages)
+                    .contains("operation: AUTHORIZATION")
+                    .contains("merchantId: 200001")
+                    .contains("merchantOrderNo: M202607120001")
+                    .contains("payloadType")
+                    .contains("jsonLength")
+                    .contains("jsonDigest")
+                    .doesNotContain("5387380678556554")
+                    .doesNotContain("securityCode\":\"123")
+                    .doesNotContain("user@example.com")
+                    .doesNotContain("1 Main St")
+                    .doesNotContain("2 Shipping St")
+                    .doesNotContain("cart=ABC123")
+                    .doesNotContain("Mozilla/5.0")
+                    .doesNotContain("cipher-sensitive-marker");
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     @Test
@@ -116,6 +156,22 @@ class PaymentServiceImplTests {
         assertThat(converter.toPaymentCreateVO(requestDTO, responseDTO, null)
                 .getTransactionInfo().getMerchantWebsite())
                 .isEqualTo("https://stored-merchant.example/original");
+    }
+
+    /**
+     * Capture 省略币种时，响应应保留支付核心返回的原授权标签币种。
+     */
+    @Test
+    void shouldKeepPaymentResultCurrencyWhenCaptureRequestOmitsCurrency() {
+        OpenApiRequestConverter converter = Mappers.getMapper(OpenApiRequestConverter.class);
+        ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
+        requestDTO.getOrderInfo().setCurrency(null);
+        PaymentCreateClientResponseDTO responseDTO = new PaymentCreateClientResponseDTO();
+        responseDTO.setOrderAmount(new BigDecimal("85.55"));
+        responseDTO.setOrderCurrency("AUD");
+
+        assertThat(converter.toPaymentCreateVO(requestDTO, responseDTO, null)
+                .getOrderInfo().getCurrency()).isEqualTo("AUD");
     }
 
     @Test
@@ -186,6 +242,7 @@ class PaymentServiceImplTests {
         assertThat(responseVO.getTransactionInfo().get(0).getTransactionId()).isEqualTo("202607120001000001");
         assertThat(responseVO.getTransactionInfo().get(0).getRootTransactionDateTime()).isNull();
         assertThat(responseVO.getTransactionInfo().get(0).getTransactionStatus()).isEqualTo("PROCESSING");
+        assertThat(responseVO.getTransactionInfo().get(0).getCode()).isEqualTo("T0001");
         assertThat(responseVO.getTransactionInfo().get(0).getMerchantWebsite())
                 .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
     }
@@ -234,7 +291,7 @@ class PaymentServiceImplTests {
     }
 
     @Test
-    void shouldReturnUnifiedMessageAndHideInternalReasonForFailedPayment() {
+    void shouldReturnSystemErrorAndHideInternalReasonForLegacyFailedPayment() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextPaymentStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
@@ -246,22 +303,26 @@ class PaymentServiceImplTests {
 
         String responseJson = JsonUtils.toJsonString(paymentService.createPayment("encrypted-body", buildRequest()));
 
-        assertThat(responseJson).contains("\"code\":\"F210\"");
-        assertThat(responseJson).contains("\"message\":\"The transaction was declined; please contact your card issuer or try again.\"");
+        // FAILED 是终态，不能再投影为仅允许与 PROCESSING/PENDING 并存的 F3000。
+        assertThat(responseJson).contains("\"code\":\"F2000\"");
+        assertThat(responseJson).contains("\"message\":\"Processing could not be completed. Check the original order or contact support.\"");
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":0");
         assertThat(responseJson).contains("\"totalCapturedAmount\":0");
         assertThat(responseJson).doesNotContain("failReasonCode");
         assertThat(responseJson).doesNotContain("failReasonMessage");
+        assertThat(responseJson).doesNotContain("pendingReasonCode");
         assertThat(responseJson).doesNotContain("Unexpected parameter");
         assertThat(responseJson).doesNotContain("CHANNEL_REQUEST_FAILED");
     }
 
     @Test
-    void shouldReturnChannelDeclineMessageWhenPaymentFailureIsMerchantVisible() {
+    void shouldReturnStablePlatformMessageWhenPaymentFailureContainsChannelDetails() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextPaymentStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
-        paymentInternalClient.nextMerchantResponseMessage = "05: Declined";
+        // 支付核心返回的是待兼容内部文案；OpenAPI 响应必须由 V1.3 目录重新投影。
+        paymentInternalClient.nextMerchantResponseMessage =
+                "The transaction was declined; please contact your card issuer or try again.";
         paymentInternalClient.nextFailReasonCode = "CHANNEL_DECLINED";
         paymentInternalClient.nextFailReasonMessage = "MPGS declined by issuer";
         PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
@@ -269,10 +330,13 @@ class PaymentServiceImplTests {
 
         String responseJson = JsonUtils.toJsonString(paymentService.createPayment("encrypted-body", buildRequest()));
 
-        assertThat(responseJson).contains("\"code\":\"F210\"");
-        assertThat(responseJson).contains("\"message\":\"05: Declined\"");
+        assertThat(responseJson).contains("\"code\":\"F1000\"");
+        assertThat(responseJson).contains("\"message\":\"The transaction was declined by the issuer bank. Check the original order, then ask the payer to contact their bank or use another payment method when applicable.\"");
+        assertThat(responseJson).doesNotContain("failReasonCode");
+        assertThat(responseJson).doesNotContain("failReasonMessage");
+        assertThat(responseJson).doesNotContain("pendingReasonCode");
         assertThat(responseJson).doesNotContain("MPGS declined by issuer");
-        assertThat(responseJson).doesNotContain("CHANNEL_DECLINED");
+        assertThat(responseJson).doesNotContain("05: Declined");
     }
 
     @Test
@@ -298,7 +362,7 @@ class PaymentServiceImplTests {
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":12.34");
         assertThat(responseJson).contains("\"totalCapturedAmount\":0");
         assertThat(responseJson).contains("\"totalRefundAmount\":0");
-        assertThat(responseJson).contains("\"code\":\"T200\"");
+        assertThat(responseJson).contains("\"code\":\"T0000\"");
         assertThat(responseJson).contains("\"message\":\"Success\"");
         assertThat(responseJson).contains("\"transactionType\":\"AUTHORIZATION\"");
         assertThat(responseJson).contains("\"cardBrand\":\"MASTERCARD\"");
@@ -314,7 +378,7 @@ class PaymentServiceImplTests {
     }
 
     @Test
-    void shouldEchoMerchantRequestAndHideInternalReasonForFailedAuthorization() {
+    void shouldEchoMerchantRequestAndHideInternalReasonForLegacyFailedAuthorization() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextAuthorizationStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
@@ -336,8 +400,9 @@ class PaymentServiceImplTests {
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":0");
         assertThat(responseJson).contains("\"totalCapturedAmount\":0");
         assertThat(responseJson).contains("\"totalRefundAmount\":0");
-        assertThat(responseJson).contains("\"code\":\"F210\"");
-        assertThat(responseJson).contains("\"message\":\"The transaction was declined; please contact your card issuer or try again.\"");
+        // 遗留失败记录即使原因名含 request failed，也不能把终态重新解释成结果待确认。
+        assertThat(responseJson).contains("\"code\":\"F2000\"");
+        assertThat(responseJson).contains("\"message\":\"Processing could not be completed. Check the original order or contact support.\"");
         assertThat(responseJson).contains("\"transactionType\":\"AUTHORIZATION\"");
         assertThat(responseJson).contains("\"cardBrand\":\"MASTERCARD\"");
         assertThat(responseJson).contains("\"description\":\"authorization expected channel failure\"");
@@ -346,6 +411,7 @@ class PaymentServiceImplTests {
         assertThat(responseJson).doesNotContain("\"cardInfo\"");
         assertThat(responseJson).doesNotContain("failReasonCode");
         assertThat(responseJson).doesNotContain("failReasonMessage");
+        assertThat(responseJson).doesNotContain("pendingReasonCode");
         assertThat(responseJson).doesNotContain("Unexpected parameter");
         assertThat(responseJson).doesNotContain("CHANNEL_REQUEST_FAILED");
         assertThat(responseJson).doesNotContain("Channel rejected");
@@ -420,17 +486,25 @@ class PaymentServiceImplTests {
 
     private PaymentServiceImpl newPaymentService(CapturingPaymentInternalClient paymentInternalClient,
                                                  IsoDictionaryService isoDictionaryService) {
-        PaymentClientProperties properties = new PaymentClientProperties();
-        properties.setRemoteEnabled(true);
         return new PaymentServiceImpl(
                 Mappers.getMapper(OpenApiRequestConverter.class),
                 paymentInternalClient,
-                properties,
                 new OpenApiKeyMaterialFactory(),
                 new OpenApiRequestContext(),
                 isoDictionaryService,
-                merchantRuntimeProfileCacheService()
+                merchantRuntimeProfileCacheService(),
+                testUrlPolicy()
         );
+    }
+
+    /**
+     * 测试夹具显式声明 test 环境，避免依赖未知环境的生产级失败关闭默认值。
+     */
+    private com.scott.payment.openapi.support.HostedCheckoutUrlPolicy testUrlPolicy() {
+        org.springframework.mock.env.MockEnvironment environment =
+                new org.springframework.mock.env.MockEnvironment();
+        environment.setActiveProfiles("test");
+        return new com.scott.payment.openapi.support.HostedCheckoutUrlPolicy(environment);
     }
 
     private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService() {
@@ -450,6 +524,7 @@ class PaymentServiceImplTests {
         request.addHeader("User-Agent", "JUnit");
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setMerchantId("200001");
+        headerDTO.setClientIp("198.51.100.10");
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
@@ -642,55 +717,73 @@ class PaymentServiceImplTests {
 
         private String nextFailReasonMessage;
 
-        /** 捕获授权内部请求，并生成与授权动作匹配的可配置测试响应。 */
+        /**
+         * 捕获授权内部请求，并生成与授权动作匹配的可配置测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.AUTHORIZATION);
         }
 
-        /** 捕获一步支付内部请求，并生成与支付动作匹配的可配置测试响应。 */
+        /**
+         * 捕获一步支付内部请求，并生成与支付动作匹配的可配置测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PAYMENT);
         }
 
-        /** 捕获预授权内部请求，并生成与预授权动作匹配的测试响应。 */
+        /**
+         * 捕获预授权内部请求，并生成与预授权动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTHORIZATION);
         }
 
-        /** 捕获增量授权内部请求，并保留原交易关联字段供断言。 */
+        /**
+         * 捕获增量授权内部请求，并保留原交易关联字段供断言。
+         */
         @Override
         public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION);
         }
 
-        /** 捕获请款内部请求，并生成与请款动作匹配的测试响应。 */
+        /**
+         * 捕获请款内部请求，并生成与请款动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
         }
 
-        /** 捕获预授权完成内部请求，并生成对应测试响应。 */
+        /**
+         * 捕获预授权完成内部请求，并生成对应测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
         }
 
-        /** 捕获退款内部请求，并生成与退款动作匹配的测试响应。 */
+        /**
+         * 捕获退款内部请求，并生成与退款动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.REFUND);
         }
 
-        /** 捕获撤销内部请求，并生成与撤销动作匹配的测试响应。 */
+        /**
+         * 捕获撤销内部请求，并生成与撤销动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.VOID);
         }
 
-        /** 捕获查询条件，并将统一交易响应转换成含单条动作明细的查询结果。 */
+        /**
+         * 捕获查询条件，并将统一交易响应转换成含单条动作明细的查询结果。
+         */
         @Override
         public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
             PaymentCreateClientResponseDTO createResponseDTO = captureRequest(requestDTO, OpenApiPaymentOperationEnum.QUERY);
@@ -719,6 +812,10 @@ class PaymentServiceImplTests {
             transactionInfoDTO.setMessage(createResponseDTO.getMerchantResponseMessage());
             transactionInfoDTO.setTransactionType(createResponseDTO.getTransactionType());
             transactionInfoDTO.setTransactionStatus(createResponseDTO.getStatus());
+            transactionInfoDTO.setProcessStage(createResponseDTO.getProcessStage());
+            transactionInfoDTO.setFailReasonCode(createResponseDTO.getFailReasonCode());
+            transactionInfoDTO.setFailReasonMessage(createResponseDTO.getFailReasonMessage());
+            transactionInfoDTO.setPendingReasonCode(createResponseDTO.getPendingReasonCode());
             transactionInfoDTO.setTransactionDateTime(createResponseDTO.getTransactionDateTime());
             transactionInfoDTO.setRootTransactionDateTime(requestDTO.getTransactionInfo().getRootTransactionDateTime());
             transactionInfoDTO.setPaymentMethod(createResponseDTO.getPaymentMethod());
@@ -729,25 +826,31 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定的渠道回调受理结果，供非回调测试满足客户端契约。 */
+        /**
+         * 返回固定的渠道回调受理结果，供非回调测试满足客户端契约。
+         */
         @Override
-        public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
-            TransactionChannelCallbackClientResponseDTO responseDTO = new TransactionChannelCallbackClientResponseDTO();
-            responseDTO.setCallbackLogId("CCL202607140001");
-            responseDTO.setCallbackId("CCB202607140001");
-            responseDTO.setTransactionId(requestDTO.getTransactionId());
-            responseDTO.setCallbackStatus("RECEIVED");
-            responseDTO.setProcessResult("PENDING_STATE_MAPPING");
+        public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
+                TransactionChannelCallbackClientRequestDTO requestDTO) {
+            TransactionCallbackInboxAcceptClientResponseDTO responseDTO =
+                    new TransactionCallbackInboxAcceptClientResponseDTO();
+            responseDTO.setInboxId("CBI202607140001");
+            responseDTO.setInboxStatus("RECEIVED");
+            responseDTO.setAcceptResult("ACCEPTED");
             return responseDTO;
         }
 
-        /** 模拟商户响应日志成功命中并完成回写。 */
+        /**
+         * 模拟商户响应日志成功命中并完成回写。
+         */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             return true;
         }
 
-        /** 根据请求过期时间返回固定的新建会话结果。 */
+        /**
+         * 根据请求过期时间返回固定的新建会话结果。
+         */
         @Override
         public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
@@ -761,7 +864,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定可支付会话，用于验证 OpenAPI 会话响应映射。 */
+        /**
+         * 返回固定可支付会话，用于验证 OpenAPI 会话响应映射。
+         */
         @Override
         public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
@@ -771,7 +876,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定处理中结果，用于验证付款尝试提交响应映射。 */
+        /**
+         * 返回固定处理中结果，用于验证付款尝试提交响应映射。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
                 PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
@@ -782,7 +889,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定 PROCESSING 状态，用于验证 OpenAPI 轮询结果映射。 */
+        /**
+         * 返回固定 PROCESSING 状态，用于验证 OpenAPI 轮询结果映射。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
                 PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
@@ -793,7 +902,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定 PROCESSING 状态，用于验证 3DS 返回后不会提前宣告支付成功。 */
+        /**
+         * 返回固定 PROCESSING 状态，用于验证 3DS 返回后不会提前宣告支付成功。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
@@ -804,7 +915,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定支持结果，供共享客户端契约编译；普通支付测试不会调用该分支。 */
+        /**
+         * 返回固定支持结果，供共享客户端契约编译；普通支付测试不会调用该分支。
+         */
         @Override
         public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
                 PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {

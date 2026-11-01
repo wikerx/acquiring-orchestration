@@ -62,13 +62,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPasswordResetServiceImplTest
- * @date : 2026-10-14 00:00
- * @email : scott_x@163.com
- * @description : 管理后台找回密码安全边界测试，验证账号枚举防护与验证码邮件触发规则。
- * @status : create
+ * 管理后台找回密码安全边界测试，验证账号枚举防护与验证码邮件触发规则。
  */
 @Slf4j
 class AdminPasswordResetServiceImplTest {
@@ -91,6 +85,7 @@ class AdminPasswordResetServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        MfaSecretCrypto.configure("service-admin-password-reset-test-secret-32-bytes");
         service = new AdminPasswordResetServiceImpl(
                 systemAuthService,
                 appMapper,

@@ -12,13 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqRiskAuditRecordPublisher
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : MQ 风控审计发布器。
- * @status : create
+ * MQ 风控审计发布器。
  */
 @Slf4j
 @Service
@@ -66,7 +60,7 @@ public class MqRiskAuditRecordPublisher implements RiskAuditRecordPublisher {
                     MqTag.RISK_EVALUATION_AUDIT,
                     message);
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_AUDIT_PUBLISH_FAILED riskRecordNo: {} exceptionType: {}",
+            log.warn("风控审计发布失败, event: RISK_AUDIT_PUBLISH_FAILED, riskRecordNo: {}, exceptionType: {}",
                     message.getRiskRecordNo(),
                     exception.getClass().getSimpleName());
         }

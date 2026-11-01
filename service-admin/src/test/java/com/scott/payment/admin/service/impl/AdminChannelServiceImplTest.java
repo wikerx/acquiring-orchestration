@@ -51,13 +51,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelServiceImplTest
- * @date : 2026-07-03 16:10
- * @email : scott_x@163.com
- * @description : admin渠道服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * admin渠道服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminChannelServiceImplTest {
@@ -93,7 +87,9 @@ class AdminChannelServiceImplTest {
     @Mock
     private SysDictDataMapper dictDataMapper;
 
-    /** 商户路由永久快照可靠失效协调器。 */
+    /**
+     * 商户路由永久快照可靠失效协调器。
+     */
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
@@ -115,7 +111,9 @@ class AdminChannelServiceImplTest {
         );
     }
 
-    /** 删除渠道限额前必须先登记该渠道全部绑定商户的路由快照失效。 */
+    /**
+     * 删除渠道限额前必须先登记该渠道全部绑定商户的路由快照失效。
+     */
     @Test
     void shouldPrepareMerchantRouteInvalidationBeforeDeletingLimit() {
         when(limitRuleMapper.selectOne(any())).thenReturn(existingLimit("SINGLE_MAX", "100.00"));
@@ -286,6 +284,91 @@ class AdminChannelServiceImplTest {
         mutationOrder.verify(cacheInvalidationCoordinator)
                 .prepare(PaymentCacheNames.MERCHANT_ROUTE, "200001");
         mutationOrder.verify(capabilityMapper).updateById(any(ChannelPaymentCapabilityDO.class));
+    }
+
+    /**
+     * 编辑支付能力后，已有 MID 应立即获得所选支付方式对应的最新交易类型。
+     **/
+    @Test
+    void shouldSynchronizeMidTransactionTypesAfterUpdatingCapability() {
+        ChannelPaymentCapabilityDO existing = enabledCapability();
+        ChannelMidConfigDO mid = enabledMid();
+        mid.setPaymentMethodScope("BANK_CARD");
+        mid.setTransactionTypeScope("PAYMENT,REFUND");
+        when(capabilityMapper.selectOne(any())).thenReturn(existing);
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectCount(any())).thenReturn(0L);
+        when(midConfigMapper.selectList(any())).thenReturn(List.of(mid));
+        when(capabilityMapper.selectList(any())).thenAnswer(invocation -> List.of(existing));
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency("USD")));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
+        CapabilitySaveRequest request = bankCardCapabilityRequest(List.of("VISA"));
+        request.setTransactionTypes(List.of("PAYMENT", "REFUND", "AUTHORIZATION", "CAPTURE"));
+
+        service.updateCapability(101L, request);
+
+        ArgumentCaptor<ChannelMidConfigDO> captor = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
+        verify(midConfigMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getId()).isEqualTo(501L);
+        assertThat(captor.getValue().getTransactionTypeScope())
+                .isEqualTo("PAYMENT,REFUND,AUTHORIZATION,CAPTURE");
+        assertThat(captor.getValue().getPaymentMethodScope()).isNull();
+    }
+
+    /**
+     * 停用某项支付能力时，只移除该支付方式贡献的交易类型；其他已选支付方式继续生效。
+     **/
+    @Test
+    void shouldRecalculateEachMidScopeAfterDisablingCapability() {
+        ChannelPaymentCapabilityDO bankCard = enabledCapability();
+        ChannelPaymentCapabilityDO paypal = paypalCapability();
+        paypal.setId(102L);
+        paypal.setTransactionType("PAYMENT,REFUND");
+        ChannelMidConfigDO multiMethodMid = enabledMid();
+        multiMethodMid.setPaymentMethodScope("BANK_CARD,PAYPAL");
+        multiMethodMid.setTransactionTypeScope("PAYMENT,REFUND,AUTHORIZATION");
+        ChannelMidConfigDO bankCardOnlyMid = enabledMid();
+        bankCardOnlyMid.setId(502L);
+        bankCardOnlyMid.setPaymentMethodScope("BANK_CARD");
+        bankCardOnlyMid.setTransactionTypeScope("PAYMENT,AUTHORIZATION");
+        when(capabilityMapper.selectOne(any())).thenReturn(bankCard);
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(midConfigMapper.selectList(any())).thenReturn(List.of(multiMethodMid, bankCardOnlyMid));
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(paypal));
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency("USD")));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
+
+        service.updateCapabilityStatus(101L, 0);
+
+        ArgumentCaptor<ChannelMidConfigDO> captor = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
+        verify(midConfigMapper, times(2)).updateById(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(ChannelMidConfigDO::getId, ChannelMidConfigDO::getTransactionTypeScope)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(501L, "PAYMENT,REFUND"),
+                        org.assertj.core.groups.Tuple.tuple(502L, "NONE")
+                );
+    }
+
+    /**
+     * 删除最后一项可用能力后，MID 必须落为 NONE，防止路由继续使用历史交易类型。
+     **/
+    @Test
+    void shouldClearMidTransactionTypesAfterDeletingLastCapability() {
+        ChannelPaymentCapabilityDO bankCard = enabledCapability();
+        ChannelMidConfigDO mid = enabledMid();
+        mid.setPaymentMethodScope("BANK_CARD");
+        mid.setTransactionTypeScope("PAYMENT,AUTHORIZATION");
+        when(capabilityMapper.selectOne(any())).thenReturn(bankCard);
+        when(midConfigMapper.selectList(any())).thenReturn(List.of(mid));
+        when(capabilityMapper.selectList(any())).thenReturn(List.of());
+
+        service.deleteCapability(101L);
+
+        ArgumentCaptor<ChannelMidConfigDO> captor = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
+        verify(midConfigMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getTransactionTypeScope()).isEqualTo("NONE");
     }
 
     @Test

@@ -35,33 +35,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementApplicationService
- * @date : 2026-09-01 22:35
- * @email : scott_x@163.com
- * @description : 商户结算查询和导出编排；每次查询及每个导出分页都从可信登录上下文重新绑定 merchantId，禁止客户端指定数据范围。
- * @status : update
+ * 商户结算查询和导出编排；每次查询及每个导出分页都从可信登录上下文重新绑定 merchantId，禁止客户端指定数据范围。
  */
 @Service
 public class MerchantSettlementApplicationService {
 
-    /**
-     * {@code EXPORT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int EXPORT_PAGE_SIZE = 200;
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code MerchantSettlementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final MerchantSettlementQueryService queryService;
@@ -69,6 +48,9 @@ public class MerchantSettlementApplicationService {
     private final ExcelI18nMessageResolver messageResolver;
     private final ExcelLocaleResolver localeResolver;
 
+    /**
+     * 创建商户结算查询与导出应用服务。
+     */
     public MerchantSettlementApplicationService(MerchantSettlementQueryService queryService,
                                                 ExcelExportService excelExportService,
                                                 ExcelI18nMessageResolver messageResolver,
@@ -99,12 +81,16 @@ public class MerchantSettlementApplicationService {
         return queryService.getBatch(currentMerchantId(), settlementBatchNo);
     }
 
-    /** 下载正式结算凭证前重新绑定当前认证商户。 */
+    /**
+     * 下载正式结算凭证前重新绑定当前认证商户。
+     */
     public BatchDetail getVoucher(String settlementBatchNo) {
         return queryService.getVoucher(currentMerchantId(), settlementBatchNo);
     }
 
-    /** 分页查询当前认证商户指定批次的结算汇总。 */
+    /**
+     * 分页查询当前认证商户指定批次的结算汇总。
+     */
     public PageResult<SummaryLine> searchResultSummaries(String settlementBatchNo,
                                                          Integer pageNo,
                                                          Integer pageSize) {
@@ -122,7 +108,9 @@ public class MerchantSettlementApplicationService {
         return queryService.searchTransactionItems(currentMerchantId(), query);
     }
 
-    /** 分页查询当前商户正式批次内一笔交易的结算财务组件。 */
+    /**
+     * 分页查询当前商户正式批次内一笔交易的结算财务组件。
+     */
     public PageResult<TransactionItem> searchTransactionComponents(String settlementBatchNo,
                                                                     String transactionId,
                                                                     Integer pageNo,
@@ -131,14 +119,18 @@ public class MerchantSettlementApplicationService {
                 currentMerchantId(), settlementBatchNo, transactionId, pageNo, pageSize);
     }
 
-    /** 按真实交易身份查询当前认证商户的对账状态快照。 */
+    /**
+     * 按真实交易身份查询当前认证商户的对账状态快照。
+     */
     public List<ReconciliationRecord> findReconciliationRecordsByTransaction(
             String transactionId, LocalDateTime transactionDateTime) {
         return queryService.findReconciliationRecordsByTransaction(
                 currentMerchantId(), transactionId, transactionDateTime);
     }
 
-    /** 按真实交易身份查询当前认证商户的清分详情。 */
+    /**
+     * 按真实交易身份查询当前认证商户的清分详情。
+     */
     public ClearingDetail findClearingDetailByTransaction(
             String transactionId, LocalDateTime transactionDateTime) {
         return queryService.findClearingDetailByTransaction(
@@ -231,7 +223,9 @@ public class MerchantSettlementApplicationService {
                 }, response);
     }
 
-    /** 分页导出当前认证商户指定批次的全部结算汇总。 */
+    /**
+     * 分页导出当前认证商户指定批次的全部结算汇总。
+     */
     public void exportResultSummaries(String settlementBatchNo, HttpServletResponse response) {
         String batchNo = StringUtils.hasText(settlementBatchNo) ? settlementBatchNo.trim() : settlementBatchNo;
         Locale locale = localeResolver.resolveCurrentLocale();
@@ -258,6 +252,9 @@ public class MerchantSettlementApplicationService {
                 .rowClass(rowClass).pageSize(EXPORT_PAGE_SIZE).pageLoader(pageLoader).build(), response);
     }
 
+    /**
+     * 将结算批次汇总转换为本地化导出行。
+     */
     private MerchantSettlementBatchExportRow toBatchRow(BatchSummary source, Locale locale) {
         MerchantSettlementBatchExportRow row = new MerchantSettlementBatchExportRow();
         row.setSettlementBatchNo(source.getSettlementBatchNo());
@@ -273,6 +270,9 @@ public class MerchantSettlementApplicationService {
         return row;
     }
 
+    /**
+     * 将结算交易明细转换为本地化导出行。
+     */
     private MerchantSettlementTransactionSummaryExportRow toTransactionRow(TransactionSettlement source, Locale locale) {
         MerchantSettlementTransactionSummaryExportRow row = new MerchantSettlementTransactionSummaryExportRow();
         row.setSettlementBatchNo(source.getSettlementBatchNo());
@@ -293,6 +293,9 @@ public class MerchantSettlementApplicationService {
         return row;
     }
 
+    /**
+     * 将保证金变动明细转换为本地化导出行。
+     */
     private MerchantSettlementReserveExportRow toReserveRow(ReserveItem source, Locale locale) {
         MerchantSettlementReserveExportRow row = new MerchantSettlementReserveExportRow();
         row.setSettlementBatchNo(source.getSettlementBatchNo());
@@ -311,6 +314,9 @@ public class MerchantSettlementApplicationService {
         return row;
     }
 
+    /**
+     * 将结算汇总项转换为本地化导出行。
+     */
     private MerchantSettlementSummaryExportRow toSummaryRow(SummaryLine source, Locale locale) {
         MerchantSettlementSummaryExportRow row = new MerchantSettlementSummaryExportRow();
         row.setPaymentType(settlementLabel("paymentType", source.getPaymentType(), locale));
@@ -327,6 +333,9 @@ public class MerchantSettlementApplicationService {
         return row;
     }
 
+    /**
+     * 将结算状态或类型转换为导出展示文本。
+     */
     private String settlementLabel(String category, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -337,6 +346,9 @@ public class MerchantSettlementApplicationService {
         return key.equals(resolved) ? normalized : resolved;
     }
 
+    /**
+     * 读取当前认证上下文中的商户号，缺失时拒绝请求。
+     */
     private String currentMerchantId() {
         return currentMerchantAccount().getMerchantId();
     }
@@ -352,6 +364,9 @@ public class MerchantSettlementApplicationService {
         return account;
     }
 
+    /**
+     * 读取当前操作人名称，缺失时使用系统操作人标识。
+     */
     private String operatorName(InternalAuthAccount account) {
         String value = StringUtils.hasText(account.getRealName()) ? account.getRealName() : account.getLoginAccount();
         return StringUtils.hasText(value) ? value.trim() : "merchant";

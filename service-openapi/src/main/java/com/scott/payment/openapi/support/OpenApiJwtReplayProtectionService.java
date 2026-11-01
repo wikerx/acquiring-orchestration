@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiJwtReplayProtectionService
- * @date : 2026-06-02 11:14
- * @email : scott_x@163.com
- * @description : openAPIJWT防重放保护服务契约，位于 商户开放接口服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 以商户号和 JWT jti 建立一次性使用门禁；生产环境 Redis 不可用时按配置失败关闭。
  */
 @Slf4j
 @Component
@@ -68,7 +62,7 @@ public class OpenApiJwtReplayProtectionService {
      * @param redisProperties             Redis Key 配置
      */
     public OpenApiJwtReplayProtectionService(ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-                                             @Value("${openapi.security.replay.required:false}") boolean replayRequired,
+                                             @Value("${openapi.security.replay.required:true}") boolean replayRequired,
                                              PaymentRedisProperties redisProperties) {
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         this.replayRequired = replayRequired;
@@ -77,8 +71,7 @@ public class OpenApiJwtReplayProtectionService {
             throw new IllegalStateException("OpenAPI JWT replay protection requires StringRedisTemplate");
         }
         if (this.stringRedisTemplate == null) {
-            log.warn("event: OPENAPI_REPLAY_PROTECTION_DEGRADED reason: STRING_REDIS_TEMPLATE_MISSING "
-                    + "replayRequired: false");
+            log.warn("OpenAPI JWT防重放保护已降级, event: OPENAPI_REPLAY_PROTECTION_DEGRADED, reason: STRING_REDIS_TEMPLATE_MISSING, replayRequired: false");
         }
     }
 
@@ -94,7 +87,7 @@ public class OpenApiJwtReplayProtectionService {
      */
     public void checkAndMark(String merchantId, String jwtId, long expiresAt) {
         if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(jwtId)) {
-            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
+            throw new ApiException(OpenApiResultCode.AUTHENTICATION_FAILED);
         }
         if (stringRedisTemplate == null) {
             return;
@@ -114,10 +107,10 @@ public class OpenApiJwtReplayProtectionService {
             return;
         }
         if (Boolean.FALSE.equals(firstRequest)) {
-            log.warn("开放接口JWT防重放命中，商户号：{}，jti摘要长度：{}",
+            log.warn("OpenAPI JWT检测到重复请求, event: OPENAPI_REPLAY_REJECTED, merchantId: {}, jtiDigest: {}",
                     merchantId,
-                    jwtId.length());
-            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
+                    RedisKeyDigest.sha256(jwtId).substring(0, 16));
+            throw new ApiException(OpenApiResultCode.SECURITY_REPLAY_REJECTED);
         }
     }
 
@@ -129,10 +122,10 @@ public class OpenApiJwtReplayProtectionService {
      */
     private void handleRedisUnavailable(String merchantId, String failureType) {
         if (replayRequired) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR);
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR);
         }
         if (redisFallbackWarned.compareAndSet(false, true)) {
-            log.warn("开放接口JWT防重放Redis暂不可用，本地降级为仅校验JWT本身，商户号：{}，错误类型：{}",
+            log.warn("OpenAPI JWT防重放Redis不可用并启用本地降级, event: OPENAPI_REPLAY_PROTECTION_FALLBACK, merchantId: {}, exceptionType: {}",
                     merchantId,
                     failureType);
         }

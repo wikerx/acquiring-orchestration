@@ -2,6 +2,7 @@ package com.scott.payment.openapi.api.rest.payment;
 
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiAuthorizationController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiCaptureController;
@@ -40,13 +41,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPaymentControllerContractTest
- * @date : 2026-07-14 17:05
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单交易控制器契约测试，校验一个外部接口一个控制器、一个应用服务以及安全注解、版本和路径不被误改。
- * @status : create
+ * 商户 OpenAPI 收单交易控制器契约测试，校验一个外部接口一个控制器、一个应用服务以及安全注解、版本和路径不被误改。
  */
 @Slf4j
 class OpenApiPaymentControllerContractTest {
@@ -93,7 +88,9 @@ class OpenApiPaymentControllerContractTest {
         assertThat(transactionInfo.isMerchantWebsiteValid()).isFalse();
     }
 
-    /** 首次交易请求必须接收文档声明的业务快照，商户请求不得承担分表路由时间。 */
+    /**
+     * 首次交易请求必须接收文档声明的业务快照，商户请求不得承担分表路由时间。
+     */
     @Test
     void shouldExposeMerchantSnapshotsWithoutShardingTimes() {
         List<String> requestFieldNames = Arrays.stream(ApiMerchantPaymentRequestDTO.class.getDeclaredFields())
@@ -110,20 +107,22 @@ class OpenApiPaymentControllerContractTest {
                 .doesNotContain("sourceTransactionDateTime", "rootTransactionDateTime");
     }
 
-    /** 创建类交易已返回业务 data 时，外层表示 OpenAPI 处理成功，业务结果留在密文内层。 */
+    /**
+     * 创建类交易已返回业务 data 时，外层表示 OpenAPI 处理成功，业务结果留在密文内层。
+     */
     @Test
-    void shouldKeepFailedTransactionDataAndExposeT200AtEnvelopeLevel() {
+    void shouldKeepFailedTransactionDataAndExposeA0000AtEnvelopeLevel() {
         PaymentCreateVO response = new PaymentCreateVO();
         PaymentCreateVO.TransactionInfoVO transactionInfo = new PaymentCreateVO.TransactionInfoVO();
-        transactionInfo.setCode("F414");
-        transactionInfo.setMessage("Original transaction rejected.");
-        transactionInfo.setTransactionId("TX-F414-001");
+        transactionInfo.setCode(OpenApiResultCode.ORIGINAL_ACTION_NOT_ALLOWED.getCode());
+        transactionInfo.setMessage(OpenApiResultCode.ORIGINAL_ACTION_NOT_ALLOWED.getMessage());
+        transactionInfo.setTransactionId("TX-T1001-001");
         response.setTransactionInfo(transactionInfo);
 
         CommonResult<PaymentCreateVO> result = OpenApiPaymentResponseFactory.from(response);
 
-        assertThat(result.getCode()).isEqualTo("T200");
-        assertThat(result.getMessage()).isEqualTo("Success");
+        assertThat(result.getCode()).isEqualTo("A0000");
+        assertThat(result.getMessage()).isEqualTo("Request processed successfully.");
         assertThat(result.getData()).isSameAs(response);
     }
 
@@ -166,7 +165,6 @@ class OpenApiPaymentControllerContractTest {
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.dataReceiver()).isEqualTo(ApiMerchantPaymentRequestDTO.class);
-        assertThat(annotation.deferIpWhitelistToRisk()).isEqualTo(controllerCase.deferIpWhitelistToRisk());
         assertThat(annotation.validationGroups()).containsExactly(controllerCase.validationGroups());
     }
 
@@ -203,23 +201,23 @@ class OpenApiPaymentControllerContractTest {
     private List<ControllerCase> controllerCases() {
         return List.of(
                 new ControllerCase(OpenApiPaymentController.class, OpenApiPaymentApplicationService.class, 1, "createPayment", "/payment",
-                        true, ApiMerchantPaymentRequestDTO.Payment.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.Payment.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiAuthorizationController.class, OpenApiAuthorizationApplicationService.class, 1, "createAuthorization", "/authorization",
-                        true, ApiMerchantPaymentRequestDTO.Authorization.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.Authorization.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiPreAuthorizationController.class, OpenApiPreAuthorizationApplicationService.class, 1, "createPreAuthorization", "/pre-authorization",
-                        true, ApiMerchantPaymentRequestDTO.PreAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.PreAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiIncrementalAuthorizationController.class, OpenApiIncrementalAuthorizationApplicationService.class, 1, "createIncrementalAuthorization", "/incremental-authorization",
-                        false, ApiMerchantPaymentRequestDTO.IncrementalAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.IncrementalAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiCaptureController.class, OpenApiCaptureApplicationService.class, 1, "capture", "/capture",
-                        false, ApiMerchantPaymentRequestDTO.Capture.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.Capture.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiPreAuthCompletionController.class, OpenApiPreAuthCompletionApplicationService.class, 1, "preAuthCompletion", "/pre-auth-completion",
-                        false, ApiMerchantPaymentRequestDTO.PreAuthCompletion.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.PreAuthCompletion.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiRefundController.class, OpenApiRefundApplicationService.class, 1, "refund", "/refund",
-                        false, ApiMerchantPaymentRequestDTO.Refund.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.Refund.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiVoidController.class, OpenApiVoidApplicationService.class, 1, "voidPayment", "/void",
-                        false, ApiMerchantPaymentRequestDTO.AuthorizationCancel.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        ApiMerchantPaymentRequestDTO.AuthorizationCancel.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiPaymentQueryController.class, OpenApiPaymentQueryApplicationService.class, 1, "query", "/query",
-                        false, ApiMerchantPaymentRequestDTO.Query.class, ApiMerchantPaymentRequestDTO.Format.class)
+                        ApiMerchantPaymentRequestDTO.Query.class, ApiMerchantPaymentRequestDTO.Format.class)
         );
     }
 
@@ -231,7 +229,6 @@ class OpenApiPaymentControllerContractTest {
      * @param apiVersion API 版本号
      * @param methodName 控制器方法名
      * @param path POST 子路径
-     * @param deferIpWhitelistToRisk 是否把 IP 白名单判定延后到交易内风控
      * @param validationGroups Bean Validation 分组
      */
     private record ControllerCase(Class<?> controllerType,
@@ -239,7 +236,6 @@ class OpenApiPaymentControllerContractTest {
                                   int apiVersion,
                                   String methodName,
                                   String path,
-                                  boolean deferIpWhitelistToRisk,
                                   Class<?>... validationGroups) {
     }
 }

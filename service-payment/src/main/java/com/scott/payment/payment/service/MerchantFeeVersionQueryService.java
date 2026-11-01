@@ -4,13 +4,7 @@ import com.scott.payment.payment.entity.MerchantFeeVersionPointerDO;
 import com.scott.payment.payment.service.dto.MerchantFeeVersionConfigurationDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFeeVersionQueryService
- * @date : 2026-08-25 22:40
- * @email : scott_x@163.com
- * @description : Payment 费用配置只读边界，使用独立只读事务从主库选择当前版本，并按版本从 Slave、Master 加载不可变配置。
- * @status : create
+ * Payment 费用配置只读边界，使用独立只读事务从主库选择当前版本，并按版本从 Slave、Master 加载不可变配置。
  */
 public interface MerchantFeeVersionQueryService {
 

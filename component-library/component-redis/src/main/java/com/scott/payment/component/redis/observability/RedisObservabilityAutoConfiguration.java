@@ -14,13 +14,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisObservabilityAutoConfiguration
- * @date : 2026-07-31 10:00
- * @email : scott_x@163.com
- * @description : Redis 治理指标自动配置，在 Micrometer 可用时注册业务指标门面并拒绝敏感或无界标签
- * @status : create
+ * Redis 治理指标自动配置，在 Micrometer 可用时注册业务指标门面并拒绝敏感或无界标签
  */
 @AutoConfiguration(after = MetricsAutoConfiguration.class)
 @ConditionalOnClass(MeterRegistry.class)
@@ -73,6 +67,12 @@ public class RedisObservabilityAutoConfiguration {
     @ConditionalOnMissingBean(name = "redisSensitiveTagMeterFilter")
     public MeterFilter redisSensitiveTagMeterFilter() {
         return new MeterFilter() {
+            /**
+             * 拒绝 acquiring.redis 指标中包含敏感或无界标签名的 Meter。
+             *
+             * @param id 待注册指标标识
+             * @return 拒绝或保持中立
+             */
             @Override
             public MeterFilterReply accept(io.micrometer.core.instrument.Meter.Id id) {
                 if (!id.getName().startsWith("acquiring.redis.")) {

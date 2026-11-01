@@ -44,40 +44,22 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingManagementCommandService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分人工命令默认实现；浏览器不能传任意状态，所有状态推进均由固定命令决定。
- * @status : update
+ * 清分人工命令默认实现；浏览器不能传任意状态，所有状态推进均由固定命令决定。
  */
 @Service
 @Slf4j
 public class DefaultClearingManagementCommandService implements ClearingManagementCommandService {
 
     /**
-     * {@code OUTBOX_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 人工重试事件允许持久化到 Outbox 的最大投递次数。
      */
     private static final int OUTBOX_MAX_RETRY_COUNT = 10;
     /**
-     * {@code REASON_MAX_LENGTH}常量，统一 {@code DefaultClearingManagementCommandService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 人工命令审计原因允许持久化的最大字符数。
      */
     private static final int REASON_MAX_LENGTH = 512;
     /**
-     * {@code OPERATOR_MAX_LENGTH}常量，统一 {@code DefaultClearingManagementCommandService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 可信操作人标识允许持久化的最大字符数。
      */
     private static final int OPERATOR_MAX_LENGTH = 64;
     private static final Set<String> RETRYABLE = Set.of("PENDING", "FAILED", "WAITING_SOURCE", "MANUAL_REVIEW");
@@ -91,6 +73,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
     private final ClearingAnomalyService anomalyService;
     private final Clock clock;
 
+    /**
+     * 创建管理命令服务，生产环境统一使用 UTC 系统时钟生成审计与重试时间。
+     */
     @Autowired
     public DefaultClearingManagementCommandService(ClearingTransactionFinanceStateMapper financeStateMapper,
                                                    ClearingTransactionOperationMapper operationMapper,
@@ -103,6 +88,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
                 recalculationService, metrics, anomalyService, Clock.systemUTC());
     }
 
+    /**
+     * 创建可注入时钟的管理命令服务，供测试稳定验证时间相关状态迁移。
+     */
     DefaultClearingManagementCommandService(ClearingTransactionFinanceStateMapper financeStateMapper,
                                             ClearingTransactionOperationMapper operationMapper,
                                             ClearingTransactionEventOutboxMapper outboxMapper,
@@ -121,7 +109,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         this.clock = clock;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 重新安排一笔可恢复清分交易，并写入带预期修订的延时重试事件。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -153,7 +143,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return response(state, "RETRY", "FAILED", result);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 执行人工复核决定，将交易恢复处理或终止在人工确认状态。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -180,7 +172,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return response(state, "REVIEW", "MANUAL_REVIEW", "ESCALATED");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 委托重算服务生成新清分修订，并记录管理操作指标。
+     */
     @Override
     public ClearingCommandResponse recalculate(String transactionId, ClearingRecalculateRequest request) {
         ClearingCommandResponse response = recalculationService.recalculate(transactionId, request);
@@ -188,7 +182,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return response;
     }
 
-    /** 使用财务状态号、修订和重试序号构造确定性人工重试 Outbox。 */
+    /**
+     * 使用财务状态号、修订和重试序号构造确定性人工重试 Outbox。
+     */
     private ClearingTransactionEventOutboxDO retryOutbox(ClearingTransactionFinanceStateDO state,
                                                           ClearingTransactionOperationDO operation,
                                                           int retryCount,
@@ -262,7 +258,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return true;
     }
 
-    /** 唯一键冲突后比较全部路由身份，防止不同消息错误复用同一事件号。 */
+    /**
+     * 唯一键冲突后比较全部路由身份，防止不同消息错误复用同一事件号。
+     */
     private boolean sameOutboxIdentity(ClearingTransactionEventOutboxDO actual,
                                        ClearingTransactionEventOutboxDO expected) {
         return Objects.equals(actual.getEventNo(), expected.getEventNo())
@@ -283,7 +281,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
                 && Objects.equals(actual.getPayloadJson(), expected.getPayloadJson());
     }
 
-    /** 由清分状态、修订、轮次、人工投递时间和可信操作人派生稳定 Outbox 事件号。 */
+    /**
+     * 由清分状态、修订、轮次、人工投递时间和可信操作人派生稳定 Outbox 事件号。
+     */
     private String deterministicEventNo(String stateId, int revision, int retryCount,
                                         LocalDateTime deliverAt, String operator) {
         String material = stateId + "|" + revision + "|" + retryCount + "|MANUAL|"
@@ -297,7 +297,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         }
     }
 
-    /** 按真实分片时间锁定未结算状态，并校验调用方预期版本。 */
+    /**
+     * 按真实分片时间锁定未结算状态，并校验调用方预期版本。
+     */
     private ClearingTransactionFinanceStateDO lockedState(String transactionId,
                                                            LocalDateTime transactionDateTime,
                                                            int expectedVersion) {
@@ -311,6 +313,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return state;
     }
 
+    /**
+     * 读取指定交易分片的权威动作事实，缺失时阻断人工状态变更。
+     */
     private ClearingTransactionOperationDO requiredOperation(String transactionId,
                                                              LocalDateTime transactionDateTime) {
         ClearingTransactionOperationDO operation = operationMapper.selectByTransaction(transactionId, transactionDateTime);
@@ -320,7 +325,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return operation;
     }
 
-    /** 人工命令前确认交易动作与财务状态属于同一商户、操作和分片。 */
+    /**
+     * 人工命令前确认交易动作与财务状态属于同一商户、操作和分片。
+     */
     private void validateOperation(ClearingTransactionFinanceStateDO state,
                                    ClearingTransactionOperationDO operation) {
         if (!Objects.equals(state.getTransactionId(), operation.getTransactionId())
@@ -331,7 +338,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         }
     }
 
-    /** 人工状态变更后刷新查询投影；投影失败记录异常案件供补偿。 */
+    /**
+     * 人工状态变更后刷新查询投影；投影失败记录异常案件供补偿。
+     */
     private void updateProjection(ClearingTransactionOperationDO operation,
                                   ClearingStateEnum status,
                                   String failureCode,
@@ -339,11 +348,14 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         try {
             projectionService.updateResolvingLocator(toFacts(operation), status, failureCode, now);
         } catch (RuntimeException exception) {
-            log.warn("event: CLEARING_MANUAL_PROJECTION_DEFERRED transactionId: {} actionStatus: {}",
-                    operation.getTransactionId(), status);
+            log.warn("人工清分投影更新延后, event: CLEARING_MANUAL_PROJECTION_DEFERRED, transactionId: {}, actionStatus: {}, exceptionType: {}",
+                    operation.getTransactionId(), status, exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 将数据库动作记录转换为投影服务使用的不可变权威事实。
+     */
     private ClearingOperationFacts toFacts(ClearingTransactionOperationDO row) {
         return new ClearingOperationFacts(
                 row.getTransactionId(), row.getOperationId(), row.getSourceTransactionId(), row.getMerchantId(),
@@ -353,6 +365,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
                 row.getTransactionDateTime(), row.getTransactionUtcTime(), row.getTransactionTimeZone(), row.getVersion());
     }
 
+    /**
+     * 根据锁定状态及本次命令结果构造管理端响应，并返回写入后的版本号。
+     */
     private ClearingCommandResponse response(ClearingTransactionFinanceStateDO state,
                                              String action,
                                              String status,
@@ -382,7 +397,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return normalizedOperator + ": " + normalizedReason;
     }
 
-    /** 重试命令必须携带分片时间、预期版本、原因和可信操作人。 */
+    /**
+     * 重试命令必须携带分片时间、预期版本、原因和可信操作人。
+     */
     private void validateRetry(String transactionId, ClearingRetryRequest request) {
         if (!StringUtils.hasText(transactionId) || request == null || request.getTransactionDateTime() == null
                 || request.getExpectedVersion() == null || request.getExpectedVersion() < 0) {
@@ -392,7 +409,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         requiredText(request.getOperator(), "operator", OPERATOR_MAX_LENGTH);
     }
 
-    /** 人工复核命令必须携带分片时间、预期版本、原因和可信操作人。 */
+    /**
+     * 人工复核命令必须携带分片时间、预期版本、原因和可信操作人。
+     */
     private void validateReview(String transactionId, ClearingReviewRequest request) {
         if (!StringUtils.hasText(transactionId) || request == null || request.getTransactionDateTime() == null
                 || request.getExpectedVersion() == null || request.getExpectedVersion() < 0) {
@@ -402,6 +421,9 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         requiredText(request.getOperator(), "operator", OPERATOR_MAX_LENGTH);
     }
 
+    /**
+     * 规范化人工审计文本并拒绝空值、换行注入与超长内容。
+     */
     private String requiredText(String value, String field, int maxLength) {
         if (!StringUtils.hasText(value)) {
             throw new IllegalArgumentException(field + " is required");
@@ -413,12 +435,18 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return normalized;
     }
 
+    /**
+     * 要求带版本条件的写操作精确命中一行，避免并发命令静默覆盖。
+     */
     private void requireOne(int affected, String action) {
         if (affected != 1) {
             throw new IllegalStateException(action + " did not affect one row");
         }
     }
 
+    /**
+     * 将尚未初始化的非负计数转换为零。
+     */
     private int value(Integer value) {
         return value == null ? 0 : value;
     }

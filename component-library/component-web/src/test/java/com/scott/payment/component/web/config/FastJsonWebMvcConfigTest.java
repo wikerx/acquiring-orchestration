@@ -18,13 +18,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FastJsonWebMvcConfigTest
- * @date : 2026-07-31 18:10
- * @email : scott_x@163.com
- * @description : 验证业务 JSON 优先使用 fastjson2，同时为 Actuator 等框架响应保留 Jackson 兜底转换能力
- * @status : create
+ * 验证业务 JSON 优先使用 fastjson2，同时为 Actuator 等框架响应保留 Jackson 兜底转换能力
  */
 class FastJsonWebMvcConfigTest {
 
@@ -45,7 +39,9 @@ class FastJsonWebMvcConfigTest {
         assertThat(fastJsonIndex).isGreaterThanOrEqualTo(0).isLessThan(jacksonIndex);
     }
 
-    /** 交易分片时间经过业务 JSON 转换器读写后必须保留实际毫秒精度。 */
+    /**
+     * 交易分片时间经过业务 JSON 转换器读写后必须保留实际毫秒精度。
+     */
     @Test
     void shouldPreserveMillisecondPrecisionForLocalDateTime() throws Exception {
         FastJsonHttpMessageConverter converter = fastJsonConverter();
@@ -61,7 +57,9 @@ class FastJsonWebMvcConfigTest {
                 .isEqualTo(LocalDateTime.of(2026, 8, 5, 13, 28, 42, 125_000_000));
     }
 
-    /** 管理端现有请求中的空格时间、ISO 本地时间和 UTC 时间必须能够同时反序列化。 */
+    /**
+     * 管理端现有请求中的空格时间、ISO 本地时间和 UTC 时间必须能够同时反序列化。
+     */
     @Test
     void shouldReadSupportedAdminDateTimeFormats() throws Exception {
         FastJsonHttpMessageConverter converter = fastJsonConverter();
@@ -77,7 +75,9 @@ class FastJsonWebMvcConfigTest {
                         Instant.parse("2026-08-04T16:00:00.000Z"), ZoneId.systemDefault()));
     }
 
-    /** 创建与 Spring MVC 实际注册顺序一致的 fastjson2 转换器。 */
+    /**
+     * 创建与 Spring MVC 实际注册顺序一致的 fastjson2 转换器。
+     */
     private FastJsonHttpMessageConverter fastJsonConverter() {
         List<HttpMessageConverter<?>> converters = new ArrayList<>();
         converters.add(new MappingJackson2HttpMessageConverter());
@@ -89,7 +89,9 @@ class FastJsonWebMvcConfigTest {
                 .orElseThrow();
     }
 
-    /** 通过 HTTP 消息转换器读取单个时间字段，覆盖真实请求反序列化路径。 */
+    /**
+     * 通过 HTTP 消息转换器读取单个时间字段，覆盖真实请求反序列化路径。
+     */
     private LocalDateTime readDateTime(FastJsonHttpMessageConverter converter, String value) throws Exception {
         MockHttpInputMessage input = new MockHttpInputMessage(
                 ("{\"transactionDateTime\":\"" + value + "\"}")
@@ -116,7 +118,9 @@ class FastJsonWebMvcConfigTest {
         return -1;
     }
 
-    /** 仅用于验证 Web JSON 时间精度契约的测试载荷。 */
+    /**
+     * 仅用于验证 Web JSON 时间精度契约的测试载荷。
+     */
     public static final class DateTimePayload {
 
         private LocalDateTime transactionDateTime;

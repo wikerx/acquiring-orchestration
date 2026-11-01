@@ -11,18 +11,14 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskTimingServiceImplTests
- * @date : 2026-08-21 11:24
- * @email : scott_x@163.com
- * @description : 校验定时任务完成一次到期补偿后始终推进到未来 Cron 时刻，避免扫描延迟导致同一触发点重复执行。
- * @status : create
+ * 校验定时任务完成一次到期补偿后始终推进到未来 Cron 时刻，避免扫描延迟导致同一触发点重复执行。
  */
 @Slf4j
 class JobTaskTimingServiceImplTests {
 
-    /** 扫描晚到不足一秒时，FIRE_ONCE 也必须跳过已经触发的当前 Cron 时刻。 */
+    /**
+     * 扫描晚到不足一秒时，FIRE_ONCE 也必须跳过已经触发的当前 Cron 时刻。
+     */
     @Test
     void fireOnceShouldAdvancePastCurrentCronOccurrenceWhenScannerRunsLate() {
         SysJobTaskDO task = new SysJobTaskDO();

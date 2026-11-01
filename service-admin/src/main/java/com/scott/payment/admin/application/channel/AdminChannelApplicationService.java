@@ -24,19 +24,16 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelApplicationService
- * @date : 2026-07-03 16:10
- * @email : scott_x@163.com
- * @description : admin渠道应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端渠道应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminChannelApplicationService {
 
     private final AdminChannelService adminChannelService;
 
+    /**
+     * 创建管理端渠道应用服务。
+     */
     public AdminChannelApplicationService(AdminChannelService adminChannelService) {
         this.adminChannelService = adminChannelService;
     }
@@ -310,7 +307,7 @@ public class AdminChannelApplicationService {
     }
 
     /**
-     * 查询{@code pageMids}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 分页查询渠道 MID 配置。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -322,7 +319,7 @@ public class AdminChannelApplicationService {
     }
 
     /**
-     * 查询{@code getMid}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 查询指定渠道 MID 配置详情。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -334,7 +331,7 @@ public class AdminChannelApplicationService {
     }
 
     /**
-     * 创建{@code createMid}，完成必要校验后写入或委托下游服务处理。
+     * 创建渠道 MID 配置并同步其能力范围。
      * <p>
      * 写操作；实现必须沿用 运营后台服务 既有权限、幂等键、唯一约束和事务边界。
      * </p>
@@ -383,7 +380,7 @@ public class AdminChannelApplicationService {
     }
 
     /**
-     * 查询{@code pageMidBindings}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 分页查询商户渠道 MID 绑定关系。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -395,7 +392,7 @@ public class AdminChannelApplicationService {
     }
 
     /**
-     * 查询{@code getMidBinding}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 查询指定商户渠道 MID 绑定详情。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -407,7 +404,7 @@ public class AdminChannelApplicationService {
     }
 
     /**
-     * 创建{@code createMidBinding}，完成必要校验后写入或委托下游服务处理。
+     * 创建商户渠道 MID 绑定并校验业务类型和能力范围。
      * <p>
      * 写操作；实现必须沿用 运营后台服务 既有权限、幂等键、唯一约束和事务边界。
      * </p>

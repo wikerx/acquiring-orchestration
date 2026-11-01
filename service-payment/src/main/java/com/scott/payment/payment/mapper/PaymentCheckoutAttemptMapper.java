@@ -9,13 +9,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutAttemptMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 支付尝试 Mapper。
- * @status : create
+ * Hosted Checkout 支付尝试 Mapper。
  */
 public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckoutAttemptDO> {
 

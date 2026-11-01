@@ -16,13 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import static com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentResponseFactory.from;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPreAuthCompletionController
- * @date : 2026-07-26 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 预授权完成 V1 控制器，仅暴露预授权完成入口并保持统一安全链路。
- * @status : create
+ * 商户 OpenAPI 预授权完成 V1 控制器，仅暴露预授权完成入口并保持统一安全链路。
  */
 @ApiVersion(apiVersion = 1)
 @RestController

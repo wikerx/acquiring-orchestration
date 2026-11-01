@@ -17,13 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiSecurityConfig
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : Merchant Open API Security Config 配置类，位于 商户后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
- * @status : create
+ * 商户 OpenAPI 密钥安全配置，注册密钥加密服务及审计依赖。
  */
 @Configuration
 @EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)

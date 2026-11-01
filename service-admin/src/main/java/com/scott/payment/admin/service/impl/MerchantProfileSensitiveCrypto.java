@@ -8,18 +8,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileSensitiveCrypto
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : 商户相关人员敏感字段加密边界，负责证件号 AES-GCM 加密和管理端脱敏展示
- * @status : create
+ * 商户相关人员敏感字段加密边界，负责证件号 AES-GCM 加密和管理端脱敏展示
  */
 @Component
 public class MerchantProfileSensitiveCrypto {
 
-    /** 商户资料加密配置；包含敏感主密钥，不允许为空或写入日志。 */
+    /**
+     * 商户资料加密配置；包含敏感主密钥，不允许为空或写入日志。
+     */
     private final MerchantProfileProperties properties;
 
     /**
@@ -72,7 +68,9 @@ public class MerchantProfileSensitiveCrypto {
                 + value.substring(value.length() - 4);
     }
 
-    /** 使用申请编号作为 AAD 解密资料变更快照，解密失败时不返回部分正文。 */
+    /**
+     * 使用申请编号作为 AAD 解密资料变更快照，解密失败时不返回部分正文。
+     */
     public String decryptChangeSnapshot(String requestNo, String cipher) {
         if (!StringUtils.hasText(properties.getEncryptionSecret())) {
             throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(),

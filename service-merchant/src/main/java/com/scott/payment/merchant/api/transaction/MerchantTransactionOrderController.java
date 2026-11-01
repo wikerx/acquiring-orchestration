@@ -33,13 +33,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionOrderController
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户后台交易查询接口，位于 service-merchant 接口层，以当前登录商户为边界查询交易清单、详情、统计并发起商户退款动作。
- * @status : create
+ * 商户后台交易查询接口，位于 service-merchant 接口层，以当前登录商户为边界查询交易清单、详情、统计并发起商户退款动作。
  */
 @RestController
 @RequestMapping("/merchant/transactions/orders")

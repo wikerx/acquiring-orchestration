@@ -9,22 +9,20 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LoginAuditEventOutboxListener
- * @date : 2026-08-02 22:30
- * @email : scott_x@163.com
- * @description : 将认证层登录事件以独立事务写入可靠 Outbox，外层认证回滚不影响审计意图
- * @status : create
+ * 将认证层登录事件以独立事务写入可靠 Outbox，外层认证回滚不影响审计意图
  */
 @Slf4j
 @Component
 public class LoginAuditEventOutboxListener {
 
-    /** 独立事务可靠消息发布器。 */
+    /**
+     * 独立事务可靠消息发布器。
+     */
     private final IndependentReliableMqPublisher mqPublisher;
 
-    /** 创建登录审计事件监听器。 */
+    /**
+     * 创建登录审计事件监听器。
+     */
     public LoginAuditEventOutboxListener(IndependentReliableMqPublisher mqPublisher) {
         this.mqPublisher = mqPublisher;
     }
@@ -42,12 +40,15 @@ public class LoginAuditEventOutboxListener {
         try {
             mqPublisher.publish(MqTopic.LOGIN_AUDIT, MqTag.LOGIN_AUDIT, toMessage(event));
         } catch (RuntimeException exception) {
-            log.warn("event: LOGIN_AUDIT_OUTBOX_FAILED eventId: {} exceptionType: {}",
+            log.warn("登录审计事件写入 Outbox 失败, event: LOGIN_AUDIT_OUTBOX_FAILED, "
+                            + "eventId: {}, exceptionType: {}",
                     event.eventId(), exception.getClass().getSimpleName());
         }
     }
 
-    /** 把认证事件转换为公共 MQ 契约。 */
+    /**
+     * 把认证事件转换为公共 MQ 契约。
+     */
     private LoginAuditMessage toMessage(LoginAuditEvent event) {
         LoginAuditMessage message = new LoginAuditMessage();
         message.setMessageId(event.eventId());

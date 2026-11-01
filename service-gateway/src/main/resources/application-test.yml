@@ -52,6 +52,11 @@ spring:
     gateway:
       server:
         webflux:
+          httpclient:
+            # Gateway 到下游微服务的 TCP 建连预算；环境变量可收紧，超过 60 秒会阻止启动。
+            connect-timeout: ${GATEWAY_HTTP_CONNECT_TIMEOUT_MILLIS:3000}
+            # Gateway 到下游微服务的完整响应预算；测试环境默认 40 秒以覆盖渠道调用链。
+            response-timeout: ${GATEWAY_HTTP_RESPONSE_TIMEOUT:40s}
           globalcors:
             cors-configurations:
               "[/admin/**]":

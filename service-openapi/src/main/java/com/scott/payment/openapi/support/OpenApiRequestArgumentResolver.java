@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -15,13 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestArgumentResolver
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Request Argument Resolver 解析组件，位于 商户开放接口服务，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
- * @status : create
+ * 将请求体处理器保存的解密 DTO 注入控制器参数，并拒绝类型或上下文不匹配的调用。
  */
 @Component
 public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentResolver {
@@ -60,11 +54,12 @@ public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentReso
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
         if (request == null) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "http request can not be resolved");
+            throw new ServiceException(OpenApiResultCode.SYSTEM_ERROR.getCode(), "http request can not be resolved");
         }
         Object data = request.getAttribute(OpenApiRequestAttributes.DECRYPTED_DATA);
         if (data == null) {
-            throw new ServiceException(ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode(), "open api request body is not decrypted");
+            throw new ServiceException(OpenApiResultCode.SYSTEM_ERROR.getCode(),
+                    "open api request body was not decrypted before argument resolution");
         }
         return data;
     }

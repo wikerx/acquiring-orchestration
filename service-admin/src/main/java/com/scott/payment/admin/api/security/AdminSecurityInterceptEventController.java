@@ -24,13 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSecurityInterceptEventController
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 安全拦截事件后台接口，位于 service-admin 接口层，负责权限校验、HTTP 映射和参数接收。
- * @status : create
+ * 安全拦截事件后台接口，位于 service-admin 接口层，负责权限校验、HTTP 映射和参数接收。
  */
 @RestController
 @RequestMapping("/admin/security/intercept-events")

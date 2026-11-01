@@ -6,13 +6,7 @@ import com.scott.payment.component.db.reference.model.IpLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReferenceDataLookupService
- * @date : 2026-08-11 15:35
- * @email : scott_x@163.com
- * @description : IP 与卡 BIN 基础数据的公共只读检索契约，统一隔离分片、十一位区间和数据源路由等数据库细节
- * @status : create
+ * IP 与卡 BIN 基础数据的公共只读检索契约，统一隔离分片、十一位区间和数据源路由等数据库细节
  */
 public interface ReferenceDataLookupService {
 

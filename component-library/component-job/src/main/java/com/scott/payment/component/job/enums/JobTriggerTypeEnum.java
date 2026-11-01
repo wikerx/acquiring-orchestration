@@ -1,13 +1,7 @@
 package com.scott.payment.component.job.enums;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTriggerTypeEnum
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务触发类型枚举
- * @status : create
+ * 任务触发类型枚举
  */
 public enum JobTriggerTypeEnum {
 

@@ -63,13 +63,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantInfoServiceImpl
- * @date : 2026-06-19 21:55
- * @email : scott_x@163.com
- * @description : 管理后台商户接入资料领域服务实现
- * @status : create
+ * 管理后台商户接入资料领域服务实现
  *
  * <p>负责商户基础资料维护、商户状态切换以及 OpenAPI 密钥材料初始化与轮换等核心领域规则，
  * 不承担控制器协议适配和权限控制逻辑。</p>
@@ -77,83 +71,19 @@ import java.util.stream.Collectors;
 @Service
 public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminMerchantInfoServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int NOT_DELETED = 0;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * 默认状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int DEFAULT_STATUS = 1;
-    /**
-     * 默认风控等级常量，统一 {@code AdminMerchantInfoServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DEFAULT_RISK_LEVEL = 2;
-    /**
-     * 默认密钥大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int DEFAULT_KEY_SIZE = 2048;
-    /**
-     * {@code JWT_ALGORITHM}常量，统一 {@code AdminMerchantInfoServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String JWT_ALGORITHM = "HS256";
-    /**
-     * 报文算法，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
     /**
      * 商户主体名称和账单描述需要进入渠道侧及卡组织资料，限制为可打印英文字符避免中文导致渠道拒绝。
      */
     private static final String PRINTABLE_ASCII_PATTERN = "^[\\x20-\\x7E]+$";
-    /**
-     * 密钥版本格式化器，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final BaseMerchantInfoMapper merchantInfoMapper;
@@ -169,44 +99,68 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
-    /** 跨系统共享的 MCC 三级选项常驻缓存读取器。 */
+    /**
+     * 跨系统共享的 MCC 三级选项常驻缓存读取器。
+     */
     private final MccOptionCacheReader mccOptionCacheReader;
 
-    /** 跨系统共享的 ISO 国家和币种常驻缓存服务。 */
+    /**
+     * 跨系统共享的 ISO 国家和币种常驻缓存服务。
+     */
     private final IsoDictionaryService isoDictionaryService;
     /**
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
-    /** Admin、Merchant Portal、OpenAPI 和支付服务共用的完整商户资料缓存。 */
+    /**
+     * Admin、Merchant Portal、OpenAPI 和支付服务共用的完整商户资料缓存。
+     */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
-    /** 密钥元数据永久缓存的事务型可靠失效协调器。 */
+    /**
+     * 密钥元数据永久缓存的事务型可靠失效协调器。
+     */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** 已激活商户结算币种与现有资金账户的一致性服务。 */
+    /**
+     * 已激活商户结算币种与现有资金账户的一致性服务。
+     */
     private final AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
 
-    /** 商户登录账号查询组件，仅用于详情页判断登录体系是否已初始化。 */
+    /**
+     * 商户登录账号查询组件，仅用于详情页判断登录体系是否已初始化。
+     */
     private final SysAccountMapper sysAccountMapper;
 
-    /** 商户资金账户查询组件，仅用于详情页展示开户结果。 */
+    /**
+     * 商户资金账户查询组件，仅用于详情页展示开户结果。
+     */
     private final MerchantFundAccountMapper fundAccountMapper;
 
-    /** 商户费用方案查询组件，仅用于详情页展示当前生效版本。 */
+    /**
+     * 商户费用方案查询组件，仅用于详情页展示当前生效版本。
+     */
     private final FeePlanMapper feePlanMapper;
 
-    /** OpenAPI 密钥统一启停规则。 */
+    /**
+     * OpenAPI 密钥统一启停规则。
+     */
     private final OpenApiMerchantKeyMaterialService openApiKeyMaterialService;
 
-    /** 商户密钥生命周期邮件通知。 */
+    /**
+     * 商户密钥生命周期邮件通知。
+     */
     private final AdminMerchantSecurityNotificationService securityNotificationService;
     private final AdminMerchantStatusLifecycleService statusLifecycleService;
 
-    /** 商户开户资料、审核与激活领域规则。 */
+    /**
+     * 商户开户资料、审核与激活领域规则。
+     */
     private final MerchantOnboardingService merchantOnboardingService;
 
-    /** 六位商户号数据库年度序列分配服务。 */
+    /**
+     * 六位商户号数据库年度序列分配服务。
+     */
     private final MerchantIdAllocationService merchantIdAllocationService;
 
     /**
@@ -549,6 +503,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return toDTO(row);
     }
 
+    /**
+     * 校验商户状态转换符合生命周期规则。
+     */
     private void validateStatusTransition(Integer currentStatus, Integer targetStatus) {
         boolean allowed = (Integer.valueOf(1).equals(currentStatus) && Integer.valueOf(2).equals(targetStatus))
                 || (Integer.valueOf(2).equals(currentStatus) && Integer.valueOf(1).equals(targetStatus));
@@ -899,6 +856,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return generated;
     }
 
+    /**
+     * 轮换商户响应加密密钥并返回一次性结果。
+     */
     private RsaKeyMaterial rotateResponseKeyInternal(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial generated = keyMaterialFactory.generateMerchantResponseRsaKey(merchantId);
@@ -923,6 +883,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return generated;
     }
 
+    /**
+     * 合并当前业务配置并保留非空值。
+     */
     private void merge(BaseMerchantInfoDO row, AdminMerchantSaveRequest request) {
         String merchantName = trimRequiredAscii(request.getMerchantName(), "商户名称仅支持英文、数字、空格及常见英文符号");
         row.setMerchantName(merchantName);
@@ -1101,6 +1064,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return builder.toString();
     }
 
+    /**
+     * 将商户主档实体转换为管理端详情响应。
+     */
     private AdminMerchantInfoDTO toDTO(BaseMerchantInfoDO row) {
         AdminMerchantInfoDTO dto = new AdminMerchantInfoDTO();
         dto.setId(row.getId());
@@ -1239,6 +1205,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return profile;
     }
 
+    /**
+     * 构建费用版本摘要的基础材料。
+     */
     private AdminMerchantSecurityMaterialDTO baseMaterial(BaseMerchantInfoDO merchant) {
         AdminMerchantSecurityMaterialDTO dto = new AdminMerchantSecurityMaterialDTO();
         dto.setMerchantId(merchant.getMerchantId());
@@ -1246,6 +1215,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 将商户 JWT 密钥实体转换为不含私钥的摘要响应。
+     */
     private AdminMerchantKeySummaryDTO toJwtSummary(BaseMerchantJwtKeyDO row) {
         if (row == null) {
             return null;
@@ -1263,6 +1235,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 将平台载荷密钥实体转换为不含密钥明文的摘要响应。
+     */
     private AdminMerchantKeySummaryDTO toPlatformSummary(BasePlatformPayloadKeyDO row) {
         if (row == null) {
             return null;
@@ -1277,6 +1252,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 将商户及其关联资料转换为管理端列表摘要。
+     */
     private AdminMerchantKeySummaryDTO toResponseSummary(BaseMerchantResponseKeyDO row) {
         if (row == null) {
             return null;
@@ -1291,6 +1269,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 将商户 JWT 密钥实体转换为受控密钥材料响应。
+     */
     private AdminMerchantKeyMaterialDTO toJwtMaterial(BaseMerchantJwtKeyDO row) {
         AdminMerchantKeyMaterialDTO dto = new AdminMerchantKeyMaterialDTO();
         dto.setKeyType("MERCHANT_JWT");
@@ -1310,6 +1291,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 将平台载荷密钥实体转换为受控密钥材料响应。
+     */
     private AdminMerchantKeyMaterialDTO toPlatformMaterial(BasePlatformPayloadKeyDO row) {
         AdminMerchantKeyMaterialDTO dto = new AdminMerchantKeyMaterialDTO();
         dto.setKeyType("PLATFORM_REQUEST_PAYLOAD_RSA");
@@ -1327,6 +1311,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 组装允许管理端查看或下载的商户密钥材料。
+     */
     private AdminMerchantKeyMaterialDTO toResponseMaterial(BaseMerchantResponseKeyDO row) {
         AdminMerchantKeyMaterialDTO dto = new AdminMerchantKeyMaterialDTO();
         dto.setKeyType("MERCHANT_RESPONSE_PAYLOAD_RSA");
@@ -1344,6 +1331,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 按数据库主键查询未删除商户，不存在时返回业务错误。
+     */
     private BaseMerchantInfoDO requireMerchantById(Long id) {
         BaseMerchantInfoDO row = merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
                 .eq(BaseMerchantInfoDO::getId, id)
@@ -1355,6 +1345,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return row;
     }
 
+    /**
+     * 按平台商户号查询未删除商户，不存在时返回业务错误。
+     */
     private BaseMerchantInfoDO requireMerchantByMerchantId(String merchantId) {
         BaseMerchantInfoDO row = selectMerchantByMerchantId(normalizeMerchantId(merchantId));
         if (row == null) {
@@ -1363,6 +1356,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return row;
     }
 
+    /**
+     * 按商户号查询商户主记录。
+     */
     private BaseMerchantInfoDO selectMerchantByMerchantId(String merchantId) {
         return merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
                 .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
@@ -1370,6 +1366,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询商户当前生效的 JWT 验签公钥。
+     */
     private BaseMerchantJwtKeyDO selectActiveJwtKey(String merchantId) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
                 .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
@@ -1379,7 +1378,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
-    /** 查询最新 JWT 记录，包括已停用记录，供安全通知生成不可逆指纹。 */
+    /**
+     * 查询最新 JWT 记录，包括已停用记录，供安全通知生成不可逆指纹。
+     */
     private BaseMerchantJwtKeyDO selectLatestJwtKey(String merchantId) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
                 .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
@@ -1389,7 +1390,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
-    /** 返回邮件中可展示的密钥材料名称。 */
+    /**
+     * 返回邮件中可展示的密钥材料名称。
+     */
     private String keyDisplayName(OpenApiKeyType keyType) {
         if (keyType == OpenApiKeyType.JWT_KEY) {
             return "JWT 签名密钥";
@@ -1405,7 +1408,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "keyType 不支持启停");
     }
 
-    /** 返回仅用于计算通知指纹的材料，原文不会离开当前进程或写入日志。 */
+    /**
+     * 返回仅用于计算通知指纹的材料，原文不会离开当前进程或写入日志。
+     */
     private String keyFingerprintSource(String merchantId, OpenApiKeyType keyType) {
         if (keyType == OpenApiKeyType.JWT_KEY) {
             BaseMerchantJwtKeyDO row = selectLatestJwtKey(merchantId);
@@ -1419,6 +1424,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return row == null ? null : row.getPublicKeyX509Base64();
     }
 
+    /**
+     * 查询商户当前有效的平台载荷密钥。
+     */
     private BasePlatformPayloadKeyDO selectPlatformKey(String merchantId) {
         return platformPayloadKeyMapper.selectOne(Wrappers.<BasePlatformPayloadKeyDO>lambdaQuery()
                 .eq(BasePlatformPayloadKeyDO::getMerchantId, merchantId)
@@ -1426,6 +1434,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询响应键。
+     */
     private BaseMerchantResponseKeyDO selectResponseKey(String merchantId) {
         return responseKeyMapper.selectOne(Wrappers.<BaseMerchantResponseKeyDO>lambdaQuery()
                 .eq(BaseMerchantResponseKeyDO::getMerchantId, merchantId)
@@ -1433,6 +1444,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 规范化并校验平台商户号。
+     */
     private String normalizeMerchantId(String value) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户号不能为空");
@@ -1440,6 +1454,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return value.trim();
     }
 
+    /**
+     * 规范化 Base64 密钥文本并校验最小字节长度。
+     */
     private String normalizeBase64(String value, String errorMessage) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), errorMessage);
@@ -1456,22 +1473,37 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         }
     }
 
+    /**
+     * 规范化可选 Base64 密钥文本。
+     */
     private String normalizeOptionalBase64(String value, String errorMessage) {
         return StringUtils.hasText(value) ? normalizeBase64(value, errorMessage) : null;
     }
 
+    /**
+     * 去除文本空白并规范化为大写编码。
+     */
     private String trimUpper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 去除文本空白并规范化为小写编码。
+     */
     private String trimLower(String value) {
         return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 规范化编码集合并连接为大写文本。
+     */
     private String joinUpper(List<String> values) {
         if (values == null) {
             return null;
@@ -1484,6 +1516,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return StringUtils.hasText(joined) ? joined : null;
     }
 
+    /**
+     * 将分隔文本解析为去重值集合。
+     */
     private List<String> splitValues(String value) {
         if (!StringUtils.hasText(value)) {
             return new ArrayList<>();
@@ -1494,14 +1529,23 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    /**
+     * 将可空布尔值转换为持久化标志。
+     */
     private Integer booleanFlag(Boolean value) {
         return value == null ? null : Boolean.TRUE.equals(value) ? 1 : 0;
     }
 
+    /**
+     * 将数据库开关值转换为布尔值。
+     */
     private Boolean toBoolean(Integer value) {
         return value == null ? null : Integer.valueOf(1).equals(value);
     }
 
+    /**
+     * 校验并规范化必填 ASCII 配置值。
+     */
     private String trimRequiredAscii(String value, String errorMessage) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), errorMessage);
@@ -1513,6 +1557,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return trimmed;
     }
 
+    /**
+     * 校验并规范化可选 ASCII 配置值。
+     */
     private String trimOptionalAscii(String value, String errorMessage) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -1520,10 +1567,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return trimRequiredAscii(value, errorMessage);
     }
 
+    /**
+     * 计算一次性安全令牌指纹。
+     */
     private String fingerprint(String value) {
         return StringUtils.hasText(value) ? keyMaterialFactory.fingerprint(value) : null;
     }
 
+    /**
+     * 对敏感展示字段执行脱敏。
+     */
     private String mask(String value) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -1534,12 +1587,18 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return value.substring(0, 6) + "******" + value.substring(value.length() - 4);
     }
 
+    /**
+     * 校验状态。
+     */
     private void validateStatus(Integer status) {
         if (status == null || status < 1 || status > 3) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户状态必须为1正常、2冻结或3关闭");
         }
     }
 
+    /**
+     * 校验风控级别。
+     */
     private void validateRiskLevel(Integer riskLevel) {
         if (riskLevel == null || riskLevel < 1 || riskLevel > 3) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风险等级必须为1低、2中或3高");

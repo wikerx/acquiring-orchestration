@@ -26,13 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisSerializerFactoryTests
- * @date : 2026-07-29 19:10
- * @email : scott_x@163.com
- * @description : 验证 Redis JSON 序列化器的存量格式兼容和反序列化类型边界
- * @status : create
+ * 验证 Redis JSON 序列化器的存量格式兼容和反序列化类型边界
  */
 class PaymentRedisSerializerFactoryTests {
 

@@ -2887,6 +2887,28 @@ CREATE TABLE `risk_config_change_log` (
 ) ENGINE=InnoDB AUTO_INCREMENT=229 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控配置变更日志表';
 
 -- ----------------------------
+-- Table structure for risk_merchant_function_config
+-- ----------------------------
+DROP TABLE IF EXISTS `risk_merchant_function_config`;
+CREATE TABLE `risk_merchant_function_config` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理主键。',
+  `merchant_id` varchar(32) NOT NULL COMMENT '商户号。',
+  `module_type` varchar(32) NOT NULL COMMENT '风控模块类型：WHITE、BLACK、RULE。',
+  `function_code` varchar(64) NOT NULL COMMENT '稳定风控功能编码。',
+  `enabled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '商户是否开通该可选功能：0否，1是。',
+  `deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '软删除标记：0正常，1删除。',
+  `created_by` varchar(64) DEFAULT NULL COMMENT '创建人。',
+  `updated_by` varchar(64) DEFAULT NULL COMMENT '最后修改人。',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_risk_merchant_function` (`merchant_id`,`module_type`,`function_code`,`deleted`),
+  KEY `idx_risk_merchant_function_enabled` (`merchant_id`,`enabled`,`deleted`,`module_type`,`function_code`),
+  CONSTRAINT `chk_risk_merchant_function_enabled` CHECK (`enabled` IN (0,1)),
+  CONSTRAINT `chk_risk_merchant_function_deleted` CHECK (`deleted` IN (0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户可选风控功能开通状态；平台全局AML和监管规则不受该表控制。';
+
+-- ----------------------------
 -- Table structure for risk_evaluation_hit_detail
 -- ----------------------------
 DROP TABLE IF EXISTS `risk_evaluation_hit_detail`;
@@ -2901,6 +2923,7 @@ CREATE TABLE `risk_evaluation_hit_detail` (
   `hit_value_masked` varchar(255) DEFAULT NULL COMMENT '命中值脱敏展示',
   `risk_level` varchar(32) DEFAULT NULL COMMENT '风险等级',
   `decision_result` varchar(32) NOT NULL COMMENT '本项决策结果',
+  `reason_code` varchar(64) DEFAULT NULL COMMENT '明细稳定原因码：NOT_ENABLED、NOT_CONFIGURED、NO_MATCH 等。',
   `decision_reason` varchar(500) DEFAULT NULL COMMENT '本项决策说明',
   `decision_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '本项决策时间',
   `time_window_seconds` int DEFAULT NULL COMMENT '频率规则统计窗口秒数',
@@ -2933,6 +2956,7 @@ CREATE TABLE `risk_evaluation_record` (
   `transaction_currency` varchar(3) DEFAULT NULL COMMENT '交易币种，ISO 4217 Alpha-3',
   `risk_level` varchar(32) DEFAULT NULL COMMENT '风险等级：LOW、MEDIUM、HIGH、CRITICAL',
   `decision_result` varchar(32) NOT NULL DEFAULT 'REVIEW' COMMENT '决策结果：PASS、REJECT、REVIEW',
+  `decision_reason_code` varchar(64) DEFAULT NULL COMMENT '最终决策稳定原因码。',
   `decision_reason` varchar(500) DEFAULT NULL COMMENT '决策说明',
   `hit_count` int NOT NULL DEFAULT '0' COMMENT '命中规则数量',
   `evaluation_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '风控决策时间',
@@ -7091,6 +7115,8 @@ CREATE TABLE `transaction_operation` (
   `merchant_order_id` varchar(128) DEFAULT NULL COMMENT '商户本次API请求唯一标识，旧动作单兼容字段；新持久化模型不再写入。',
   `merchant_operation_no` varchar(128) NOT NULL COMMENT '商户动作单号，如 captureNo、refundNo；首笔可等于 merchant_order_no。',
   `request_source` varchar(32) NOT NULL DEFAULT 'LEGACY_UNKNOWN' COMMENT '动作请求来源',
+  `ingress_client_ip` varchar(45) DEFAULT NULL COMMENT '网关认证并规范化的接入客户端IP，仅用于受控安全审计。',
+  `ingress_client_ip_hash` char(64) DEFAULT NULL COMMENT '接入客户端IP的SHA-256摘要，用于关联检索。',
   `refund_scope` varchar(32) DEFAULT NULL COMMENT 'FULL/PARTIAL/VOID',
   `request_reason` varchar(512) DEFAULT NULL COMMENT '退款或撤销原因',
   `description` varchar(128) DEFAULT NULL COMMENT '商户上送的交易描述快照，用于响应、查询和通知回显。',
@@ -7156,6 +7182,7 @@ CREATE TABLE `transaction_operation` (
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_transaction_id` (`transaction_id`),
+  KEY `idx_transaction_operation_ingress_ip_hash` (`ingress_client_ip_hash`,`transaction_date_time`),
   UNIQUE KEY `uk_merchant_operation` (`merchant_id`,`source_transaction_id`,`transaction_type`,`merchant_operation_no`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_source_operation` (`source_operation_id`,`transaction_date_time`),
@@ -7187,6 +7214,8 @@ CREATE TABLE `transaction_operation_202603` (
   `merchant_order_id` varchar(128) DEFAULT NULL COMMENT '商户本次API请求唯一标识，旧动作单兼容字段；新持久化模型不再写入。',
   `merchant_operation_no` varchar(128) NOT NULL COMMENT '商户动作单号，如 captureNo、refundNo；首笔可等于 merchant_order_no。',
   `request_source` varchar(32) NOT NULL DEFAULT 'LEGACY_UNKNOWN' COMMENT '动作请求来源',
+  `ingress_client_ip` varchar(45) DEFAULT NULL COMMENT '网关认证并规范化的接入客户端IP，仅用于受控安全审计。',
+  `ingress_client_ip_hash` char(64) DEFAULT NULL COMMENT '接入客户端IP的SHA-256摘要，用于关联检索。',
   `refund_scope` varchar(32) DEFAULT NULL COMMENT 'FULL/PARTIAL/VOID',
   `request_reason` varchar(512) DEFAULT NULL COMMENT '退款或撤销原因',
   `description` varchar(128) DEFAULT NULL COMMENT '商户上送的交易描述快照，用于响应、查询和通知回显。',
@@ -7252,6 +7281,7 @@ CREATE TABLE `transaction_operation_202603` (
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_transaction_id` (`transaction_id`),
+  KEY `idx_transaction_operation_ingress_ip_hash` (`ingress_client_ip_hash`,`transaction_date_time`),
   UNIQUE KEY `uk_merchant_operation` (`merchant_id`,`source_transaction_id`,`transaction_type`,`merchant_operation_no`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_source_operation` (`source_operation_id`,`transaction_date_time`),
@@ -7283,6 +7313,8 @@ CREATE TABLE `transaction_operation_202604` (
   `merchant_order_id` varchar(128) DEFAULT NULL COMMENT '商户本次API请求唯一标识，旧动作单兼容字段；新持久化模型不再写入。',
   `merchant_operation_no` varchar(128) NOT NULL COMMENT '商户动作单号，如 captureNo、refundNo；首笔可等于 merchant_order_no。',
   `request_source` varchar(32) NOT NULL DEFAULT 'LEGACY_UNKNOWN' COMMENT '动作请求来源',
+  `ingress_client_ip` varchar(45) DEFAULT NULL COMMENT '网关认证并规范化的接入客户端IP，仅用于受控安全审计。',
+  `ingress_client_ip_hash` char(64) DEFAULT NULL COMMENT '接入客户端IP的SHA-256摘要，用于关联检索。',
   `refund_scope` varchar(32) DEFAULT NULL COMMENT 'FULL/PARTIAL/VOID',
   `request_reason` varchar(512) DEFAULT NULL COMMENT '退款或撤销原因',
   `description` varchar(128) DEFAULT NULL COMMENT '商户上送的交易描述快照，用于响应、查询和通知回显。',
@@ -7348,6 +7380,7 @@ CREATE TABLE `transaction_operation_202604` (
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_transaction_id` (`transaction_id`),
+  KEY `idx_transaction_operation_ingress_ip_hash` (`ingress_client_ip_hash`,`transaction_date_time`),
   UNIQUE KEY `uk_merchant_operation` (`merchant_id`,`source_transaction_id`,`transaction_type`,`merchant_operation_no`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_source_operation` (`source_operation_id`,`transaction_date_time`),

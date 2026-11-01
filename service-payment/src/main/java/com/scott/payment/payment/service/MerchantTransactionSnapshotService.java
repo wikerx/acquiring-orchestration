@@ -7,13 +7,7 @@ import com.scott.payment.payment.service.dto.MerchantTransactionSnapshotDTO;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionSnapshotService
- * @date : 2026-08-14 12:45
- * @email : scott_x@163.com
- * @description : 商户交易快照服务，负责在首次交易事务中冻结请求资料，并按根交易分片键为响应和查询恢复快照。
- * @status : create
+ * 商户交易快照服务，负责在首次交易事务中冻结请求资料，并按根交易分片键为响应和查询恢复快照。
  */
 public interface MerchantTransactionSnapshotService {
 

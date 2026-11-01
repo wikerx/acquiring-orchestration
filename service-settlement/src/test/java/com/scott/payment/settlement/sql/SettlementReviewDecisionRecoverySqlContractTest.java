@@ -8,7 +8,9 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 失败的分段预审决策任务恢复审计迁移和只读后检合同。 */
+/**
+ * 失败的分段预审决策任务恢复审计迁移和只读后检合同。
+ */
 class SettlementReviewDecisionRecoverySqlContractTest {
 
     @Test

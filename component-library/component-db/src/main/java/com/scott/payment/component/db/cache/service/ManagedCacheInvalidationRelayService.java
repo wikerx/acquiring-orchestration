@@ -16,31 +16,35 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ManagedCacheInvalidationRelayService
- * @date : 2026-08-01 12:00
- * @email : scott_x@163.com
- * @description : Admin 与 Merchant 共用的永久缓存失效中继，按 Outbox 顺序执行精确删除、门禁释放和可重试状态迁移
- * @status : create
+ * Admin 与 Merchant 共用的永久缓存失效中继，按 Outbox 顺序执行精确删除、门禁释放和可重试状态迁移
  */
 @Slf4j
 @Service
 public class ManagedCacheInvalidationRelayService {
 
-    /** 单次发布失败后的固定重试间隔，单位秒。 */
+    /**
+     * 单次发布失败后的固定重试间隔，单位秒。
+     */
     private static final long RETRY_DELAY_SECONDS = 5L;
 
-    /** 共享 Outbox 数据访问组件。 */
+    /**
+     * 共享 Outbox 数据访问组件。
+     */
     private final ManagedCacheInvalidationOutboxMapper outboxMapper;
 
-    /** Redis Cache 精确删除契约。 */
+    /**
+     * Redis Cache 精确删除契约。
+     */
     private final CacheEvictionExecutor evictionExecutor;
 
-    /** 删除成功后释放 pending 门禁的共享契约。 */
+    /**
+     * 删除成功后释放 pending 门禁的共享契约。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
-    /** 从库复制可见性探针；未确认业务事务已复制前不得删除永久缓存。 */
+    /**
+     * 从库复制可见性探针；未确认业务事务已复制前不得删除永久缓存。
+     */
     private final ManagedCacheInvalidationReplicaProbe replicaProbe;
 
     /**
@@ -128,8 +132,8 @@ public class ManagedCacheInvalidationRelayService {
             scheduleRetry(event, version, now, failureReason(exception));
             LocalDateTime nextRetryTime = now.plusSeconds(RETRY_DELAY_SECONDS);
             log.warn(
-                    "event: MANAGED_CACHE_INVALIDATION_PUBLISH_FAILED "
-                            + "eventId: {} cacheName: {} retryCount: {} nextRetryTime: {} exceptionType: {}",
+                    "受管缓存失效事件发布失败, event: MANAGED_CACHE_INVALIDATION_PUBLISH_FAILED, "
+                            + "eventId: {}, cacheName: {}, retryCount: {}, nextRetryTime: {}, exceptionType: {}",
                     event.getEventId(),
                     event.getCacheName(),
                     event.getRetryCount(),

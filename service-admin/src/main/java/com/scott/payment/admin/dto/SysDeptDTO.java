@@ -6,13 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysDeptDTO
- * @date : 2026-06-12 20:00
- * @email : scott_x@163.com
- * @description : 部门树形传输对象
- * @status : create
+ * 部门树形传输对象
  */
 @Data
 public class SysDeptDTO {

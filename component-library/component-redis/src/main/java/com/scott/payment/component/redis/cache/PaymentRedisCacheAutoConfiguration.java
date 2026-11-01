@@ -18,6 +18,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
@@ -36,13 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisCacheAutoConfiguration
- * @date : 2026-07-30 22:05
- * @email : scott_x@163.com
- * @description : 支付系统 Redis Cache 自动配置，集中注册业务读模型生命周期、统一序列化、故障降级和独立 miss marker 存储
- * @status : update
+ * 支付系统 Redis Cache 自动配置，集中注册业务读模型生命周期、统一序列化、故障降级和独立 miss marker 存储
  */
 @Slf4j
 @AutoConfiguration(after = RedisAutoConfiguration.class)
@@ -199,6 +194,28 @@ public class PaymentRedisCacheAutoConfiguration {
     }
 
     /**
+     * 将缓存错误处理器接入 Spring Cache AOP；仅声明处理器 Bean 不会改变代理的默认抛错行为。
+     *
+     * @param cacheErrorHandler 缓存错误处理器
+     * @return Spring Cache 基础设施配置器
+     */
+    @Bean
+    @ConditionalOnMissingBean(CachingConfigurer.class)
+    public CachingConfigurer paymentCachingConfigurer(CacheErrorHandler cacheErrorHandler) {
+        return new CachingConfigurer() {
+            /**
+             * 向 Spring Cache AOP 暴露统一缓存异常处理器。
+             *
+             * @return 已注册的缓存异常处理器
+             */
+            @Override
+            public CacheErrorHandler errorHandler() {
+                return cacheErrorHandler;
+            }
+        };
+    }
+
+    /**
      * 构建可注入指标记录器的缓存异常处理器，供自动配置和纯单元测试复用。
      *
      * @param metrics Redis 业务指标记录器
@@ -206,6 +223,9 @@ public class PaymentRedisCacheAutoConfiguration {
      */
     CacheErrorHandler paymentCacheErrorHandler(RedisBusinessMetrics metrics) {
         return new CacheErrorHandler() {
+            /**
+             * 缓存读取失败时记录回退指标并允许业务回源数据库。
+             */
             @Override
             public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
                 metrics.recordOperation(
@@ -221,6 +241,9 @@ public class PaymentRedisCacheAutoConfiguration {
                 logCacheFailure("GET", cache, exception);
             }
 
+            /**
+             * 缓存写入失败时记录错误指标，业务事实仍以数据库为准。
+             */
             @Override
             public void handleCachePutError(RuntimeException exception, Cache cache, Object key, Object value) {
                 metrics.recordOperation(
@@ -232,6 +255,9 @@ public class PaymentRedisCacheAutoConfiguration {
                 logCacheFailure("PUT", cache, exception);
             }
 
+            /**
+             * 缓存精确删除失败时记录错误，并对安全配置缓存执行失败关闭。
+             */
             @Override
             public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
                 metrics.recordOperation(
@@ -244,6 +270,9 @@ public class PaymentRedisCacheAutoConfiguration {
                 rethrowForSecurityCache(cache, exception);
             }
 
+            /**
+             * 缓存整体清理失败时记录错误，并对安全配置缓存执行失败关闭。
+             */
             @Override
             public void handleCacheClearError(RuntimeException exception, Cache cache) {
                 metrics.recordOperation(
@@ -258,10 +287,25 @@ public class PaymentRedisCacheAutoConfiguration {
         };
     }
 
+    /**
+     * 使用固定生命周期和无抖动策略构建 Redis Cache 配置。
+     *
+     * @param ttl 缓存生命周期，零表示常驻快照
+     * @param keyPrefix 环境隔离 Key 前缀
+     * @return Redis Cache 配置
+     */
     RedisCacheConfiguration cacheConfiguration(Duration ttl, String keyPrefix) {
         return cacheConfiguration(ttl, keyPrefix, 0);
     }
 
+    /**
+     * 使用安全序列化器、环境前缀和有界生命周期抖动构建 Redis Cache 配置。
+     *
+     * @param ttl 缓存生命周期，零表示常驻快照
+     * @param keyPrefix 环境隔离 Key 前缀
+     * @param ttlJitterPercent 有限生命周期的抖动百分比
+     * @return Redis Cache 配置
+     */
     RedisCacheConfiguration cacheConfiguration(Duration ttl, String keyPrefix, int ttlJitterPercent) {
         RedisCacheConfiguration configuration = RedisCacheConfiguration.defaultCacheConfig()
                 .disableCachingNullValues()
@@ -283,6 +327,12 @@ public class PaymentRedisCacheAutoConfiguration {
         return configuration;
     }
 
+    /**
+     * 去除重复尾部分隔符并保证 Redis Cache 前缀以单个冒号结束。
+     *
+     * @param keyPrefix 配置前缀
+     * @return 规范化前缀
+     */
     private String normalizeKeyPrefix(String keyPrefix) {
         String normalized = keyPrefix.trim();
         while (normalized.endsWith(":")) {
@@ -315,7 +365,7 @@ public class PaymentRedisCacheAutoConfiguration {
      * @param exception Redis Cache 运行时异常
      */
     private void logCacheFailure(String operation, Cache cache, RuntimeException exception) {
-        log.warn("event: REDIS_CACHE_OPERATION_FAILED operation: {} cacheName: {} exceptionType: {}",
+        log.warn("Redis 缓存操作失败, event: REDIS_CACHE_OPERATION_FAILED, operation: {}, cacheName: {}, exceptionType: {}",
                 operation,
                 cache == null ? "UNKNOWN" : cache.getName(),
                 exception.getClass().getSimpleName());

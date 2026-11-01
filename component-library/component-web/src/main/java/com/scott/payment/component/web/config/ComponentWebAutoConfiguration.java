@@ -14,13 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ComponentWebAutoConfiguration
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : Web 组件自动装配配置
- * @status : create
+ * Web 组件自动装配配置
  */
 @Configuration
 public class ComponentWebAutoConfiguration {

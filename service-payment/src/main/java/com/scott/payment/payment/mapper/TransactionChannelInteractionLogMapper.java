@@ -10,13 +10,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelInteractionLogMapper
- * @date : 2026-07-14 19:42
- * @email : scott_x@163.com
- * @description : 渠道交互日志 Mapper，位于 service-payment 数据访问层，仅通过 transaction_channel_interaction_log 逻辑表读写。
- * @status : create
+ * 渠道交互日志 Mapper，位于 service-payment 数据访问层，仅通过 transaction_channel_interaction_log 逻辑表读写。
  */
 public interface TransactionChannelInteractionLogMapper extends BaseMapper<TransactionChannelInteractionLogDO> {
 

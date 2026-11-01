@@ -292,8 +292,8 @@ Authorization: Bearer {jwt}
 
 ```json
 {
-  "code": "T200",
-  "message": "Success",
+  "code": "A0000",
+  "message": "Request processed successfully.",
   "data": "{five-part-encrypted-response}"
 }
 ```
@@ -302,7 +302,7 @@ Authorization: Bearer {jwt}
 
 ```json
 {
-  "code": "F402001",
+  "code": "A1001",
   "message": "Invalid request parameter",
   "data": null
 }
@@ -325,7 +325,7 @@ Authorization: Bearer {jwt}
 1. 外层 `code` 表示 OpenAPI 是否完成鉴权、解密、校验和业务调用。
 2. 解密后的 `transactionInfo.code` 表示当前支付动作的资金业务结果。
 
-外层 `code=T200` 不能单独证明支付、授权、请款或退款成功。商户必须解密 `data` 并检查 `transactionInfo.code`。
+外层 `code=A0000` 只表示已形成约定业务响应，不能单独证明支付、授权、请款或退款成功。商户必须解密 `data`，并结合 `transactionInfo.code` 与真实 `transactionStatus` 判断交易结果。
 
 ### 4.2 标识与幂等
 
@@ -372,6 +372,12 @@ Authorization: Bearer {jwt}
 
 支付请求的 `transactionInfo.callbackUrl` 和 Hosted Checkout 的 `checkoutInfo.notifyUrl` 是可选通知地址。首次支付、授权和预授权进入终态后，平台按第 7.13 节的 JWT、密文、ACK、自动重试和人工重发协议通知该地址。商户必须同时实现回调事件幂等和交易查询兜底，不能仅依赖浏览器跳转或单次通知结果确认最终交易状态。
 
+- `dev/test` 仅为本地或测试联调，可使用结构合法的 HTTP/HTTPS、私网或回环地址，不得承载生产凭据或真实持卡人数据。
+- `UAT/Production` 以及无法识别的部署环境只接受 HTTPS，主机当前解析出的全部地址都必须是公网单播地址；任一解析结果属于私网、回环、链路本地、组播、文档网段、保留网段或云元数据可达范围时均拒绝。
+- 所有环境都拒绝缺少主机、携带用户名/密码、携带 URL Fragment、端口非法或协议不是 HTTP/HTTPS 的地址。
+- 平台在请求受理时校验目标，并在实际 HTTP 建连所用的同一次 DNS 解析上再次执行地址策略。DNS 无法解析、解析结果发生变化或任一建连候选地址变为非公网目标时，通知投递会永久拒绝，不按网络故障盲目重试。
+- 不符合策略时返回 `A1004 / Merchant callback URL is not allowed. Use an HTTPS URL that resolves only to public network addresses.`。商户应修正原请求或商户配置中的地址；该结果不是瞬时网络错误，不能对同一非法地址自动重试。
+
 ### 4.6 HTTP 状态和客户端超时
 
 - 商户必须同时处理非 2xx HTTP 状态、连接失败、读取超时和合法 JSON 业务响应。
@@ -382,18 +388,20 @@ Authorization: Bearer {jwt}
 
 ### 4.7 Sandbox 测试卡
 
-以下卡号由平台提供，仅用于 Sandbox 联调。
+路由到 MPGS 的 Sandbox 交易只能使用 [Mastercard Gateway Test and Go Live 官方文档](https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html?locale=zh_CN) 发布的测试卡。平台 live 测试使用审核过的固定清单，不接受环境变量或系统属性注入任意 PAN。其他渠道可按各自 Sandbox 规则使用渠道测试卡或通用 Luhn 合法测试 PAN；`CardNoGenerator` 的生成结果不得用于 MPGS live 测试。
 
 | 卡品牌 | 卡号 | 3DS 注册状态 | 建议测试场景 |
 | --- | --- | --- | --- |
 | `MASTERCARD` | `5123450000000008` | 已注册 | 3DS 已注册卡支付 |
+| `MASTERCARD` | `2223000000000007` | 已注册 | 2-series 3DS 已注册卡支付 |
 | `MASTERCARD` | `5111111111111118` | 未注册 | 非 3DS 卡支付 |
+| `MASTERCARD` | `2223000000000023` | 未注册 | 2-series 非 3DS 卡支付 |
 | `VISA` | `4508750015741019` | 已注册 | 3DS 已注册卡支付 |
 | `VISA` | `4012000033330026` | 未注册 | 非 3DS 卡支付 |
 | `JCB` | `3528000000000007` | 已注册 | 3DS 已注册卡支付 |
-| `DISCOVER` | `6011003179988686` | 已注册 | 3DS 已注册卡支付 |
+| `JCB` | `3528111100000001` | 未注册 | 非 3DS 卡支付 |
 
-只有商户已开通并且 Sandbox 渠道支持的卡组织才能成功受理；未开通的卡组织可能返回 `F410` 或 `F413`。测试卡也必须按第 3 章规则加密后放入请求 `data`，不得出现在日志、数据库、MQ、异常文本或监控标签中。
+只有商户已开通并且 Sandbox 渠道支持的卡组织才能成功受理：商户配置不满足时返回 `C1001`，平台能力不支持时返回 `T5001`，渠道明确拒绝时返回 `F1000`。测试卡也必须按第 3 章规则加密后放入请求 `data`，不得出现在日志、数据库、MQ、异常文本或监控标签中。
 
 Sandbox 模拟器可通过有效期触发预期交易结果。本文 API 使用四位年份：
 
@@ -434,9 +442,9 @@ Sandbox 模拟器可通过有效期触发预期交易结果。本文 API 使用�
 
 查询平台支持的 ISO 3166 国家或地区。仅支持 `alpha2`、`alpha3`、`numeric` 三个可选代码条件，均为精确匹配；传多个条件时按 AND 取交集，条件冲突或代码不存在时返回空列表。
 
-查询全部国家时，将空对象 `{}` 加密后放入请求 `data`；未传字段或值为 `null` 表示不参与过滤，空字符串、错误长度或小写字母代码返回 `F402001`。`numeric` 必须使用三位数字字符串，例如 `"004"`，保留前导零。
+查询全部国家时，将空对象 `{}` 加密后放入请求 `data`；未传字段或值为 `null` 表示不参与过滤，空字符串、错误长度或小写字母代码返回 `A1001`。`numeric` 必须使用三位数字字符串，例如 `"004"`，保留前导零。
 
-兼容性变更：不再接受名称、大洲、语言或币种等其它查询字段；即使其它字段值为 `null` 也返回 `F402001`，不会忽略条件后返回全量数据。已有调用方应改用上述三种代码，或获取全部国家后在本地筛选。响应仍包含国家名称、大洲、语言、币种等原有信息。
+兼容性变更：不再接受名称、大洲、语言或币种等其它查询字段；即使其它字段值为 `null` 也返回 `A1001`，不会忽略条件后返回全量数据。已有调用方应改用上述三种代码，或获取全部国家后在本地筛选。响应仍包含国家名称、大洲、语言、币种等原有信息。
 
 **接口**
 
@@ -631,7 +639,7 @@ POST /api/rest/ip/v1/query
 }
 ```
 
-格式正确但未命中时，接口仍返回 `T200`，解密后的 `data.matched=false`。未命中不是系统异常，商户不应立即高频重试。IP 归属数据属于参考信息，可能随数据版本更新或从库同步存在短暂延迟，不应单独作为付款、开户或风控放行依据。
+格式正确但未命中时，接口仍返回 `A0000`，解密后的 `data.matched=false`。未命中不是系统异常，商户不应立即高频重试。IP 归属数据属于参考信息，可能随数据版本更新或从库同步存在短暂延迟，不应单独作为付款、开户或风控放行依据。
 
 ### 6.4 卡 BIN 数据检索
 
@@ -695,7 +703,7 @@ POST /api/rest/card-bin/v1/query
 }
 ```
 
-格式正确但未命中时，接口仍返回 `T200`，解密后的 `data.matched=false`。卡 BIN 数据属于参考信息，可能随数据源和从库同步更新，不能替代卡组织、发卡行或实际交易授权结果。
+格式正确但未命中时，接口仍返回 `A0000`，解密后的 `data.matched=false`。卡 BIN 数据属于参考信息，可能随数据源和从库同步更新，不能替代卡组织、发卡行或实际交易授权结果。
 
 ## 7. 收单支付接口
 
@@ -958,7 +966,7 @@ merchantId + orderInfo.orderId + PAYMENT
   },
   "transactionInfo": {
     "transactionId": "202608011020301230001",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "PAYMENT",
     "transactionDateTime": "2026-08-01T10:20:30.123+08:00",
@@ -1049,7 +1057,7 @@ merchantId + orderInfo.orderId + AUTHORIZATION
   },
   "transactionInfo": {
     "transactionId": "202608011030001230002",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "AUTHORIZATION",
     "transactionDateTime": "2026-08-01T10:30:00.123+08:00",
@@ -1130,7 +1138,7 @@ merchantId + orderInfo.orderId + PRE_AUTHORIZATION
   },
   "transactionInfo": {
     "transactionId": "202608011040001230003",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "PRE_AUTHORIZATION",
     "transactionDateTime": "2026-08-01T10:40:00.123+08:00",
@@ -1202,7 +1210,7 @@ merchantId + orderInfo.orderId + INCREMENTAL_AUTHORIZATION
   "transactionInfo": {
     "transactionId": "202608011100001230004",
     "sourceTransactionId": "202608011030001230002",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "INCREMENTAL_AUTHORIZATION",
     "transactionDateTime": "2026-08-01T11:00:00.123+08:00"
@@ -1268,7 +1276,7 @@ merchantId + orderInfo.orderId + PRE_AUTH_COMPLETION
   "transactionInfo": {
     "transactionId": "202608011110001230005",
     "sourceTransactionId": "202608011040001230003",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "PRE_AUTH_COMPLETION",
     "transactionDateTime": "2026-08-01T11:10:00.123+08:00"
@@ -1315,8 +1323,9 @@ merchantId + orderInfo.orderId + CAPTURE
 **业务约束**
 
 - 源交易必须成功且处于允许请款的状态。
-- 币种必须与源交易一致。
+- `currency` 可省略；省略时继承源授权的商户标签币种，显式传入时必须与该标签币种一致。
 - 本次请款金额不能超过剩余可请款金额。
+- 如源授权发生换汇，请款按首笔交易冻结汇率换算渠道金额；最后一笔剩余请款直接使用渠道剩余可请款金额，避免累计四舍五入差额。
 - 部分请款后如需再次请款，每次必须使用新的 `orderId`，并继续引用平台允许的源交易。
 
 **解密后的成功响应示例**
@@ -1335,7 +1344,7 @@ merchantId + orderInfo.orderId + CAPTURE
   "transactionInfo": {
     "transactionId": "202608011120001230006",
     "sourceTransactionId": "202608011030001230002",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "CAPTURE",
     "transactionDateTime": "2026-08-01T11:20:00.123+08:00",
@@ -1404,7 +1413,7 @@ merchantId + orderInfo.orderId + REFUND
   "transactionInfo": {
     "transactionId": "202608011130001230007",
     "sourceTransactionId": "202608011020301230001",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "REFUND",
     "transactionDateTime": "2026-08-01T11:30:00.123+08:00"
@@ -1464,7 +1473,7 @@ merchantId + orderInfo.orderId + VOID
   "transactionInfo": {
     "transactionId": "202608011140001230008",
     "sourceTransactionId": "202608011030001230002",
-    "code": "T200",
+    "code": "T0000",
     "message": "Success",
     "transactionType": "VOID",
     "transactionDateTime": "2026-08-01T11:40:00.123+08:00"
@@ -1555,7 +1564,7 @@ POST /api/rest/payment/v1/query
   "transactionInfo": [
     {
       "transactionId": "202608011030001230002",
-      "code": "T200",
+      "code": "T0000",
       "message": "Success",
       "transactionType": "AUTHORIZATION",
       "transactionDateTime": "2026-08-01T10:30:00.123+08:00",
@@ -1568,7 +1577,7 @@ POST /api/rest/payment/v1/query
     {
       "transactionId": "202608011100001230004",
       "sourceTransactionId": "202608011030001230002",
-      "code": "T200",
+      "code": "T0000",
       "message": "Success",
       "transactionType": "INCREMENTAL_AUTHORIZATION",
       "transactionDateTime": "2026-08-01T11:00:00.123+08:00",
@@ -1577,7 +1586,7 @@ POST /api/rest/payment/v1/query
     {
       "transactionId": "202608011120001230006",
       "sourceTransactionId": "202608011030001230002",
-      "code": "T200",
+      "code": "T0000",
       "message": "Success",
       "transactionType": "CAPTURE",
       "transactionDateTime": "2026-08-01T11:20:00.123+08:00",
@@ -1645,8 +1654,8 @@ RequestBody 仍使用平台响应加密方案，外层只有 `data`：
     "currency": "USD"
   },
   "transactionInfo": {
-    "code": "T200",
-    "message": "success",
+    "code": "T0000",
+    "message": "Success",
     "transactionId": "<platform-transaction-id>",
     "transactionType": "PAYMENT",
     "transactionStatus": "SUCCESS",
@@ -1935,8 +1944,8 @@ merchantId + merchantOrderNo
 
 ```json
 {
-  "code": "T200",
-  "message": "Success",
+  "code": "A0000",
+  "message": "Request processed successfully.",
   "data": "{five-part-encrypted-response}"
 }
 ```
@@ -1955,72 +1964,60 @@ merchantId + merchantOrderNo
 
 ### 10.1 响应码
 
-客户端应以 `code` 作为稳定判断依据，`message` 用于展示和排查。参数错误等场景的 `message` 可能附带字段详情，不应对完整文案做字符串等值判断。
+客户端应以 `code` 作为稳定判断依据，`message` 仅用于展示和排查，不得做字符串等值判断或业务分支。所有商户 OpenAPI、Hosted Checkout JSON 及回跳 Form 的对外 `message` 固定为英文；商户与付款人使用不同的安全模板。下表“稳定含义”的中文只用于解释码表，不是线上响应文案。中文原因仅保留在受控日志、审计、Admin 和 Merchant Portal 等内部界面。
 
-**成功、受理和交易结果码**
+外层请求结果与内层交易结果是两个独立层次。已形成约定业务响应时外层为 `A0000`；交易是否成功必须由解密后对象内的 `code` 与真实 `transactionStatus` 共同判断。下表列出 V1.3 全部 48 个公开码；“外层或内层”由错误发生时是否已经形成业务响应决定。
 
-| code | 标准 message | 说明 | 商户处理 |
+| code | 稳定含义 | 适用位置 | 处理策略 |
 | --- | --- | --- | --- |
-| `T200` | `Success` | 请求或当前交易动作成功 | 解密 `data`；支付接口继续检查内层结果 |
-| `T201` | `Accepted` | 已受理，最终结果未确定 | 保存标识并查询 |
-| `T202` | `Processing` | 正在处理 | 不重复提交，按建议间隔查询 |
-| `T203` | `Pending` | 结果待确认 | 不重复提交，查询或等待已开通的通知 |
-| `T206` | `Partially accepted` | 部分受理 | 按返回明细分别处理 |
-| `F207` | `Issuer or acquirer rejected the transaction` | 发卡行、收单行或上游拒绝 | 不自动重复扣款，向付款人展示合适提示 |
-| `F210` | 平台商户可见拒绝文案 | 平台、风控或渠道拒绝 | 不披露内部规则；按业务决定是否允许付款人更换方式 |
-
-**鉴权错误码**
-
-| code | 标准 message | 场景 |
-| --- | --- | --- |
-| `F401` | `Unauthorized` | 通用未授权 |
-| `F401001` | `Authorization required` | 缺少或错误提供 `Authorization` Header |
-| `F401002` | `Authorization JWT is invalid, HS256 is required` | JWT 格式、类型或算法非法 |
-| `F401003` | `Authorization JWT exp is invalid or expired` | `exp` 非法或已过期 |
-| `F401004` | `Authorization JWT iat is invalid` | `iat` 非法或时钟偏差过大 |
-| `F401005` | `Authorization JWT iss is invalid` | `iss` 不是 `merchant` |
-| `F401006` | `Authorization JWT aud is invalid` | `aud` 不包含 `gateway` |
-| `F401007` | `Authorization JWT signature verification failed` | HS256 签名失败 |
-| `F401008` | `Merchant signing key is not configured` | 商户签名密钥未配置 |
-| `F401009` | `Merchant is invalid or unavailable` | 商户不存在、不可用或请求身份不匹配 |
-
-**请求、权限和协议错误码**
-
-| code | 标准 message | 场景 |
-| --- | --- | --- |
-| `F400` | `Bad request` | 请求不符合协议 |
-| `F402001` | `Invalid request parameter` | 参数值或格式非法 |
-| `F402002` | `Required request parameter is missing` | 必填参数缺失 |
-| `F402003` | `Encrypted request data is invalid` | `data` 缺失、五段格式错误、密钥错误或 GCM 校验失败 |
-| `F403` | `Forbidden` | 已认证商户无权访问资源或来源不允许 |
-| `F404` | `Not found` | API 路径不存在 |
-| `F405` | `Method Not Allowed` | HTTP Method 不支持 |
-| `F429` | `Too many requests` | 请求超过频率限制 |
-
-**商户配置和交易业务错误码**
-
-| code | 标准 message | 场景 |
-| --- | --- | --- |
-| `F409` | `Merchant config not found` | 商户配置或密钥材料不可用 |
-| `F410` | `Card not support` | 卡类型不支持 |
-| `F411` | `Transaction currency is not supported` | 交易币种不支持 |
-| `F412` | `Transaction type is not supported` | 交易类型不支持 |
-| `F413` | `Unsupported card brands` | 卡品牌不支持 |
-| `F414` | `Original transaction rejected.` | 原交易渠道或 MID 已不可用，关联动作被拒绝 |
-| `F510` | `Order already exist` | 商户订单已存在或发生幂等冲突 |
-| `F511` | `Order does not exist` | 订单不存在 |
-| `F512` | `The search result set is invalid/does not exist` | 查询无结果 |
-| `F515` | `transactionId repeat` | 交易标识重复 |
-
-**系统和报文错误码**
-
-| code | 标准 message | 场景 |
-| --- | --- | --- |
-| `F500` | `The system is busy; please try again later.` | 平台内部异常 |
-| `F502` | `Bad gateway` | 上游服务不可用或响应异常 |
-| `F503` | `The network is busy, please try again later` | 服务繁忙 |
-| `Z605` | `Request parse error` | 请求报文解析失败 |
-| `Z606` | `Response parse error` | 响应报文解析失败 |
+| `A0000` | 请求已正常处理并返回约定结果 | 外层 | 读取并解密 `data` |
+| `A0001` | 请求已受理，等待后续处理 | 外层保留 | 查询原请求 |
+| `A0002` | 批量请求部分成功或受理 | 批量外层保留 | 检查逐项结果 |
+| `A1001` | 参数值或组合不符合接口定义 | 外层 | 修正参数 |
+| `A1002` | 必填参数缺失 | 外层 | 补充参数 |
+| `A1003` | 加密载荷不符合协议 | 外层 | 修正加密与报文 |
+| `A1004` | 回调地址不符合允许的目标策略 | 外层 | 修正地址；不要原样重试 |
+| `A1005` | 请求报文无法按协议处理 | 外层 | 修正请求格式 |
+| `A1006` | HTTP 方法不支持 | 外层 | 按文档修正方法 |
+| `A1007` | Content-Type 不支持 | 外层扩展 | 修正 Content-Type |
+| `A1008` | 请求内容超过大小限制 | 外层扩展 | 缩减请求内容 |
+| `A2001` | 缺少认证信息 | 外层 | 修正安全请求头 |
+| `A2002` | 认证或请求安全协议验证失败 | 外层 | 核对凭证与安全协议 |
+| `A2003` | 认证时间窗口无效或过期 | 外层 | 校准时间并重新认证 |
+| `A2004` | 无法确认有效商户身份 | 外层 | 核对接入配置或联系支持 |
+| `A2005` | 商户在认证访问阶段受限 | 外层 | 联系支持 |
+| `A2006` | 防重放校验拒绝 | 外层扩展 | 先核查原业务结果 |
+| `A3001` | 调用身份无目标操作权限 | 外层 | 联系支持 |
+| `A3002` | API 路由不存在 | 外层 | 核对地址和版本 |
+| `A3003` | 请求来源未通过访问控制 | 外层扩展 | 核对来源配置 |
+| `A4001` | API 请求配额超限 | 外层 | 按 `Retry-After` 等约定等待 |
+| `C1001` | 商户业务配置不存在或不可用 | 外层或内层 | 联系支持 |
+| `C1002` | 商户未开通目标产品 | 外层或内层扩展 | 联系支持 |
+| `C1003` | 商户未启用有效目标币种 | 外层或内层扩展 | 调整币种或联系支持 |
+| `C1004` | 商户未启用平台支持的支付方式 | 外层或内层扩展 | 调整支付方式或联系支持 |
+| `C2001` | 商户应配置的签名材料缺失 | 外层或内层 | 联系支持 |
+| `C2002` | 商户应配置的响应公钥缺失 | 外层或内层扩展 | 联系支持 |
+| `T0000` | 当前交易动作已可靠成功 | 内层 | 同时确认 `transactionStatus=SUCCESS` |
+| `T0001` | 交易正在处理 | 内层 | 查询并避免重复提交 |
+| `T0002` | 交易等待外部动作或异步结果 | 内层 | 按上下文处理或查询 |
+| `T0003` | 交易已失败但无可公开细分原因 | 内层兜底 | 查询详情或联系支持 |
+| `T1001` | 原交易状态或类型不允许当前动作 | 外层或内层 | 查询原交易 |
+| `T1002` | 退款金额超过剩余可退金额 | 外层或内层 | 修正金额 |
+| `T1003` | 退款审批状态或版本冲突 | 外层或内层 | 刷新并查询最新状态 |
+| `T1004` | 平台判断可用余额不足 | 外层或内层扩展 | 补充余额或修正条件 |
+| `T1005` | 业务报价已失效 | 外层或内层扩展 | 获取并确认新报价 |
+| `T2001` | 当前可见范围内未找到业务记录 | 外层或内层 | 核对标识并查询 |
+| `T2002` | 业务单号或交易标识冲突 | 外层或内层 | 查询原请求 |
+| `T2003` | 幂等标识绑定了不同请求 | 外层或内层 | 核对原请求，禁止换号绕过 |
+| `T3001` | 平台安全或合规明确拒绝 | 外层或内层 | 联系支持 |
+| `T4001` | 超过业务单笔限额 | 外层或内层扩展 | 调整合法业务条件 |
+| `T4002` | 超过业务累计限额 | 外层或内层扩展 | 按额度规则处理 |
+| `T5001` | 平台不支持该卡类型或品牌 | 外层或内层 | 选择其他可用方式 |
+| `T5002` | 平台不支持该有效币种 | 外层或内层 | 选择其他可用币种 |
+| `T5003` | 平台不支持该有效交易类型 | 外层或内层 | 修正业务请求 |
+| `F1000` | 已确认渠道返回失败、拒绝或异常 | 外层或内层 | 按真实状态查询；不得自动重付 |
+| `F2000` | 平台程序、依赖或技术配置异常 | 外层或内层 | 查询原单；不得据此推断失败 |
+| `F3000` | 渠道调用未取得可验证确认 | 外层或内层 | 查询原单并避免重复提交 |
 
 ### 10.2 支付结果处理顺序
 
@@ -2028,12 +2025,12 @@ merchantId + merchantOrderNo
 
 1. HTTP 非 2xx、连接失败或超时：进入 10.3 节的结果不确定流程。
 2. 响应不是合法 JSON：记录脱敏摘要和请求标识，进入结果不确定流程。
-3. 外层 `code` 不是 `T200`：不要解密空 `data`，按外层错误码处理。
-4. 外层 `code=T200` 且 `data` 非空：使用商户响应私钥解密。
+3. 外层 `code` 不是 `A0000`：不要解密空 `data`，按外层错误码处理。
+4. 外层 `code=A0000` 且 `data` 非空：使用商户响应私钥解密。
 5. 读取解密后 `transactionInfo.code`。
-6. `T200`：当前动作成功。
-7. `T201/T202/T203`：保存全部交易标识并查询，不要重复提交资金动作。
-8. `F` 或 `Z` 开头：当前动作失败；是否允许付款人重新支付由商户业务决定，但不能复用已失败动作的请求标识构造不同请求。
+6. `T0000` 且 `transactionStatus=SUCCESS`：当前动作成功。
+7. `T0001/T0002` 或 `transactionStatus=PROCESSING/PENDING`：保存全部交易标识并查询，不要重复提交资金动作。
+8. `F1000/F2000/F3000` 只描述来源与确定性，不自动等于 FAILED；必须保留并查询真实交易状态。
 
 示意流程：
 
@@ -2041,12 +2038,13 @@ merchantId + merchantOrderNo
 HTTP/网络结果
   ├─ 失败或超时 -> 查询原订单 / 人工核查
   └─ 收到 JSON
-       ├─ 外层 code != T200 -> 按 OpenAPI 错误处理
-       └─ 外层 code == T200
+       ├─ 外层 code != A0000 -> 按 OpenAPI 错误处理
+       └─ 外层 code == A0000
             └─ 解密 data
-                 ├─ transactionInfo.code == T200 -> 当前动作成功
-                 ├─ T201/T202/T203 -> 查询最终结果
-                 └─ F*/Z* -> 当前动作失败
+                 ├─ T0000 + SUCCESS -> 当前动作成功
+                 ├─ T0001/T0002 或 PROCESSING/PENDING -> 查询最终结果
+                 ├─ F1000/F2000/F3000 -> 保留真实状态并查询原单
+                 └─ 状态与 code 不一致 -> 保存响应并查询
 ```
 
 ### 10.3 幂等与重试决策
@@ -2054,15 +2052,16 @@ HTTP/网络结果
 | 场景 | 是否可直接重发 | 正确处理 |
 | --- | --- | --- |
 | JWT 或参数校验明确失败 | 修正后可发 | 生成新 `jti`；业务幂等标识按原业务语义保持 |
-| `F402003` 加密失败 | 否 | 修复算法、密钥或报文格式后再发送 |
-| `F429` 限流 | 不应立即重发 | 按平台退避要求等待，使用新 `jti`，保持原业务幂等标识 |
-| `F500/F502/F503` | 否 | 支付先查询；确认不存在后才按平台指引重试 |
+| `A1003` 加密失败 | 否 | 修复算法、密钥或报文格式后再发送 |
+| `A1004` 回调地址被拒绝 | 否 | 修正为当前环境允许的 HTTPS 公网地址；不要对原地址自动重试 |
+| `A4001` 限流 | 不应立即重发 | 按 `Retry-After` 等平台退避要求等待，使用新 `jti`，保持原业务幂等标识 |
+| `F2000/F3000` | 否 | 先查询原单；只有满足原接口安全恢复条件后才按平台指引处理 |
 | 连接失败或读取超时 | 否 | 结果未知；支付先查询，不得换 `orderId` 重复扣款 |
-| 内层 `T201/T202/T203` | 否 | 保存 `transactionId`，按间隔查询 |
-| 内层 `F207/F210` | 否 | 当前动作已失败，不自动重复提交同一扣款 |
-| `F510/F515` | 否 | 查询既有订单或核对幂等参数，不得换号绕过 |
+| 内层 `T0001/T0002` | 否 | 保存 `transactionId`，按间隔查询 |
+| 内层 `F1000` | 否 | 结合 `transactionStatus` 查询原单；不得仅凭 F 前缀重付 |
+| `T2002/T2003` | 否 | 查询既有订单或核对幂等参数，不得换号绕过 |
 | 查询无结果 | 可再次查询 | 每次查询使用新的查询 `orderId` 和 JWT `jti` |
-| IP 或卡 BIN 未命中 | 不应立即重发 | 按 `T200 + matched=false` 处理；需要再次查询时使用新的 JWT `jti` |
+| IP 或卡 BIN 未命中 | 不应立即重发 | 按 `A0000 + matched=false` 处理；需要再次查询时使用新的 JWT `jti` |
 | 代付结果不确定 | 否 | 保留 `merchantOrderNo`，联系平台核查；不得换号自动重提 |
 
 重试同一个支付业务动作时，请求业务内容和 `orderInfo.orderId` 必须保持一致，但 JWT `jti` 必须重新生成。相同业务幂等标识对应不同金额、币种、源交易号或收款方，应视为幂等冲突。
@@ -2093,7 +2092,7 @@ HTTP/网络结果
 - 不要在多个并发请求中共享 JWT。
 - `orderId` 可以在同一业务重试中保持不变，但 `jti` 不能复用。
 
-#### 10.4.4 `F402003` 无法解密请求
+#### 10.4.4 `A1003` 无法解密请求
 
 重点检查：
 
@@ -2131,7 +2130,7 @@ HTTP/网络结果
 
 #### 10.4.8 HTTP 200 但交易没有成功
 
-HTTP 200 和外层 `T200` 只表示 OpenAPI 已返回业务数据。解密 `data` 后继续检查 `transactionInfo.code`。`T202/T203` 需要查询，`F207/F210` 表示当前交易动作失败。
+HTTP 200 和外层 `A0000` 只表示 OpenAPI 已返回业务数据。解密 `data` 后继续检查 `transactionInfo.code` 和 `transactionInfo.transactionStatus`。`T0001/T0002` 或 `PROCESSING/PENDING` 需要查询；`F1000` 只证明已收到渠道问题响应，仍须以真实状态判断是否已失败。
 
 #### 10.4.9 Hosted Checkout 页面跳转后状态不一致
 
@@ -2341,7 +2340,7 @@ String responsePlainJson = OpenApiCrypto.decryptResponse(
 - [ ] 商户保存 `orderNo`、`orderId`、`transactionId` 和 `sourceTransactionId` 的对应关系。
 - [ ] 网络结果不确定时先查询，不通过换号重复发起资金动作。
 - [ ] 支付结果同时判断外层 `code` 和内层 `transactionInfo.code`。
-- [ ] `T202/T203` 已接入查询轮询和人工兜底。
+- [ ] `T0001/T0002` 已接入查询轮询和人工兜底。
 - [ ] 金额使用十进制或最小单位整数，不使用浮点数。
 - [ ] 代付金额按币种字典换算，不固定乘以 100。
 - [ ] 请款、退款、撤销和增量授权已按源交易状态及剩余金额控制。

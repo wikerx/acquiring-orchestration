@@ -8,13 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutCreateClientRequestDTO
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : 代付create请求模型，位于 商户开放接口服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
- * @status : create
+ * OpenAPI 发送给代付核心的创建命令，承载商户订单号、金额、币种和收款方信息。
  */
 @Data
 public class PayoutCreateClientRequestDTO implements Serializable {

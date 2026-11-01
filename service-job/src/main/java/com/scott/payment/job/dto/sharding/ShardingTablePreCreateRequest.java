@@ -6,13 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateRequest
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表pre写操作请求模型，位于 调度任务服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
- * @status : create
+ * 分表表pre写操作请求模型，位于 调度任务服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
  */
 @Data
 public class ShardingTablePreCreateRequest {

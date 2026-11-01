@@ -22,13 +22,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminExchangeRateService
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : admin汇率汇率服务契约，位于 运营后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 管理端汇率服务契约，用于运营后台，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public interface AdminExchangeRateService {
 

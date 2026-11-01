@@ -11,22 +11,12 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConversionPreviewCalculator
- * @date : 2026-08-25 19:40
- * @email : scott_x@163.com
- * @description : 使用调用方提供的直接汇率生成 Admin 目标币种费用预览，不修改原清分事实也不承担批次汇率锁定职责。
- * @status : create
+ * 使用调用方提供的直接汇率生成 Admin 目标币种费用预览，不修改原清分事实也不承担批次汇率锁定职责。
  */
 public class FeeConversionPreviewCalculator {
 
     /**
      * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 

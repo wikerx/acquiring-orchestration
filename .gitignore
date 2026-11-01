@@ -9,10 +9,17 @@ Thumbs.db
 *.iml
 
 # Local agent / automation metadata
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/acquiring-backend-development/
+!.agents/skills/acquiring-backend-development/**
 .claude/
 .codex-history/
-.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/quality.yml
 .playwright-cli/
 audit/
 
@@ -73,6 +80,11 @@ docs/sql/*
 !docs/sql/20260913_03_currency_icon_key_rollback.sql
 !docs/sql/20260919_01_scott_channel_a_configuration.sql
 !docs/sql/20260920_01_scott_channel_a_eur_currency_fix.sql
+!docs/sql/20261017_01_transaction_callback_inbox_migration_draft.sql
+!docs/sql/20261017_02_risk_merchant_function_config_migration_draft.sql
+!docs/sql/20261017_03_transaction_ingress_ip_migration_draft.sql
+!docs/sql/20261017_05_remove_merchant_openapi_access_config_migration_draft.sql
+!docs/sql/20261031_01_channel_mid_transaction_scope_sync.sql
 !docs/sql/shardingsphere-auto-increment-repair-20260802.sql
 !docs/sql/20260814_01_transaction_visible_snapshot_plaintext_prepare.sql
 !docs/sql/20260814_02_transaction_visible_snapshot_plaintext_finalize.sql

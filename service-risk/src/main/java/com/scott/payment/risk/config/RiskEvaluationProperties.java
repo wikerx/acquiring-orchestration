@@ -4,22 +4,11 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationProperties
- * @date : 2026-07-30 23:05
- * @email : scott_x@163.com
- * @description : 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界
- * @status : update
+ * 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界
  */
 @Data
 @ConfigurationProperties(prefix = "risk.evaluation")
 public class RiskEvaluationProperties {
-
-    /**
-     * 是否启用运行时名单和规则库。
-     */
-    private boolean runtimeEnabled = true;
 
     /**
      * 是否并发执行 AML、黑白名单和单笔限额三个无副作用只读规则组。
@@ -100,11 +89,6 @@ public class RiskEvaluationProperties {
      * MQ 消费幂等秒数。
      */
     private long auditConsumeIdempotentTtlSeconds = 604800;
-
-    /**
-     * 是否保留本地骨架规则作为无库或无命中兜底。
-     */
-    private boolean skeletonFallbackEnabled = true;
 
     /**
      * PREPARING 进入自愈扫描前的最短等待秒数。

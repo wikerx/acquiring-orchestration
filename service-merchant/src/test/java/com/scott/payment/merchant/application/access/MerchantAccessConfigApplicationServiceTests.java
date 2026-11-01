@@ -27,13 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccessConfigApplicationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证商户来源网址和 IP 白名单由 Merchant 本地持久化并始终绑定认证商户身份
- * @status : create
+ * 验证商户来源网址和 IP 白名单由 Merchant 本地持久化并始终绑定认证商户身份
  */
 class MerchantAccessConfigApplicationServiceTests {
 

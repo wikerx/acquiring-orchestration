@@ -8,16 +8,13 @@ import java.util.HexFormat;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingRuleChecksum
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 对不含连接凭证的交易分片规则执行稳定序列化和 SHA-256 校验，供各直连服务比对规则一致性。
- * @status : create
+ * 对不含连接凭证的交易分片规则执行稳定序列化和 SHA-256 校验，供各直连服务比对规则一致性。
  */
 public final class TransactionShardingRuleChecksum {
 
+    /**
+     * 禁止实例化交易分片规则校验和工具类。
+     */
     private TransactionShardingRuleChecksum() {
     }
 
@@ -37,6 +34,12 @@ public final class TransactionShardingRuleChecksum {
         }
     }
 
+    /**
+     * 将影响交易路由的规则字段按固定顺序序列化，集合字段先排序以消除配置顺序差异。
+     *
+     * @param properties 待发布交易分片规则
+     * @return 用于摘要计算的规范文本
+     */
     static String canonicalize(TransactionShardingProperties properties) {
         List<String> tables = properties.getLogicTables().stream().sorted().toList();
         List<String> nodes = properties.getPhysicalNodes().stream().sorted().toList();

@@ -39,20 +39,16 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminShardingGovernanceApplicationService
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 管理端分表治理应用服务，编排可信登录上下文、物理表元数据刷新、结构检查、预创建执行和审计响应组装。
- * @status : create
+ * 管理端分表治理应用服务，编排可信登录上下文、物理表元数据刷新、结构检查、预创建执行和审计响应组装。
  */
 @Service
 public class AdminShardingGovernanceApplicationService {
 
     private final TransactionShardingGovernanceProperties shardingProperties;
 
-    /** 当前实例加载的 ShardingSphere 交易规则元数据。 */
+    /**
+     * 当前实例加载的 ShardingSphere 交易规则元数据。
+     */
     private final TransactionShardingProperties transactionShardingProperties;
 
     private final ShardingQuarterResolver quarterResolver;
@@ -291,6 +287,9 @@ public class AdminShardingGovernanceApplicationService {
         return response;
     }
 
+    /**
+     * 转换为规则响应。
+     */
     private ShardingRuleResponse toRuleResponse(Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry) {
         TransactionShardingGovernanceProperties.TableRule rule = entry.getValue();
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
@@ -322,6 +321,9 @@ public class AdminShardingGovernanceApplicationService {
         return response;
     }
 
+    /**
+     * 解析调度响应中的物理分表列表。
+     */
     private List<String> resolvePhysicalTables(TransactionShardingGovernanceProperties.TableRule rule) {
         ShardingQuarter cursor = quarterResolver.currentQuarter(shardingProperties);
         int horizon = Math.max(shardingProperties.getPlanningHorizonQuarters(), 1);
@@ -335,6 +337,9 @@ public class AdminShardingGovernanceApplicationService {
         return physicalTables;
     }
 
+    /**
+     * 从建表 SQL 或调度结果中解析物理表名。
+     */
     private String resolvePhysicalTableName(TransactionShardingGovernanceProperties.TableRule rule, ShardingQuarter quarter) {
         if (!quarterResolver.inRange(rule, quarter)) {
             return null;
@@ -342,6 +347,9 @@ public class AdminShardingGovernanceApplicationService {
         return tableNameResolver.physicalTableName(rule, quarter);
     }
 
+    /**
+     * 查询规则。
+     */
     private Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> findRule(String logicalTable) {
         if (!StringUtils.hasText(logicalTable)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "logicalTable is required");
@@ -367,7 +375,9 @@ public class AdminShardingGovernanceApplicationService {
         return result;
     }
 
-    /** 为物理表登记响应补充当前规则版本和 actualDataNodes 登记状态。 */
+    /**
+     * 为物理表登记响应补充当前规则版本和 actualDataNodes 登记状态。
+     */
     private ShardingPhysicalTableResponse enrichPhysicalTableResponse(ShardingPhysicalTableResponse response) {
         response.setRuleVersion(transactionShardingProperties.getRuleVersion());
         response.setRuleChecksumPrefix(checksumPrefix());
@@ -390,6 +400,9 @@ public class AdminShardingGovernanceApplicationService {
         return checksum.substring(0, Math.min(checksum.length(), 19));
     }
 
+    /**
+     * 构建物理分表创建日志的查询条件。
+     */
     private LambdaQueryWrapper<SysShardingPhysicalTableDO> buildPhysicalTableWrapper(ShardingPhysicalTableQueryRequest query) {
         return new LambdaQueryWrapper<SysShardingPhysicalTableDO>()
                 .eq(StringUtils.hasText(query.getLogicalTable()), SysShardingPhysicalTableDO::getLogicalTable, trim(query.getLogicalTable()))
@@ -404,6 +417,9 @@ public class AdminShardingGovernanceApplicationService {
                 .orderByAsc(SysShardingPhysicalTableDO::getPhysicalTable);
     }
 
+    /**
+     * 构建分表创建任务日志的查询条件。
+     */
     private LambdaQueryWrapper<SysShardingTableCreateLogDO> buildCreateLogWrapper(ShardingTableCreateLogQueryRequest query) {
         return new LambdaQueryWrapper<SysShardingTableCreateLogDO>()
                 .like(StringUtils.hasText(query.getBatchNo()), SysShardingTableCreateLogDO::getBatchNo, trim(query.getBatchNo()))
@@ -414,6 +430,9 @@ public class AdminShardingGovernanceApplicationService {
                 .orderByDesc(SysShardingTableCreateLogDO::getId);
     }
 
+    /**
+     * 将管理端分表预创建请求转换为调度服务请求。
+     */
     private ShardingTablePreCreateRemoteRequest toRemoteRequest(ShardingTableCreateRequest request,
                                                                 boolean dryRun,
                                                                 String operatorId,
@@ -429,6 +448,9 @@ public class AdminShardingGovernanceApplicationService {
         return remoteRequest;
     }
 
+    /**
+     * 复制请求。
+     */
     private ShardingTableCreateRequest copyRequest(ShardingTableCreateRequest request) {
         ShardingTableCreateRequest source = request == null ? new ShardingTableCreateRequest() : request;
         ShardingTableCreateRequest target = new ShardingTableCreateRequest();
@@ -439,6 +461,9 @@ public class AdminShardingGovernanceApplicationService {
         return target;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }

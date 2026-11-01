@@ -20,13 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingQueryServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证清分详情精确分片查询、交易与保证金明细隔离及季度范围游标分页
- * @status : create
+ * 验证清分详情精确分片查询、交易与保证金明细隔离及季度范围游标分页
  */
 class DefaultClearingQueryServiceTest {
 

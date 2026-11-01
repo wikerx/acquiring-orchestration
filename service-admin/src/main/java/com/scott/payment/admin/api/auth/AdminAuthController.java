@@ -42,13 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminAuthController
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理后台登录注册与权限接口
- * @status : create
+ * 管理后台登录注册与权限接口
  */
 @RestController
 @RequestMapping("/admin/auth")
@@ -59,9 +53,13 @@ public class AdminAuthController {
      */
     private final AdminAuthApplicationService adminAuthApplicationService;
 
-    /** 找回密码应用服务。 */
+    /**
+     * 找回密码应用服务。
+     */
     private final AdminPasswordResetApplicationService passwordResetApplicationService;
-    /** 账号激活和邮箱验证应用服务。 */
+    /**
+     * 账号激活和邮箱验证应用服务。
+     */
     private final AdminEmailVerificationApplicationService emailVerificationApplicationService;
 
     /**
@@ -77,7 +75,9 @@ public class AdminAuthController {
         this.emailVerificationApplicationService = emailVerificationApplicationService;
     }
 
-    /** 校验账号激活或邮箱变更邮件中的一次性验证码。 */
+    /**
+     * 校验账号激活或邮箱变更邮件中的一次性验证码。
+     */
     @PostMapping("/email-verification/verify")
     public CommonResult<EmailVerificationVerifyResponse> verifyEmail(
             @Valid @RequestBody EmailVerificationVerifyRequest request,
@@ -85,7 +85,9 @@ public class AdminAuthController {
         return success(emailVerificationApplicationService.verify(request, servletRequest));
     }
 
-    /** 原子消费短期动作令牌，完成新账号首次设密和激活。 */
+    /**
+     * 原子消费短期动作令牌，完成新账号首次设密和激活。
+     */
     @PostMapping("/account-activation/complete")
     public CommonResult<AccountActivationCompleteResponse> completeAccountActivation(
             @Valid @RequestBody AccountActivationCompleteRequest request,
@@ -103,7 +105,9 @@ public class AdminAuthController {
         return success(passwordResetApplicationService.requestReset(request, servletRequest));
     }
 
-    /** 校验找回密码邮件验证码。 */
+    /**
+     * 校验找回密码邮件验证码。
+     */
     @PostMapping("/password-reset/email/verify")
     public CommonResult<PasswordResetVerifyResponse> verifyPasswordResetEmail(
             @Valid @RequestBody PasswordResetEmailVerifyRequest request,
@@ -111,7 +115,9 @@ public class AdminAuthController {
         return success(passwordResetApplicationService.verifyEmail(request, servletRequest));
     }
 
-    /** 校验找回密码 MFA 动态验证码。 */
+    /**
+     * 校验找回密码 MFA 动态验证码。
+     */
     @PostMapping("/password-reset/mfa/verify")
     public CommonResult<PasswordResetVerifyResponse> verifyPasswordResetMfa(
             @Valid @RequestBody PasswordResetMfaVerifyRequest request,
@@ -119,7 +125,9 @@ public class AdminAuthController {
         return success(passwordResetApplicationService.verifyMfa(request, servletRequest));
     }
 
-    /** 原子消费重置令牌并设置新密码。 */
+    /**
+     * 原子消费重置令牌并设置新密码。
+     */
     @PostMapping("/password-reset/confirm")
     public CommonResult<PasswordResetConfirmResponse> confirmPasswordReset(
             @Valid @RequestBody PasswordResetConfirmRequest request,

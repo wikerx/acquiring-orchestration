@@ -11,16 +11,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinDTOs
- * @date : 2026-07-04 00:00
- * @email : scott_x@163.com
- * @description : 卡 BIN 管理请求和响应对象集合，位于 service-admin 接口传输层，约束 BIN 输入、匹配测试和发卡行识别结果。
- * @status : create
+ * 卡 BIN 管理请求和响应对象集合，位于 service-admin 接口传输层，约束 BIN 输入、匹配测试和发卡行识别结果。
  */
 public final class CardBinDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private CardBinDTOs() {
     }
 

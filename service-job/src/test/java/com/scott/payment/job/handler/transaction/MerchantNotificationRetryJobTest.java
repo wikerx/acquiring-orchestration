@@ -23,13 +23,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationRetryJobTest
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : 商户通知补偿任务单元测试，验证任务参数能按 transaction_date_time 转换为 service-data 内部补偿请求。
- * @status : create
+ * 商户通知补偿任务单元测试，验证任务参数能按 transaction_date_time 转换为 service-data 内部补偿请求。
  */
 class MerchantNotificationRetryJobTest {
 
@@ -60,7 +54,9 @@ class MerchantNotificationRetryJobTest {
         verify(dataInternalClient, never()).notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any());
     }
 
-    /** 单笔人工补偿必须同时透传交易号和明确分片时间。 */
+    /**
+     * 单笔人工补偿必须同时透传交易号和明确分片时间。
+     */
     @Test
     void executeShouldNotifySingleTransactionWithExplicitTransactionTime() {
         DataInternalClient dataInternalClient = mock(DataInternalClient.class);
@@ -83,7 +79,9 @@ class MerchantNotificationRetryJobTest {
         verify(dataInternalClient, never()).notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any());
     }
 
-    /** 单笔人工补偿禁止从交易号推算时间。 */
+    /**
+     * 单笔人工补偿禁止从交易号推算时间。
+     */
     @Test
     void executeShouldRequireExplicitTransactionTimeForSingleRetry() {
         MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(mock(DataInternalClient.class));
@@ -108,7 +106,9 @@ class MerchantNotificationRetryJobTest {
                 .isInstanceOf(ServiceException.class);
     }
 
-    /** JOB 兼容模式只调用显式季度补偿接口，该接口仍只重新入 MQ。 */
+    /**
+     * JOB 兼容模式只调用显式季度补偿接口，该接口仍只重新入 MQ。
+     */
     @Test
     void executeShouldRequeueExplicitQuarterThroughLegacyJobMode() {
         DataInternalClient dataInternalClient = mock(DataInternalClient.class);

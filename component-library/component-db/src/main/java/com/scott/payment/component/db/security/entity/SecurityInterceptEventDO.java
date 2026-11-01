@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SecurityInterceptEventDO
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 安全拦截事件实体，位于 component-db 共享数据层，只保存异常请求的脱敏排查元数据，不保存完整请求体、JWT 或密钥材料。
- * @status : create
+ * 安全拦截事件实体，位于 component-db 共享数据层，只保存异常请求的脱敏排查元数据，不保存完整请求体、JWT 或密钥材料。
  */
 @Data
 @TableName("security_intercept_event")

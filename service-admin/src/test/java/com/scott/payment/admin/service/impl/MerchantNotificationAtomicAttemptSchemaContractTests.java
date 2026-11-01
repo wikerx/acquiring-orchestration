@@ -10,17 +10,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationAtomicAttemptSchemaContractTests
- * @date : 2026-08-21 19:00
- * @email : scott_x@163.com
- * @description : 商户回调原子尝试、人工 MQ 幂等和 Outbox 超时恢复数据库结构契约测试
- * @status : create
+ * 商户回调原子尝试、人工 MQ 幂等和 Outbox 超时恢复数据库结构契约测试
  */
 class MerchantNotificationAtomicAttemptSchemaContractTests {
 
-    /** 迁移必须同步覆盖逻辑表和现有季度物理表，并提供可审计回滚路径。 */
+    /**
+     * 迁移必须同步覆盖逻辑表和现有季度物理表，并提供可审计回滚路径。
+     */
     @Test
     void migrationShouldCoverLogicalAndPhysicalTables() throws IOException {
         String migration = readSql("merchant-notification-atomic-attempt-migration.sql");
@@ -60,7 +56,9 @@ class MerchantNotificationAtomicAttemptSchemaContractTests {
         }
     }
 
-    /** 全量结构脚本必须和已执行迁移保持一致，避免新环境缺少人工回调幂等约束。 */
+    /**
+     * 全量结构脚本必须和已执行迁移保持一致，避免新环境缺少人工回调幂等约束。
+     */
     @Test
     void foundationSchemaShouldContainAtomicAttemptContract() throws IOException {
         String schema = Files.readString(Path.of("../docs/sql/payment_acquiring_表结构.sql"));
@@ -76,7 +74,9 @@ class MerchantNotificationAtomicAttemptSchemaContractTests {
         assertThat(schema).contains("DEFAULT CHARSET=utf8mb4");
     }
 
-    /** 自动通知历史日志修复必须覆盖所有现有表，且不得改写人工重发事件号。 */
+    /**
+     * 自动通知历史日志修复必须覆盖所有现有表，且不得改写人工重发事件号。
+     */
     @Test
     void automaticCallbackEventRepairShouldOnlyClearAutomaticDeliveryKeys() throws IOException {
         String repair = readSql("merchant-notification-auto-callback-event-repair.sql");
@@ -96,17 +96,23 @@ class MerchantNotificationAtomicAttemptSchemaContractTests {
         assertThat(repair).doesNotContain("WHERE `delivery_mode` = 'MANUAL'");
     }
 
-    /** 读取当前模块的 SQL 资源。 */
+    /**
+     * 读取当前模块的 SQL 资源。
+     */
     private String readSql(String fileName) throws IOException {
         return Files.readString(Path.of("src/main/resources/sql", fileName));
     }
 
-    /** 统计全量结构中精确契约片段的出现次数。 */
+    /**
+     * 统计全量结构中精确契约片段的出现次数。
+     */
     private int count(String source, String fragment) {
         return source.split(java.util.regex.Pattern.quote(fragment), -1).length - 1;
     }
 
-    /** 返回通知任务逻辑表和已建季度物理表。 */
+    /**
+     * 返回通知任务逻辑表和已建季度物理表。
+     */
     private List<String> notificationTables() {
         return List.of(
                 "transaction_merchant_notification",
@@ -114,7 +120,9 @@ class MerchantNotificationAtomicAttemptSchemaContractTests {
                 "transaction_merchant_notification_202604");
     }
 
-    /** 返回通知日志逻辑表和已建季度物理表。 */
+    /**
+     * 返回通知日志逻辑表和已建季度物理表。
+     */
     private List<String> notificationLogTables() {
         return List.of(
                 "transaction_merchant_notification_log",
@@ -122,7 +130,9 @@ class MerchantNotificationAtomicAttemptSchemaContractTests {
                 "transaction_merchant_notification_log_202604");
     }
 
-    /** 返回 Outbox 逻辑表和已建季度物理表。 */
+    /**
+     * 返回 Outbox 逻辑表和已建季度物理表。
+     */
     private List<String> outboxTables() {
         return List.of(
                 "transaction_event_outbox",

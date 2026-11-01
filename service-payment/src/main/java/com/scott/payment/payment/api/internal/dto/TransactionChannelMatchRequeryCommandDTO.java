@@ -8,13 +8,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelMatchRequeryCommandDTO
- * @date : 2026-08-21 00:00
- * @email : scott_x@163.com
- * @description : 单笔渠道勾兑重查命令，位于 service-payment 内部接口 DTO 层，只携带列表返回的真实交易分片时间，禁止从交易号推断分片。
- * @status : create
+ * 单笔渠道勾兑重查命令，位于 service-payment 内部接口 DTO 层，只携带列表返回的真实交易分片时间，禁止从交易号推断分片。
  */
 @Data
 public class TransactionChannelMatchRequeryCommandDTO implements Serializable {

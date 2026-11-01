@@ -8,17 +8,13 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutThreeDsService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 3DS 后端阶段服务；浏览器 Method/Challenge 与回跳恢复由后续专项流程编排。
- * @status : create
+ * Hosted Checkout 3DS 后端阶段服务；浏览器 Method/Challenge 与回跳恢复由后续专项流程编排。
  */
 public interface PaymentCheckoutThreeDsService {
 
-    /** 兼容未预先准备核心交易的内部调用，由实现自行完成路由。 */
+    /**
+     * 兼容未预先准备核心交易的内部调用，由实现自行完成路由。
+     */
     default PaymentCheckoutThreeDsResultDTO authenticate(PaymentCheckoutSessionDO sessionDO,
                                                          PaymentCheckoutAttemptDO attemptDO,
                                                          PaymentCheckoutPaymentSubmitCommandDTO commandDTO,
@@ -44,7 +40,9 @@ public interface PaymentCheckoutThreeDsService {
                                                  String returnUrl,
                                                  PaymentRouteResultDTO preparedRoute);
 
-    /** 使用已落库的渠道/MID 继续单个 3DS 阶段，禁止重新路由或重新评估策略。 */
+    /**
+     * 使用已落库的渠道/MID 继续单个 3DS 阶段，禁止重新路由或重新评估策略。
+     */
     PaymentCheckoutThreeDsResultDTO continueAuthentication(PaymentCheckoutSessionDO sessionDO,
                                                            PaymentCheckoutAttemptDO attemptDO,
                                                            PaymentCheckoutPaymentSubmitCommandDTO commandDTO,

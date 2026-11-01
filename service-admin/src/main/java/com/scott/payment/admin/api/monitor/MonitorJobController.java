@@ -31,13 +31,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorJobController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端任务调度 HTTP 入口，负责任务查询、维护、启停、手动触发的权限、参数校验和操作审计。
- * @status : create
+ * 管理端任务调度 HTTP 入口，负责任务查询、维护、启停、手动触发的权限、参数校验和操作审计。
  */
 @RestController
 @RequestMapping("/admin/monitor/job")

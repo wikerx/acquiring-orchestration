@@ -15,17 +15,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementProjectionMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 结算后交易投影数据访问接口；资金事务只追加真实交易任务，异步阶段按分片时间和修订 CAS 同步交易主单、动作单并写 Outbox。
- * @status : create
+ * 结算后交易投影数据访问接口；资金事务只追加真实交易任务，异步阶段按分片时间和修订 CAS 同步交易主单、动作单并写 Outbox。
  */
 public interface SettlementProjectionMapper {
 
-    /** 批量追加候选级可靠投影任务，候选唯一键保证一笔只推进一次。 */
+    /**
+     * 批量追加候选级可靠投影任务，候选唯一键保证一笔只推进一次。
+     */
     @Insert("""
             <script>
             INSERT INTO settlement_projection_task
@@ -59,7 +55,9 @@ public interface SettlementProjectionMapper {
     List<SettlementProjectionTaskDO> selectTasksByBatch(
             @Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 锁定一条到期投影任务，多实例使用 SKIP LOCKED 并行处理不同交易。 */
+    /**
+     * 锁定一条到期投影任务，多实例使用 SKIP LOCKED 并行处理不同交易。
+     */
     @Select("""
             SELECT *
             FROM settlement_projection_task
@@ -439,7 +437,9 @@ public interface SettlementProjectionMapper {
                                    @Param("settlementDate") LocalDate settlementDate,
                                    @Param("reversalBatchNo") String reversalBatchNo);
 
-    /** 结算状态投影和 FIFO 事件在同一事务落库。 */
+    /**
+     * 结算状态投影和 FIFO 事件在同一事务落库。
+     */
     @Insert("""
             INSERT INTO settlement_event_outbox
             (event_no, settlement_batch_no, candidate_id, topic, tag, message_key,
@@ -454,7 +454,9 @@ public interface SettlementProjectionMapper {
             """)
     int insertOutboxIdempotent(@Param("row") SettlementEventOutboxDO row);
 
-    /** 投影、动作状态和 Outbox 均成功后完成任务。 */
+    /**
+     * 投影、动作状态和 Outbox 均成功后完成任务。
+     */
     @Update("""
             UPDATE settlement_projection_task
             SET task_status = 'COMPLETED',

@@ -7,57 +7,89 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingProperties
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 交易 ShardingSphere 规则元数据，只保存逻辑拓扑、已验证节点、版本和查询预算，不承载 JDBC 凭证。
- * @status : create
+ * 交易 ShardingSphere 规则元数据，只保存逻辑拓扑、已验证节点、版本和查询预算，不承载 JDBC 凭证。
  */
 @ConfigurationProperties(prefix = "transaction-sharding")
 public class TransactionShardingProperties {
 
-    /** 唯一允许的数据库路由时区，避免 JVM 所在地区改变季度归属。 */
+    /**
+     * 唯一允许的数据库路由时区，避免 JVM 所在地区改变季度归属。
+     */
     public static final String REQUIRED_ZONE_ID = "Asia/Shanghai";
-    /** 所有交易逻辑表统一使用的分片键。 */
+    /**
+     * 所有交易逻辑表统一使用的分片键。
+     */
     public static final String REQUIRED_SHARDING_COLUMN = "transaction_date_time";
-    /** 当前正式交易逻辑表数量。 */
+    /**
+     * 当前正式交易逻辑表数量。
+     */
     public static final int FORMAL_LOGIC_TABLE_COUNT = 28;
-    /** 清分拓扑发布前仍允许滚动加载的完整旧交易逻辑表数量。 */
+    /**
+     * 清分拓扑发布前仍允许滚动加载的完整旧交易逻辑表数量。
+     */
     public static final int LEGACY_LOGIC_TABLE_COUNT = 25;
-    /** 仅在卡资料能力启用后才必须加入活动分片规则的逻辑表。 */
+    /**
+     * 仅在卡资料能力启用后才必须加入活动分片规则的逻辑表。
+     */
     public static final String CARD_VAULT_LOGIC_TABLE = "transaction_card_vault";
-    /** 交易费用与本金清分明细季度表。 */
+    /**
+     * 交易费用与本金清分明细季度表。
+     */
     public static final String TRANSACTION_CLEARING_DETAIL_LOGIC_TABLE = "transaction_clearing_detail";
-    /** 标签币种保证金清分明细季度表。 */
+    /**
+     * 标签币种保证金清分明细季度表。
+     */
     public static final String RESERVE_CLEARING_DETAIL_LOGIC_TABLE = "transaction_reserve_clearing_detail";
-    /** 原支付保证金累计扣留、返还和释放状态季度表。 */
+    /**
+     * 原支付保证金累计扣留、返还和释放状态季度表。
+     */
     public static final String RESERVE_CLEARING_STATE_LOGIC_TABLE = "transaction_reserve_clearing_state";
 
-    /** 版本化规则标识，未发布配置不得激活复合数据源。 */
+    /**
+     * 版本化规则标识，未发布配置不得激活复合数据源。
+     */
     private String ruleVersion = "unpublished";
-    /** 对路由相关字段计算的 SHA-256，用于阻止半份或漂移配置启动。 */
+    /**
+     * 对路由相关字段计算的 SHA-256，用于阻止半份或漂移配置启动。
+     */
     private String ruleChecksum;
-    /** 交易时间解释时区，固定为 Asia/Shanghai。 */
+    /**
+     * 交易时间解释时区，固定为 Asia/Shanghai。
+     */
     private String databaseZoneId = REQUIRED_ZONE_ID;
-    /** 交易表分片列，固定为 transaction_date_time。 */
+    /**
+     * 交易表分片列，固定为 transaction_date_time。
+     */
     private String shardingColumn = REQUIRED_SHARDING_COLUMN;
-    /** 是否输出 ShardingSphere 路由后的物理 SQL；默认关闭，避免记录敏感参数并增加日志 I/O。 */
+    /**
+     * 是否输出 ShardingSphere 路由后的物理 SQL；默认关闭，避免记录敏感参数并增加日志 I/O。
+     */
     private boolean sqlShow;
-    /** 读写分离组中的唯一写库数据源名。 */
+    /**
+     * 读写分离组中的唯一写库数据源名。
+     */
     private String primaryDataSource = DataSourceName.MASTER;
-    /** 可承接普通读请求的唯一副本数据源名，不包含连接信息。 */
+    /**
+     * 可承接普通读请求的唯一副本数据源名，不包含连接信息。
+     */
     private List<String> replicaDataSources = new ArrayList<>(List.of(DataSourceName.SLAVE));
-    /** 已建表且通过 schema、字符集和号段校验的季度后缀集合。 */
+    /**
+     * 已建表且通过 schema、字符集和号段校验的季度后缀集合。
+     */
     private List<String> physicalNodes = new ArrayList<>();
-    /** 必须完整匹配旧 25 表或包含三张清分表的新 28 表拓扑。 */
+    /**
+     * 必须完整匹配旧 25 表或包含三张清分表的新 28 表拓扑。
+     */
     private List<String> logicTables = new ArrayList<>(defaultLogicTables());
-    /** 允许直接选择 transaction 逻辑数据源的服务白名单。 */
+    /**
+     * 允许直接选择 transaction 逻辑数据源的服务白名单。
+     */
     private List<String> directAccessServices = new ArrayList<>(List.of(
             "service-payment", "service-admin", "service-merchant", "service-risk", "service-data",
             "service-clearing", "service-settlement"));
-    /** 跨季度查询的超时、结果行数和导出并发预算。 */
+    /**
+     * 跨季度查询的超时、结果行数和导出并发预算。
+     */
     private QueryBudget queryBudget = new QueryBudget();
 
     /**
@@ -119,7 +151,11 @@ public class TransactionShardingProperties {
                 .toList();
     }
 
-    /** @return 是否为三张清分季度逻辑表之一 */
+    /**
+     * 判断逻辑表是否属于清分季度表集合。
+     *
+     * @return 是否为三张清分季度逻辑表之一
+     */
     private static boolean isClearingLogicTable(String table) {
         return TRANSACTION_CLEARING_DETAIL_LOGIC_TABLE.equals(table)
                 || RESERVE_CLEARING_DETAIL_LOGIC_TABLE.equals(table)
@@ -159,97 +195,171 @@ public class TransactionShardingProperties {
         }
     }
 
-    /** @return 当前规则版本 */
+    /**
+     * 获取当前发布的分片规则版本。
+     *
+     * @return 当前规则版本
+     */
     public String getRuleVersion() {
         return ruleVersion;
     }
 
-    /** @param ruleVersion 待装载的版本化规则标识 */
+    /**
+     * 设置待激活的分片规则版本。
+     *
+     * @param ruleVersion 待装载的版本化规则标识
+     */
     public void setRuleVersion(String ruleVersion) {
         this.ruleVersion = ruleVersion;
     }
 
-    /** @return 当前规则声明的 SHA-256 校验和 */
+    /**
+     * 获取当前规则声明的 SHA-256 校验和。
+     *
+     * @return 当前规则声明的 SHA-256 校验和
+     */
     public String getRuleChecksum() {
         return ruleChecksum;
     }
 
-    /** @param ruleChecksum 发布流程计算并写入的规则校验和 */
+    /**
+     * 设置发布流程生成的规则校验和。
+     *
+     * @param ruleChecksum 发布流程计算并写入的规则校验和
+     */
     public void setRuleChecksum(String ruleChecksum) {
         this.ruleChecksum = ruleChecksum;
     }
 
-    /** @return 数据库交易时间解释时区 */
+    /**
+     * 获取数据库交易时间的解释时区。
+     *
+     * @return 数据库交易时间解释时区
+     */
     public String getDatabaseZoneId() {
         return databaseZoneId;
     }
 
-    /** @param databaseZoneId 数据库交易时间解释时区，只允许 Asia/Shanghai */
+    /**
+     * 设置数据库交易时间解释时区。
+     *
+     * @param databaseZoneId 数据库交易时间解释时区，只允许 Asia/Shanghai
+     */
     public void setDatabaseZoneId(String databaseZoneId) {
         this.databaseZoneId = databaseZoneId;
     }
 
-    /** @return 统一交易分片列 */
+    /**
+     * 获取所有交易表使用的统一分片列。
+     *
+     * @return 统一交易分片列
+     */
     public String getShardingColumn() {
         return shardingColumn;
     }
 
-    /** @param shardingColumn 分片列，只允许 transaction_date_time */
+    /**
+     * 设置所有交易表使用的统一分片列。
+     *
+     * @param shardingColumn 分片列，只允许 transaction_date_time
+     */
     public void setShardingColumn(String shardingColumn) {
         this.shardingColumn = shardingColumn;
     }
 
-    /** @return 是否输出 ShardingSphere 逻辑 SQL、物理 SQL和绑定参数 */
+    /**
+     * 判断是否输出 ShardingSphere 路由 SQL 详情。
+     *
+     * @return 是否输出 ShardingSphere 逻辑 SQL、物理 SQL和绑定参数
+     */
     public boolean isSqlShow() {
         return sqlShow;
     }
 
-    /** @param sqlShow true 时输出路由详情；仅允许在受控调试环境短时开启 */
+    /**
+     * 设置是否输出 ShardingSphere 路由 SQL 详情。
+     *
+     * @param sqlShow true 时输出路由详情；仅允许在受控调试环境短时开启
+     */
     public void setSqlShow(boolean sqlShow) {
         this.sqlShow = sqlShow;
     }
 
-    /** @return 写库数据源注册名 */
+    /**
+     * 获取主写库的数据源注册名。
+     *
+     * @return 写库数据源注册名
+     */
     public String getPrimaryDataSource() {
         return primaryDataSource;
     }
 
-    /** @param primaryDataSource 写库数据源注册名，不得包含 JDBC URL */
+    /**
+     * 设置主写库的数据源注册名。
+     *
+     * @param primaryDataSource 写库数据源注册名，不得包含 JDBC URL
+     */
     public void setPrimaryDataSource(String primaryDataSource) {
         this.primaryDataSource = primaryDataSource;
     }
 
-    /** @return 普通读可用的副本数据源注册名 */
+    /**
+     * 获取普通读请求可用的副本数据源注册名。
+     *
+     * @return 普通读可用的副本数据源注册名
+     */
     public List<String> getReplicaDataSources() {
         return replicaDataSources;
     }
 
-    /** @param replicaDataSources 副本数据源注册名，null 视为空集合 */
+    /**
+     * 设置普通读请求可用的副本数据源注册名。
+     *
+     * @param replicaDataSources 副本数据源注册名，null 视为空集合
+     */
     public void setReplicaDataSources(List<String> replicaDataSources) {
         this.replicaDataSources = replicaDataSources == null ? new ArrayList<>() : new ArrayList<>(replicaDataSources);
     }
 
-    /** @return 已验证并可发布的季度后缀 */
+    /**
+     * 获取已经治理校验并发布的物理季度节点。
+     *
+     * @return 已验证并可发布的季度后缀
+     */
     public List<String> getPhysicalNodes() {
         return physicalNodes;
     }
 
-    /** @param physicalNodes 已建且校验通过的季度后缀，null 视为空集合 */
+    /**
+     * 设置已经治理校验并发布的物理季度节点。
+     *
+     * @param physicalNodes 已建且校验通过的季度后缀，null 视为空集合
+     */
     public void setPhysicalNodes(List<String> physicalNodes) {
         this.physicalNodes = physicalNodes == null ? new ArrayList<>() : new ArrayList<>(physicalNodes);
     }
 
-    /** @return 当前规则覆盖的正式交易逻辑表 */
+    /**
+     * 获取当前规则覆盖的交易逻辑表集合。
+     *
+     * @return 当前规则覆盖的正式交易逻辑表
+     */
     public List<String> getLogicTables() {
         return logicTables;
     }
 
-    /** @param logicTables 完整旧 25 表或完整新 28 表拓扑 */
+    /**
+     * 设置当前规则覆盖的完整交易逻辑表集合。
+     *
+     * @param logicTables 完整旧 25 表或完整新 28 表拓扑
+     */
     public void setLogicTables(List<String> logicTables) {
         this.logicTables = logicTables == null ? new ArrayList<>() : new ArrayList<>(logicTables);
     }
 
-    /** 迁移期只允许完整旧 25 表或完整新 28 表，防止缺表、重复表或未知表被激活。 */
+    /**
+     * 迁移期只允许完整旧 25 表或完整新 28 表，防止缺表、重复表或未知表被激活。
+     */
     private boolean matchesPublishedLogicTableTopology() {
         if (logicTables == null || logicTables.stream().distinct().count() != logicTables.size()) {
             return false;
@@ -257,46 +367,74 @@ public class TransactionShardingProperties {
         return matchesExactTopology(defaultLogicTables()) || matchesExactTopology(legacyLogicTables());
     }
 
-    /** @return 当前配置是否为完整 28 表正式拓扑 */
+    /**
+     * 判断当前规则是否使用完整 28 表正式拓扑。
+     *
+     * @return 当前配置是否为完整 28 表正式拓扑
+     */
     public boolean usesFormalLogicTableTopology() {
         return logicTables != null
                 && logicTables.stream().distinct().count() == logicTables.size()
                 && matchesExactTopology(defaultLogicTables());
     }
 
-    /** @return 当前配置是否为迁移期完整 25 表拓扑 */
+    /**
+     * 判断当前规则是否使用迁移期完整 25 表拓扑。
+     *
+     * @return 当前配置是否为迁移期完整 25 表拓扑
+     */
     public boolean usesLegacyLogicTableTopology() {
         return logicTables != null
                 && logicTables.stream().distinct().count() == logicTables.size()
                 && matchesExactTopology(legacyLogicTables());
     }
 
-    /** 使用数量和包含关系执行精确集合匹配，配置顺序不影响路由 checksum。 */
+    /**
+     * 使用数量和包含关系执行精确集合匹配，配置顺序不影响路由 checksum。
+     */
     private boolean matchesExactTopology(List<String> expectedTables) {
         return logicTables.size() == expectedTables.size() && logicTables.containsAll(expectedTables);
     }
 
-    /** @return 允许直接访问 transaction 数据源的服务名 */
+    /**
+     * 获取允许直接访问 transaction 复合数据源的服务白名单。
+     *
+     * @return 允许直接访问 transaction 数据源的服务名
+     */
     public List<String> getDirectAccessServices() {
         return directAccessServices;
     }
 
-    /** @param directAccessServices 交易直连服务白名单，null 视为空集合 */
+    /**
+     * 设置允许直接访问 transaction 复合数据源的服务白名单。
+     *
+     * @param directAccessServices 交易直连服务白名单，null 视为空集合
+     */
     public void setDirectAccessServices(List<String> directAccessServices) {
         this.directAccessServices = directAccessServices == null ? new ArrayList<>() : new ArrayList<>(directAccessServices);
     }
 
-    /** @return 同步查询和导出资源预算 */
+    /**
+     * 获取同步查询和跨季度导出的资源预算。
+     *
+     * @return 同步查询和导出资源预算
+     */
     public QueryBudget getQueryBudget() {
         return queryBudget;
     }
 
-    /** @param queryBudget 查询资源预算，null 恢复默认值 */
+    /**
+     * 设置同步查询和跨季度导出的资源预算。
+     *
+     * @param queryBudget 查询资源预算，null 恢复默认值
+     */
     public void setQueryBudget(QueryBudget queryBudget) {
         this.queryBudget = queryBudget == null ? new QueryBudget() : queryBudget;
     }
 
-    /** 拒绝无法实际执行的查询超时、结果行数和并发预算。 */
+    /**
+     * 拒绝无法实际执行的查询超时、结果行数和并发预算。
+     */
     private void validateQueryBudget() {
         if (queryBudget.getSynchronousTimeoutMillis() <= 0L
                 || queryBudget.getSynchronousTimeoutMillis() > Integer.MAX_VALUE * 1000L) {
@@ -314,39 +452,69 @@ public class TransactionShardingProperties {
      * 同步查询资源预算。它限制资源消耗，但不恢复历史季度跨度限制。
      */
     public static class QueryBudget {
-        /** 单次同步交易查询允许占用的最长毫秒数。 */
+        /**
+         * 单次同步交易查询允许占用的最长毫秒数。
+         */
         private long synchronousTimeoutMillis = 5000;
-        /** 单次同步查询允许返回的最大记录数。 */
+        /**
+         * 单次同步查询允许返回的最大记录数。
+         */
         private int maxResultRows = 1000;
-        /** 单一用户同时执行跨季度导出的最大任务数。 */
+        /**
+         * 单一用户同时执行跨季度导出的最大任务数。
+         */
         private int maxConcurrentExportsPerUser = 1;
 
-        /** @return 同步查询超时毫秒数 */
+        /**
+         * 获取单次同步交易查询允许占用的最长时间。
+         *
+         * @return 同步查询超时毫秒数
+         */
         public long getSynchronousTimeoutMillis() {
             return synchronousTimeoutMillis;
         }
 
-        /** @param synchronousTimeoutMillis 同步查询超时毫秒数 */
+        /**
+         * 设置单次同步交易查询允许占用的最长时间。
+         *
+         * @param synchronousTimeoutMillis 同步查询超时毫秒数
+         */
         public void setSynchronousTimeoutMillis(long synchronousTimeoutMillis) {
             this.synchronousTimeoutMillis = synchronousTimeoutMillis;
         }
 
-        /** @return 同步查询最大结果行数 */
+        /**
+         * 获取单次同步查询允许返回的最大记录数。
+         *
+         * @return 同步查询最大结果行数
+         */
         public int getMaxResultRows() {
             return maxResultRows;
         }
 
-        /** @param maxResultRows 同步查询最大结果行数 */
+        /**
+         * 设置单次同步查询允许返回的最大记录数。
+         *
+         * @param maxResultRows 同步查询最大结果行数
+         */
         public void setMaxResultRows(int maxResultRows) {
             this.maxResultRows = maxResultRows;
         }
 
-        /** @return 单用户最大并发导出数 */
+        /**
+         * 获取单一用户允许同时执行的跨季度导出数。
+         *
+         * @return 单用户最大并发导出数
+         */
         public int getMaxConcurrentExportsPerUser() {
             return maxConcurrentExportsPerUser;
         }
 
-        /** @param maxConcurrentExportsPerUser 单用户最大并发导出数 */
+        /**
+         * 设置单一用户允许同时执行的跨季度导出数。
+         *
+         * @param maxConcurrentExportsPerUser 单用户最大并发导出数
+         */
         public void setMaxConcurrentExportsPerUser(int maxConcurrentExportsPerUser) {
             this.maxConcurrentExportsPerUser = maxConcurrentExportsPerUser;
         }

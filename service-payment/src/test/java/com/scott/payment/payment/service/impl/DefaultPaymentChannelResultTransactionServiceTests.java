@@ -21,13 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentChannelResultTransactionServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 渠道同步结果事务测试，验证交易状态持久化与生命周期 Outbox 在同一事务编排中发生。
- * @status : create
+ * 渠道同步结果事务测试，验证交易状态持久化与生命周期 Outbox 在同一事务编排中发生。
  */
 class DefaultPaymentChannelResultTransactionServiceTests {
 
@@ -52,10 +46,12 @@ class DefaultPaymentChannelResultTransactionServiceTests {
         result.setStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
         PaymentChannelInvokeResultDTO invokeResult = new PaymentChannelInvokeResultDTO();
 
-        service.recordInitialChannelResult(
+        boolean firstChanged = service.recordInitialChannelResult(
                 command, null, invokeResult, result, PaymentRiskDecisionEnum.PASS, 2);
-        service.recordInitialChannelResult(
+        boolean secondChanged = service.recordInitialChannelResult(
                 command, null, invokeResult, result, PaymentRiskDecisionEnum.PASS, 2);
+        assertThat(firstChanged).isTrue();
+        assertThat(secondChanged).isFalse();
         verify(eventService, times(1)).saveStatusChanged(
                 "TX1001",
                 "OP1001",

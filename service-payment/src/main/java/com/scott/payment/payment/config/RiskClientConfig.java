@@ -1,20 +1,20 @@
 package com.scott.payment.payment.config;
 
 import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
+import com.scott.payment.component.web.trace.TraceIdRestTemplateInterceptor;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.Proxy;
+import java.time.Duration;
+
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskClientConfig
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : service-risk 内部调用配置，位于 service-payment 配置层，提供直连和服务发现两类 RestTemplate。
- * @status : create
+ * service-risk 内部调用配置，位于 service-payment 配置层，提供直连和服务发现两类 RestTemplate。
  */
 @Configuration
 @EnableConfigurationProperties(RiskClientProperties.class)
@@ -29,7 +29,11 @@ public class RiskClientConfig {
     public RestTemplate riskRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer,
                                          RiskClientProperties properties) {
         properties.validate();
-        return traceIdRestTemplateCustomizer.customize(new RestTemplate());
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setProxy(Proxy.NO_PROXY);
+        requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
+        requestFactory.setReadTimeout(properties.getReadTimeoutMillis());
+        return traceIdRestTemplateCustomizer.customize(new RestTemplate(requestFactory));
     }
 
     /**
@@ -39,7 +43,14 @@ public class RiskClientConfig {
      */
     @Bean("riskLoadBalancedRestTemplate")
     @LoadBalanced
-    public RestTemplate riskLoadBalancedRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
-        return traceIdRestTemplateCustomizer.customize(new RestTemplate());
+    public RestTemplate riskLoadBalancedRestTemplate(RestTemplateBuilder builder,
+                                                     TraceIdRestTemplateInterceptor traceInterceptor,
+                                                     RiskClientProperties properties) {
+        properties.validate();
+        return builder
+                .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .readTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+                .additionalInterceptors(traceInterceptor)
+                .build();
     }
 }

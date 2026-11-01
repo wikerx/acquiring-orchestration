@@ -7,13 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthMenuDTO
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 前端菜单树节点
- * @status : create
+ * 前端菜单树节点
  */
 @Data
 public class AuthMenuDTO implements Serializable {

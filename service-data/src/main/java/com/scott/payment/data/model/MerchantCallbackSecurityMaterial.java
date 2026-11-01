@@ -1,19 +1,17 @@
 package com.scott.payment.data.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantCallbackSecurityMaterial
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户回调所需的内存安全材料；禁止序列化、缓存或写入日志。
- * @status : create
+ * 商户回调所需的内存安全材料；禁止序列化、缓存或写入日志。
  */
 public final class MerchantCallbackSecurityMaterial {
 
-    /** 商户当前有效的回调 JWT HMAC 密钥，敏感且不允许为空。 */
+    /**
+     * 商户当前有效的回调 JWT HMAC 密钥，敏感且不允许为空。
+     */
     private final String jwtSecret;
-    /** 商户响应公钥，用于加密回调正文，敏感且不允许为空。 */
+    /**
+     * 商户响应公钥，用于加密回调正文，敏感且不允许为空。
+     */
     private final String responsePublicKey;
 
     /**

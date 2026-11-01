@@ -29,13 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementBatchCreationServiceTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证数据库日序列发号、create_request_key 重试复用和幂等身份冲突保护。
- * @status : create
+ * 验证数据库日序列发号、create_request_key 重试复用和幂等身份冲突保护。
  */
 @ExtendWith(MockitoExtension.class)
 class DefaultSettlementBatchCreationServiceTest {

@@ -11,13 +11,7 @@ import java.util.Collections;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisSetServiceImpl
- * @date : 2026-05-31 22:00
- * @email : scott_x@163.com
- * @description : 提供受配置门禁控制的通用 Set 能力；默认不注册，业务启用前必须登记成员容量和重建策略
- * @status : create
+ * 提供受配置门禁控制的通用 Set 能力；默认不注册，业务启用前必须登记成员容量和重建策略
  */
 @Service
 @ConditionalOnProperty(prefix = "payment.redis.generic", name = "set-enabled", havingValue = "true")

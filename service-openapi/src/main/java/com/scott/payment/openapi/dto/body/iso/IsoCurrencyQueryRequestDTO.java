@@ -6,13 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCurrencyQueryRequestDTO
- * @date : 2026-06-03 15:06
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 查询币种请求参数
- * @status : create
+ * 商户 OpenAPI 查询币种请求参数
  */
 @Data
 public class IsoCurrencyQueryRequestDTO implements Serializable {

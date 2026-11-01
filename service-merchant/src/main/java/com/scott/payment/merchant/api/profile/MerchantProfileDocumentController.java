@@ -31,13 +31,7 @@ import java.nio.charset.StandardCharsets;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileDocumentController
- * @date : 2026-09-21 09:45
- * @email : scott_x@163.com
- * @description : 商户资料变更文件接口，只允许当前认证商户访问自己的私有资料
- * @status : create
+ * 商户资料变更文件接口，只允许当前认证商户访问自己的私有资料。
  */
 @RestController
 @RequestMapping("/merchant/info/change-requests/{requestNo}/documents")
@@ -45,12 +39,16 @@ public class MerchantProfileDocumentController {
 
     private final MerchantProfileDocumentApplicationService applicationService;
 
-    /** 创建商户资料变更文件接口。 */
+    /**
+     * 创建商户资料变更文件接口。
+     */
     public MerchantProfileDocumentController(MerchantProfileDocumentApplicationService applicationService) {
         this.applicationService = applicationService;
     }
 
-    /** 上传 PDF、JPEG 或 PNG 资料并绑定当前活动申请。 */
+    /**
+     * 上传 PDF、JPEG 或 PNG 资料并绑定当前活动申请。
+     */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequiresPermission("merchant:info:edit")
     @OperationLog(
@@ -68,7 +66,9 @@ public class MerchantProfileDocumentController {
         return success(applicationService.upload(currentMerchantId(), requestNo, documentType, file));
     }
 
-    /** 下载当前商户拥有的资料，响应禁止缓存且不暴露对象存储定位。 */
+    /**
+     * 下载当前商户拥有的资料，响应禁止缓存且不暴露对象存储定位。
+     */
     @GetMapping("/{documentId}/download")
     @RequiresPermission("merchant:info:view")
     public ResponseEntity<byte[]> download(
@@ -86,7 +86,9 @@ public class MerchantProfileDocumentController {
                 .body(file.content());
     }
 
-    /** 删除活动草稿或补件申请中的待审资料。 */
+    /**
+     * 删除活动草稿或补件申请中的待审资料。
+     */
     @DeleteMapping("/{documentId}")
     @RequiresPermission("merchant:info:edit")
     @OperationLog(
@@ -104,6 +106,9 @@ public class MerchantProfileDocumentController {
         return success();
     }
 
+    /**
+     * 读取当前认证上下文中的商户号，缺失时拒绝请求。
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {

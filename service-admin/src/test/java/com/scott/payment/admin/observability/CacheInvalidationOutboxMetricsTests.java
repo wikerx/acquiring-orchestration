@@ -10,13 +10,7 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CacheInvalidationOutboxMetricsTests
- * @date : 2026-07-31 10:25
- * @email : scott_x@163.com
- * @description : 验证缓存失效 Outbox 的批次数量、饱和、事件结果和错误指标保持低基数
- * @status : create
+ * 验证缓存失效 Outbox 的批次数量、饱和、事件结果和错误指标保持低基数
  */
 class CacheInvalidationOutboxMetricsTests {
 

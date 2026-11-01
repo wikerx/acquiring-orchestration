@@ -16,19 +16,16 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantDataScopeResolverImpl
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 按 ALL 优先、CUSTOM 并集、SELF 空集的规则解析平台 Admin 商户范围。
- * @status : create
+ * 按 ALL 优先、CUSTOM 并集、SELF 空集的规则解析平台 Admin 商户范围。
  */
 @Service
 public class AdminMerchantDataScopeResolverImpl implements AdminMerchantDataScopeResolver {
 
     private final AdminRoleDataScopeMapper mapper;
 
+    /**
+     * 创建管理端商户数据范围解析器。
+     */
     public AdminMerchantDataScopeResolverImpl(AdminRoleDataScopeMapper mapper) {
         this.mapper = mapper;
     }

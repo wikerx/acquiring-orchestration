@@ -25,13 +25,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqAdminMonitorProviderTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : RocketMQ Admin 延迟连接、集群摘要、ACL 和异常降级行为测试。
- * @status : create
+ * RocketMQ Admin 延迟连接、集群摘要、ACL 和异常降级行为测试。
  */
 class RocketMqAdminMonitorProviderTest {
 

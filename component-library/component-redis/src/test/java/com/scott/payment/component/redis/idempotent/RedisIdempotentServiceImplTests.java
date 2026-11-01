@@ -25,13 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisIdempotentServiceImplTests
- * @date : 2026-07-30 18:20
- * @email : scott_x@163.com
- * @description : 验证 MQ 去重时间桶、容量降级、摘要保护和失败释放边界，不连接共享 Redis
- * @status : create
+ * 验证 MQ 去重时间桶、容量降级、摘要保护和失败释放边界，不连接共享 Redis
  */
 @Slf4j
 class RedisIdempotentServiceImplTests {

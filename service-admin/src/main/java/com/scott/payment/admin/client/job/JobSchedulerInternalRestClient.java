@@ -42,13 +42,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerInternalRestClient
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台调用调度中心的 REST 客户端实现
- * @status : create
+ * 管理后台调用调度中心的 REST 客户端实现
  */
 @Service
 @Slf4j
@@ -84,34 +78,54 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      */
     private static final String SERVICE_JOB_BASE_URL = "http://service-job";
 
-    /** 调度任务分页查询内部接口。 */
+    /**
+     * 调度任务分页查询内部接口。
+     */
     private static final String TASK_SEARCH_PATH = "/internal/job/tasks/search";
 
-    /** 已注册任务处理器列表内部接口。 */
+    /**
+     * 已注册任务处理器列表内部接口。
+     */
     private static final String HANDLER_LIST_PATH = "/internal/job/tasks/handlers";
 
-    /** 调度任务增删改查内部接口前缀。 */
+    /**
+     * 调度任务增删改查内部接口前缀。
+     */
     private static final String TASK_BASE_PATH = "/internal/job/tasks";
 
-    /** 任务运行日志分页查询内部接口。 */
+    /**
+     * 任务运行日志分页查询内部接口。
+     */
     private static final String RUN_LOG_SEARCH_PATH = "/internal/job/logs/search";
 
-    /** 任务运行日志列表内部接口。 */
+    /**
+     * 任务运行日志列表内部接口。
+     */
     private static final String RUN_LOG_LIST_PATH = "/internal/job/logs/list";
 
-    /** 单条任务运行日志内部接口前缀。 */
+    /**
+     * 单条任务运行日志内部接口前缀。
+     */
     private static final String RUN_LOG_BASE_PATH = "/internal/job/logs";
 
-    /** 历史任务运行日志清理内部接口。 */
+    /**
+     * 历史任务运行日志清理内部接口。
+     */
     private static final String RUN_LOG_CLEAN_PATH = "/internal/job/logs/clean";
 
-    /** 调度执行节点列表内部接口。 */
+    /**
+     * 调度执行节点列表内部接口。
+     */
     private static final String NODE_LIST_PATH = "/internal/job/nodes";
 
-    /** 分表创建预演内部接口，仅返回计划，不执行 DDL。 */
+    /**
+     * 分表创建预演内部接口，仅返回计划，不执行 DDL。
+     */
     private static final String SHARDING_TABLE_CREATE_DRY_RUN_PATH = "/internal/job/sharding/table-create/dry-run";
 
-    /** 分表创建执行内部接口，调用前必须经过预演和权限确认。 */
+    /**
+     * 分表创建执行内部接口，调用前必须经过预演和权限确认。
+     */
     private static final String SHARDING_TABLE_CREATE_EXECUTE_PATH = "/internal/job/sharding/table-create/execute";
 
     private final RestTemplate directRestTemplate;
@@ -389,8 +403,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("get", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job get call failed, targetUri: {}, exceptionType: {}",
-                    targetUri, exception.getClass().getSimpleName());
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
+                    HttpMethod.GET.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job get call failed");
         }
     }
@@ -419,8 +433,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("post", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job post call failed, targetUri: {}, exceptionType: {}",
-                    targetUri, exception.getClass().getSimpleName());
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
+                    HttpMethod.POST.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job post call failed");
         }
     }
@@ -439,8 +453,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("put", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job put call failed, targetUri: {}, exceptionType: {}",
-                    targetUri, exception.getClass().getSimpleName());
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
+                    HttpMethod.PUT.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job put call failed");
         }
     }
@@ -458,8 +472,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("delete", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job delete call failed, targetUri: {}, exceptionType: {}",
-                    targetUri, exception.getClass().getSimpleName());
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
+                    HttpMethod.DELETE.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job delete call failed");
         }
     }
@@ -535,9 +549,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      * @return 平台异常
      */
     private ApiException translateHttpException(String method, URI targetUri, HttpStatusCodeException exception) {
-        log.warn("service-job {} call returned non-success status, targetUri: {}, status: {}, exceptionType: {}",
+        log.warn("任务调度内部接口请求被拒绝, event: ADMIN_JOB_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}, exceptionType: {}",
                 method,
-                targetUri,
+                targetUri.getPath(),
                 exception.getStatusCode().value(),
                 exception.getClass().getSimpleName());
         if (exception.getStatusCode().value() == 401) {

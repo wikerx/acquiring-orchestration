@@ -52,13 +52,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionChannelMatchServiceTests
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 主动渠道查询勾兑测试，验证 BUG-VERIFY-001-001 05B 的渠道真实身份选择、恢复和 CAS 保护。
- * @status : create
+ * 主动渠道查询勾兑测试，验证 BUG-VERIFY-001-001 05B 的渠道真实身份选择、恢复和 CAS 保护。
  */
 class DefaultTransactionChannelMatchServiceTests {
 
@@ -80,6 +74,21 @@ class DefaultTransactionChannelMatchServiceTests {
         assertThat(invokeService.lastRequest.getChannelTransactionId()).isEqualTo("CH-MPGS-001");
         assertThat(invokeService.lastRequest.getChannelTransactionId()).isNotEqualTo("TX-PLATFORM-001");
         assertThat(recordService.completedStatus).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+    }
+
+    @Test
+    void shouldCarryOriginalTransactionTypeIntoChannelQuery() {
+        TransactionOperationDO operationDO = pendingOperation();
+        operationDO.setTransactionType(PaymentTransactionTypeEnum.CAPTURE.getCode());
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        matchService(recordService, invokeService, resultTransactionService).matchDue(matchCommand());
+
+        assertThat(invokeService.lastRequest.getExtension())
+                .containsEntry("originalTransactionType", PaymentTransactionTypeEnum.CAPTURE.getCode());
     }
 
     @Test
@@ -465,7 +474,9 @@ class DefaultTransactionChannelMatchServiceTests {
         assertThat(invokeService.paymentInvokeCount()).isZero();
     }
 
-    /** 主动查询异常只能保存稳定异常类型，禁止把渠道异常正文写入勾兑记录。 */
+    /**
+     * 主动查询异常只能保存稳定异常类型，禁止把渠道异常正文写入勾兑记录。
+     */
     @Test
     void shouldPersistOnlyExceptionTypeWhenActiveQueryFails() {
         InMemoryRecordService recordService = new InMemoryRecordService(pendingOperation());
@@ -773,6 +784,7 @@ class DefaultTransactionChannelMatchServiceTests {
             request.setTransactionType(commandDTO.getTransactionType());
             request.setAmount(commandDTO.getTransactionAmount());
             request.setCurrency(commandDTO.getTransactionCurrency());
+            request.getExtension().putAll(preparedChannelRequest.getExtension());
             lastRequest = request;
             ChannelPaymentResponse response = new ChannelPaymentResponse();
             response.setChannelCode(routeResult.getChannelCode());
@@ -976,7 +988,9 @@ class DefaultTransactionChannelMatchServiceTests {
 
         private String lastMatchResult;
 
-        /** 最近一次写入的渠道勾兑状态。 */
+        /**
+         * 最近一次写入的渠道勾兑状态。
+         */
         private String lastMatchStatus;
 
         private String lastFailReason;

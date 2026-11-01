@@ -21,13 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalAuthInterceptor
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 内部管理类接口登录态与权限拦截器
- * @status : create
+ * 内部管理类接口登录态与权限拦截器
  */
 public class InternalAuthInterceptor implements HandlerInterceptor {
 
@@ -149,10 +143,27 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
         return typePermission == null ? null : typePermission.value();
     }
 
+    /**
+     * 将统一接口结果枚举写为内部管理接口错误响应。
+     *
+     * @param response HTTP 响应
+     * @param httpStatus HTTP 状态码
+     * @param result 统一接口结果
+     * @throws IOException 响应写入失败时抛出
+     */
     private void writeError(HttpServletResponse response, int httpStatus, ApiResultEnum result) throws IOException {
         writeError(response, httpStatus, result.getCode(), result.getMessage());
     }
 
+    /**
+     * 使用受控错误码和安全文案写入 JSON 错误响应。
+     *
+     * @param response HTTP 响应
+     * @param httpStatus HTTP 状态码
+     * @param code 统一错误码
+     * @param message 安全错误描述
+     * @throws IOException 响应写入失败时抛出
+     */
     private void writeError(HttpServletResponse response, int httpStatus, String code, String message) throws IOException {
         response.setStatus(httpStatus);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

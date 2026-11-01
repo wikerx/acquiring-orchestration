@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/** 管理端按真实交易粒度导出的正式交易结算明细。 */
+/**
+ * 管理端按真实交易粒度导出的正式交易结算明细。
+ */
 @Data
 public class SettlementTransactionExportRow {
 
@@ -20,12 +22,21 @@ public class SettlementTransactionExportRow {
     @ExcelExportColumn(order = 3, headerKey = "excel.settlement.batchStatus", width = 16)
     private String batchStatus;
 
+    /**
+     * 商户号，用于限定商户配置、交易数据、风控规则和权限归属。
+     */
     @ExcelExportColumn(order = 4, headerKey = "excel.settlement.merchantId", width = 20)
     private String merchantId;
 
+    /**
+     * 商户订单号，由商户生成并在同一商户范围内用于交易幂等、查询和对账。
+     */
     @ExcelExportColumn(order = 5, headerKey = "excel.settlement.merchantOrderNo", width = 28, forceText = true)
     private String merchantOrderNo;
 
+    /**
+     * 原平台交易号，用于将请款、退款、撤销、增量授权等后续动作关联到原始交易。
+     */
     @ExcelExportColumn(order = 6, headerKey = "excel.settlement.transactionId", width = 28, forceText = true)
     private String sourceTransactionId;
 
@@ -38,6 +49,9 @@ public class SettlementTransactionExportRow {
     @ExcelExportColumn(order = 9, headerKey = "excel.settlement.paymentMethod", width = 18)
     private String paymentMethod;
 
+    /**
+     * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
+     */
     @ExcelExportColumn(order = 10, headerKey = "excel.settlement.transactionType", width = 18)
     private String transactionType;
 

@@ -6,13 +6,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantLimitReservationCommandDTO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户累计限额预占内部生命周期命令。
- * @status : create
+ * 商户累计限额预占内部生命周期命令。
  */
 @Data
 public class MerchantLimitReservationCommandDTO implements Serializable {
@@ -30,6 +24,8 @@ public class MerchantLimitReservationCommandDTO implements Serializable {
      */
     private String riskRecordNo;
 
-    /** 生命周期操作原因，仅用于审计和补偿说明，不参与幂等定位。 */
+    /**
+     * 生命周期操作原因，仅用于审计和补偿说明，不参与幂等定位。
+     */
     private String reason;
 }

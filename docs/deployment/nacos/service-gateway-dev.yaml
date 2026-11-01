@@ -26,7 +26,7 @@ acquiring:
       # 是否启用 Gateway 第一层 IP 限流；true 时同一客户端 IP 的全部 /api/rest/** 请求共享额度，OPTIONS 不计数。
       enabled: ${GATEWAY_IP_RATE_LIMIT_ENABLED:true}
       # 单个客户端 IP 在滚动窗口内允许通过的请求数，必须为正整数；dev 当前按每分钟 200 次配置。
-      max-requests: ${GATEWAY_IP_RATE_LIMIT_MAX_REQUESTS:200}
+      max-requests: ${GATEWAY_IP_RATE_LIMIT_MAX_REQUESTS:2000}
       # 精确滑动窗口长度，支持 1m、60s、PT1M 等 Spring Duration 格式，必须大于 0。
       window: ${GATEWAY_IP_RATE_LIMIT_WINDOW:1m}
       # Redis 故障时单个 Gateway 实例最多保留的本地 IP 数量；达到上限后拒绝新的 IP，防止 JVM 内存无界增长。

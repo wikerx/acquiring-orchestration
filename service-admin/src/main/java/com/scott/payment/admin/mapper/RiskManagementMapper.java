@@ -11,13 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskManagementMapper
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 收单风控管理 Mapper，位于 service-admin 数据访问层，仅接收服务层白名单解析后的物理表名。
- * @status : create
+ * 收单风控管理 Mapper，位于 service-admin 数据访问层，仅接收服务层白名单解析后的物理表名。
  */
 public interface RiskManagementMapper {
 
@@ -1292,7 +1286,16 @@ public interface RiskManagementMapper {
      * @return 配置变更日志列表
      */
     @Select("""
-            SELECT *
+            SELECT id,
+                   module_type,
+                   function_code,
+                   business_id,
+                   operation_type,
+                   before_snapshot,
+                   after_snapshot,
+                   operator,
+                   operation_time,
+                   remark
             FROM risk_config_change_log
             ORDER BY operation_time DESC, id DESC
             LIMIT #{offset}, #{pageSize}
@@ -1566,7 +1569,28 @@ public interface RiskManagementMapper {
      * @return 命中明细列表
      */
     @Select("""
-            SELECT *
+            SELECT id,
+                   risk_record_no,
+                   module_type,
+                   function_code,
+                   function_name,
+                   rule_id,
+                   hit_element,
+                   hit_value_masked,
+                   risk_level,
+                   decision_result,
+                   reason_code,
+                   decision_reason,
+                   decision_time,
+                   time_window_seconds,
+                   threshold_count,
+                   elements_json,
+                   current_count,
+                   stage_code,
+                   stage_name,
+                   stage_order,
+                   match_result,
+                   decision_effect
             FROM risk_evaluation_hit_detail
             WHERE risk_record_no = #{riskRecordNo}
             ORDER BY COALESCE(stage_order, 9999) ASC, decision_time ASC, id ASC
@@ -1615,7 +1639,20 @@ public interface RiskManagementMapper {
      */
     @Select("""
             <script>
-            SELECT *
+            SELECT id,
+                   merchant_id,
+                   merchant_name,
+                   merchant_order_no,
+                   payment_order_no,
+                   black_target_type,
+                   black_target_value_masked,
+                   source_type,
+                   action_type,
+                   action_reason,
+                   status,
+                   operator,
+                   create_time,
+                   update_time
             FROM risk_trade_black_record
             WHERE deleted = 0
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>

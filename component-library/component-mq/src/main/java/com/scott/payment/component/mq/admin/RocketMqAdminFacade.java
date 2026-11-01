@@ -29,13 +29,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqAdminFacade
- * @date : 2026-06-20 22:49
- * @email : scott_x@163.com
- * @description : 基于 RocketMQ 官方 Admin API 的资源检查与创建门面
- * @status : create
+ * 基于 RocketMQ 官方 Admin API 的资源检查与创建门面
  *
  * <p>该门面只封装业务接入所需的 Topic / Consumer Group 检查与创建能力，
  * 不扩展为通用 MQ 管理框架。</p>
@@ -231,7 +225,8 @@ public class RocketMqAdminFacade {
                     return true;
                 }
             } catch (Exception exception) {
-                log.warn("检查 RocketMQ Consumer Group 失败，group：{}，brokerAddress：{}，异常类型：{}",
+                log.warn("检查 RocketMQ Consumer Group 失败, event: ROCKET_MQ_CONSUMER_GROUP_CHECK_FAILED, "
+                                + "group: {}, brokerAddress: {}, exceptionType: {}",
                         groupName,
                         brokerAddress,
                         exception.getClass().getSimpleName());

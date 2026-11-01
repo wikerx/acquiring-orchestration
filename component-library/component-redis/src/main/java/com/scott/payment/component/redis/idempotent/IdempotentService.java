@@ -1,13 +1,7 @@
 package com.scott.payment.component.redis.idempotent;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IdempotentService
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 提供 Redis 辅助幂等能力；Redis 只负责快速去重，资金或持久化副作用仍必须由数据库唯一约束兜底
- * @status : create
+ * 提供 Redis 辅助幂等能力；Redis 只负责快速去重，资金或持久化副作用仍必须由数据库唯一约束兜底
  */
 public interface IdempotentService {
 

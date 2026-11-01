@@ -10,13 +10,7 @@ import com.scott.payment.component.core.auth.PasswordPolicy;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthPasswordChangeRequest
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 当前登录账号修改密码请求，位于 component-db 认证传输层；请求体包含敏感明文密码，调用方不得记录请求内容。
- * @status : create
+ * 当前登录账号修改密码请求，位于 component-db 认证传输层；请求体包含敏感明文密码，调用方不得记录请求内容。
  */
 @Data
 public class AuthPasswordChangeRequest implements Serializable {

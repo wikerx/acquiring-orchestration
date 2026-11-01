@@ -4,13 +4,7 @@ import lombok.Getter;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRiskDecisionEnum
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 支付风控结论枚举，位于 支付核心服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 支付风控结论枚举，位于 支付核心服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  */
 @Getter
 public enum PaymentRiskDecisionEnum {
@@ -55,6 +49,9 @@ public enum PaymentRiskDecisionEnum {
      */
     private final boolean allowProceed;
 
+    /**
+     * 创建当前枚举项并保存稳定编码。
+     */
     PaymentRiskDecisionEnum(String code, boolean allowProceed) {
         this.code = code;
         this.allowProceed = allowProceed;

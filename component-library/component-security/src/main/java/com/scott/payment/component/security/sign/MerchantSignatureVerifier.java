@@ -7,13 +7,7 @@ import java.security.MessageDigest;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSignatureVerifier
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 商户普通参数签名验签实现，OpenAPI 支付接口默认不使用该类做 JWT 鉴权
- * @status : create
+ * 商户普通参数签名验签实现，OpenAPI 支付接口默认不使用该类做 JWT 鉴权
  */
 public class MerchantSignatureVerifier implements SignatureVerifier {
 

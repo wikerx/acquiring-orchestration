@@ -1,11 +1,14 @@
 package com.scott.payment.openapi.api.rest.checkout.v1;
 
+import com.alibaba.fastjson2.annotation.JSONField;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
 import com.scott.payment.openapi.application.checkout.OpenApiHostedCheckoutApplicationService;
 import com.scott.payment.openapi.dto.body.HostedCheckoutBrowserRequestDTOs;
 import com.scott.payment.openapi.service.OpenApiSystemConfigService;
 import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
+import com.scott.payment.openapi.result.OpenApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
@@ -23,25 +26,17 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
-import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutBrowserController
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 付款人浏览器 Hosted Checkout API 控制器。
- * @status : create
+ * 付款人浏览器 Hosted Checkout API 控制器。
  */
 @RestController
 @RequestMapping("/checkout/api/v1")
 public class HostedCheckoutBrowserController {
 
-    /** 平台收银台前端地址配置键，用于限制 3DS bridge 消息接收方。 */
+    /**
+     * 平台收银台前端地址配置键，用于限制 3DS bridge 消息接收方。
+     */
     private static final String CHECKOUT_FRONTEND_BASE_URL_CONFIG_KEY = "platform.checkout.frontend-base-url";
 
     /**
@@ -49,10 +44,14 @@ public class HostedCheckoutBrowserController {
      */
     private final OpenApiHostedCheckoutApplicationService hostedCheckoutApplicationService;
 
-    /** 系统参数读取服务，只用于获取平台受控的收银台父页面 origin。 */
+    /**
+     * 系统参数读取服务，只用于获取平台受控的收银台父页面 origin。
+     */
     private final OpenApiSystemConfigService systemConfigService;
 
-    /** 平台收银台前端地址安全策略。 */
+    /**
+     * 平台收银台前端地址安全策略。
+     */
     private final HostedCheckoutUrlPolicy urlPolicy;
 
     /**
@@ -60,6 +59,7 @@ public class HostedCheckoutBrowserController {
      *
      * @param hostedCheckoutApplicationService Hosted Checkout 应用编排服务
      * @param systemConfigService 平台系统参数读取服务
+     * @param urlPolicy 平台收银台 URL 安全策略
      */
     public HostedCheckoutBrowserController(OpenApiHostedCheckoutApplicationService hostedCheckoutApplicationService,
                                            OpenApiSystemConfigService systemConfigService,
@@ -78,7 +78,7 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/session/query")
     public CommonResult<HostedCheckoutSessionVO> querySession(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.SessionQueryRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.querySession(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.querySession(requestDTO));
     }
 
     /**
@@ -92,7 +92,7 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/payment/submit")
     public CommonResult<HostedCheckoutPaymentResultVO> submitPayment(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.submitPayment(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.submitPayment(requestDTO));
     }
 
     /**
@@ -104,14 +104,19 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/payment/status")
     public CommonResult<HostedCheckoutPaymentResultVO> queryPaymentStatus(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.PaymentStatusRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.queryPaymentStatus(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.queryPaymentStatus(requestDTO));
     }
 
-    /** 卡号输入完成后按 BIN 识别品牌并校验商户 MID 支持状态。 */
+    /**
+     * 卡号输入完成后按 BIN 识别品牌并校验商户 MID 支持状态。
+     *
+     * @param requestDTO 卡 BIN 查询请求
+     * @return 卡品牌及当前商户支持状态
+     */
     @PostMapping("/card-bin/resolve")
     public CommonResult<HostedCheckoutCardBinVO> resolveCardBin(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.resolveCardBin(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.resolveCardBin(requestDTO));
     }
 
     /**
@@ -125,7 +130,18 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/3ds/return")
     public CommonResult<HostedCheckoutPaymentResultVO> handleThreeDsReturn(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.handleThreeDsReturn(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.handleThreeDsReturn(requestDTO));
+    }
+
+    /**
+     * 浏览器 JSON 入口固定选择付款人安全英文文案，客户端不能通过请求参数提升展示权限。
+     *
+     * @param data 浏览器接口返回数据
+     * @param <T> 浏览器接口数据类型
+     * @return 使用付款人消息受众封装的成功响应
+     */
+    private <T> CommonResult<T> payerSuccess(T data) {
+        return OpenApiResponseFactory.success(data, OpenApiMessageAudience.PAYER);
     }
 
     /**
@@ -163,12 +179,13 @@ public class HostedCheckoutBrowserController {
         String checkoutSessionId = request.getParameter("checkoutSessionId");
         String checkoutAttemptId = request.getParameter("checkoutAttemptId");
         String threeDsReturnToken = request.getParameter("threeDsReturnToken");
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("type", "HOSTED_CHECKOUT_3DS_RETURN");
-        payload.put("checkoutSessionId", checkoutSessionId);
-        payload.put("checkoutAttemptId", checkoutAttemptId);
-        payload.put("threeDsReturnToken", threeDsReturnToken);
-        payload.put("authenticationData", authenticationData(request));
+        ThreeDsBridgePayload payload = new ThreeDsBridgePayload(
+                "HOSTED_CHECKOUT_3DS_RETURN",
+                checkoutSessionId,
+                checkoutAttemptId,
+                threeDsReturnToken,
+                authenticationData(request)
+        );
         String payloadJson = escapeScriptJson(JsonUtils.toJsonString(payload));
         String targetOriginJson = escapeScriptJson(JsonUtils.toJsonString(checkoutParentOrigin()));
         return """
@@ -194,7 +211,11 @@ public class HostedCheckoutBrowserController {
                 .replace("__TARGET_ORIGIN__", targetOriginJson);
     }
 
-    /** 从平台收银台配置中提取 scheme、host 和 port，禁止向任意父页面广播回跳令牌。 */
+    /**
+     * 从平台收银台配置中提取 scheme、host 和 port，禁止向任意父页面广播回跳令牌。
+     *
+     * @return 允许接收 3DS 回跳消息的平台收银台 origin
+     */
     private String checkoutParentOrigin() {
         String baseUrl = systemConfigService.requiredEnabledValue(CHECKOUT_FRONTEND_BASE_URL_CONFIG_KEY);
         return urlPolicy.resolvePlatformOrigin(baseUrl);
@@ -204,29 +225,26 @@ public class HostedCheckoutBrowserController {
      * 提取渠道 3DS 认证参数的不可逆短摘要。
      *
      * @param request 渠道返回的浏览器请求
-     * @return 仅包含已提供参数摘要的有序映射
+     * @return 固定字段结构的 3DS 认证参数摘要
      */
-    private Map<String, String> authenticationData(HttpServletRequest request) {
-        Map<String, String> data = new LinkedHashMap<>();
-        putMasked(data, "cres", request.getParameter("cres"));
-        putMasked(data, "PaRes", request.getParameter("PaRes"));
-        putMasked(data, "MD", request.getParameter("MD"));
-        putMasked(data, "threeDSSessionData", request.getParameter("threeDSSessionData"));
-        putMasked(data, "result", request.getParameter("result"));
-        return data;
+    private ThreeDsAuthenticationDigest authenticationData(HttpServletRequest request) {
+        return new ThreeDsAuthenticationDigest(
+                digestIfPresent(request.getParameter("cres")),
+                digestIfPresent(request.getParameter("PaRes")),
+                digestIfPresent(request.getParameter("MD")),
+                digestIfPresent(request.getParameter("threeDSSessionData")),
+                digestIfPresent(request.getParameter("result"))
+        );
     }
 
     /**
-     * 在参数非空时写入摘要，原始值不会进入桥接载荷。
+     * 在参数非空时生成摘要，原始值不会进入桥接载荷。
      *
-     * @param target 摘要目标映射
-     * @param key    3DS 参数名称
-     * @param value  3DS 参数原始值
+     * @param value 3DS 参数原始值
+     * @return 3DS 参数短摘要；输入为空时返回 null
      */
-    private void putMasked(Map<String, String> target, String key, String value) {
-        if (StringUtils.hasText(value)) {
-            target.put(key, digest16(value));
-        }
+    private String digestIfPresent(String value) {
+        return StringUtils.hasText(value) ? digest16(value) : null;
     }
 
     /**
@@ -252,5 +270,39 @@ public class HostedCheckoutBrowserController {
         } catch (NoSuchAlgorithmException exception) {
             return "***";
         }
+    }
+
+    /**
+     * 承载桥接页发送给平台收银台父页面的固定回跳协议。
+     *
+     * @param type 回跳消息类型
+     * @param checkoutSessionId 收银台会话号
+     * @param checkoutAttemptId 支付尝试号
+     * @param threeDsReturnToken 一次性 3DS 回跳令牌
+     * @param authenticationData 渠道认证参数的不可逆摘要
+     */
+    private record ThreeDsBridgePayload(
+            String type,
+            String checkoutSessionId,
+            String checkoutAttemptId,
+            String threeDsReturnToken,
+            ThreeDsAuthenticationDigest authenticationData) {
+    }
+
+    /**
+     * 承载渠道返回的 3DS 协议参数摘要，禁止保存或回显参数原文。
+     *
+     * @param cres EMV 3DS 挑战响应摘要
+     * @param paRes 3DS 1.x 认证响应摘要
+     * @param md 3DS 1.x 商户数据摘要
+     * @param threeDSSessionData EMV 3DS 会话数据摘要
+     * @param result 渠道结果参数摘要
+     */
+    private record ThreeDsAuthenticationDigest(
+            String cres,
+            @JSONField(name = "PaRes") String paRes,
+            String md,
+            String threeDSSessionData,
+            String result) {
     }
 }

@@ -3,13 +3,7 @@ package com.scott.payment.payment.domain.state;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentPendingReasonEnum
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 支付等待原因枚举，位于 支付核心服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 支付等待原因枚举，位于 支付核心服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  */
 @Getter
 public enum PaymentPendingReasonEnum {
@@ -30,17 +24,15 @@ public enum PaymentPendingReasonEnum {
     WAITING_CHANNEL_CALLBACK("WAITING_CHANNEL_CALLBACK"),
 
     /**
+     * 渠道请求可能已经送达，但同步响应未提供可验证结果，必须等待查询或回调勾兑。
+     */
+    CHANNEL_RESULT_UNKNOWN("CHANNEL_RESULT_UNKNOWN"),
+
+    /**
      * 拒付或调单争议处理中。
      */
     DISPUTE_IN_PROGRESS("DISPUTE_IN_PROGRESS");
 
-    /**
-     * 编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private final String code;
 
     /**

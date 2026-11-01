@@ -9,13 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutCountryConfigController
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : 收银台国家或地区配置 HTTP 控制器，位于 收银台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 暴露收银台国家地区展示配置查询接口。
  */
 @RestController
 public class CheckoutCountryConfigController {

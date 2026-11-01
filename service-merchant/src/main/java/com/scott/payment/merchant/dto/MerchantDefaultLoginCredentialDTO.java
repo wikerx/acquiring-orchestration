@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantDefaultLoginCredentialDTO
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 新建商户用户后一次性返回的默认登录凭据 DTO；密码属于敏感数据，只允许在创建响应中短暂展示。
- * @status : create
+ * 新建商户用户后一次性返回的默认登录凭据 DTO；密码属于敏感数据，只允许在创建响应中短暂展示。
  */
 @Data
 public class MerchantDefaultLoginCredentialDTO implements Serializable {

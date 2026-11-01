@@ -1,12 +1,13 @@
 package com.scott.payment.merchant.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
 import org.junit.jupiter.api.Test;
@@ -35,17 +36,98 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantTransactionQueryServiceTests
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证商户交易查询、导出分页和展示富化始终绑定可信商户身份
- * @status : create
+ * 验证商户交易查询、导出分页和展示富化始终绑定可信商户身份
  */
 class JdbcMerchantTransactionQueryServiceTests {
 
-    /** 商户 3DS 富化必须批量回退，并在两类查询中绑定当前商户。 */
+    /**
+     * F 类描述故障来源而非交易终态，商户筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。
+     */
+    @Test
+    void merchantResponseCodeFilterShouldNotInferStatusFromFailureOriginCode() {
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(
+                mock(NamedParameterJdbcTemplate.class));
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F1000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F2000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F3000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "T0003")).isEqualTo("FAILED");
+    }
+
+    /**
+     * 商户端支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationSummaryShouldAggregateLabelAmountsWithLabelCurrencyExponent() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        ResultSet jpyAmount = operationSummaryResultSet("SUCCESS", null, null, "JPY", 2L, "1200");
+        ResultSet kwdAmount = operationSummaryResultSet("FAILED", null, null, "KWD", 1L, "12.345");
+        ResultSet jpyPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "JPY", 2L, "1200");
+        ResultSet kwdPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "KWD", 1L, "12.345");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    if (sql.contains("AS payment_method")) {
+                        return List.of(mapper.mapRow(jpyPayment, 0), mapper.mapRow(kwdPayment, 1));
+                    }
+                    return List.of(mapper.mapRow(jpyAmount, 0), mapper.mapRow(kwdAmount, 1));
+                });
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setMerchantId("merchant-a");
+        query.setBeginTime(LocalDateTime.of(2026, 10, 17, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 10, 18, 0, 0));
+
+        TransactionOperationSummaryResponse response = ReflectionTestUtils.invokeMethod(service, "operationSummary", query);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getTotalCount()).isEqualTo(3L);
+        assertThat(response.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                        org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        assertThat(response.getPaymentMethodSummaries()).singleElement().satisfies(payment -> {
+            assertThat(payment.getCount()).isEqualTo(3L);
+            assertThat(payment.getPaymentMethod()).isEqualTo("BANK_CARD");
+            assertThat(payment.getPaymentBrand()).isEqualTo("VISA");
+            assertThat(payment.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                    .containsExactly(
+                            org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                            org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        });
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(2)).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> assertThat(sql)
+                .contains("o.label_currency", "o.label_amount")
+                .doesNotContain("o.transaction_currency", "o.transaction_amount", "o.currency_exponent"));
+    }
+
+    private ResultSet operationSummaryResultSet(String transactionStatus,
+                                                String paymentMethod,
+                                                String paymentBrand,
+                                                String currency,
+                                                long count,
+                                                String amount) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn(transactionStatus);
+        when(resultSet.getString("payment_method")).thenReturn(paymentMethod);
+        when(resultSet.getString("payment_brand")).thenReturn(paymentBrand);
+        when(resultSet.getString("currency")).thenReturn(currency);
+        when(resultSet.getLong("count")).thenReturn(count);
+        when(resultSet.getBigDecimal("amount")).thenReturn(new BigDecimal(amount));
+        return resultSet;
+    }
+
+    /**
+     * 商户 3DS 富化必须批量回退，并在两类查询中绑定当前商户。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void threeDsEnrichmentShouldKeepMerchantBoundaryAndCheckoutFallback() {
@@ -263,7 +345,9 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(lifecycleIndexes).hasSize(1);
     }
 
-    /** 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。 */
+    /**
+     * 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationMapperShouldUsePersistedHostedCheckoutSource() throws Exception {
@@ -277,6 +361,34 @@ class JdbcMerchantTransactionQueryServiceTests {
         TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
 
         assertThat(row.getAccessType()).isEqualTo("HOSTED_CHECKOUT");
+    }
+
+    /**
+     * 商户查询只返回商户安全文案，不得暴露管理端可见的渠道码、渠道名或参考号。
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationMapperShouldExposeOnlyMerchantAudienceMessage() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn("FAILED");
+        when(resultSet.getString("process_stage")).thenReturn("FINISHED");
+        when(resultSet.getString("fail_reason_code")).thenReturn("CHANNEL_DECLINED");
+        when(resultSet.getString("channel_code")).thenReturn("MPGS");
+        when(resultSet.getString("channel_order_no")).thenReturn("REF-1");
+        RowMapper<TransactionOperationResponse> mapper =
+                (RowMapper<TransactionOperationResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "operationMapper");
+
+        TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
+
+        assertThat(row.getMerchantResponseCode())
+                .isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
+        assertThat(row.getMerchantResponseMessage())
+                .isEqualTo("The transaction was declined by the issuer bank. Check the original order, "
+                        + "then ask the payer to contact their bank or use another payment method when applicable.")
+                .doesNotContain("MPGS", "05", "REF-1");
     }
 
     @Test
@@ -341,16 +453,22 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(amount).isEqualByComparingTo("28.50");
     }
 
+    /**
+     * 商户失败详情必须使用英文安全兜底，不能暴露平台持久化的内部风控原因。
+     */
     @Test
-    void shouldExposePersistedRiskBlockedMessageToMerchant() {
+    void shouldNotExposePersistedRiskMessageToMerchant() {
         String message = JdbcMerchantTransactionQueryService.resolveMerchantResponseMessage(
                 "FAILED",
                 "Risk blocked"
         );
 
-        assertThat(message).isEqualTo("Risk blocked");
+        assertThat(message).isEqualTo("The transaction did not complete. Check the details or contact support.");
     }
 
+    /**
+     * 渠道执行 token 只用于平台诊断，商户查询必须替换为英文安全兜底。
+     */
     @Test
     void shouldReplaceInternalChannelFailureTokenWithCanonicalDeclineMessage() {
         String message = JdbcMerchantTransactionQueryService.resolveMerchantResponseMessage(
@@ -358,7 +476,7 @@ class JdbcMerchantTransactionQueryServiceTests {
                 "CHANNEL_REQUEST_FAILED"
         );
 
-        assertThat(message).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        assertThat(message).isEqualTo("The transaction did not complete. Check the details or contact support.");
     }
 
     private TransactionOperationResponse operation(String operationId,

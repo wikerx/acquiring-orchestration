@@ -21,27 +21,31 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedissonDistributedLockClusterIntegrationTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 使用两个真实 Redisson Cluster 客户端验证统一锁的跨客户端互斥、可重入、租约和持有者保护。
- * @status : create
+ * 使用两个真实 Redisson Cluster 客户端验证统一锁的跨客户端互斥、可重入、租约和持有者保护。
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIfSystemProperty(named = "redisson.redis.cluster.integration.enabled", matches = "true")
 class RedissonDistributedLockClusterIntegrationTests {
 
-    /** 模拟第一个服务实例持有的独立 Redisson 客户端。 */
+    /**
+     * 模拟第一个服务实例持有的独立 Redisson 客户端。
+     */
     private RedissonClient firstClient;
-    /** 模拟第二个服务实例竞争锁的独立 Redisson 客户端。 */
+    /**
+     * 模拟第二个服务实例竞争锁的独立 Redisson 客户端。
+     */
     private RedissonClient secondClient;
-    /** 第一个客户端对应的统一锁入口。 */
+    /**
+     * 第一个客户端对应的统一锁入口。
+     */
     private DistributedLockService firstLockService;
-    /** 第二个客户端对应的统一锁入口。 */
+    /**
+     * 第二个客户端对应的统一锁入口。
+     */
     private DistributedLockService secondLockService;
-    /** 每次集成测试随机生成的 Cluster 同槽锁 Key 前缀。 */
+    /**
+     * 每次集成测试随机生成的 Cluster 同槽锁 Key 前缀。
+     */
     private String keyPrefix;
 
     /**

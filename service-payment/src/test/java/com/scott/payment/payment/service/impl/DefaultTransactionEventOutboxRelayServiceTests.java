@@ -21,13 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionEventOutboxRelayServiceTests
- * @date : 2026-07-12 22:43
- * @email : scott_x@163.com
- * @description : Default Transaction Event Outbox Relay Service Tests 自动化测试类，位于 支付核心服务，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
+ * Default Transaction Event Outbox Relay Service Tests 自动化测试类，位于 支付核心服务，验证当前模块的正常路径、异常边界和回归场景。
  */
 class DefaultTransactionEventOutboxRelayServiceTests {
 
@@ -88,7 +82,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         assertThat(eventDO.getEventStatus()).isEqualTo("SENT");
     }
 
-    /** 自动商户通知事件必须按消息内 deliverAt 使用 RocketMQ 绝对定时投递。 */
+    /**
+     * 自动商户通知事件必须按消息内 deliverAt 使用 RocketMQ 绝对定时投递。
+     */
     @Test
     void shouldPublishMerchantNotificationRetryAsScheduledMessage() {
         LocalDateTime deliverAt = LocalDateTime.now().plusMinutes(5);
@@ -167,7 +163,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         assertThat(mqProducer.payloadJson).isEqualTo(orderedEvent.getPayloadJson());
     }
 
-    /** NORMAL 模式必须忽略已有分组键并原样发送冻结 JSON。 */
+    /**
+     * NORMAL 模式必须忽略已有分组键并原样发送冻结 JSON。
+     */
     @Test
     void shouldUseNormalDeliveryModeWithoutRewritingFrozenJson() {
         TransactionEventOutboxDO normalEvent = event();
@@ -187,7 +185,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         assertThat(mqProducer.payloadJson).isEqualTo(normalEvent.getPayloadJson());
     }
 
-    /** SCHEDULED 模式按数据库 UTC 时间生成绝对 Instant，不读取或改写消息体时间。 */
+    /**
+     * SCHEDULED 模式按数据库 UTC 时间生成绝对 Instant，不读取或改写消息体时间。
+     */
     @Test
     void shouldUseScheduledDeliveryModeWithUtcDeliverAt() {
         TransactionEventOutboxDO scheduledEvent = event();
@@ -328,28 +328,44 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         private BaseMqMessage message;
 
-        /** 是否使用定时消息接口。 */
+        /**
+         * 是否使用定时消息接口。
+         */
         private boolean scheduled;
 
-        /** 捕获的绝对投递时间。 */
+        /**
+         * 捕获的绝对投递时间。
+         */
         private Instant deliverAt;
 
-        /** 捕获的顺序消息分组键。 */
+        /**
+         * 捕获的顺序消息分组键。
+         */
         private String messageGroup;
 
-        /** 捕获冻结 JSON，断言 Relay 不执行二次序列化。 */
+        /**
+         * 捕获冻结 JSON，断言 Relay 不执行二次序列化。
+         */
         private String payloadJson;
 
-        /** 捕获消息 Header 使用的平台消息号。 */
+        /**
+         * 捕获消息 Header 使用的平台消息号。
+         */
         private String messageId;
 
-        /** 捕获消息 Header 使用的 traceId。 */
+        /**
+         * 捕获消息 Header 使用的 traceId。
+         */
         private String traceId;
 
-        /** 捕获消息 Header 使用的 Outbox 重试次数。 */
+        /**
+         * 捕获消息 Header 使用的 Outbox 重试次数。
+         */
         private int retryCount;
 
-        /** NORMAL、ORDERLY 或 SCHEDULED。 */
+        /**
+         * NORMAL、ORDERLY 或 SCHEDULED。
+         */
         private String deliveryMethod;
 
         private CapturingMqProducer(RuntimeException failure) {
@@ -369,14 +385,18 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             this.sendCount++;
         }
 
-        /** 捕获顺序消息及业务分组键。 */
+        /**
+         * 捕获顺序消息及业务分组键。
+         */
         @Override
         public void sendOrderly(String topic, String tag, BaseMqMessage message, String messageGroup) {
             send(topic, tag, message);
             this.messageGroup = messageGroup;
         }
 
-        /** 捕获定时消息及其绝对投递时间。 */
+        /**
+         * 捕获定时消息及其绝对投递时间。
+         */
         @Override
         public void sendAt(String topic, String tag, BaseMqMessage message, Instant deliverAt) {
             if (failure != null) {
@@ -389,7 +409,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             this.sendCount++;
         }
 
-        /** 捕获普通冻结 JSON 及 Header 元数据。 */
+        /**
+         * 捕获普通冻结 JSON 及 Header 元数据。
+         */
         @Override
         public void sendSerialized(String topic,
                                    String tag,
@@ -400,7 +422,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             captureSerialized(messageId, traceId, retryCount, payloadJson, "NORMAL");
         }
 
-        /** 捕获顺序冻结 JSON 及分组键。 */
+        /**
+         * 捕获顺序冻结 JSON 及分组键。
+         */
         @Override
         public void sendSerializedOrderly(String topic,
                                           String tag,
@@ -413,7 +437,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             this.messageGroup = messageGroup;
         }
 
-        /** 捕获取绝对时间投递的冻结 JSON。 */
+        /**
+         * 捕获取绝对时间投递的冻结 JSON。
+         */
         @Override
         public void sendSerializedAt(String topic,
                                      String tag,
@@ -449,7 +475,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         private final TransactionEventOutboxDO eventDO;
 
-        /** 模拟多实例 CAS 抢占是否成功。 */
+        /**
+         * 模拟多实例 CAS 抢占是否成功。
+         */
         private boolean claimAllowed = true;
 
         private InMemoryEventOutboxService(TransactionEventOutboxDO eventDO) {
@@ -473,7 +501,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
                     : List.of(eventDO);
         }
 
-        /** 不存在超时记录时返回零。 */
+        /**
+         * 不存在超时记录时返回零。
+         */
         @Override
         public int recoverStaleProcessing(LocalDateTime eventTime,
                                           LocalDateTime staleBefore,
@@ -481,7 +511,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             return 0;
         }
 
-        /** 模拟版本 CAS 抢占并推进 PROCESSING。 */
+        /**
+         * 模拟版本 CAS 抢占并推进 PROCESSING。
+         */
         @Override
         public boolean claimForPublish(TransactionEventOutboxDO eventDO, LocalDateTime claimedTime) {
             if (!claimAllowed) {

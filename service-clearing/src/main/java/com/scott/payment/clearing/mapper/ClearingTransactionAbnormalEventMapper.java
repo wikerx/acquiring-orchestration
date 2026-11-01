@@ -8,17 +8,13 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTransactionAbnormalEventMapper
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分异常案件 Mapper；所有写入和关闭操作都携带交易分片时间。
- * @status : update
+ * 清分异常案件 Mapper；所有写入和关闭操作都携带交易分片时间。
  */
 public interface ClearingTransactionAbnormalEventMapper {
 
-    /** 相同清分异常重复出现时增加次数，已关闭案件重新打开。 */
+    /**
+     * 相同清分异常重复出现时增加次数，已关闭案件重新打开。
+     */
     @Insert("""
             INSERT INTO transaction_abnormal_event
             (abnormal_event_id, transaction_id, operation_id, abnormal_type, abnormal_level,
@@ -54,7 +50,9 @@ public interface ClearingTransactionAbnormalEventMapper {
             """)
     int upsertOccurrence(@Param("row") ClearingTransactionAbnormalEventDO row);
 
-    /** 完成清分后只关闭同一交易分片上的清分异常，不影响渠道勾兑案件。 */
+    /**
+     * 完成清分后只关闭同一交易分片上的清分异常，不影响渠道勾兑案件。
+     */
     @Update("""
             UPDATE transaction_abnormal_event
             SET event_status = 'RESOLVED',

@@ -18,18 +18,14 @@ import java.util.HexFormat;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuntimeValueNormalizer
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 交易链路风控值归一化组件。
- * @status : create
+ * 交易链路风控值归一化组件。
  */
 @Component
 public class RiskRuntimeValueNormalizer {
 
-    /** 管理端 BIN 区间统一采用的最大位数，短 BIN 右补零后参与数值比较。 */
+    /**
+     * 管理端 BIN 区间统一采用的最大位数，短 BIN 右补零后参与数值比较。
+     */
     private static final int CARD_BIN_MAX_LENGTH = 11;
 
     /**
@@ -74,8 +70,9 @@ public class RiskRuntimeValueNormalizer {
 
     /**
      * 规范化卡号并生成只包含哈希或脱敏片段的风控查询值。
-     * @param cardNo 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 当前方法生成的 {@code RiskRuntimeLookupValue} 结果
+     *
+     * @param cardNo 原始 PAN，仅允许在当前调用栈内短暂参与归一化
+     * @return 包含规范数字、脱敏 PAN 和不可逆摘要的查询值；长度非法时返回 {@code null}
      */
     public RiskRuntimeLookupValue cardNo(String cardNo) {
         if (!StringUtils.hasText(cardNo)) {
@@ -105,8 +102,9 @@ public class RiskRuntimeValueNormalizer {
 
     /**
      * 规范化 IP 地址并生成数值区间或摘要形式的风控查询值。
-     * @param ip 待规范化的可识别信息，仅允许以脱敏、哈希或数值区间形式参与匹配
-     * @return 当前方法生成的 {@code RiskRuntimeLookupValue} 结果
+     *
+     * @param ip IPv4 或 IPv6 文本
+     * @return 包含 IP 版本、整数值和不可逆摘要的查询值；格式非法时返回 {@code null}
      */
     public RiskRuntimeLookupValue ip(String ip) {
         if (!StringUtils.hasText(ip)) {
@@ -175,8 +173,9 @@ public class RiskRuntimeValueNormalizer {
 
     /**
      * 规范化邮箱后生成不可逆摘要形式的风控查询值。
-     * @param email 待规范化的可识别信息，仅允许以脱敏、哈希或数值区间形式参与匹配
-     * @return 当前方法生成的 {@code RiskRuntimeLookupValue} 结果
+     *
+     * @param email 原始邮箱地址
+     * @return 包含规范邮箱、脱敏展示值和不可逆摘要的查询值；格式非法时返回 {@code null}
      */
     public RiskRuntimeLookupValue email(String email) {
         String normalizedEmail = normalizedEmail(email);
@@ -461,6 +460,13 @@ public class RiskRuntimeValueNormalizer {
         }
     }
 
+    /**
+     * 保存 IP 规范化后的版本和可比较整数。
+     *
+     * @param original 规范化文本，仅用于生成脱敏值或摘要
+     * @param version IPv4 或 IPv6
+     * @param number 用于区间比较的无符号整数
+     */
     private record ParsedIp(String original, String version, BigInteger number) {
     }
 }

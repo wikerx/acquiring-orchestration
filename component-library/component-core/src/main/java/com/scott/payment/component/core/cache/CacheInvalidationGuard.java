@@ -3,13 +3,7 @@ package com.scott.payment.component.core.cache;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CacheInvalidationGuard
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : 公共组件层受管缓存失效门禁契约，向写链路和业务读取端暴露窄化的租约协调能力
- * @status : update
+ * 公共组件层受管缓存失效门禁契约，向写链路和业务读取端暴露窄化的租约协调能力
  */
 public interface CacheInvalidationGuard {
 

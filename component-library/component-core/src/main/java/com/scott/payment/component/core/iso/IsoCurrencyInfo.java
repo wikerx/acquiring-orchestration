@@ -3,13 +3,7 @@ package com.scott.payment.component.core.iso;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCurrencyInfo
- * @date : 2026-06-02 15:42
- * @email : scott_x@163.com
- * @description : ISO 4217 币种信息
- * @status : create
+ * ISO 4217 币种信息
  *
  * @param alphabeticCode        ISO 4217 三位字母币种代码，例如 USD、CNY
  * @param numericCode           ISO 4217 三位数字币种代码，例如 840、156

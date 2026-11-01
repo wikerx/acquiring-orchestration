@@ -10,13 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.ApiResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotifyController
- * @date : 2026-05-28 10:23
- * @email : scott_x@163.com
- * @description : 商户通知 HTTP 控制器，位于 商户开放接口服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 受维护令牌保护的商户通知重试入口；不得作为公开商户 API 使用。
  */
 @RestController
 @RequestMapping("/openapi/v1/merchant-notifies")

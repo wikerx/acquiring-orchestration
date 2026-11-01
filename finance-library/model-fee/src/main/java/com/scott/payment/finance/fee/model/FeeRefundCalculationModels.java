@@ -11,33 +11,26 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeRefundCalculationModels
- * @date : 2026-08-25 19:35
- * @email : scott_x@163.com
- * @description : 定义退款时按原实际收费组件返还费用的不可变契约，各组件保持原收费事实币种且不执行汇率换算。
- * @status : create
+ * 定义退款时按原实际收费组件返还费用的不可变契约，各组件保持原收费事实币种且不执行汇率换算。
  */
 public final class FeeRefundCalculationModels {
 
+    /**
+     * 禁止实例化仅承载退款费用返还契约的工具类。
+     */
     private FeeRefundCalculationModels() {
     }
 
-    /** 原交易费用返还策略。 */
+    /**
+     * 原交易费用返还策略。
+     */
     public enum FeeRefundPolicy {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         NONE,
         /**
          * FULL 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         FULL,
         PROPORTIONAL
@@ -54,6 +47,9 @@ public final class FeeRefundCalculationModels {
                                          Money originalChargedAmount,
                                          Money refundedAmountBefore) {
 
+        /**
+         * 校验原收费组件、累计已返金额和原币种精度约束。
+         */
         public RefundableFeeComponent {
             if (sourceComponentNo == null || sourceComponentNo.isBlank()) {
                 throw new IllegalArgumentException("source component number is required");
@@ -91,6 +87,9 @@ public final class FeeRefundCalculationModels {
                                    List<RefundableFeeComponent> sourceComponents,
                                    RoundingMode roundingMode) {
 
+        /**
+         * 校验退款累计不超过原交易，并拒绝重复来源费用组件。
+         */
         public FeeRefundCommand {
             Objects.requireNonNull(policy, "fee refund policy is required");
             Objects.requireNonNull(refundLabelAmount, "refund label amount is required");
@@ -134,6 +133,9 @@ public final class FeeRefundCalculationModels {
                                      Money amount,
                                      Money remainingRefundableAmount) {
 
+        /**
+         * 校验费用返还方向固定为 CREDIT，且结果保持来源组件币种。
+         */
         public FeeRefundComponent {
             if (sourceComponentNo == null || sourceComponentNo.isBlank()) {
                 throw new IllegalArgumentException("source component number is required");
@@ -162,6 +164,9 @@ public final class FeeRefundCalculationModels {
                                   BigDecimal appliedRatio,
                                   List<FeeRefundComponent> components) {
 
+        /**
+         * 固化本次返还策略、应用比例和新增费用返还组件。
+         */
         public FeeRefundResult {
             Objects.requireNonNull(policy, "fee refund policy is required");
             Objects.requireNonNull(appliedRatio, "applied ratio is required");
@@ -172,10 +177,22 @@ public final class FeeRefundCalculationModels {
         }
     }
 
+    /**
+     * 判断金额是否无需舍入即可符合其来源币种 exponent。
+     *
+     * @param amount 待检查金额
+     * @return 有效小数位不超过币种 exponent 时返回 {@code true}
+     */
     private static boolean conformsToExponent(Money amount) {
         return amount.amount().stripTrailingZeros().scale() <= amount.exponent();
     }
 
+    /**
+     * 校验费用金额非负。
+     *
+     * @param money     待校验金额
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireNonNegative(Money money, String fieldName) {
         if (money.amount().signum() < 0) {
             throw new IllegalArgumentException(fieldName + " must not be negative");

@@ -4,13 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysMenuMapper
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 菜单 Mapper
- * @status : create
+ * 菜单 Mapper
  */
 public interface SysMenuMapper extends BaseMapper<SysMenuDO> {
 }

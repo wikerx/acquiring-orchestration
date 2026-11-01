@@ -13,23 +13,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalCallerInterceptor
- * @date : 2026-08-26 21:10
- * @email : scott_x@163.com
- * @description : 在 HMAC 验证后把结算管理内部接口严格限制给 service-admin，未知调用方默认拒绝。
- * @status : create
+ * 在 HMAC 验证后把结算管理内部接口严格限制给 service-admin，未知调用方默认拒绝。
  */
 public class SettlementInternalCallerInterceptor implements HandlerInterceptor {
 
-    /**
-     * {@code ADMIN_CALLER}常量，统一 {@code SettlementInternalCallerInterceptor} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ADMIN_CALLER = "service-admin";
 
     /**

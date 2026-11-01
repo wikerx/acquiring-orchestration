@@ -66,7 +66,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-/** 大预审单按分段批准、释放和最终状态收口的本地事务边界。 */
+/**
+ * 大预审单按分段批准、释放和最终状态收口的本地事务边界。
+ */
 @Service
 public class SettlementReviewDecisionTransactionService {
 
@@ -154,6 +156,9 @@ public class SettlementReviewDecisionTransactionService {
         this.clock = Objects.requireNonNull(clock, "settlement review decision clock is required");
     }
 
+    /**
+     * 创建异步复核决策任务；Maker-Checker、预审版本和分段完备性在写入前校验。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult submit(String reviewOrderNo, SettlementReviewDecisionCommand command) {
@@ -180,11 +185,17 @@ public class SettlementReviewDecisionTransactionService {
         return result(stored);
     }
 
+    /**
+     * 查询异步复核决策任务的稳定进度快照。
+     */
     @DS(DataSourceName.TRANSACTION)
     public TaskResult get(String taskNo) {
         return result(requireTask(taskMapper.selectByTaskNo(requireTaskNo(taskNo))));
     }
 
+    /**
+     * 仅允许恢复白名单失败码对应的任务，并冻结恢复操作审计。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult resume(String taskNo, long expectedVersion, SettlementCommandAudit audit) {
@@ -224,6 +235,9 @@ public class SettlementReviewDecisionTransactionService {
         return result(task);
     }
 
+    /**
+     * 以数据库租约领取下一条到期决策任务。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public Optional<SettlementReviewDecisionTaskDO> claimNext(String owner,
@@ -249,6 +263,9 @@ public class SettlementReviewDecisionTransactionService {
         return Optional.of(task);
     }
 
+    /**
+     * 每次只批准或释放一个冻结分段；全部分段处理后再原子收口预审单与任务终态。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void processClaimed(String taskNo, String owner, LocalDateTime now) {
@@ -277,6 +294,9 @@ public class SettlementReviewDecisionTransactionService {
         }
     }
 
+    /**
+     * 将决策异常分类为有限退避或不可恢复终态。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void recordFailure(String taskNo,
@@ -311,6 +331,15 @@ public class SettlementReviewDecisionTransactionService {
         }
     }
 
+    /**
+     * 复算并批准一个预审分段，将锁定候选原子转换为正式结算批次。
+     * 来源、汇率或结果指纹不一致时拒绝推进，避免审批过期事实。
+     * @param task 当前持有租约的决策任务快照
+     * @param order 待审批的预审单快照
+     * @param segment 本次独占处理的预审分段
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String approveSegment(SettlementReviewDecisionTaskDO task,
                                   SettlementReviewOrderDO order,
                                   SettlementReviewSegmentDO segment,
@@ -332,6 +361,7 @@ public class SettlementReviewDecisionTransactionService {
             throw failure("SETTLEMENT_REVIEW_DECISION_RATE_CHANGED", false,
                     "settlement review locked rate matrix changed after submission");
         }
+        // 批准前重算并复验来源、汇率和结果指纹，防止预审后底层金融事实被替换。
         SettlementCalculationPreview preview = calculationService.preview(previewBatch(chunkOrder), facts,
                 toLockedRates(rates), now);
         BigDecimal signed = "DEBIT".equals(preview.netDirection())
@@ -497,6 +527,14 @@ public class SettlementReviewDecisionTransactionService {
         return row;
     }
 
+    /**
+     * 构造{@code toLockedRates}对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
+     * </p>
+     * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private SettlementLockedRateMatrix toLockedRates(List<SettlementReviewRateDO> rows) {
         List<LockedRate> rates = new ArrayList<>(rows.size());
         Map<String, Long> ids = new LinkedHashMap<>();
@@ -541,6 +579,13 @@ public class SettlementReviewDecisionTransactionService {
         batch.setUpdateTime(now);
     }
 
+    /**
+     * 将预审阶段锁定的汇率复制到正式批次，保证审批后金额仍使用原业务时点汇率。
+     * @param batchNo 正式结算批次号，用于限定明细和资金流水归属
+     * @param rates 预审单已固化的结算汇率快照
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 符合当前条件的只读集合或映射结果
+     */
     private List<SettlementBatchRateDO> batchRates(String batchNo,
                                                   List<SettlementReviewRateDO> rates,
                                                   LocalDateTime now) {
@@ -696,6 +741,13 @@ public class SettlementReviewDecisionTransactionService {
         }
     }
 
+    /**
+     * 校验{@code validateRecoveryProgress}输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 校验失败时按 结算服务 统一异常语义中断流程，不返回部分校验结果。
+     * </p>
+     * @param task 待恢复的失败任务及其已持久化处理进度
+     */
     private void validateRecoveryProgress(SettlementReviewDecisionTaskDO task) {
         SettlementReviewOrderDO order = orderMapper.selectByReviewOrderNoForUpdate(task.getReviewOrderNo());
         requirePendingAsyncOrder(order, command(task));
@@ -725,6 +777,13 @@ public class SettlementReviewDecisionTransactionService {
         }
     }
 
+    /**
+     * 构造恢复前状态审计快照，使任务重置后仍可追溯原失败和处理进度。
+     * @param task 恢复前的失败任务快照
+     * @param audit 可信操作人、请求幂等键、恢复原因和客户端审计信息
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法生成的 {@code SettlementReviewDecisionRecoveryAuditDO} 结果
+     */
     private SettlementReviewDecisionRecoveryAuditDO recoveryAudit(
             SettlementReviewDecisionTaskDO task,
             SettlementCommandAudit audit,
@@ -850,6 +909,12 @@ public class SettlementReviewDecisionTransactionService {
         return value.trim();
     }
 
+    /**
+     * 根据稳定业务身份生成可重复计算的幂等标识。
+     * @param prefix 稳定业务编号类型前缀，不参与摘要随机性
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String stableId(String prefix, String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

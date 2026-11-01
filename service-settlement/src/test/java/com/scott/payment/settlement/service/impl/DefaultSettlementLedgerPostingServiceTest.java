@@ -38,17 +38,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementLedgerPostingServiceTest
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证结算净额、资金流水、保证金资金化和候选状态在同一幂等入账边界完成
- * @status : create
+ * 验证结算净额、资金流水、保证金资金化和候选状态在同一幂等入账边界完成
  */
 class DefaultSettlementLedgerPostingServiceTest {
 
-    /** 100本金减10手续费减10保证金后，只允许形成一条80 USD净入账流水。 */
+    /**
+     * 100本金减10手续费减10保证金后，只允许形成一条80 USD净入账流水。
+     */
     @Test
     void shouldPostOneNetLedgerAndMaterializeReserve() {
         SettlementBatchMapper batchMapper = mock(SettlementBatchMapper.class);
@@ -130,7 +126,9 @@ class DefaultSettlementLedgerPostingServiceTest {
                 LocalDateTime.of(2026, 8, 26, 10, 0));
     }
 
-    /** 保证金释放只改变资金和保证金责任，不得为不存在的交易修订生成伪投影任务。 */
+    /**
+     * 保证金释放只改变资金和保证金责任，不得为不存在的交易修订生成伪投影任务。
+     */
     @Test
     void shouldPostReserveReleaseWithoutTransactionProjectionTask() {
         SettlementBatchMapper batchMapper = mock(SettlementBatchMapper.class);
@@ -191,7 +189,9 @@ class DefaultSettlementLedgerPostingServiceTest {
                 batch.getSettlementBatchNo(), 2L, LocalDateTime.of(2026, 8, 26, 10, 0));
     }
 
-    /** 借方保证金调整增加责任、扣减可用余额，并保持原标签币种动作。 */
+    /**
+     * 借方保证金调整增加责任、扣减可用余额，并保持原标签币种动作。
+     */
     @Test
     void shouldPostDebitReserveAdjustmentAndIncreaseLiability() {
         AdjustmentPostingFixture fixture = postAdjustment("DEBIT");
@@ -211,7 +211,9 @@ class DefaultSettlementLedgerPostingServiceTest {
         verify(fixture.projectionMapper(), never()).insertTasksIdempotent(anyList());
     }
 
-    /** 贷方保证金调整减少责任、增加可用余额，并保持原标签币种动作。 */
+    /**
+     * 贷方保证金调整减少责任、增加可用余额，并保持原标签币种动作。
+     */
     @Test
     void shouldPostCreditReserveAdjustmentAndDecreaseLiability() {
         AdjustmentPostingFixture fixture = postAdjustment("CREDIT");
@@ -231,7 +233,9 @@ class DefaultSettlementLedgerPostingServiceTest {
         verify(fixture.projectionMapper(), never()).insertTasksIdempotent(anyList());
     }
 
-    /** 同一资金幂等键不得接受不同 Checker 审计身份的人工流水。 */
+    /**
+     * 同一资金幂等键不得接受不同 Checker 审计身份的人工流水。
+     */
     @Test
     void shouldRejectManualLedgerReplayWhenCheckerAuditDiffers() {
         SettlementBatchMapper batchMapper = mock(SettlementBatchMapper.class);

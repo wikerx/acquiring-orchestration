@@ -11,13 +11,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskPaymentTransactionStatusRepository
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 按持久化业务时间范围查询 payment 动作状态。
- * @status : create
+ * 按持久化业务时间范围查询 payment 动作状态。
  */
 @Slf4j
 @Repository
@@ -35,6 +29,16 @@ public class DefaultRiskPaymentTransactionStatusRepository
         this.mapper = mapper;
     }
 
+    /**
+     * 按交易持久化业务时间范围查询支付状态。
+     *
+     * <p>参数非法或数据库查询异常时返回 UNKNOWN，禁止对账流程把未知结果当失败释放额度。</p>
+     *
+     * @param transactionId 支付系统交易号
+     * @param beginTime 查询区间起点，包含该时间
+     * @param endTimeExclusive 查询区间终点，不包含该时间
+     * @return 已找到、明确不存在或未知的查询结果
+     */
     @Override
     public PaymentTransactionLookupResult findStatus(String transactionId,
                                                      LocalDateTime beginTime,
@@ -52,13 +56,20 @@ public class DefaultRiskPaymentTransactionStatusRepository
                     ? PaymentTransactionLookupResult.found(status)
                     : PaymentTransactionLookupResult.absent();
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_PAYMENT_STATUS_LOOKUP_FAILED transactionId: {} exceptionType: {}",
+            log.warn("支付交易状态查询失败, event: RISK_PAYMENT_STATUS_LOOKUP_FAILED, transactionId: {}, exceptionType: {}",
                     normalizedTransactionId, exception.getClass().getSimpleName());
             return PaymentTransactionLookupResult.unknown();
         }
     }
 
-    /** 从 primary 上的交易逻辑表受控业务周期读取状态。 */
+    /**
+     * 从 primary 上的交易逻辑表受控业务周期读取状态。
+     *
+     * @param transactionId 支付系统交易号
+     * @param beginTime 查询区间起点，包含该时间
+     * @param endTimeExclusive 查询区间终点，不包含该时间
+     * @return 最新支付操作状态；区间内不存在时返回空
+     */
     private String selectLogicalStatus(String transactionId,
                                        LocalDateTime beginTime,
                                        LocalDateTime endTimeExclusive) {

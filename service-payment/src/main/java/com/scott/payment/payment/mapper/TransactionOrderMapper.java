@@ -11,13 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionOrderMapper
- * @date : 2026-07-14 17:40
- * @email : scott_x@163.com
- * @description : 交易生命周期主单 Mapper，位于 service-payment 数据访问层，仅访问 transaction_order 逻辑表并显式携带交易分片时间。
- * @status : create
+ * 交易生命周期主单 Mapper，位于 service-payment 数据访问层，仅访问 transaction_order 逻辑表并显式携带交易分片时间。
  */
 public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
 
@@ -214,6 +208,7 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             SET latest_transaction_id = #{latestTransactionId},
                 transaction_status = #{transactionStatus},
                 process_stage = #{processStage},
+                pending_reason_code = NULL,
                 fail_reason_code = #{failReasonCode},
                 fail_reason_message = #{failReasonMessage},
                 merchant_visible_message = #{merchantVisibleMessage},
@@ -282,6 +277,11 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             SET latest_transaction_id = #{latestTransactionId},
                 transaction_status = 'SUCCESS',
                 process_stage = 'FINISHED',
+                pending_reason_code = NULL,
+                fail_reason_code = NULL,
+                fail_reason_message = NULL,
+                merchant_visible_message = NULL,
+                payer_visible_message = NULL,
                 channel_match_status = #{channelMatchStatus},
                 channel_match_result = 'SUCCESS',
                 next_channel_match_time = NULL,
@@ -317,4 +317,21 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                            @Param("amount") BigDecimal amount,
                            @Param("expectedVersion") Integer expectedVersion,
                            @Param("channelMatchStatus") String channelMatchStatus);
+
+    /**
+     * 首次授权在同步响应、回调或查询后补写渠道授权号。
+     * 只允许替换空值或平台根交易号占位值，避免晚到事件覆盖已经确认的渠道身份。
+     */
+    @Update("""
+            UPDATE transaction_order
+            SET channel_order_no = #{channelOrderNo},
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND (channel_order_no IS NULL OR channel_order_no = root_transaction_id)
+              AND deleted = 0
+            """)
+    int updateInitialChannelOrderNoIfUnresolved(@Param("operationId") String operationId,
+                                                @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                                @Param("channelOrderNo") String channelOrderNo);
 }

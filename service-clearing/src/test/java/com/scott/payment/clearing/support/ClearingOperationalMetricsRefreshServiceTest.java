@@ -21,13 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationalMetricsRefreshServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Gauge 刷新按季度聚合，并且失败时不会发布不完整快照。
- * @status : create
+ * 验证 Gauge 刷新按季度聚合，并且失败时不会发布不完整快照。
  */
 class ClearingOperationalMetricsRefreshServiceTest {
 

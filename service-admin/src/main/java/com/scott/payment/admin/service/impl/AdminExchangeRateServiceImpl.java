@@ -50,152 +50,31 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminExchangeRateServiceImpl
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 管理端汇率领域服务，负责汇率查询、规则校验、精度计算和主库写入；纯查询固定路由从库。
- * @status : create
+ * 管理端汇率领域服务，负责汇率查询、规则校验、精度计算和主库写入；纯查询固定路由从库。
  */
 @Service
 public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * {@code ALL}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ALL = "ALL";
-    /**
-     * 自动常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String AUTO = "AUTO";
-    /**
-     * {@code MANUAL}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String MANUAL = "MANUAL";
-    /** 无登录上下文时写入审计字段的系统操作人标识，无单位、非敏感且不允许为空。 */
+    /**
+     * 无登录上下文时写入审计字段的系统操作人标识，无单位、非敏感且不允许为空。
+     */
     private static final String SYSTEM_OPERATOR = "system";
-    /**
-     * 汇率状态启用标识，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_ENABLED = "ENABLED";
-    /**
-     * {@code RATE_STATUS_VOIDED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_VOIDED = "VOIDED";
-    /**
-     * {@code RATE_STATUS_DISABLED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_DISABLED = "DISABLED";
-    /**
-     * {@code RATE_STATUS_EXPIRED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_EXPIRED = "EXPIRED";
-    /**
-     * {@code UP}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String UP = "UP";
-    /**
-     * {@code DOWN}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DOWN = "DOWN";
-    /**
-     * {@code NONE}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String NONE = "NONE";
-    /**
-     * {@code BP}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String BP = "BP";
-    /**
-     * {@code PERCENT}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String PERCENT = "PERCENT";
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
-    /**
-     * 币种正则模式，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
     private static final Pattern CURRENCY_PATTERN = Pattern.compile("^[A-Z]{3}$|^ALL$");
     private static final Set<String> SOURCE_TYPES = Set.of("WEB", "API", "MANUAL", "IMPORT");
     private static final Set<String> RATE_TYPES = Set.of("TRANSACTION_RATE", "SETTLEMENT_RATE");
@@ -213,6 +92,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
 
     private final ExchangeRateUsageSnapshotMapper usageSnapshotMapper;
 
+    /**
+     * 创建管理端汇率配置服务。
+     */
     public AdminExchangeRateServiceImpl(ExchangeRateSourceMapper sourceMapper,
                                         ExchangeRawRateMapper rawRateMapper,
                                         ExchangeRateRuleMapper ruleMapper,
@@ -813,6 +695,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return originalRate.multiply(multiplier).setScale(rule.getDecimalScale(), toRoundingMode(rule.getRoundingMode()));
     }
 
+    /**
+     * 校验原交易请求。
+     */
     private void validateSourceRequest(SourceSaveRequest request, Long excludeId) {
         if (request == null) {
             throw badRequest("汇率源请求不能为空");
@@ -837,6 +722,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 校验原始汇率请求。
+     */
     private void validateRawRateRequest(RawRateSaveRequest request) {
         if (request == null) {
             throw badRequest("原始汇率请求不能为空");
@@ -866,6 +754,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 校验规则请求。
+     */
     private void validateRuleRequest(RuleSaveRequest request, Long excludeId) {
         if (request == null) {
             throw badRequest("汇率规则请求不能为空");
@@ -910,6 +801,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 校验业务汇率请求。
+     */
     private void validateBusinessRateRequest(BusinessRateSaveRequest request) {
         if (request == null) {
             throw badRequest("业务汇率请求不能为空");
@@ -934,6 +828,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 判断是否存在生效时间重叠的汇率规则。
+     */
     private boolean hasOverlappedEnabledRule(RuleSaveRequest request, Long excludeId) {
         return ruleMapper.selectList(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
                         .eq(ExchangeRateRuleDO::getDeleted, NOT_DELETED)
@@ -948,6 +845,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
                         existing.getEffectiveStartTime(), existing.getEffectiveEndTime()));
     }
 
+    /**
+     * 判断两个有效时间范围是否重叠。
+     */
     private boolean timeRangeOverlaps(LocalDateTime start1, LocalDateTime end1, LocalDateTime start2, LocalDateTime end2) {
         LocalDateTime min = LocalDateTime.of(1900, 1, 1, 0, 0);
         LocalDateTime max = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
@@ -958,6 +858,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return !leftEnd.isBefore(rightStart) && !rightEnd.isBefore(leftStart);
     }
 
+    /**
+     * 校验业务汇率原交易。
+     */
     private void validateBusinessRateSource(ExchangeRawRateDO rawRate, ExchangeRateRuleDO rule) {
         if (!RATE_STATUS_ENABLED.equals(rawRate.getRateStatus())) {
             throw badRequest("只有启用状态的原始汇率可以生成业务汇率");
@@ -1061,6 +964,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询原始汇率值。
+     */
     private BigDecimal selectRawRateValue(ExchangeRawRateDO rawRate, String rateField) {
         BigDecimal value = switch (rateField) {
             case "SPOT_BUY_RATE" -> rawRate.getSpotBuyRate();
@@ -1076,6 +982,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return value;
     }
 
+    /**
+     * 按精度规则调整分配比例。
+     */
     private BigDecimal adjustRatio(String adjustMethod, BigDecimal adjustValue) {
         if (adjustValue == null) {
             return BigDecimal.ZERO;
@@ -1086,6 +995,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return adjustValue.divide(new BigDecimal("100"), 12, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 解析金额舍入模式。
+     */
     private RoundingMode toRoundingMode(String roundingMode) {
         return switch (roundingMode) {
             case "ROUND_UP" -> RoundingMode.UP;
@@ -1094,6 +1006,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         };
     }
 
+    /**
+     * 构建汇率调整规则说明。
+     */
     private String buildAdjustDescription(ExchangeRateRuleDO rule, BigDecimal originalRate, BigDecimal finalRate) {
         return rule.getRateField() + " " + originalRate.toPlainString()
                 + ", " + rule.getAdjustDirection() + " " + rule.getAdjustValue().toPlainString()
@@ -1101,6 +1016,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
                 + ", " + rule.getRoundingMode() + ", final " + finalRate.toPlainString();
     }
 
+    /**
+     * 填充原交易。
+     */
     private void fillSource(ExchangeRateSourceDO entity, SourceSaveRequest request, LocalDateTime now) {
         entity.setSourceCode(trimUpper(request.getSourceCode()));
         entity.setSourceName(trim(request.getSourceName()));
@@ -1114,6 +1032,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 填充原始汇率。
+     */
     private void fillRawRate(ExchangeRawRateDO entity, RawRateSaveRequest request, LocalDateTime now) {
         entity.setSourceCode(trimUpper(request.getSourceCode()));
         entity.setBaseCurrency(trimUpper(request.getBaseCurrency()));
@@ -1130,6 +1051,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 填充规则。
+     */
     private void fillRule(ExchangeRateRuleDO entity, RuleSaveRequest request, LocalDateTime now) {
         entity.setRateType(trimUpper(request.getRateType()));
         entity.setSourceCode(trimUpper(request.getSourceCode()));
@@ -1149,6 +1073,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 转换为原交易响应。
+     */
     private SourceResponse toSourceResponse(ExchangeRateSourceDO entity) {
         SourceResponse response = new SourceResponse();
         response.setId(entity.getId());
@@ -1168,6 +1095,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 转换为原始汇率响应。
+     */
     private RawRateResponse toRawRateResponse(ExchangeRawRateDO entity) {
         RawRateResponse response = new RawRateResponse();
         response.setId(entity.getId());
@@ -1191,6 +1121,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 转换为规则响应。
+     */
     private RuleResponse toRuleResponse(ExchangeRateRuleDO entity) {
         RuleResponse response = new RuleResponse();
         response.setId(entity.getId());
@@ -1309,6 +1242,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return SYSTEM_OPERATOR;
     }
 
+    /**
+     * 将汇率使用快照实体转换为管理端响应。
+     */
     private UsageSnapshotResponse toUsageSnapshotResponse(ExchangeRateUsageSnapshotDO entity) {
         UsageSnapshotResponse response = new UsageSnapshotResponse();
         response.setId(entity.getId());
@@ -1328,6 +1264,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 查询原交易。
+     */
     private ExchangeRateSourceDO findSource(Long id) {
         ExchangeRateSourceDO entity = sourceMapper.selectOne(Wrappers.<ExchangeRateSourceDO>lambdaQuery()
                 .eq(ExchangeRateSourceDO::getId, id)
@@ -1338,6 +1277,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询原始汇率。
+     */
     private ExchangeRawRateDO findRawRate(Long id) {
         ExchangeRawRateDO entity = rawRateMapper.selectOne(Wrappers.<ExchangeRawRateDO>lambdaQuery()
                 .eq(ExchangeRawRateDO::getId, id)
@@ -1348,6 +1290,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询规则。
+     */
     private ExchangeRateRuleDO findRule(Long id) {
         ExchangeRateRuleDO entity = ruleMapper.selectOne(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
                 .eq(ExchangeRateRuleDO::getId, id)
@@ -1358,6 +1303,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询业务汇率。
+     */
     private ExchangeBusinessRateDO findBusinessRate(Long id) {
         ExchangeBusinessRateDO entity = businessRateMapper.selectOne(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                 .eq(ExchangeBusinessRateDO::getId, id)
@@ -1368,6 +1316,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 校验指定汇率源已经存在。
+     */
     private void requireSourceExists(String sourceCode) {
         Long count = sourceMapper.selectCount(Wrappers.<ExchangeRateSourceDO>lambdaQuery()
                 .eq(ExchangeRateSourceDO::getSourceCode, sourceCode)
@@ -1377,42 +1328,63 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 判断汇率源是否已生成原始汇率记录。
+     */
     private boolean hasRawRate(String sourceCode) {
         return rawRateMapper.selectCount(Wrappers.<ExchangeRawRateDO>lambdaQuery()
                 .eq(ExchangeRawRateDO::getSourceCode, sourceCode)
                 .eq(ExchangeRawRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 判断汇率源是否已关联汇率规则。
+     */
     private boolean hasRule(String sourceCode) {
         return ruleMapper.selectCount(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
                 .eq(ExchangeRateRuleDO::getSourceCode, sourceCode)
                 .eq(ExchangeRateRuleDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 判断汇率源是否已生成业务汇率记录。
+     */
     private boolean hasBusinessRate(String sourceCode) {
         return businessRateMapper.selectCount(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                 .eq(ExchangeBusinessRateDO::getSourceCode, sourceCode)
                 .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 判断指定原始汇率是否已生成业务汇率。
+     */
     private boolean hasBusinessRateByRawRate(Long rawRateId) {
         return businessRateMapper.selectCount(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                 .eq(ExchangeBusinessRateDO::getRawRateId, rawRateId)
                 .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 校验状态。
+     */
     private void validateStatus(Integer status) {
         if (status == null || (status != ENABLED && status != DISABLED)) {
             throw badRequest("状态必须为0停用或1启用");
         }
     }
 
+    /**
+     * 校验币种。
+     */
     private void validateCurrency(String currency, boolean allowAll) {
         if (!StringUtils.hasText(currency) || !CURRENCY_PATTERN.matcher(currency).matches() || (!allowAll && ALL.equals(currency))) {
             throw badRequest("币种必须为 ISO 4217 三位字母代码" + (allowAll ? "或 ALL" : ""));
         }
     }
 
+    /**
+     * 判断候选值中是否至少存在一个正汇率。
+     */
     private boolean hasAnyRate(BigDecimal... rates) {
         for (BigDecimal rate : rates) {
             if (rate != null && rate.compareTo(BigDecimal.ZERO) > 0) {
@@ -1422,30 +1394,48 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return false;
     }
 
+    /**
+     * 校验正值汇率。
+     */
     private void validatePositiveRate(BigDecimal rate, String fieldName) {
         if (rate != null && rate.compareTo(BigDecimal.ZERO) <= 0) {
             throw badRequest(fieldName + "必须大于0");
         }
     }
 
+    /**
+     * 校验必填汇率存在且大于零。
+     */
     private void validatePositiveRequiredRate(BigDecimal rate, String fieldName) {
         if (rate == null || rate.compareTo(BigDecimal.ZERO) <= 0) {
             throw badRequest(fieldName + "必须大于0");
         }
     }
 
+    /**
+     * 构建参数校验失败异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
+    /**
+     * 构建业务记录不存在异常。
+     */
     private ServiceException notFound(String message) {
         return new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), message);
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
+    /**
+     * 去除文本空白并规范化为大写编码。
+     */
     private String trimUpper(String value) {
         return trim(value) == null ? null : trim(value).toUpperCase(Locale.ROOT);
     }

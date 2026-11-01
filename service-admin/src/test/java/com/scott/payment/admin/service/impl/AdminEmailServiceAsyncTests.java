@@ -38,32 +38,42 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailServiceAsyncTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Admin 业务邮件只写记录与 Outbox，不在请求线程调用 SMTP。
- * @status : create
+ * 验证 Admin 业务邮件只写记录与 Outbox，不在请求线程调用 SMTP。
  */
 class AdminEmailServiceAsyncTests {
 
-    /** 邮件账户查询依赖。 */
+    /**
+     * 邮件账户查询依赖。
+     */
     private EmailAccountMapper accountMapper;
-    /** 邮件模板查询依赖。 */
+    /**
+     * 邮件模板查询依赖。
+     */
     private EmailTemplateMapper templateMapper;
-    /** 邮件发送记录持久化依赖。 */
+    /**
+     * 邮件发送记录持久化依赖。
+     */
     private EmailSendRecordMapper recordMapper;
-    /** 可靠 Outbox 入队依赖。 */
+    /**
+     * 可靠 Outbox 入队依赖。
+     */
     private AdminEmailDeliveryService deliveryService;
-    /** 用于断言请求线程未调用 SMTP 的适配器。 */
+    /**
+     * 用于断言请求线程未调用 SMTP 的适配器。
+     */
     private AdminSmtpEmailSender smtpEmailSender;
-    /** 邮件正文加密依赖。 */
+    /**
+     * 邮件正文加密依赖。
+     */
     private EmailPayloadCrypto payloadCrypto;
-    /** 被测 Admin 邮件服务。 */
+    /**
+     * 被测 Admin 邮件服务。
+     */
     private AdminEmailServiceImpl emailService;
     private EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
-    /** 准备阶段失败记录器，用于断言模板或账户配置异常仍可追踪。 */
+    /**
+     * 准备阶段失败记录器，用于断言模板或账户配置异常仍可追踪。
+     */
     private AdminEmailPreparationFailureRecorder preparationFailureRecorder;
 
     @BeforeEach
@@ -99,6 +109,27 @@ class AdminEmailServiceAsyncTests {
 
         verify(preparationFailureRecorder).record(request, "EMAIL_CONFIGURATION_INVALID");
         verify(deliveryService, never()).enqueue(any());
+    }
+
+    /**
+     * 敏感变量配置非法时必须终止邮件准备并记录失败，不能把敏感值写入普通快照。
+     */
+    @Test
+    void shouldRejectInvalidSensitiveVariableConfiguration() {
+        EnabledEmailTemplateSnapshot snapshot = templateSnapshot();
+        snapshot.setSensitiveVariableNames("{invalid-json");
+        EmailSendRequest request = request();
+        when(enabledTemplateCacheReader.findEnabled("LOGIN_NOTICE", "zh-CN")).thenReturn(snapshot);
+        when(accountMapper.selectOne(any())).thenReturn(account());
+
+        assertThatThrownBy(() -> emailService.sendByTemplate(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Sensitive variable names");
+
+        verify(preparationFailureRecorder).record(request, "EMAIL_CONFIGURATION_INVALID");
+        verify(recordMapper, never()).insert(any(EmailSendRecordDO.class));
+        verify(deliveryService, never()).enqueue(any());
+        verify(payloadCrypto, never()).encrypt(any());
     }
 
     @Test

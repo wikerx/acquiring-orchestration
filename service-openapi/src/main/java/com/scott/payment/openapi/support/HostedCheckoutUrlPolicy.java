@@ -1,7 +1,11 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -9,16 +13,37 @@ import java.net.URI;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutUrlPolicy
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : Hosted Checkout 外部 URL 结构策略，允许 HTTP/HTTPS 公网、私网和回环地址，仅拒绝结构非法、携带用户信息或非 HTTP(S) URL。
- * @status : create
+ * Hosted Checkout 外部 URL 策略；dev/test 允许本地联调目标，UAT、生产和未知环境只允许解析到公网地址的 HTTPS URL。
  */
 @Component
 public class HostedCheckoutUrlPolicy {
+
+    private final OutboundHttpUrlPolicy merchantUrlPolicy;
+
+    /**
+     * 创建失败关闭的严格模式策略，避免非 Spring 装配绕过生产网络边界。
+     */
+    public HostedCheckoutUrlPolicy() {
+        this(new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
+    }
+
+    /**
+     * 按 Spring active profiles 创建策略；未知环境按严格模式处理。
+     */
+    @Autowired
+    public HostedCheckoutUrlPolicy(Environment environment) {
+        this(new OutboundHttpUrlPolicy(
+                OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles())));
+    }
+
+    /**
+     * 使用指定出站 URL 策略创建实例，供边界测试验证环境规则。
+     *
+     * @param merchantUrlPolicy 商户回调与跳转地址校验策略
+     */
+    HostedCheckoutUrlPolicy(OutboundHttpUrlPolicy merchantUrlPolicy) {
+        this.merchantUrlPolicy = merchantUrlPolicy;
+    }
 
     /**
      * DTO 格式校验：允许结构完整的 HTTP/HTTPS 公网、私网和回环 URL。
@@ -30,7 +55,7 @@ public class HostedCheckoutUrlPolicy {
         if (value == null || value.isEmpty()) {
             return true;
         }
-        return parseHttpUri(value) != null;
+        return OutboundHttpUrlPolicy.isStructurallyValid(value);
     }
 
     /**
@@ -44,9 +69,16 @@ public class HostedCheckoutUrlPolicy {
         if (!StringUtils.hasText(value)) {
             return value;
         }
-        if (parseHttpUri(value) == null) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                    fieldName + " must be a valid HTTP or HTTPS URL");
+        try {
+            merchantUrlPolicy.validate(value);
+        } catch (IllegalArgumentException exception) {
+            if (fieldName != null && fieldName.toLowerCase(Locale.ROOT).contains("callback")) {
+                throw new ApiException(OpenApiResultCode.CALLBACK_URL_NOT_ALLOWED);
+            }
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    fieldName,
+                    "URL is not allowed by the current environment policy");
         }
         return value;
     }
@@ -88,7 +120,7 @@ public class HostedCheckoutUrlPolicy {
     private URI requirePlatformUri(String value, String targetName) {
         URI uri = parseHttpUri(value);
         if (uri == null) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR,
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR,
                     "system config is not a valid checkout frontend " + targetName);
         }
         return uri;
@@ -101,25 +133,11 @@ public class HostedCheckoutUrlPolicy {
      * @return 合法 URI；地址为空或结构非法时返回 {@code null}
      */
     private static URI parseHttpUri(String value) {
-        if (!StringUtils.hasText(value) || !value.equals(value.trim())) {
+        if (!StringUtils.hasText(value) || !OutboundHttpUrlPolicy.isStructurallyValid(value)) {
             return null;
         }
         try {
-            URI uri = URI.create(value);
-            String scheme = uri.getScheme();
-            int port = uri.getPort();
-            if (!uri.isAbsolute()
-                    || uri.isOpaque()
-                    || !StringUtils.hasText(scheme)
-                    || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
-                    || !StringUtils.hasText(uri.getHost())
-                    || uri.getRawAuthority() == null
-                    || uri.getUserInfo() != null
-                    || port == 0
-                    || port > 65_535) {
-                return null;
-            }
-            return uri;
+            return URI.create(value);
         } catch (IllegalArgumentException exception) {
             return null;
         }

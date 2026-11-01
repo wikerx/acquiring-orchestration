@@ -3,13 +3,7 @@ package com.scott.payment.component.job.model;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecuteResult
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心任务执行结果对象
- * @status : create
+ * 调度中心任务执行结果对象
  */
 @Data
 public class JobExecuteResult {

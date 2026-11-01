@@ -21,17 +21,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantCallbackSecurityMaterialProviderTests
- * @date : 2026-08-21 00:05
- * @email : scott_x@163.com
- * @description : 验证商户回调密钥只在 JVM 按 revision 做有界短时缓存，版本变化和 TTL 到期均回源主库
- * @status : create
+ * 验证商户回调密钥只在 JVM 按 revision 做有界短时缓存，版本变化和 TTL 到期均回源主库
  */
 class JdbcMerchantCallbackSecurityMaterialProviderTests {
 
-    /** 相同 revision 在 TTL 内复用本地材料，Redis 元数据仍会在每次调用时校验。 */
+    /**
+     * 相同 revision 在 TTL 内复用本地材料，Redis 元数据仍会在每次调用时校验。
+     */
     @Test
     void shouldReuseLocalMaterialForCurrentRevision() {
         Fixture fixture = fixture(2, Duration.ofMinutes(2));
@@ -48,7 +44,9 @@ class JdbcMerchantCallbackSecurityMaterialProviderTests {
         verify(fixture.responseKeyMapper(), times(1)).selectOne(any());
     }
 
-    /** revision 变化后立即丢弃旧版本并按新记录 ID 重载。 */
+    /**
+     * revision 变化后立即丢弃旧版本并按新记录 ID 重载。
+     */
     @Test
     void shouldReloadAndEvictOldMaterialWhenRevisionChanges() {
         Fixture fixture = fixture(2, Duration.ofMinutes(2));
@@ -69,7 +67,9 @@ class JdbcMerchantCallbackSecurityMaterialProviderTests {
         verify(fixture.jwtKeyMapper(), times(2)).selectOne(any());
     }
 
-    /** TTL 到期后相同 revision 也必须重新读取主库。 */
+    /**
+     * TTL 到期后相同 revision 也必须重新读取主库。
+     */
     @Test
     void shouldReloadMaterialAfterTtlExpires() {
         Fixture fixture = fixture(2, Duration.ofNanos(10));
@@ -84,7 +84,9 @@ class JdbcMerchantCallbackSecurityMaterialProviderTests {
         verify(fixture.responseKeyMapper(), times(2)).selectOne(any());
     }
 
-    /** 超过容量时只保留最近访问的本地商户版本。 */
+    /**
+     * 超过容量时只保留最近访问的本地商户版本。
+     */
     @Test
     void shouldEnforceLocalCacheCapacity() {
         Fixture fixture = fixture(1, Duration.ofMinutes(2));
@@ -100,6 +102,9 @@ class JdbcMerchantCallbackSecurityMaterialProviderTests {
         assertThat(fixture.provider().entryCount()).isEqualTo(1);
     }
 
+    /**
+     * 构造使用固定主库数据和单调时钟的安全材料提供器。
+     */
     @SuppressWarnings("unchecked")
     private Fixture fixture(int maxEntries, Duration ttl) {
         MerchantKeyMetadataCacheService metadataService = mock(MerchantKeyMetadataCacheService.class);
@@ -117,6 +122,9 @@ class JdbcMerchantCallbackSecurityMaterialProviderTests {
         return new Fixture(provider, metadataService, jwtKeyMapper, responseKeyMapper, clock);
     }
 
+    /**
+     * 构造指定 revision 和密钥记录 ID 的非敏感元数据。
+     */
     private MerchantKeyMetadata metadata(String merchantId, String revision, Long jwtKeyId, Long responseKeyId) {
         MerchantKeyMetadata metadata = new MerchantKeyMetadata();
         metadata.setMerchantId(merchantId);
@@ -126,18 +134,27 @@ class JdbcMerchantCallbackSecurityMaterialProviderTests {
         return metadata;
     }
 
+    /**
+     * 构造有效期内的商户 JWT 密钥记录。
+     */
     private BaseMerchantJwtKeyDO jwtKey(String secret) {
         BaseMerchantJwtKeyDO row = new BaseMerchantJwtKeyDO();
         row.setMerchantKey(secret);
         return row;
     }
 
+    /**
+     * 构造商户响应公钥记录。
+     */
     private BaseMerchantResponseKeyDO responseKey(String publicKey) {
         BaseMerchantResponseKeyDO row = new BaseMerchantResponseKeyDO();
         row.setPublicKeyX509Base64(publicKey);
         return row;
     }
 
+    /**
+     * 保存当前测试场景共用的依赖和业务对象。
+     */
     private record Fixture(JdbcMerchantCallbackSecurityMaterialProvider provider,
                            MerchantKeyMetadataCacheService metadataService,
                            BaseMerchantJwtKeyMapper jwtKeyMapper,

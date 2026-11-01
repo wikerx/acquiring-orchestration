@@ -34,49 +34,14 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelMatchAbnormalApplicationService
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 管理端勾兑异常应用服务，本地编排案件查询和导出，仅将领取、重查及关闭命令提交给 service-payment。
- * @status : create
+ * 管理端勾兑异常应用服务，本地编排案件查询和导出，仅将领取、重查及关闭命令提交给 service-payment。
  */
 @Service
 public class AdminChannelMatchAbnormalApplicationService {
 
-    /**
-     * {@code ADMIN_ACCOUNT_PREFIX}常量，统一 {@code AdminChannelMatchAbnormalApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ADMIN_ACCOUNT_PREFIX = "admin-account:";
-    /**
-     * {@code EXPORT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int EXPORT_PAGE_SIZE = 500;
-    /**
-     * {@code EXPORT_LEASE_TIME}常量，统一 {@code AdminChannelMatchAbnormalApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminChannelMatchAbnormalApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final AdminChannelMatchAbnormalQueryService abnormalQueryService;
@@ -212,6 +177,9 @@ public class AdminChannelMatchAbnormalApplicationService {
         return paymentInternalClient.resolveChannelMatchAbnormality(eventId, command);
     }
 
+    /**
+     * 读取并校验当前认证账户。
+     */
     private InternalAuthAccount currentAccount() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAccountId() == null) {
@@ -220,10 +188,16 @@ public class AdminChannelMatchAbnormalApplicationService {
         return account;
     }
 
+    /**
+     * 解析当前账户的管理端展示名称。
+     */
     private String displayName(InternalAuthAccount account) {
         return StringUtils.hasText(account.getRealName()) ? account.getRealName() : account.getLoginAccount();
     }
 
+    /**
+     * 将渠道勾兑异常案件导出为 Excel。
+     */
     private void exportExcel(AbnormalQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         String titleKey = "excel.abnormal.title";
@@ -245,6 +219,9 @@ public class AdminChannelMatchAbnormalApplicationService {
                         .build(), response);
     }
 
+    /**
+     * 加载一页渠道差异异常导出数据。
+     */
     private List<ChannelMatchAbnormalExportRow> loadExportPage(AbnormalQuery query, int pageNo) {
         query.setPageNo(pageNo);
         query.setPageSize(EXPORT_PAGE_SIZE);
@@ -255,6 +232,9 @@ public class AdminChannelMatchAbnormalApplicationService {
         return searchResponse.getPage().getRecords().stream().map(this::toExportRow).toList();
     }
 
+    /**
+     * 转换为导出行数据。
+     */
     private ChannelMatchAbnormalExportRow toExportRow(AbnormalRecord source) {
         ChannelMatchAbnormalExportRow row = new ChannelMatchAbnormalExportRow();
         row.setAbnormalEventId(source.getAbnormalEventId());

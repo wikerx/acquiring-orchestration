@@ -9,13 +9,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecuteContext
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心任务执行上下文对象
- * @status : create
+ * 调度中心任务执行上下文对象
  */
 @Data
 public class JobExecuteContext {

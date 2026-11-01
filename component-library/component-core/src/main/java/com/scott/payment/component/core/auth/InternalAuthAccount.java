@@ -7,13 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalAuthAccount
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 内部管理类系统当前登录账号上下文
- * @status : create
+ * 内部管理类系统当前登录账号上下文
  */
 @Data
 public class InternalAuthAccount implements Serializable {

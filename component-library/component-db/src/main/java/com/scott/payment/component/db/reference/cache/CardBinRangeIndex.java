@@ -36,30 +36,37 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinRangeIndex
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的 Card BIN 三位分片索引；查询按 generation 隔离，发布只从 SLAVE 构建数据库有界永久缓存
- * @status : update
+ * 支付与 OpenAPI 共用的 Card BIN 三位分片索引；查询按 generation 隔离，发布只从 SLAVE 构建数据库有界永久缓存
  */
 @Slf4j
 @Service
 public class CardBinRangeIndex {
 
+
     private static final String CACHE_NAMESPACE = "card-bin-range";
+
     private static final String GENERATION_FIELD = "_generation";
+
     private static final String FORMAT_FIELD = "_format";
+
     private static final String INDEX_FORMAT_VERSION = "id-priority-v1";
+
     private static final int SHARD_PREFIX_LENGTH = 3;
+
     private static final int SHARD_COUNT = 1_000;
+
     private static final int NORMALIZED_BIN_LENGTH = 11;
+
     private static final long SHARD_DIVISOR = 100_000_000L;
+
     private static final long MAX_BIN_VALUE = 99_999_999_999L;
+
     private static final int ESTIMATED_HASH_ENTRY_OVERHEAD_BYTES = 64;
+
     private static final String LEGACY_SLOT_IDENTITY = "card-bin-range-index";
+
     private static final String LEGACY_SLOT_A = "a";
+
     private static final String LEGACY_SLOT_B = "b";
 
     private final StringRedisTemplate redisTemplate;
@@ -276,7 +283,8 @@ public class CardBinRangeIndex {
             markAllShardsComplete(generation);
             redisTemplate.opsForValue().set(
                     readyGenerationKey(), generation + ":" + INDEX_FORMAT_VERSION);
-            log.info("event: CARD_BIN_RANGE_INDEX_PUBLISHED generation: {} sourceRows: {} indexedEntries: {} snapshotBytes: {} shards: {}",
+            log.info("卡 BIN 区间索引发布完成, event: CARD_BIN_RANGE_INDEX_PUBLISHED, "
+                            + "generation: {}, sourceRows: {}, indexedEntries: {}, snapshotBytes: {}, shards: {}",
                     generation, sourceRows, indexedEntries, snapshotBytes, SHARD_COUNT);
         } catch (RuntimeException exception) {
             releasePublicationLock(ownerToken, exception);
@@ -331,7 +339,9 @@ public class CardBinRangeIndex {
         }
     }
 
-    /** 删除固定数量的数据库派生分片；Redisson 可用时使用跨节点批处理降低发布耗时。 */
+    /**
+     * 删除固定数量的数据库派生分片；Redisson 可用时使用跨节点批处理降低发布耗时。
+     */
     private void clearAllShards() {
         if (redissonClient.isPresent()) {
             RBatch batch = redissonClient.get().createBatch(BatchOptions.defaults()
@@ -348,7 +358,9 @@ public class CardBinRangeIndex {
         }
     }
 
-    /** 全部数据和源签名校验完成后才标记分片代际；空分片也会成为权威未命中来源。 */
+    /**
+     * 全部数据和源签名校验完成后才标记分片代际；空分片也会成为权威未命中来源。
+     */
     private void markAllShardsComplete(String generation) {
         if (redissonClient.isPresent()) {
             RBatch batch = redissonClient.get().createBatch(BatchOptions.defaults()
@@ -370,6 +382,12 @@ public class CardBinRangeIndex {
         }
     }
 
+    /**
+     * 解码 Redis 多字段查询返回的 BIN 候选，并限制候选数量防止异常载荷放大内存占用。
+     *
+     * @param values generation、格式版本及各前缀字段值
+     * @return 已通过结构校验的 BIN 候选列表
+     */
     private List<CardBinRangeIndexEntry> decodeCandidates(List<Object> values) {
         int lookupCandidateLimit = Math.multiplyExact(
                 maxCandidatesPerPrefix,
@@ -394,6 +412,12 @@ public class CardBinRangeIndex {
         return candidates;
     }
 
+    /**
+     * 构造 generation、格式版本和逐级前缀的一次 HMGET 字段列表。
+     *
+     * @param cardBinPrefix 已规范化为十一位的 BIN 前缀
+     * @return 顺序稳定的 Hash 字段列表
+     */
     private List<Object> lookupFields(String cardBinPrefix) {
         List<Object> fields = new ArrayList<>(
                 NORMALIZED_BIN_LENGTH - SHARD_PREFIX_LENGTH + 3);
@@ -431,6 +455,11 @@ public class CardBinRangeIndex {
         return coordinates;
     }
 
+    /**
+     * 使用 owner token 续租 BIN 索引发布锁，所有权丢失时立即中止发布。
+     *
+     * @param ownerToken 当前发布节点持有的随机令牌
+     */
     private void renewPublicationLease(String ownerToken) {
         Long renewed = redisTemplate.execute(
                 PaymentRedisScripts.tokenLeaseRenewV1(),
@@ -443,6 +472,13 @@ public class CardBinRangeIndex {
         }
     }
 
+    /**
+     * 使用发布租约的 owner token 释放索引发布锁，防止误删其他节点续租后的锁。
+     * 清理失败发生在主流程异常之后时，将其附加为 suppressed 异常，保留真正的发布失败原因。
+     *
+     * @param ownerToken 当前索引发布租约的持有者令牌
+     * @param original 发布主流程异常；主流程成功时为空
+     */
     private void releasePublicationLock(String ownerToken, RuntimeException original) {
         try {
             Long released = redisTemplate.execute(
@@ -463,6 +499,12 @@ public class CardBinRangeIndex {
         }
     }
 
+    /**
+     * 将 BIN 数值左补零为固定十一位索引文本。
+     *
+     * @param value 非负且不超过十一位的 BIN 数值
+     * @return 固定十一位文本
+     */
     private static String elevenDigitValue(long value) {
         if (value < 0 || value > MAX_BIN_VALUE) {
             throw new IllegalArgumentException(
@@ -472,6 +514,12 @@ public class CardBinRangeIndex {
         return "0".repeat(NORMALIZED_BIN_LENGTH - digits.length()) + digits;
     }
 
+    /**
+     * 将三位分片序号格式化为固定宽度名称。
+     *
+     * @param shard 0 至 999 的分片序号
+     * @return 三位分片名称
+     */
     private static String shardName(int shard) {
         if (shard < 0 || shard >= SHARD_COUNT) {
             throw new IllegalArgumentException("Card BIN shard must be between 000 and 999");
@@ -479,12 +527,19 @@ public class CardBinRangeIndex {
         return String.format("%03d", shard);
     }
 
+    /**
+     * 返回与数据库按主键倒序取首条一致的候选优先级比较器。
+     *
+     * @return 按记录主键排序的比较器
+     */
     private Comparator<CardBinRangeIndexEntry> winnerOrder() {
         // 与从库 ORDER BY id DESC LIMIT 1 完全一致，避免缓存与冷查询返回不同记录。
         return Comparator.comparingLong(CardBinRangeIndexEntry::id);
     }
 
-    /** 校验 Redis 候选的关键区间字段；损坏载荷必须回源，不能被解释为权威未命中。 */
+    /**
+     * 校验 Redis 候选的关键区间字段；损坏载荷必须回源，不能被解释为权威未命中。
+     */
     private boolean validCandidate(CardBinRangeIndexEntry entry) {
         return entry != null
                 && entry.id() != null
@@ -496,6 +551,13 @@ public class CardBinRangeIndex {
                 && entry.binLength() <= NORMALIZED_BIN_LENGTH;
     }
 
+    /**
+     * 将缓存索引项转换为公共 BIN 查询结果。
+     *
+     * @param cardBinPrefix 本次查询的规范化 BIN 前缀
+     * @param entry 胜出的索引项
+     * @return 命中的公共查询结果
+     */
     private CardBinLookupResult toResult(String cardBinPrefix, CardBinRangeIndexEntry entry) {
         return new CardBinLookupResult(
                 true, cardBinPrefix, entry.binLength(), entry.cardBrand(), entry.cardSubBrand(),
@@ -504,6 +566,12 @@ public class CardBinRangeIndex {
                 entry.issuerCountryNumeric(), entry.issuerBank());
     }
 
+    /**
+     * 将数据库 BIN 区间记录转换为可发布的缓存索引项。
+     *
+     * @param row 数据库权威记录
+     * @return 缓存索引项
+     */
     private CardBinRangeIndexEntry toEntry(CardBinRangeDO row) {
         return new CardBinRangeIndexEntry(
                 row.getId(), row.getCardBinStart(), row.getCardBinEnd(), row.getBinLength(),
@@ -512,6 +580,12 @@ public class CardBinRangeIndex {
                 row.getIssuerCountryNumeric(), row.getIssuerBank());
     }
 
+    /**
+     * 校验从库记录主键递增、区间边界和 BIN 长度，防止发布损坏快照。
+     *
+     * @param row 当前数据库记录
+     * @param previousId 上一条已校验记录主键
+     */
     private void validateRow(CardBinRangeDO row, long previousId) {
         if (row == null || row.getId() == null || row.getId() <= previousId
                 || row.getCardBinStart() == null || row.getCardBinEnd() == null
@@ -523,6 +597,12 @@ public class CardBinRangeIndex {
         }
     }
 
+    /**
+     * 校验从库源签名包含有效行数和校验和。
+     *
+     * @param signature 从库计算的源签名
+     * @return 已通过结构校验的源签名
+     */
     private CardBinIndexSourceSignatureDO requireSignature(
             CardBinIndexSourceSignatureDO signature) {
         if (signature == null || signature.getRowCount() == null || signature.getRowCount() < 0
@@ -532,6 +612,11 @@ public class CardBinRangeIndex {
         return signature;
     }
 
+    /**
+     * 校验发布代际只含可安全用于 Redis 值和日志的受控字符。
+     *
+     * @param generation 待发布代际
+     */
     private void requireGeneration(String generation) {
         if (!StringUtils.hasText(generation) || generation.length() > 128
                 || !generation.matches("^[A-Za-z0-9._-]+$")) {
@@ -539,15 +624,28 @@ public class CardBinRangeIndex {
         }
     }
 
+    /**
+     * 构造指定 BIN 分片的环境隔离 Redis Key。
+     *
+     * @param shard 三位分片名称
+     * @return Redis Key
+     */
     private String shardKey(String shard) {
         return redisProperties.businessKey("cardBin", shard);
     }
 
+    /**
+     * 构造当前已完整发布代际的 Redis Key。
+     *
+     * @return 发布完成标记 Key
+     */
     private String readyGenerationKey() {
         return redisProperties.businessKey("cardBin", "index", "ready");
     }
 
-    /** 从带格式版本的完成标记中提取 generation；旧格式返回 null 并触发一次完整重建。 */
+    /**
+     * 从带格式版本的完成标记中提取 generation；旧格式返回 null 并触发一次完整重建。
+     */
     private String readyGeneration(String marker) {
         if (!StringUtils.hasText(marker)) {
             return null;
@@ -556,30 +654,52 @@ public class CardBinRangeIndex {
         return marker.endsWith(suffix) ? marker.substring(0, marker.length() - suffix.length()) : null;
     }
 
+    /**
+     * 构造 BIN 索引发布租约的 Redis Key。
+     *
+     * @return 发布锁 Key
+     */
     private String publicationLockKey() {
         return redisProperties.businessKey("cardBin", "index", "publication-lock");
     }
 
+    /**
+     * 构造旧版同槽位快照 Key，仅用于迁移期清理兼容数据。
+     *
+     * @param businessSegments 旧版业务 Key 分段
+     * @return 旧版同槽位 Redis Key
+     */
     private String legacySnapshotKey(String... businessSegments) {
         return redisProperties.coLocatedBusinessKey(
                 "cardBin", "rangeIndex", LEGACY_SLOT_IDENTITY,
                 businessSegments);
     }
 
+    /**
+     * 按一分钟窗口限制 BIN 索引回退告警频率，保留异常栈用于内部诊断。
+     *
+     * @param operation 失败的受控操作名
+     * @param exception Redis 或载荷异常
+     */
     private void warn(String operation, RuntimeException exception) {
         long now = System.currentTimeMillis();
         long previous = lastWarningMillis.get();
         if (now - previous >= 60_000 && lastWarningMillis.compareAndSet(previous, now)) {
-            log.warn("event: CARD_BIN_RANGE_INDEX_FALLBACK operation: {} exceptionType: {}",
+            log.warn("卡 BIN 区间索引降级, event: CARD_BIN_RANGE_INDEX_FALLBACK, "
+                            + "operation: {}, exceptionType: {}",
                     operation, exception.getClass().getSimpleName(), exception);
         }
     }
 
-    /** Redis 三位分片及该分片内的前缀字段。 */
+    /**
+     * Redis 三位分片及该分片内的前缀字段。
+     */
     record IndexCoordinate(String shard, String field) {
     }
 
-    /** 单条待写入的数据库派生候选，不包含商户查询输入。 */
+    /**
+     * 单条待写入的数据库派生候选，不包含商户查询输入。
+     */
     private record IndexWrite(String shard, String field, String payload) {
     }
 }

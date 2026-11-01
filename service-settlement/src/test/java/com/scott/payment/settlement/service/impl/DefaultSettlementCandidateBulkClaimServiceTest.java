@@ -22,13 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementCandidateBulkClaimServiceTest
- * @date : 2026-08-26 22:20
- * @email : scott_x@163.com
- * @description : 验证自动批次使用候选版本批量 CAS、批量审计关系和批次计数 CAS，并在无更多候选后封为 CLAIMED。
- * @status : create
+ * 验证自动批次使用候选版本批量 CAS、批量审计关系和批次计数 CAS，并在无更多候选后封为 CLAIMED。
  */
 class DefaultSettlementCandidateBulkClaimServiceTest {
 
@@ -46,7 +40,9 @@ class DefaultSettlementCandidateBulkClaimServiceTest {
                 batchMapper, candidateMapper, relationMapper);
     }
 
-    /** 一页候选应原子认领，下一次空页后把非空批次封为 CLAIMED。 */
+    /**
+     * 一页候选应原子认领，下一次空页后把非空批次封为 CLAIMED。
+     */
     @Test
     void shouldClaimPageAndSealNonEmptyBatch() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 1, 0);
@@ -72,7 +68,9 @@ class DefaultSettlementCandidateBulkClaimServiceTest {
         verify(batchMapper).sealClaimedBatch(batch.getSettlementBatchNo(), 2, 1L, now);
     }
 
-    /** 保证金释放候选只增加总数，不得增加真实交易投影计数。 */
+    /**
+     * 保证金释放候选只增加总数，不得增加真实交易投影计数。
+     */
     @Test
     void shouldNotCountReserveReleaseCandidatesAsProjectableTransactions() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 1, 30);
@@ -97,7 +95,9 @@ class DefaultSettlementCandidateBulkClaimServiceTest {
         verify(batchMapper).incrementCandidateCountBy(batch.getSettlementBatchNo(), 2, 0, 0L);
     }
 
-    /** 持续有积压时单批只能消费五页共1000条，剩余候选必须留给下一批。 */
+    /**
+     * 持续有积压时单批只能消费五页共1000条，剩余候选必须留给下一批。
+     */
     @Test
     void shouldSealBatchAtOneThousandCandidateHardLimit() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 2, 0);
@@ -126,7 +126,9 @@ class DefaultSettlementCandidateBulkClaimServiceTest {
         verify(batchMapper).sealClaimedBatch(batch.getSettlementBatchNo(), 1000, 5L, now);
     }
 
-    /** 并发后没有候选时保持空壳 CREATED，并把 0 返回给自动编排层执行审计取消。 */
+    /**
+     * 并发后没有候选时保持空壳 CREATED，并把 0 返回给自动编排层执行审计取消。
+     */
     @Test
     void shouldReturnZeroWithoutSealingEmptyBatch() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 2, 30);

@@ -36,13 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMenuServiceImpl
- * @date : 2026-06-19 22:22
- * @email : scott_x@163.com
- * @description : 管理后台菜单领域服务实现
- * @status : create
+ * 管理后台菜单领域服务实现
  *
  * <p>负责菜单树组装、父子层级校验、菜单编码唯一性校验和菜单状态维护，
  * 不承担控制器协议适配或页面交互逻辑。</p>
@@ -50,29 +44,8 @@ import java.util.Set;
 @Service
 public class AdminMenuServiceImpl implements AdminMenuService {
 
-    /**
-     * {@code ROOT_PARENT_ID}，用于定位 {@code AdminMenuServiceImpl} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long ROOT_PARENT_ID = 0L;
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminMenuServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * {@code DEFAULT_SORT_NO}，用于控制列表展示或规则匹配时的排序优先级。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DEFAULT_SORT_NO = 100;
     private static final Set<String> MENU_TYPES = Set.of("CATALOG", "MENU", "BUTTON", "LINK");
 
@@ -458,6 +431,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return value.trim();
     }
 
+    /**
+     * 同步角色与权限的授权关系。
+     */
     private void syncPermission(Long appId, SysMenuDO menu) {
         String permissionCode = normalize(menu.getPermissionCode());
         SysPermissionDO existing = sysPermissionMapper.selectOne(
@@ -503,6 +479,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         sysPermissionMapper.updateById(permission);
     }
 
+    /**
+     * 根据菜单配置同步权限资源字段。
+     */
     private void applyPermissionFields(SysPermissionDO permission, SysMenuDO menu) {
         permission.setPermissionName(menu.getMenuName());
         permission.setPermissionType("BUTTON".equals(menu.getMenuType()) ? "BUTTON" : "MENU");
@@ -511,10 +490,16 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         permission.setStatus(validStatus(menu.getStatus()));
     }
 
+    /**
+     * 返回菜单资源方式，未配置时使用默认方式。
+     */
     private String defaultResourceMethod(String menuType) {
         return "BUTTON".equals(menuType) ? "*" : "GET";
     }
 
+    /**
+     * 软删除角色菜单授权关系。
+     */
     private void softDeleteRoleMenus(Long appId, Long menuId) {
         List<SysRoleMenuDO> grants = sysRoleMenuMapper.selectList(
                 Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -528,6 +513,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
+    /**
+     * 软删除菜单与权限关联关系。
+     */
     private void softDeleteMenuPermissions(Long appId, Long menuId) {
         List<SysPermissionDO> permissions = sysPermissionMapper.selectList(
                 Wrappers.<SysPermissionDO>lambdaQuery()
@@ -543,6 +531,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
+    /**
+     * 软删除角色权限授权关系。
+     */
     private void softDeleteRolePermissions(Long appId, Long permissionId) {
         List<SysRolePermissionDO> grants = sysRolePermissionMapper.selectList(
                 Wrappers.<SysRolePermissionDO>lambdaQuery()
@@ -556,6 +547,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
+    /**
+     * 根据父子关系构建有序菜单树。
+     */
     private List<SysMenuDTO> buildTree(List<SysMenuDO> menus) {
         Map<Long, SysMenuDTO> menuMap = new LinkedHashMap<>();
         menus.forEach(menu -> menuMap.put(menu.getId(), toDTO(menu)));
@@ -571,6 +565,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return roots;
     }
 
+    /**
+     * 将菜单实体转换为管理端菜单响应。
+     */
     private SysMenuDTO toDTO(SysMenuDO menu) {
         return menuConverter.toDTO(menu);
     }

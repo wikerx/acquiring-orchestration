@@ -71,6 +71,44 @@ TEMPLATE_PATTERNS = [
     re.compile(r"声明的业务动作，并沿用所属类型的权限、状态、事务和异常边界"),
     re.compile(r"按 \{@code .*\} 的公开契约返回当前类型所需结果"),
     re.compile(r"@param\s+\w+\s+\{@code \w+\} 参数，其取值范围和可空性由当前方法与所属模型共同约束"),
+    re.compile(r"表示当前记录在业务流程中的处理状态"),
+    re.compile(r"保存 \{@code \w+\} 当前处理所需的业务取值"),
+    re.compile(r"用于定位 \{@code \w+\} 关联的上游配置、渠道、账号、角色或业务记录"),
+    re.compile(r"用于展示或识别当前商户、渠道、用户、角色、模板或配置对象"),
+    re.compile(r"用于在系统、渠道、字典或配置中稳定引用当前业务取值"),
+    re.compile(r"单位：无；格式：(?:字符串、对象引用或集合结构|业务编号字符串|枚举编码或受控字符串|枚举常量|固定协议字面量或受控编码|布尔值或 0/1 (?:标识|开关))"),
+    re.compile(r"是否允许为空由(?:所属)?接口校验、数据库约束或(?:调用契约|业务规则)决定"),
+    re.compile(r"取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束"),
+    re.compile(r"取值范围：(?:长度、唯一性和可空性由接口校验或数据库唯一约束限制|取值范围由数据库字段、校验注解或任务参数限制)"),
+    re.compile(r"数据来源：(?:当前业务流程上游模型、配置项或数据库查询结果|上游接口请求、内部服务调用或远程服务响应|数据库表记录或持久化写入对象|Spring 配置和构造器注入的内部客户端依赖)"),
+    re.compile(r"字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段"),
+    re.compile(r"字段关系：与创建人、更新人和版本字段共同形成记录审计信息"),
+    re.compile(r"数据库主键，用于唯一标识当前记录"),
+    re.compile(r"表示当前统计、分页、扫描或重试场景中的数量"),
+    re.compile(r"表示当前交易、费用、限额或统计口径下的金额值"),
+    re.compile(r"用于配置快照追踪、缓存代际判断或乐观锁并发控制"),
+    re.compile(r"用于保存人工备注、交易说明或配置补充说明"),
+    re.compile(r"表示支付方式、通知方式或调用方式"),
+    re.compile(r"表示金额字段使用的币种"),
+    re.compile(r"用于定位渠道商户号配置或渠道侧 MID"),
+    re.compile(r"表示当前渠道、配置或接口是否支持对应能力"),
+    re.compile(r"表示回调、通知、来源站点或远程接口地址"),
+    re.compile(r"用于以不可逆摘要关联敏感原文或大报文"),
+    re.compile(r"用于控制分页查询、批量扫描或任务单次处理规模"),
+    re.compile(r"调用对应的数据访问、远程调用或领域服务能力"),
+    re.compile(r"表示接口路径、资源路径或路由匹配路径"),
+    re.compile(r"表示远程服务主机、商户域名或渠道访问域名"),
+    re.compile(r"表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要"),
+    re.compile(r"表示 HTTP 请求或响应头集合，敏感头只能记录摘要"),
+    re.compile(r"表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制"),
+    re.compile(r"表示卡组织或 3DS 认证链路使用的安全认证值"),
+    re.compile(r"表示 3DS 认证状态、版本或结果标识，用于渠道授权和风控判断"),
+    re.compile(r"任务组件，位于 .*，执行定时扫描、分片调度、补偿处理或后台同步"),
+    re.compile(r"字段，保存 .*当前处理所需的业务取值"),
+    re.compile(r"常量，统一 .* 内部使用的配置值、状态码或协议字段"),
+    re.compile(r"表示当前内部调用、渠道调用或商户通知的目标地址"),
+    re.compile(r"用于定位 .*关联的上游配置、渠道、账号、角色或业务记录"),
+    re.compile(r"用于明确 .*当前业务分支是否成立"),
 ]
 
 DUPLICATE_TYPE_JAVADOC = re.compile(
@@ -79,6 +117,12 @@ DUPLICATE_TYPE_JAVADOC = re.compile(
 )
 JAVADOC_BLOCK_RE = re.compile(r"/\*\*.*?\*/", re.DOTALL)
 ADJACENT_JAVADOC_RE = re.compile(r"/\*\*.*?\*/\s*/\*\*", re.DOTALL)
+FORBIDDEN_METADATA_TAG_RE = re.compile(
+    r"(?m)^\s*\*\s*@(author|email|date|version|status|classname)\b",
+    re.IGNORECASE,
+)
+INHERIT_DOC_RE = re.compile(r"\{@inheritDoc\}", re.IGNORECASE)
+ONE_LINE_JAVADOC_RE = re.compile(r"(?m)^\s*/\*\*[^\r\n]*\*/\s*$")
 TYPE_RE = re.compile(
     r"^(?P<indent>\s*)(?P<mods>(?:(?:public|protected|private|abstract|final|static|sealed|non-sealed|strictfp)\s+)*)"
     r"(?P<kind>@interface|class|interface|enum|record)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b"
@@ -449,8 +493,13 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
         if field and current_type and depth == current_type[2] + 1 and not stripped.startswith("return "):
             name = field.group("name")
             mods = set((field.group("mods") or "").split())
+            # The project convention requires type and method contracts, plus
+            # meaningful documentation for shared constants. Ordinary DTO and
+            # entity fields are described by stable names and validation/schema
+            # annotations; forcing Javadoc on every field creates low-value text.
             required_field = (is_main_java(path) and current_type[0] != "record"
-                              and (is_model_path(path) or {"static", "final"}.issubset(mods)))
+                              and {"static", "final"}.issubset(mods)
+                              and "private" not in mods)
             if (required_field and name not in LOGGER_NAMES and name not in TECHNICAL_STATIC_FIELDS
                     and not has_javadoc_before(lines, index)):
                 findings.append(f"missing_field_javadoc:{name}:{index + 1}")
@@ -497,6 +546,12 @@ def scan_file(path: Path) -> list[str]:
     for pattern in TEMPLATE_PATTERNS:
         if any(pattern.search(block) for block in javadocs):
             findings.append(f"template:{pattern.pattern}")
+    if FORBIDDEN_METADATA_TAG_RE.search(text):
+        findings.append("forbidden-javadoc-metadata")
+    if INHERIT_DOC_RE.search(text):
+        findings.append("inherit-doc-placeholder")
+    if ONE_LINE_JAVADOC_RE.search(text):
+        findings.append("one-line-javadoc")
     if DUPLICATE_TYPE_JAVADOC.search(text):
         findings.append("duplicate-type-javadoc")
     if ADJACENT_JAVADOC_RE.search(text):

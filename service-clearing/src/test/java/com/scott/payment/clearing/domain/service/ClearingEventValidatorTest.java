@@ -11,13 +11,7 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingEventValidatorTest
- * @date : 2026-08-26 08:25
- * @email : scott_x@163.com
- * @description : 验证清分入口拒绝缺失业务身份、分片键和不受支持事件，消息状态不能替代数据库终态。
- * @status : create
+ * 验证清分入口拒绝缺失业务身份、分片键和不受支持事件，消息状态不能替代数据库终态。
  */
 class ClearingEventValidatorTest {
 

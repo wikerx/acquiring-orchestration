@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeResponse
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务执行器节点响应 DTO
- * @status : create
+ * 管理后台任务执行器节点响应 DTO
  *
  * <p>用于监控页面展示调度执行节点的注册信息、心跳状态和并发容量。</p>
  */

@@ -8,13 +8,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelExportColumn
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 导出列定义注解
- * @status : create
+ * Excel 导出列定义注解
  *
  * <p>用于声明导出列顺序、国际化表头 key、字段对齐方式和建议列宽，
  * 避免直接在业务导出对象中硬编码中文表头。</p>

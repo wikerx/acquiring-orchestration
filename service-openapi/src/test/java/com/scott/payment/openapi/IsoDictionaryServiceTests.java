@@ -17,13 +17,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoDictionaryServiceTests
- * @date : 2026-06-03 15:35
- * @email : scott_x@163.com
- * @description : ISO 国家地区与币种公共服务数据库查询测试
- * @status : create
+ * ISO 国家地区与币种公共服务数据库查询测试
  */
 @Slf4j
 @SpringBootTest(
@@ -35,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
-class IsoDictionaryServiceTests {
+class IsoDictionaryServiceTests extends OpenApiIsolatedMysqlIntegrationTest {
 
     /**
      * ISO 字典公共服务，后续各微服务可直接注入该服务查询国家和币种。

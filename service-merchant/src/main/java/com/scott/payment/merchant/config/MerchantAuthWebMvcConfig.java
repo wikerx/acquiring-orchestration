@@ -4,20 +4,17 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.web.auth.InternalAuthInterceptor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAuthWebMvcConfig
- * @date : 2026-06-06 12:00
- * @email : scott_x@163.com
- * @description : Merchant Auth Web Mvc Config 配置类，位于 商户后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
- * @status : create
+ * 商户认证 Web 配置，注册认证拦截器及无需登录的公开路径。
  */
 @Configuration
 public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
@@ -26,14 +23,22 @@ public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
      * 系统鉴权服务，用于拦截器解析和校验商户后台登录态。
      */
     private final SystemAuthService systemAuthService;
+    private final MerchantDefaultLoginCredentialProperties defaultLoginProperties;
+    private final Environment environment;
 
     /**
      * 创建商户后台鉴权拦截配置。
      *
      * @param systemAuthService 系统鉴权服务
+     * @param defaultLoginProperties 本地开发默认登录凭据配置
+     * @param environment 当前 Spring 环境
      */
-    public MerchantAuthWebMvcConfig(SystemAuthService systemAuthService) {
+    public MerchantAuthWebMvcConfig(SystemAuthService systemAuthService,
+                                    MerchantDefaultLoginCredentialProperties defaultLoginProperties,
+                                    Environment environment) {
         this.systemAuthService = systemAuthService;
+        this.defaultLoginProperties = defaultLoginProperties;
+        this.environment = environment;
     }
 
     /**
@@ -53,9 +58,8 @@ public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
      * @return 白名单路径集合
      */
     private List<String> whitelist() {
-        return List.of(
+        List<String> paths = new ArrayList<>(List.of(
                 "/merchant/auth/login",
-                "/merchant/auth/default-login-credential",
                 "/merchant/auth/verify-code/send",
                 "/merchant/auth/mfa/bind-info",
                 "/merchant/auth/mfa/bind-confirm",
@@ -73,6 +77,11 @@ public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
                 "/webjars/**",
                 "/favicon.ico",
                 "/error"
-        );
+        ));
+        if (defaultLoginProperties.isEnabled()
+                && environment.acceptsProfiles(Profiles.of("dev", "test", "local"))) {
+            paths.add("/merchant/auth/default-login-credential");
+        }
+        return List.copyOf(paths);
     }
 }

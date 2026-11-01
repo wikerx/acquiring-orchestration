@@ -38,33 +38,40 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskListRuntimeRepositoryClusterIntegrationTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Redis Cluster 下累计限额和频率脚本的真实执行验证。
- * @status : create
+ * Redis Cluster 下累计限额和频率脚本的真实执行验证。
  */
 @Slf4j
 @EnabledIfSystemProperty(named = "risk.redis.cluster.integration.enabled", matches = "true")
 class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
 
-    /** 真实 Cluster 集成测试专用 Key 前缀，与开发和生产业务 Key 隔离。 */
+    /**
+     * 真实 Cluster 集成测试专用 Key 前缀，与开发和生产业务 Key 隔离。
+     */
     private static final String REDIS_KEY_PREFIX = "acquiring:cluster-it";
 
-    /** 构造频率滑动窗口 Key 使用的固定 IP 摘要，不包含真实客户端地址。 */
+    /**
+     * 构造频率滑动窗口 Key 使用的固定 IP 摘要，不包含真实客户端地址。
+     */
     private static final String IP_LOOKUP_HASH = "cluster-ip-hash";
 
-    /** 测试类共享的 Lettuce Cluster 连接工厂，在全部用例结束后统一销毁。 */
+    /**
+     * 测试类共享的 Lettuce Cluster 连接工厂，在全部用例结束后统一销毁。
+     */
     private static LettuceConnectionFactory connectionFactory;
 
-    /** 执行真实 Cluster Lua 脚本并清理测试 Key 的字符串模板。 */
+    /**
+     * 执行真实 Cluster Lua 脚本并清理测试 Key 的字符串模板。
+     */
     private static StringRedisTemplate redisTemplate;
 
-    /** 当前测试产生的 Redis Key，仅按已登记的确定值精确清理。 */
+    /**
+     * 当前测试产生的 Redis Key，仅按已登记的确定值精确清理。
+     */
     private final Set<String> cleanupKeys = new HashSet<>();
 
+    /**
+     * 连接环境指定的 Redis Cluster，并为用例创建真实字符串模板。
+     */
     @BeforeAll
     static void setUpClusterConnection() {
         String configuredNodes = System.getProperty(
@@ -92,12 +99,18 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         redisTemplate.afterPropertiesSet();
     }
 
+    /**
+     * 删除用例登记的 Redis Cluster 键，避免跨用例污染计数。
+     */
     @AfterEach
     void cleanUpIntegrationKeys() {
         cleanupKeys.forEach(redisTemplate::delete);
         cleanupKeys.clear();
     }
 
+    /**
+     * 关闭 Redis Cluster 连接工厂并释放客户端资源。
+     */
     @AfterAll
     static void closeClusterConnection() {
         if (connectionFactory != null) {
@@ -105,6 +118,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         }
     }
 
+    /**
+     * 验证集群同槽脚本只预占一次，并能按稳定标记幂等回滚。
+     */
     @Test
     void shouldReserveOnceAndRollbackOnRedisCluster() {
         String merchantId = uniqueMerchantId();
@@ -145,6 +161,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
                         assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000"));
     }
 
+    /**
+     * 验证 Redis Cluster 频控脚本对同一交易只累计一次。
+     */
     @Test
     void shouldCountEachTransactionOnceOnRedisCluster() {
         String merchantId = uniqueMerchantId();
@@ -191,6 +210,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         assertThat(first.getMatchResult()).isEqualTo("PASS");
     }
 
+    /**
+     * 按用例提供的基础设施依赖构造风控运行时仓储。
+     */
     private DefaultRiskListRuntimeRepository repository(String merchantId,
                                                         List<RiskListMatch> cumulativeRules,
                                                         List<RiskListMatch> frequencyRules) {
@@ -227,6 +249,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         );
     }
 
+    /**
+     * 构造包含测试所需商户、交易和支付字段的风控评估请求。
+     */
     private RiskPaymentEvaluateRequestDTO request(String merchantId,
                                                   String transactionId,
                                                   String amount) {
@@ -240,6 +265,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         return request;
     }
 
+    /**
+     * 构造指定周期、阈值和动作的累计限额规则。
+     */
     private RiskListMatch cumulativeRule(long ruleId) {
         RiskListMatch rule = new RiskListMatch();
         rule.setRuleId(ruleId);
@@ -253,10 +281,16 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         return rule;
     }
 
+    /**
+     * 构造指定维度、窗口和阈值的频控规则。
+     */
     private RiskListMatch frequencyRule(long ruleId) {
         return frequencyRule(ruleId, 5);
     }
 
+    /**
+     * 构造指定维度、窗口和阈值的频控规则。
+     */
     private RiskListMatch frequencyRule(long ruleId, int allowedCount) {
         RiskListMatch rule = new RiskListMatch();
         rule.setRuleId(ruleId);
@@ -281,10 +315,16 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         return lookupValue;
     }
 
+    /**
+     * 生成隔离 Redis 集成测试数据的唯一商户号。
+     */
     private String uniqueMerchantId() {
         return "M" + UUID.randomUUID().toString().replace("-", "");
     }
 
+    /**
+     * 登记累计限额脚本可能写入的键，供用例结束后清理。
+     */
     private void rememberReservationKeys(MerchantLimitEvaluation evaluation) {
         evaluation.reservations().forEach(reservation -> {
             cleanupKeys.add(reservation.aggregateKey());
@@ -292,6 +332,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         });
     }
 
+    /**
+     * 登记频控脚本可能写入的键，供用例结束后清理。
+     */
     private void rememberFrequencyKeys(RiskListMatch rule,
                                        String merchantId,
                                        RiskPaymentEvaluateRequestDTO... requests) {
@@ -308,12 +351,18 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
                 .forEach(cleanupKeys::add);
     }
 
+    /**
+     * 构造使用测试环境前缀的 Redis 业务键配置。
+     */
     private PaymentRedisProperties redisProperties() {
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
         redisProperties.setKeyPrefix(REDIS_KEY_PREFIX);
         return redisProperties;
     }
 
+    /**
+     * 构造始终返回指定测试依赖的 Spring ObjectProvider。
+     */
     @SuppressWarnings("unchecked")
     private <T> ObjectProvider<T> provider(T value) {
         ObjectProvider<T> provider = mock(ObjectProvider.class);

@@ -13,13 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundApprovalRecoveryServiceTests
- * @date : 2026-08-06 15:25
- * @email : scott_x@163.com
- * @description : 退款审批恢复批处理测试，验证过期终结和已批准执行事件恢复均逐笔委托事务工作流。
- * @status : create
+ * 退款审批恢复批处理测试，验证过期终结和已批准执行事件恢复均逐笔委托事务工作流。
  */
 class RefundApprovalRecoveryServiceTests {
 

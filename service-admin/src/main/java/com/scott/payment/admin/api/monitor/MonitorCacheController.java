@@ -1,6 +1,9 @@
 package com.scott.payment.admin.api.monitor;
 
 import com.scott.payment.admin.application.monitor.AdminMonitorCacheApplicationService;
+import com.scott.payment.admin.dto.monitor.CacheInfoResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyDetailResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyPageResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.CacheMetricsResponse;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -12,19 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.Map;
-
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorCacheController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端 Redis 监控 HTTP 入口，负责权限和统一响应，仅允许查看运行指标、受控平台配置 Key 元数据和执行受审计的单 Key 删除。
- * @status : create
+ * 管理端 Redis 监控 HTTP 入口，负责权限和统一响应，仅允许查看运行指标、受控平台配置 Key 元数据和执行受审计的单 Key 删除。
  */
 @RestController
 @RequestMapping("/admin/monitor/cache")
@@ -47,7 +41,7 @@ public class MonitorCacheController {
      */
     @GetMapping("/info")
     @RequiresPermission("system:cache:list")
-    public CommonResult<Map<String, Object>> info() {
+    public CommonResult<CacheInfoResponse> info() {
         return success(adminMonitorCacheApplicationService.info());
     }
 
@@ -72,9 +66,10 @@ public class MonitorCacheController {
      */
     @GetMapping("/keys")
     @RequiresPermission("system:cache:query")
-    public CommonResult<Map<String, Object>> keys(@RequestParam(value = "keyPattern", required = false) String keyPattern,
-                                                  @RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
-                                                  @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
+    public CommonResult<CacheKeyPageResponse> keys(
+            @RequestParam(value = "keyPattern", required = false) String keyPattern,
+            @RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
+            @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
         return success(adminMonitorCacheApplicationService.keys(keyPattern, pageNo, pageSize));
     }
 
@@ -86,7 +81,7 @@ public class MonitorCacheController {
      */
     @GetMapping("/value")
     @RequiresPermission("system:cache:query")
-    public CommonResult<Map<String, Object>> value(@RequestParam("key") String key) {
+    public CommonResult<CacheKeyDetailResponse> value(@RequestParam("key") String key) {
         return success(adminMonitorCacheApplicationService.value(key));
     }
 

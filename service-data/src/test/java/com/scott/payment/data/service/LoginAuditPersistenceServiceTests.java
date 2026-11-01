@@ -16,18 +16,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LoginAuditPersistenceServiceTests
- * @date : 2026-08-02 22:35
- * @email : scott_x@163.com
- * @description : 登录审计数据库最终幂等和重复消息测试
- * @status : create
+ * 登录审计数据库最终幂等和重复消息测试
  */
 @Slf4j
 class LoginAuditPersistenceServiceTests {
 
-    /** 首次消费取得数据库唯一键后应写入一条登录日志。 */
+    /**
+     * 首次消费取得数据库唯一键后应写入一条登录日志。
+     */
     @Test
     void shouldPersistFirstDelivery() {
         log.info("测试登录审计首次消费，关键输入: 唯一键插入成功");
@@ -41,7 +37,9 @@ class LoginAuditPersistenceServiceTests {
         log.info("登录审计首次消费测试完成，结果: 登录日志写入1次");
     }
 
-    /** 重复消息未取得数据库唯一键时不得再次写登录日志。 */
+    /**
+     * 重复消息未取得数据库唯一键时不得再次写登录日志。
+     */
     @Test
     void shouldSkipDuplicateDelivery() {
         log.info("测试登录审计重复消费，关键输入: 唯一键已存在");
@@ -55,7 +53,9 @@ class LoginAuditPersistenceServiceTests {
         log.info("登录审计重复消费测试完成，结果: 未重复写登录日志");
     }
 
-    /** 创建最小合法登录审计消息。 */
+    /**
+     * 创建最小合法登录审计消息。
+     */
     private LoginAuditMessage message() {
         LoginAuditMessage message = new LoginAuditMessage();
         message.setMessageId("LOGIN-EVENT-001");

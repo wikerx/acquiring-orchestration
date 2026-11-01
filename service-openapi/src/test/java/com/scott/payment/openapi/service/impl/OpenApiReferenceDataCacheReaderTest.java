@@ -15,13 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiReferenceDataCacheReaderTest
- * @date : 2026-09-30
- * @email : scott_x@163.com
- * @description : OpenAPI IP 和 Card BIN 对公共缓存读取器的适配行为测试
- * @status : update
+ * OpenAPI IP 和 Card BIN 对公共缓存读取器的适配行为测试
  */
 class OpenApiReferenceDataCacheReaderTest {
 

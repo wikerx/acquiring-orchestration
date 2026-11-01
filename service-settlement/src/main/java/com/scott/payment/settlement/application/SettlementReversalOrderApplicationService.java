@@ -24,6 +24,8 @@ import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.mapper.SettlementReversalDailySequenceMapper;
 import com.scott.payment.settlement.mapper.SettlementReversalOrderMapper;
 import com.scott.payment.settlement.support.SettlementReversalNumberFormatter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,23 +43,19 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalOrderApplicationService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 编排结算冲正申请和异人复核；以请求键、版本 CAS 和冻结资金指纹保护终态，批准后委托批次命令创建独立反向流水。
- * @status : create
+ * 结算冲正申请与异人复核编排。
+ *
+ * <p>提交时冻结原批次资金指纹，批准前重新锁读并复验；Maker 与 Checker 必须为不同账号。
+ * 批准后委托批次命令创建独立反向资金事实，禁止改写原入账记录。</p>
  */
 @Service
 public class SettlementReversalOrderApplicationService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            SettlementReversalOrderApplicationService.class);
+
     /**
-     * {@code MAX_DAILY_SEQUENCE}常量，统一 {@code SettlementReversalOrderApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 每个业务日允许生成的最大冲正序号。
      */
     private static final int MAX_DAILY_SEQUENCE = 99_999_999;
 
@@ -129,6 +127,9 @@ public class SettlementReversalOrderApplicationService {
         SettlementReversalOrderDO existing = orderMapper.selectByCreateRequestKeyForUpdate(command.requestKey());
         if (existing != null) {
             verifyCreateReplay(existing, command);
+            LOGGER.info("结算冲正申请幂等返回, event: SETTLEMENT_REVERSAL_SUBMIT_REPLAY, reversalOrderNo: {}, originalBatchNo: {}, reversalStatus: {}",
+                    existing.getReversalOrderNo(), existing.getOriginalBatchNo(),
+                    existing.getReversalStatus());
             return result(existing);
         }
 
@@ -172,6 +173,9 @@ public class SettlementReversalOrderApplicationService {
         if (orderMapper.insertIdempotent(order) != 1) {
             throw new IllegalStateException("settlement reversal order insert failed");
         }
+        LOGGER.info("结算冲正申请事务写入完成, event: SETTLEMENT_REVERSAL_SUBMIT_WRITE_END, reversalOrderNo: {}, originalBatchNo: {}, merchantId: {}, currency: {}",
+                order.getReversalOrderNo(), order.getOriginalBatchNo(),
+                order.getMerchantId(), order.getTargetCurrency());
         return result(order);
     }
 
@@ -195,6 +199,8 @@ public class SettlementReversalOrderApplicationService {
         SettlementReversalOrderDO replay = orderMapper.selectByDecisionRequestKeyForUpdate(command.requestKey());
         if (replay != null) {
             verifyDecisionReplay(replay, reversalOrderNo.trim(), command);
+            LOGGER.info("结算冲正复核幂等返回, event: SETTLEMENT_REVERSAL_DECISION_REPLAY, reversalOrderNo: {}, decisionAction: {}, reversalStatus: {}",
+                    replay.getReversalOrderNo(), replay.getDecisionAction(), replay.getReversalStatus());
             return result(replay);
         }
         SettlementReversalOrderDO order = orderMapper.selectByReversalOrderNoForUpdate(reversalOrderNo.trim());
@@ -212,6 +218,8 @@ public class SettlementReversalOrderApplicationService {
             }
             order.setReversalStatus(SettlementReversalStatus.REJECTED.name());
             order.setVersion(order.getVersion() + 1);
+            LOGGER.info("结算冲正申请已拒绝, event: SETTLEMENT_REVERSAL_REJECT_WRITE_END, reversalOrderNo: {}, originalBatchNo: {}, expectedVersion: {}",
+                    order.getReversalOrderNo(), order.getOriginalBatchNo(), command.expectedVersion());
             return result(order);
         }
 
@@ -234,10 +242,14 @@ public class SettlementReversalOrderApplicationService {
         }
         order.setReversalStatus(SettlementReversalStatus.APPROVED.name());
         order.setVersion(order.getVersion() + 1);
+        LOGGER.info("结算冲正申请已批准, event: SETTLEMENT_REVERSAL_APPROVE_WRITE_END, reversalOrderNo: {}, originalBatchNo: {}, reversalBatchNo: {}",
+                order.getReversalOrderNo(), order.getOriginalBatchNo(), reversalBatchNo);
         return result(order);
     }
 
-    /** 锁读并校验原批次仍为完整 POSTED 状态且版本与冲正申请一致。 */
+    /**
+     * 锁读并校验原批次仍为完整 POSTED 状态且版本与冲正申请一致。
+     */
     private SettlementBatchDO requirePostedBatch(String batchNo, long expectedVersion) {
         SettlementBatchDO batch = batchMapper.selectByBatchNoForUpdate(batchNo);
         if (batch == null || batch.getVersion() == null || batch.getCandidateCount() == null
@@ -251,7 +263,9 @@ public class SettlementReversalOrderApplicationService {
         return batch;
     }
 
-    /** 锁定原净结果、资金流水并核对真实投影/保证金动作集合后生成来源指纹。 */
+    /**
+     * 锁定原净结果、资金流水并核对真实投影/保证金动作集合后生成来源指纹。
+     */
     private FrozenSource freeze(SettlementBatchDO batch) {
         SettlementResultItemDO net = resultMapper.selectNetPostingForUpdate(batch.getSettlementBatchNo());
         if (net == null || net.getId() == null || net.getTargetAmount() == null
@@ -286,7 +300,9 @@ public class SettlementReversalOrderApplicationService {
         return new FrozenSource(net, ledger, fingerprint(batch, net, ledger, tasks, actions));
     }
 
-    /** 以长度前缀规范编码批次、资金、投影和保证金事实，生成稳定 SHA-256 指纹。 */
+    /**
+     * 以长度前缀规范编码批次、资金、投影和保证金事实，生成稳定 SHA-256 指纹。
+     */
     private String fingerprint(SettlementBatchDO batch,
                                SettlementResultItemDO net,
                                MerchantFundLedgerDO ledger,
@@ -317,7 +333,9 @@ public class SettlementReversalOrderApplicationService {
         }
     }
 
-    /** 使用 BigDecimal plain string 和长度前缀追加规范值，避免分隔符碰撞及科学计数差异。 */
+    /**
+     * 使用 BigDecimal plain string 和长度前缀追加规范值，避免分隔符碰撞及科学计数差异。
+     */
     private void append(StringBuilder target, Object... values) {
         for (Object value : values) {
             String text = value instanceof BigDecimal amount ? amount.toPlainString() : String.valueOf(value);
@@ -325,7 +343,9 @@ public class SettlementReversalOrderApplicationService {
         }
     }
 
-    /** 冻结可信 Maker 主体、客户端环境、申请原因和操作时间。 */
+    /**
+     * 冻结可信 Maker 主体、客户端环境、申请原因和操作时间。
+     */
     private void applyMaker(SettlementReversalOrderDO order, SettlementReversalCreateCommand command) {
         order.setSubmittedByAccountId(command.operator().accountId());
         order.setSubmittedByAccountName(command.operator().accountName());
@@ -336,7 +356,9 @@ public class SettlementReversalOrderApplicationService {
         order.setSubmittedTime(command.operator().operationTime());
     }
 
-    /** 冻结可信 Checker 主体、决策请求键、意见和操作时间。 */
+    /**
+     * 冻结可信 Checker 主体、决策请求键、意见和操作时间。
+     */
     private void applyChecker(SettlementReversalOrderDO order, SettlementReversalDecisionCommand command) {
         order.setDecidedByAccountId(command.operator().accountId());
         order.setDecidedByAccountName(command.operator().accountName());
@@ -349,7 +371,9 @@ public class SettlementReversalOrderApplicationService {
         order.setDecisionTime(command.operator().operationTime());
     }
 
-    /** 从冲正单重建不可变 Maker 快照供反向资金流水审计。 */
+    /**
+     * 从冲正单重建不可变 Maker 快照供反向资金流水审计。
+     */
     private com.scott.payment.settlement.dto.SettlementOperatorSnapshot maker(SettlementReversalOrderDO order) {
         return new com.scott.payment.settlement.dto.SettlementOperatorSnapshot(
                 order.getSubmittedByAccountId(), order.getSubmittedByAccountName(),
@@ -357,7 +381,9 @@ public class SettlementReversalOrderApplicationService {
                 order.getSubmittedTime());
     }
 
-    /** 对创建请求键重放核对原批次、Maker 和原因，拒绝幂等键碰撞。 */
+    /**
+     * 对创建请求键重放核对原批次、Maker 和原因，拒绝幂等键碰撞。
+     */
     private void verifyCreateReplay(SettlementReversalOrderDO order, SettlementReversalCreateCommand command) {
         if (!Objects.equals(order.getOriginalBatchNo(), command.originalBatchNo())
                 || !Objects.equals(order.getSubmittedByAccountId(), command.operator().accountId())
@@ -366,7 +392,9 @@ public class SettlementReversalOrderApplicationService {
         }
     }
 
-    /** 对决策请求键重放核对冲正单号、动作、Checker 和意见。 */
+    /**
+     * 对决策请求键重放核对冲正单号、动作、Checker 和意见。
+     */
     private void verifyDecisionReplay(SettlementReversalOrderDO order,
                                       String orderNo,
                                       SettlementReversalDecisionCommand command) {
@@ -378,7 +406,9 @@ public class SettlementReversalOrderApplicationService {
         }
     }
 
-    /** 映射冲正主表为稳定命令结果，不暴露角色、IP 或 User-Agent 审计字段。 */
+    /**
+     * 映射冲正主表为稳定命令结果，不暴露角色、IP 或 User-Agent 审计字段。
+     */
     private SettlementReversalCommandResult result(SettlementReversalOrderDO order) {
         return new SettlementReversalCommandResult(order.getReversalOrderNo(), order.getReversalStatus(),
                 order.getOriginalBatchNo(), order.getReversalBatchNo(), order.getMerchantId(),

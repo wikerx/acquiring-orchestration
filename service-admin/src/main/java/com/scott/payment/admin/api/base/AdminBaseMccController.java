@@ -18,18 +18,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseMccController
- * @date : 2026-06-27 16:49
- * @email : scott_x@163.com
- * @description : admin基础mcc HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 管理端 MCC HTTP 控制器，用于运营后台，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  */
 @RestController
 @RequestMapping("/admin/base/mcc")
@@ -250,7 +243,7 @@ public class AdminBaseMccController {
      */
     @PostMapping("/options")
     @RequiresPermission("base:mcc:view")
-    public CommonResult<Map<String, Object>> options() {
+    public CommonResult<MccVO.MccOptionsVO> options() {
         return success(adminBaseMccApplicationService.options());
     }
 

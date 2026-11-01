@@ -1,6 +1,7 @@
 package com.scott.payment.payout.api.internal.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,15 +11,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutCreateCommandDTO
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : 代付createcommand请求模型，位于 代付服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
- * @status : create
+ * 服务间创建代付交易的请求模型。
+ *
+ * <p>未知字段由服务端忽略，以兼容调用方先行发布的可选协议字段。</p>
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PayoutCreateCommandDTO {
 
     /**

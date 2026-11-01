@@ -10,13 +10,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRoleDataScopeMapperContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 锁定 Admin 商户数据范围查询的有效角色、应用隔离和索引前提。
- * @status : create
+ * 锁定 Admin 商户数据范围查询的有效角色、应用隔离和索引前提。
  */
 class AdminRoleDataScopeMapperContractTest {
 

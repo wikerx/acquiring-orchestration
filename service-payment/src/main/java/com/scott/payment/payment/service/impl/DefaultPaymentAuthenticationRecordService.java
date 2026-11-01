@@ -27,55 +27,32 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentAuthenticationRecordService
- * @date : 2026-08-17 18:35
- * @email : scott_x@163.com
- * @description : 3DS认证审计实现，通过交易逻辑数据源按交易时间分片持久化安全摘要，禁止保存渠道原文、HTML、CAVV和令牌
- * @status : create
+ * 3DS 认证阶段的安全审计服务。
+ *
+ * <p>每个交易与认证阶段使用确定性身份执行 upsert，只保存状态、协议标识、重定向地址摘要和
+ * 受控诊断字段。渠道原始报文、HTML、CAVV、PAN、CVV、令牌及查询参数不得进入认证审计表。</p>
  */
 @Service
 public class DefaultPaymentAuthenticationRecordService implements PaymentAuthenticationRecordService {
 
     /**
-     * 默认时间时区常量，统一 {@code DefaultPaymentAuthenticationRecordService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 无时区交易时间的业务解释时区。
      */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
     /**
-     * 认证类型，用于区分 {@code DefaultPaymentAuthenticationRecordService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 当前审计记录的认证协议类型。
      */
     private static final String AUTHENTICATION_TYPE = "3DS";
     /**
-     * 认证来源常量，统一 {@code DefaultPaymentAuthenticationRecordService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 表示认证结果由平台渠道适配器获得，而非商户直接提供。
      */
     private static final String AUTHENTICATION_SOURCE = "CHANNEL";
     /**
-     * {@code RESULT_CODE_MAX_LENGTH}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 认证结果码字段最大长度，超长内容在持久化前截断。
      */
     private static final int RESULT_CODE_MAX_LENGTH = 64;
     /**
-     * {@code RESULT_MESSAGE_MAX_LENGTH}常量，统一 {@code DefaultPaymentAuthenticationRecordService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 脱敏诊断信息最大长度，避免渠道异常正文无限进入审计表。
      */
     private static final int RESULT_MESSAGE_MAX_LENGTH = 512;
     private static final Pattern LONG_DIGIT_SEQUENCE = Pattern.compile("(?<![0-9])[0-9]{10,19}(?![0-9])");
@@ -85,14 +62,20 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
 
     private final TransactionAuthenticationInfoMapper mapper;
 
+    /**
+     * 创建支付认证审计服务。
+     *
+     * @param mapper 认证事实数据访问组件
+     */
     public DefaultPaymentAuthenticationRecordService(TransactionAuthenticationInfoMapper mapper) {
         this.mapper = mapper;
     }
 
     /**
-     * 记录渠道返回的 3DS 或其它支付认证结果。
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * 记录渠道返回的 3DS 阶段结果。
+     *
+     * @param request  平台统一渠道认证请求
+     * @param response 渠道认证响应；为空时按结果未确定记录
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
@@ -108,9 +91,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
 
     /**
      * 记录渠道认证失败事实，保留可审计的失败码和脱敏摘要。
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @param failureCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param request     平台统一渠道认证请求
+     * @param status      受控认证状态
+     * @param failureCode 不含渠道正文的失败类型
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
@@ -123,7 +106,7 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
 
     /**
      * 记录渠道认证超时事实，供状态机和运营排障使用。
-     * @param attemptDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     * @param attemptDO 已持久化的 Checkout 付款尝试
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
@@ -151,6 +134,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 "THREE_DS_AUTHENTICATION_TIMEOUT");
     }
 
+    /**
+     * 持久化 3DS 认证阶段及受控渠道证据。
+     */
     private void persist(ChannelThreeDsAuthenticationRequest request,
                          ChannelThreeDsAuthenticationResponse response,
                          ChannelThreeDsPhase phase,
@@ -174,6 +160,7 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         row.setAcsTransactionId(response == null ? null : response.getAcsTransactionId());
         row.setDsTransactionId(response == null ? null : response.getDsTransactionId());
         row.setEci(response == null ? null : response.getEci());
+        // CAVV 只用于当次渠道授权，认证审计永久留空，避免认证值扩散到普通业务表。
         row.setCavv(null);
         row.setLiabilityShift(hasLiabilityShift(response) ? 1 : 0);
         row.setChallengeRequired(ChannelThreeDsStatus.CHALLENGE_REQUIRED.equals(status) ? 1 : 0);
@@ -188,9 +175,13 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         row.setTransactionTimeZone(DEFAULT_TIME_ZONE);
         row.setCreateTime(now);
         row.setUpdateTime(now);
+        // 确定性 authenticationInfoId 使同一阶段重试更新同一条记录，不重复插入审计事实。
         mapper.upsertPhase(row);
     }
 
+    /**
+     * 校验并获取身份。
+     */
     private void requireIdentity(ChannelThreeDsAuthenticationRequest request, ChannelThreeDsPhase phase) {
         if (request == null || !StringUtils.hasText(request.getTransactionId())
                 || request.getTransactionDateTime() == null || phase == null) {
@@ -198,6 +189,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         }
     }
 
+    /**
+     * 生成 3DS 认证信息标识。
+     */
     private String authenticationInfoId(ChannelThreeDsAuthenticationRequest request,
                                         ChannelThreeDsPhase phase) {
         return sha256Hex(String.join("|",
@@ -207,6 +201,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 phase.name()));
     }
 
+    /**
+     * 解析 3DS 认证状态。
+     */
     private String authenticationStatus(ChannelThreeDsStatus status) {
         if (ChannelThreeDsStatus.PASSED.equals(status)) {
             return "AUTHENTICATED";
@@ -217,6 +214,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return "ATTEMPTED";
     }
 
+    /**
+     * 解析 3DS 挑战状态。
+     */
     private String challengeStatus(ChannelThreeDsPhase phase, ChannelThreeDsStatus status) {
         if (ChannelThreeDsStatus.CHALLENGE_REQUIRED.equals(status)) {
             return "REQUIRED";
@@ -234,6 +234,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return null;
     }
 
+    /**
+     * 计算 3DS 跳转地址摘要。
+     */
     private String redirectHash(ChannelThreeDsAuthenticationRequest request,
                                 ChannelThreeDsAuthenticationResponse response) {
         String redirect = firstText(response == null ? null : response.getRedirectUrl(),
@@ -241,12 +244,18 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return StringUtils.hasText(redirect) ? sha256Hex(redirect) : null;
     }
 
+    /**
+     * 根据 3DS 状态生成受控结果码。
+     */
     private String resultCode(ChannelThreeDsStatus status, String failureCode) {
         String value = StringUtils.hasText(failureCode) ? failureCode : status.name();
         String safe = value.replaceAll("[^A-Za-z0-9_.:-]", "_");
         return safe.length() <= RESULT_CODE_MAX_LENGTH ? safe : safe.substring(0, RESULT_CODE_MAX_LENGTH);
     }
 
+    /**
+     * 根据 3DS 状态生成受控结果说明。
+     */
     private String resultMessage(ChannelThreeDsStatus status,
                                  ChannelThreeDsAuthenticationResponse response) {
         if (ChannelThreeDsStatus.FAILED.equals(status)
@@ -263,10 +272,14 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         };
     }
 
+    /**
+     * 构建 3DS 认证扩展审计 JSON。
+     */
     private String extraJson(ChannelThreeDsAuthenticationRequest request,
                              ChannelThreeDsAuthenticationResponse response,
                              ChannelThreeDsPhase phase,
                              ChannelThreeDsStatus status) {
+        // 使用字段白名单构造摘要，禁止直接序列化 request/response 或渠道 extension 全量内容。
         Map<String, String> summary = new LinkedHashMap<>();
         summary.put("phase", phase.name());
         summary.put("channelCode", safeCode(request.getChannelCode(), 64));
@@ -282,16 +295,25 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return JsonUtils.toJsonString(summary);
     }
 
+    /**
+     * 读取 3DS 渠道响应扩展字段。
+     */
     private String extensionValue(ChannelThreeDsAuthenticationResponse response, String key) {
         return response == null || response.getExtension() == null ? null : response.getExtension().get(key);
     }
 
+    /**
+     * 仅在文本非空时写入映射。
+     */
     private void putIfText(Map<String, String> target, String key, String value) {
         if (StringUtils.hasText(value)) {
             target.put(key, value);
         }
     }
 
+    /**
+     * 清理并截断渠道协议字段。
+     */
     private String safeProtocolField(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -300,6 +322,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return safe.length() <= maxLength ? safe : safe.substring(0, maxLength);
     }
 
+    /**
+     * 清理诊断信息中的敏感查询参数并限制长度。
+     */
     private String safeDiagnosticMessage(String value) {
         String safe = value.replaceAll("[\\r\\n\\t]+", " ");
         safe = SENSITIVE_QUERY_PARAMETER.matcher(safe).replaceAll("$1***");
@@ -309,6 +334,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 ? safe : safe.substring(0, RESULT_MESSAGE_MAX_LENGTH);
     }
 
+    /**
+     * 清理并限制渠道返回码长度。
+     */
     private String safeCode(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -317,15 +345,24 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return safe.length() <= maxLength ? safe : safe.substring(0, maxLength);
     }
 
+    /**
+     * 判断 3DS 认证是否具备责任转移证据。
+     */
     private boolean hasLiabilityShift(ChannelThreeDsAuthenticationResponse response) {
         return response != null && (StringUtils.hasText(response.getEci())
                 || StringUtils.hasText(response.getCavv()));
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(ChannelThreeDsStatus status) {
         return ChannelThreeDsStatus.PASSED.equals(status) || ChannelThreeDsStatus.FAILED.equals(status);
     }
 
+    /**
+     * 根据当前 3DS 状态解析超时阶段。
+     */
     private ChannelThreeDsPhase timeoutPhase(String currentStatus) {
         if (ChannelThreeDsStatus.CHALLENGE_REQUIRED.name().equals(currentStatus)) {
             return ChannelThreeDsPhase.VERIFY;
@@ -336,11 +373,17 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return ChannelThreeDsPhase.INITIALIZE;
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime) {
         return transactionDateTime.atZone(ZoneId.of(DEFAULT_TIME_ZONE))
                 .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -350,6 +393,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return null;
     }
 
+    /**
+     * 计算文本的 SHA-256 十六进制摘要。
+     */
     private String sha256Hex(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

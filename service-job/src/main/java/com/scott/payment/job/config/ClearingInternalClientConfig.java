@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalClientConfig
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 清分内部客户端直连和服务发现 RestTemplate 配置。
- * @status : create
+ * 清分内部客户端直连和服务发现 RestTemplate 配置。
  */
 @Configuration
 @EnableConfigurationProperties(ClearingInternalClientProperties.class)
@@ -64,6 +58,11 @@ public class ClearingInternalClientConfig {
                 .additionalInterceptors(traceInterceptor).build();
     }
 
+    /**
+     * 在创建任一客户端前执行同一套地址、凭据和超时门禁。
+     *
+     * @param properties 清分内部客户端配置
+     */
     private void validate(ClearingInternalClientProperties properties) {
         properties.validate();
     }

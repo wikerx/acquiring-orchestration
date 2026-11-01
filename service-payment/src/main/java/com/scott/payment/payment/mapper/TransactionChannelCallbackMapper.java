@@ -11,13 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelCallbackMapper
- * @date : 2026-07-14 22:26
- * @email : scott_x@163.com
- * @description : 渠道回调业务 Mapper，位于 service-payment 数据访问层，仅通过 transaction_channel_callback 逻辑表保存幂等记录并执行 CAS。
- * @status : create
+ * 渠道回调业务 Mapper，位于 service-payment 数据访问层，仅通过 transaction_channel_callback 逻辑表保存幂等记录并执行 CAS。
  */
 public interface TransactionChannelCallbackMapper extends BaseMapper<TransactionChannelCallbackDO> {
 

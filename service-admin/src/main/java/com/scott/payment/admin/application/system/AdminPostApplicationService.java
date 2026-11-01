@@ -1,6 +1,9 @@
 package com.scott.payment.admin.application.system;
 
+import com.scott.payment.admin.converter.PostConverter;
 import com.scott.payment.admin.dto.export.SysPostExportRow;
+import com.scott.payment.admin.dto.system.PostDTOs.Response;
+import com.scott.payment.admin.dto.system.PostDTOs.SaveRequest;
 import com.scott.payment.admin.service.AdminPostService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.PageResult;
@@ -18,13 +21,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPostApplicationService
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台岗位管理应用服务
- * @status : create
+ * 管理后台岗位管理应用服务
  */
 @Service
 public class AdminPostApplicationService {
@@ -35,6 +32,7 @@ public class AdminPostApplicationService {
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final AdminPostService adminPostService;
+    private final PostConverter postConverter;
     private final ExcelExportService excelExportService;
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     private final ExcelLocaleResolver excelLocaleResolver;
@@ -43,13 +41,18 @@ public class AdminPostApplicationService {
      * 创建后台岗位应用服务。
      *
      * @param adminPostService 岗位领域服务
+     * @param postConverter 岗位接口模型转换器
      * @param excelExportService Excel 导出服务
+     * @param excelI18nMessageResolver Excel 国际化文案解析器
+     * @param excelLocaleResolver Excel 语言解析器
      */
     public AdminPostApplicationService(AdminPostService adminPostService,
+                                       PostConverter postConverter,
                                        ExcelExportService excelExportService,
                                        ExcelI18nMessageResolver excelI18nMessageResolver,
                                        ExcelLocaleResolver excelLocaleResolver) {
         this.adminPostService = adminPostService;
+        this.postConverter = postConverter;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
@@ -65,8 +68,10 @@ public class AdminPostApplicationService {
      * @param status   状态
      * @return 岗位分页结果
      */
-    public PageResult<SysPostDO> pagePosts(int pageNo, int pageSize, String postCode, String postName, Integer status) {
-        return adminPostService.pagePosts(pageNo, pageSize, postCode, postName, status);
+    public PageResult<Response> pagePosts(int pageNo, int pageSize, String postCode, String postName, Integer status) {
+        PageResult<SysPostDO> page = adminPostService.pagePosts(pageNo, pageSize, postCode, postName, status);
+        return PageResult.of(page.getTotal(), page.getPageNo(), page.getPageSize(),
+                postConverter.toResponses(page.getRecords()));
     }
 
     /**
@@ -74,8 +79,8 @@ public class AdminPostApplicationService {
      *
      * @return 启用岗位列表
      */
-    public List<SysPostDO> listEnabledPosts() {
-        return adminPostService.listEnabledPosts();
+    public List<Response> listEnabledPosts() {
+        return postConverter.toResponses(adminPostService.listEnabledPosts());
     }
 
     /**
@@ -84,8 +89,8 @@ public class AdminPostApplicationService {
      * @param id 主键
      * @return 岗位详情
      */
-    public SysPostDO getPost(Long id) {
-        return adminPostService.getPost(id);
+    public Response getPost(Long id) {
+        return postConverter.toResponse(adminPostService.getPost(id));
     }
 
     /**
@@ -117,22 +122,24 @@ public class AdminPostApplicationService {
     /**
      * 新增岗位。
      *
-     * @param post 岗位实体
-     * @return 保存后的岗位
+     * @param request 岗位保存请求
+     * @return 保存后的岗位响应
      */
-    public SysPostDO createPost(SysPostDO post) {
-        return adminPostService.createPost(post);
+    public Response createPost(SaveRequest request) {
+        SysPostDO post = adminPostService.createPost(postConverter.toEntity(request));
+        return postConverter.toResponse(post);
     }
 
     /**
      * 更新岗位。
      *
      * @param id    主键
-     * @param input 更新输入
-     * @return 更新后的岗位
+     * @param request 更新输入
+     * @return 更新后的岗位响应
      */
-    public SysPostDO updatePost(Long id, SysPostDO input) {
-        return adminPostService.updatePost(id, input);
+    public Response updatePost(Long id, SaveRequest request) {
+        SysPostDO post = adminPostService.updatePost(id, postConverter.toEntity(request));
+        return postConverter.toResponse(post);
     }
 
     /**

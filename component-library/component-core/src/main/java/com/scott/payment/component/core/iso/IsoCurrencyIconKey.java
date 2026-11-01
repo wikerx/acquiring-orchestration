@@ -9,9 +9,13 @@ import java.util.regex.Pattern;
  */
 public final class IsoCurrencyIconKey {
 
+
     private static final Pattern FLAG_KEY = Pattern.compile("^FLAG:([A-Z]{2})$");
     private static final Pattern CURRENCY_KEY = Pattern.compile("^CURRENCY:([A-Z0-9]{3,12})$");
 
+    /**
+     * 禁止实例化币种图标键校验工具类。
+     */
     private IsoCurrencyIconKey() {
     }
 
@@ -45,6 +49,12 @@ public final class IsoCurrencyIconKey {
         throw new IllegalArgumentException("currency icon key must use flag:XX or currency:CODE");
     }
 
+    /**
+     * 判断文本是否包含非空白字符。
+     *
+     * @param value 待检查文本
+     * @return 包含有效字符时返回 true
+     */
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }

@@ -17,13 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementBatchFailureServiceTest
- * @date : 2026-08-26 23:58
- * @email : scott_x@163.com
- * @description : 验证结算失败按稳定错误属性退避，并在不可重试或次数耗尽时原子转人工复核。
- * @status : create
+ * 验证结算失败按稳定错误属性退避，并在不可重试或次数耗尽时原子转人工复核。
  */
 class DefaultSettlementBatchFailureServiceTest {
 
@@ -40,7 +34,9 @@ class DefaultSettlementBatchFailureServiceTest {
         service = new DefaultSettlementBatchFailureService(batchMapper, candidateMapper, relationMapper);
     }
 
-    /** 首次可重试失败应释放租约并写入一分钟后的数据库重试时间。 */
+    /**
+     * 首次可重试失败应释放租约并写入一分钟后的数据库重试时间。
+     */
     @Test
     void shouldScheduleBoundedRetryAndSanitizeMessage() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 16, 0);
@@ -63,7 +59,9 @@ class DefaultSettlementBatchFailureServiceTest {
         verify(relationMapper, never()).markBatchManualReview(batch.getSettlementBatchNo(), now);
     }
 
-    /** 稳定事实冲突不得盲目重试，批次、候选和审计关系必须一起进入人工复核。 */
+    /**
+     * 稳定事实冲突不得盲目重试，批次、候选和审计关系必须一起进入人工复核。
+     */
     @Test
     void shouldMoveStableConflictAndAllRelationsToManualReview() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 16, 0);
@@ -87,7 +85,9 @@ class DefaultSettlementBatchFailureServiceTest {
         verify(relationMapper).markBatchManualReview(batch.getSettlementBatchNo(), now);
     }
 
-    /** 预审正式结果指纹失配必须直接迁移批次和全部候选到人工复核。 */
+    /**
+     * 预审正式结果指纹失配必须直接迁移批次和全部候选到人工复核。
+     */
     @Test
     void shouldMoveApprovedResultFingerprintMismatchToManualReview() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 16, 0);
@@ -113,7 +113,9 @@ class DefaultSettlementBatchFailureServiceTest {
         verify(relationMapper).markBatchManualReview(batch.getSettlementBatchNo(), now);
     }
 
-    /** 第八次自动重试后再次失败必须停止循环并使用统一耗尽错误码转人工复核。 */
+    /**
+     * 第八次自动重试后再次失败必须停止循环并使用统一耗尽错误码转人工复核。
+     */
     @Test
     void shouldStopRetryingAfterMaximumRetryCount() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 16, 0);

@@ -13,13 +13,7 @@ import java.util.Collections;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisZSetServiceImpl
- * @date : 2026-05-31 22:03
- * @email : scott_x@163.com
- * @description : 提供受配置门禁控制的通用 ZSet 能力；默认不注册，滑动窗口和 MQ 去重应使用专用有界 Lua
- * @status : create
+ * 提供受配置门禁控制的通用 ZSet 能力；默认不注册，滑动窗口和 MQ 去重应使用专用有界 Lua
  */
 @Service
 @ConditionalOnProperty(prefix = "payment.redis.generic", name = "zset-enabled", havingValue = "true")

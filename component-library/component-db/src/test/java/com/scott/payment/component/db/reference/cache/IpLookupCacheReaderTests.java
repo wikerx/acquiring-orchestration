@@ -22,7 +22,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证共享 IP String 缓存的短 Key、物理 TTL、版本隔离和 SLAVE 回源行为。 */
+/**
+ * 验证共享 IP String 缓存的短 Key、物理 TTL、版本隔离和 SLAVE 回源行为。
+ */
 class IpLookupCacheReaderTests {
 
     private static final Duration HIT_TTL = Duration.ofHours(6);

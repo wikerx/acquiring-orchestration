@@ -13,13 +13,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinRangeIndexInitializer
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的 Card BIN 分片索引初始化器，允许任一查询服务独立补齐同一份 Redis 快照
- * @status : create
+ * 支付与 OpenAPI 共用的 Card BIN 分片索引初始化器，允许任一查询服务独立补齐同一份 Redis 快照
  */
 @Slf4j
 @Component
@@ -31,7 +25,9 @@ import java.time.Duration;
         matchIfMissing = false)
 public class CardBinRangeIndexInitializer implements ApplicationRunner {
 
+
     private static final String CACHE_NAMESPACE = "card-bin-range";
+
     private static final Duration INITIALIZATION_GATE_TTL = Duration.ofMinutes(30);
 
     private final CardBinRangeIndex rangeIndex;
@@ -79,7 +75,8 @@ public class CardBinRangeIndexInitializer implements ApplicationRunner {
                 }
             }
             // 初始化失败不阻断服务启动；业务查询退化为一条从库区间 SQL，并等待 MQ 或下次启动重建。
-            log.warn("event: CARD_BIN_RANGE_INDEX_INITIALIZATION_FAILED exceptionType: {}",
+            log.warn("卡 BIN 区间索引初始化失败, event: CARD_BIN_RANGE_INDEX_INITIALIZATION_FAILED, "
+                            + "exceptionType: {}",
                     exception.getClass().getSimpleName(), exception);
         }
     }

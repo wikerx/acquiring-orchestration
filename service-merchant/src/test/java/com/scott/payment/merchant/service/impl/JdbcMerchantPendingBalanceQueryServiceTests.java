@@ -24,17 +24,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantPendingBalanceQueryServiceTests
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 商户端在途余额查询测试，验证认证商户隔离、标签币种净额和交易副本普通读路由。
- * @status : create
+ * 商户端在途余额查询测试，验证认证商户隔离、标签币种净额和交易副本普通读路由。
  */
 class JdbcMerchantPendingBalanceQueryServiceTests {
 
-    /** 商户端在途余额只允许返回认证商户成功且未结算的资金动作。 */
+    /**
+     * 商户端在途余额只允许返回认证商户成功且未结算的资金动作。
+     */
     @Test
     void shouldAggregatePendingBalanceWithinAuthenticatedMerchantBoundary() {
         JdbcDataSource dataSource = dataSource();
@@ -55,7 +51,9 @@ class JdbcMerchantPendingBalanceQueryServiceTests {
         verify(readExecutor, never()).readPrimary(any());
     }
 
-    /** 保证金清分生成后立即计入；释放候选只有最终入账后才从原币种余额移除。 */
+    /**
+     * 保证金清分生成后立即计入；释放候选只有最终入账后才从原币种余额移除。
+     */
     @Test
     void shouldAggregateReserveUntilReserveSettlementIsPosted() {
         JdbcDataSource dataSource = dataSource();
@@ -81,7 +79,9 @@ class JdbcMerchantPendingBalanceQueryServiceTests {
                 org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("14.000000")));
     }
 
-    /** 缺少认证商户号时必须在访问交易副本前失败。 */
+    /**
+     * 缺少认证商户号时必须在访问交易副本前失败。
+     */
     @Test
     void shouldRejectMissingAuthenticatedMerchantBeforeQuery() {
         JdbcDataSource dataSource = dataSource();

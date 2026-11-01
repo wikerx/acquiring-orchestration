@@ -6,13 +6,7 @@ import com.scott.payment.clearing.api.internal.dto.ClearingManagementDTOs.Cleari
 import com.scott.payment.clearing.api.internal.dto.ClearingManagementDTOs.ClearingReviewRequest;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingManagementCommandService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分管理命令边界，所有写操作均要求真实分片时间、预期版本、原因和操作人。
- * @status : update
+ * 清分管理命令边界，所有写操作均要求真实分片时间、预期版本、原因和操作人。
  */
 public interface ClearingManagementCommandService {
 

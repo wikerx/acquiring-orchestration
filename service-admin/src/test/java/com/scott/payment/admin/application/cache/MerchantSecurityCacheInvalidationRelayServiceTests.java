@@ -27,13 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityCacheInvalidationRelayServiceTests
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : 永久缓存失效中继测试，验证精确删除、门禁释放、Outbox 终态和失败重试顺序
- * @status : create
+ * 永久缓存失效中继测试，验证精确删除、门禁释放、Outbox 终态和失败重试顺序
  */
 @Slf4j
 class MerchantSecurityCacheInvalidationRelayServiceTests {

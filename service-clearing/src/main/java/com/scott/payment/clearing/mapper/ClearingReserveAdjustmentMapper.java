@@ -9,13 +9,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingReserveAdjustmentMapper
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 保证金调整审批 Mapper；申请只追加，批准或拒绝只允许从 PENDING_REVIEW 版本 CAS。
- * @status : update
+ * 保证金调整审批 Mapper；申请只追加，批准或拒绝只允许从 PENDING_REVIEW 版本 CAS。
  */
 public interface ClearingReserveAdjustmentMapper {
 

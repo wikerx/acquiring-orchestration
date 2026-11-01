@@ -19,13 +19,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMerchantNotificationConsumer
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知命令消费者，仅处理首次/自动到期投递和后台人工重发消息
- * @status : create
+ * service-data 商户通知命令消费者，仅处理自动到期投递和后台人工重发消息。
  */
 @Slf4j
 @Component
@@ -39,7 +33,9 @@ import java.time.ZoneId;
 )
 public class TransactionMerchantNotificationConsumer implements RocketMQListener<String> {
 
-    /** 商户通知投递服务，数据库版本 CAS 提供最终重复消费保护。 */
+    /**
+     * 商户通知投递服务，数据库版本 CAS 提供最终重复消费保护。
+     */
     private final MerchantNotificationDeliveryService deliveryService;
 
     /**
@@ -71,11 +67,16 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
             consumeManualRetry(payload, startNanos);
             return;
         }
-        log.debug("event: DATA_MERCHANT_NOTIFY_EVENT_IGNORED traceId: {} reason=notDeliveryCommand payloadLength: {} durationMs: {}",
+        log.debug("非商户通知命令已忽略, event: DATA_MERCHANT_NOTIFY_EVENT_IGNORED, traceId: {}, reason: notDeliveryCommand, payloadLength: {}, durationMs: {}",
                 TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
     }
 
-    /** 解析通知命令类型；空载荷、畸形 JSON 或缺少事件类型均交由 Broker 重试。 */
+    /**
+     * 解析通知命令类型；空载荷、畸形 JSON 或缺少事件类型均交由 Broker 重试。
+     *
+     * @param payload RocketMQ JSON 消息体
+     * @return 通知命令事件类型
+     */
     private String resolveEventType(String payload) {
         if (!StringUtils.hasText(payload)) {
             throw new IllegalArgumentException("merchant notification payload is empty");
@@ -88,7 +89,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
             }
             return message.getEventType();
         } catch (RuntimeException exception) {
-            log.error("event: DATA_MERCHANT_NOTIFY_COMMAND_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("商户通知命令解析失败, event: DATA_MERCHANT_NOTIFY_COMMAND_DESERIALIZE_FAILED, payloadLength: {}, exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
             if (exception instanceof IllegalArgumentException illegalArgumentException) {
                 throw illegalArgumentException;
@@ -97,7 +98,12 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         }
     }
 
-    /** 消费自动重试事件；未来消息抛出异常交由 RocketMQ 重新投递。 */
+    /**
+     * 消费自动重试事件；未来消息抛出异常交由 RocketMQ 重新投递。
+     *
+     * @param payload RocketMQ JSON 消息体
+     * @param startNanos 消费开始单调时钟
+     */
     private void consumeAutomaticRetry(String payload, long startNanos) {
         MerchantNotificationRetryDueMessage message = JsonUtils.parseObject(
                 payload, MerchantNotificationRetryDueMessage.class);
@@ -111,7 +117,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
                 || message.getAttemptNo() == null
                 || message.getAttemptNo() <= 0
                 || message.getDeliverAt() == null) {
-            log.error("event: DATA_MERCHANT_NOTIFY_RETRY_DUE_INVALID traceId: {} reason=requiredFieldMissing payloadLength: {}",
+            log.error("自动重试到期命令缺少必填字段, event: DATA_MERCHANT_NOTIFY_RETRY_DUE_INVALID, traceId: {}, reason: requiredFieldMissing, payloadLength: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length());
             throw new IllegalArgumentException("merchant notification retry due fields are missing");
         }
@@ -127,7 +133,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
                     message.getNotifyId(),
                     message.getExpectedVersion(),
                     message.getAttemptNo());
-            log.info("event: DATA_MERCHANT_NOTIFY_RETRY_DUE_CONSUMED traceId: {} messageId: {} notifyId: {} transactionId: {} expectedVersion: {} attemptNo: {} notified: {} durationMs: {}",
+            log.info("自动重试到期命令消费完成, event: DATA_MERCHANT_NOTIFY_RETRY_DUE_CONSUMED, traceId: {}, messageId: {}, notifyId: {}, transactionId: {}, expectedVersion: {}, attemptNo: {}, notified: {}, durationMs: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getNotifyId(),
                     message.getTransactionId(), message.getExpectedVersion(), message.getAttemptNo(),
                     notified, elapsedMillis(startNanos));
@@ -147,7 +153,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         try {
             message = JsonUtils.parseObject(payload, MerchantNotificationRetryMessage.class);
         } catch (RuntimeException exception) {
-            log.error("event: DATA_MERCHANT_NOTIFY_RETRY_PARSE_FAILED traceId: {} payloadLength: {} exceptionType: {}",
+            log.error("人工重发命令解析失败, event: DATA_MERCHANT_NOTIFY_RETRY_PARSE_FAILED, traceId: {}, payloadLength: {}, exceptionType: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length(),
                     exception.getClass().getSimpleName());
             throw new IllegalArgumentException("merchant notification retry payload is invalid", exception);
@@ -156,7 +162,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
                 || !StringUtils.hasText(message.getMessageId())
                 || !StringUtils.hasText(message.getTransactionId())
                 || message.getTransactionDateTime() == null) {
-            log.error("event: DATA_MERCHANT_NOTIFY_RETRY_INVALID traceId: {} reason=requiredFieldMissing payloadLength: {} durationMs: {}",
+            log.error("人工重发命令缺少必填字段, event: DATA_MERCHANT_NOTIFY_RETRY_INVALID, traceId: {}, reason: requiredFieldMissing, payloadLength: {}, durationMs: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
             throw new IllegalArgumentException("merchant notification retry fields are missing");
         }
@@ -164,7 +170,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         try {
             boolean notified = deliveryService.retryTransaction(
                     message.getTransactionDateTime(), message.getTransactionId(), message.getMessageId());
-            log.info("event: DATA_MERCHANT_NOTIFY_RETRY_CONSUMED traceId: {} messageId: {} requestId: {} transactionId: {} requestedBy: {} notified: {} durationMs: {}",
+            log.info("人工重发命令消费完成, event: DATA_MERCHANT_NOTIFY_RETRY_CONSUMED, traceId: {}, messageId: {}, requestId: {}, transactionId: {}, requestedBy: {}, notified: {}, durationMs: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getRequestId(),
                     message.getTransactionId(), message.getRequestedBy(), notified, elapsedMillis(startNanos));
         } finally {

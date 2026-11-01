@@ -23,13 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeServiceImplTest
- * @date : 2026-07-12 19:20
- * @email : scott_x@163.com
- * @description : 任务执行节点服务测试，验证离线扫描按候选主键更新、空候选短路及锁冲突重试边界。
- * @status : create
+ * 任务执行节点服务测试，验证离线扫描按候选主键更新、空候选短路及锁冲突重试边界。
  */
 @Slf4j
 @ExtendWith(MockitoExtension.class)

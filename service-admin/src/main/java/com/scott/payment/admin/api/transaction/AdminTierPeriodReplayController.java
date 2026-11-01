@@ -17,13 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTierPeriodReplayController
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : Admin 阶梯期间重放申请和双人复核入口；不提供浏览器直接执行、跳序或覆盖已结算事实的能力。
- * @status : create
+ * Admin 阶梯期间重放申请和双人复核入口；不提供浏览器直接执行、跳序或覆盖已结算事实的能力。
  */
 @RestController
 @RequestMapping("/admin/clearing/tier-period-replays")
@@ -31,6 +25,11 @@ public class AdminTierPeriodReplayController {
 
     private final AdminClearingApplicationService applicationService;
 
+    /**
+     * 创建阶梯费用期间重放申请与复核控制器。
+     *
+     * @param applicationService 清分管理应用服务
+     */
     public AdminTierPeriodReplayController(AdminClearingApplicationService applicationService) {
         this.applicationService = applicationService;
     }

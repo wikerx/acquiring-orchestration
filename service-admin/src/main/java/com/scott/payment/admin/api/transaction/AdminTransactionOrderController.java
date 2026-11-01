@@ -3,6 +3,7 @@ package com.scott.payment.admin.api.transaction;
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
@@ -26,13 +27,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionOrderController
- * @date : 2026-07-14 23:59
- * @email : scott_x@163.com
- * @description : 交易主单管理接口，位于 service-admin 接口层，以平台交易生命周期主单维度查询交易汇总和详情。
- * @status : create
+ * 交易主单管理接口，位于 service-admin 接口层，以平台交易生命周期主单维度查询交易汇总和详情。
  */
 @RestController
 @RequestMapping("/admin/transactions/orders")
@@ -60,6 +55,20 @@ public class AdminTransactionOrderController {
     @OperationLog(moduleName = "交易主单管理", businessType = OperationTypeConstants.QUERY, operation = "分页查询交易主单")
     public CommonResult<PageResult<TransactionOrderResponse>> search(@RequestBody(required = false) TransactionPageQuery query) {
         return success(transactionApplicationService.pageOrders(query));
+    }
+
+    /**
+     * 分页查询交易生命周期主单，并返回当前筛选条件下的全量统计。
+     *
+     * @param query 查询条件
+     * @return 主单分页和全量统计
+     */
+    @PostMapping("/search-with-summary")
+    @RequiresPermission("transaction:order:list")
+    @OperationLog(moduleName = "交易主单管理", businessType = OperationTypeConstants.QUERY, operation = "分页查询交易主单及统计")
+    public CommonResult<TransactionOrderSearchResponse> searchWithSummary(
+            @RequestBody(required = false) TransactionPageQuery query) {
+        return success(transactionApplicationService.searchOrders(query));
     }
 
     /**

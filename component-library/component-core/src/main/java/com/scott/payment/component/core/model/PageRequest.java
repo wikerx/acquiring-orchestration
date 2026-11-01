@@ -6,13 +6,7 @@ import java.io.Serializable;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PageRequest
- * @date : 2026-05-28 09:28
- * @email : scott_x@163.com
- * @description : 页请求模型，位于 公共组件库，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
- * @status : create
+ * 页请求模型，位于 公共组件库，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  */
 @Data
 public class PageRequest implements Serializable {

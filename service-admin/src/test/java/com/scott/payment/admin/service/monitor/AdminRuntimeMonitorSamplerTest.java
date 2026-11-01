@@ -8,13 +8,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRuntimeMonitorSamplerTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : JVM 运行指标空值语义、有界历史和闭区间过滤测试。
- * @status : create
+ * JVM 运行指标空值语义、有界历史和闭区间过滤测试。
  */
 class AdminRuntimeMonitorSamplerTest {
 

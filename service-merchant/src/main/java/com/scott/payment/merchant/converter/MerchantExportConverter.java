@@ -10,11 +10,19 @@ import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import org.mapstruct.factory.Mappers;
 
+/**
+ * 商户财务导出转换器，将资金流水和退款记录转换为商户可见的导出行。
+ */
 @Mapper(unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface MerchantExportConverter {
 
     MerchantExportConverter INSTANCE = Mappers.getMapper(MerchantExportConverter.class);
 
+    /**
+     * 将资金流水响应转换为导出行。
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "ledgerNo", source = "ledgerNo")
     @Mapping(target = "businessType", source = "businessType")
@@ -31,6 +39,11 @@ public interface MerchantExportConverter {
     @Mapping(target = "postedTime", source = "postedTime")
     MerchantFundLedgerExportRow toLedgerExportRow(FundLedgerResponse source);
 
+    /**
+     * 将退款记录转换为不含内部审批和渠道错误信息的导出行。
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "refundTransactionId", source = "refundTransactionId")
     @Mapping(target = "sourceTransactionId", source = "sourceTransactionId")

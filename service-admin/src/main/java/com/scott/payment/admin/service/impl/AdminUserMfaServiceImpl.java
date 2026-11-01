@@ -46,13 +46,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserMfaServiceImpl
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : admin用户MFA服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理端用户 MFA服务实现，用于运营后台，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Slf4j
 @Service
@@ -423,6 +417,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return app;
     }
 
+    /**
+     * 获取账户。
+     */
     private SysAccountDO getAccount(Long appId, Long accountId) {
         SysAccountDO account = sysAccountMapper.selectOne(
                 Wrappers.<SysAccountDO>lambdaQuery()
@@ -437,6 +434,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return account;
     }
 
+    /**
+     * 校验管理账户已完成多因素认证。
+     */
     private SysAccountMfaDO ensureMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
         SysAccountMfaDO mfa = sysAccountMfaMapper.selectOne(
                 Wrappers.<SysAccountMfaDO>lambdaQuery()
@@ -468,6 +468,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return created;
     }
 
+    /**
+     * 使账户尚未使用的 MFA 令牌全部失效。
+     */
     private void expireOpenMfaTokens(Long appId, Long accountId, LocalDateTime now) {
         sysAccountMfaTokenMapper.update(
                 Wrappers.<SysAccountMfaTokenDO>lambdaUpdate()
@@ -482,6 +485,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         );
     }
 
+    /**
+     * 注销指定管理账号的全部有效登录会话。
+     */
     private void logoutSessions(Long appId, Long accountId, LocalDateTime now) {
         sysLoginSessionMapper.update(
                 Wrappers.<SysLoginSessionDO>lambdaUpdate()
@@ -494,6 +500,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         );
     }
 
+    /**
+     * 发送商户账户安全通知。
+     */
     private void sendNotice(SysAccountDO account, String templateCode, String reason, LocalDateTime exemptUntil) {
         if (!StringUtils.hasText(account.getEmail())) {
             return;
@@ -510,7 +519,7 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
             request.setVariables(emailVariables(account, reason, exemptUntil));
             adminEmailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("admin mfa notice send failed, accountId: {}, templateCode: {}, exceptionType: {}",
+            log.warn("管理员MFA通知发送失败, event: ADMIN_MFA_NOTICE_FAILED, accountId: {}, templateCode: {}, exceptionType: {}",
                     account.getId(), templateCode, exception.getClass().getSimpleName());
             SysAppDO app = getAdminApp();
             SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
@@ -520,6 +529,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         }
     }
 
+    /**
+     * 构建邮件模板变量映射。
+     */
     private Map<String, Object> emailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {
         Map<String, Object> variables = new LinkedHashMap<>();
         variables.put("loginAccount", account.getLoginAccount());
@@ -530,6 +542,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return variables;
     }
 
+    /**
+     * 构建管理后台登录地址。
+     */
     private String adminLoginUrl() {
         Map<String, String> configValues = adminConfigService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
         String baseUrl = configValues.get(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL);
@@ -539,6 +554,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return baseUrl.replaceAll("/+$", "") + "/login";
     }
 
+    /**
+     * 记录日志。
+     */
     private void recordLog(SysAppDO app,
                            SysAccountDO account,
                            SysAccountMfaDO mfa,
@@ -571,6 +589,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         sysAccountMfaLogMapper.insert(logRow);
     }
 
+    /**
+     * 转换为状态响应。
+     */
     private UserMfaStatusResponse toStatusResponse(SysAccountDO account, SysAccountMfaDO mfa) {
         UserMfaStatusResponse response = new UserMfaStatusResponse();
         response.setAccountId(account.getId());
@@ -584,6 +605,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return response;
     }
 
+    /**
+     * 转换为日志响应。
+     */
     private UserMfaLogResponse toLogResponse(SysAccountMfaLogDO row) {
         UserMfaLogResponse response = new UserMfaLogResponse();
         response.setId(row.getId());
@@ -602,6 +626,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return response;
     }
 
+    /**
+     * 读取并校验账户登录名。
+     */
     private String accountLoginAccount(Long accountId) {
         if (accountId == null) {
             return "-";
@@ -610,6 +637,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return account == null ? "-" : account.getLoginAccount();
     }
 
+    /**
+     * 解析当前操作人的登录账号用于审计。
+     */
     private String resolveOperatorLoginAccount(SysAccountMfaLogDO row, String targetLoginAccount) {
         if (StringUtils.hasText(row.getOperatorLoginAccount())) {
             return row.getOperatorLoginAccount();
@@ -623,6 +653,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return targetLoginAccount;
     }
 
+    /**
+     * 校验操作人不能审批自己提交的申请。
+     */
     private void assertNotSelf(Long targetAccountId, String message) {
         InternalAuthAccount operator = currentOperator();
         if (operator != null && Objects.equals(operator.getAccountId(), targetAccountId)) {
@@ -630,19 +663,31 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         }
     }
 
+    /**
+     * 解析当前操作人标识。
+     */
     private Long currentOperatorId() {
         InternalAuthAccount operator = currentOperator();
         return operator == null ? null : operator.getAccountId();
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人。
+     */
     private InternalAuthAccount currentOperator() {
         return InternalAuthContextHolder.get();
     }
 
+    /**
+     * 在可信客户端 IP 缺失时返回受控占位值。
+     */
     private String clientIpFallback() {
         return "-";
     }
 
+    /**
+     * 规范化输入值。
+     */
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

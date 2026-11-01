@@ -29,49 +29,48 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentCheckoutThreeDsService
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : Hosted Checkout 统一 3DS 后端阶段服务，负责路由、策略判断和无浏览器交互阶段编排。
- * @status : create
+ * Hosted Checkout 的统一 3DS 服务端编排服务。
+ *
+ * <p>该服务先固化渠道与 MID，再执行风控 3DS 策略和渠道 SPI。PAN、CVV 与认证值只允许在
+ * 当前内存调用链流转；认证阶段事实只保存脱敏摘要。渠道超时或结果不确定时返回 PROCESSING，
+ * 交由后续查询或回调收敛，不能把未知结果误判为失败。</p>
  */
 @Service
 @Slf4j
 public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDsService {
 
     /**
-     * {@code GATEWAY_BASE_URL_CONFIG_KEY}，表示回调、通知、来源站点或远程接口地址。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 平台网关 HTTPS Origin 配置，用于生成渠道 3DS 通知地址。
      */
     private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
     /**
-     * {@code THREE_DS_CALLBACK_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-     * </p>
+     * 3DS 通知统一进入平台渠道回调入口，禁止使用商户提供的通知地址。
      */
     private static final String THREE_DS_CALLBACK_PATH_PREFIX = "/channel/v1/callbacks/";
 
-    /** 统一渠道执行器，根据路由结果定位 3DS provider。 */
+    /**
+     * 统一渠道执行器，根据路由结果定位 3DS provider。
+     */
     private final PaymentChannelExecutor paymentChannelExecutor;
 
-    /** 支付渠道路由服务，用于选择并固化本次 3DS 使用的渠道和 MID。 */
+    /**
+     * 支付渠道路由服务，用于选择并固化本次 3DS 使用的渠道和 MID。
+     */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
-    /** service-risk 路由后 3DS 策略只读客户端。 */
+    /**
+     * service-risk 路由后 3DS 策略只读客户端。
+     */
     private final RiskInternalClient riskInternalClient;
 
-    /** Platform-owned configuration used to construct provider Webhook URLs. */
+    /**
+     * 平台配置读取服务，仅用于构造平台自有的 provider Webhook 地址。
+     */
     private final SystemConfigReadService systemConfigReadService;
 
-    /** 平台认证审计服务，每次渠道 3DS 阶段调用后只落安全摘要。 */
+    /**
+     * 平台认证审计服务，每次渠道 3DS 阶段调用后只落安全摘要。
+     */
     private final PaymentAuthenticationRecordService authenticationRecordService;
 
     /**
@@ -94,13 +93,23 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         this.authenticationRecordService = authenticationRecordService;
     }
 
-    /** Constructor retained for isolated unit tests that do not exercise provider Webhook URL mapping. */
+    /**
+     * 单元测试构造器，不启用 provider Webhook 地址和认证审计。
+     */
     DefaultPaymentCheckoutThreeDsService(PaymentChannelExecutor paymentChannelExecutor,
                                          PaymentChannelRouteService paymentChannelRouteService,
                                          RiskInternalClient riskInternalClient) {
         this(paymentChannelExecutor, paymentChannelRouteService, riskInternalClient, null, null);
     }
 
+    /**
+     * 创建不启用认证审计的 3DS 服务，供兼容测试和过渡装配使用。
+     *
+     * @param paymentChannelExecutor 渠道统一执行器
+     * @param paymentChannelRouteService 收单路由服务
+     * @param riskInternalClient 风控 3DS 策略客户端
+     * @param systemConfigReadService 渠道 Webhook 地址配置读取服务
+     */
     DefaultPaymentCheckoutThreeDsService(PaymentChannelExecutor paymentChannelExecutor,
                                          PaymentChannelRouteService paymentChannelRouteService,
                                          RiskInternalClient riskInternalClient,
@@ -136,6 +145,7 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
                         attemptDO.getChannelCode(), null, attemptDO.getChannelMidConfigId(), null);
         RiskThreeDsPolicyClientResponseDTO policy = riskInternalClient.evaluateThreeDsPolicy(
                 policyRequest(sessionDO, attemptDO, routeResultDTO));
+        // 风控明确要求 3DS 时必须验证路由声明和渠道 SPI 的双重能力，缺一项即 Fail Closed。
         if (policy == null || !policy.isRequired()) {
             return routeResult(new PaymentCheckoutThreeDsResultDTO(), routeResultDTO, policy, "NOT_REQUIRED");
         }
@@ -155,13 +165,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
     }
 
     /**
-     * 恢复认证处理，复用既有幂等身份并从已持久化阶段继续执行。
-     * @param sessionDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param attemptDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param returnUrl 来源或回跳地址，必须经过协议、主机和长度校验
-     * @param phase 3DS 认证阶段编码，用于限定当前可执行的渠道认证动作
-     * @return 当前方法生成的 {@code PaymentCheckoutThreeDsResultDTO} 结果
+     * 从已持久化的 Checkout 尝试继续 3DS 认证。
+     *
+     * <p>复用尝试记录冻结的渠道和 MID，只允许 AUTHENTICATE 或 VERIFY 阶段；回跳地址必须已通过上层白名单校验。</p>
      */
     @Override
     public PaymentCheckoutThreeDsResultDTO continueAuthentication(PaymentCheckoutSessionDO sessionDO,
@@ -189,7 +195,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return result;
     }
 
-    /** 执行单个服务端阶段；仅初始调用允许在无需 Method 时紧接 AUTHENTICATE。 */
+    /**
+     * 执行单个服务端阶段；仅初始调用允许在无需 Method 时紧接 AUTHENTICATE。
+     */
     private PaymentCheckoutThreeDsResultDTO invoke(ChannelThreeDsAuthenticationRequest request,
                                                    PaymentRouteResultDTO routeResultDTO,
                                                    RiskThreeDsPolicyClientResponseDTO policy,
@@ -197,6 +205,7 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         try {
             ChannelThreeDsAuthenticationResponse response = paymentChannelExecutor.authenticateThreeDs(request);
             recordChannelResult(request, response);
+            // INITIALIZE 若无需浏览器 Method，可在同一服务端调用链继续认证，减少一次无意义回跳。
             if (authenticateWhenReady && response != null
                     && ChannelThreeDsStatus.READY_TO_AUTHENTICATE.equals(response.getStatus())) {
                 request.setPhase(ChannelThreeDsPhase.AUTHENTICATE);
@@ -205,6 +214,7 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
             }
             return routeResult(copy(response), routeResultDTO, policy, null);
         } catch (ChannelException exception) {
+            // 超时/网络未知不能宣告认证失败；只有渠道明确失败才能返回 FAILED。
             ChannelThreeDsStatus failureStatus = exception.isOutcomeUncertain()
                     ? ChannelThreeDsStatus.PROCESSING : ChannelThreeDsStatus.FAILED;
             recordChannelFailure(request, failureStatus, exception.getClass().getSimpleName());
@@ -219,13 +229,17 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         }
     }
 
+    /**
+     * 记录渠道结果。
+     */
     private void recordChannelResult(ChannelThreeDsAuthenticationRequest request,
                                      ChannelThreeDsAuthenticationResponse response) {
         if (authenticationRecordService != null) {
             try {
                 authenticationRecordService.recordChannelResult(request, response);
             } catch (RuntimeException exception) {
-                log.warn("event: THREE_DS_AUDIT_WRITE_FAILED transactionId: {} phase: {} errorType: {}",
+                // 审计写入故障不改变已经取得的渠道认证结果，但必须留下稳定告警供补偿核查。
+                log.warn("3DS渠道结果审计写入失败, event: THREE_DS_AUDIT_WRITE_FAILED, transactionId: {}, phase: {}, errorType: {}",
                         request.getTransactionId(),
                         response != null && response.getPhase() != null
                                 ? response.getPhase() : request.getPhase(),
@@ -236,9 +250,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
 
     /**
      * 记录渠道认证失败事实，保留可审计的失败码和脱敏摘要。
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @param failureCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param request     当前渠道认证请求
+     * @param status      受控认证结果状态
+     * @param failureCode 不含渠道原文的失败类型
      */
     private void recordChannelFailure(ChannelThreeDsAuthenticationRequest request,
                                       ChannelThreeDsStatus status,
@@ -247,13 +261,15 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
             try {
                 authenticationRecordService.recordChannelFailure(request, status, failureCode);
             } catch (RuntimeException exception) {
-                log.warn("event: THREE_DS_AUDIT_WRITE_FAILED transactionId: {} phase: {} errorType: {}",
+                log.warn("3DS渠道失败审计写入失败, event: THREE_DS_AUDIT_WRITE_FAILED, transactionId: {}, phase: {}, errorType: {}",
                         request.getTransactionId(), request.getPhase(), exception.getClass().getSimpleName());
             }
         }
     }
 
-    /** 构造不含 PAN、CVV 或渠道凭据的 3DS 策略请求。 */
+    /**
+     * 构造不含 PAN、CVV 或渠道凭据的 3DS 策略请求。
+     */
     private RiskThreeDsPolicyClientRequestDTO policyRequest(PaymentCheckoutSessionDO sessionDO,
                                                             PaymentCheckoutAttemptDO attemptDO,
                                                             PaymentRouteResultDTO routeResultDTO) {
@@ -268,7 +284,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return request;
     }
 
-    /** 将路由身份和只读策略摘要附加到每一种 3DS 结果。 */
+    /**
+     * 将路由身份和只读策略摘要附加到每一种 3DS 结果。
+     */
     private PaymentCheckoutThreeDsResultDTO routeResult(PaymentCheckoutThreeDsResultDTO result,
                                                         PaymentRouteResultDTO route,
                                                         RiskThreeDsPolicyClientResponseDTO policy,
@@ -338,6 +356,7 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         request.setTransactionDateTime(attemptDO.getTransactionDateTime());
         request.setCardBrand(attemptDO.getPaymentBrand());
         request.setRedirectResponseUrl(returnUrl);
+        // provider Webhook 只在初始化阶段下发，地址必须来自平台配置而不是商户入参。
         if (ChannelThreeDsPhase.INITIALIZE.equals(phase)) {
             request.setNotificationUrl(notificationUrl(routeResultDTO.getChannelCode()));
         }
@@ -351,6 +370,7 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         for (var entry : routeResultDTO.getMetadataValues().entrySet()) {
             request.getExtension().put("mid." + entry.getKey(), emptyIfNull(entry.getValue()));
         }
+        // 卡认证数据只进入瞬时渠道请求对象，调用完成后不得缓存、持久化或记录日志。
         if (commandDTO.getCardInfo() != null) {
             request.setCardNo(commandDTO.getCardInfo().getCardNo());
             request.setExpirationMonth(commandDTO.getCardInfo().getExpirationMonth());
@@ -363,7 +383,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return request;
     }
 
-    /** Build an optional provider callback URL from the platform-owned HTTPS gateway origin. */
+    /**
+     * 根据平台自有 HTTPS Origin 构造可选 provider 回调地址。
+     */
     private String notificationUrl(String channelCode) {
         if (systemConfigReadService == null) {
             return null;
@@ -381,14 +403,14 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
                     || base.getQuery() != null
                     || base.getFragment() != null
                     || (StringUtils.hasText(base.getPath()) && !"/".equals(base.getPath()))) {
-                log.warn("event: THREE_DS_NOTIFICATION_URL_SKIPPED configKey: {} channelCode: {} reason: UNSAFE_ORIGIN",
+                log.warn("3DS通知地址配置被跳过, event: THREE_DS_NOTIFICATION_URL_SKIPPED, configKey: {}, channelCode: {}, reason: UNSAFE_ORIGIN",
                         GATEWAY_BASE_URL_CONFIG_KEY, channelCode);
                 return null;
             }
             return new URI("https", null, base.getHost(), base.getPort(),
                     THREE_DS_CALLBACK_PATH_PREFIX + channelCode + "/3ds", null, null).toString();
         } catch (URISyntaxException exception) {
-            log.warn("event: THREE_DS_NOTIFICATION_URL_SKIPPED configKey: {} channelCode: {} reason: INVALID_URI exceptionType: {}",
+            log.warn("3DS通知地址配置解析失败, event: THREE_DS_NOTIFICATION_URL_SKIPPED, configKey: {}, channelCode: {}, reason: INVALID_URI, exceptionType: {}",
                     GATEWAY_BASE_URL_CONFIG_KEY, channelCode, exception.getClass().getSimpleName());
             return null;
         }

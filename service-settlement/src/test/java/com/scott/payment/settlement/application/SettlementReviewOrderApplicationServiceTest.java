@@ -60,13 +60,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewOrderApplicationServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证结算预审锁定、幂等和 Maker-Checker 终态状态机。
- * @status : create
+ * 验证结算预审锁定、幂等和 Maker-Checker 终态状态机。
  */
 class SettlementReviewOrderApplicationServiceTest {
 
@@ -117,7 +111,9 @@ class SettlementReviewOrderApplicationServiceTest {
                 new SettlementReviewNumberFormatter(), clock);
     }
 
-    /** 提交时必须冻结可信 Admin 操作时间，不能用 settlement 处理时钟覆盖审计快照。 */
+    /**
+     * 提交时必须冻结可信 Admin 操作时间，不能用 settlement 处理时钟覆盖审计快照。
+     */
     @Test
     void shouldSubmitOnceAndPreserveTrustedOperatorTime() {
         SettlementReviewCreateCommand command = createCommand("CREATE-1", 1L);
@@ -161,7 +157,9 @@ class SettlementReviewOrderApplicationServiceTest {
         assertThat(candidate.getVersion()).isEqualTo(2L);
     }
 
-    /** 自动预审必须冻结固定系统主体并明确标记 AUTO_REVIEW，不能伪装成人工制单。 */
+    /**
+     * 自动预审必须冻结固定系统主体并明确标记 AUTO_REVIEW，不能伪装成人工制单。
+     */
     @Test
     void shouldSubmitAutomaticReviewWithTrustedSystemIdentity() {
         SettlementReviewCreateCommand command = automaticCreateCommand("AUTO-REVIEW-1", 1L);
@@ -202,7 +200,9 @@ class SettlementReviewOrderApplicationServiceTest {
         assertThat(stored.get().getSubmittedRoleSnapshot()).isEqualTo("SYSTEM");
     }
 
-    /** 相同请求键不能从人工制单切换为自动预审，防止跨模式幂等重放。 */
+    /**
+     * 相同请求键不能从人工制单切换为自动预审，防止跨模式幂等重放。
+     */
     @Test
     void shouldRejectCreateRequestKeyReplayAcrossCreateModes() {
         SettlementReviewCreateCommand command = automaticCreateCommand("CREATE-MODE-MISMATCH", 1L);
@@ -225,7 +225,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(orderMapper, never()).insertIdempotent(any());
     }
 
-    /** 账号 0 仅允许固定服务身份，Admin 不能伪造系统制单人。 */
+    /**
+     * 账号 0 仅允许固定服务身份，Admin 不能伪造系统制单人。
+     */
     @Test
     void shouldRejectForgedSystemOperatorSnapshot() {
         assertThatThrownBy(() -> new SettlementOperatorSnapshot(
@@ -234,7 +236,9 @@ class SettlementReviewOrderApplicationServiceTest {
                 .hasMessageContaining("operator snapshot is invalid");
     }
 
-    /** 相同创建请求键必须直接返回既有预审，不得再次锁候选或分配序号。 */
+    /**
+     * 相同创建请求键必须直接返回既有预审，不得再次锁候选或分配序号。
+     */
     @Test
     void shouldReplayIdenticalSubmissionWithoutRelockingCandidates() {
         SettlementReviewCreateCommand command = createCommand("CREATE-REPLAY", 1L);
@@ -255,7 +259,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(candidateMapper, never()).lockForReview(anyList(), any(), any(), any());
     }
 
-    /** 候选 READY 版本锁竞争失败时必须整单失败，不得留下预审快照。 */
+    /**
+     * 候选 READY 版本锁竞争失败时必须整单失败，不得留下预审快照。
+     */
     @Test
     void shouldRejectCompetingCandidateReviewLock() {
         SettlementCandidateDO candidate = readyCandidate(1L);
@@ -274,7 +280,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(reviewCandidateMapper, never()).insertBatchIdempotent(anyList());
     }
 
-    /** 同一账号即使同时拥有制单和审批权限，也不能审批自己的预审单。 */
+    /**
+     * 同一账号即使同时拥有制单和审批权限，也不能审批自己的预审单。
+     */
     @Test
     void shouldRejectMakerSelfApproval() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -294,7 +302,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** 非 Maker 不能取消他人提交的待审批单，且必须返回稳定业务错误码。 */
+    /**
+     * 非 Maker 不能取消他人提交的待审批单，且必须返回稳定业务错误码。
+     */
     @Test
     void shouldRejectCancellationByNonMaker() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -315,7 +325,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** 过期的 expectedVersion 必须在读取候选前拒绝，避免旧页面覆盖新状态。 */
+    /**
+     * 过期的 expectedVersion 必须在读取候选前拒绝，避免旧页面覆盖新状态。
+     */
     @Test
     void shouldRejectStaleDecisionExpectedVersionBeforeLockingCandidates() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -333,7 +345,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** Maker 可以取消自己的待审批单，取消必须释放全部独占候选。 */
+    /**
+     * Maker 可以取消自己的待审批单，取消必须释放全部独占候选。
+     */
     @Test
     void shouldAllowMakerToCancelAndReleaseAllCandidates() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -359,7 +373,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** 审批时清分事实指纹变化必须拒绝建批。 */
+    /**
+     * 审批时清分事实指纹变化必须拒绝建批。
+     */
     @Test
     void shouldRejectApprovalWhenClearingFactFingerprintChanges() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -379,7 +395,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** 审批时冻结汇率矩阵指纹变化必须拒绝建批。 */
+    /**
+     * 审批时冻结汇率矩阵指纹变化必须拒绝建批。
+     */
     @Test
     void shouldRejectApprovalWhenLockedRateFingerprintChanges() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -402,7 +420,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** 审批重算结果指纹变化必须拒绝建批，不能静默使用新金额。 */
+    /**
+     * 审批重算结果指纹变化必须拒绝建批，不能静默使用新金额。
+     */
     @Test
     void shouldRejectApprovalWhenFinancialResultFingerprintChanges() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -428,7 +448,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(candidateMapper, never()).consumeReviewLock(anyList(), any(), any(), any());
     }
 
-    /** 拒绝必须释放全部独占候选，并保存 Checker 的可信操作时间。 */
+    /**
+     * 拒绝必须释放全部独占候选，并保存 Checker 的可信操作时间。
+     */
     @Test
     void shouldRejectAndReleaseAllCandidates() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -453,7 +475,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(candidateMapper).releaseReviewLock(List.of(candidate), REVIEW_ORDER_NO, PROCESSING_TIME);
     }
 
-    /** 审批通过只创建一个正式批次，并冻结 Maker-Checker 和继承汇率身份。 */
+    /**
+     * 审批通过只创建一个正式批次，并冻结 Maker-Checker 和继承汇率身份。
+     */
     @Test
     void shouldApproveOnceAndBindTrustedMakerCheckerAudit() {
         SettlementReviewOrderDO order = pendingOrder();
@@ -503,7 +527,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService).create(any());
     }
 
-    /** 相同终态请求键重放必须返回原结果，不得再次创建批次。 */
+    /**
+     * 相同终态请求键重放必须返回原结果，不得再次创建批次。
+     */
     @Test
     void shouldReplayApprovalDecisionWithoutCreatingAnotherBatch() {
         SettlementReviewOrderDO approved = pendingOrder();
@@ -525,7 +551,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** 决策请求键不能被相同操作人复用于不同审批意见。 */
+    /**
+     * 决策请求键不能被相同操作人复用于不同审批意见。
+     */
     @Test
     void shouldRejectDecisionReplayWithDifferentComment() {
         SettlementReviewOrderDO approved = pendingOrder();
@@ -551,7 +579,9 @@ class SettlementReviewOrderApplicationServiceTest {
         verify(batchCreationService, never()).create(any());
     }
 
-    /** 决策重放必须携带原请求的预期版本，不能使用终态版本复用请求键。 */
+    /**
+     * 决策重放必须携带原请求的预期版本，不能使用终态版本复用请求键。
+     */
     @Test
     void shouldRejectDecisionReplayWithDifferentExpectedVersion() {
         SettlementReviewOrderDO approved = pendingOrder();

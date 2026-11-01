@@ -16,11 +16,19 @@ import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import org.mapstruct.factory.Mappers;
 
+/**
+ * 商户系统转换器，将组织、角色、权限和菜单实体转换为门户响应。
+ */
 @Mapper(unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface MerchantSystemConverter {
 
     MerchantSystemConverter INSTANCE = Mappers.getMapper(MerchantSystemConverter.class);
 
+    /**
+     * 将商户部门实体转换为部门响应。
+     * @param dept 商户部门持久化记录
+     * @return 构造、转换或解析后的业务值
+     */
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "deptId", source = "id")
     @Mapping(target = "parentId", source = "parentId")
@@ -36,6 +44,11 @@ public interface MerchantSystemConverter {
     @Mapping(target = "updatedAt", source = "updatedAt")
     DeptDTO toDeptDTO(SysMerchantDeptDO dept);
 
+    /**
+     * 将商户岗位实体转换为岗位响应。
+     * @param post 商户岗位持久化记录
+     * @return 构造、转换或解析后的业务值
+     */
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "postId", source = "id")
     @Mapping(target = "postCode", source = "postCode")
@@ -47,6 +60,11 @@ public interface MerchantSystemConverter {
     @Mapping(target = "updatedAt", source = "updatedAt")
     PostDTO toPostDTO(SysMerchantPostDO post);
 
+    /**
+     * 将角色实体转换为角色响应。
+     * @param role 商户角色持久化记录
+     * @return 构造、转换或解析后的业务值
+     */
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "roleId", source = "id")
     @Mapping(target = "roleCode", source = "roleCode")
@@ -60,6 +78,11 @@ public interface MerchantSystemConverter {
     @Mapping(target = "updatedAt", source = "updatedAt")
     RoleDTO toRoleDTO(SysRoleDO role);
 
+    /**
+     * 将权限实体转换为权限响应。
+     * @param permission 商户权限持久化记录
+     * @return 构造、转换或解析后的业务值
+     */
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "permissionId", source = "id")
     @Mapping(target = "menuId", source = "menuId")
@@ -70,6 +93,11 @@ public interface MerchantSystemConverter {
     @Mapping(target = "resourcePath", source = "resourcePath")
     PermissionDTO toPermissionDTO(SysPermissionDO permission);
 
+    /**
+     * 将菜单实体转换为授权菜单响应。
+     * @param menu 商户菜单持久化记录
+     * @return 构造、转换或解析后的业务值
+     */
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "id", source = "id")
     @Mapping(target = "parentId", source = "parentId")

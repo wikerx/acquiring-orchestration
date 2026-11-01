@@ -8,13 +8,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelExportRequest
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 导出请求模型
- * @status : create
+ * Excel 导出请求模型
  *
  * <p>封装统一导出所需的文件名、标题、导出人、查询条件和导出数据，
  * 让业务层只关注数据准备，不直接拼装 EasyExcel 细节。</p>

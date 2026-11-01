@@ -19,13 +19,7 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisGlobalIdAutoConfiguration
- * @date : 2026-06-25 10:37
- * @email : scott_x@163.com
- * @description : 装配全局 ID 生成器，并在启动期校验模式、环境隔离状态 Key 和受控恢复参数
- * @status : create
+ * 装配全局 ID 生成器，并在启动期校验模式、环境隔离状态 Key 和受控恢复参数
  */
 @AutoConfiguration
 @EnableConfigurationProperties({RedisGlobalIdProperties.class, PaymentRedisProperties.class})

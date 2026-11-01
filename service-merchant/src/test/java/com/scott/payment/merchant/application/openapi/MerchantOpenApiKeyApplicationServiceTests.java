@@ -18,13 +18,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiKeyApplicationServiceTests
- * @date : 2026-08-01 13:00
- * @email : scott_x@163.com
- * @description : 验证商户门户密钥轮换使用主库事务并在实际密钥写入前登记共享缓存可靠失效
- * @status : create
+ * 验证商户门户密钥轮换使用主库事务并在实际密钥写入前登记共享缓存可靠失效
  */
 class MerchantOpenApiKeyApplicationServiceTests {
 
@@ -70,7 +64,9 @@ class MerchantOpenApiKeyApplicationServiceTests {
         assertThat(transactional.rollbackFor()).contains(Exception.class);
     }
 
-    /** 验证启停先登记缓存失效，再更新密钥状态并安排对应通知。 */
+    /**
+     * 验证启停先登记缓存失效，再更新密钥状态并安排对应通知。
+     */
     @Test
     void shouldPrepareInvalidationBeforeDisablingAndNotifyWithFingerprintSnapshot() {
         OpenApiMerchantKeyMaterialService keyMaterialService = mock(OpenApiMerchantKeyMaterialService.class);

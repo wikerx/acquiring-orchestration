@@ -4,13 +4,7 @@ import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogMessageSanitizer
- * @date : 2026-06-20 22:59
- * @email : scott_x@163.com
- * @description : 操作日志 MQ 消息正文二次截断器
- * @status : create
+ * 操作日志 MQ 消息正文二次截断器
  */
 public class OperationLogMessageSanitizer {
 

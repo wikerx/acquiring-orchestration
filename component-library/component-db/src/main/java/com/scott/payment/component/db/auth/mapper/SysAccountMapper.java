@@ -6,13 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysAccountMapper
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 系统登录账号 Mapper
- * @status : create
+ * 系统登录账号 Mapper
  */
 public interface SysAccountMapper extends BaseMapper<SysAccountDO> {
 

@@ -15,19 +15,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedissonDistributedLockService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 基于单个 Spring 管理的 RedissonClient 提供有界、可重入的分布式锁能力。
- * @status : create
+ * 基于单个 Spring 管理的 RedissonClient 提供有界、可重入的分布式锁能力。
  */
 public class RedissonDistributedLockService implements DistributedLockService {
 
-    /** Spring 管理的共享 Redisson 客户端；本服务不负责关闭其生命周期。 */
+    /**
+     * Spring 管理的共享 Redisson 客户端；本服务不负责关闭其生命周期。
+     */
     private final RedissonClient redissonClient;
-    /** 锁获取、竞争、失败和释放结果的低基数指标记录器。 */
+    /**
+     * 锁获取、竞争、失败和释放结果的低基数指标记录器。
+     */
     private final RedisBusinessMetrics metrics;
 
     /**
@@ -160,6 +158,16 @@ public class RedissonDistributedLockService implements DistributedLockService {
         return lock(key).isHeldByCurrentThread();
     }
 
+    /**
+     * 在获得分布式锁后执行本地动作，并在 finally 中仅由持有线程释放锁。
+     *
+     * @param key 完整 Redis 锁 Key
+     * @param waitTime 最大等待时间
+     * @param leaseTime 租约时间
+     * @param action 获锁后执行的动作
+     * @param <T> 动作结果类型
+     * @return 获锁结果或竞争失败结果
+     */
     @Override
     public <T> DistributedLockExecution<T> execute(String key,
                                                    Duration waitTime,

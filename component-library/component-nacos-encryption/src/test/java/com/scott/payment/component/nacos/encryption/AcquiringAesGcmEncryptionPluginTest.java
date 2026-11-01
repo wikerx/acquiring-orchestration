@@ -21,7 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-/** AES-GCM Nacos 配置插件测试，覆盖正文、数据密钥包装和缺失主密钥门禁。 */
+/**
+ * AES-GCM Nacos 配置插件测试，覆盖正文、数据密钥包装和缺失主密钥门禁。
+ */
 class AcquiringAesGcmEncryptionPluginTest {
 
     private static final String MASTER_KEY = Base64.getEncoder()

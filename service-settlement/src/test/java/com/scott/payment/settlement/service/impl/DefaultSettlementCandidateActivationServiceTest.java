@@ -18,13 +18,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementCandidateActivationServiceTest
- * @date : 2026-08-26 22:00
- * @email : scott_x@163.com
- * @description : 验证影子候选只有在结算档案、资金账户、目标币种和 ISO exponent 全部一致时才可批量激活。
- * @status : create
+ * 验证影子候选只有在结算档案、资金账户、目标币种和 ISO exponent 全部一致时才可批量激活。
  */
 class DefaultSettlementCandidateActivationServiceTest {
 
@@ -37,7 +31,9 @@ class DefaultSettlementCandidateActivationServiceTest {
         service = new DefaultSettlementCandidateActivationService(candidateMapper);
     }
 
-    /** 合法档案应以一次批量 CAS 冻结 profile 并切换 shadow_mode。 */
+    /**
+     * 合法档案应以一次批量 CAS 冻结 profile 并切换 shadow_mode。
+     */
     @Test
     void shouldActivateCandidatesWithMatchingProfileAndAccount() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 14, 0);
@@ -51,7 +47,9 @@ class DefaultSettlementCandidateActivationServiceTest {
         verify(candidateMapper).activateBatch(List.of(row), now);
     }
 
-    /** 即使查询投影异常，币种不一致也必须在写入前失败。 */
+    /**
+     * 即使查询投影异常，币种不一致也必须在写入前失败。
+     */
     @Test
     void shouldRejectCurrencyMismatchBeforeActivation() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 14, 0);

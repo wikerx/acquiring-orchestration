@@ -10,13 +10,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementProfileControllerContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证结算档案查询、详情和编辑使用相互独立的最小权限。
- * @status : create
+ * 验证结算档案查询、详情和编辑使用相互独立的最小权限。
  */
 class AdminSettlementProfileControllerContractTest {
 

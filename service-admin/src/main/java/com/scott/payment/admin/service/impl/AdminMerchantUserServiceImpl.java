@@ -56,24 +56,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantUserServiceImpl
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户用户服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理端商户用户服务实现，用于运营后台，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
 
-    /**
-     * {@code ROOT_PARENT_ID}，用于定位 {@code AdminMerchantUserServiceImpl} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long ROOT_PARENT_ID = 0L;
 
     private final SysAppMapper sysAppMapper;
@@ -91,6 +78,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
     private final SysMerchantAccountPostMapper sysMerchantAccountPostMapper;
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
 
+    /**
+     * 创建管理端商户用户服务。
+     */
     public AdminMerchantUserServiceImpl(SysAppMapper sysAppMapper,
                                         SysAccountMapper sysAccountMapper,
                                         SysMerchantUserMapper sysMerchantUserMapper,
@@ -221,6 +211,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .toList();
     }
 
+    /**
+     * 将账号及其商户授权关系转换为列表响应。
+     */
     private AdminMerchantUserListDTO toListDTO(SysAccountDO account,
                                                SysMerchantUserDO merchantUser,
                                                Map<String, BaseMerchantInfoDO> merchantMap,
@@ -252,6 +245,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 按管理端数据范围筛选商户号集合。
+     */
     private Set<String> filterMerchantIds(AdminMerchantUserQueryRequest query) {
         if (!StringUtils.hasText(query.getMerchantName())) {
             return StringUtils.hasText(query.getMerchantId()) ? Set.of(query.getMerchantId().trim()) : null;
@@ -263,6 +259,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(BaseMerchantInfoDO::getMerchantId).collect(Collectors.toCollection(HashSet::new));
     }
 
+    /**
+     * 按管理端数据范围筛选账户主键集合。
+     */
     private Set<Long> filterAccountIds(Long appId, AdminMerchantUserQueryRequest query) {
         Set<Long> result = null;
         if (StringUtils.hasText(query.getRealName())) {
@@ -293,6 +292,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return result;
     }
 
+    /**
+     * 查询角色数据范围内的账户主键。
+     */
     private Set<Long> accountIdsByRole(Long appId, List<Long> roleIds) {
         if (roleIds.isEmpty()) {
             return Collections.emptySet();
@@ -311,6 +313,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysMerchantUserDO::getAccountId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
+    /**
+     * 查询部门数据范围内的账户主键。
+     */
     private Set<Long> accountIdsByDept(List<Long> deptIds) {
         if (deptIds.isEmpty()) {
             return Collections.emptySet();
@@ -320,6 +325,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysMerchantAccountDeptDO::getAccountId).collect(Collectors.toSet());
     }
 
+    /**
+     * 查询岗位数据范围内的账户主键。
+     */
     private Set<Long> accountIdsByPost(List<Long> postIds) {
         if (postIds.isEmpty()) {
             return Collections.emptySet();
@@ -329,6 +337,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysMerchantAccountPostDO::getAccountId).collect(Collectors.toSet());
     }
 
+    /**
+     * 按账户主键批量加载商户用户映射。
+     */
     private Map<Long, SysMerchantUserDO> loadMerchantUserMap(List<Long> accountIds) {
         if (accountIds.isEmpty()) {
             return Collections.emptyMap();
@@ -339,6 +350,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().collect(Collectors.toMap(SysMerchantUserDO::getAccountId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 加载商户映射。
+     */
     private Map<String, BaseMerchantInfoDO> loadMerchantMap(List<String> merchantIds) {
         List<String> ids = merchantIds.stream().filter(StringUtils::hasText).distinct().toList();
         if (ids.isEmpty()) {
@@ -350,6 +364,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().collect(Collectors.toMap(BaseMerchantInfoDO::getMerchantId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 按商户账号主键批量加载角色授权映射。
+     */
     private Map<Long, List<SysRoleDO>> loadRoleMap(Long appId, List<Long> merchantUserIds) {
         if (merchantUserIds.isEmpty()) {
             return Collections.emptyMap();
@@ -368,6 +385,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         ));
     }
 
+    /**
+     * 加载指定账号当前有效的商户角色。
+     */
     private List<SysRoleDO> loadAccountRoles(Long appId, Long accountId) {
         SysMerchantUserDO merchantUser = sysMerchantUserMapper.selectOne(Wrappers.<SysMerchantUserDO>lambdaQuery()
                 .eq(SysMerchantUserDO::getAccountId, accountId)
@@ -379,6 +399,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return loadRoleMap(appId, List.of(merchantUser.getId())).getOrDefault(merchantUser.getId(), Collections.emptyList());
     }
 
+    /**
+     * 批量加载未删除的角色记录。
+     */
     private List<SysRoleDO> loadRoles(List<Long> roleIds) {
         List<Long> ids = roleIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
@@ -389,6 +412,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED));
     }
 
+    /**
+     * 按账号主键批量加载商户部门关联。
+     */
     private Map<Long, List<SysMerchantDeptDO>> loadDeptMap(List<Long> accountIds) {
         if (accountIds.isEmpty()) {
             return Collections.emptyMap();
@@ -405,6 +431,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         ));
     }
 
+    /**
+     * 按账号主键批量加载商户岗位关联。
+     */
     private Map<Long, List<SysMerchantPostDO>> loadPostMap(List<Long> accountIds) {
         if (accountIds.isEmpty()) {
             return Collections.emptyMap();
@@ -421,18 +450,27 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         ));
     }
 
+    /**
+     * 加载指定商户账号的部门摘要列表。
+     */
     private List<AdminMerchantUserDetailDTO.DeptSummary> loadDeptSummaries(String merchantId, Long accountId) {
         return loadDeptMap(List.of(accountId)).getOrDefault(accountId, Collections.emptyList()).stream()
                 .filter(dept -> Objects.equals(dept.getMerchantId(), merchantId))
                 .map(this::toDeptSummary).toList();
     }
 
+    /**
+     * 加载指定商户账号的岗位摘要列表。
+     */
     private List<AdminMerchantUserDetailDTO.PostSummary> loadPostSummaries(String merchantId, Long accountId) {
         return loadPostMap(List.of(accountId)).getOrDefault(accountId, Collections.emptyList()).stream()
                 .filter(post -> Objects.equals(post.getMerchantId(), merchantId))
                 .map(this::toPostSummary).toList();
     }
 
+    /**
+     * 按主键批量加载未删除的商户部门。
+     */
     private List<SysMerchantDeptDO> loadDepts(List<Long> deptIds) {
         List<Long> ids = deptIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
@@ -443,6 +481,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .eq(SysMerchantDeptDO::getDeleted, AuthConstants.NOT_DELETED));
     }
 
+    /**
+     * 按主键批量加载未删除的商户岗位。
+     */
     private List<SysMerchantPostDO> loadPosts(List<Long> postIds) {
         List<Long> ids = postIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
@@ -453,6 +494,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .eq(SysMerchantPostDO::getDeleted, AuthConstants.NOT_DELETED));
     }
 
+    /**
+     * 根据账号角色加载最终生效的菜单树。
+     */
     private List<SysMenuDTO> loadFinalMenus(Long appId, List<SysRoleDO> roles) {
         List<Long> roleIds = roles.stream().map(SysRoleDO::getId).toList();
         if (roleIds.isEmpty()) {
@@ -475,6 +519,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return buildMenuTree(nodes);
     }
 
+    /**
+     * 根据账号角色加载最终生效的权限编码。
+     */
     private List<String> loadFinalPermissionCodes(Long appId, List<SysRoleDO> roles) {
         List<Long> roleIds = roles.stream().map(SysRoleDO::getId).toList();
         if (roleIds.isEmpty()) {
@@ -495,6 +542,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysPermissionDO::getPermissionCode).filter(StringUtils::hasText).sorted().toList();
     }
 
+    /**
+     * 构建菜单层级树。
+     */
     private List<SysMenuDTO> buildMenuTree(List<SysMenuDTO> flat) {
         Map<Long, SysMenuDTO> nodeMap = flat.stream()
                 .collect(Collectors.toMap(SysMenuDTO::getMenuId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
@@ -509,6 +559,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return roots;
     }
 
+    /**
+     * 转换为菜单授权数据对象。
+     */
     private SysMenuDTO toMenuDTO(SysMenuDO row) {
         SysMenuDTO dto = new SysMenuDTO();
         dto.setMenuId(row.getId());
@@ -529,6 +582,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 转换为商户摘要。
+     */
     private AdminMerchantUserDetailDTO.MerchantSummary toMerchantSummary(BaseMerchantInfoDO merchant) {
         if (merchant == null) {
             return null;
@@ -541,6 +597,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 将商户部门实体转换为账号详情中的部门摘要。
+     */
     private AdminMerchantUserDetailDTO.DeptSummary toDeptSummary(SysMerchantDeptDO dept) {
         AdminMerchantUserDetailDTO.DeptSummary dto = new AdminMerchantUserDetailDTO.DeptSummary();
         dto.setDeptId(dept.getId());
@@ -549,6 +608,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 将商户岗位实体转换为账号详情中的岗位摘要。
+     */
     private AdminMerchantUserDetailDTO.PostSummary toPostSummary(SysMerchantPostDO post) {
         AdminMerchantUserDetailDTO.PostSummary dto = new AdminMerchantUserDetailDTO.PostSummary();
         dto.setPostId(post.getId());
@@ -557,6 +619,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 将角色实体转换为账号详情中的角色摘要。
+     */
     private AdminMerchantUserDetailDTO.RoleSummary toRoleSummary(SysRoleDO role) {
         AdminMerchantUserDetailDTO.RoleSummary dto = new AdminMerchantUserDetailDTO.RoleSummary();
         dto.setRoleId(role.getId());
@@ -567,6 +632,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 查询商户允许访问的后台应用。
+     */
     private SysAppDO merchantApp() {
         SysAppDO app = sysAppMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
@@ -578,6 +646,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return app;
     }
 
+    /**
+     * 生成脱敏的登录账号展示值。
+     */
     private String displayLoginAccount(SysAccountDO account, SysMerchantUserDO merchantUser) {
         if (merchantUser != null && StringUtils.hasText(merchantUser.getLoginAccount())) {
             return merchantUser.getLoginAccount();
@@ -587,6 +658,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return raw != null && raw.endsWith(suffix) ? raw.substring(0, raw.length() - suffix.length()) : raw;
     }
 
+    /**
+     * 计算两个主键集合的交集。
+     */
     private Set<Long> intersect(Set<Long> base, Set<Long> next) {
         if (base == null) {
             return next;
@@ -595,6 +669,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return base;
     }
 
+    /**
+     * 脱敏手机号码并保留必要的首尾识别位。
+     */
     private String maskMobile(String value) {
         if (!StringUtils.hasText(value)) {
             return value;
@@ -606,6 +683,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return text.substring(0, Math.min(3, text.length())) + "****" + text.substring(text.length() - 4);
     }
 
+    /**
+     * 脱敏邮件。
+     */
     private String maskEmail(String value) {
         if (!StringUtils.hasText(value) || !value.contains("@")) {
             return value;
@@ -616,6 +696,9 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return maskedName + "@" + parts[1];
     }
 
+    /**
+     * 脱敏 IP。
+     */
     private String maskIp(String value) {
         if (!StringUtils.hasText(value)) {
             return value;

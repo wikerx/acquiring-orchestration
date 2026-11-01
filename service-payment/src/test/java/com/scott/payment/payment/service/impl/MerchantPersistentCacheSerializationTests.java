@@ -13,13 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantPersistentCacheSerializationTests
- * @date : 2026-08-01 15:55
- * @email : scott_x@163.com
- * @description : 验证密钥元数据和商户路由永久缓存模型经过精确类型登记后能够完整往返
- * @status : create
+ * 验证密钥元数据和商户路由永久缓存模型经过精确类型登记后能够完整往返
  */
 class MerchantPersistentCacheSerializationTests {
 

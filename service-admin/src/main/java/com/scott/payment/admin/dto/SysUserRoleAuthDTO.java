@@ -6,13 +6,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserRoleAuthDTO
- * @date : 2026-06-12 11:47
- * @email : scott_x@163.com
- * @description : Admin 用户角色授权 DTO，返回账号当前角色和可分配角色集合。
- * @status : create
+ * Admin 用户角色授权 DTO，返回账号当前角色和可分配角色集合。
  */
 @Data
 public class SysUserRoleAuthDTO {

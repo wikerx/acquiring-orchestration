@@ -12,13 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionOperationDO
- * @date : 2026-07-14 17:35
- * @email : scott_x@163.com
- * @description : 交易动作单实体，位于 service-payment 持久化层，保存授权、请款、退款、撤销等每一次交易动作的状态和渠道摘要。
- * @status : create
+ * 交易动作单实体，位于 service-payment 持久化层，保存授权、请款、退款、撤销等每一次交易动作的状态和渠道摘要。
  */
 @Data
 @TableName("transaction_operation")
@@ -80,6 +74,16 @@ public class TransactionOperationDO implements Serializable {
      * 动作请求来源，例如 OPENAPI、ADMIN_PORTAL、MERCHANT_PORTAL 或 SYSTEM。
      */
     private String requestSource;
+
+    /**
+     * 网关认证并规范化的接入客户端 IP，用于受控安全审计；最长 45 字符，支持 IPv4 和 IPv6。
+     */
+    private String ingressClientIp;
+
+    /**
+     * 接入客户端 IP 的 SHA-256 摘要，用于不暴露原值的关联检索。
+     */
+    private String ingressClientIpHash;
 
     /**
      * 退款范围，FULL 表示相对原始本金全额退款，PARTIAL 表示部分退款，VOID 表示撤销。
@@ -201,13 +205,19 @@ public class TransactionOperationDO implements Serializable {
      */
     private BigDecimal settlementAmount;
 
-    /** 1 单位动作交易币种兑换的结算币种数量。 */
+    /**
+     * 1 单位动作交易币种兑换的结算币种数量。
+     */
     private BigDecimal settlementRate;
 
-    /** 动作最终结算业务日期。 */
+    /**
+     * 动作最终结算业务日期。
+     */
     private LocalDate settlementDate;
 
-    /** 动作最近一次结算或冲正批次号。 */
+    /**
+     * 动作最近一次结算或冲正批次号。
+     */
     private String settlementBatchNo;
 
     /**

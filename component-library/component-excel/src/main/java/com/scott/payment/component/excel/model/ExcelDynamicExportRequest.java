@@ -10,13 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelDynamicExportRequest
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 动态列 Excel 导出请求，服务于风控等列结构随功能变化的管理端导出场景。
- * @status : create
+ * 动态列 Excel 导出请求，服务于风控等列结构随功能变化的管理端导出场景。
  */
 @Getter
 @Builder

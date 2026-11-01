@@ -7,13 +7,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionEventOutboxService
- * @date : 2026-07-12 18:20
- * @email : scott_x@163.com
- * @description : 交易本地消息服务，位于 service-payment 服务层，负责在本地事务内记录待投递 RocketMQ 事件。
- * @status : create
+ * 交易本地消息服务，位于 service-payment 服务层，负责在本地事务内记录待投递 RocketMQ 事件。
  */
 public interface TransactionEventOutboxService {
 
@@ -95,7 +89,9 @@ public interface TransactionEventOutboxService {
         return false;
     }
 
-    /** 查询指定季度的交易 Outbox 运维聚合快照。 */
+    /**
+     * 查询指定季度的交易 Outbox 运维聚合快照。
+     */
     default TransactionEventOutboxMetricsSnapshot metricsSnapshot(LocalDateTime eventTime) {
         return null;
     }

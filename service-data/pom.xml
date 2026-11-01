@@ -62,6 +62,11 @@
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- 商户回调客户端在实际建连解析阶段执行 SSRF 地址策略，禁止 DNS 重绑定绕过。 -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
         <!--以下依赖仅用于数据消费、持久化和分片 SQL 测试。-->
         <dependency>
             <groupId>com.h2database</groupId>

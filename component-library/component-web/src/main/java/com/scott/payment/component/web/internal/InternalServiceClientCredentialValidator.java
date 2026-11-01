@@ -3,19 +3,17 @@ package com.scott.payment.component.web.internal;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalServiceClientCredentialValidator
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : 内部 HTTP 客户端身份与 HMAC 密钥启动门禁；调用方身份由服务代码固定，配置中心只提供
+ * 内部 HTTP 客户端身份与 HMAC 密钥启动门禁；调用方身份由服务代码固定，配置中心只提供
  * 对应调用边的 active 密钥，并拒绝空值、未解析占位符、历史开发弱密钥和不足 32 字符的密钥。
- * @status : create
  */
 public final class InternalServiceClientCredentialValidator {
 
+
     private static final String DEVELOPMENT_SECRET = "dev-internal-service-secret";
 
+    /**
+     * 禁止实例化内部客户端凭据校验工具类。
+     */
     private InternalServiceClientCredentialValidator() {
     }
 

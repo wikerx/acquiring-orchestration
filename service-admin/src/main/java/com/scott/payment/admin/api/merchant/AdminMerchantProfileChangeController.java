@@ -18,13 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantProfileChangeController
- * @date : 2026-09-21 10:15
- * @email : scott_x@163.com
- * @description : 管理端商户资料变更审核接口，负责权限校验和应用服务委托
- * @status : create
+ * 管理端商户资料变更审核接口，负责权限校验和应用服务委托
  */
 @RestController
 @RequestMapping("/admin/merchant-profile-changes")
@@ -32,13 +26,17 @@ public class AdminMerchantProfileChangeController {
 
     private final AdminMerchantProfileChangeApplicationService applicationService;
 
-    /** 创建管理端商户资料变更审核接口。 */
+    /**
+     * 创建管理端商户资料变更审核接口。
+     */
     public AdminMerchantProfileChangeController(
             AdminMerchantProfileChangeApplicationService applicationService) {
         this.applicationService = applicationService;
     }
 
-    /** 分页查询资料变更申请。 */
+    /**
+     * 分页查询资料变更申请。
+     */
     @PostMapping("/search")
     @RequiresPermission("merchant:info:detail")
     public CommonResult<PageResult<AdminMerchantProfileChangeDTOs.ChangeRequest>> page(
@@ -46,7 +44,9 @@ public class AdminMerchantProfileChangeController {
         return success(applicationService.page(query));
     }
 
-    /** 查询单笔资料变更申请详情。 */
+    /**
+     * 查询单笔资料变更申请详情。
+     */
     @GetMapping("/{requestNo}")
     @RequiresPermission("merchant:info:detail")
     public CommonResult<AdminMerchantProfileChangeDTOs.ChangeRequest> get(
@@ -54,7 +54,9 @@ public class AdminMerchantProfileChangeController {
         return success(applicationService.get(requestNo));
     }
 
-    /** 执行通过、补件或驳回决定。 */
+    /**
+     * 执行通过、补件或驳回决定。
+     */
     @PostMapping("/{requestNo}/review")
     @RequiresPermission("merchant:info:edit")
     @OperationLog(

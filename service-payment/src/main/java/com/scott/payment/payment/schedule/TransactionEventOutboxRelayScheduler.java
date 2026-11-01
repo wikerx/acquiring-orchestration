@@ -16,13 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionEventOutboxRelayScheduler
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 按已发布季度节点双频投递交易 Outbox：最近季度高频、历史季度低频，并独立刷新全量运维指标。
- * @status : create
+ * 按已发布季度节点双频投递交易 Outbox：最近季度高频、历史季度低频，并独立刷新全量运维指标。
  */
 @Slf4j
 @Component
@@ -32,19 +26,29 @@ import java.util.List;
         havingValue = "true")
 public class TransactionEventOutboxRelayScheduler {
 
-    /** 交易 Outbox 到期事件投递服务。 */
+    /**
+     * 交易 Outbox 到期事件投递服务。
+     */
     private final TransactionEventOutboxRelayService relayService;
 
-    /** 已发布规则中的物理节点，用于阻止调度任务访问未创建季度。 */
+    /**
+     * 已发布规则中的物理节点，用于阻止调度任务访问未创建季度。
+     */
     private final TransactionShardingProperties shardingProperties;
 
-    /** 每个季度分表单次扫描的最大事件数。 */
+    /**
+     * 每个季度分表单次扫描的最大事件数。
+     */
     private final int batchSize;
 
-    /** 高频扫描覆盖的最近季度数量，默认当前和上一季度。 */
+    /**
+     * 高频扫描覆盖的最近季度数量，默认当前和上一季度。
+     */
     private final int recentQuarterCount;
 
-    /** 可替换时钟；生产固定使用交易路由时区，测试可注入。 */
+    /**
+     * 可替换时钟；生产固定使用交易路由时区，测试可注入。
+     */
     private final Clock clock;
 
     /**
@@ -64,6 +68,14 @@ public class TransactionEventOutboxRelayScheduler {
                 Clock.system(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID)));
     }
 
+    /**
+     * 使用默认最近季度数量创建可注入固定时钟的调度器，供单元测试使用。
+     *
+     * @param relayService 交易 Outbox 到期事件投递服务
+     * @param shardingProperties 已发布的交易分片规则
+     * @param batchSize 每个季度分表单次扫描的最大事件数
+     * @param clock 生成扫描基准时间的时钟
+     */
     TransactionEventOutboxRelayScheduler(TransactionEventOutboxRelayService relayService,
                                           TransactionShardingProperties shardingProperties,
                                           int batchSize,
@@ -71,6 +83,15 @@ public class TransactionEventOutboxRelayScheduler {
         this(relayService, shardingProperties, batchSize, 2, clock);
     }
 
+    /**
+     * 创建参数边界受控且可注入固定时钟的 Outbox 调度器。
+     *
+     * @param relayService 交易 Outbox 到期事件投递服务
+     * @param shardingProperties 已发布的交易分片规则
+     * @param batchSize 每个季度分表单次扫描的最大事件数
+     * @param recentQuarterCount 常规调度扫描的最近季度数量
+     * @param clock 生成扫描基准时间的时钟
+     */
     TransactionEventOutboxRelayScheduler(TransactionEventOutboxRelayService relayService,
                                           TransactionShardingProperties shardingProperties,
                                           int batchSize,
@@ -97,7 +118,9 @@ public class TransactionEventOutboxRelayScheduler {
         relayQuarters(publishedQuarters.stream().limit(recentQuarterCount).toList(), "recent");
     }
 
-    /** 低频扫描最近窗口之外的全部已发布历史季度，保留长期失败事件补偿能力。 */
+    /**
+     * 低频扫描最近窗口之外的全部已发布历史季度，保留长期失败事件补偿能力。
+     */
     @Scheduled(
             initialDelayString = "${payment.transaction.outbox.historical-initial-delay-ms:60000}",
             fixedDelayString = "${payment.transaction.outbox.historical-fixed-delay-ms:300000}")
@@ -107,7 +130,9 @@ public class TransactionEventOutboxRelayScheduler {
         relayQuarters(publishedQuarters.stream().skip(recentQuarterCount).toList(), "historical");
     }
 
-    /** 每分钟汇总全部已发布季度的 pending、CLOSED 和最老积压指标。 */
+    /**
+     * 每分钟汇总全部已发布季度的 pending、CLOSED 和最老积压指标。
+     */
     @Scheduled(
             initialDelayString = "${payment.transaction.outbox.metrics-initial-delay-ms:30000}",
             fixedDelayString = "${payment.transaction.outbox.metrics-fixed-delay-ms:60000}")
@@ -115,13 +140,16 @@ public class TransactionEventOutboxRelayScheduler {
         relayService.refreshMetrics(publishedQuartersNotAfter(LocalDateTime.now(clock)));
     }
 
+    /**
+     * 按季度扫描并转发到期交易事件。
+     */
     private void relayQuarters(List<LocalDateTime> quarters, String scanType) {
         int published = 0;
         for (LocalDateTime quarter : quarters) {
             published += relayService.publishDueEvents(quarter, batchSize);
         }
         if (published > 0) {
-            log.info("event: TRANSACTION_OUTBOX_RELAY_BATCH scanType: {} published: {} scannedQuarterCount: {} batchSize: {}",
+            log.info("交易 Outbox 批次转发完成, event: TRANSACTION_OUTBOX_RELAY_BATCH, scanType: {}, published: {}, scannedQuarterCount: {}, batchSize: {}",
                     scanType, published, quarters.size(), batchSize);
         }
     }
@@ -141,7 +169,9 @@ public class TransactionEventOutboxRelayScheduler {
                 .toList();
     }
 
-    /** 将 yyyy0Q 节点后缀转换为对应季度第一天零点。 */
+    /**
+     * 将 yyyy0Q 节点后缀转换为对应季度第一天零点。
+     */
     private LocalDateTime quarterAnchor(String suffix) {
         if (suffix == null || !suffix.matches("\\d{4}0[1-4]")) {
             throw new IllegalStateException("transaction sharding physical node suffix must use yyyyQQ");
@@ -151,7 +181,9 @@ public class TransactionEventOutboxRelayScheduler {
         return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
-    /** 将任意时间归一为所在季度第一天零点。 */
+    /**
+     * 将任意时间归一为所在季度第一天零点。
+     */
     private LocalDateTime quarterAnchor(LocalDateTime value) {
         int firstMonth = ((value.getMonthValue() - 1) / 3) * 3 + 1;
         return LocalDateTime.of(value.getYear(), firstMonth, 1, 0, 0);

@@ -6,13 +6,7 @@ import com.scott.payment.admin.entity.fund.FundAccountEntities.ReserveBalanceAgg
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionFundQueryService
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 管理端交易资金只读查询边界，基于交易副本实时计算在途余额并判断商户是否产生过资金类交易。
- * @status : create
+ * 管理端交易资金只读查询边界，基于交易副本实时计算在途余额并判断商户是否产生过资金类交易。
  */
 public interface AdminTransactionFundQueryService {
 

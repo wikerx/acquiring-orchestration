@@ -7,13 +7,7 @@ import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionQueryJdbcTemplateFactory
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 为 Admin/Merchant 交易查询创建独立 JDBC 模板，以语句超时限制慢查询且不改变 ShardingSphere replica 路由语义。
- * @status : create
+ * 为 Admin/Merchant 交易查询创建独立 JDBC 模板，以语句超时限制慢查询且不改变 ShardingSphere replica 路由语义。
  */
 @Component
 public class TransactionQueryJdbcTemplateFactory {
@@ -32,7 +26,9 @@ public class TransactionQueryJdbcTemplateFactory {
         return new NamedParameterJdbcTemplate(jdbcTemplate);
     }
 
-    /** 将配置的毫秒超时向上取整为 JDBC 支持的正整数秒。 */
+    /**
+     * 将配置的毫秒超时向上取整为 JDBC 支持的正整数秒。
+     */
     private int timeoutSeconds(TransactionShardingProperties properties) {
         long timeoutMillis = properties.getQueryBudget().getSynchronousTimeoutMillis();
         long seconds = timeoutMillis / 1000L + (timeoutMillis % 1000L == 0L ? 0L : 1L);

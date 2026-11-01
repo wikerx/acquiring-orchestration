@@ -16,72 +16,43 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqOutboxOperationalMetrics
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 通用和交易 MQ Outbox 的低基数 Micrometer 指标汇聚器，不允许使用商户号、交易号、事件号或异常正文作为标签。
- * @status : create
+ * 通用和交易 MQ Outbox 的低基数 Micrometer 指标汇聚器，不允许使用商户号、交易号、事件号或异常正文作为标签。
  */
 @Component
 public class MqOutboxOperationalMetrics {
 
     /**
-     * 等待计数，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 待处理 Outbox 消息数量指标名称。
      */
     public static final String PENDING_COUNT = "acquiring.mq.outbox.pending.count";
+
     /**
-     * {@code OLDEST_AGE_SECONDS}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 最早待处理 Outbox 消息等待秒数指标名称。
      */
     public static final String OLDEST_AGE_SECONDS = "acquiring.mq.outbox.oldest.age.seconds";
+
     /**
-     * {@code CLOSED_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 已关闭 Outbox 消息数量指标名称。
      */
     public static final String CLOSED_COUNT = "acquiring.mq.outbox.closed.count";
+
     /**
-     * {@code RELAY_DURATION}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 单批 Outbox 中继处理耗时指标名称。
      */
     public static final String RELAY_DURATION = "acquiring.mq.outbox.relay.duration";
+
     /**
-     * {@code BATCH_SATURATED}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * Outbox 中继批次达到上限的计数指标名称。
      */
     public static final String BATCH_SATURATED = "acquiring.mq.outbox.batch.saturated";
 
     /**
-     * {@code RELIABLE_OUTBOX}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 通用可靠消息 Outbox 的低基数指标标签值。
      */
     public static final String RELIABLE_OUTBOX = "reliable";
+
     /**
-     * {@code TRANSACTION_OUTBOX}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易消息 Outbox 的低基数指标标签值。
      */
     public static final String TRANSACTION_OUTBOX = "transaction";
 
@@ -94,7 +65,9 @@ public class MqOutboxOperationalMetrics {
     private final Map<String, Counter> saturated = new ConcurrentHashMap<>();
     private final Map<String, Timer> relayTimers = new ConcurrentHashMap<>();
 
-    /** 创建可选 Micrometer 指标汇聚器。 */
+    /**
+     * 创建可选 Micrometer 指标汇聚器。
+     */
     @Autowired
     public MqOutboxOperationalMetrics(Optional<MeterRegistry> meterRegistry) {
         this.meterRegistry = meterRegistry.orElse(null);
@@ -102,12 +75,16 @@ public class MqOutboxOperationalMetrics {
         registerOutbox(TRANSACTION_OUTBOX);
     }
 
-    /** 创建不注册指标的实例，供不启动 Spring 容器的单元测试使用。 */
+    /**
+     * 创建不注册指标的实例，供不启动 Spring 容器的单元测试使用。
+     */
     public static MqOutboxOperationalMetrics noop() {
         return new MqOutboxOperationalMetrics(Optional.empty());
     }
 
-    /** 更新通用 Outbox 当前状态快照。 */
+    /**
+     * 更新通用 Outbox 当前状态快照。
+     */
     public void updateReliable(long init,
                                long processing,
                                long retryWait,
@@ -118,7 +95,9 @@ public class MqOutboxOperationalMetrics {
                 closedCount, oldestPendingTime, now);
     }
 
-    /** 更新跨全部已发布季度汇总后的交易 Outbox 当前状态快照。 */
+    /**
+     * 更新跨全部已发布季度汇总后的交易 Outbox 当前状态快照。
+     */
     public void updateTransaction(long init,
                                   long processing,
                                   long failed,
@@ -129,7 +108,9 @@ public class MqOutboxOperationalMetrics {
                 closedCount, oldestPendingTime, now);
     }
 
-    /** 批次达到查询上限时累计饱和次数。 */
+    /**
+     * 批次达到查询上限时累计饱和次数。
+     */
     public void recordBatchSize(String outboxType, int selected, int batchSize) {
         if (selected >= Math.max(batchSize, 1)) {
             Counter counter = saturated.get(outboxType);
@@ -139,7 +120,9 @@ public class MqOutboxOperationalMetrics {
         }
     }
 
-    /** 记录 Relay 批次耗时及固定结果标签。 */
+    /**
+     * 记录 Relay 批次耗时及固定结果标签。
+     */
     public void recordRelayDuration(String outboxType, String outcome, long durationNanos) {
         if (meterRegistry == null) {
             return;
@@ -154,6 +137,18 @@ public class MqOutboxOperationalMetrics {
         timer.record(Math.max(durationNanos, 0L), TimeUnit.NANOSECONDS);
     }
 
+    /**
+     * 更新指定 Outbox 类型的低基数状态快照，负数统一收敛为零。
+     *
+     * @param outboxType 固定 Outbox 类型
+     * @param init INIT 数量
+     * @param processing PROCESSING 数量
+     * @param retryWait RETRY_WAIT 数量
+     * @param failed FAILED 数量
+     * @param closedCount CLOSED 数量
+     * @param oldestPendingTime 最早待投递事件时间
+     * @param now 指标统计时间
+     */
     private void update(String outboxType,
                         long init,
                         long processing,
@@ -173,6 +168,11 @@ public class MqOutboxOperationalMetrics {
         oldestAge.get(outboxType).set(ageSeconds);
     }
 
+    /**
+     * 为固定 Outbox 类型注册状态、积压时间、关闭数量和批次饱和指标。
+     *
+     * @param outboxType 固定 Outbox 类型
+     */
     private void registerOutbox(String outboxType) {
         for (String status : PENDING_STATUSES) {
             AtomicLong holder = value(outboxType, status);
@@ -205,6 +205,13 @@ public class MqOutboxOperationalMetrics {
         }
     }
 
+    /**
+     * 获取或创建指定 Outbox 类型与状态组合的原子指标值。
+     *
+     * @param outboxType 固定 Outbox 类型
+     * @param status 固定状态标签
+     * @return 可由 Gauge 读取的原子数值
+     */
     private AtomicLong value(String outboxType, String status) {
         return pending.computeIfAbsent(outboxType + ':' + status, ignored -> new AtomicLong());
     }

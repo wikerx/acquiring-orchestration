@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.service.impl;
 
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
@@ -23,13 +24,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityServiceSharedCacheTests
- * @date : 2026-08-01 13:00
- * @email : scott_x@163.com
- * @description : 验证 OpenAPI 商户状态校验复用共享非敏感 merchant:info 画像且不回退到私有商户 Mapper
- * @status : create
+ * 验证 OpenAPI 商户状态校验复用共享非敏感 merchant:info 画像且不回退到私有商户 Mapper
  */
 class MerchantSecurityServiceSharedCacheTests {
 
@@ -63,7 +58,8 @@ class MerchantSecurityServiceSharedCacheTests {
 
         assertThatThrownBy(() -> fixture.service().getActiveMerchant("200045"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("Merchant config not found");
+                .hasFieldOrPropertyWithValue(
+                        "code", OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE.getCode());
         verifyNoInteractions(fixture.merchantInfoMapper());
     }
 

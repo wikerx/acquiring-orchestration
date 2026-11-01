@@ -9,13 +9,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTransactionOperationMapper
- * @date : 2026-08-26 09:12
- * @email : scott_x@163.com
- * @description : 清分动作只读 Mapper，按 transaction_id 与真实季度分片时间精确读取数据库权威终态。
- * @status : create
+ * 清分动作只读 Mapper，按 transaction_id 与真实季度分片时间精确读取数据库权威终态。
  */
 public interface ClearingTransactionOperationMapper extends BaseMapper<ClearingTransactionOperationDO> {
 
@@ -42,7 +36,9 @@ public interface ClearingTransactionOperationMapper extends BaseMapper<ClearingT
             @Param("transactionId") String transactionId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
-    /** 使用动作分片时间、当前版本和投影当前状态 CAS 更新清分查询投影。 */
+    /**
+     * 使用动作分片时间、当前版本和投影当前状态 CAS 更新清分查询投影。
+     */
     @Update("""
             UPDATE transaction_operation
             SET clearing_status = #{clearingStatus},

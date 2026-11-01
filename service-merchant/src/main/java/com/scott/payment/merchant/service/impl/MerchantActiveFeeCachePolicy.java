@@ -6,19 +6,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantActiveFeeCachePolicy
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 商户生效费率缓存读取策略，在可靠失效窗口或 Redis 状态未知时绕过缓存并读取主库
- * @status : create
+ * 商户生效费率缓存读取策略，在可靠失效窗口或 Redis 状态未知时绕过缓存并读取主库。
  */
 @Slf4j
 @Service
 public class MerchantActiveFeeCachePolicy {
 
-    /** 永久缓存失效门禁。 */
+    /**
+     * 永久缓存失效门禁。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
     /**
@@ -44,7 +40,7 @@ public class MerchantActiveFeeCachePolicy {
             return !invalidationGuard.isPending(PaymentCacheNames.MERCHANT_ACTIVE_FEE, merchantId);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: MERCHANT_ACTIVE_FEE_CACHE_GUARD_CHECK_FAILED exceptionType: {}",
+                    "商户生效费率缓存门禁检查失败, event: MERCHANT_ACTIVE_FEE_CACHE_GUARD_CHECK_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             return false;

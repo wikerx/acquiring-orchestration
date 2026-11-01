@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysJobTaskMapper
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 系统任务任务数据访问接口
- * @status : create
+ * 系统调度任务数据访问接口。
  */
 public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
 

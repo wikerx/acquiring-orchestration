@@ -1,13 +1,7 @@
 package com.scott.payment.component.redis.lock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DistributedLockExecution
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 分布式锁执行结果，区分锁竞争与临界区返回空值。
- * @status : create
+ * 分布式锁执行结果，区分锁竞争与临界区返回空值。
  *
  *
  * @param acquired 是否获取锁

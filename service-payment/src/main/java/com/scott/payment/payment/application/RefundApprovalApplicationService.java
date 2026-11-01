@@ -8,20 +8,18 @@ import com.scott.payment.payment.service.dto.RefundApprovalDecisionCommandDTO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundApprovalApplicationService
- * @date : 2026-08-06 15:30
- * @email : scott_x@163.com
- * @description : 退款审批应用服务，负责内部协议 DTO 转换并委托审批领域工作流完成事务决策。
- * @status : create
+ * 退款审批应用服务，负责内部协议 DTO 转换并委托审批领域工作流完成事务决策。
  */
 @Service
 public class RefundApprovalApplicationService {
 
     private final RefundApprovalWorkflowService workflowService;
 
-    /** @param workflowService 退款审批事务工作流 */
+    /**
+     * 创建退款审批应用服务。
+     *
+     * @param workflowService 退款审批事务工作流
+     */
     public RefundApprovalApplicationService(RefundApprovalWorkflowService workflowService) {
         this.workflowService = workflowService;
     }
@@ -48,6 +46,9 @@ public class RefundApprovalApplicationService {
         return toResult(workflowService.reject(toCommand(approvalId, request)));
     }
 
+    /**
+     * 转换为退款审批命令。
+     */
     private RefundApprovalDecisionCommandDTO toCommand(String approvalId,
                                                        RefundApprovalDecisionRequestDTO request) {
         RefundApprovalDecisionCommandDTO command = new RefundApprovalDecisionCommandDTO();
@@ -60,6 +61,9 @@ public class RefundApprovalApplicationService {
         return command;
     }
 
+    /**
+     * 转换为应用服务响应。
+     */
     private RefundApprovalResultDTO toResult(TransactionRefundApprovalDO approval) {
         RefundApprovalResultDTO result = new RefundApprovalResultDTO();
         result.setApprovalId(approval.getApprovalId());

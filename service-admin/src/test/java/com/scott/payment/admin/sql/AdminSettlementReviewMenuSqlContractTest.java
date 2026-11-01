@@ -10,13 +10,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReviewMenuSqlContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Admin 结算预审菜单迁移合同，保护路由、最小权限和默认角色授权边界。
- * @status : create
+ * Admin 结算预审菜单迁移合同，保护路由、最小权限和默认角色授权边界。
  */
 class AdminSettlementReviewMenuSqlContractTest {
 

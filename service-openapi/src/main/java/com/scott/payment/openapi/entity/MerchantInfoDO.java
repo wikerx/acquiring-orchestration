@@ -6,13 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantInfoDO
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 商户基础信息数据库实体
- * @status : create
+ * OpenAPI 商户基础信息数据库实体
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -49,7 +43,9 @@ public class MerchantInfoDO extends BaseEntity {
      */
     private Integer merchantStatus;
 
-    /** Default merchant locale. */
+    /**
+     * Default merchant locale.
+     */
     private String defaultLocale;
 
     /**

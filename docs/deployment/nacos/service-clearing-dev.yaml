@@ -22,6 +22,12 @@ clearing:
     initial-delay-ms: ${CLEARING_METRICS_INITIAL_DELAY_MS:30000}
     # 参数说明：相邻两次清分指标聚合完成后的等待时间，单位毫秒；不得配置为高频压库。
     fixed-delay-ms: ${CLEARING_METRICS_FIXED_DELAY_MS:60000}
+  tier-period-replay:
+    # 参数说明：服务启动后首次扫描已复核阶梯期间重放任务前的等待时间，单位毫秒；不控制业务启停。
+    initial-delay-ms: ${CLEARING_TIER_REPLAY_INITIAL_DELAY_MS:30000}
+    # 参数说明：每轮有界重放扫描结束后的等待时间，单位毫秒；dev 默认 30 秒以降低空队列查询频率。
+    # test/uat/prod 应按重放恢复 SLA、实例数和控制表索引容量配置，禁止设置为无间隔轮询。
+    fixed-delay-ms: ${CLEARING_TIER_REPLAY_FIXED_DELAY_MS:30000}
 
 management:
   metrics:

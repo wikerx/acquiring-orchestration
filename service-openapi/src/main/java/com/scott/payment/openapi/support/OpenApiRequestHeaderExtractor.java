@@ -1,17 +1,19 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.RateLimitExceededException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
+import com.scott.payment.openapi.security.MerchantIpWhitelistAccessDeniedException;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.OpenApiMerchantRateLimitService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -25,13 +27,7 @@ import java.util.HexFormat;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestHeaderExtractor
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Request Header Extractor 提取组件，位于 商户开放接口服务，从请求、响应或配置中读取关键字段，完成标准化、校验和脱敏日志准备。
- * @status : create
+ * 提取商户请求头并依次执行 JWT 验签、可信来源 IP、限流和 jti 防重放校验。
  */
 @Component
 @Slf4j
@@ -42,7 +38,9 @@ public class OpenApiRequestHeaderExtractor {
      */
     private static final String HEADER_AUTHORIZATION = "authorization";
 
-    /** 商户 OpenAPI 请求体媒体类型请求头。 */
+    /**
+     * 商户 OpenAPI 请求体媒体类型请求头。
+     */
     private static final String HEADER_CONTENT_TYPE = "content-type";
 
     /**
@@ -70,7 +68,9 @@ public class OpenApiRequestHeaderExtractor {
      */
     private final MerchantIpWhitelistAccessService ipWhitelistAccessService;
 
-    /** 商户所有 OpenAPI 累计滑动窗口限流，白名单通过后、防重放写入前执行。 */
+    /**
+     * 商户所有 OpenAPI 累计滑动窗口限流，白名单通过后、防重放写入前执行。
+     */
     private final OpenApiMerchantRateLimitService merchantRateLimitService;
 
     /**
@@ -117,20 +117,6 @@ public class OpenApiRequestHeaderExtractor {
      * @return 标准化请求头信息
      */
     public OpenApiRequestHeaderDTO extract(HttpServletRequest request, String[] requiredHeaders) {
-        return extract(request, requiredHeaders, false);
-    }
-
-    /**
-     * 提取请求头并完成商户 JWT 验签。
-     *
-     * @param request HTTP 请求
-     * @param requiredHeaders 接口要求存在的请求头
-     * @param deferIpWhitelistToRisk 是否把 IP 白名单判定延后到交易内风控
-     * @return 标准化请求头信息
-     */
-    public OpenApiRequestHeaderDTO extract(HttpServletRequest request,
-                                           String[] requiredHeaders,
-                                           boolean deferIpWhitelistToRisk) {
         try {
             validateRequiredHeaders(request, requiredHeaders);
         } catch (RuntimeException exception) {
@@ -159,16 +145,12 @@ public class OpenApiRequestHeaderExtractor {
             throw exception;
         }
         String clientIp;
-        if (deferIpWhitelistToRisk) {
-            clientIp = ipWhitelistAccessService.resolveClientIp(request);
-        } else {
-            try {
-                clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
-            } catch (RuntimeException exception) {
-                recordBlocked(request, "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
-                        claims.getMerchantId(), "OPENAPI_IP_WHITELIST", exception);
-                throw exception;
-            }
+        try {
+            clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
+        } catch (RuntimeException exception) {
+            recordBlocked(request, "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
+                    claims.getMerchantId(), ipWhitelistRuleCode(exception), exception);
+            throw exception;
         }
         // 白名单已经确认客户端来源；限流拒绝发生在防重放写入前，避免消耗一次性 jti。
         try {
@@ -185,25 +167,36 @@ public class OpenApiRequestHeaderExtractor {
             throw exception;
         }
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
-        headerDTO.setAuthorization(token);
         headerDTO.setMerchantId(claims.getMerchantId());
         headerDTO.setJwtId(claims.getJwtId());
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
-        log.debug("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipWhitelistDeferred: {} clientIpDigest: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
+        log.debug("OpenAPI安全校验通过, event: OPENAPI_SECURITY_CHECK_END, stage: AUTH, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, jwtValid: true, jtiDigest: {}, clientIpDigest: {}, jwtSummary: {}, headerSummary: {}, httpRequestDigest: {}, httpRequestLength: {}",
                 TraceContext.getTraceId(),
                 claims.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 digest8(claims.getJwtId()),
-                deferIpWhitelistToRisk,
                 digest8(clientIp),
                 diagnosticLogSupport.jwtSummary(headerDTO),
                 diagnosticLogSupport.headerSummary(request),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE));
         return headerDTO;
+    }
+
+    /**
+     * 将白名单异常转换为稳定审计规则编码，不暴露异常原文。
+     *
+     * @param exception 白名单校验异常
+     * @return 可聚合的安全规则编码
+     */
+    private String ipWhitelistRuleCode(RuntimeException exception) {
+        if (exception instanceof MerchantIpWhitelistAccessDeniedException deniedException) {
+            return "OPENAPI_IP_WHITELIST_" + deniedException.getReason().name();
+        }
+        return "OPENAPI_IP_WHITELIST_UNAVAILABLE";
     }
 
     /**
@@ -239,11 +232,12 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
+        log.warn("OpenAPI安全校验未通过, event: OPENAPI_SECURITY_CHECK_END, stage: AUTH, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, jwtValid: false, ipAllowed: false, requestIpDigest: {}, hitRuleCode: {}, reasonCode: {}, exceptionType: {}, headerSummary: {}, httpRequestDigest: {}, httpRequestLength: {}, httpRequestSummary: {}",
                 TraceContext.getTraceId(),
                 merchantId,
                 request == null ? null : request.getRequestURI(),
                 request == null ? null : request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                digest8(deniedRequestIp(exception)),
                 hitRuleCode,
                 securityInterceptEventRecorder.reasonCode(exception),
                 exception.getClass().getSimpleName(),
@@ -251,6 +245,21 @@ public class OpenApiRequestHeaderExtractor {
                 request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
                 request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
                 request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE));
+    }
+
+    /**
+     * 从结构化白名单异常中读取规范化 IP，仅供不可逆摘要计算。
+     *
+     * @param exception 安全校验异常
+     * @return 规范化 IP；不可用时返回 {@code null}
+     */
+    private String deniedRequestIp(RuntimeException exception) {
+        if (exception instanceof MerchantIpWhitelistAccessDeniedException deniedException) {
+            return StringUtils.hasText(deniedException.getRequestIp())
+                    ? deniedException.getRequestIp()
+                    : "unknown";
+        }
+        return null;
     }
 
     /**
@@ -270,7 +279,7 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event: OPENAPI_MERCHANT_RATE_LIMITED traceId: {} merchantId: {} path: {} retryAfterSeconds: {}",
+        log.warn("OpenAPI商户请求触发限流, event: OPENAPI_MERCHANT_RATE_LIMITED, traceId: {}, merchantId: {}, path: {}, retryAfterSeconds: {}",
                 TraceContext.getTraceId(), merchantId, request.getRequestURI(),
                 exception.getRetryAfterSeconds());
     }
@@ -296,9 +305,15 @@ public class OpenApiRequestHeaderExtractor {
         }
     }
 
+    /**
+     * 区分 JWT 重放拒绝和防重放基础设施故障的审计事件类型。
+     *
+     * @param exception 防重放服务异常
+     * @return 稳定安全审计事件类型
+     */
     private String resolveReplayEventType(RuntimeException exception) {
         String reasonCode = securityInterceptEventRecorder.reasonCode(exception);
-        if (ApiResultEnum.INTERNAL_SERVER_ERROR.getCode().equals(reasonCode)) {
+        if (OpenApiResultCode.SYSTEM_ERROR.getCode().equals(reasonCode)) {
             return "OPENAPI_REPLAY_UNAVAILABLE";
         }
         return "OPENAPI_REPLAY_DENIED";
@@ -320,12 +335,15 @@ public class OpenApiRequestHeaderExtractor {
             String headerValue = request.getHeader(header);
             if (!StringUtils.hasText(headerValue)) {
                 if (HEADER_AUTHORIZATION.equalsIgnoreCase(header)) {
-                    throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
+                    throw new ApiException(OpenApiResultCode.AUTHORIZATION_MISSING);
                 }
-                throw new ApiException(ApiResultEnum.PARAM_MISSING, "header." + header);
+                throw OpenApiContextualException.parameter(
+                        OpenApiResultCode.PARAM_MISSING,
+                        "header." + header,
+                        "required request header is missing");
             }
             if (HEADER_CONTENT_TYPE.equalsIgnoreCase(header) && !isJsonContentType(headerValue)) {
-                throw new ApiException(ApiResultEnum.PARAM_INVALID, "header." + header);
+                throw new ApiException(OpenApiResultCode.CONTENT_TYPE_NOT_SUPPORTED);
             }
         }
     }
@@ -354,7 +372,7 @@ public class OpenApiRequestHeaderExtractor {
      */
     private String resolveToken(String authorization) {
         if (!StringUtils.hasText(authorization)) {
-            throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
+            throw new ApiException(OpenApiResultCode.AUTHORIZATION_MISSING);
         }
         if (authorization.startsWith(BEARER_PREFIX)) {
             return authorization.substring(BEARER_PREFIX.length()).trim();

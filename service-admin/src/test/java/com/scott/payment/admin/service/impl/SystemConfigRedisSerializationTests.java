@@ -10,17 +10,13 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemConfigRedisSerializationTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 跨服务系统参数快照 Redis 安全序列化测试。
- * @status : create
+ * 跨服务系统参数快照 Redis 安全序列化测试。
  */
 class SystemConfigRedisSerializationTests {
 
-    /** 统一配置快照必须能够通过登记类型序列化器跨服务往返。 */
+    /**
+     * 统一配置快照必须能够通过登记类型序列化器跨服务往返。
+     */
     @Test
     void shouldRoundTripRegisteredSystemConfigSnapshot() {
         LocalDateTime now = LocalDateTime.now();

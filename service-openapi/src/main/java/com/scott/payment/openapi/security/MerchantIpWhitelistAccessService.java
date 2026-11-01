@@ -1,23 +1,16 @@
 package com.scott.payment.openapi.security;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
-import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer.NormalizedIp;
 import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
+import com.scott.payment.component.web.gateway.TrustedClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantIpWhitelistAccessService
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单访问控制服务，位于 service-openapi 安全层，在 JWT 验签后、防重放登记前执行精确 IP 校验。
- * @status : create
+ * 商户 OpenAPI IP 白名单访问控制服务，位于 service-openapi 安全层，在 JWT 验签后、防重放登记前执行精确 IP 校验。
  */
 @Service
 public class MerchantIpWhitelistAccessService {
@@ -41,32 +34,47 @@ public class MerchantIpWhitelistAccessService {
     /**
      * 校验网关注入的可信客户端 IP 是否满足商户当前白名单策略。
      *
-     * <p>未启用白名单时仅返回规范化前的可信请求头；启用后，请求头缺失、
-     * IP 格式非法或未命中精确地址集合均统一拒绝，避免泄露具体失败原因。</p>
+     * <p>商户业务 API 采用默认拒绝：有效白名单为空、请求 IP 缺失或未命中时均拒绝。
+     * 规范化请求 IP 只保存在异常结构化字段并写入受控安全日志，禁止进入商户或付款人响应。</p>
      *
      * @param merchantId 商户号，用于读取对应的 OpenAPI 访问策略
      * @param request 当前 OpenAPI HTTP 请求，只信任网关注入的客户端 IP 请求头
-     * @return 校验通过的客户端 IP；未启用白名单且请求头缺失时返回 null
+     * @return 校验通过且规范化后的客户端 IP
      */
     public String checkAccess(String merchantId, HttpServletRequest request) {
-        MerchantOpenApiAccessPolicy policy = policyCacheService.findPolicy(merchantId);
-        if (!policy.isWhitelistEnabled()) {
-            return resolveClientIp(request);
-        }
         String rawClientIp = resolveClientIp(request);
         if (!StringUtils.hasText(rawClientIp)) {
-            throw new ApiException(ApiResultEnum.FORBIDDEN, "merchant ip not allowed");
+            MerchantIpWhitelistDenyReason reason = hasClientIpCandidate(request)
+                    ? MerchantIpWhitelistDenyReason.CLIENT_IP_INVALID
+                    : MerchantIpWhitelistDenyReason.CLIENT_IP_MISSING;
+            throw denied(reason, null);
         }
         NormalizedIp clientIp;
         try {
             clientIp = IpAddressNormalizer.normalizeExact(rawClientIp);
         } catch (IllegalArgumentException ex) {
-            throw new ApiException(ApiResultEnum.FORBIDDEN, "merchant ip not allowed");
+            throw denied(MerchantIpWhitelistDenyReason.CLIENT_IP_INVALID, null);
+        }
+        MerchantOpenApiAccessPolicy policy = policyCacheService.findPolicy(merchantId);
+        if (policy.getAllowedIps() == null || policy.getAllowedIps().isEmpty()) {
+            throw denied(MerchantIpWhitelistDenyReason.WHITELIST_EMPTY, clientIp.ipValue());
         }
         if (!policy.getAllowedIps().contains(clientIp.ipValue())) {
-            throw new ApiException(ApiResultEnum.FORBIDDEN, "merchant ip not allowed");
+            throw denied(MerchantIpWhitelistDenyReason.IP_NOT_ALLOWED, clientIp.ipValue());
         }
         return clientIp.ipValue();
+    }
+
+    /**
+     * 构造只携带受控拒绝原因和规范化 IP 的白名单异常。
+     *
+     * @param reason 白名单拒绝原因
+     * @param requestIp 已规范化的请求 IP；缺失或非法时为空
+     * @return 可交给统一安全出口处理的异常
+     */
+    private MerchantIpWhitelistAccessDeniedException denied(MerchantIpWhitelistDenyReason reason,
+                                                             String requestIp) {
+        return new MerchantIpWhitelistAccessDeniedException(reason, requestIp);
     }
 
     /**
@@ -76,11 +84,19 @@ public class MerchantIpWhitelistAccessService {
      * @return 网关注入的规范客户端 IP；请求头缺失时返回 null
      */
     public String resolveClientIp(HttpServletRequest request) {
-        if (GatewayIngressAuthFilter.isGatewayAuthenticated(request)) {
-            String value = request.getHeader(HEADER_GATEWAY_CLIENT_IP);
-            return StringUtils.hasText(value) ? value.trim() : null;
+        return TrustedClientIpResolver.resolve(request);
+    }
+
+    /**
+     * 判断当前可信来源是否提供了 IP 候选值，仅用于区分缺失和非法的内部拒绝原因。
+     */
+    private boolean hasClientIpCandidate(HttpServletRequest request) {
+        if (request == null) {
+            return false;
         }
-        String remoteAddr = request.getRemoteAddr();
-        return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : null;
+        String candidate = GatewayIngressAuthFilter.isGatewayClientIpAuthenticated(request)
+                ? request.getHeader(HEADER_GATEWAY_CLIENT_IP)
+                : request.getRemoteAddr();
+        return StringUtils.hasText(candidate);
     }
 }

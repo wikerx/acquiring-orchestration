@@ -14,13 +14,7 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailTemplateContractTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 邮件模板初始化、迁移、触发变量和敏感字段的静态合同测试。
- * @status : create
+ * 邮件模板初始化、迁移、触发变量和敏感字段的静态合同测试。
  */
 class AdminEmailTemplateContractTests {
 
@@ -429,7 +423,9 @@ class AdminEmailTemplateContractTests {
         assertThat(migration).doesNotContain("DELETE FROM msg_email_send_record");
     }
 
-    /** 近期新增系统模板必须使用蓝白主题，并提供有边界的可回滚迁移。 */
+    /**
+     * 近期新增系统模板必须使用蓝白主题，并提供有边界的可回滚迁移。
+     */
     @Test
     void shouldMigrateRecentSystemTemplatesToBlueWhiteThemeWithRollback() throws IOException {
         String migration = readRepositoryFile(
@@ -461,7 +457,9 @@ class AdminEmailTemplateContractTests {
         }
     }
 
-    /** 所有内置模板必须使用与管理系统一致的字体栈，迁移需可重复执行且可回滚。 */
+    /**
+     * 所有内置模板必须使用与管理系统一致的字体栈，迁移需可重复执行且可回滚。
+     */
     @Test
     void shouldKeepPasswordResetTemplatesUtf8AndPolishBuiltInTemplateFonts() throws IOException {
         String schema = readRepositoryFile("service-admin/src/main/resources/sql/admin-system-schema.sql");

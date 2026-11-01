@@ -42,33 +42,12 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFeeApplicationService
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 管理端费用应用服务，编排登录操作人快照与费用领域服务调用。
- * @status : create
+ * 管理端费用应用服务，编排登录操作人快照与费用领域服务调用。
  */
 @Service
 public class AdminFeeApplicationService {
 
-    /**
-     * {@code EXPORT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int EXPORT_PAGE_SIZE = 200;
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminFeeApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final AdminFeeService feeService;
@@ -77,7 +56,9 @@ public class AdminFeeApplicationService {
     private final ExcelLocaleResolver excelLocaleResolver;
     private final DictionaryOptionCacheReader dictionaryOptionCacheReader;
 
-    /** 构造费用应用服务。 */
+    /**
+     * 构造费用应用服务。
+     */
     public AdminFeeApplicationService(AdminFeeService feeService,
                                       ExcelExportService excelExportService,
                                       ExcelI18nMessageResolver excelI18nMessageResolver,
@@ -90,12 +71,16 @@ public class AdminFeeApplicationService {
         this.dictionaryOptionCacheReader = dictionaryOptionCacheReader;
     }
 
-    /** 分页查询模板。 */
+    /**
+     * 分页查询模板。
+     */
     public PageResult<FeePlanSummaryResponse> pageTemplates(FeePlanQuery query) {
         return feeService.pageTemplates(query);
     }
 
-    /** 按当前筛选条件分页导出费用模板。 */
+    /**
+     * 按当前筛选条件分页导出费用模板。
+     */
     public void exportTemplates(FeePlanQuery request, HttpServletResponse response) {
         FeePlanQuery query = request == null ? new FeePlanQuery() : request;
         exportPaged("excel.fee.templateTitle", FeeTemplateExportRow.class, pageNo -> {
@@ -105,57 +90,77 @@ public class AdminFeeApplicationService {
         }, querySummary(query), response);
     }
 
-    /** 查询模板详情。 */
+    /**
+     * 查询模板详情。
+     */
     public FeePlanDetailResponse getTemplate(Long id) {
         return feeService.getTemplate(id);
     }
 
-    /** 新建费用模板并保存 v1 草稿。 */
+    /**
+     * 新建费用模板并保存 v1 草稿。
+     */
     public FeePlanDetailResponse createTemplate(FeeTemplateCreateRequest request) {
         Operator operator = currentOperator();
         return feeService.createTemplate(request, operator.id(), operator.name());
     }
 
-    /** 创建模板新版本草稿。 */
+    /**
+     * 创建模板新版本草稿。
+     */
     public FeePlanDetailResponse createTemplateVersion(Long id, FeeVersionSaveRequest request) {
         Operator operator = currentOperator();
         return feeService.createTemplateVersion(id, request, operator.id(), operator.name());
     }
 
-    /** 更新尚未提交审核的模板草稿。 */
+    /**
+     * 更新尚未提交审核的模板草稿。
+     */
     public FeePlanDetailResponse updateTemplateDraft(Long planId, Long versionId, FeeVersionSaveRequest request) {
         Operator operator = currentOperator();
         return feeService.updateTemplateDraft(planId, versionId, request, operator.id(), operator.name());
     }
 
-    /** 将模板草稿提交审核。 */
+    /**
+     * 将模板草稿提交审核。
+     */
     public FeePlanDetailResponse submitTemplateVersion(Long versionId) {
         Operator operator = currentOperator();
         return feeService.submitTemplateVersion(versionId, operator.id(), operator.name());
     }
 
-    /** 由当前提交人撤回待审核模板。 */
+    /**
+     * 由当前提交人撤回待审核模板。
+     */
     public FeePlanDetailResponse withdrawTemplateVersion(Long versionId) {
         Operator operator = currentOperator();
         return feeService.withdrawTemplateVersion(versionId, operator.id(), operator.name());
     }
 
-    /** 启用或禁用模板。 */
+    /**
+     * 启用或禁用模板。
+     */
     public void updateTemplateStatus(Long id, boolean enabled) {
         feeService.updateTemplateStatus(id, enabled, currentOperator().name());
     }
 
-    /** 归档模板。 */
+    /**
+     * 归档模板。
+     */
     public void archiveTemplate(Long id) {
         feeService.archiveTemplate(id, currentOperator().name());
     }
 
-    /** 分页查询商户费用配置状态。 */
+    /**
+     * 分页查询商户费用配置状态。
+     */
     public PageResult<FeePlanSummaryResponse> pageMerchantFees(FeePlanQuery query) {
         return feeService.pageMerchantFees(query);
     }
 
-    /** 按当前筛选条件分页导出商户费率。 */
+    /**
+     * 按当前筛选条件分页导出商户费率。
+     */
     public void exportMerchantFees(FeePlanQuery request, HttpServletResponse response) {
         FeePlanQuery query = request == null ? new FeePlanQuery() : request;
         exportPaged("excel.fee.merchantTitle", MerchantFeeExportRow.class, pageNo -> {
@@ -165,12 +170,16 @@ public class AdminFeeApplicationService {
         }, querySummary(query), response);
     }
 
-    /** 查询商户费用配置详情。 */
+    /**
+     * 查询商户费用配置详情。
+     */
     public FeePlanDetailResponse getMerchantFee(String merchantId) {
         return feeService.getMerchantFee(merchantId);
     }
 
-    /** 原样复制模板当前生效版本，创建商户费用待审核版本。 */
+    /**
+     * 原样复制模板当前生效版本，创建商户费用待审核版本。
+     */
     public FeePlanDetailResponse assignMerchantTemplate(String merchantId, MerchantTemplateAssignRequest request) {
         MerchantFeeVersionSaveRequest versionRequest = new MerchantFeeVersionSaveRequest();
         versionRequest.setTemplateId(request.getTemplateId());
@@ -182,7 +191,9 @@ public class AdminFeeApplicationService {
         return feeService.createMerchantVersion(merchantId, versionRequest, operator.id(), operator.name());
     }
 
-    /** 提交商户独立配置或基于模板调整后的待审核版本。 */
+    /**
+     * 提交商户独立配置或基于模板调整后的待审核版本。
+     */
     public FeePlanDetailResponse createMerchantCustomVersion(String merchantId,
                                                              MerchantFeeVersionSaveRequest request) {
         if (request.getRules() == null || request.getRules().isEmpty()) {
@@ -192,12 +203,16 @@ public class AdminFeeApplicationService {
         return feeService.createMerchantVersion(merchantId, request, operator.id(), operator.name());
     }
 
-    /** 查询待审核列表。 */
+    /**
+     * 查询待审核列表。
+     */
     public PageResult<FeeReviewResponse> pageReviews(FeePlanQuery query) {
         return feeService.pageReviews(query);
     }
 
-    /** 按当前筛选条件分页导出费率复核记录。 */
+    /**
+     * 按当前筛选条件分页导出费率复核记录。
+     */
     public void exportReviews(FeePlanQuery request, HttpServletResponse response) {
         FeePlanQuery query = request == null ? new FeePlanQuery() : request;
         exportPaged("excel.fee.reviewTitle", FeeReviewExportRow.class, pageNo -> {
@@ -207,30 +222,40 @@ public class AdminFeeApplicationService {
         }, querySummary(query), response);
     }
 
-    /** 审核通过并即时生效。 */
+    /**
+     * 审核通过并即时生效。
+     */
     public FeePlanDetailResponse approveVersion(Long versionId, String comment) {
         Operator operator = currentOperator();
         return feeService.approveVersion(versionId, comment, operator.id(), operator.name());
     }
 
-    /** 审核拒绝。 */
+    /**
+     * 审核拒绝。
+     */
     public FeePlanDetailResponse rejectVersion(Long versionId, String comment) {
         Operator operator = currentOperator();
         return feeService.rejectVersion(versionId, comment, operator.id(), operator.name());
     }
 
-    /** 执行费用试算。 */
+    /**
+     * 执行费用试算。
+     */
     public FeeSimulationResponse simulate(FeeSimulationRequest request) {
         Operator operator = currentOperator();
         return feeService.simulate(request, operator.id(), operator.name());
     }
 
-    /** 分页查询费用试算记录。 */
+    /**
+     * 分页查询费用试算记录。
+     */
     public PageResult<FeeSimulationRecordResponse> pageSimulationRecords(FeeSimulationRecordQuery query) {
         return feeService.pageSimulationRecords(query);
     }
 
-    /** 按当前筛选条件分页导出费用试算记录。 */
+    /**
+     * 按当前筛选条件分页导出费用试算记录。
+     */
     public void exportSimulationRecords(FeeSimulationRecordQuery request, HttpServletResponse response) {
         FeeSimulationRecordQuery query = request == null ? new FeeSimulationRecordQuery() : request;
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -247,6 +272,9 @@ public class AdminFeeApplicationService {
         }, simulationQuerySummary(query), response);
     }
 
+    /**
+     * 分页读取费用数据并写入导出响应。
+     */
     private <T> void exportPaged(String titleKey,
                                  Class<T> rowClass,
                                  IntFunction<List<T>> pageLoader,
@@ -269,6 +297,9 @@ public class AdminFeeApplicationService {
                 .build(), response);
     }
 
+    /**
+     * 转换为费用模板导出行数据。
+     */
     private FeeTemplateExportRow toTemplateExportRow(FeePlanSummaryResponse source) {
         FeeTemplateExportRow row = new FeeTemplateExportRow();
         row.setPlanCode(source.getPlanCode());
@@ -280,6 +311,9 @@ public class AdminFeeApplicationService {
         return row;
     }
 
+    /**
+     * 转换为商户费用导出行数据。
+     */
     private MerchantFeeExportRow toMerchantExportRow(FeePlanSummaryResponse source) {
         MerchantFeeExportRow row = new MerchantFeeExportRow();
         row.setMerchantId(source.getMerchantId());
@@ -292,6 +326,9 @@ public class AdminFeeApplicationService {
         return row;
     }
 
+    /**
+     * 转换为复核记录导出行数据。
+     */
     private FeeReviewExportRow toReviewExportRow(FeeReviewResponse source) {
         FeeReviewExportRow row = new FeeReviewExportRow();
         row.setPlanCode(source.getPlanCode());
@@ -305,6 +342,9 @@ public class AdminFeeApplicationService {
         return row;
     }
 
+    /**
+     * 将费用模拟结果转换为多行导出数据。
+     */
     private List<FeeSimulationExportRow> toSimulationExportRows(
             FeeSimulationRecordResponse source,
             Map<String, String> transactionTypes,
@@ -317,6 +357,9 @@ public class AdminFeeApplicationService {
                 source, detail, transactionTypes, paymentTypes, paymentMethods, locale)).toList();
     }
 
+    /**
+     * 将单项费用模拟结果转换为导出行数据。
+     */
     private FeeSimulationExportRow toSimulationExportRow(
             FeeSimulationRecordResponse source,
             FeeSimulationDetailResponse detail,
@@ -371,6 +414,9 @@ public class AdminFeeApplicationService {
         return row;
     }
 
+    /**
+     * 兼容读取旧版费用详情响应。
+     */
     private FeeSimulationDetailResponse legacyDetail() {
         FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
         detail.setLineNo(1);
@@ -382,6 +428,9 @@ public class AdminFeeApplicationService {
         return detail;
     }
 
+    /**
+     * 批量读取费用相关数据字典标签。
+     */
     private Map<String, String> dictionaryLabels(String dictType, Locale locale) {
         return dictionaryOptionCacheReader.findEnabled(dictType, locale.toLanguageTag()).stream()
                 .collect(Collectors.toMap(
@@ -390,28 +439,46 @@ public class AdminFeeApplicationService {
                         (left, right) -> left));
     }
 
+    /**
+     * 读取费用业务编码的数据字典标签。
+     */
     private String dictionaryLabel(Map<String, String> labels, String value) {
         return labels.getOrDefault(value, value);
     }
 
+    /**
+     * 解析业务结果的本地化说明。
+     */
     private String message(String key, Locale locale) {
         return excelI18nMessageResolver.resolve(key, locale);
     }
 
+    /**
+     * 解析业务编码的本地化文本。
+     */
     private String localizedCode(String prefix, String value, Locale locale) {
         return StringUtils.hasText(value) ? message(prefix + value, locale) : "-";
     }
 
+    /**
+     * 查询摘要。
+     */
     private String querySummary(FeePlanQuery query) {
         return "keyword=" + query.getKeyword() + ", status=" + query.getStatus()
                 + ", versionStatus=" + query.getVersionStatus();
     }
 
+    /**
+     * 构建费用模拟查询审计摘要。
+     */
     private String simulationQuerySummary(FeeSimulationRecordQuery query) {
         return "simulationNo=" + query.getKeyword() + ", merchantId=" + query.getMerchantId()
                 + ", transactionType=" + query.getTransactionType();
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人。
+     */
     private Operator currentOperator() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAccountId() == null
@@ -422,6 +489,9 @@ public class AdminFeeApplicationService {
         return new Operator(account.getAccountId(), name);
     }
 
+    /**
+     * 封装可信操作人的账户主键、姓名和登录账号。
+     */
     private record Operator(Long id, String name) {
     }
 }

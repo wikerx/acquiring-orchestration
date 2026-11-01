@@ -8,13 +8,7 @@ import com.scott.payment.admin.dto.AdminUserMfaDTOs.UserMfaStatusResponse;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserMfaService
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 后台用户 MFA 领域服务，位于 service-admin 服务契约层；定义 OTP 开启、重置、豁免、禁用、解锁和日志查询边界。
- * @status : create
+ * 后台用户 MFA 领域服务，位于 service-admin 服务契约层；定义 OTP 开启、重置、豁免、禁用、解锁和日志查询边界。
  */
 public interface AdminUserMfaService {
 

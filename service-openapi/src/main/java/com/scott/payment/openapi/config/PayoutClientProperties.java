@@ -1,27 +1,27 @@
 package com.scott.payment.openapi.config;
 
 import com.scott.payment.component.web.internal.InternalServiceClientCredentialValidator;
+import com.scott.payment.component.web.internal.InternalHttpTimeoutPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutClientProperties
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : Payout Client Properties 配置属性模型，位于 商户开放接口服务，绑定 application 配置项并提供运行时默认值。
- * @status : create
+ * service-openapi 调用 service-payout 的客户端配置，维护固定调用方和内部服务签名密钥。
  */
 @Data
 @ConfigurationProperties(prefix = "openapi.payout-client")
 public class PayoutClientProperties {
 
     /**
-     * 是否启用远程 service-payout 调用。
+     * 建立 service-payout 连接的超时，单位毫秒。
      */
-    private boolean remoteEnabled = true;
+    private int connectTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_CONNECT_TIMEOUT_MILLIS;
+
+    /**
+     * 等待 service-payout 同步响应的超时，单位毫秒。
+     */
+    private int readTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_READ_TIMEOUT_MILLIS;
 
     /**
      * 内部服务调用方标识，用于 service-payout 审计调用来源。
@@ -33,11 +33,13 @@ public class PayoutClientProperties {
      */
     private String internalSecret;
 
-    /** 远程调用开启时校验固定调用方和 Nacos 注入的 active 密钥。 */
+    /**
+     * 校验固定调用方和 Nacos 注入的 active 密钥，禁止无密钥启动代付入口。
+     */
     public void validate() {
-        if (remoteEnabled) {
-            InternalServiceClientCredentialValidator.validate(
-                    "openapi payout-client", "service-openapi", internalCaller, internalSecret);
-        }
+        InternalServiceClientCredentialValidator.validate(
+                "openapi payout-client", "service-openapi", internalCaller, internalSecret);
+        InternalHttpTimeoutPolicy.validate(
+                "openapi payout-client", connectTimeoutMillis, readTimeoutMillis);
     }
 }

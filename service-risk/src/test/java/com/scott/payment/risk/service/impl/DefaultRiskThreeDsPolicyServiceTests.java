@@ -15,16 +15,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskThreeDsPolicyServiceTests
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : 路由后 3DS 策略只读评估测试，验证渠道维度命中且不引入累计限额或频控预占。
- * @status : create
+ * 路由后 3DS 策略只读评估测试，验证渠道维度命中且不引入累计限额或频控预占。
  */
 class DefaultRiskThreeDsPolicyServiceTests {
 
+    /**
+     * 验证路由至 MPGS 且规则强制认证时返回 3DS 必需结论。
+     */
     @Test
     void shouldRequireThreeDsWhenRoutedMpgsRuleForcesAuthentication() {
         RiskListRuntimeRepository repository = mock(RiskListRuntimeRepository.class);
@@ -50,6 +47,9 @@ class DefaultRiskThreeDsPolicyServiceTests {
                 new BigDecimal("31.00"), "USD", "LOW");
     }
 
+    /**
+     * 构造包含测试所需商户、交易和支付字段的风控评估请求。
+     */
     private RiskThreeDsPolicyRequestDTO request(String channelCode, String amount) {
         RiskThreeDsPolicyRequestDTO request = new RiskThreeDsPolicyRequestDTO();
         request.setMerchantId("M202607290001");

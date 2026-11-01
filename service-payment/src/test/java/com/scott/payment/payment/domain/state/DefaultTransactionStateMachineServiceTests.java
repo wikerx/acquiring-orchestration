@@ -11,13 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionStateMachineServiceTests
- * @date : 2026-07-14 21:35
- * @email : scott_x@163.com
- * @description : 收单交易状态机测试，验证后续资金动作在进入渠道前必须满足原交易状态、类型、币种和可用金额边界。
- * @status : create
+ * 收单交易状态机测试，验证后续资金动作在进入渠道前必须满足原交易状态、类型、币种和可用金额边界。
  */
 class DefaultTransactionStateMachineServiceTests {
 

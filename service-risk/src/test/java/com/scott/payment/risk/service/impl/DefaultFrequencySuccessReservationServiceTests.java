@@ -20,16 +20,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultFrequencySuccessReservationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 频控成功名额 Redis 生命周期测试。
- * @status : create
+ * 频控成功名额 Redis 生命周期测试。
  */
 class DefaultFrequencySuccessReservationServiceTests {
 
+    /**
+     * 验证频控预占使用摘要维度并将全部键固定在商户同槽。
+     */
     @Test
     void shouldReserveWithDigestOnlyKeysInOneMerchantSlot() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -59,6 +56,9 @@ class DefaultFrequencySuccessReservationServiceTests {
                 .doesNotContain("merchant-raw-001", "transaction-raw-001", "element-raw-value"));
     }
 
+    /**
+     * 验证频控超限返回明确结果且不宣称已取得名额。
+     */
     @Test
     void shouldReportLimitExceededWithoutClaimingReservation() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -74,6 +74,9 @@ class DefaultFrequencySuccessReservationServiceTests {
         assertThat(result.currentCount()).isEqualTo(1L);
     }
 
+    /**
+     * 验证 Redis 预占异常映射为不可用结果而不是放行。
+     */
     @Test
     void shouldReportUnavailableWhenRedisReserveExecutionFails() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -87,6 +90,9 @@ class DefaultFrequencySuccessReservationServiceTests {
         assertThat(result).isEqualTo(FrequencySuccessReservationResult.unavailable());
     }
 
+    /**
+     * 验证成功确认只执行一次，重复成功事件按幂等处理。
+     */
     @Test
     void shouldConfirmOnceAndTreatDuplicateSuccessAsIdempotent() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -103,6 +109,9 @@ class DefaultFrequencySuccessReservationServiceTests {
         assertThat(duplicate).isEqualTo(new FrequencySuccessReservationTransitionSummary(0, 1, 0));
     }
 
+    /**
+     * 验证失败释放已预占计数，重复失败事件不重复扣减。
+     */
     @Test
     void shouldReleaseReservedCountersAndKeepDuplicateFailureIdempotent() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -132,6 +141,9 @@ class DefaultFrequencySuccessReservationServiceTests {
         assertThat(duplicate).isEqualTo(new FrequencySuccessReservationTransitionSummary(0, 1, 0));
     }
 
+    /**
+     * 验证成功名额确认后迟到失败事件不能释放计数。
+     */
     @Test
     void shouldNotReleaseAfterSuccessWasConfirmed() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -145,16 +157,25 @@ class DefaultFrequencySuccessReservationServiceTests {
         assertThat(result).isEqualTo(new FrequencySuccessReservationTransitionSummary(0, 0, 1));
     }
 
+    /**
+     * 按用例依赖构造被测风控领域服务。
+     */
     private DefaultFrequencySuccessReservationService service(StringRedisTemplate redisTemplate) {
         return new DefaultFrequencySuccessReservationService(redisTemplate, redisProperties());
     }
 
+    /**
+     * 构造使用测试环境前缀的 Redis 业务键配置。
+     */
     private PaymentRedisProperties redisProperties() {
         PaymentRedisProperties properties = new PaymentRedisProperties();
         properties.setKeyPrefix("acquiring:test");
         return properties;
     }
 
+    /**
+     * 提取 Redis 键哈希标签，验证多键脚本使用同一集群槽位。
+     */
     private String hashTag(String key) {
         return key.substring(key.indexOf('{') + 1, key.indexOf('}'));
     }

@@ -1,5 +1,11 @@
 package com.scott.payment.admin.application.monitor;
 
+import com.scott.payment.admin.dto.monitor.ServerMonitorResponse;
+import com.scott.payment.admin.dto.monitor.ServerMonitorResponse.CpuInfo;
+import com.scott.payment.admin.dto.monitor.ServerMonitorResponse.DiskInfo;
+import com.scott.payment.admin.dto.monitor.ServerMonitorResponse.JvmInfo;
+import com.scott.payment.admin.dto.monitor.ServerMonitorResponse.RuntimeInfo;
+import com.scott.payment.admin.dto.monitor.ServerMonitorResponse.SystemInfo;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -8,17 +14,9 @@ import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorServerApplicationService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端服务器监控应用服务，采集当前 Admin 节点 JVM、操作系统、磁盘和运行时信息并组装脱敏响应。
- * @status : create
+ * 管理端服务器监控应用服务，采集当前 Admin 节点 JVM、操作系统、磁盘和运行时信息并组装脱敏响应。
  *
  * <p>负责管理后台服务器监控用例编排，采集当前节点的 CPU、JVM、系统与磁盘等运行指标，
  * 并组装为前端监控页面可直接消费的结构化数据。</p>
@@ -31,52 +29,52 @@ public class AdminMonitorServerApplicationService {
      *
      * @return 服务器监控摘要
      */
-    public Map<String, Object> serverInfo() {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public ServerMonitorResponse serverInfo() {
+        ServerMonitorResponse response = new ServerMonitorResponse();
 
         OperatingSystemMXBean operatingSystemMXBean = ManagementFactory.getOperatingSystemMXBean();
-        Map<String, Object> cpu = new LinkedHashMap<>();
-        cpu.put("availableProcessors", Runtime.getRuntime().availableProcessors());
-        cpu.put("systemLoadAverage", round(operatingSystemMXBean.getSystemLoadAverage(), 2));
-        cpu.put("arch", operatingSystemMXBean.getArch());
-        cpu.put("name", operatingSystemMXBean.getName());
-        cpu.put("version", operatingSystemMXBean.getVersion());
-        result.put("cpu", cpu);
+        CpuInfo cpu = new CpuInfo();
+        cpu.setAvailableProcessors(Runtime.getRuntime().availableProcessors());
+        cpu.setSystemLoadAverage(round(operatingSystemMXBean.getSystemLoadAverage(), 2));
+        cpu.setArch(operatingSystemMXBean.getArch());
+        cpu.setName(operatingSystemMXBean.getName());
+        cpu.setVersion(operatingSystemMXBean.getVersion());
+        response.setCpu(cpu);
 
         Runtime runtime = Runtime.getRuntime();
-        Map<String, Object> jvm = new LinkedHashMap<>();
-        jvm.put("max", bytesToMB(runtime.maxMemory()) + " MB");
-        jvm.put("total", bytesToMB(runtime.totalMemory()) + " MB");
-        jvm.put("free", bytesToMB(runtime.freeMemory()) + " MB");
-        jvm.put("used", bytesToMB(runtime.totalMemory() - runtime.freeMemory()) + " MB");
-        jvm.put("javaVersion", System.getProperty("java.version"));
-        jvm.put("javaHome", System.getProperty("java.home"));
-        result.put("jvm", jvm);
+        JvmInfo jvm = new JvmInfo();
+        jvm.setMax(bytesToMB(runtime.maxMemory()) + " MB");
+        jvm.setTotal(bytesToMB(runtime.totalMemory()) + " MB");
+        jvm.setFree(bytesToMB(runtime.freeMemory()) + " MB");
+        jvm.setUsed(bytesToMB(runtime.totalMemory() - runtime.freeMemory()) + " MB");
+        jvm.setJavaVersion(System.getProperty("java.version"));
+        jvm.setJavaHome(System.getProperty("java.home"));
+        response.setJvm(jvm);
 
-        Map<String, Object> system = new LinkedHashMap<>();
-        system.put("osName", System.getProperty("os.name"));
-        system.put("osArch", System.getProperty("os.arch"));
-        system.put("userName", System.getProperty("user.name"));
-        result.put("system", system);
+        SystemInfo system = new SystemInfo();
+        system.setOsName(System.getProperty("os.name"));
+        system.setOsArch(System.getProperty("os.arch"));
+        system.setUserName(System.getProperty("user.name"));
+        response.setSystem(system);
 
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
-        Map<String, Object> runtimeInfo = new LinkedHashMap<>();
-        runtimeInfo.put("uptime", formatUptime(runtimeMXBean.getUptime()));
-        runtimeInfo.put("startTime", runtimeMXBean.getStartTime());
-        result.put("runtime", runtimeInfo);
+        RuntimeInfo runtimeInfo = new RuntimeInfo();
+        runtimeInfo.setUptime(formatUptime(runtimeMXBean.getUptime()));
+        runtimeInfo.setStartTime(runtimeMXBean.getStartTime());
+        response.setRuntime(runtimeInfo);
 
         File[] roots = File.listRoots();
         if (roots != null && roots.length > 0) {
             File root = roots[0];
-            Map<String, Object> disk = new LinkedHashMap<>();
-            disk.put("path", root.getAbsolutePath());
-            disk.put("total", bytesToGB(root.getTotalSpace()) + " GB");
-            disk.put("free", bytesToGB(root.getFreeSpace()) + " GB");
-            disk.put("used", bytesToGB(root.getTotalSpace() - root.getFreeSpace()) + " GB");
-            disk.put("usagePercent", usagePercent(root));
-            result.put("disk", disk);
+            DiskInfo disk = new DiskInfo();
+            disk.setPath(root.getAbsolutePath());
+            disk.setTotal(bytesToGB(root.getTotalSpace()) + " GB");
+            disk.setFree(bytesToGB(root.getFreeSpace()) + " GB");
+            disk.setUsed(bytesToGB(root.getTotalSpace() - root.getFreeSpace()) + " GB");
+            disk.setUsagePercent(usagePercent(root));
+            response.setDisk(disk);
         }
-        return result;
+        return response;
     }
 
     /**

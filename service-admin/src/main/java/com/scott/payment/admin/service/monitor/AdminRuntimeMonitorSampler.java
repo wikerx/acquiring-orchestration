@@ -20,35 +20,40 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRuntimeMonitorSampler
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : Admin JVM 运行时采样器，按分钟采集 CPU、内存、线程、GC、磁盘和运行时长，并在进程内保留七天有界历史。
- * @status : create
+ * Admin JVM 运行时采样器，按分钟采集 CPU、内存、线程、GC、磁盘和运行时长，并在进程内保留七天有界历史。
  */
 @Component
 public class AdminRuntimeMonitorSampler {
 
-    /** 七天、每分钟一条采样对应的最大历史容量。 */
+    /**
+     * 七天、每分钟一条采样对应的最大历史容量。
+     */
     static final int MAX_SAMPLES = 7 * 24 * 60;
 
-    /** 运行时进程内历史，元素按采样时间升序保存。 */
+    /**
+     * 运行时进程内历史，元素按采样时间升序保存。
+     */
     private final Deque<RuntimeSample> samples = new ArrayDeque<>(MAX_SAMPLES);
 
-    /** 在 Spring Bean 初始化完成后采集首个 JVM 数据点。 */
+    /**
+     * 在 Spring Bean 初始化完成后采集首个 JVM 数据点。
+     */
     @PostConstruct
     public void initialize() {
         sample();
     }
 
-    /** 每分钟采集一次当前 Admin JVM 运行指标。 */
+    /**
+     * 每分钟采集一次当前 Admin JVM 运行指标。
+     */
     @Scheduled(fixedRate = 60_000L)
     public synchronized void sample() {
         addSample(capture());
     }
 
+    /**
+     * 追加运行时采样，并在超过容量上限时淘汰最早样本。
+     */
     synchronized void addSample(RuntimeSample sample) {
         samples.addLast(sample);
         while (samples.size() > MAX_SAMPLES) {

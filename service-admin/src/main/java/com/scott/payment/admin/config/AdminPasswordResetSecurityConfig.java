@@ -8,13 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPasswordResetSecurityConfig
- * @date : 2026-10-14 00:00
- * @email : scott_x@163.com
- * @description : 管理后台找回密码安全配置，为匿名恢复入口提供跨实例原子限流并在 Redis 故障时拒绝放行。
- * @status : create
+ * 管理后台找回密码安全配置，为匿名恢复入口提供跨实例原子限流并在 Redis 故障时拒绝放行。
  */
 @Configuration
 public class AdminPasswordResetSecurityConfig {

@@ -12,13 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalAuthWebMvcConfigTest
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : 验证结算内部接口在 HMAC 密钥缺失或占位符未解析时启动失败，避免错误实例注册后持续拒绝管理命令。
- * @status : create
+ * 验证结算内部接口在 HMAC 密钥缺失或占位符未解析时启动失败，避免错误实例注册后持续拒绝管理命令。
  */
 class SettlementInternalAuthWebMvcConfigTest {
 
@@ -48,14 +42,18 @@ class SettlementInternalAuthWebMvcConfigTest {
                 .hasMessageContaining("secret");
     }
 
-    /** 构造结算服务允许的 Admin 调用凭据。 */
+    /**
+     * 构造结算服务允许的 Admin 调用凭据。
+     */
     private InternalServiceAuthProperties validProperties() {
         InternalServiceAuthProperties properties = new InternalServiceAuthProperties();
         properties.setCallers(Map.of("service-admin", callerCredential()));
         return properties;
     }
 
-    /** 构造只允许访问结算内部路径的测试凭据。 */
+    /**
+     * 构造只允许访问结算内部路径的测试凭据。
+     */
     private InternalServiceAuthProperties.CallerCredential callerCredential() {
         InternalServiceAuthProperties.CallerCredential credential =
                 new InternalServiceAuthProperties.CallerCredential();

@@ -43,13 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantProfileChangeService
- * @date : 2026-09-21 10:10
- * @email : scott_x@163.com
- * @description : 管理端商户资料变更审核服务，保证审批状态、正式主档、人员和资料在同一事务生效
- * @status : create
+ * 管理端商户资料变更审核服务，保证审批状态、正式主档、人员和资料在同一事务生效
  */
 @Service
 public class AdminMerchantProfileChangeService {
@@ -71,7 +65,9 @@ public class AdminMerchantProfileChangeService {
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
     private final ObjectMapper objectMapper;
 
-    /** 创建管理端商户资料变更审核服务。 */
+    /**
+     * 创建管理端商户资料变更审核服务。
+     */
     public AdminMerchantProfileChangeService(
             MerchantProfileChangeRequestMapper requestMapper,
             MerchantProfileReviewRecordMapper reviewRecordMapper,
@@ -93,7 +89,9 @@ public class AdminMerchantProfileChangeService {
         this.objectMapper = objectMapper;
     }
 
-    /** 分页查询资料变更申请，列表不解密敏感快照。 */
+    /**
+     * 分页查询资料变更申请，列表不解密敏感快照。
+     */
     @DS(DataSourceName.MASTER)
     public PageResult<AdminMerchantProfileChangeDTOs.ChangeRequest> page(
             AdminMerchantProfileChangeDTOs.Query query) {
@@ -115,7 +113,9 @@ public class AdminMerchantProfileChangeService {
         return PageResult.of(page.getTotal(), pageNo, pageSize, records);
     }
 
-    /** 查询资料变更申请详情并解密快照，证件号明文在响应前清空。 */
+    /**
+     * 查询资料变更申请详情并解密快照，证件号明文在响应前清空。
+     */
     @DS(DataSourceName.MASTER)
     public AdminMerchantProfileChangeDTOs.ChangeRequest get(String requestNo) {
         MerchantProfileChangeRequestDO row = requireRequest(requestNo);
@@ -123,7 +123,9 @@ public class AdminMerchantProfileChangeService {
         return toResponse(row, merchant.getMerchantName(), true);
     }
 
-    /** 执行通过、补件或驳回决定，通过时原子应用快照并激活本申请资料。 */
+    /**
+     * 执行通过、补件或驳回决定，通过时原子应用快照并激活本申请资料。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantProfileChangeDTOs.ChangeRequest review(
@@ -182,7 +184,9 @@ public class AdminMerchantProfileChangeService {
         return toResponse(row, requireMerchant(row.getMerchantId()).getMerchantName(), true);
     }
 
-    /** 对申请创建时快照中的实际变更字段执行并发校验，拒绝覆盖后续管理端修改。 */
+    /**
+     * 对申请创建时快照中的实际变更字段执行并发校验，拒绝覆盖后续管理端修改。
+     */
     private void ensureNoStaleChangedFields(MerchantProfileChangeRequestDO row) {
         AdminMerchantProfileChangeDTOs.ProfileSnapshot original = readSnapshot(
                 row, row.getCurrentSnapshotCipher());
@@ -196,7 +200,9 @@ public class AdminMerchantProfileChangeService {
         }
     }
 
-    /** 只更新需审核的高风险字段，联系人、语言和时区等即时字段保持当前值。 */
+    /**
+     * 只更新需审核的高风险字段，联系人、语言和时区等即时字段保持当前值。
+     */
     private void applySnapshot(String merchantId,
                                String requestNo,
                                AdminMerchantProfileChangeDTOs.ProfileSnapshot value) {
@@ -277,6 +283,9 @@ public class AdminMerchantProfileChangeService {
                 .eq(BizDocumentDO::getDeleted, NOT_DELETED));
     }
 
+    /**
+     * 加载当前。
+     */
     private AdminMerchantProfileChangeDTOs.ProfileSnapshot loadCurrent(String merchantId) {
         BaseMerchantInfoDO row = requireMerchant(merchantId);
         AdminMerchantProfileChangeDTOs.ProfileSnapshot value = new AdminMerchantProfileChangeDTOs.ProfileSnapshot();
@@ -337,6 +346,9 @@ public class AdminMerchantProfileChangeService {
         return value;
     }
 
+    /**
+     * 加载商户关联人员并转换为资料变更响应模型。
+     */
     private List<MerchantOnboardingDTOs.RelatedPerson> loadRelatedPersons(String merchantId) {
         return relatedPersonMapper.selectList(Wrappers.<MerchantRelatedPersonDO>lambdaQuery()
                         .eq(MerchantRelatedPersonDO::getMerchantId, merchantId)
@@ -346,6 +358,9 @@ public class AdminMerchantProfileChangeService {
                 .stream().map(this::toRelatedPerson).toList();
     }
 
+    /**
+     * 转换为商户关联自然人信息。
+     */
     private MerchantOnboardingDTOs.RelatedPerson toRelatedPerson(MerchantRelatedPersonDO row) {
         MerchantOnboardingDTOs.RelatedPerson value = new MerchantOnboardingDTOs.RelatedPerson();
         value.setId(row.getId());
@@ -366,6 +381,9 @@ public class AdminMerchantProfileChangeService {
         return value;
     }
 
+    /**
+     * 将商户资料变更记录转换为管理端响应。
+     */
     private AdminMerchantProfileChangeDTOs.ChangeRequest toResponse(
             MerchantProfileChangeRequestDO row, String merchantName, boolean includeDetail) {
         AdminMerchantProfileChangeDTOs.ChangeRequest response = new AdminMerchantProfileChangeDTOs.ChangeRequest();
@@ -390,6 +408,9 @@ public class AdminMerchantProfileChangeService {
         return response;
     }
 
+    /**
+     * 读取快照。
+     */
     private AdminMerchantProfileChangeDTOs.ProfileSnapshot readSnapshot(
             MerchantProfileChangeRequestDO row, String cipher) {
         try {
@@ -401,6 +422,9 @@ public class AdminMerchantProfileChangeService {
         }
     }
 
+    /**
+     * 清理敏感文本并限制持久化长度。
+     */
     private AdminMerchantProfileChangeDTOs.ProfileSnapshot sanitize(
             AdminMerchantProfileChangeDTOs.ProfileSnapshot source) {
         AdminMerchantProfileChangeDTOs.ProfileSnapshot copy = objectMapper.convertValue(
@@ -416,6 +440,9 @@ public class AdminMerchantProfileChangeService {
         return copy;
     }
 
+    /**
+     * 读取资料变更请求中实际发生变化的字段集合。
+     */
     private List<String> readChangedFields(MerchantProfileChangeRequestDO row) {
         try {
             return objectMapper.readerForListOf(String.class).readValue(row.getChangedFieldsJson());
@@ -425,6 +452,9 @@ public class AdminMerchantProfileChangeService {
         }
     }
 
+    /**
+     * 加载指定资料变更请求关联的商户文档。
+     */
     private List<AdminMerchantProfileChangeDTOs.Document> loadDocuments(
             String merchantId, String requestNo) {
         return documentMapper.selectList(Wrappers.<BizDocumentDO>lambdaQuery()
@@ -436,6 +466,9 @@ public class AdminMerchantProfileChangeService {
                 .stream().map(this::toDocument).toList();
     }
 
+    /**
+     * 将商户资料实体转换为资料变更文档响应。
+     */
     private AdminMerchantProfileChangeDTOs.Document toDocument(BizDocumentDO row) {
         AdminMerchantProfileChangeDTOs.Document response = new AdminMerchantProfileChangeDTOs.Document();
         response.setId(row.getId());
@@ -449,6 +482,9 @@ public class AdminMerchantProfileChangeService {
         return response;
     }
 
+    /**
+     * 批量加载资料变更记录对应的商户名称。
+     */
     private Map<String, String> loadMerchantNames(List<MerchantProfileChangeRequestDO> rows) {
         Set<String> merchantIds = rows.stream().map(MerchantProfileChangeRequestDO::getMerchantId)
                 .filter(StringUtils::hasText).collect(Collectors.toSet());
@@ -463,6 +499,9 @@ public class AdminMerchantProfileChangeService {
                         LinkedHashMap::new));
     }
 
+    /**
+     * 校验并获取请求。
+     */
     private MerchantProfileChangeRequestDO requireRequest(String requestNo) {
         if (!StringUtils.hasText(requestNo)) throw invalid("request number is required");
         MerchantProfileChangeRequestDO row = requestMapper.selectOne(
@@ -475,6 +514,9 @@ public class AdminMerchantProfileChangeService {
         return row;
     }
 
+    /**
+     * 校验并获取商户。
+     */
     private BaseMerchantInfoDO requireMerchant(String merchantId) {
         BaseMerchantInfoDO row = merchantInfoMapper.selectOne(
                 Wrappers.<BaseMerchantInfoDO>lambdaQuery()
@@ -487,6 +529,9 @@ public class AdminMerchantProfileChangeService {
         return row;
     }
 
+    /**
+     * 追加复核记录。
+     */
     private void appendReviewRecord(MerchantProfileChangeRequestDO request,
                                     String action,
                                     String fromStatus,
@@ -507,24 +552,36 @@ public class AdminMerchantProfileChangeService {
         reviewRecordMapper.insert(record);
     }
 
+    /**
+     * 解析当前操作人标识。
+     */
     private String currentOperatorId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         return account == null || account.getAccountId() == null
                 ? null : String.valueOf(account.getAccountId());
     }
 
+    /**
+     * 解析当前操作人的审计名称。
+     */
     private String operatorName(InternalAuthAccount account) {
         if (account == null) return "system";
         if (StringUtils.hasText(account.getRealName())) return account.getRealName().trim();
         return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount().trim() : "system";
     }
 
+    /**
+     * 将持久化文本拆分为去重编码集合。
+     */
     private List<String> split(String value) {
         if (!StringUtils.hasText(value)) return Collections.emptyList();
         return Arrays.stream(value.split(",")).map(String::trim)
                 .filter(StringUtils::hasText).distinct().toList();
     }
 
+    /**
+     * 将非空文本集合连接为持久化字符串。
+     */
     private String join(List<String> values, boolean uppercase) {
         if (values == null) return null;
         String joined = values.stream().filter(Objects::nonNull).map(String::trim)
@@ -534,23 +591,38 @@ public class AdminMerchantProfileChangeService {
         return joined.isBlank() ? null : joined;
     }
 
+    /**
+     * 将动态数据库字段安全转换为布尔值。
+     */
     private Integer bool(Boolean value) {
         return value == null ? null : value ? 1 : 0;
     }
 
+    /**
+     * 将数据库开关值转换为布尔值。
+     */
     private Boolean toBoolean(Integer value) {
         return value == null ? null : value == 1;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 构建商户资料变更参数校验异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

@@ -3,6 +3,7 @@ package com.scott.payment.payment.api.internal;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
+import com.scott.payment.payment.application.TransactionCallbackInboxApplicationService;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -17,7 +18,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
-import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionCallbackInboxAcceptResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchRequeryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
@@ -35,13 +36,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalController
- * @date : 2026-05-31 21:52
- * @email : scott_x@163.com
- * @description : 支付内部控制器，负责收银台、交易命令、渠道回调、渠道勾兑与商户交互审计回写，不承载管理端或商户端列表统计查询。
- * @status : create
+ * 支付内部控制器，负责收银台、交易命令、渠道回调、渠道勾兑与商户交互审计回写，不承载管理端或商户端列表统计查询。
  */
 @RestController
 @RequestMapping("/internal/payment")
@@ -58,15 +53,23 @@ public class PaymentInternalController {
     private final PaymentCheckoutApplicationService paymentCheckoutApplicationService;
 
     /**
+     * 渠道回调可靠受理应用服务。
+     */
+    private final TransactionCallbackInboxApplicationService callbackInboxApplicationService;
+
+    /**
      * 创建内部交易接口控制器。
      *
      * @param paymentTransactionApplicationService 收单交易应用服务
      * @param paymentCheckoutApplicationService Hosted Checkout 应用服务
+     * @param callbackInboxApplicationService 渠道回调 Inbox 应用服务
      */
     public PaymentInternalController(PaymentTransactionApplicationService paymentTransactionApplicationService,
-                                     PaymentCheckoutApplicationService paymentCheckoutApplicationService) {
+                                     PaymentCheckoutApplicationService paymentCheckoutApplicationService,
+                                     TransactionCallbackInboxApplicationService callbackInboxApplicationService) {
         this.paymentTransactionApplicationService = paymentTransactionApplicationService;
         this.paymentCheckoutApplicationService = paymentCheckoutApplicationService;
+        this.callbackInboxApplicationService = callbackInboxApplicationService;
     }
 
     /**
@@ -105,7 +108,9 @@ public class PaymentInternalController {
         return success(paymentCheckoutApplicationService.expireDue(LocalDateTime.now(), limit));
     }
 
-    /** 解析卡 BIN 品牌并校验当前收银台会话是否支持。 */
+    /**
+     * 解析卡 BIN 品牌并校验当前收银台会话是否支持。
+     */
     @PostMapping("/checkout/card-bin/resolve")
     public CommonResult<PaymentCheckoutCardBinResultDTO> resolveCheckoutCardBin(
             @Valid @RequestBody PaymentCheckoutCardBinCommandDTO commandDTO) {
@@ -248,15 +253,15 @@ public class PaymentInternalController {
     }
 
     /**
-     * 记录渠道回调原文和业务幂等结果。
+     * 将已验证标准事件可靠写入渠道回调 Inbox。
      *
      * @param commandDTO 渠道回调内部命令
-     * @return 渠道回调记录结果
+     * @return Inbox 受理或数据库幂等命中结果
      */
-    @PostMapping("/channel-callback")
-    public CommonResult<TransactionChannelCallbackResultDTO> recordChannelCallback(
+    @PostMapping("/channel-callback/inbox")
+    public CommonResult<TransactionCallbackInboxAcceptResultDTO> acceptChannelCallback(
             @Valid @RequestBody TransactionChannelCallbackCommandDTO commandDTO) {
-        return success(paymentTransactionApplicationService.recordChannelCallback(commandDTO));
+        return success(callbackInboxApplicationService.accept(commandDTO));
     }
 
     /**

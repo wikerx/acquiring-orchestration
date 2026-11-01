@@ -5,13 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminOperationLogMqConfig
- * @date : 2026-06-20 01:47
- * @email : scott_x@163.com
- * @description : service-admin 操作日志 MQ 标识配置
- * @status : create
+ * service-admin 操作日志 MQ 标识配置
  */
 @Configuration
 public class AdminOperationLogMqConfig {

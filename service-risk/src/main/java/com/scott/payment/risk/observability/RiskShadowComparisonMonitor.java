@@ -10,13 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskShadowComparisonMonitor
- * @date : 2026-07-30 22:35
- * @email : scott_x@163.com
- * @description : 汇总风控数据库基线双轨比较结果，只记录计数和差异数量，不记录交易、商户或规则明细
- * @status : create
+ * 汇总风控数据库基线双轨比较结果，只记录计数和差异数量，不记录交易、商户或规则明细
  */
 @Slf4j
 @Component
@@ -112,7 +106,7 @@ public class RiskShadowComparisonMonitor {
             return;
         }
         log.info(
-                "event: RISK_BASELINE_SHADOW_COMPARISON_SUMMARY baselineCompared: {} baselineMismatched: {}",
+                "风控基线影子比对汇总, event: RISK_BASELINE_SHADOW_COMPARISON_SUMMARY, baselineCompared: {}, baselineMismatched: {}",
                 snapshot.baselineCompared(),
                 snapshot.baselineMismatched()
         );

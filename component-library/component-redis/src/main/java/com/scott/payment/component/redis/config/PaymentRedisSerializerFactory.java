@@ -26,13 +26,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisSerializerFactory
- * @date : 2026-07-29 19:10
- * @email : scott_x@163.com
- * @description : 集中创建支付系统 Redis JSON 序列化器，统一存量格式兼容和类型安全边界
- * @status : create
+ * 集中创建支付系统 Redis JSON 序列化器，统一存量格式兼容和类型安全边界
  */
 public final class PaymentRedisSerializerFactory {
 
@@ -175,6 +169,9 @@ public final class PaymentRedisSerializerFactory {
             MERCHANT_FEE_TIER_CLASS_NAME
     );
 
+    /**
+     * 禁止实例化 Redis 安全序列化器工厂。
+     */
     private PaymentRedisSerializerFactory() {
     }
 
@@ -329,6 +326,9 @@ public final class PaymentRedisSerializerFactory {
         }
     }
 
+    /**
+     * 仅允许精确登记对象图的当前格式序列化器，并保留历史格式只读兼容能力。
+     */
     private static final class RegisteredTypeRedisSerializer implements RedisSerializer<Object> {
 
         private static final JacksonObjectReader REGISTERED_READER =

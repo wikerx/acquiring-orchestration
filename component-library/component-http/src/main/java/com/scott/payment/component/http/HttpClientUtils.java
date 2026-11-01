@@ -9,13 +9,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HttpClientUtils
- * @date : 2026-05-28 11:25
- * @email : scott_x@163.com
- * @description : Hutool HTTP 请求工具
- * @status : create
+ * Hutool HTTP 请求工具
  */
 public final class HttpClientUtils {
 
@@ -24,6 +18,9 @@ public final class HttpClientUtils {
      */
     private static final int DEFAULT_TIMEOUT_MILLIS = 10000;
 
+    /**
+     * 禁止实例化共享 HTTP 请求工具类。
+     */
     private HttpClientUtils() {
     }
 
@@ -82,12 +79,24 @@ public final class HttpClientUtils {
         return execute(request);
     }
 
+    /**
+     * 执行已构建请求并在读取状态和正文后关闭响应资源。
+     *
+     * @param request 已配置超时和请求头的 Hutool 请求
+     * @return HTTP 状态与响应正文
+     */
     private static HttpResponseResult execute(HttpRequest request) {
         try (HttpResponse response = request.execute()) {
             return new HttpResponseResult(response.getStatus(), response.body());
         }
     }
 
+    /**
+     * 写入调用方请求头，并在缺失时补充当前链路 traceId。
+     *
+     * @param request 待发送请求
+     * @param headers 调用方请求头，可为空
+     */
     private static void addHeaders(HttpRequest request, Map<String, String> headers) {
         if (headers == null || headers.isEmpty()) {
             request.header(TraceContext.TRACE_ID_HEADER, TraceContext.getOrCreateTraceId());

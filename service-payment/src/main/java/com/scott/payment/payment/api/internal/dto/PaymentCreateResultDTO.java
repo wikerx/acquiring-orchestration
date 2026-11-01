@@ -9,13 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCreateResultDTO
- * @date : 2026-05-31 21:01
- * @email : scott_x@163.com
- * @description : service-payment 创建收单交易的内部响应参数，返回交易受理后的商户可见结果摘要和内部生命周期关联 ID；operationId 仅内部链路使用，不暴露给商户。
- * @status : create
+ * service-payment 创建收单交易的内部响应参数，返回交易受理后的商户可见结果摘要和内部生命周期关联 ID；operationId 仅内部链路使用，不暴露给商户。
  */
 @Data
 public class PaymentCreateResultDTO implements Serializable {
@@ -61,16 +55,24 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String merchantId;
 
-    /** 首次交易保存的商品或服务明细；未上送时为空列表。 */
+    /**
+     * 首次交易保存的商品或服务明细；未上送时为空列表。
+     */
     private List<PaymentCreateCommandDTO.GoodsInfoDTO> goodsInfo;
 
-    /** 首次交易保存的持卡人账单信息；未上送时为空。 */
+    /**
+     * 首次交易保存的持卡人账单信息；未上送时为空。
+     */
     private PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 首次交易保存的付款人信息，返回商户前由支付核心从密文快照恢复。 */
+    /**
+     * 首次交易保存的付款人信息，返回商户前由支付核心从密文快照恢复。
+     */
     private PaymentCreateCommandDTO.PayerInfoDTO payerInfo;
 
-    /** 首次交易保存的收货人信息；未上送时为空。 */
+    /**
+     * 首次交易保存的收货人信息；未上送时为空。
+     */
     private PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo;
 
     /**
@@ -89,7 +91,7 @@ public class PaymentCreateResultDTO implements Serializable {
     private String status;
 
     /**
-     * 当前动作商户响应码，例如 T200、T202、T203、F210。
+     * 当前动作商户响应码，例如 T0000、T0001、T0002、F1000、F2000 或 F3000。
      */
     private String merchantResponseCode;
 
@@ -208,16 +210,24 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String settlementCurrency;
 
-    /** 已形成的结算换汇汇率；没有真实财务记录时为空。 */
+    /**
+     * 已形成的结算换汇汇率；没有真实财务记录时为空。
+     */
     private BigDecimal settlementRate;
 
-    /** 已形成的结算费用金额；没有真实财务记录时为空。 */
+    /**
+     * 已形成的结算费用金额；没有真实财务记录时为空。
+     */
     private BigDecimal settlementFeeAmount;
 
-    /** 已形成的费用明细；没有真实财务记录时为空列表。 */
+    /**
+     * 已形成的费用明细；没有真实财务记录时为空列表。
+     */
     private List<FeeItemDTO> feeItems;
 
-    /** 当前动作可向商户返回的 3DS 安全字段子集。 */
+    /**
+     * 当前动作可向商户返回的 3DS 安全字段子集。
+     */
     private ThreeDsInfoDTO threeDSInfo;
 
     /**
@@ -307,236 +317,105 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String merchantWebsite;
 
-    /** Hosted Checkout 交易结果页返回地址；按生命周期恢复。 */
+    /**
+     * Hosted Checkout 交易结果页返回地址；按生命周期恢复。
+     */
     private String redirectUrl;
 
-    /** Hosted Checkout 创建会话时选择的语言；按生命周期恢复。 */
+    /**
+     * Hosted Checkout 创建会话时选择的语言；按生命周期恢复。
+     */
     private String language;
 
-    /** 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。 */
+    /**
+     * 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。
+     */
     @Data
     public static class ThreeDsInfoDTO implements Serializable {
         private static final long serialVersionUID = 1L;
-        /**
-         * {@code eci}字段，保存 {@code ThreeDsInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String eci;
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String dsTransactionId;
-        /**
-         * {@code threeDsVersion}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String threeDsVersion;
-        /**
-         * 状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
+
         private String status;
-        /**
-         * {@code liabilityShifted}，用于明确 {@code ThreeDsInfoDTO} 当前业务分支是否成立。
-         * <p>
-         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private Boolean liabilityShifted;
     }
 
-    /** 已形成的费用明细。 */
+    /**
+     * 已形成的费用明细。
+     */
     @Data
     public static class FeeItemDTO implements Serializable {
         private static final long serialVersionUID = 1L;
-        /**
-         * {@code categories}字段，保存 {@code FeeItemDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String categories;
-        /**
-         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+
         private BigDecimal amount;
-        /**
-         * 币种，表示金额字段使用的币种。
-         * <p>
-         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-         * </p>
-         */
+
         private String currency;
-        /**
-         * 汇率字段，保存 {@code FeeItemDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private BigDecimal rate;
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : SubMerchantInfoDTO
-     * @date : 2026-05-31 21:01
-     * @email : scott_x@163.com
-     * @description : 支付结果中的子商户冻结快照，保证查询和通知不受后续商户资料变更影响。
-     * @status : create
+     * 支付结果中的子商户冻结快照，保证查询和通知不受后续商户资料变更影响。
      */
     @Data
     public static class SubMerchantInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /**
-         * {@code subName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subName;
 
-        /**
-         * {@code subCompanyName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subCompanyName;
 
-        /**
-         * {@code subId}，用于定位 {@code SubMerchantInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subId;
 
-        /**
-         * {@code subStreet}字段，保存 {@code SubMerchantInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subStreet;
 
-        /**
-         * {@code subCity}字段，保存 {@code SubMerchantInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subCity;
 
-        /**
-         * {@code subState}字段，保存 {@code SubMerchantInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subState;
 
-        /**
-         * {@code subCountryCode}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-         * <p>
-         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subCountryCode;
 
         /**
          * {@code subEmail}，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String subEmail;
 
         /**
          * {@code subPhone}，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String subPhone;
 
-        /**
-         * {@code subPostal}字段，保存 {@code SubMerchantInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subPostal;
 
-        /**
-         * {@code subTaxId}，用于定位 {@code SubMerchantInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String subTaxId;
 
-        /**
-         * 商户类别字段，保存 {@code SubMerchantInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String merchantCategory;
 
-        /**
-         * {@code intesCode}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String intesCode;
 
         /**
          * {@code chargeType}，用于区分 {@code SubMerchantInfoDTO} 记录的处理类别、配置维度或外部协议枚举。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String chargeType;
     }

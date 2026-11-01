@@ -4,13 +4,7 @@ import com.scott.payment.component.mq.enums.OperationLogSystemCode;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogTopicResolver
- * @date : 2026-06-20 22:58
- * @email : scott_x@163.com
- * @description : 操作日志 Topic 解析器
- * @status : create
+ * 操作日志 Topic 解析器
  */
 public class OperationLogTopicResolver {
 

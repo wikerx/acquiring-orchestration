@@ -3,13 +3,7 @@ package com.scott.payment.settlement.dto;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalAudit
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 承载冲正批准后写入反向资金流水的完整 Maker-Checker 审计，强制申请人与复核人为不同账户。
- * @status : create
+ * 承载冲正批准后写入反向资金流水的完整 Maker-Checker 审计，强制申请人与复核人为不同账户。
  * @param reversalOrderNo 已批准冲正申请单号
  * @param makerReason Maker 提交原因
  * @param maker 提交时可信主体和客户端快照

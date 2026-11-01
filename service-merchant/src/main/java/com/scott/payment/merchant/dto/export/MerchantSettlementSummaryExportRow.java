@@ -5,17 +5,25 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
-/** 商户正式结算批次聚合结果导出行。 */
+/**
+ * 商户正式结算批次聚合结果导出行。
+ */
 @Data
 public class MerchantSettlementSummaryExportRow {
     @ExcelExportColumn(order = 1, headerKey = "excel.settlement.paymentType", width = 16)
     private String paymentType;
     @ExcelExportColumn(order = 2, headerKey = "excel.settlement.paymentMethod", width = 18)
     private String paymentMethod;
+    /**
+     * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
+     */
     @ExcelExportColumn(order = 3, headerKey = "excel.settlement.transactionType", width = 18)
     private String transactionType;
     @ExcelExportColumn(order = 4, headerKey = "excel.settlement.resultItemType", width = 20)
     private String resultItemType;
+    /**
+     * 费用类别，用于区分交易手续费、退款费、风控费、争议费和结算换汇费。
+     */
     @ExcelExportColumn(order = 5, headerKey = "excel.settlement.feeCategory", width = 18)
     private String feeCategory;
     @ExcelExportColumn(order = 6, headerKey = "excel.settlement.direction", width = 12)
@@ -28,6 +36,7 @@ public class MerchantSettlementSummaryExportRow {
     private String targetCurrency;
     @ExcelExportColumn(order = 10, headerKey = "excel.settlement.targetAmount", width = 20)
     private BigDecimal targetAmount;
+
     @ExcelExportColumn(order = 11, headerKey = "excel.settlement.transactionCount", width = 14)
     private Long transactionCount;
 }

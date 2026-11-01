@@ -10,13 +10,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMerchantNotificationMapper
- * @date : 2026-07-14 19:48
- * @email : scott_x@163.com
- * @description : 商户通知任务 Mapper，位于 service-payment 数据访问层，仅访问 transaction_merchant_notification 逻辑表并以分片时间保护 CAS。
- * @status : create
+ * 商户通知任务 Mapper，位于 service-payment 数据访问层，仅访问 transaction_merchant_notification 逻辑表并以分片时间保护 CAS。
  */
 public interface TransactionMerchantNotificationMapper extends BaseMapper<TransactionMerchantNotificationDO> {
 

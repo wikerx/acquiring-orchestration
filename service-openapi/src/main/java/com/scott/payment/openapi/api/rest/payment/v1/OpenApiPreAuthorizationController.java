@@ -16,13 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import static com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentResponseFactory.from;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPreAuthorizationController
- * @date : 2026-07-14 16:50
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 预授权交易 V1 控制器，仅暴露预授权入口并保持统一安全链路。
- * @status : create
+ * 商户 OpenAPI 预授权交易 V1 控制器，仅暴露预授权入口并保持统一安全链路。
  */
 @ApiVersion(apiVersion = 1)
 @RestController
@@ -53,7 +47,6 @@ public class OpenApiPreAuthorizationController {
      */
     @VerificationAndProcessing(
             dataReceiver = ApiMerchantPaymentRequestDTO.class,
-            deferIpWhitelistToRisk = true,
             validationGroups = {
                     ApiMerchantPaymentRequestDTO.PreAuthorization.class,
                     ApiMerchantPaymentRequestDTO.Format.class

@@ -32,13 +32,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HttpTrafficLoggingFilter
- * @date : 2026-07-26 16:45
- * @email : scott_x@163.com
- * @description : Servlet HTTP 请求响应摘要日志过滤器，位于 component-web 公共 Web 层，为各微服务输出统一的请求体、响应体长度、指纹和脱敏摘要。
- * @status : create
+ * Servlet HTTP 请求响应摘要日志过滤器，位于 component-web 公共 Web 层，为各微服务输出统一的请求体、响应体长度、指纹和脱敏摘要。
  */
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -136,7 +130,10 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
         byte[] requestBody = requestBody(request, preReadRequestBody);
         exposeRequestBodySummary(request, requestBody);
-        log.debug("event: HTTP_TRAFFIC_SUMMARY traceId: {} method: {} path: {} status: {} requestContentType: {} requestLength: {} requestDigest: {} requestSummary: {} responseContentType: {} responseLength: {} responseDigest: {} responseSummary: {} durationMs: {} exceptionType: {}",
+        log.debug("HTTP 流量摘要已记录, event: HTTP_TRAFFIC_SUMMARY, traceId: {}, method: {}, path: {}, "
+                        + "status: {}, requestContentType: {}, requestLength: {}, requestDigest: {}, "
+                        + "requestSummary: {}, responseContentType: {}, responseLength: {}, "
+                        + "responseDigest: {}, responseSummary: {}, durationMs: {}, exceptionType: {}",
                 TraceContext.getTraceId(),
                 request.getMethod(),
                 request.getRequestURI(),

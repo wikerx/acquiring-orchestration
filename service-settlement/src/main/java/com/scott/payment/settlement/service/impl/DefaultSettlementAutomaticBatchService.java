@@ -21,34 +21,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementAutomaticBatchService
- * @date : 2026-08-26 22:10
- * @email : scott_x@163.com
- * @description : 按商户业务时区计算最近成熟日切，并将 AUTO_POST 分组交给主库事务锁定真实候选、幂等建批和有界认领。
- * @status : create
+ * 按商户业务时区计算最近成熟日切，并将 AUTO_POST 分组交给主库事务锁定真实候选、幂等建批和有界认领。
  */
 @Service
 public class DefaultSettlementAutomaticBatchService implements SettlementAutomaticBatchService {
 
-    /**
-     * 分组页大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int GROUP_PAGE_SIZE = 100;
-    /**
-     * {@code REVIEW_CANDIDATE_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int REVIEW_CANDIDATE_LIMIT = 1000;
 
     private final MerchantSettlementProfileMapper profileMapper;
@@ -102,7 +82,9 @@ public class DefaultSettlementAutomaticBatchService implements SettlementAutomat
         return processed;
     }
 
-    /** 将单个 AUTO_POST 分组交给独立 transaction 主库事务锁定真实锚点并完成建批认领。 */
+    /**
+     * 将单个 AUTO_POST 分组交给独立 transaction 主库事务锁定真实锚点并完成建批认领。
+     */
     private boolean createAutomaticBatch(SettlementBatchGroupDO group, BatchWindow window, Instant now) {
         LocalDateTime operationTime = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
         return automaticPostService.createAndClaim(
@@ -110,7 +92,9 @@ public class DefaultSettlementAutomaticBatchService implements SettlementAutomat
                 window.cutoffBeginUtc(), window.cutoffEndUtc(), operationTime);
     }
 
-    /** 创建 AUTO_REVIEW 预审并使用固定系统主体留痕，候选仍需逐条版本锁定。 */
+    /**
+     * 创建 AUTO_REVIEW 预审并使用固定系统主体留痕，候选仍需逐条版本锁定。
+     */
     private boolean createReview(SettlementBatchGroupDO group, BatchWindow window, Instant now) {
         SettlementBatchType batchType = batchType(group);
         List<SettlementCandidateDO> candidates = profileMapper.selectReadyReviewCandidates(
@@ -134,7 +118,9 @@ public class DefaultSettlementAutomaticBatchService implements SettlementAutomat
         return true;
     }
 
-    /** 解析并限制自动处理允许的批次类型，REVERSAL 不得由自动候选分组创建。 */
+    /**
+     * 解析并限制自动处理允许的批次类型，REVERSAL 不得由自动候选分组创建。
+     */
     private SettlementBatchType batchType(SettlementBatchGroupDO group) {
         SettlementBatchType batchType;
         try {
@@ -150,7 +136,9 @@ public class DefaultSettlementAutomaticBatchService implements SettlementAutomat
         return batchType;
     }
 
-    /** 使用档案 IANA 时区和日切点计算最近已成熟窗口，不通过 YML/Nacos 业务开关改变日历。 */
+    /**
+     * 使用档案 IANA 时区和日切点计算最近已成熟窗口，不通过 YML/Nacos 业务开关改变日历。
+     */
     private BatchWindow maturedWindow(SettlementBatchGroupDO group, Instant now) {
         if (group == null || group.getSettlementProfileId() == null || group.getSettlementProfileId() <= 0
                 || group.getSettlementAccountId() == null || group.getSettlementAccountId() <= 0
@@ -171,7 +159,9 @@ public class DefaultSettlementAutomaticBatchService implements SettlementAutomat
                 LocalDateTime.ofInstant(cutoffEnd.toInstant(), ZoneOffset.UTC));
     }
 
-    /** 要求自动分组锚点候选主键有效，用于确定性请求键。 */
+    /**
+     * 要求自动分组锚点候选主键有效，用于确定性请求键。
+     */
     private long requireAnchor(Long value) {
         if (value == null || value <= 0) {
             throw new IllegalStateException("settlement batch anchor candidate id is invalid");
@@ -179,7 +169,9 @@ public class DefaultSettlementAutomaticBatchService implements SettlementAutomat
         return value;
     }
 
-    /** 要求自动预审候选携带非负 CAS 版本。 */
+    /**
+     * 要求自动预审候选携带非负 CAS 版本。
+     */
     private long requireVersion(Long value) {
         if (value == null || value < 0) {
             throw new IllegalStateException("settlement candidate version is invalid");

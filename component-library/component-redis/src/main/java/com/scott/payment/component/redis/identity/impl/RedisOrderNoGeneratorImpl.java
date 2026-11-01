@@ -15,13 +15,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisOrderNoGeneratorImpl
- * @date : 2026-05-31 20:50
- * @email : scott_x@163.com
- * @description : Redis 分布式订单号生成服务实现
- * @status : create
+ * Redis 分布式订单号生成服务实现
  */
 @Service
 @ConditionalOnBean(StringRedisTemplate.class)

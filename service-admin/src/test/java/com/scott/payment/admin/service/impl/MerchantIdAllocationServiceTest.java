@@ -19,19 +19,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantIdAllocationServiceTest
- * @date : 2026-09-17 18:10
- * @email : scott_x@163.com
- * @description : 商户号分配服务单元测试，覆盖年度格式、序列上限以及数据库 CAS 失败保护。
- * @status : create
+ * 商户号分配服务单元测试，覆盖年度格式、序列上限以及数据库 CAS 失败保护。
  */
 @ExtendWith(MockitoExtension.class)
 @Slf4j
 class MerchantIdAllocationServiceTest {
 
-    /** 固定业务时钟；时间为 2026-09-17 16:30:45.123（Asia/Shanghai）；非敏感测试数据。 */
+    /**
+     * 固定业务时钟；时间为 2026-09-17 16:30:45.123（Asia/Shanghai）；非敏感测试数据。
+     */
     private static final Clock FIXED_CLOCK = Clock.fixed(
             Instant.parse("2026-09-17T08:30:45.123Z"),
             ZoneId.of("Asia/Shanghai")
@@ -40,7 +36,9 @@ class MerchantIdAllocationServiceTest {
     @Mock
     private MerchantIdSequenceMapper sequenceMapper;
 
-    /** 验证六位商户号由两位年份和四位年度流水组成。 */
+    /**
+     * 验证六位商户号由两位年份和四位年度流水组成。
+     */
     @Test
     void shouldAllocateSixDigitMerchantId() {
         log.info("测试六位商户号分配，关键输入: businessYear=26, currentSequence=47");
@@ -56,7 +54,9 @@ class MerchantIdAllocationServiceTest {
         log.info("六位商户号分配完成，结果: merchantId={}", merchantId);
     }
 
-    /** 验证四位年度流水达到上限后拒绝继续分配，避免编号扩展为七位。 */
+    /**
+     * 验证四位年度流水达到上限后拒绝继续分配，避免编号扩展为七位。
+     */
     @Test
     void shouldRejectExhaustedAnnualSequence() {
         log.info("测试商户号年度容量保护，关键输入: currentSequence=9999");
@@ -69,7 +69,9 @@ class MerchantIdAllocationServiceTest {
         log.info("商户号年度容量保护完成，结果: 已拒绝超限分配");
     }
 
-    /** 验证数据库递增未命中预期版本时立即失败，禁止返回未实际占用的商户号。 */
+    /**
+     * 验证数据库递增未命中预期版本时立即失败，禁止返回未实际占用的商户号。
+     */
     @Test
     void shouldRejectSequenceCasFailure() {
         log.info("测试商户号序列并发保护，关键输入: expectedVersion=5");

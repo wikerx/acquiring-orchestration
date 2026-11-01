@@ -10,19 +10,22 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OriginalTransactionRouteResolver
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Restores the immutable channel identity selected by the original transaction.
- * @status : create
+ * 后续资金动作的原交易渠道身份恢复器。
+ *
+ * <p>退款、请款、撤销和增额授权必须沿用原交易渠道与 MID。优先使用创建时冻结的完整路由快照；
+ * 快照存在但损坏或与动作事实冲突时直接拒绝，禁止重新路由到当前配置造成跨渠道资金动作。</p>
  */
 final class OriginalTransactionRouteResolver {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private OriginalTransactionRouteResolver() {
     }
 
+    /**
+     * 从原交易冻结身份恢复渠道路由。
+     */
     static PaymentRouteResultDTO restore(PaymentChannelRouteService routeService,
                                          TransactionOrderDO sourceOrder,
                                          TransactionOperationDO sourceOperation) {
@@ -31,8 +34,10 @@ final class OriginalTransactionRouteResolver {
             throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
         }
         if (hasFrozenRoute(sourceOperation)) {
+            // 完整冻结快照已经包含调用元数据，直接复用，避免读取已轮换的当前 MID 配置。
             return snapshot;
         }
+        // 仅兼容没有完整历史快照的旧交易，按已保存的渠道/MID 身份恢复当前调用元数据。
         return routeService.restore(
                 snapshot.getChannelCode(),
                 snapshot.getChannelId(),
@@ -40,12 +45,16 @@ final class OriginalTransactionRouteResolver {
                 snapshot.getMidNo());
     }
 
+    /**
+     * 构建原交易渠道路由快照。
+     */
     static PaymentRouteResultDTO snapshot(TransactionOrderDO sourceOrder,
                                           TransactionOperationDO sourceOperation) {
         PaymentRouteResultDTO frozenSnapshot = parseFrozenRoute(sourceOperation);
         if (frozenSnapshot != null) {
             return frozenSnapshot;
         }
+        // 旧数据按动作优先、主单兜底恢复最小路由身份，不执行任何新路由选择。
         String channelCode = firstText(
                 sourceOperation == null ? null : sourceOperation.getChannelCode(),
                 sourceOrder == null ? null : sourceOrder.getChannelCode());
@@ -104,10 +113,16 @@ final class OriginalTransactionRouteResolver {
         return snapshot;
     }
 
+    /**
+     * 判断后续动作是否已冻结原渠道路由。
+     */
     private static boolean hasFrozenRoute(TransactionOperationDO sourceOperation) {
         return sourceOperation != null && StringUtils.hasText(sourceOperation.getChannelRouteSnapshotJson());
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private static String firstText(String... values) {
         if (values == null) {
             return null;

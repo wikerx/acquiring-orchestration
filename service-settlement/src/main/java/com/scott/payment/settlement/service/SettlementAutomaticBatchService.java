@@ -3,13 +3,7 @@ package com.scott.payment.settlement.service;
 import java.time.Instant;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAutomaticBatchService
- * @date : 2026-08-26 22:10
- * @email : scott_x@163.com
- * @description : 自动日批用例边界，按档案时区和日切幂等建批后委托数据库批量认领，不处理汇率或余额。
- * @status : create
+ * 自动日批用例边界，按档案时区和日切幂等建批后委托数据库批量认领，不处理汇率或余额。
  */
 public interface SettlementAutomaticBatchService {
 

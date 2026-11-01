@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
@@ -35,13 +35,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoCountryQueryTests
- * @date : 2026-09-30 00:00
- * @email : scott_x@163.com
- * @description : 验证国家查询的三代码契约与查询路由，隔离外部密钥、Redis 和数据库。
- * @status : create
+ * 验证国家查询的三代码契约与查询路由，隔离外部密钥、Redis 和数据库。
  */
 @Slf4j
 class OpenApiIsoCountryQueryTests {
@@ -175,7 +169,7 @@ class OpenApiIsoCountryQueryTests {
         assertThatThrownBy(() -> query(json))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.PARAM_INVALID.getCode());
     }
 
     private List<IsoCountryVO> query(String json) {

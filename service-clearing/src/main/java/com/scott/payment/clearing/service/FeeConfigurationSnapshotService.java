@@ -5,13 +5,7 @@ import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeVer
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConfigurationSnapshotService
- * @date : 2026-08-26 09:55
- * @email : scott_x@163.com
- * @description : 清分事务外费用快照加载边界，优先动作冻结 JSON，按确切版本 Redis、Slave、Master 降级并校验 SHA-256。
- * @status : create
+ * 清分事务外费用快照加载边界，优先动作冻结 JSON，按确切版本 Redis、Slave、Master 降级并校验 SHA-256。
  */
 public interface FeeConfigurationSnapshotService {
 

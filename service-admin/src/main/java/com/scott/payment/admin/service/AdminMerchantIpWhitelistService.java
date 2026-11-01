@@ -1,6 +1,5 @@
 package com.scott.payment.admin.service;
 
-import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistQuery;
@@ -12,13 +11,7 @@ import com.scott.payment.component.core.model.PageResult;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistService
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单领域服务，位于 service-admin 服务层，负责精确 IP 配置、启停和商户维度白名单开关。
- * @status : create
+ * 商户 OpenAPI IP 白名单领域服务，位于 service-admin 服务层，负责精确 IP 配置、审核和启停。
  */
 public interface AdminMerchantIpWhitelistService {
 
@@ -106,11 +99,4 @@ public interface AdminMerchantIpWhitelistService {
      */
     void deleteWhitelist(Long id);
 
-    /**
-     * 更新商户维度 IP 白名单校验开关。
-     *
-     * @param request 开关请求
-     * @return 商户当前任一白名单记录视图；没有 IP 记录时返回仅含商户与开关信息的视图
-     */
-    MerchantIpWhitelistResponse updateConfig(MerchantIpWhitelistConfigRequest request);
 }

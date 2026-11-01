@@ -27,57 +27,15 @@ import java.time.ZoneId;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSecurityInterceptEventServiceImpl
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : admin安全interceptevent服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理端安全拦截事件服务实现，用于运营后台，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInterceptEventService {
 
-    /**
-     * {@code PROCESS_UNHANDLED}常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int PROCESS_UNHANDLED = 0;
-    /**
-     * {@code PROCESS_HANDLED}常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int PROCESS_HANDLED = 1;
-    /**
-     * {@code PROCESS_IGNORED}常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int PROCESS_IGNORED = 2;
-    /**
-     * {@code EXPORT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int EXPORT_LIMIT = 10000;
-    /**
-     * 默认查询时间时区常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
 
     private final SecurityInterceptEventMapper eventMapper;
@@ -229,6 +187,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         );
     }
 
+    /**
+     * 解析查询使用的 IANA 时区，未指定时使用管理端默认时区。
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : DEFAULT_QUERY_TIME_ZONE;
         try {
@@ -238,6 +199,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         }
     }
 
+    /**
+     * 规范化并校验时区标识。
+     */
     private String normalizeZoneId(String zone) {
         if (!StringUtils.hasText(zone)) {
             return DEFAULT_QUERY_TIME_ZONE;
@@ -262,6 +226,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return normalized;
     }
 
+    /**
+     * 在保持同一时间点的前提下换算源时区和目标时区的本地时间。
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         if (sourceTime == null) {
             return null;
@@ -269,6 +236,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return sourceTime.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
+    /**
+     * 校验并获取事件。
+     */
     private SecurityInterceptEventDO requireEvent(Long id) {
         if (id == null) {
             throw badRequest("安全拦截事件不存在");
@@ -280,6 +250,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return row;
     }
 
+    /**
+     * 将安全拦截持久化记录转换为管理端响应。
+     */
     private SecurityInterceptEventResponse toResponse(SecurityInterceptEventDO row) {
         SecurityInterceptEventResponse response = new SecurityInterceptEventResponse();
         response.setId(row.getId());
@@ -310,6 +283,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return response;
     }
 
+    /**
+     * 规范化查询处理状态。
+     */
     private int normalizeQueryProcessStatus(Integer status) {
         if (status == null) {
             return PROCESS_UNHANDLED;
@@ -320,6 +296,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return PROCESS_UNHANDLED;
     }
 
+    /**
+     * 规范化处理状态。
+     */
     private int normalizeProcessStatus(Integer status) {
         if (status == null || (status != PROCESS_HANDLED && status != PROCESS_IGNORED)) {
             throw badRequest("处理状态只允许已处理或忽略");
@@ -327,6 +306,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return status;
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -341,14 +323,23 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return "admin";
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 构建参数校验失败异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
+    /**
+     * 封装规范化后的查询开始和结束时间。
+     */
     private record QueryTimeRange(LocalDateTime beginTime, LocalDateTime endTime) {
     }
 }

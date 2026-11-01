@@ -1,5 +1,6 @@
 package com.scott.payment.data.service.impl;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
@@ -14,11 +15,13 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,18 +40,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantNotificationDeliveryServiceTests
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知投递测试，覆盖成功、失败重试、过期任务恢复和状态冲突
- * @status : create
+ * service-data 商户通知投递测试，覆盖成功、失败重试、过期任务恢复和状态冲突
  */
 @Slf4j
 class DefaultMerchantNotificationDeliveryServiceTests {
 
-    /** 通知链路必须用逻辑表完成季度扫描、CAS 和日志写入。 */
+    /**
+     * 通知链路必须用逻辑表完成季度扫描、CAS 和日志写入。
+     */
     @Test
     void shouldUseLogicalMapperForSuccessfulNotification() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -77,7 +76,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(logCaptor.getValue().getTransactionDateTime()).isEqualTo(transactionDateTime);
     }
 
-    /** 自动 MQ 重试必须继续使用普通请求工厂，保持 notifyId、Header 和 Body 协议不变。 */
+    /**
+     * 自动 MQ 重试必须继续使用普通请求工厂，保持 notifyId、Header 和 Body 协议不变。
+     */
     @Test
     void retryDueShouldUseExistingAutomaticCallbackContract() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -97,7 +98,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 any(DataMerchantNotificationTaskDO.class), anyInt(), anyString());
     }
 
-    /** 自动回调的协议事件号只用于 Header，不得占用人工重发的数据库幂等键。 */
+    /**
+     * 自动回调的协议事件号只用于 Header，不得占用人工重发的数据库幂等键。
+     */
     @Test
     void automaticAttemptShouldNotPersistProtocolEventIdAsManualIdempotencyKey() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -115,7 +118,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(logCaptor.getValue().getDeliveryMode()).isEqualTo("AUTO");
     }
 
-    /** 失败重试 CAS 必须携带任务交易分片时间。 */
+    /**
+     * 失败重试 CAS 必须携带任务交易分片时间。
+     */
     @Test
     void shouldUseLogicalFailureCas() {
         Fixture fixture = fixture(HttpStatus.INTERNAL_SERVER_ERROR, "{\"result\":\"failed\"}");
@@ -137,7 +142,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 any());
     }
 
-    /** MQ 精确通知必须用消息恢复的分片时间查询并推进同一季度任务。 */
+    /**
+     * MQ 精确通知必须用消息恢复的分片时间查询并推进同一季度任务。
+     */
     @Test
     void shouldUseExactTransactionTimeForLogicalSingleNotification() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -158,7 +165,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .selectStaleProcessing(any(), any(), any(), anyInt());
     }
 
-    /** 后台人工重发不受自动五次上限限制，并把 MQ 消息号固定为回调协议事件 ID。 */
+    /**
+     * 后台人工重发不受自动五次上限限制，并把 MQ 消息号固定为回调协议事件 ID。
+     */
     @Test
     void shouldManuallyRetryBeyondAutomaticAttemptLimitWithStableEventId() {
         log.info("测试后台人工重发终态通知，关键输入: 已超过自动五次上限的任务和稳定 MQ 事件号");
@@ -194,7 +203,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("后台人工重发终态通知测试完成，结果: 自动次数上限未阻断人工 MQ 指令");
     }
 
-    /** 人工回调失败只关闭本次状态，不得生成自动重试 Outbox。 */
+    /**
+     * 人工回调失败只关闭本次状态，不得生成自动重试 Outbox。
+     */
     @Test
     void shouldCloseFailedManualAttemptWithoutAutomaticRetryOutbox() {
         log.info("测试后台人工回调失败，关键输入: HTTP 500 且自动五次计划已经结束");
@@ -231,7 +242,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("后台人工回调失败测试完成，结果: 本次状态关闭且未生成自动重试事件");
     }
 
-    /** 人工重发抢占冲突必须上抛，让 RocketMQ 重投该事件而不是静默确认。 */
+    /**
+     * 人工重发抢占冲突必须上抛，让 RocketMQ 重投该事件而不是静默确认。
+     */
     @Test
     void shouldRequestMqRedeliveryWhenManualRetryClaimConflicts() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -252,7 +265,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verifyNoInteractions(fixture.requestFactory());
     }
 
-    /** 已完成提交的人工 MQ 事件重复消费时必须复用原结果，不得再次请求商户。 */
+    /**
+     * 已完成提交的人工 MQ 事件重复消费时必须复用原结果，不得再次请求商户。
+     */
     @Test
     void shouldReturnCommittedManualOutcomeWithoutDuplicateHttpDelivery() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -272,7 +287,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verifyNoInteractions(fixture.requestFactory());
     }
 
-    /** 人工事件尚未提交且任务仍在执行时必须上抛，使原 MQ 消息继续重投。 */
+    /**
+     * 人工事件尚未提交且任务仍在执行时必须上抛，使原 MQ 消息继续重投。
+     */
     @Test
     void shouldRequestMqRedeliveryWhileManualAttemptIsStillProcessing() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -295,7 +312,34 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verifyNoInteractions(fixture.requestFactory());
     }
 
-    /** 重复 MQ 在首笔成功后不得再次抢占任务或发起商户 HTTP 回调。 */
+    /**
+     * 管理端校验后任务变为非人工可执行状态时必须让 MQ 重投，不能在没有数据库结果时确认命令。
+     */
+    @Test
+    void shouldRequestMqRedeliveryWhenManualTaskBecomesIneligible() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        DataMerchantNotificationTaskDO current = new DataMerchantNotificationTaskDO();
+        current.setNotifyStatus("FAILED");
+        when(fixture.notificationMapper().selectRetryableByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime)).thenReturn(null);
+        when(fixture.notificationMapper().selectCurrentStateByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime)).thenReturn(current);
+
+        assertThatThrownBy(() -> fixture.service().retryTransaction(
+                transactionDateTime,
+                fixture.task().getTransactionId(),
+                "MNR-20260804-INELIGIBLE"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("merchant notification manual retry task is no longer eligible");
+
+        assertThat(fixture.restTemplate().postCount).isZero();
+        verifyNoInteractions(fixture.requestFactory());
+    }
+
+    /**
+     * 重复 MQ 在首笔成功后不得再次抢占任务或发起商户 HTTP 回调。
+     */
     @Test
     void shouldAbsorbDuplicateMessageAfterNotificationSucceeds() {
         log.info("测试商户通知重复 MQ，关键输入: 同一交易连续消费两次");
@@ -321,7 +365,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知重复 MQ 测试完成，结果: 第二次消费未抢占且未发 HTTP");
     }
 
-    /** 逻辑 SUCCESS CAS 冲突必须上抛，禁止把重复或异常消费确认成功。 */
+    /**
+     * 逻辑 SUCCESS CAS 冲突必须上抛，禁止把重复或异常消费确认成功。
+     */
     @Test
     void shouldFailWhenLogicalSuccessStateCompareAndSetMisses() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -331,7 +377,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .hasMessage("merchant notification state transition conflict");
     }
 
-    /** 数据库任务缺失分片时间时必须在任何状态 Update 之前失败。 */
+    /**
+     * 数据库任务缺失分片时间时必须在任何状态 Update 之前失败。
+     */
     @Test
     void shouldRejectTaskWithoutTransactionTimeBeforeAnyStateUpdate() {
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
@@ -344,7 +392,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verifyNoInteractions(fixture.logMapper());
     }
 
-    /** HTTP 200 且返回 succeed 时应写尝试日志并将任务推进为 SUCCESS。 */
+    /**
+     * HTTP 200 且返回 succeed 时应写尝试日志并将任务推进为 SUCCESS。
+     */
     @Test
     void shouldPersistLogAndMarkSuccessWhenCallbackReturns2xx() {
         log.info("测试商户通知成功，关键输入: HTTP 200、任务版本 0");
@@ -365,7 +415,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知成功测试完成，结果: SUCCESS 状态和脱敏日志均已写入");
     }
 
-    /** HTTP 非 2xx 时应写失败日志并安排下一次重试。 */
+    /**
+     * HTTP 非 2xx 时应写失败日志并安排下一次重试。
+     */
     @Test
     void shouldScheduleRetryWhenCallbackReturnsNon2xx() {
         log.info("测试商户通知失败重试，关键输入: HTTP 500、最大重试 3 次");
@@ -383,7 +435,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知失败测试完成，结果: 任务进入 FAILED 并生成下次重试时间");
     }
 
-    /** HTTP 错误响应仍须保留已签发的事件号和脱敏请求体，保证失败投递可审计。 */
+    /**
+     * HTTP 错误响应仍须保留已签发的事件号和脱敏请求体，保证失败投递可审计。
+     */
     @Test
     void shouldPersistCallbackAuditContextWhenHttpRequestFails() {
         Fixture fixture = fixture(HttpServerErrorException.create(
@@ -406,7 +460,55 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(logCaptor.getValue().getHttpStatus()).isEqualTo(500);
     }
 
-    /** 商户任意失败响应不得以明文进入通知日志，只保留长度和不可逆摘要。 */
+    /**
+     * 确定的 HTTP 400 协议拒绝必须立即关闭自动计划，避免重复发送同一错误请求。
+     */
+    @Test
+    void shouldCloseAutomaticPlanForNonTransientClientError() {
+        Fixture fixture = fixture(HttpClientErrorException.create(
+                HttpStatus.BAD_REQUEST,
+                "invalid callback request",
+                HttpHeaders.EMPTY,
+                new byte[0],
+                null));
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("CLOSED"), eq(null), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10)).isZero();
+
+        verify(fixture.notificationMapper()).markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("CLOSED"), eq(null), eq("merchant callback http status 400"), any());
+        verify(fixture.outboxMapper(), never()).insert(any());
+    }
+
+    /**
+     * HTTP 429 表示商户端限流，必须保留自动重试并写入下一次到期 Outbox。
+     */
+    @Test
+    void shouldRetryAutomaticPlanForRateLimitResponse() {
+        Fixture fixture = fixture(HttpClientErrorException.create(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "rate limited",
+                HttpHeaders.EMPTY,
+                new byte[0],
+                null));
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10)).isZero();
+
+        verify(fixture.notificationMapper()).markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), eq("merchant callback http status 429"), any());
+        verify(fixture.outboxMapper()).insert(any());
+    }
+
+    /**
+     * 商户任意失败响应不得以明文进入通知日志，只保留长度和不可逆摘要。
+     */
     @Test
     void shouldPersistOnlyDigestForUntrustedCallbackResponse() {
         Fixture fixture = fixture(HttpStatus.OK, "secretKey=must-not-be-persisted");
@@ -425,7 +527,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .doesNotContain("must-not-be-persisted");
     }
 
-    /** 网络异常发生在请求构造后时，也必须保留回调事件审计上下文。 */
+    /**
+     * 网络异常发生在请求构造后时，也必须保留回调事件审计上下文。
+     */
     @Test
     void shouldPersistCallbackAuditContextWhenTransportFails() {
         Fixture fixture = fixture(new ResourceAccessException("simulated timeout"));
@@ -443,7 +547,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(logCaptor.getValue().getHttpStatus()).isNull();
     }
 
-    /** 其它 2xx 也不能确认成功，避免商户网关吞掉正文或返回异步受理。 */
+    /**
+     * 其它 2xx 也不能确认成功，避免商户网关吞掉正文或返回异步受理。
+     */
     @Test
     void shouldRetryWhenCallbackReturns204() {
         Fixture fixture = fixture(HttpStatus.NO_CONTENT, "succeed");
@@ -457,7 +563,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 eq("merchant callback http status 204"), any());
     }
 
-    /** HTTP 200 但确认词不是 succeed 时必须重试。 */
+    /**
+     * HTTP 200 但确认词不是 succeed 时必须重试。
+     */
     @Test
     void shouldRetryWhenCallbackAcknowledgementDoesNotMatch() {
         Fixture fixture = fixture(HttpStatus.OK, "{\"result\":\"ok\"}");
@@ -471,7 +579,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 eq("merchant callback acknowledgement must be succeed"), any());
     }
 
-    /** 每次扫描前应恢复超过执行窗口的 PROCESSING 任务。 */
+    /**
+     * 每次扫描前应恢复超过执行窗口的 PROCESSING 任务。
+     */
     @Test
     void shouldRecoverStaleProcessingBeforeDueScan() {
         log.info("测试商户通知中断恢复，关键输入: 两条超时 PROCESSING 任务");
@@ -499,7 +609,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知中断恢复测试完成，结果: 超时任务已在查询前恢复");
     }
 
-    /** HTTP 成功后状态 CAS 未更新时必须上抛，禁止错误确认 MQ。 */
+    /**
+     * HTTP 成功后状态 CAS 未更新时必须上抛，禁止错误确认 MQ。
+     */
     @Test
     void shouldFailWhenSuccessStateCompareAndSetMisses() {
         log.info("测试商户通知状态冲突，关键输入: HTTP 200、SUCCESS CAS 影响 0 行");
@@ -513,7 +625,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知状态冲突测试完成，结果: 异常上抛并保留补偿机会");
     }
 
-    /** 自动回调失败后的等待时长必须严格遵循 1、5、10、30 分钟四档协议。 */
+    /**
+     * 自动回调失败后的等待时长必须严格遵循 1、5、10、30 分钟四档协议。
+     */
     @Test
     void shouldUseFixedRetryDelayPlan() {
         assertThat(DefaultMerchantNotificationDeliveryService.retryDelayAfterAttempt(1))
@@ -528,7 +642,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    /** 第五次失败必须关闭任务，且不得再写第六次自动重试 Outbox。 */
+    /**
+     * 第五次失败必须关闭任务，且不得再写第六次自动重试 Outbox。
+     */
     @Test
     void shouldCloseAfterFifthFailureWithoutAnotherRetryEvent() {
         Fixture fixture = fixture(HttpStatus.INTERNAL_SERVER_ERROR, "failed");
@@ -554,7 +670,57 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verify(fixture.outboxMapper(), never()).insert(any());
     }
 
-    /** 通知日志 ID 必须由业务尝试身份稳定生成，避免进程重启后本地序列与历史记录碰撞。 */
+    /**
+     * 安全策略拒绝属于永久配置错误，必须立即关闭任务且不得发起 HTTP 或安排重试。
+     */
+    @Test
+    void shouldClosePermanentlyRejectedCallbackTargetWithoutHttpOrRetry() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        DataMerchantNotificationTaskDO task = fixture.task();
+        org.mockito.Mockito.doThrow(new MerchantCallbackTargetRejectedException())
+                .when(fixture.targetValidator()).validate(task.getCallbackUrl());
+        when(fixture.notificationMapper().markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any()))
+                .thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(task.getTransactionDateTime(), 10)).isZero();
+
+        assertThat(fixture.restTemplate().postCount).isZero();
+        verify(fixture.notificationMapper()).markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any());
+        verify(fixture.outboxMapper(), never()).insert(any());
+        verifyNoInteractions(fixture.requestFactory());
+    }
+
+    /**
+     * 实际建连阶段的 DNS 策略拒绝即使被 RestTemplate 包装，也必须永久关闭且不得安排重试。
+     */
+    @Test
+    void shouldCloseWrappedDnsTargetRejectionWithoutRetry() {
+        ResourceAccessException wrapped = new ResourceAccessException(
+                "I/O error",
+                new IOException("DNS policy rejected", new MerchantCallbackTargetRejectedException()));
+        Fixture fixture = fixture(wrapped);
+        DataMerchantNotificationTaskDO task = fixture.task();
+        when(fixture.notificationMapper().markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any()))
+                .thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(task.getTransactionDateTime(), 10)).isZero();
+
+        assertThat(fixture.restTemplate().postCount).isEqualTo(1);
+        verify(fixture.notificationMapper()).markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any());
+        verify(fixture.outboxMapper(), never()).insert(any());
+    }
+
+    /**
+     * 通知日志 ID 必须由业务尝试身份稳定生成，避免进程重启后本地序列与历史记录碰撞。
+     */
     @Test
     void shouldGenerateStableCollisionResistantNotificationLogId() {
         String automatic = DefaultMerchantNotificationDeliveryService.notificationLogId(
@@ -574,17 +740,23 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(manual).isNotEqualTo(automatic);
     }
 
-    /** 创建商户通知服务测试夹具。 */
+    /**
+     * 创建商户通知服务测试夹具。
+     */
     private Fixture fixture(HttpStatus status, String body) {
         return fixture(new StubRestTemplate(status, body));
     }
 
-    /** 创建会在 HTTP 边界抛出指定异常的商户通知服务测试夹具。 */
+    /**
+     * 创建会在 HTTP 边界抛出指定异常的商户通知服务测试夹具。
+     */
     private Fixture fixture(RestClientException exception) {
         return fixture(new StubRestTemplate(exception));
     }
 
-    /** 使用指定 HTTP 客户端创建商户通知服务测试夹具。 */
+    /**
+     * 使用指定 HTTP 客户端创建商户通知服务测试夹具。
+     */
     private Fixture fixture(StubRestTemplate restTemplate) {
         DataMerchantNotificationMapper notificationMapper = mock(DataMerchantNotificationMapper.class);
         DataMerchantNotificationLogMapper logMapper = mock(DataMerchantNotificationLogMapper.class);
@@ -608,16 +780,18 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                         "EVENT-1", headers, "{\"data\":\"encrypted\"}", "{\"data\":\"***\"}"));
         DefaultMerchantNotificationDeliveryService service = new DefaultMerchantNotificationDeliveryService(
                 notificationMapper,
-                restTemplate,
+                new MerchantCallbackHttpExecutor(restTemplate, requestFactory, targetValidator),
                 properties,
-                requestFactory,
-                targetValidator,
                 new MerchantNotificationAttemptCommitService(
                         notificationMapper, logMapper, outboxMapper));
-        return new Fixture(service, notificationMapper, logMapper, outboxMapper, task, restTemplate, requestFactory);
+        return new Fixture(
+                service, notificationMapper, logMapper, outboxMapper,
+                task, restTemplate, requestFactory, targetValidator);
     }
 
-    /** 构造不含卡数据和密钥的通知任务。 */
+    /**
+     * 构造不含卡数据和密钥的通知任务。
+     */
     private DataMerchantNotificationTaskDO task() {
         DataMerchantNotificationTaskDO task = new DataMerchantNotificationTaskDO();
         task.setId(1L);
@@ -638,7 +812,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         return task;
     }
 
-    /** 构造只包含恢复 CAS 所需字段的超时任务候选。 */
+    /**
+     * 构造只包含恢复 CAS 所需字段的超时任务候选。
+     */
     private DataMerchantNotificationTaskDO recoveryCandidate(Long id,
                                                              Integer version,
                                                              LocalDateTime transactionDateTime) {
@@ -649,37 +825,61 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         return task;
     }
 
-    /** 商户通知服务测试依赖集合。 */
+    /**
+     * 商户通知服务测试依赖集合。
+     */
     private record Fixture(DefaultMerchantNotificationDeliveryService service,
                            DataMerchantNotificationMapper notificationMapper,
                            DataMerchantNotificationLogMapper logMapper,
                            DataMerchantNotificationRetryOutboxMapper outboxMapper,
                            DataMerchantNotificationTaskDO task,
                            StubRestTemplate restTemplate,
-                           MerchantCallbackRequestFactory requestFactory) {
+                           MerchantCallbackRequestFactory requestFactory,
+                           MerchantCallbackTargetValidator targetValidator) {
     }
 
-    /** 返回预设 HTTP 状态和响应体，并校验实际回调地址没有被脱敏值替换。 */
+    /**
+     * 返回预设 HTTP 状态和响应体，并校验实际回调地址没有被脱敏值替换。
+     */
     private static class StubRestTemplate extends RestTemplate {
 
-        /** 预设 HTTP 状态。 */
+        /**
+         * 预设 HTTP 状态。
+         */
         private final HttpStatus status;
 
-        /** 预设商户响应体。 */
+        /**
+         * 预设商户响应体。
+         */
         private final String body;
 
-        /** 需要模拟的 HTTP 边界异常；正常响应时为空。 */
+        /**
+         * 需要模拟的 HTTP 边界异常；正常响应时为空。
+         */
         private final RestClientException exception;
 
-        /** 实际发起商户 HTTP 回调的次数。 */
+        /**
+         * 实际发起商户 HTTP 回调的次数。
+         */
         private int postCount;
 
+        /**
+         * 创建返回固定 HTTP 状态和正文的测试客户端。
+         *
+         * @param status 预设 HTTP 状态
+         * @param body 预设响应正文
+         */
         private StubRestTemplate(HttpStatus status, String body) {
             this.status = status;
             this.body = body;
             this.exception = null;
         }
 
+        /**
+         * 创建在发送边界抛出固定异常的测试客户端。
+         *
+         * @param exception 预设 HTTP 客户端异常
+         */
         private StubRestTemplate(RestClientException exception) {
             this.status = null;
             this.body = null;

@@ -12,13 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionEventOutboxMapper
- * @date : 2026-07-12 18:20
- * @email : scott_x@163.com
- * @description : 交易本地消息 Mapper，位于 service-payment 数据访问层，仅负责 transaction_event_outbox 表访问。
- * @status : create
+ * 交易本地消息 Mapper，位于 service-payment 数据访问层，仅负责 transaction_event_outbox 表访问。
  */
 public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEventOutboxDO> {
 
@@ -258,7 +252,9 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
                                   @Param("eventType") String eventType,
                                   @Param("now") LocalDateTime now);
 
-    /** 查询单季度交易 Outbox 的低基数运维指标快照。 */
+    /**
+     * 查询单季度交易 Outbox 的低基数运维指标快照。
+     */
     @Select("""
             SELECT
               COALESCE(SUM(CASE WHEN event_status = 'INIT' THEN 1 ELSE 0 END), 0) AS init_count,
@@ -276,7 +272,9 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
             @Param("beginTime") LocalDateTime beginTime,
             @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
-    /** 使用事件号、分片时间和版本 CAS 将 Outbox CLOSED 恢复为 FAILED 待重试。 */
+    /**
+     * 使用事件号、分片时间和版本 CAS 将 Outbox CLOSED 恢复为 FAILED 待重试。
+     */
     @Update("""
             UPDATE transaction_event_outbox
             SET event_status = 'FAILED',

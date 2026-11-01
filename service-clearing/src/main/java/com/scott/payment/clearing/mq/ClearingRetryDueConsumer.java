@@ -24,13 +24,10 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingRetryDueConsumer
- * @date : 2026-08-26 16:40
- * @email : scott_x@163.com
- * @description : 并发消费清分Delay Topic到期消息，保留修订和重试序号做数据库过期校验，不把Broker消息视为财务权威事实。
- * @status : create
+ * 清分到期重试消费者。
+ *
+ * <p>Delay Topic 可以并发投递，但是否执行由数据库中的当前修订、重试序号和租约共同决定。过期消息只做
+ * 幂等确认，不能覆盖已完成状态；未知技术异常继续抛给 RocketMQ 重试。</p>
  */
 @Slf4j
 @Component
@@ -79,7 +76,7 @@ public class ClearingRetryDueConsumer
         try {
             ClearingProcessingResult result = applicationService.process(
                     message, processingOwner(), LocalDateTime.now(Clock.systemUTC()));
-            log.info("event: TRANSACTION_CLEARING_RETRY_DUE_CONSUMED traceId: {} messageId: {} sourceEventNo: {} transactionId: {} operationId: {} clearingRetryCount: {} retryReasonCode: {} result: {}",
+            log.info("清分到期重试消息处理完成, event: TRANSACTION_CLEARING_RETRY_DUE_CONSUMED, traceId: {}, messageId: {}, sourceEventNo: {}, transactionId: {}, operationId: {}, clearingRetryCount: {}, retryReasonCode: {}, result: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getSourceEventNo(),
                     message.getTransactionId(), message.getOperationId(), message.getClearingRetryCount(),
                     message.getRetryReasonCode(), result);
@@ -125,7 +122,11 @@ public class ClearingRetryDueConsumer
         return message;
     }
 
-    /** @return 本次数据库处理租约的唯一执行者标识。 */
+    /**
+     * 为本次消息生成唯一处理租约持有者标识。
+     *
+     * @return 本次数据库处理租约的唯一执行者标识。
+     */
     private String processingOwner() {
         return "service-clearing:" + idGenerator.nextId();
     }

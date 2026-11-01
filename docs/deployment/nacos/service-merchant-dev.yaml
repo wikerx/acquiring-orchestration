@@ -1,5 +1,8 @@
 # service-merchant 专属配置：商户后台服务个性化参数。
 acquiring:
+  gateway-ingress:
+    # 与 service-gateway 共享环境专属入口签名密钥；UAT/生产必须开启门户路径保护。
+    secret: ${acquiring.internal-auth.edges.gateway-checkout.active-secret}
   openapi:
     merchant-key-export:
       # 参数说明：声明对外提供的 OpenAPI SDK 版本，仅用于下载/展示时必须与发布产物一致。
@@ -8,6 +11,13 @@ acquiring:
       # 参数说明：声明 OpenAPI SDK 使用的签名与加密套件，仅可选择双方已实现并完成安全评审的模式。
       # 环境说明：环境变量：OPENAPI_CRYPTO_MODE，dev 配置默认值为 "JWT + RSA-OAEP-256 + A256GCM"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
+
+payment:
+  mfa:
+    # dev 也必须由 Secret 管理系统提供至少 32 字节的稳定环境专属值，禁止公开固定兜底。
+    secret: ${PAYMENT_MFA_SECRET:}
+    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}
+    allow-ephemeral-test-secret: false
 
 merchant:
   payment-client:

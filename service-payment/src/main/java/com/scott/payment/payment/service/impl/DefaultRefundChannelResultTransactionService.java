@@ -5,6 +5,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.RefundChannelResultTransactionService;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
@@ -15,13 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRefundChannelResultTransactionService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Refund 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进退款动作。
- * @status : create
+ * 退款渠道结果的独立事务服务。
+ *
+ * <p>退款结果只落到已准备且可定位的退款动作。累计退款金额仅由状态 CAS 获胜的成功动作更新，
+ * 并与终态 Outbox 在同一事务提交，防止重复响应或并发回调造成重复退款记账。</p>
  */
 @Service
 public class DefaultRefundChannelResultTransactionService implements RefundChannelResultTransactionService {
@@ -57,20 +55,24 @@ public class DefaultRefundChannelResultTransactionService implements RefundChann
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void recordRefundChannelResult(RefundPreparationResultDTO preparationResultDTO,
-                                          PaymentChannelInvokeResultDTO invokeResultDTO) {
+    public boolean recordRefundChannelResult(RefundPreparationResultDTO preparationResultDTO,
+                                             PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (preparationResultDTO == null || preparationResultDTO.getResultDTO() == null) {
-            return;
+            return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
-        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+        // 重新读取主库动作与原交易主单，确保累计退款基于最新持久化事实。
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
-        if (operationDO == null) {
-            return;
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
+                resultDTO.getRootTransactionDateTime(), resultDTO.getOperationId());
+        if (operationDO == null || sourceOrderDO == null) {
+            return false;
         }
+        // 状态 CAS 与累计退款更新必须作为一个原子业务动作至多成功一次。
         boolean statusChanged = transactionRecordService.completeRefundChannelResult(
                 operationDO,
-                preparationResultDTO.getSourceOrderDO(),
+                sourceOrderDO,
                 preparationResultDTO.getCommandDTO(),
                 preparationResultDTO.getRouteResultDTO(),
                 invokeResultDTO,
@@ -79,9 +81,12 @@ public class DefaultRefundChannelResultTransactionService implements RefundChann
         if (statusChanged && isTerminal(resultDTO)) {
             saveStatusChanged(preparationResultDTO, resultDTO);
         }
+        return statusChanged;
     }
 
-    /** 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。 */
+    /**
+     * 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。
+     */
     private void saveStatusChanged(RefundPreparationResultDTO preparationResultDTO,
                                    PaymentCreateResultDTO resultDTO) {
         lifecycleEventService.saveStatusChanged(
@@ -94,7 +99,9 @@ public class DefaultRefundChannelResultTransactionService implements RefundChann
                 preparationResultDTO.getCommandDTO().getTransactionDateTime());
     }
 
-    /** 判断渠道映射结果是否已经进入不可逆成功或失败终态。 */
+    /**
+     * 判断渠道映射结果是否已经进入不可逆成功或失败终态。
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());

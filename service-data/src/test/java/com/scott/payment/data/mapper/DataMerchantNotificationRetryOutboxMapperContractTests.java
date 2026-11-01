@@ -8,16 +8,13 @@ import java.lang.reflect.Method;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationRetryOutboxMapperContractTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 校验自动重试 Outbox 写入固定逻辑表并携带交易分片字段。
- * @status : create
+ * 校验自动重试 Outbox 写入固定逻辑表并携带交易分片字段。
  */
 class DataMerchantNotificationRetryOutboxMapperContractTests {
 
+    /**
+     * 验证重试事件写入交易 Outbox 且完整携带分片时间。
+     */
     @Test
     void insertShouldUseTransactionOutboxWithShardTimeAndNoDynamicSql() throws NoSuchMethodException {
         Method method = DataMerchantNotificationRetryOutboxMapper.class.getMethod(

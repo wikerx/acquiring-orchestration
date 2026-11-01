@@ -18,23 +18,21 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFundAccountApplicationServiceTests
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 资金账户应用服务身份边界测试，禁止缺失认证上下文时执行资金操作。
- * @status : create
+ * 资金账户应用服务身份边界测试，禁止缺失认证上下文时执行资金操作。
  */
 class AdminFundAccountApplicationServiceTests {
 
-    /** 每个测试后清理线程认证上下文。 */
+    /**
+     * 每个测试后清理线程认证上下文。
+     */
     @AfterEach
     void clearAuthenticationContext() {
         InternalAuthContextHolder.clear();
     }
 
-    /** 缺少认证账号时必须拒绝创建充值，不能静默降级为 admin。 */
+    /**
+     * 缺少认证账号时必须拒绝创建充值，不能静默降级为 admin。
+     */
     @Test
     void shouldRejectRechargeWhenAuthenticationContextIsMissing() {
         AdminFundAccountService accountService = mock(AdminFundAccountService.class);
@@ -50,7 +48,9 @@ class AdminFundAccountApplicationServiceTests {
         verify(accountService, never()).createRecharge(any(), any(), any(), any());
     }
 
-    /** 缺少认证账号时必须拒绝创建账户扣减，不能产生匿名资金申请。 */
+    /**
+     * 缺少认证账号时必须拒绝创建账户扣减，不能产生匿名资金申请。
+     */
     @Test
     void shouldRejectDeductionWhenAuthenticationContextIsMissing() {
         AdminFundAccountService accountService = mock(AdminFundAccountService.class);

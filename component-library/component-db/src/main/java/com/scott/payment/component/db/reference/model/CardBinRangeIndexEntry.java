@@ -1,13 +1,7 @@
 package com.scott.payment.component.db.reference.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinRangeIndexEntry
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : Redis Card BIN 最长公共前缀字段中的数据库区间快照，按覆盖关系和最大主键还原 SQL 语义
- * @status : create
+ * Redis Card BIN 最长公共前缀字段中的数据库区间快照，按覆盖关系和最大主键还原 SQL 语义
  */
 public record CardBinRangeIndexEntry(Long id,
                                      long cardBinStart,

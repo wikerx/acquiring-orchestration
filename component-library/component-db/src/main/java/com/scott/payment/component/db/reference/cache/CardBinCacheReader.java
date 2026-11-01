@@ -8,21 +8,19 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinCacheReader
- * @date : 2026-09-30
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的 Card BIN 查询入口，优先读取数据库有界三位分片索引，故障时执行一次 SLAVE SQL
- * @status : update
+ * 支付与 OpenAPI 共用的 Card BIN 查询入口，优先读取数据库有界三位分片索引，故障时执行一次 SLAVE SQL
  */
 @Service
 public class CardBinCacheReader {
 
-    /** SLAVE 精确查询入口，仅在共享分片索引不可用时回源。 */
+    /**
+     * SLAVE 精确查询入口，仅在共享分片索引不可用时回源。
+     */
     private final ReferenceDataLookupService lookupService;
 
-    /** 数据库记录驱动的共享分片索引；未装配 Redis 组件时为空。 */
+    /**
+     * 数据库记录驱动的共享分片索引；未装配 Redis 组件时为空。
+     */
     private final Optional<CardBinRangeIndex> rangeIndex;
 
     /**

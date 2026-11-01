@@ -13,13 +13,7 @@ import java.util.HexFormat;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalServiceSignature
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 内部服务 HMAC-SHA256 签名工具，统一构造签名文本并提供常量时间验签能力。
- * @status : create
+ * 内部服务 HMAC-SHA256 签名工具，统一构造签名文本并提供常量时间验签能力。
  */
 public final class InternalServiceSignature {
 
@@ -43,23 +37,14 @@ public final class InternalServiceSignature {
      */
     public static final String HEADER_SIGNATURE = "X-Internal-Signature";
 
-    /**
-     * {@code HMAC_SHA256}常量，统一 {@code InternalServiceSignature} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String HMAC_SHA256 = "HmacSHA256";
-    /**
-     * {@code LINE_SEPARATOR}常量，统一 {@code InternalServiceSignature} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String LINE_SEPARATOR = "\n";
 
+    /**
+     * 禁止实例化内部服务签名协议工具类。
+     */
     private InternalServiceSignature() {
     }
 
@@ -143,6 +128,13 @@ public final class InternalServiceSignature {
         return payloadSha256(payload == null ? new byte[0] : payload.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 使用共享密钥计算规范文本的 HMAC-SHA256 十六进制签名。
+     *
+     * @param canonicalText 已按协议拼装的规范文本
+     * @param secret 内部调用边共享密钥
+     * @return 小写十六进制签名
+     */
     private static String hmacSha256(String canonicalText, String secret) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA256);
@@ -179,6 +171,16 @@ public final class InternalServiceSignature {
         return Instant.now().toEpochMilli();
     }
 
+    /**
+     * 按固定换行协议拼装内部调用签名规范文本。
+     *
+     * @param method HTTP 方法
+     * @param path 原始请求目标
+     * @param timestamp 毫秒时间戳
+     * @param nonce 单次请求随机串
+     * @param caller 调用方服务身份
+     * @return 不含密钥的签名规范文本
+     */
     private static String canonicalText(String method, String path, long timestamp, String nonce, String caller) {
         return method.toUpperCase(Locale.ROOT)
                 + LINE_SEPARATOR + path

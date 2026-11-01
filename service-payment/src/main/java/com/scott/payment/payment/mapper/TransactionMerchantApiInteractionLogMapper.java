@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMerchantApiInteractionLogMapper
- * @date : 2026-07-15 23:22
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 交互日志 Mapper，位于 service-payment 数据访问层，仅访问 transaction_merchant_api_interaction_log 逻辑表。
- * @status : create
+ * 商户 OpenAPI 交互日志 Mapper，位于 service-payment 数据访问层，仅访问 transaction_merchant_api_interaction_log 逻辑表。
  */
 public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<TransactionMerchantApiInteractionLogDO> {
 

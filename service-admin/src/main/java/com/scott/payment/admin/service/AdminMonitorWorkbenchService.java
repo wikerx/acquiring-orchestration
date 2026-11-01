@@ -24,13 +24,7 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorRe
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorWorkbenchService
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 系统监控工作台服务契约，定义监控查询、能力声明和带乐观锁的告警人工处理边界。
- * @status : create
+ * 系统监控工作台服务契约，定义监控查询、能力声明和带乐观锁的告警人工处理边界。
  */
 public interface AdminMonitorWorkbenchService {
 

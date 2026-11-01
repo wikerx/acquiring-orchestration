@@ -39,19 +39,15 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorWorkbenchController
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 系统监控工作台 HTTP 入口，负责权限、请求校验和统一响应封装，不承载指标查询或告警状态流转规则。
- * @status : create
+ * 系统监控工作台 HTTP 入口，负责权限、请求校验和统一响应封装，不承载指标查询或告警状态流转规则。
  */
 @RestController
 @RequestMapping("/admin/monitor/workbench")
 public class AdminMonitorWorkbenchController {
 
-    /** 系统监控工作台用例编排服务。 */
+    /**
+     * 系统监控工作台用例编排服务。
+     */
     private final AdminMonitorWorkbenchApplicationService applicationService;
 
     /**

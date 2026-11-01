@@ -21,13 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementRateResolutionServiceTest
- * @date : 2026-08-26 22:40
- * @email : scott_x@163.com
- * @description : 验证批次汇率批量解析支持恒等、直接和反向报价，并拒绝为缺失跨币种汇率默认补 1。
- * @status : create
+ * 验证批次汇率批量解析支持恒等、直接和反向报价，并拒绝为缺失跨币种汇率默认补 1。
  */
 class DefaultSettlementRateResolutionServiceTest {
 
@@ -40,7 +34,9 @@ class DefaultSettlementRateResolutionServiceTest {
         service = new DefaultSettlementRateResolutionService(quoteMapper);
     }
 
-    /** 来源优先级相同时应优先直接报价，并同时生成目标币种恒等行。 */
+    /**
+     * 来源优先级相同时应优先直接报价，并同时生成目标币种恒等行。
+     */
     @Test
     void shouldPreferDirectQuoteWhenSourceRankingIsEquivalent() {
         LocalDateTime valuationTime = LocalDateTime.of(2026, 8, 26, 1, 0);
@@ -60,7 +56,9 @@ class DefaultSettlementRateResolutionServiceTest {
         assertThat(matrix.require("USD", "USD").rateSource()).isEqualTo("SYSTEM_IDENTITY");
     }
 
-    /** 缺少跨币种报价时必须中止，不能静默使用恒等汇率。 */
+    /**
+     * 缺少跨币种报价时必须中止，不能静默使用恒等汇率。
+     */
     @Test
     void shouldRejectMissingCrossCurrencyRate() {
         LocalDateTime valuationTime = LocalDateTime.of(2026, 8, 26, 1, 0);

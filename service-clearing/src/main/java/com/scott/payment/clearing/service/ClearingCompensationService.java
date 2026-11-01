@@ -6,13 +6,7 @@ import com.scott.payment.clearing.api.internal.dto.ClearingCompensationDTOs.Comp
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingCompensationService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分补偿批量扫描边界。
- * @status : update
+ * 清分补偿批量扫描边界。
  */
 public interface ClearingCompensationService {
 

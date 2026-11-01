@@ -14,34 +14,40 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuleCacheInvalidationCoordinator
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 将风控规则缓存失效意图绑定到当前数据库事务。
- * @status : create
+ * 将风控规则缓存失效意图绑定到当前数据库事务。
  */
 @Slf4j
 @Service
 public class RiskRuleCacheInvalidationCoordinator {
 
-    /** 现有风控规则 generation 机制使用的兼容命名空间。 */
+    /**
+     * 现有风控规则 generation 机制使用的兼容命名空间。
+     */
     static final String CACHE_NAMESPACE = "risk-runtime-rule";
 
-    /** 业务事务提交前 generation 发布门禁的最长有效期。 */
+    /**
+     * 业务事务提交前 generation 发布门禁的最长有效期。
+     */
     static final Duration PUBLICATION_GATE_TTL = Duration.ofMinutes(30);
 
-    /** 当前数据库事务绑定单个失效事件时使用的实例级资源键。 */
+    /**
+     * 当前数据库事务绑定单个失效事件时使用的实例级资源键。
+     */
     private final Object transactionResourceKey = new Object();
 
-    /** 申请、提交和回滚风控规则缓存 generation。 */
+    /**
+     * 申请、提交和回滚风控规则缓存 generation。
+     */
     private final RedisCacheGenerationStore generationStore;
 
-    /** 在业务事务内持久化 generation 发布 Outbox 意图。 */
+    /**
+     * 在业务事务内持久化 generation 发布 Outbox 意图。
+     */
     private final RiskCacheInvalidationOutboxMapper outboxMapper;
 
-    /** 事务提交后立即尝试切换 generation。 */
+    /**
+     * 事务提交后立即尝试切换 generation。
+     */
     private final RiskCacheInvalidationRelayService relayService;
 
     /**
@@ -90,19 +96,25 @@ public class RiskRuleCacheInvalidationCoordinator {
     private TransactionSynchronization synchronization(RiskCacheInvalidationOutboxDO event,
                                                        RedisCachePublication publication) {
         return new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 try {
                     relayService.publish(event.getEventId());
                 } catch (RuntimeException exception) {
                     log.warn(
-                            "event: RISK_CACHE_INVALIDATION_AFTER_COMMIT_FAILED eventId: {} exceptionType: {}",
+                            "风控缓存失效事件提交后发布失败, event: RISK_CACHE_INVALIDATION_AFTER_COMMIT_FAILED, eventId: {}, exceptionType: {}",
                             event.getEventId(),
                             exception.getClass().getSimpleName()
                     );
                 }
             }
 
+            /**
+             * 在事务回滚时撤销未提交的风险规则缓存代际发布凭证。
+             */
             @Override
             public void afterCompletion(int status) {
                 try {
@@ -111,7 +123,7 @@ public class RiskRuleCacheInvalidationCoordinator {
                     }
                 } catch (RuntimeException exception) {
                     log.warn(
-                            "event: RISK_CACHE_INVALIDATION_ABORT_FAILED eventId: {} exceptionType: {}",
+                            "风控缓存失效事件终止失败, event: RISK_CACHE_INVALIDATION_ABORT_FAILED, eventId: {}, exceptionType: {}",
                             event.getEventId(),
                             exception.getClass().getSimpleName()
                     );

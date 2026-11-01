@@ -16,20 +16,18 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxMapperH2Tests
- * @date : 2026-08-02 23:30
- * @email : scott_x@163.com
- * @description : 使用真实 MyBatis 注解 SQL 验证可靠 MQ Outbox 的抢占、终态和超时恢复 CAS 约束
- * @status : create
+ * 使用真实 MyBatis 注解 SQL 验证可靠 MQ Outbox 的抢占、终态和超时恢复 CAS 约束
  */
 class ReliableMqOutboxMapperH2Tests {
 
-    /** 测试用 MyBatis 会话工厂。 */
+    /**
+     * 测试用 MyBatis 会话工厂。
+     */
     private SqlSessionFactory sqlSessionFactory;
 
-    /** 为每个测试建立独立 H2 表结构。 */
+    /**
+     * 为每个测试建立独立 H2 表结构。
+     */
     @BeforeEach
     void setUp() throws Exception {
         DataSource dataSource = new DriverManagerDataSource(
@@ -63,7 +61,9 @@ class ReliableMqOutboxMapperH2Tests {
         sqlSessionFactory.getConfiguration().addMapper(ReliableMqOutboxMapper.class);
     }
 
-    /** 未到 next_retry_time 的记录不得被重复触发提前抢占。 */
+    /**
+     * 未到 next_retry_time 的记录不得被重复触发提前抢占。
+     */
     @Test
     void shouldRejectClaimBeforeRetryTimeAndAllowClaimWhenDue() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
@@ -78,7 +78,9 @@ class ReliableMqOutboxMapperH2Tests {
         }
     }
 
-    /** SENT 终态不能被失败或超时恢复覆盖。 */
+    /**
+     * SENT 终态不能被失败或超时恢复覆盖。
+     */
     @Test
     void shouldKeepSentTerminalStateImmutable() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
@@ -96,7 +98,9 @@ class ReliableMqOutboxMapperH2Tests {
         }
     }
 
-    /** 超时 PROCESSING 按失败次数恢复为 RETRY_WAIT 或 CLOSED。 */
+    /**
+     * 超时 PROCESSING 按失败次数恢复为 RETRY_WAIT 或 CLOSED。
+     */
     @Test
     void shouldRecoverStaleProcessingWithoutReopeningClosedRecords() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
@@ -122,7 +126,9 @@ class ReliableMqOutboxMapperH2Tests {
         }
     }
 
-    /** 到期扫描只能读取当前生产服务的消息。 */
+    /**
+     * 到期扫描只能读取当前生产服务的消息。
+     */
     @Test
     void shouldSelectDueEventsForCurrentProducerServiceOnly() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
@@ -137,7 +143,9 @@ class ReliableMqOutboxMapperH2Tests {
         }
     }
 
-    /** 指标聚合必须返回各待处理状态、CLOSED 数量和最老积压时间。 */
+    /**
+     * 指标聚合必须返回各待处理状态、CLOSED 数量和最老积压时间。
+     */
     @Test
     void shouldReadOperationalMetricsSnapshot() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
@@ -160,7 +168,9 @@ class ReliableMqOutboxMapperH2Tests {
         }
     }
 
-    /** 人工恢复只能使用当前版本从 CLOSED CAS 进入 RETRY_WAIT。 */
+    /**
+     * 人工恢复只能使用当前版本从 CLOSED CAS 进入 RETRY_WAIT。
+     */
     @Test
     void shouldRecoverClosedWithVersionCasOnlyOnce() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
@@ -182,7 +192,9 @@ class ReliableMqOutboxMapperH2Tests {
         }
     }
 
-    /** 构造最小 Outbox 测试记录。 */
+    /**
+     * 构造最小 Outbox 测试记录。
+     */
     private ReliableMqOutboxDO event(String eventId,
                                      String status,
                                      int retryCount,
@@ -192,7 +204,9 @@ class ReliableMqOutboxMapperH2Tests {
         return event(eventId, status, retryCount, maxRetryCount, nextRetryTime, now, "test-service");
     }
 
-    /** 构造指定生产服务的最小 Outbox 测试记录。 */
+    /**
+     * 构造指定生产服务的最小 Outbox 测试记录。
+     */
     private ReliableMqOutboxDO event(String eventId,
                                      String status,
                                      int retryCount,

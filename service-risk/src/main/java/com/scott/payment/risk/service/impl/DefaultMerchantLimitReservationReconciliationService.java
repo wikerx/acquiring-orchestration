@@ -23,13 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantLimitReservationReconciliationService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 根据 Redis marker 和 payment 事实恢复超时预占。
- * @status : create
+ * 根据 Redis marker 和 payment 事实恢复超时预占。
  */
 @Slf4j
 @Service
@@ -46,6 +40,15 @@ public class DefaultMerchantLimitReservationReconciliationService
 
     private final RiskEvaluationProperties properties;
 
+    /**
+     * 创建累计限额预占对账服务。
+     *
+     * @param stateService 查询和迁移持久化预占状态
+     * @param counterService 检查及回滚 Redis 计数投影
+     * @param coordinator 按支付终态确认或取消预占
+     * @param paymentStatusRepository 查询原支付交易状态
+     * @param properties 对账超时、宽限期和批量配置
+     */
     public DefaultMerchantLimitReservationReconciliationService(
             MerchantLimitReservationStateService stateService,
             MerchantLimitReservationCounterService counterService,
@@ -59,6 +62,15 @@ public class DefaultMerchantLimitReservationReconciliationService
         this.properties = properties;
     }
 
+    /**
+     * 修复超过准备超时的累计限额预占，并勾兑已预占交易的支付终态。
+     *
+     * <p>支付状态未知、仍处理中或处于缺失宽限期时保留预占，禁止将未知结果当失败释放额度。</p>
+     *
+     * @param now 本次对账基准时间；为空时使用当前时间
+     * @param limit 单批最大处理数量
+     * @return 本批确认、取消、修复及保留数量
+     */
     @Override
     public MerchantLimitReservationReconciliationSummary reconcile(
             LocalDateTime now,
@@ -78,8 +90,8 @@ public class DefaultMerchantLimitReservationReconciliationService
             if (status == null) {
                 retained++;
                 log.error(
-                        "event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED "
-                                + "reservationId: {} transactionId: {} reason: reservationStatusInvalid",
+                        "商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, "
+                                + "reservationId: {}, transactionId: {}, reason: reservationStatusInvalid",
                         reservation == null ? null : reservation.getId(),
                         reservation == null ? null : reservation.getTransactionId()
                 );
@@ -125,7 +137,7 @@ public class DefaultMerchantLimitReservationReconciliationService
                         * isStatus(lookup.paymentStatus(), "FAILED");
                 if (!isTerminalPaymentStatus(lookup.paymentStatus())) {
                     retained++;
-                    log.warn("event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED transactionId: {} paymentStatus: {} reason=paymentNonTerminal",
+                    log.warn("商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, transactionId: {}, paymentStatus: {}, reason: paymentNonTerminal",
                             reservation.getTransactionId(), lookup.paymentStatus());
                 }
             } else if (lookup.availability()
@@ -138,7 +150,7 @@ public class DefaultMerchantLimitReservationReconciliationService
                         "payment record absent after grace period").applied();
             } else {
                 retained++;
-                log.warn("event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED transactionId: {} reason=paymentUnknownOrWithinGrace",
+                log.warn("商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, transactionId: {}, reason: paymentUnknownOrWithinGrace",
                         reservation.getTransactionId());
             }
         }
@@ -146,6 +158,12 @@ public class DefaultMerchantLimitReservationReconciliationService
                 reserved, confirmed, cancelled, retained);
     }
 
+    /**
+     * 安全解析持久化预占状态，未知值保持不可判定。
+     *
+     * @param reservation 持久化预占记录
+     * @return 已知状态；记录为空或状态非法时返回 {@code null}
+     */
     private MerchantLimitReservationStatus statusOf(MerchantLimitReservationDO reservation) {
         if (reservation == null || !StringUtils.hasText(reservation.getReservationStatus())) {
             return null;
@@ -158,10 +176,23 @@ public class DefaultMerchantLimitReservationReconciliationService
         }
     }
 
+    /**
+     * 判断支付状态是否为可驱动预占终态的成功或失败。
+     *
+     * @param status 支付交易状态
+     * @return 成功或失败时返回 {@code true}
+     */
     private boolean isTerminalPaymentStatus(String status) {
         return isStatus(status, "SUCCESS") == 1 || isStatus(status, "FAILED") == 1;
     }
 
+    /**
+     * 以整数结果比较支付状态，便于累计对账计数且避免重复分支。
+     *
+     * @param actual 实际支付状态
+     * @param expected 目标支付状态
+     * @return 相等时返回 1，否则返回 0
+     */
     private int isStatus(String actual, String expected) {
         return StringUtils.hasText(actual) && expected.equalsIgnoreCase(actual.trim()) ? 1 : 0;
     }

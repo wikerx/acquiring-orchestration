@@ -34,24 +34,24 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingDataSourceConfiguration
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 将底层主从连接池组装为单一 transaction 复合数据源，并注册到 dynamic-datasource 外层路由。
- * @status : create
+ * 将底层主从连接池组装为单一 transaction 复合数据源，并注册到 dynamic-datasource 外层路由。
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TransactionShardingProperties.class)
 @Slf4j
 public class TransactionShardingDataSourceConfiguration {
 
-    /** ShardingSphere 读写分离组名，逻辑表节点仅引用该组而不直接绑定连接池。 */
+    /**
+     * ShardingSphere 读写分离组名，逻辑表节点仅引用该组而不直接绑定连接池。
+     */
     private static final String READWRITE_GROUP = "transaction_rw";
-    /** 正式交易逻辑表共享的季度分片算法注册名。 */
+    /**
+     * 正式交易逻辑表共享的季度分片算法注册名。
+     */
     private static final String ALGORITHM_NAME = "transaction_quarter";
-    /** 只读副本轮询负载均衡器注册名。 */
+    /**
+     * 只读副本轮询负载均衡器注册名。
+     */
     private static final String LOAD_BALANCER_NAME = "transaction_round_robin";
 
     /**
@@ -103,7 +103,8 @@ public class TransactionShardingDataSourceConfiguration {
             DataSource transactionDataSource = ShardingSphereDataSourceFactory.createDataSource(
                     resources, buildRules(properties, replicas), buildSystemProperties(properties));
             registerCompositeDataSource(routingDataSource, routingResources, transactionDataSource);
-            log.info("Transaction ShardingSphere datasource registered for service {}, ruleVersion={}, checksumPrefix={}",
+            log.info("交易 ShardingSphere 数据源注册完成, event: TRANSACTION_SHARDING_DATASOURCE_REGISTERED, "
+                            + "service: {}, ruleVersion: {}, checksumPrefix: {}",
                     applicationName, properties.getRuleVersion(), checksumPrefix(properties.getRuleChecksum()));
         } catch (SQLException exception) {
             throw new IllegalStateException("failed to build transaction sharding datasource for rule "
@@ -111,7 +112,9 @@ public class TransactionShardingDataSourceConfiguration {
         }
     }
 
-    /** 返回可公开记录的规则 checksum 前缀。 */
+    /**
+     * 返回可公开记录的规则 checksum 前缀。
+     */
     private String checksumPrefix(String checksum) {
         return checksum.substring(0, Math.min(checksum.length(), 19));
     }
@@ -132,7 +135,9 @@ public class TransactionShardingDataSourceConfiguration {
         }
     }
 
-    /** 关闭注册失败后无人持有的复合数据源，并保留关闭异常作为 suppressed 诊断信息。 */
+    /**
+     * 关闭注册失败后无人持有的复合数据源，并保留关闭异常作为 suppressed 诊断信息。
+     */
     private void closeAfterRegistrationFailure(DataSource transactionDataSource, RuntimeException registrationFailure) {
         if (!(transactionDataSource instanceof AutoCloseable closeable)) {
             return;
@@ -177,6 +182,13 @@ public class TransactionShardingDataSourceConfiguration {
                 registered.put(name, new NonClosingDelegatingDataSource(dataSource)));
     }
 
+    /**
+     * 根据已验证配置构建分表、单表和可选读写分离规则。
+     *
+     * @param properties 已通过激活校验的交易分片配置
+     * @param replicas 已注册副本数据源名称
+     * @return 交给 ShardingSphere 的规则集合
+     */
     Collection<RuleConfiguration> buildRules(TransactionShardingProperties properties, List<String> replicas) {
         ShardingRuleConfiguration shardingRule = new ShardingRuleConfiguration();
         List<ShardingTableRuleConfiguration> tableRules = properties.getLogicTables().stream()
@@ -207,7 +219,9 @@ public class TransactionShardingDataSourceConfiguration {
         return List.of(shardingRule, readwriteRule, singleRule);
     }
 
-    /** 为单张逻辑表生成只包含已建且已校验季度的 actualDataNodes。 */
+    /**
+     * 为单张逻辑表生成只包含已建且已校验季度的 actualDataNodes。
+     */
     private ShardingTableRuleConfiguration tableRule(TransactionShardingProperties properties, String logicTable) {
         String dataSourceName = properties.getReplicaDataSources().isEmpty()
                 ? properties.getPrimaryDataSource() : READWRITE_GROUP;
@@ -234,7 +248,9 @@ public class TransactionShardingDataSourceConfiguration {
         return result;
     }
 
-    /** 从外层路由取得指定连接池，缺失时拒绝服务启动。 */
+    /**
+     * 从外层路由取得指定连接池，缺失时拒绝服务启动。
+     */
     private DataSource requiredDataSource(DynamicRoutingDataSource routingDataSource, String name) {
         DataSource result = routingDataSource.getDataSources().get(name);
         if (result == null) {
@@ -247,62 +263,104 @@ public class TransactionShardingDataSourceConfiguration {
      * dynamic-datasource 保留的代理不拥有底层连接池生命周期，避免与 ShardingSphere 重复关闭。
      */
     private static final class NonClosingDelegatingDataSource implements DataSource {
-        /** 仍由原 owner 或 ShardingSphere 管理生命周期的真实数据源。 */
+        /**
+         * 仍由原 owner 或 ShardingSphere 管理生命周期的真实数据源。
+         */
         private final DataSource delegate;
 
-        /** 创建只转发 JDBC 操作、不接管 close 生命周期的代理。 */
+        /**
+         * 创建只转发 JDBC 操作、不接管 close 生命周期的代理。
+         */
         private NonClosingDelegatingDataSource(DataSource delegate) {
             this.delegate = delegate;
         }
 
-        /** @return 真实数据源创建的连接 */
+        /**
+         * 从真实数据源获取默认连接。
+         *
+         * @return 真实数据源创建的连接
+         */
         @Override
         public Connection getConnection() throws SQLException {
             return delegate.getConnection();
         }
 
-        /** @return 使用显式凭证创建的连接；凭证不会被记录 */
+        /**
+         * 使用显式凭证从真实数据源获取连接，凭证不会被记录。
+         *
+         * @param username 数据库用户名
+         * @param password 数据库密码
+         * @return 使用显式凭证创建的连接
+         */
         @Override
         public Connection getConnection(String username, String password) throws SQLException {
             return delegate.getConnection(username, password);
         }
 
-        /** @return 真实数据源日志输出器 */
+        /**
+         * 获取真实数据源的 JDBC 日志输出器。
+         *
+         * @return 真实数据源日志输出器
+         */
         @Override
         public PrintWriter getLogWriter() throws SQLException {
             return delegate.getLogWriter();
         }
 
-        /** 将 JDBC 日志输出器设置转发给真实数据源。 */
+        /**
+         * 将 JDBC 日志输出器设置转发给真实数据源。
+         */
         @Override
         public void setLogWriter(PrintWriter out) throws SQLException {
             delegate.setLogWriter(out);
         }
 
-        /** 将登录超时设置转发给真实数据源。 */
+        /**
+         * 将登录超时设置转发给真实数据源。
+         */
         @Override
         public void setLoginTimeout(int seconds) throws SQLException {
             delegate.setLoginTimeout(seconds);
         }
 
-        /** @return 真实数据源登录超时秒数 */
+        /**
+         * 获取真实数据源登录超时秒数。
+         *
+         * @return 登录超时秒数
+         */
         @Override
         public int getLoginTimeout() throws SQLException {
             return delegate.getLoginTimeout();
         }
 
-        /** @return 真实数据源的父日志器 */
+        /**
+         * 获取真实数据源的父日志器。
+         *
+         * @return 父日志器
+         */
         @Override
         public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
             return delegate.getParentLogger();
         }
 
+        /**
+         * 将当前代理或真实数据源解包为调用方请求的接口。
+         *
+         * @param iface 目标接口类型
+         * @param <T> 目标接口类型参数
+         * @return 当前代理或真实数据源提供的接口实例
+         */
         @Override
         public <T> T unwrap(Class<T> iface) throws SQLException {
             return iface.isInstance(this) ? iface.cast(this) : delegate.unwrap(iface);
         }
 
-        /** @return 当前代理或真实数据源是否支持指定接口 */
+        /**
+         * 判断当前代理或真实数据源是否支持指定接口。
+         *
+         * @param iface 待检查接口类型
+         * @return 支持指定接口时返回 true
+         */
         @Override
         public boolean isWrapperFor(Class<?> iface) throws SQLException {
             return iface.isInstance(this) || delegate.isWrapperFor(iface);

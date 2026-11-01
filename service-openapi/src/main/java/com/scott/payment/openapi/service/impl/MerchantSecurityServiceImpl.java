@@ -3,8 +3,9 @@ package com.scott.payment.openapi.service.impl;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
@@ -45,13 +46,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityServiceImpl
- * @date : 2026-05-30 09:37
- * @email : scott_x@163.com
- * @description : 商户安全服务实现，位于 商户开放接口服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理商户 JWT 密钥、平台请求解密密钥和商户响应公钥，并协调密钥轮换后的缓存失效。
  */
 @Primary
 @Service
@@ -147,16 +142,24 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
-    /** Admin、Merchant Portal、OpenAPI 与支付服务共用的完整商户资料缓存；密钥材料不在该缓存中。 */
+    /**
+     * Admin、Merchant Portal、OpenAPI 与支付服务共用的完整商户资料缓存；密钥材料不在该缓存中。
+     */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
-    /** 只保存密钥 ID、算法、时间和 revision 的永久缓存；不保存任何密钥正文。 */
+    /**
+     * 只保存密钥 ID、算法、时间和 revision 的永久缓存；不保存任何密钥正文。
+     */
     private final MerchantKeyMetadataCacheService merchantKeyMetadataCacheService;
 
-    /** 在写事务提交前建立 pending 门禁和 Outbox，可靠删除跨服务永久旧缓存。 */
+    /**
+     * 在写事务提交前建立 pending 门禁和 Outbox，可靠删除跨服务永久旧缓存。
+     */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** OpenAPI 单实例短时敏感密钥缓存；实际密钥材料不会写入 Redis。 */
+    /**
+     * OpenAPI 单实例短时敏感密钥缓存；实际密钥材料不会写入 Redis。
+     */
     private final OpenApiMerchantSecretCache merchantSecretCache;
 
     /**
@@ -333,7 +336,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         validateMerchantId(merchantId);
         rejectSdkLiveMerchantMutation(merchantId);
         if (!StringUtils.hasText(keyVersion)) {
-            throw new ApiException(ApiResultEnum.PARAM_MISSING, "keyVersion");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING, "keyVersion", "key version is required");
         }
         getActiveMerchant(merchantId);
         LocalDateTime now = LocalDateTime.now();
@@ -418,7 +422,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         if (runtimeProfile == null
                 || !Integer.valueOf(MerchantStatusEnum.ACTIVE.getCode())
                 .equals(runtimeProfile.getMerchantStatus())) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, merchantId);
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, merchantId);
         }
         return toMerchantInfoDO(runtimeProfile);
     }
@@ -668,7 +672,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                         .last("LIMIT 1")
         );
         if (keyDO == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_SIGNING_KEY_NOT_CONFIGURED);
+            throw new ApiException(OpenApiResultCode.MERCHANT_SIGNING_MATERIAL_MISSING);
         }
         return keyDO;
     }
@@ -704,7 +708,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                         .last("LIMIT 1")
         );
         if (keyDO == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, "platformPayloadKey");
         }
         return keyDO;
     }
@@ -725,7 +729,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                 .last("LIMIT 1");
         MerchantResponseKeyDO keyDO = merchantResponseKeyMapper.selectOne(queryWrapper);
         if (keyDO == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "merchantResponseKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_RESPONSE_KEY_MISSING, "merchantResponseKey");
         }
         return keyDO;
     }
@@ -900,10 +904,12 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private void validateSeed(MerchantSecuritySeedDTO seedDTO) {
         if (seedDTO == null || !StringUtils.hasText(seedDTO.getMerchantId())) {
-            throw new ApiException(ApiResultEnum.PARAM_MISSING, "merchantId");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING, "merchantId", "merchant ID is required");
         }
         if (!StringUtils.hasText(seedDTO.getMerchantName())) {
-            throw new ApiException(ApiResultEnum.PARAM_MISSING, "merchantName");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING, "merchantName", "merchant name is required");
         }
     }
 
@@ -914,7 +920,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private void validateMerchantId(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiResultEnum.MERCHANT_INVALID);
+            throw new ApiException(OpenApiResultCode.MERCHANT_INVALID);
         }
     }
 
@@ -925,7 +931,10 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private void rejectSdkLiveMerchantMutation(String merchantId) {
         if (SDK_LIVE_MERCHANT_ID.equals(merchantId)) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "merchant 200045 is reserved for SDK live tests");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    "merchantId",
+                    "reserved SDK live-test merchant can not be modified");
         }
     }
 

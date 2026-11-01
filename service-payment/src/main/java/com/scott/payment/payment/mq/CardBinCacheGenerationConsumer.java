@@ -19,13 +19,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinCacheGenerationConsumer
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : Card BIN 分片索引发布消费者，确认管理端事务已复制到 SLAVE 后重建永久缓存并提交 generation
- * @status : create
+ * Card BIN 分片索引发布消费者，确认管理端事务已复制到 SLAVE 后重建永久缓存并提交 generation
  */
 @Slf4j
 @Component
@@ -41,32 +35,26 @@ import java.time.Duration;
         messageModel = MessageModel.CLUSTERING)
 public class CardBinCacheGenerationConsumer implements RocketMQListener<String> {
 
-    /**
-     * {@code CACHE_NAMESPACE}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CACHE_NAMESPACE = "card-bin-range";
-    /**
-     * {@code RECOVERY_GATE_TTL}常量，统一 {@code CardBinCacheGenerationConsumer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final Duration RECOVERY_GATE_TTL = Duration.ofMinutes(30);
 
     private final RedisCacheGenerationStore generationStore;
 
-    /** Card BIN 数据库有界三位分片索引发布器。 */
+    /**
+     * Card BIN 数据库有界三位分片索引发布器。
+     */
     private final CardBinRangeIndex rangeIndex;
 
-    /** 通过可靠 MQ Outbox 事件确认管理端事务已经复制到 SLAVE。 */
+    /**
+     * 通过可靠 MQ Outbox 事件确认管理端事务已经复制到 SLAVE。
+     */
     private final ReliableMqOutboxReplicaProbe replicaProbe;
 
     /**
+     * 创建 Card BIN 缓存代次消费者。
+     *
      * @param generationStore Redis generation 原子存储
      * @param rangeIndex Card BIN 三位分片索引发布器
      * @param replicaProbe 可靠 MQ Outbox 从库探针
@@ -108,10 +96,13 @@ public class CardBinCacheGenerationConsumer implements RocketMQListener<String> 
             generationStore.abort(replacement);
             throw new IllegalStateException("Card BIN cache recovery generation commit failed");
         }
-        log.warn("event: CARD_BIN_CACHE_GENERATION_RECOVERED originalGeneration: {}",
+        log.warn("卡 BIN 缓存代次已恢复, event: CARD_BIN_CACHE_GENERATION_RECOVERED, originalGeneration: {}",
                 message.getGeneration());
     }
 
+    /**
+     * 判断消息是否包含完整业务身份。
+     */
     private boolean valid(CacheGenerationChangedMessage message) {
         return message != null
                 && CACHE_NAMESPACE.equals(message.getNamespace())

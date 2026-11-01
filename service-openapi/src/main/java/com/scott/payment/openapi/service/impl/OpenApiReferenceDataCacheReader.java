@@ -8,13 +8,7 @@ import com.scott.payment.component.db.reference.model.IpLookupResult;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiReferenceDataCacheReader
- * @date : 2026-09-30
- * @email : scott_x@163.com
- * @description : 商户 IP 查询缓存与 BIN 结果适配；BIN 使用支付共享的 11 位缓存、从库回源和品牌兜底规则。
- * @status : create
+ * 商户 IP 查询缓存与 BIN 结果适配；BIN 使用支付共享的 11 位缓存、从库回源和品牌兜底规则。
  */
 @Service
 public class OpenApiReferenceDataCacheReader {
@@ -22,6 +16,12 @@ public class OpenApiReferenceDataCacheReader {
     private final IpLookupCacheReader ipLookupCacheReader;
     private final CardBinCacheReader cardBinCacheReader;
 
+    /**
+     * 创建 OpenAPI 基础数据缓存读取适配器。
+     *
+     * @param ipLookupCacheReader 支付共享 IP 归属缓存读取器
+     * @param cardBinCacheReader 支付共享卡 BIN 缓存读取器
+     */
     public OpenApiReferenceDataCacheReader(IpLookupCacheReader ipLookupCacheReader,
                                            CardBinCacheReader cardBinCacheReader) {
         this.ipLookupCacheReader = ipLookupCacheReader;

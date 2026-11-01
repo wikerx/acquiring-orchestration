@@ -3,25 +3,30 @@ package com.scott.payment.component.core.auth;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PasswordPolicy
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 登录密码共享安全策略；统一约束长度和字符类别，避免各认证入口采用不同强度规则。
- * @status : create
+ * 登录密码共享安全策略；统一约束长度和字符类别，避免各认证入口采用不同强度规则。
  */
 public final class PasswordPolicy {
 
-    /** 新密码最小长度，按当前 PCI 管理要求固定为 12 位。 */
+    /**
+     * 新密码最小长度，按当前 PCI 管理要求固定为 12 位。
+     */
     public static final int MIN_LENGTH = 12;
-    /** 新密码最大长度，避免截断和异常大的哈希输入。 */
+    /**
+     * 新密码最大长度，避免截断和异常大的哈希输入。
+     */
     public static final int MAX_LENGTH = 64;
-    /** 必须同时包含大小写字母、数字和特殊字符，且不允许空白字符。 */
+    /**
+     * 必须同时包含大小写字母、数字和特殊字符，且不允许空白字符。
+     */
     public static final String REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])\\S{12,64}$";
-    /** Bean Validation 和服务层共享的编译后模式。 */
+    /**
+     * Bean Validation 和服务层共享的编译后模式。
+     */
     private static final Pattern PATTERN = Pattern.compile(REGEX);
 
+    /**
+     * 禁止实例化统一密码策略工具类。
+     */
     private PasswordPolicy() {
     }
 

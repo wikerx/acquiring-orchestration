@@ -24,13 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictApplicationService
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台数据字典应用服务
- * @status : create
+ * 管理后台数据字典应用服务
  */
 @Service
 public class AdminDictApplicationService {
@@ -123,7 +117,9 @@ public class AdminDictApplicationService {
         adminDictService.deleteDictType(dictType);
     }
 
-    /** 清空管理端与商户端共享的启用字典下拉快照。 */
+    /**
+     * 清空管理端与商户端共享的启用字典下拉快照。
+     */
     public void refreshOptionCache() {
         adminDictService.refreshOptionCache();
     }
@@ -300,15 +296,24 @@ public class AdminDictApplicationService {
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
+    /**
+     * 将字典导出查询条件追加到审计摘要。
+     */
     private void appendCondition(StringBuilder builder, String labelKey, String value, Locale locale) {
         appendSeparator(builder);
         builder.append(excelI18nMessageResolver.resolve(labelKey, locale)).append("=").append(value);
     }
 
+    /**
+     * 解析启用状态的本地化展示文本。
+     */
     private String resolveStatusText(boolean enabled, Locale locale) {
         return excelI18nMessageResolver.resolve(enabled ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
+    /**
+     * 解析布尔值的本地化展示文本。
+     */
     private String resolveBooleanText(boolean yes, Locale locale) {
         return excelI18nMessageResolver.resolve(yes ? "excel.common.yes" : "excel.common.no", locale);
     }

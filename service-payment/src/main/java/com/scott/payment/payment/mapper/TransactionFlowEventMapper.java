@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionFlowEventMapper
- * @date : 2026-07-14 19:44
- * @email : scott_x@163.com
- * @description : 交易流程事件 Mapper，位于 service-payment 数据访问层，仅访问 transaction_flow_event 逻辑表。
- * @status : create
+ * 交易流程事件 Mapper，位于 service-payment 数据访问层，仅访问 transaction_flow_event 逻辑表。
  */
 public interface TransactionFlowEventMapper extends BaseMapper<TransactionFlowEventDO> {
 
@@ -25,11 +19,16 @@ public interface TransactionFlowEventMapper extends BaseMapper<TransactionFlowEv
      * @return 影响行数
      */
     @Insert("""
+            <script>
             INSERT INTO transaction_flow_event
             (
               flow_event_id, transaction_id, operation_id, event_type, event_stage, event_status,
               event_name, event_content, previous_status, current_status, operator_type, operator_id,
-              reference_type, reference_id, error_code, error_message, event_time, transaction_date_time,
+              reference_type, reference_id, error_code, error_message,
+              <if test="eventDO.processorService != null">
+                processor_service, processor_instance_id, processor_host_name, processor_private_ip, trace_id,
+              </if>
+              event_time, transaction_date_time,
               transaction_utc_time, transaction_time_zone, create_time
             )
             VALUES
@@ -39,9 +38,15 @@ public interface TransactionFlowEventMapper extends BaseMapper<TransactionFlowEv
               #{eventDO.eventName}, #{eventDO.eventContent}, #{eventDO.previousStatus},
               #{eventDO.currentStatus}, #{eventDO.operatorType}, #{eventDO.operatorId},
               #{eventDO.referenceType}, #{eventDO.referenceId}, #{eventDO.errorCode},
-              #{eventDO.errorMessage}, #{eventDO.eventTime}, #{eventDO.transactionDateTime},
+              #{eventDO.errorMessage},
+              <if test="eventDO.processorService != null">
+                #{eventDO.processorService}, #{eventDO.processorInstanceId}, #{eventDO.processorHostName},
+                #{eventDO.processorPrivateIp}, #{eventDO.traceId},
+              </if>
+              #{eventDO.eventTime}, #{eventDO.transactionDateTime},
               #{eventDO.transactionUtcTime}, #{eventDO.transactionTimeZone}, #{eventDO.createTime}
             )
+            </script>
             """)
     int insertLogical(@Param("eventDO") TransactionFlowEventDO eventDO);
 

@@ -6,13 +6,7 @@ import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelExportService
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 导出服务接口
- * @status : create
+ * Excel 导出服务接口
  */
 public interface ExcelExportService {
 

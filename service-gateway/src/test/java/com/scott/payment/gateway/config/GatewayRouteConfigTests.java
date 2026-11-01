@@ -19,17 +19,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayRouteConfigTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证四类收银台公网路径都由 service-gateway 显式路由。
- * @status : create
+ * 验证四类收银台公网路径都由 service-gateway 显式路由。
  */
 class GatewayRouteConfigTests {
 
-    /** 商户建单、付款人 API、公开配置和健康入口必须分别命中明确路由。 */
+    /**
+     * 商户建单、付款人 API、公开配置和健康入口必须分别命中明确路由。
+     */
     @Test
     void shouldRouteEveryCheckoutBackendIngress() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
@@ -61,6 +57,24 @@ class GatewayRouteConfigTests {
             assertRouteMatches(cardBinRoute, "/api/rest/card-bin/v1/query");
             assertEquals("lb://service-openapi", ipRoute.getUri().toString());
             assertEquals("lb://service-openapi", cardBinRoute.getUri().toString());
+        }
+    }
+
+    /**
+     * 未命中的商户 OpenAPI 路径必须进入专用 V1.3 兜底，不得落入内部系统旧码响应。
+     */
+    @Test
+    void shouldRouteUnmatchedOpenApiPathToV13Fallback() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(PathRoutePredicateFactory.class);
+            context.refresh();
+            RouteLocator locator = new GatewayRouteConfig().openApiRoutes(new RouteLocatorBuilder(context));
+            Map<String, Route> routes = locator.getRoutes().collectList().block().stream()
+                    .collect(Collectors.toMap(Route::getId, Function.identity()));
+
+            Route fallbackRoute = routes.get("openapi-unmatched-path");
+            assertRouteMatches(fallbackRoute, "/api/rest/unknown/v9/action");
+            assertEquals("forward:/gateway/fallback/openapi-not-found", fallbackRoute.getUri().toString());
         }
     }
 

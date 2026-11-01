@@ -18,33 +18,43 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionLifecycleEventService
- * @date : 2026-08-02 20:00
- * @email : scott_x@163.com
- * @description : 交易终态生命周期事件实现，在状态 CAS 和通知激活事务内持久化携带真实分片时间的状态变更 Outbox
- * @status : create
+ * 支付交易终态生命周期事件服务。
+ *
+ * <p>调用方必须在交易状态 CAS 成功后的同一数据库事务内保存事件，保证“状态已提交”与
+ * “事件可投递”共同成立。事件按 operationId 顺序投递并采用至少一次语义，下游必须按
+ * messageId 幂等；非终态不允许伪装成生命周期完成事件。</p>
  */
 @Service
 public class DefaultTransactionLifecycleEventService implements TransactionLifecycleEventService {
 
-    /** 交易生命周期事件号前缀。 */
+    /**
+     * 交易生命周期事件号前缀。
+     */
     private static final String EVENT_NO_PREFIX = "EV";
 
-    /** Outbox 聚合类型，表示支付交易聚合。 */
+    /**
+     * Outbox 聚合类型，表示支付交易聚合。
+     */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
 
-    /** 新建 Outbox 事件待投递状态。 */
+    /**
+     * 新建 Outbox 事件待投递状态。
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
 
-    /** 无时区交易业务时间的默认解释时区。 */
+    /**
+     * 无时区交易业务时间的默认解释时区。
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
-    /** 交易终态事件允许的最大投递重试次数。 */
+    /**
+     * 交易终态事件允许的最大投递重试次数。
+     */
     private static final int DEFAULT_MAX_RETRY_COUNT = 200;
 
-    /** 与交易状态同事务写入的 Outbox 持久化服务。 */
+    /**
+     * 与交易状态同事务写入的 Outbox 持久化服务。
+     */
     private final TransactionEventOutboxService eventOutboxService;
 
     /**
@@ -81,6 +91,7 @@ public class DefaultTransactionLifecycleEventService implements TransactionLifec
             throw new IllegalArgumentException("transaction status is not terminal");
         }
         LocalDateTime now = LocalDateTime.now();
+        // eventNo 同时作为消息号和 Outbox messageKey，形成跨数据库与 MQ 的稳定幂等身份。
         String eventNo = PaymentOrderNoGenerator.nextOrderNo(
                 EVENT_NO_PREFIX,
                 transactionDateTime);
@@ -97,6 +108,7 @@ public class DefaultTransactionLifecycleEventService implements TransactionLifec
         message.setTransactionDateTime(transactionDateTime);
         message.setTraceId(TraceContext.getOrCreateTraceId());
 
+        // Outbox 保存完整路由事实和冻结 JSON，Relay 不再根据当前交易状态重建消息。
         TransactionEventOutboxDO eventDO = new TransactionEventOutboxDO();
         eventDO.setEventNo(eventNo);
         eventDO.setAggregateType(PAYMENT_TRANSACTION_AGGREGATE);

@@ -8,13 +8,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundScopeService
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 退款范围金额规则服务，以原始交易本金和历史退款事实判定 FULL/PARTIAL，不按当前剩余额度误判全额退款。
- * @status : create
+ * 退款范围金额规则服务，以原始交易本金和历史退款事实判定 FULL/PARTIAL，不按当前剩余额度误判全额退款。
  */
 @Service
 public class RefundScopeService {
@@ -42,6 +36,9 @@ public class RefundScopeService {
         return firstAndCompleteRefund ? "FULL" : "PARTIAL";
     }
 
+    /**
+     * 将空金额转换为零值。
+     */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }

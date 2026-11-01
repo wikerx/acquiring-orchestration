@@ -11,16 +11,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConversionPreviewModels
- * @date : 2026-08-25 19:40
- * @email : scott_x@163.com
- * @description : 定义管理后台跨币种费用预览契约；汇率由调用方显式提供，不能作为清分结果或结算批次事实使用。
- * @status : create
+ * 定义管理后台跨币种费用预览契约；汇率由调用方显式提供，不能作为清分结果或结算批次事实使用。
  */
 public final class FeeConversionPreviewModels {
 
+    /**
+     * 禁止实例化仅承载费用换算预览契约的工具类。
+     */
     private FeeConversionPreviewModels() {
     }
 
@@ -37,6 +34,9 @@ public final class FeeConversionPreviewModels {
                                            int targetExponent,
                                            Map<String, BigDecimal> directRates) {
 
+        /**
+         * 规范化目标币种和显式直接汇率，并构造不可变预览命令。
+         */
         public FeeConversionPreviewCommand {
             Objects.requireNonNull(feeResult, "fee result is required");
             targetCurrency = new Money(BigDecimal.ZERO, targetCurrency, targetExponent).currency();
@@ -65,6 +65,9 @@ public final class FeeConversionPreviewModels {
                                           Money finalFee,
                                           AppliedLimit appliedLimit) {
 
+        /**
+         * 校验预览原始费用、最终费用和实际应用限额。
+         */
         public FeeConversionPreviewResult {
             Objects.requireNonNull(rawFee, "raw preview fee is required");
             Objects.requireNonNull(finalFee, "final preview fee is required");

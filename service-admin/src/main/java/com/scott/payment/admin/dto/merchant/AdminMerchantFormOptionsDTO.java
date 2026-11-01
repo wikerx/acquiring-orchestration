@@ -7,13 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantFormOptionsDTO
- * @date : 2026-06-27 20:00
- * @email : scott_x@163.com
- * @description : 管理后台商户新增和编辑表单选项响应
- * @status : create
+ * 管理后台商户新增和编辑表单选项响应
  *
  * <p>承载商户资料表单选择器所需的 MCC、国家/地区和结算币种基础数据，避免管理端接口直接暴露
  * 数据库实体或让前端依赖数据库字段结构。</p>

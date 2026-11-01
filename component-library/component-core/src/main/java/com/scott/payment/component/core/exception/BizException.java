@@ -1,13 +1,7 @@
 package com.scott.payment.component.core.exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BizException
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 业务异常定义
- * @status : create
+ * 业务异常定义
  */
 public class BizException extends RuntimeException {
 

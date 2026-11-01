@@ -7,13 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobHandlerDescriptor
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务处理器注册描述对象
- * @status : create
+ * 任务处理器注册描述对象
  */
 @Data
 @Builder

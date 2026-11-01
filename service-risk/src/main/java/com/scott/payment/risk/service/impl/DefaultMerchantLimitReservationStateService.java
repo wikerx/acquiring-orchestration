@@ -21,27 +21,29 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantLimitReservationStateService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 基于数据库唯一键和版本号 CAS 的商户累计限额预占状态服务。
- * @status : create
+ * 基于数据库唯一键和版本号 CAS 的商户累计限额预占状态服务。
  */
 @Service
 public class DefaultMerchantLimitReservationStateService implements MerchantLimitReservationStateService {
 
-    /** 新建预占事实的乐观锁初始版本。 */
+    /**
+     * 新建预占事实的乐观锁初始版本。
+     */
     private static final int INITIAL_VERSION = 0;
 
-    /** 新建预占事实的未删除标记。 */
+    /**
+     * 新建预占事实的未删除标记。
+     */
     private static final int NOT_DELETED = 0;
 
-    /** 预占事实数据访问组件，负责唯一键查询、行锁和 CAS 状态更新。 */
+    /**
+     * 预占事实数据访问组件，负责唯一键查询、行锁和 CAS 状态更新。
+     */
     private final MerchantLimitReservationMapper mapper;
 
-    /** 统一生成状态迁移时间的时钟，测试场景可注入固定时间。 */
+    /**
+     * 统一生成状态迁移时间的时钟，测试场景可注入固定时间。
+     */
     private final Clock clock;
 
     /**
@@ -54,6 +56,12 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
         this(mapper, Clock.systemDefaultZone());
     }
 
+    /**
+     * 使用可控时钟创建预占状态服务，供状态迁移测试固定审计时间。
+     *
+     * @param mapper 预占事实数据访问组件
+     * @param clock 生成创建时间和状态迁移时间的时钟
+     */
     DefaultMerchantLimitReservationStateService(MerchantLimitReservationMapper mapper, Clock clock) {
         this.mapper = mapper;
         this.clock = clock;
@@ -315,7 +323,9 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
                 || current == MerchantLimitReservationStatus.RESERVED);
     }
 
-    /** 安全解析持久化状态，空值或未知编码返回 null 并交由调用方保守处理。 */
+    /**
+     * 安全解析持久化状态，空值或未知编码返回 null 并交由调用方保守处理。
+     */
     private MerchantLimitReservationStatus statusOf(MerchantLimitReservationDO reservation) {
         if (reservation == null || !StringUtils.hasText(reservation.getReservationStatus())) {
             return null;
@@ -365,7 +375,9 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
         }
     }
 
-    /** 将取消原因限制在 256 个字符内，避免异常文本无限写入审计字段。 */
+    /**
+     * 将取消原因限制在 256 个字符内，避免异常文本无限写入审计字段。
+     */
     private String safeReason(String reason) {
         if (!StringUtils.hasText(reason)) {
             return null;

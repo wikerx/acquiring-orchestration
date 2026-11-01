@@ -2,25 +2,45 @@ package com.scott.payment.admin.service.impl;
 
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelRequestResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantApiInteractionLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountSummaryResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountChangeResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionContactInfoResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionFlowEventResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPaymentMethodSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPayerInfoResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionStatusHistoryResponse;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.component.core.openapi.result.OpenApiResultMessageCatalog;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -33,7 +53,6 @@ import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.DateTimeException;
@@ -53,46 +72,33 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminTransactionQueryService
- * @date : 2026-07-21 00:00
- * @email : scott_x@163.com
- * @description : 管理后台交易只读查询实现，通过 ShardingSphere 逻辑表统一执行跨季度路由、强一致详情和查询预算。
- * @status : create
+ * 管理后台交易只读查询服务。
+ *
+ * <p>服务通过 ShardingSphere 逻辑表执行跨季度查询、详情强一致读取和结果行数控制；
+ * 管理端展示可包含经过过滤的渠道诊断摘要，但不得返回敏感报文或改变支付核心交易事实。</p>
  */
 @Service
 public class JdbcAdminTransactionQueryService implements AdminTransactionQueryService {
 
     /**
-     * 交易订单表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易生命周期主单逻辑表名。
      */
     private static final String TRANSACTION_ORDER_TABLE = "transaction_order";
     /**
-     * 交易动作表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易动作逻辑表名。
      */
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
     /**
-     * 交易支付方式信息表，表示支付方式、通知方式或调用方式。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易支付方式快照逻辑表名。
      */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
-    /** 主单查询稳定显式投影，避免分片元数据刷新期间 SELECT * 产生列序错读。 */
+    /**
+     * 主单查询稳定显式投影，避免分片元数据刷新期间 SELECT * 产生列序错读。
+     */
     private static final String ORDER_QUERY_COLUMNS = """
             operation_id, root_transaction_id, latest_transaction_id, merchant_id,
-            merchant_order_no, merchant_order_id, payment_method, payment_brand,
-            transaction_type, transaction_status, process_stage,
+            merchant_order_no, merchant_order_id, merchant_website, payment_method, payment_brand,
+            transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
             label_currency, label_amount, transaction_currency, transaction_amount,
             currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
             authorized_amount, captured_amount, refunded_amount,
@@ -102,11 +108,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             settlement_status, reconciliation_status, accounting_status, channel_match_status,
             channel_code, channel_order_no, transaction_date_time, transaction_time_zone
             """;
-    /** 动作查询稳定显式投影，完整返回交易汇率和最终结算快照。 */
+    /**
+     * 动作查询稳定显式投影，完整返回交易汇率和最终结算快照。
+     */
     private static final String OPERATION_QUERY_COLUMNS = """
             o.operation_id, o.transaction_id, o.source_transaction_id, o.merchant_id,
             o.merchant_order_no, o.merchant_order_id, o.operation_sequence,
-            o.transaction_type, o.transaction_status, o.process_stage,
+            o.transaction_type, o.transaction_status, o.process_stage, o.pending_reason_code, o.fail_reason_code,
             o.label_currency, o.label_amount, o.transaction_currency, o.transaction_amount,
             o.currency_exponent, o.transaction_rate, o.dcc_enabled, o.edc_enabled,
             o.channel_code, o.channel_order_no, o.channel_transaction_id,
@@ -114,112 +122,194 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             o.acquirer_reference_no, o.settlement_currency, o.settlement_amount,
             o.settlement_rate, o.settlement_date, o.settlement_batch_no,
             o.settlement_status, o.reconciliation_status, o.accounting_status,
-            o.channel_match_status, o.transaction_date_time, o.operation_time, o.request_source
+            o.channel_match_status, o.transaction_date_time, o.operation_time, o.request_source,
+            o.ingress_client_ip
             """;
-    /** 付款人、账单和收货信息均按交易时间路由到季度分片。 */
+    /**
+     * 付款人、账单和收货信息均按交易时间路由到季度分片。
+     */
     private static final String TRANSACTION_PAYER_INFO_TABLE = "transaction_payer_info";
     /**
-     * 交易账单信息表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易账单联系人快照逻辑表名。
      */
     private static final String TRANSACTION_BILLING_INFO_TABLE = "transaction_billing_info";
     /**
-     * {@code TRANSACTION_SHIPPING_INFO_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易收货联系人快照逻辑表名。
      */
     private static final String TRANSACTION_SHIPPING_INFO_TABLE = "transaction_shipping_info";
     /**
-     * {@code ACCESS_TYPE_DIRECT_API}，用于区分 {@code JdbcAdminTransactionQueryService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户直连接口接入类型。
      */
     private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
     /**
-     * {@code ACCESS_TYPE_HOSTED_CHECKOUT}，用于区分 {@code JdbcAdminTransactionQueryService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 托管收银台接入类型。
      */
     private static final String ACCESS_TYPE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /**
-     * {@code TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 渠道 HTTP 交互日志逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE = "transaction_channel_interaction_log";
     /**
-     * 交易渠道回调表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-     * </p>
+     * 渠道回调业务处理记录逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_CALLBACK_TABLE = "transaction_channel_callback";
     /**
-     * {@code TRANSACTION_STATUS_HISTORY_TABLE}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 交易状态变更历史逻辑表名。
      */
     private static final String TRANSACTION_STATUS_HISTORY_TABLE = "transaction_status_history";
     /**
-     * {@code TRANSACTION_FLOW_EVENT_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易流程事件逻辑表名。
      */
     private static final String TRANSACTION_FLOW_EVENT_TABLE = "transaction_flow_event";
     /**
-     * 交易金额变更日志表，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
+     * 交易生命周期金额变更日志逻辑表名。
      */
     private static final String TRANSACTION_AMOUNT_CHANGE_LOG_TABLE = "transaction_amount_change_log";
     /**
-     * 交易渠道请求表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * </p>
+     * 渠道请求业务记录逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_REQUEST_TABLE = "transaction_channel_request";
     /**
-     * 交易渠道回调日志表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-     * </p>
+     * 渠道回调原文日志逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE = "transaction_channel_callback_log";
     /**
-     * 交易商户通知表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户通知任务逻辑表名。
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
 
-    /** 管理端通知详情投影，明确排除包含完整回调地址的 notify_config_snapshot_json。 */
+    /**
+     * 管理端状态历史详情显式投影，固定状态机审计字段的接口边界。
+     */
+    private static final String TRANSACTION_STATUS_HISTORY_DETAIL_PROJECTION = """
+            id, status_history_id, transaction_id, operation_id, status_object,
+            from_status, to_status, trigger_type, trigger_id, transition_result,
+            fail_reason, version_before, version_after, status_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone, create_time
+            """;
+
+    /**
+     * 管理端流程事件详情显式投影，避免内部表字段自动进入 API 响应。
+     */
+    private static final String TRANSACTION_FLOW_EVENT_DETAIL_PROJECTION = """
+            id, flow_event_id, transaction_id, operation_id, event_type, event_stage,
+            event_status, event_name, event_content, previous_status, current_status,
+            operator_type, operator_id, reference_type, reference_id, error_code, error_message,
+            event_time, transaction_date_time, transaction_utc_time, transaction_time_zone, create_time
+            """;
+
+    /**
+     * 管理端金额变动详情显式投影，保留持久化的金额生命周期快照。
+     */
+    private static final String TRANSACTION_AMOUNT_CHANGE_DETAIL_PROJECTION = """
+            id, amount_change_id, transaction_id, operation_id,
+            source_transaction_id, source_operation_id, change_type, amount_currency, change_amount,
+            authorized_before, authorized_after, captured_before, captured_after,
+            refunded_before, refunded_after, available_capture_before, available_capture_after,
+            available_refund_before, available_refund_after, change_reason, change_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone, create_time
+            """;
+
+    /**
+     * 管理端渠道请求详情显式投影，只返回核心请求字段和渠道响应摘要。
+     */
+    private static final String TRANSACTION_CHANNEL_REQUEST_DETAIL_PROJECTION = """
+            id, request_id, transaction_id, operation_id, channel_id, channel_code,
+            channel_mid_config_id, transaction_type, request_scene, channel_match_flag,
+            request_status, http_method, request_url_masked, request_currency, request_amount,
+            channel_order_no, channel_transaction_id, gateway_result, gateway_code,
+            acquirer_code, acquirer_message, channel_status, platform_success,
+            platform_result_code, platform_fail_reason, request_start_time, response_time,
+            duration_millis, transaction_date_time, transaction_utc_time, transaction_time_zone,
+            version, deleted, create_time, update_time
+            """;
+
+    /**
+     * 管理端渠道交互详情显式投影，仅包含日志表已经脱敏的字段。
+     */
+    private static final String TRANSACTION_CHANNEL_INTERACTION_DETAIL_PROJECTION = """
+            id, interaction_log_id, request_id, transaction_id, operation_id, channel_code,
+            interaction_type, http_method, request_url_masked, http_status,
+            request_header_json_masked, request_body_json_masked,
+            response_header_json_masked, response_body_json_masked,
+            exception_type, exception_message, duration_millis, trace_id, interaction_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone, create_time,
+            NULL AS transaction_type, NULL AS request_status, NULL AS gateway_result,
+            NULL AS gateway_code, NULL AS acquirer_code, NULL AS acquirer_message,
+            NULL AS channel_trade_status, NULL AS channel_order_no,
+            NULL AS channel_transaction_id, NULL AS platform_result_code,
+            NULL AS platform_fail_reason, NULL AS channel_response_code,
+            NULL AS channel_response_message
+            """;
+
+    /**
+     * 管理端渠道回调原文日志显式投影，只返回脱敏报文和校验结果。
+     */
+    private static final String TRANSACTION_CHANNEL_CALLBACK_LOG_DETAIL_PROJECTION = """
+            id, callback_log_id, transaction_id, operation_id, channel_code, callback_type,
+            channel_order_no, channel_transaction_id, request_uri, http_method, source_ip,
+            request_header_json_masked, request_body_json_masked, signature_valid, ip_allowed,
+            platform_response_code, platform_response_body, callback_received_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone, create_time
+            """;
+
+    /**
+     * 管理端商户 OpenAPI 日志显式投影，只返回安全摘要、掩码和脱敏明文。
+     */
+    private static final String TRANSACTION_MERCHANT_API_LOG_DETAIL_PROJECTION = """
+            id, api_log_id, request_id, transaction_id, operation_id, merchant_id,
+            merchant_order_no, merchant_order_id, api_operation, request_path, request_time,
+            request_result, request_cipher_digest, request_cipher_masked, request_plain_json_masked,
+            response_time, response_result, merchant_response_code, merchant_response_message,
+            response_plain_json_masked, response_cipher_digest, response_cipher_masked,
+            duration_millis, trace_id, transaction_date_time, transaction_utc_time,
+            transaction_time_zone, create_time
+            """;
+
+    /**
+     * 管理端渠道交互日志显式投影，只返回已脱敏的 HTTP 报文和状态诊断字段。
+     */
+    private static final String TRANSACTION_CHANNEL_LOG_ADMIN_PROJECTION = """
+            l.id, l.interaction_log_id, l.request_id, l.transaction_id, l.operation_id,
+            l.channel_code, l.interaction_type, l.http_method, l.request_url_masked, l.http_status,
+            l.request_header_json_masked, l.request_body_json_masked,
+            l.response_header_json_masked, l.response_body_json_masked,
+            l.exception_type, l.exception_message, l.duration_millis, l.trace_id,
+            l.interaction_time, l.transaction_date_time, l.transaction_utc_time,
+            l.transaction_time_zone, l.create_time,
+            COALESCE(r.transaction_type, o.transaction_type) AS transaction_type,
+            r.request_status AS request_status,
+            r.gateway_result AS gateway_result,
+            r.gateway_code AS gateway_code,
+            r.acquirer_code AS acquirer_code,
+            r.acquirer_message AS acquirer_message,
+            r.channel_status AS channel_trade_status,
+            COALESCE(r.channel_order_no, o.channel_order_no) AS channel_order_no,
+            COALESCE(r.channel_transaction_id, o.channel_transaction_id) AS channel_transaction_id,
+            COALESCE(r.platform_result_code, o.transaction_status) AS platform_result_code,
+            r.platform_fail_reason AS platform_fail_reason,
+            COALESCE(r.acquirer_code, r.gateway_code, o.channel_response_code) AS channel_response_code,
+            COALESCE(r.acquirer_message, o.channel_response_message, r.platform_fail_reason)
+                AS channel_response_message
+            """;
+
+    /**
+     * 管理端渠道回调记录显式投影，固定回调状态和状态推进字段的接口契约。
+     */
+    private static final String TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION = """
+            id, callback_id, callback_log_id, transaction_id, operation_id,
+            channel_code, channel_order_no, channel_transaction_id,
+            callback_type, channel_event_type, callback_status, idempotency_key,
+            signature_valid, ip_allowed, parsed_transaction_status,
+            previous_transaction_status, target_transaction_status,
+            process_result, fail_reason, callback_received_time, processed_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone,
+            version, deleted, create_time, update_time
+            """;
+
+    /**
+     * 管理端商户通知安全投影，排除完整回调地址、明文通知载荷和历史配置快照。
+     */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION = """
             id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
             notify_type, event_type, notify_status, notify_config_version,
@@ -228,30 +318,34 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             transaction_date_time, transaction_utc_time, transaction_time_zone,
             version, deleted, create_time, update_time
             """;
+
     /**
-     * 交易商户通知日志表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 管理端商户通知投递日志显式投影，只返回脱敏请求、响应和投递结果。
+     */
+    private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION = """
+            id, notify_log_id, notify_id, callback_event_id, delivery_mode,
+            transaction_id, operation_id, merchant_id, attempt_no, target_url_hash,
+            http_status, request_header_json_masked, request_body_json_masked,
+            response_body_json_masked, success, error_message, notify_time,
+            duration_millis, transaction_date_time, transaction_utc_time,
+            transaction_time_zone, create_time
+            """;
+    /**
+     * 商户通知单次投递日志逻辑表名。
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE = "transaction_merchant_notification_log";
     /**
-     * {@code TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户 OpenAPI 交互日志逻辑表名。
      */
     private static final String TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE = "transaction_merchant_api_interaction_log";
     /**
-     * 默认查询时间时区常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 管理端未指定查询时区时使用的默认 IANA 时区。
      */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
+
+    /**
+     * 包含 {@code deleted} 字段、查询时必须过滤软删除记录的交易逻辑表。
+     */
     private static final Set<String> SOFT_DELETE_LOGICAL_TABLES = Set.of(
             TRANSACTION_ORDER_TABLE,
             TRANSACTION_OPERATION_TABLE,
@@ -260,12 +354,21 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             TRANSACTION_MERCHANT_NOTIFICATION_TABLE
     );
 
+    /**
+     * 交易查询专用命名参数 JDBC 模板。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 在 transaction 逻辑数据源上执行普通读和强一致读。 */
+    /**
+     * 在 transaction 逻辑数据源上执行普通读和强一致读。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
-    /** 单次同步查询允许返回的最大记录数。 */
+    /**
+     * 单次同步查询允许返回的最大记录数。
+     */
     private final int maxResultRows;
-    /** 当前版本已登记物理节点中的最早季度，用于受控批量定位生命周期主单。 */
+    /**
+     * 当前版本已登记物理节点中的最早季度，用于受控批量定位生命周期主单。
+     */
     private final LocalDateTime registeredNodeBegin;
 
     /**
@@ -273,6 +376,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      */
     private final AdminRiskTimelineQueryService riskTimelineQueryService;
 
+    /**
+     * 创建测试或本地调用使用的管理端交易查询服务。
+     *
+     * @param jdbcTemplate 命名参数 JDBC 模板
+     * @param riskTimelineQueryService 风控时间轴查询服务
+     */
     public JdbcAdminTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                             AdminRiskTimelineQueryService riskTimelineQueryService) {
         this(jdbcTemplate, riskTimelineQueryService, new TransactionLogicalReadExecutor(),
@@ -330,6 +439,42 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             return emptyPage(safeQuery);
         }
         return executeRead(false, () -> pageOrdersNormalized(safeQuery));
+    }
+
+    /**
+     * 查询生命周期主单分页结果及相同条件下的全量统计。
+     *
+     * @param query 交易筛选和分页条件
+     * @return 主单分页和全量统计
+     */
+    @Override
+    public TransactionOrderSearchResponse searchOrders(TransactionPageQuery query) {
+        TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            TransactionOrderSearchResponse response = new TransactionOrderSearchResponse();
+            response.setPage(emptyPage(safeQuery));
+            response.setSummary(new TransactionOrderSummaryResponse());
+            return response;
+        }
+        return executeRead(false, () -> searchOrdersNormalized(safeQuery));
+    }
+
+    /**
+     * 分页查询并规范化交易订单摘要。
+     */
+    private TransactionOrderSearchResponse searchOrdersNormalized(TransactionPageQuery safeQuery) {
+        TransactionOrderSummaryResponse summary = orderSummary(safeQuery);
+        long offset = offset(safeQuery);
+        long limit = safeQuery.safePageSize();
+        List<TransactionOrderResponse> rows = offset < summary.getTotalCount()
+                ? selectOrders(TRANSACTION_ORDER_TABLE, safeQuery, offset, limit)
+                : List.of();
+        enrichOrderThreeDs(rows);
+        TransactionOrderSearchResponse response = new TransactionOrderSearchResponse();
+        response.setPage(PageResult.of(
+                summary.getTotalCount(), safeQuery.safePageNo(), safeQuery.safePageSize(), rows));
+        response.setSummary(summary);
+        return response;
     }
 
     /**
@@ -448,27 +593,49 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 sourceOperation.getTransactionId(), sourceOperation.getTransactionDateTime()));
         detail.setShippingInfo(selectShippingInfo(
                 sourceOperation.getTransactionId(), sourceOperation.getTransactionDateTime()));
-        detail.setStatusHistory(selectMapsByOperationId(TRANSACTION_STATUS_HISTORY_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setFlowEvents(selectMapsByOperationId(TRANSACTION_FLOW_EVENT_TABLE, beginTime, endTime, order.getOperationId()));
+        detail.setStatusHistory(selectDetailRowsByOperationId(
+                TRANSACTION_STATUS_HISTORY_TABLE, TRANSACTION_STATUS_HISTORY_DETAIL_PROJECTION,
+                beginTime, endTime, order.getOperationId(), statusHistoryMapper()));
+        detail.setFlowEvents(selectDetailRowsByOperationId(
+                TRANSACTION_FLOW_EVENT_TABLE, TRANSACTION_FLOW_EVENT_DETAIL_PROJECTION,
+                beginTime, endTime, order.getOperationId(), flowEventMapper()));
         detail.setRiskEvents(riskTimelineQueryService.findRiskEvents(sourceOperation.getTransactionId()));
         detail.setAmountChanges(withInitialAmountChange(order, operations, detail.getStatusHistory(),
-                selectMapsByOperationId(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, beginTime, endTime, order.getOperationId())));
-        detail.setChannelRequests(selectMapsByOperationId(TRANSACTION_CHANNEL_REQUEST_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setChannelInteractionLogs(selectMapsByOperationId(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setChannelCallbacks(selectMapsByOperationId(TRANSACTION_CHANNEL_CALLBACK_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setChannelCallbackLogs(selectMapsByOperationId(TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setMerchantNotifications(selectMapsByOperationId(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setMerchantNotificationLogs(selectMapsByOperationId(TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setMerchantApiInteractionLogs(selectMapsByOperationId(
-                TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
+                selectDetailRowsByOperationId(
+                        TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, TRANSACTION_AMOUNT_CHANGE_DETAIL_PROJECTION,
+                        beginTime, endTime, order.getOperationId(), amountChangeMapper())));
+        detail.setChannelRequests(selectDetailRowsByOperationId(
+                TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_CHANNEL_REQUEST_DETAIL_PROJECTION,
+                beginTime, endTime, order.getOperationId(), channelRequestMapper()));
+        detail.setChannelInteractionLogs(selectDetailRowsByOperationId(
+                TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, TRANSACTION_CHANNEL_INTERACTION_DETAIL_PROJECTION,
+                beginTime, endTime, order.getOperationId(), channelInteractionLogMapper()));
+        detail.setChannelCallbacks(selectDetailRowsByOperationId(
+                TRANSACTION_CHANNEL_CALLBACK_TABLE, TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION,
+                beginTime, endTime, order.getOperationId(), channelCallbackMapper()));
+        detail.setChannelCallbackLogs(selectDetailRowsByOperationId(
+                TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, TRANSACTION_CHANNEL_CALLBACK_LOG_DETAIL_PROJECTION,
+                beginTime, endTime, order.getOperationId(), channelCallbackLogMapper()));
+        detail.setMerchantNotifications(selectDetailRowsByOperationId(
+                TRANSACTION_MERCHANT_NOTIFICATION_TABLE, TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION,
+                beginTime, endTime, order.getOperationId(), merchantNotificationMapper()));
+        detail.setMerchantNotificationLogs(selectDetailRowsByOperationId(
+                TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION,
+                beginTime, endTime, order.getOperationId(), merchantNotificationDeliveryLogMapper()));
+        detail.setMerchantApiInteractionLogs(selectDetailRowsByOperationId(
+                TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, TRANSACTION_MERCHANT_API_LOG_DETAIL_PROJECTION,
+                beginTime, endTime, order.getOperationId(), merchantApiInteractionLogMapper()));
         return detail;
     }
 
-    /** 历史首次成功动作没有金额日志；用已持久化的根动作事实补齐详情展示。 */
-    static List<Map<String, Object>> withInitialAmountChange(TransactionOrderResponse order,
-                                                               List<TransactionOperationResponse> operations,
-                                                               List<Map<String, Object>> statusHistory,
-                                                               List<Map<String, Object>> amountChanges) {
+    /**
+     * 历史首次成功动作没有金额日志；用已持久化的根动作事实补齐详情展示。
+     */
+    static List<TransactionAmountChangeResponse> withInitialAmountChange(
+            TransactionOrderResponse order,
+            List<TransactionOperationResponse> operations,
+            List<TransactionStatusHistoryResponse> statusHistory,
+            List<TransactionAmountChangeResponse> amountChanges) {
         if (order == null || !StringUtils.hasText(order.getRootTransactionId())) {
             return amountChanges;
         }
@@ -480,45 +647,47 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 || !("PAYMENT".equals(initial.getTransactionType())
                 || "AUTHORIZATION".equals(initial.getTransactionType())
                 || "PRE_AUTHORIZATION".equals(initial.getTransactionType()))
-                || amountChanges.stream().anyMatch(row -> initial.getTransactionId().equals(row.get("transactionId")))) {
+                || amountChanges.stream().anyMatch(row -> initial.getTransactionId().equals(row.getTransactionId()))) {
             return amountChanges;
         }
         BigDecimal zero = BigDecimal.ZERO;
         BigDecimal amount = initial.getTransactionAmount();
         boolean payment = "PAYMENT".equals(initial.getTransactionType());
-        Object successTime = statusHistory.stream()
-                .filter(row -> initial.getTransactionId().equals(row.get("transactionId"))
-                        && "SUCCESS".equals(row.get("toStatus"))
-                        && "OPERATION".equals(row.get("statusObject")))
-                .map(row -> row.get("statusTime"))
+        LocalDateTime successTime = statusHistory.stream()
+                .filter(row -> initial.getTransactionId().equals(row.getTransactionId())
+                        && "SUCCESS".equals(row.getToStatus())
+                        && "OPERATION".equals(row.getStatusObject()))
+                .map(TransactionStatusHistoryResponse::getStatusTime)
                 .filter(Objects::nonNull)
                 .findFirst().orElse(initial.getOperationTime());
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("amountChangeId", "INITIAL:" + initial.getTransactionId());
-        row.put("transactionId", initial.getTransactionId());
-        row.put("operationId", initial.getOperationId());
-        row.put("changeType", initial.getTransactionType());
-        row.put("changeSource", "INITIAL_OPERATION");
-        row.put("amountCurrency", initial.getTransactionCurrency());
-        row.put("changeAmount", amount);
-        row.put("authorizedBefore", zero);
-        row.put("authorizedAfter", amount);
-        row.put("capturedBefore", zero);
-        row.put("capturedAfter", payment ? amount : zero);
-        row.put("refundedBefore", zero);
-        row.put("refundedAfter", zero);
-        row.put("availableCaptureBefore", zero);
-        row.put("availableCaptureAfter", payment ? zero : amount);
-        row.put("availableRefundBefore", zero);
-        row.put("availableRefundAfter", payment ? amount : zero);
-        row.put("changeTime", successTime);
-        List<Map<String, Object>> result = new ArrayList<>(amountChanges.size() + 1);
+        TransactionAmountChangeResponse row = new TransactionAmountChangeResponse();
+        row.setAmountChangeId("INITIAL:" + initial.getTransactionId());
+        row.setTransactionId(initial.getTransactionId());
+        row.setOperationId(initial.getOperationId());
+        row.setChangeType(initial.getTransactionType());
+        row.setChangeSource("INITIAL_OPERATION");
+        row.setAmountCurrency(initial.getTransactionCurrency());
+        row.setChangeAmount(amount);
+        row.setAuthorizedBefore(zero);
+        row.setAuthorizedAfter(amount);
+        row.setCapturedBefore(zero);
+        row.setCapturedAfter(payment ? amount : zero);
+        row.setRefundedBefore(zero);
+        row.setRefundedAfter(zero);
+        row.setAvailableCaptureBefore(zero);
+        row.setAvailableCaptureAfter(payment ? zero : amount);
+        row.setAvailableRefundBefore(zero);
+        row.setAvailableRefundAfter(payment ? amount : zero);
+        row.setChangeTime(successTime);
+        List<TransactionAmountChangeResponse> result = new ArrayList<>(amountChanges.size() + 1);
         result.add(row);
         result.addAll(amountChanges);
         return result;
     }
 
-    /** 按交易号和精确分片时间读取持卡人账单信息，不返回表主键、哈希和审计字段。 */
+    /**
+     * 按交易号和精确分片时间读取持卡人账单信息，不返回表主键、哈希和审计字段。
+     */
     private TransactionContactInfoResponse selectBillingCardHolderInfo(String transactionId,
                                                                         LocalDateTime transactionDateTime) {
         List<TransactionContactInfoResponse> rows = jdbcTemplate.query("""
@@ -534,7 +703,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 按交易号和精确分片时间读取付款人信息，不返回检索哈希和内部标识。 */
+    /**
+     * 按交易号和精确分片时间读取付款人信息，不返回检索哈希和内部标识。
+     */
     private TransactionPayerInfoResponse selectPayerInfo(String transactionId,
                                                           LocalDateTime transactionDateTime) {
         List<TransactionPayerInfoResponse> rows = jdbcTemplate.query("""
@@ -549,7 +720,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 按交易号和精确分片时间读取收货信息，不返回表主键和审计字段。 */
+    /**
+     * 按交易号和精确分片时间读取收货信息，不返回表主键和审计字段。
+     */
     private TransactionContactInfoResponse selectShippingInfo(String transactionId,
                                                                LocalDateTime transactionDateTime) {
         List<TransactionContactInfoResponse> rows = jdbcTemplate.query("""
@@ -563,7 +736,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 构造交易附属信息精确分片查询参数。 */
+    /**
+     * 构造交易附属信息精确分片查询参数。
+     */
     private MapSqlParameterSource partyInfoParams(String transactionId,
                                                   LocalDateTime transactionDateTime) {
         return new MapSqlParameterSource()
@@ -571,7 +746,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("transactionDateTime", transactionDateTime);
     }
 
-    /** 映射账单和收货联系人业务字段。 */
+    /**
+     * 映射账单和收货联系人业务字段。
+     */
     private RowMapper<TransactionContactInfoResponse> contactInfoMapper() {
         return (resultSet, rowNumber) -> {
             TransactionContactInfoResponse response = new TransactionContactInfoResponse();
@@ -580,7 +757,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
-    /** 映射付款人业务字段及浏览器上下文。 */
+    /**
+     * 映射付款人业务字段及浏览器上下文。
+     */
     private RowMapper<TransactionPayerInfoResponse> payerInfoMapper() {
         return (resultSet, rowNumber) -> {
             TransactionPayerInfoResponse response = new TransactionPayerInfoResponse();
@@ -599,7 +778,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
-    /** 填充账单、付款人和收货信息共享的身份、联系方式及地址字段。 */
+    /**
+     * 填充账单、付款人和收货信息共享的身份、联系方式及地址字段。
+     */
     private void fillContactInfo(TransactionContactInfoResponse response,
                                  ResultSet resultSet) throws SQLException {
         response.setFirstName(resultSet.getString("first_name"));
@@ -620,7 +801,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 渠道交互日志分页结果
      */
     @Override
-    public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
+    public PageResult<ChannelInteractionLogResponse> pageChannelLogs(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = normalize(query);
         if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             return emptyPage(safeQuery);
@@ -635,14 +816,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return ShardingSphere 归并后的渠道回调分页结果
      */
     @Override
-    public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
+    public PageResult<ChannelCallbackResponse> pageChannelCallbacks(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = normalize(query);
         if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             return emptyPage(safeQuery);
         }
         return executeRead(false,
-                () -> pageMaps(TRANSACTION_CHANNEL_CALLBACK_TABLE, channelCallbackWhereSql(safeQuery),
-                        channelCallbackParams(safeQuery), safeQuery));
+                () -> pageRecords(
+                        TRANSACTION_CHANNEL_CALLBACK_TABLE,
+                        TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION,
+                        channelCallbackWhereSql(safeQuery),
+                        channelCallbackParams(safeQuery),
+                        safeQuery,
+                        channelCallbackMapper()));
     }
 
     /**
@@ -652,14 +838,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return ShardingSphere 归并后的商户通知分页结果
      */
     @Override
-    public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
+    public PageResult<MerchantNotificationResponse> pageMerchantNotifications(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = normalize(query);
         if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             return emptyPage(safeQuery);
         }
         return executeRead(false,
-                () -> pageMaps(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, merchantNotificationWhereSql(safeQuery),
-                        merchantNotificationParams(safeQuery), safeQuery));
+                () -> pageRecords(
+                        TRANSACTION_MERCHANT_NOTIFICATION_TABLE,
+                        TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION,
+                        merchantNotificationWhereSql(safeQuery),
+                        merchantNotificationParams(safeQuery),
+                        safeQuery,
+                        merchantNotificationMapper()));
     }
 
     /**
@@ -670,8 +861,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 包含脱敏任务快照和按尝试次数排序日志的详情视图
      */
     @Override
-    public Map<String, Object> merchantNotificationDetail(String notifyId,
-                                                          LocalDateTime transactionDateTime) {
+    public MerchantNotificationDetailResponse merchantNotificationDetail(
+            String notifyId,
+            LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(notifyId) || transactionDateTime == null) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID);
         }
@@ -679,35 +871,38 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             MapSqlParameterSource params = new MapSqlParameterSource()
                     .addValue("notifyId", notifyId.trim())
                     .addValue("transactionDateTime", transactionDateTime);
-            List<Map<String, Object>> notifications = toCamelCaseRows(jdbcTemplate.queryForList("""
+            List<MerchantNotificationResponse> notifications = jdbcTemplate.query("""
                     SELECT %s
                     FROM transaction_merchant_notification
                     WHERE notify_id = :notifyId
                       AND transaction_date_time = :transactionDateTime
                       AND deleted = 0
                     LIMIT 1
-                    """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION), params));
+                    """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION),
+                    params,
+                    merchantNotificationMapper());
             if (notifications.isEmpty()) {
                 throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
             }
-            List<Map<String, Object>> deliveryLogs = toCamelCaseRows(jdbcTemplate.queryForList("""
-                    SELECT *
+            List<MerchantNotificationDeliveryLogResponse> deliveryLogs = jdbcTemplate.query("""
+                    SELECT %s
                     FROM transaction_merchant_notification_log
                     WHERE notify_id = :notifyId
                       AND transaction_date_time = :transactionDateTime
                     ORDER BY attempt_no ASC, id ASC
                     LIMIT 100
-                    """, params));
-            decorateMerchantNotificationLogRows(deliveryLogs);
-            Map<String, Object> detail = new LinkedHashMap<>();
-            detail.put("notification", notifications.get(0));
-            detail.put("deliveryLogs", deliveryLogs);
+                    """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION),
+                    params,
+                    merchantNotificationDeliveryLogMapper());
+            MerchantNotificationDetailResponse detail = new MerchantNotificationDetailResponse();
+            detail.setNotification(notifications.get(0));
+            detail.setDeliveryLogs(deliveryLogs);
             return detail;
         });
     }
 
     /**
-     * {@inheritDoc}
+     * 判断指定交易是否存在可重试的终态商户通知记录。
      */
     @Override
     public boolean existsRetryableTerminalMerchantNotification(String transactionId,
@@ -761,18 +956,42 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
-    private PageResult<Map<String, Object>> pageMaps(String logicalTable, String whereSql, MapSqlParameterSource params, PageRequest query) {
+    /**
+     * 按固定字段投影和行映射器分页查询交易附属记录。
+     *
+     * @param logicalTable 交易逻辑表名
+     * @param projection 管理端允许返回的字段投影
+     * @param whereSql 已使用命名参数的筛选片段
+     * @param params 查询参数
+     * @param query 分页条件
+     * @param rowMapper 强类型行映射器
+     * @param <T> 响应记录类型
+     * @return 当前页强类型记录
+     */
+    private <T> PageResult<T> pageRecords(String logicalTable,
+                                          String projection,
+                                          String whereSql,
+                                          MapSqlParameterSource params,
+                                          PageRequest query,
+                                          RowMapper<T> rowMapper) {
         long offset = offset(query);
         long limit = query.safePageSize();
         boolean softDeleteTable = hasSoftDeleteColumn(logicalTable);
         long total = countMaps(logicalTable, whereSql, params, softDeleteTable);
-        List<Map<String, Object>> rows = offset < total
-                ? selectMaps(logicalTable, whereSql, params, offset, limit, softDeleteTable)
+        List<T> rows = offset < total
+                ? selectRecords(logicalTable, projection, whereSql, params, offset, limit,
+                        softDeleteTable, rowMapper)
                 : List.of();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
     }
 
-    private PageResult<Map<String, Object>> pageChannelLogsNormalized(ChannelLogQuery query) {
+    /**
+     * 分页查询并规范化渠道交互日志。
+     *
+     * @param query 已补齐时间范围的渠道日志查询
+     * @return 包含渠道状态诊断字段的交互日志分页
+     */
+    private PageResult<ChannelInteractionLogResponse> pageChannelLogsNormalized(ChannelLogQuery query) {
         long offset = offset(query);
         long limit = query.safePageSize();
         long total = countChannelLogs(
@@ -780,7 +999,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 TRANSACTION_CHANNEL_REQUEST_TABLE,
                 TRANSACTION_OPERATION_TABLE,
                 query);
-        List<Map<String, Object>> rows = offset < total
+        List<ChannelInteractionLogResponse> rows = offset < total
                 ? selectChannelLogs(
                         TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE,
                         TRANSACTION_CHANNEL_REQUEST_TABLE,
@@ -792,6 +1011,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
     }
 
+    /**
+     * 统计带软删除条件的交易记录数量，并将数据库空值转换为零。
+     *
+     * @param table 交易逻辑表名
+     * @param whereSql 查询筛选片段
+     * @param params 查询参数
+     * @return 命中记录数
+     */
     private long count(String table, String whereSql, MapSqlParameterSource params) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -802,6 +1029,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
+    /**
+     * 统计交易附属表记录数量，按表结构决定是否过滤软删除数据。
+     *
+     * @param table 交易逻辑表名
+     * @param whereSql 查询筛选片段
+     * @param params 查询参数
+     * @param softDeleteTable 当前表是否包含软删除字段
+     * @return 命中记录数
+     */
     private long countMaps(String table, String whereSql, MapSqlParameterSource params, boolean softDeleteTable) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -812,19 +1048,50 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
-    private List<Map<String, Object>> selectMaps(String table, String whereSql, MapSqlParameterSource params,
-                                                 long offset, long limit, boolean softDeleteTable) {
+    /**
+     * 使用显式字段投影读取一页交易附属记录。
+     *
+     * @param table 交易逻辑表名
+     * @param projection 管理端允许返回的字段投影
+     * @param whereSql 查询筛选片段
+     * @param params 查询参数
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @param softDeleteTable 当前表是否包含软删除字段
+     * @param rowMapper 强类型行映射器
+     * @param <T> 响应记录类型
+     * @return 按交易时间倒序排列的记录
+     */
+    private <T> List<T> selectRecords(String table,
+                                      String projection,
+                                      String whereSql,
+                                      MapSqlParameterSource params,
+                                      long offset,
+                                      long limit,
+                                      boolean softDeleteTable,
+                                      RowMapper<T> rowMapper) {
         MapSqlParameterSource pageParams = copy(params).addValue("offset", offset).addValue("limit", limit);
-        return toCamelCaseRows(jdbcTemplate.queryForList("""
-                SELECT *
+        return jdbcTemplate.query("""
+                SELECT %s
                 FROM %s
                 WHERE %s
                 %s
                 ORDER BY transaction_date_time DESC, id DESC
                 LIMIT :offset, :limit
-                """.formatted(table, softDeleteCondition(softDeleteTable), whereSql), pageParams));
+                """.formatted(projection, table, softDeleteCondition(softDeleteTable), whereSql),
+                pageParams,
+                rowMapper);
     }
 
+    /**
+     * 统计渠道交互日志数量。
+     *
+     * @param table 渠道交互日志逻辑表
+     * @param requestTable 渠道请求逻辑表
+     * @param operationTable 交易动作逻辑表
+     * @param query 渠道日志筛选条件
+     * @return 命中日志数
+     */
     private long countChannelLogs(String table, String requestTable, String operationTable, ChannelLogQuery query) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -838,30 +1105,28 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
-    private List<Map<String, Object>> selectChannelLogs(String table,
-                                                        String requestTable,
-                                                        String operationTable,
-                                                        ChannelLogQuery query,
-                                                        long offset,
-                                                        long limit) {
+    /**
+     * 查询渠道交互日志，并关联渠道请求与交易动作补齐统一返回码和状态字段。
+     *
+     * @param table 渠道交互日志逻辑表
+     * @param requestTable 渠道请求逻辑表
+     * @param operationTable 交易动作逻辑表
+     * @param query 渠道日志筛选条件
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @return 渠道交互日志
+     */
+    private List<ChannelInteractionLogResponse> selectChannelLogs(String table,
+                                                                  String requestTable,
+                                                                  String operationTable,
+                                                                  ChannelLogQuery query,
+                                                                  long offset,
+                                                                  long limit) {
         MapSqlParameterSource params = channelLogParams(query)
                 .addValue("offset", offset)
                 .addValue("limit", limit);
-        return toCamelCaseRows(jdbcTemplate.queryForList("""
-                SELECT l.*,
-                       COALESCE(r.transaction_type, o.transaction_type) AS transaction_type,
-                       r.request_status AS request_status,
-                       r.gateway_result AS gateway_result,
-                       r.gateway_code AS gateway_code,
-                       r.acquirer_code AS acquirer_code,
-                       r.acquirer_message AS acquirer_message,
-                       r.channel_status AS channel_trade_status,
-                       COALESCE(r.channel_order_no, o.channel_order_no) AS channel_order_no,
-                       COALESCE(r.channel_transaction_id, o.channel_transaction_id) AS channel_transaction_id,
-                       COALESCE(r.platform_result_code, o.transaction_status) AS platform_result_code,
-                       r.platform_fail_reason AS platform_fail_reason,
-                       COALESCE(r.acquirer_code, r.gateway_code, o.channel_response_code) AS channel_response_code,
-                       COALESCE(r.acquirer_message, o.channel_response_message, r.platform_fail_reason) AS channel_response_message
+        return jdbcTemplate.query("""
+                SELECT %s
                 FROM %s l
                 LEFT JOIN %s r ON r.request_id = l.request_id AND r.deleted = 0
                 LEFT JOIN %s o ON o.transaction_id = l.transaction_id AND o.deleted = 0
@@ -870,9 +1135,21 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 %s
                 ORDER BY l.interaction_time DESC, l.id DESC
                 LIMIT :offset, :limit
-                """.formatted(table, requestTable, operationTable, channelLogWhereSql(query)), params));
+                """.formatted(TRANSACTION_CHANNEL_LOG_ADMIN_PROJECTION,
+                        table, requestTable, operationTable, channelLogWhereSql(query)),
+                params,
+                channelInteractionLogMapper());
     }
 
+    /**
+     * 查询一页交易生命周期主单。
+     *
+     * @param table 交易主单逻辑表
+     * @param query 主单筛选条件
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @return 交易生命周期主单
+     */
     private List<TransactionOrderResponse> selectOrders(String table, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = orderParams(query).addValue("offset", offset).addValue("limit", limit);
         return jdbcTemplate.query("""
@@ -885,6 +1162,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 """.formatted(ORDER_QUERY_COLUMNS, table, orderWhereSql(query)), params, orderMapper());
     }
 
+    /**
+     * 统计符合筛选条件的交易动作数量。
+     *
+     * @param table 交易动作逻辑表
+     * @param paymentTable 支付方式快照逻辑表
+     * @param query 动作筛选条件
+     * @return 命中动作数
+     */
     private long countOperations(String table, String paymentTable, TransactionPageQuery query) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -895,6 +1180,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
+    /**
+     * 查询一页交易动作并关联支付方式快照。
+     *
+     * @param table 交易动作逻辑表
+     * @param paymentTable 支付方式快照逻辑表
+     * @param query 动作筛选条件
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @return 交易动作记录
+     */
     private List<TransactionOperationResponse> selectOperations(String table, String paymentTable, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = operationParams(query).addValue("offset", offset).addValue("limit", limit);
         return jdbcTemplate.query("""
@@ -1005,7 +1300,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 statusByTransactionId.get(row.getTransactionId())));
     }
 
-    /** 按生命周期操作号批量补齐主单 3DS 标识。 */
+    /**
+     * 按生命周期操作号批量补齐主单 3DS 标识。
+     */
     private void enrichOrderThreeDs(List<TransactionOrderResponse> rows) {
         if (rows == null || rows.isEmpty()) {
             return;
@@ -1018,7 +1315,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
     }
 
-    /** 按生命周期操作号批量补齐动作单 3DS 标识。 */
+    /**
+     * 按生命周期操作号批量补齐动作单 3DS 标识。
+     */
     private void enrichOperationThreeDs(List<TransactionOperationResponse> rows) {
         Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
                 .map(TransactionOperationResponse::getOperationId)
@@ -1060,7 +1359,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return result;
     }
 
-    /** 批量识别历史收银台交易，避免为每条动作单单独查询。 */
+    /**
+     * 批量识别历史收银台交易，避免为每条动作单单独查询。
+     */
     private void enrichAccessTypes(List<TransactionOperationResponse> rows) {
         List<String> unresolvedTransactionIds = rows.stream()
                 .filter(row -> !ACCESS_TYPE_HOSTED_CHECKOUT.equals(row.getAccessType()))
@@ -1086,18 +1387,22 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
+    /**
+     * 按标签币种汇总交易操作。标签金额是商户看到的原始金额，不能在 DCC/EDC 场景下
+     * 使用交易币种、交易金额或交易币种辅币位替代。
+     */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery query) {
         SummaryAccumulator accumulator = new SummaryAccumulator();
         jdbcTemplate.query("""
                     SELECT o.transaction_status AS transaction_status,
-                           COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
-                           o.currency_exponent AS currency_exponent,
+                           COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN') AS currency,
                            COUNT(1) AS count,
-                           COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
+                           COALESCE(SUM(COALESCE(o.label_amount, 0)), 0) AS amount
                     FROM %s o
                     WHERE o.deleted = 0
                     %s
-                    GROUP BY o.transaction_status, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
+                    GROUP BY o.transaction_status, COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN')
+                    ORDER BY currency ASC
                     """.formatted(TRANSACTION_OPERATION_TABLE,
                     operationWhereSql(query, TRANSACTION_PAYMENT_METHOD_INFO_TABLE)),
                     operationParams(query), summaryMapper())
@@ -1105,15 +1410,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         jdbcTemplate.query("""
                     SELECT COALESCE(p.payment_method, 'UNKNOWN') AS payment_method,
                            p.payment_brand AS payment_brand,
-                           COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
-                           o.currency_exponent AS currency_exponent,
+                           COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN') AS currency,
                            COUNT(1) AS count,
-                           COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
+                           COALESCE(SUM(COALESCE(o.label_amount, 0)), 0) AS amount
                     FROM %s o
                     LEFT JOIN %s p ON p.transaction_id = o.transaction_id AND p.transaction_date_time = o.transaction_date_time
                     WHERE o.deleted = 0
                     %s
-                    GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
+                    GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand,
+                             COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN')
+                    ORDER BY payment_method ASC, payment_brand ASC, currency ASC
                     """.formatted(
                     TRANSACTION_OPERATION_TABLE,
                     TRANSACTION_PAYMENT_METHOD_INFO_TABLE,
@@ -1123,6 +1429,49 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return accumulator.toResponse();
     }
 
+    /**
+     * 将交易订单转换为管理端摘要。
+     */
+    private TransactionOrderSummaryResponse orderSummary(TransactionPageQuery query) {
+        OrderSummaryAccumulator accumulator = new OrderSummaryAccumulator();
+        jdbcTemplate.query("""
+                SELECT COALESCE(transaction_currency, 'UNKNOWN') AS currency,
+                       currency_exponent,
+                       COUNT(1) AS total_count,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'SUCCESS' THEN 1 ELSE 0 END), 0) AS success_count,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'FAILED' THEN 1 ELSE 0 END), 0) AS failed_count,
+                       COALESCE(SUM(CASE WHEN transaction_status IN ('PENDING', 'PROCESSING') THEN 1 ELSE 0 END), 0) AS processing_count,
+                       COALESCE(SUM(CASE WHEN captured_amount > 0 THEN 1 ELSE 0 END), 0) AS captured_count,
+                       COALESCE(SUM(transaction_amount), 0) AS total_amount,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'SUCCESS' THEN transaction_amount ELSE 0 END), 0) AS success_amount,
+                       COALESCE(SUM(CASE WHEN captured_amount > 0 THEN captured_amount ELSE 0 END), 0) AS captured_amount,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'FAILED' THEN transaction_amount ELSE 0 END), 0) AS failed_amount
+                FROM %s
+                WHERE deleted = 0
+                %s
+                GROUP BY COALESCE(transaction_currency, 'UNKNOWN'), currency_exponent
+                ORDER BY currency ASC
+                """.formatted(TRANSACTION_ORDER_TABLE, orderWhereSql(query)),
+                orderParams(query),
+                (rs, rowNum) -> new OrderSummaryRow(
+                        rs.getString("currency"),
+                        nullableInt(rs, "currency_exponent"),
+                        rs.getLong("total_count"),
+                        rs.getLong("success_count"),
+                        rs.getLong("failed_count"),
+                        rs.getLong("processing_count"),
+                        rs.getLong("captured_count"),
+                        rs.getBigDecimal("total_amount"),
+                        rs.getBigDecimal("success_amount"),
+                        rs.getBigDecimal("captured_amount"),
+                        rs.getBigDecimal("failed_amount")))
+                .forEach(accumulator::add);
+        return accumulator.toResponse();
+    }
+
+    /**
+     * 构建交易订单查询条件 SQL。
+     */
     private String orderWhereSql(TransactionPageQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND merchant_id = :merchantId");
@@ -1140,6 +1489,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建交易动作查询条件 SQL。
+     */
     private String operationWhereSql(TransactionPageQuery query, String paymentTable) {
         StringBuilder sql = new StringBuilder(" AND o.transaction_date_time >= :beginTime AND o.transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND o.merchant_id = :merchantId");
@@ -1171,6 +1523,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建渠道交互日志查询条件 SQL。
+     */
     private String channelLogWhereSql(ChannelLogQuery query) {
         StringBuilder sql = new StringBuilder();
         append(sql, query.getChannelCode(), "AND l.channel_code = :channelCode");
@@ -1187,6 +1542,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建渠道回调查询条件 SQL。
+     */
     private String channelCallbackWhereSql(ChannelCallbackQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getChannelCode(), "AND channel_code = :channelCode");
@@ -1197,6 +1555,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建商户通知查询条件 SQL。
+     */
     private String merchantNotificationWhereSql(MerchantNotificationQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND merchant_id = :merchantId");
@@ -1205,12 +1566,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 向当前构建结果追加非空字段。
+     */
     private void append(StringBuilder sql, String value, String fragment) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(fragment);
         }
     }
 
+    /**
+     * 构建交易订单查询参数。
+     */
     private MapSqlParameterSource orderParams(TransactionPageQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("merchantId", query.getMerchantId())
@@ -1227,6 +1594,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("settlementStatus", query.getSettlementStatus());
     }
 
+    /**
+     * 构建交易动作查询参数。
+     */
     private MapSqlParameterSource operationParams(TransactionPageQuery query) {
         return orderParams(query)
                 .addValue("sourceTransactionId", query.getSourceTransactionId())
@@ -1236,6 +1606,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("cardBinLike", StringUtils.hasText(query.getCardBin()) ? query.getCardBin() + "%" : null);
     }
 
+    /**
+     * 构建渠道交互日志查询参数。
+     */
     private MapSqlParameterSource channelLogParams(ChannelLogQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("channelCode", query.getChannelCode())
@@ -1245,6 +1618,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("interactionType", query.getInteractionType());
     }
 
+    /**
+     * 构建渠道回调查询参数。
+     */
     private MapSqlParameterSource channelCallbackParams(ChannelCallbackQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("channelCode", query.getChannelCode())
@@ -1254,6 +1630,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("callbackStatus", query.getCallbackStatus());
     }
 
+    /**
+     * 构建商户通知查询参数。
+     */
     private MapSqlParameterSource merchantNotificationParams(MerchantNotificationQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("merchantId", query.getMerchantId())
@@ -1261,10 +1640,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("notifyStatus", query.getNotifyStatus());
     }
 
+    /**
+     * 构建交易查询基础 SQL 参数。
+     */
     private MapSqlParameterSource baseParams(LocalDateTime beginTime, LocalDateTime endTime) {
         return new MapSqlParameterSource().addValue("beginTime", beginTime).addValue("endTime", exclusiveEnd(endTime));
     }
 
+    /**
+     * 规范化输入值。
+     */
     private TransactionPageQuery normalize(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         fillDefaultTimeRange(safeQuery);
@@ -1272,6 +1657,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
+    /**
+     * 规范化输入值。
+     */
     private ChannelLogQuery normalize(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = query == null ? new ChannelLogQuery() : query;
         QueryTimeRange range = normalizeQueryTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime(), safeQuery.getQueryTimeZone());
@@ -1281,6 +1669,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
+    /**
+     * 规范化输入值。
+     */
     private ChannelCallbackQuery normalize(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = query == null ? new ChannelCallbackQuery() : query;
         QueryTimeRange range = normalizeQueryTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime(), safeQuery.getQueryTimeZone());
@@ -1290,6 +1681,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
+    /**
+     * 规范化输入值。
+     */
     private MerchantNotificationQuery normalize(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = query == null ? new MerchantNotificationQuery() : query;
         QueryTimeRange range = normalizeQueryTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime(), safeQuery.getQueryTimeZone());
@@ -1299,12 +1693,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
-    /** 将所有管理端交易分页请求收敛到版本化规则声明的单次结果行数上限。 */
+    /**
+     * 将所有管理端交易分页请求收敛到版本化规则声明的单次结果行数上限。
+     */
     private <T extends PageRequest> T applyResultRowBudget(T query) {
         query.setPageSize((int) Math.min(query.safePageSize(), maxResultRows));
         return query;
     }
 
+    /**
+     * 规范化交易查询时间范围并回填存储时区值。
+     */
     private void fillDefaultTimeRange(TransactionPageQuery query) {
         QueryTimeRange range = normalizeQueryTimeRange(query.getBeginTime(), query.getEndTime(), query.getQueryTimeZone());
         query.setBeginTime(range.beginTime());
@@ -1312,6 +1711,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         query.setQueryTimeZone(range.queryTimeZone());
     }
 
+    /**
+     * 将管理端查询时间转换到交易存储时区并限制在有效节点范围内。
+     */
     private QueryTimeRange normalizeQueryTimeRange(LocalDateTime beginTime, LocalDateTime endTime, String queryTimeZone) {
         ZoneId queryZone = resolveQueryZone(queryTimeZone);
         LocalDateTime safeEnd = endTime == null ? LocalDateTime.now(queryZone) : endTime;
@@ -1328,14 +1730,26 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 queryZone.getId());
     }
 
+    /**
+     * 判断规范化后的查询时间范围是否为空。
+     */
     private boolean isEmptyTimeRange(LocalDateTime beginTime, LocalDateTime endTime) {
         return beginTime != null && endTime != null && beginTime.isAfter(endTime);
     }
 
+    /**
+     * 构建保持分页参数的空分页结果。
+     */
     private <T> PageResult<T> emptyPage(PageRequest query) {
         return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
     }
 
+    /**
+     * 解析管理端查询时区，空值使用默认时区，非法时区返回参数错误。
+     *
+     * @param queryTimeZone IANA 时区或受支持的 UTC/GMT 偏移写法
+     * @return 已校验的时区
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : DEFAULT_QUERY_TIME_ZONE;
         try {
@@ -1345,6 +1759,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
+    /**
+     * 规范化并校验时区标识。
+     */
     private String normalizeZoneId(String zone) {
         String normalized = zone == null ? DEFAULT_QUERY_TIME_ZONE : zone.trim();
         String upper = normalized.toUpperCase(Locale.ROOT);
@@ -1365,11 +1782,22 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return normalized;
     }
 
+    /**
+     * 在保持同一时间点的前提下将本地时间从源时区换算到目标时区。
+     *
+     * @param sourceTime 源时区本地时间
+     * @param sourceZone 源时区
+     * @param targetZone 目标时区
+     * @return 目标时区本地时间
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         ZonedDateTime source = sourceTime.atZone(sourceZone);
         return source.withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
+    /**
+     * 规范化商户响应编码。
+     */
     private void normalizeMerchantResponseCode(TransactionPageQuery query) {
         if (!StringUtils.hasText(query.getMerchantResponseCode())) {
             return;
@@ -1386,28 +1814,38 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         query.setTransactionStatus(mappedStatus);
     }
 
+    /**
+     * 将受支持的商户响应编码映射为平台交易状态筛选值。
+     */
     private String resolveStatusByMerchantResponseCode(String code) {
         if (!StringUtils.hasText(code)) {
             return null;
         }
         String safeCode = code.trim();
-        if (ApiResultEnum.PAYMENT_SUCCESS.getCode().equalsIgnoreCase(safeCode)
+        if (OpenApiResultCode.TRANSACTION_SUCCESS.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PAYMENT_SUCCESS.getCode().equalsIgnoreCase(safeCode)
                 || ApiResultEnum.SUCCESS.getCode().equalsIgnoreCase(safeCode)) {
             return "SUCCESS";
         }
-        if (ApiResultEnum.PAYMENT_REJECTED.getCode().equalsIgnoreCase(safeCode)
+        if (OpenApiResultCode.TRANSACTION_FAILED.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PAYMENT_REJECTED.getCode().equalsIgnoreCase(safeCode)
                 || ApiResultEnum.PAYMENT_REJECTED_BY_ISSUER.getCode().equalsIgnoreCase(safeCode)) {
             return "FAILED";
         }
-        if (ApiResultEnum.PENDING.getCode().equalsIgnoreCase(safeCode)) {
+        if (OpenApiResultCode.TRANSACTION_PENDING.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PENDING.getCode().equalsIgnoreCase(safeCode)) {
             return "PENDING";
         }
-        if (ApiResultEnum.PROCESSING.getCode().equalsIgnoreCase(safeCode)) {
+        if (OpenApiResultCode.TRANSACTION_PROCESSING.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PROCESSING.getCode().equalsIgnoreCase(safeCode)) {
             return "PROCESSING";
         }
         return null;
     }
 
+    /**
+     * 创建订单映射器。
+     */
     private RowMapper<TransactionOrderResponse> orderMapper() {
         return (rs, rowNum) -> {
             TransactionOrderResponse row = new TransactionOrderResponse();
@@ -1417,6 +1855,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setMerchantId(rs.getString("merchant_id"));
             row.setMerchantOrderNo(rs.getString("merchant_order_no"));
             row.setMerchantOrderId(rs.getString("merchant_order_id"));
+            row.setMerchantWebsite(getStringIfExists(rs, "merchant_website"));
             row.setPaymentMethod(rs.getString("payment_method"));
             row.setPaymentBrand(rs.getString("payment_brand"));
             row.setTransactionType(rs.getString("transaction_type"));
@@ -1435,8 +1874,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
-            row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-            row.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+            applyAudienceProjection(row, projectResult(rs, row.getTransactionStatus()), Map.of());
             row.setAuthorizedAmount(rs.getBigDecimal("authorized_amount"));
             row.setCapturedAmount(rs.getBigDecimal("captured_amount"));
             row.setRefundedAmount(rs.getBigDecimal("refunded_amount"));
@@ -1462,6 +1900,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
+    /**
+     * 创建动作映射器。
+     */
     private RowMapper<TransactionOperationResponse> operationMapper(boolean joinedPaymentInfo) {
         return (rs, rowNum) -> {
             TransactionOperationResponse row = new TransactionOperationResponse();
@@ -1484,8 +1925,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
-            row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-            row.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+            OpenApiTransactionProjection projection = projectResult(rs, row.getTransactionStatus());
+            applyAudienceProjection(row, projection, internalDiagnosticParameters(rs));
             row.setPaymentMethod(joinedPaymentInfo ? rs.getString("joined_payment_method") : null);
             row.setPaymentBrand(joinedPaymentInfo ? rs.getString("joined_payment_brand") : null);
             row.setCardBin(joinedPaymentInfo ? rs.getString("joined_card_bin") : null);
@@ -1514,28 +1955,439 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setOperationTime(localDateTime(rs, "operation_time"));
             row.setAccessType(resolveAccessType(getStringIfExists(rs, "request_source")));
+            row.setIngressClientIp(getStringIfExists(rs, "ingress_client_ip"));
             return row;
         };
     }
 
-    /** 将支付核心可信请求来源映射为管理端接入类型。 */
+    /**
+     * 将支付核心可信请求来源映射为管理端接入类型。
+     */
     private String resolveAccessType(String requestSource) {
         return ACCESS_TYPE_HOSTED_CHECKOUT.equalsIgnoreCase(requestSource)
                 ? ACCESS_TYPE_HOSTED_CHECKOUT
                 : ACCESS_TYPE_DIRECT_API;
     }
 
+    /**
+     * 映射交易状态流转历史。
+     *
+     * @return 状态历史行映射器
+     */
+    private RowMapper<TransactionStatusHistoryResponse> statusHistoryMapper() {
+        return (resultSet, rowNumber) -> {
+            TransactionStatusHistoryResponse response = new TransactionStatusHistoryResponse();
+            response.setId(resultSet.getString("id"));
+            response.setStatusHistoryId(resultSet.getString("status_history_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setStatusObject(resultSet.getString("status_object"));
+            response.setFromStatus(resultSet.getString("from_status"));
+            response.setToStatus(resultSet.getString("to_status"));
+            response.setTriggerType(resultSet.getString("trigger_type"));
+            response.setTriggerId(resultSet.getString("trigger_id"));
+            response.setTransitionResult(resultSet.getString("transition_result"));
+            response.setFailReason(resultSet.getString("fail_reason"));
+            response.setVersionBefore(nullableInt(resultSet, "version_before"));
+            response.setVersionAfter(nullableInt(resultSet, "version_after"));
+            response.setStatusTime(localDateTime(resultSet, "status_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射交易流程事件；事件状态不转换为交易终态。
+     *
+     * @return 流程事件行映射器
+     */
+    private RowMapper<TransactionFlowEventResponse> flowEventMapper() {
+        return (resultSet, rowNumber) -> {
+            TransactionFlowEventResponse response = new TransactionFlowEventResponse();
+            response.setId(resultSet.getString("id"));
+            response.setFlowEventId(resultSet.getString("flow_event_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setEventType(resultSet.getString("event_type"));
+            response.setEventStage(resultSet.getString("event_stage"));
+            response.setEventStatus(resultSet.getString("event_status"));
+            response.setEventName(resultSet.getString("event_name"));
+            response.setEventContent(resultSet.getString("event_content"));
+            response.setPreviousStatus(resultSet.getString("previous_status"));
+            response.setCurrentStatus(resultSet.getString("current_status"));
+            response.setOperatorType(resultSet.getString("operator_type"));
+            response.setOperatorId(resultSet.getString("operator_id"));
+            response.setReferenceType(resultSet.getString("reference_type"));
+            response.setReferenceId(resultSet.getString("reference_id"));
+            response.setErrorCode(resultSet.getString("error_code"));
+            response.setErrorMessage(resultSet.getString("error_message"));
+            response.setEventTime(localDateTime(resultSet, "event_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射交易生命周期金额变动快照。
+     *
+     * @return 金额变动行映射器
+     */
+    private RowMapper<TransactionAmountChangeResponse> amountChangeMapper() {
+        return (resultSet, rowNumber) -> {
+            TransactionAmountChangeResponse response = new TransactionAmountChangeResponse();
+            response.setId(resultSet.getString("id"));
+            response.setAmountChangeId(resultSet.getString("amount_change_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setSourceTransactionId(resultSet.getString("source_transaction_id"));
+            response.setSourceOperationId(resultSet.getString("source_operation_id"));
+            response.setChangeType(resultSet.getString("change_type"));
+            response.setAmountCurrency(resultSet.getString("amount_currency"));
+            response.setChangeAmount(resultSet.getBigDecimal("change_amount"));
+            response.setAuthorizedBefore(resultSet.getBigDecimal("authorized_before"));
+            response.setAuthorizedAfter(resultSet.getBigDecimal("authorized_after"));
+            response.setCapturedBefore(resultSet.getBigDecimal("captured_before"));
+            response.setCapturedAfter(resultSet.getBigDecimal("captured_after"));
+            response.setRefundedBefore(resultSet.getBigDecimal("refunded_before"));
+            response.setRefundedAfter(resultSet.getBigDecimal("refunded_after"));
+            response.setAvailableCaptureBefore(resultSet.getBigDecimal("available_capture_before"));
+            response.setAvailableCaptureAfter(resultSet.getBigDecimal("available_capture_after"));
+            response.setAvailableRefundBefore(resultSet.getBigDecimal("available_refund_before"));
+            response.setAvailableRefundAfter(resultSet.getBigDecimal("available_refund_after"));
+            response.setChangeReason(resultSet.getString("change_reason"));
+            response.setChangeTime(localDateTime(resultSet, "change_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射渠道请求业务记录和渠道同步响应摘要。
+     *
+     * @return 渠道请求行映射器
+     */
+    private RowMapper<ChannelRequestResponse> channelRequestMapper() {
+        return (resultSet, rowNumber) -> {
+            ChannelRequestResponse response = new ChannelRequestResponse();
+            response.setId(resultSet.getString("id"));
+            response.setRequestId(resultSet.getString("request_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setChannelId(resultSet.getString("channel_id"));
+            response.setChannelCode(resultSet.getString("channel_code"));
+            response.setChannelMidConfigId(resultSet.getString("channel_mid_config_id"));
+            response.setTransactionType(resultSet.getString("transaction_type"));
+            response.setRequestScene(resultSet.getString("request_scene"));
+            response.setChannelMatchFlag(nullableBoolean(resultSet, "channel_match_flag"));
+            response.setRequestStatus(resultSet.getString("request_status"));
+            response.setHttpMethod(resultSet.getString("http_method"));
+            response.setRequestUrlMasked(resultSet.getString("request_url_masked"));
+            response.setRequestCurrency(resultSet.getString("request_currency"));
+            response.setRequestAmount(resultSet.getBigDecimal("request_amount"));
+            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
+            response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setGatewayResult(resultSet.getString("gateway_result"));
+            response.setGatewayCode(resultSet.getString("gateway_code"));
+            response.setAcquirerCode(resultSet.getString("acquirer_code"));
+            response.setAcquirerMessage(resultSet.getString("acquirer_message"));
+            response.setChannelStatus(resultSet.getString("channel_status"));
+            response.setPlatformSuccess(nullableBoolean(resultSet, "platform_success"));
+            response.setPlatformResultCode(resultSet.getString("platform_result_code"));
+            response.setPlatformFailReason(resultSet.getString("platform_fail_reason"));
+            response.setRequestStartTime(localDateTime(resultSet, "request_start_time"));
+            response.setResponseTime(localDateTime(resultSet, "response_time"));
+            response.setDurationMillis(nullableInt(resultSet, "duration_millis"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setVersion(nullableInt(resultSet, "version"));
+            response.setDeleted(nullableBoolean(resultSet, "deleted"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            response.setUpdateTime(localDateTime(resultSet, "update_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射管理端渠道交互日志及其关联的渠道请求结果。
+     *
+     * @return 渠道交互日志行映射器
+     */
+    private RowMapper<ChannelInteractionLogResponse> channelInteractionLogMapper() {
+        return (resultSet, rowNumber) -> {
+            ChannelInteractionLogResponse response = new ChannelInteractionLogResponse();
+            response.setId(resultSet.getString("id"));
+            response.setInteractionLogId(resultSet.getString("interaction_log_id"));
+            response.setRequestId(resultSet.getString("request_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setChannelCode(resultSet.getString("channel_code"));
+            response.setInteractionType(resultSet.getString("interaction_type"));
+            response.setHttpMethod(resultSet.getString("http_method"));
+            response.setRequestUrlMasked(resultSet.getString("request_url_masked"));
+            response.setHttpStatus(nullableInt(resultSet, "http_status"));
+            response.setRequestHeaderJsonMasked(resultSet.getString("request_header_json_masked"));
+            response.setRequestBodyJsonMasked(resultSet.getString("request_body_json_masked"));
+            response.setResponseHeaderJsonMasked(resultSet.getString("response_header_json_masked"));
+            response.setResponseBodyJsonMasked(resultSet.getString("response_body_json_masked"));
+            response.setExceptionType(resultSet.getString("exception_type"));
+            response.setExceptionMessage(resultSet.getString("exception_message"));
+            response.setDurationMillis(nullableInt(resultSet, "duration_millis"));
+            response.setTraceId(resultSet.getString("trace_id"));
+            response.setInteractionTime(localDateTime(resultSet, "interaction_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            response.setTransactionType(resultSet.getString("transaction_type"));
+            response.setRequestStatus(resultSet.getString("request_status"));
+            response.setGatewayResult(resultSet.getString("gateway_result"));
+            response.setGatewayCode(resultSet.getString("gateway_code"));
+            response.setAcquirerCode(resultSet.getString("acquirer_code"));
+            response.setAcquirerMessage(resultSet.getString("acquirer_message"));
+            response.setChannelTradeStatus(resultSet.getString("channel_trade_status"));
+            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
+            response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setPlatformResultCode(resultSet.getString("platform_result_code"));
+            response.setPlatformFailReason(resultSet.getString("platform_fail_reason"));
+            response.setChannelResponseCode(resultSet.getString("channel_response_code"));
+            response.setChannelResponseMessage(resultSet.getString("channel_response_message"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射管理端渠道回调处理记录。
+     *
+     * @return 渠道回调记录行映射器
+     */
+    private RowMapper<ChannelCallbackResponse> channelCallbackMapper() {
+        return (resultSet, rowNumber) -> {
+            ChannelCallbackResponse response = new ChannelCallbackResponse();
+            response.setId(resultSet.getString("id"));
+            response.setCallbackId(resultSet.getString("callback_id"));
+            response.setCallbackLogId(resultSet.getString("callback_log_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setChannelCode(resultSet.getString("channel_code"));
+            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
+            response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setCallbackType(resultSet.getString("callback_type"));
+            response.setChannelEventType(resultSet.getString("channel_event_type"));
+            response.setCallbackStatus(resultSet.getString("callback_status"));
+            response.setIdempotencyKey(resultSet.getString("idempotency_key"));
+            response.setSignatureValid(nullableBoolean(resultSet, "signature_valid"));
+            response.setIpAllowed(nullableBoolean(resultSet, "ip_allowed"));
+            response.setParsedTransactionStatus(resultSet.getString("parsed_transaction_status"));
+            response.setPreviousTransactionStatus(resultSet.getString("previous_transaction_status"));
+            response.setTargetTransactionStatus(resultSet.getString("target_transaction_status"));
+            response.setProcessResult(resultSet.getString("process_result"));
+            response.setFailReason(resultSet.getString("fail_reason"));
+            response.setCallbackReceivedTime(localDateTime(resultSet, "callback_received_time"));
+            response.setProcessedTime(localDateTime(resultSet, "processed_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setVersion(nullableInt(resultSet, "version"));
+            response.setDeleted(nullableBoolean(resultSet, "deleted"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            response.setUpdateTime(localDateTime(resultSet, "update_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射已脱敏的渠道回调原文日志。
+     *
+     * @return 渠道回调原文日志行映射器
+     */
+    private RowMapper<ChannelCallbackLogResponse> channelCallbackLogMapper() {
+        return (resultSet, rowNumber) -> {
+            ChannelCallbackLogResponse response = new ChannelCallbackLogResponse();
+            response.setId(resultSet.getString("id"));
+            response.setCallbackLogId(resultSet.getString("callback_log_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setChannelCode(resultSet.getString("channel_code"));
+            response.setCallbackType(resultSet.getString("callback_type"));
+            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
+            response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setRequestUri(resultSet.getString("request_uri"));
+            response.setHttpMethod(resultSet.getString("http_method"));
+            response.setSourceIp(resultSet.getString("source_ip"));
+            response.setRequestHeaderJsonMasked(resultSet.getString("request_header_json_masked"));
+            response.setRequestBodyJsonMasked(resultSet.getString("request_body_json_masked"));
+            response.setSignatureValid(nullableBoolean(resultSet, "signature_valid"));
+            response.setIpAllowed(nullableBoolean(resultSet, "ip_allowed"));
+            response.setPlatformResponseCode(resultSet.getString("platform_response_code"));
+            response.setPlatformResponseBody(resultSet.getString("platform_response_body"));
+            response.setCallbackReceivedTime(localDateTime(resultSet, "callback_received_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射管理端商户通知任务，并确保完整回调地址和明文载荷不进入响应对象。
+     *
+     * @return 商户通知任务行映射器
+     */
+    private RowMapper<MerchantNotificationResponse> merchantNotificationMapper() {
+        return (resultSet, rowNumber) -> {
+            MerchantNotificationResponse response = new MerchantNotificationResponse();
+            response.setId(resultSet.getString("id"));
+            response.setNotifyId(resultSet.getString("notify_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setMerchantId(resultSet.getString("merchant_id"));
+            response.setMerchantOrderNo(resultSet.getString("merchant_order_no"));
+            response.setNotifyType(resultSet.getString("notify_type"));
+            response.setEventType(resultSet.getString("event_type"));
+            response.setNotifyStatus(resultSet.getString("notify_status"));
+            response.setNotifyConfigVersion(resultSet.getString("notify_config_version"));
+            response.setTargetUrlHash(resultSet.getString("target_url_hash"));
+            response.setTargetUrlMasked(resultSet.getString("target_url_masked"));
+            response.setPayloadJsonMasked(resultSet.getString("payload_json_masked"));
+            response.setSignType(resultSet.getString("sign_type"));
+            response.setLastAttemptNo(nullableInt(resultSet, "last_attempt_no"));
+            response.setMaxRetryCount(nullableInt(resultSet, "max_retry_count"));
+            response.setNextRetryTime(localDateTime(resultSet, "next_retry_time"));
+            response.setSuccessTime(localDateTime(resultSet, "success_time"));
+            response.setFailReason(resultSet.getString("fail_reason"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setVersion(nullableInt(resultSet, "version"));
+            response.setDeleted(nullableBoolean(resultSet, "deleted"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            response.setUpdateTime(localDateTime(resultSet, "update_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射商户通知单次投递日志，并补齐固定的 HTTP 方法和响应完成时间。
+     *
+     * @return 商户通知投递日志行映射器
+     */
+    private RowMapper<MerchantNotificationDeliveryLogResponse> merchantNotificationDeliveryLogMapper() {
+        return (resultSet, rowNumber) -> {
+            MerchantNotificationDeliveryLogResponse response = new MerchantNotificationDeliveryLogResponse();
+            response.setId(resultSet.getString("id"));
+            response.setNotifyLogId(resultSet.getString("notify_log_id"));
+            response.setNotifyId(resultSet.getString("notify_id"));
+            response.setCallbackEventId(resultSet.getString("callback_event_id"));
+            response.setDeliveryMode(resultSet.getString("delivery_mode"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setMerchantId(resultSet.getString("merchant_id"));
+            response.setAttemptNo(nullableInt(resultSet, "attempt_no"));
+            response.setTargetUrlHash(resultSet.getString("target_url_hash"));
+            response.setHttpStatus(nullableInt(resultSet, "http_status"));
+            response.setRequestHeaderJsonMasked(resultSet.getString("request_header_json_masked"));
+            response.setRequestBodyJsonMasked(resultSet.getString("request_body_json_masked"));
+            response.setResponseBodyJsonMasked(resultSet.getString("response_body_json_masked"));
+            response.setSuccess(nullableBoolean(resultSet, "success"));
+            response.setErrorMessage(resultSet.getString("error_message"));
+            response.setNotifyTime(localDateTime(resultSet, "notify_time"));
+            response.setDurationMillis(nullableInt(resultSet, "duration_millis"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            LocalDateTime responseTime = localDateTime(resultSet, "create_time");
+            response.setCreateTime(responseTime);
+            response.setHttpMethod("POST");
+            response.setResponseTime(responseTime);
+            return response;
+        };
+    }
+
+    /**
+     * 映射商户 OpenAPI 请求和响应的脱敏审计日志。
+     *
+     * @return 商户 OpenAPI 交互日志行映射器
+     */
+    private RowMapper<MerchantApiInteractionLogResponse> merchantApiInteractionLogMapper() {
+        return (resultSet, rowNumber) -> {
+            MerchantApiInteractionLogResponse response = new MerchantApiInteractionLogResponse();
+            response.setId(resultSet.getString("id"));
+            response.setApiLogId(resultSet.getString("api_log_id"));
+            response.setRequestId(resultSet.getString("request_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setMerchantId(resultSet.getString("merchant_id"));
+            response.setMerchantOrderNo(resultSet.getString("merchant_order_no"));
+            response.setMerchantOrderId(resultSet.getString("merchant_order_id"));
+            response.setApiOperation(resultSet.getString("api_operation"));
+            response.setRequestPath(resultSet.getString("request_path"));
+            response.setRequestTime(localDateTime(resultSet, "request_time"));
+            response.setRequestResult(resultSet.getString("request_result"));
+            response.setRequestCipherDigest(resultSet.getString("request_cipher_digest"));
+            response.setRequestCipherMasked(resultSet.getString("request_cipher_masked"));
+            response.setRequestPlainJsonMasked(resultSet.getString("request_plain_json_masked"));
+            response.setResponseTime(localDateTime(resultSet, "response_time"));
+            response.setResponseResult(resultSet.getString("response_result"));
+            response.setMerchantResponseCode(resultSet.getString("merchant_response_code"));
+            response.setMerchantResponseMessage(resultSet.getString("merchant_response_message"));
+            response.setResponsePlainJsonMasked(resultSet.getString("response_plain_json_masked"));
+            response.setResponseCipherDigest(resultSet.getString("response_cipher_digest"));
+            response.setResponseCipherMasked(resultSet.getString("response_cipher_masked"));
+            response.setDurationMillis(nullableInt(resultSet, "duration_millis"));
+            response.setTraceId(resultSet.getString("trace_id"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射按状态、支付方式或币种聚合的交易统计行。
+     *
+     * @return 交易统计行映射器
+     */
     private RowMapper<SummaryRow> summaryMapper() {
         return (rs, rowNum) -> new SummaryRow(
                 getStringIfExists(rs, "transaction_status"),
                 getStringIfExists(rs, "payment_method"),
                 getStringIfExists(rs, "payment_brand"),
                 rs.getString("currency"),
-                nullableInt(rs, "currency_exponent"),
+                resolveLabelCurrencyExponent(rs.getString("currency")),
                 rs.getLong("count"),
                 rs.getBigDecimal("amount"));
     }
 
+    /**
+     * ISO 4217 辅币位属于标签币种，无法识别时保留为空，禁止静默按两位小数展示。
+     */
+    private static Integer resolveLabelCurrencyExponent(String currency) {
+        return IsoCurrencyResolver.resolve(currency)
+                .map(info -> info.defaultFractionDigits())
+                .filter(exponent -> exponent >= 0)
+                .orElse(null);
+    }
+
+    /**
+     * 按平台交易号和精确分片时间查询单个交易动作。
+     *
+     * @param table 交易动作逻辑表
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 交易分片时间
+     * @return 交易动作，不存在时返回 {@code null}
+     */
     private TransactionOperationResponse selectOperationByTransactionId(String table,
                                                                          String transactionId,
                                                                          LocalDateTime transactionDateTime) {
@@ -1559,6 +2411,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * 按生命周期动作号和精确分片时间查询交易主单。
+     *
+     * @param table 交易主单逻辑表
+     * @param operationId 生命周期动作号
+     * @param transactionDateTime 交易分片时间
+     * @return 交易主单，不存在时返回 {@code null}
+     */
     private TransactionOrderResponse selectOrderByOperationId(String table,
                                                                String operationId,
                                                                LocalDateTime transactionDateTime) {
@@ -1575,6 +2435,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * 按生命周期动作号查询已登记时间范围内的全部交易动作。
+     *
+     * @param operationId 生命周期动作号
+     * @param beginTime 查询开始时间
+     * @param endTime 查询结束时间
+     * @return 按动作序号和动作时间排列的交易动作
+     */
     private List<TransactionOperationResponse> selectOperationsByOperationId(String operationId, LocalDateTime beginTime, LocalDateTime endTime) {
         return jdbcTemplate.query("""
                     SELECT %s,
@@ -1597,10 +2465,29 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                             .addValue("endTime", exclusiveEnd(endTime)), operationMapper(true));
     }
 
-    private List<Map<String, Object>> selectMapsByOperationId(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime, String operationId) {
-        boolean softDeleteTable = hasSoftDeleteColumn(logicalTable);
+    /**
+     * 按生命周期动作号读取强类型详情附属记录。
+     *
+     * <p>调用方必须传入受控逻辑表常量、显式安全投影和对应行映射器。数据库新增列不会自动进入 API，
+     * BIGINT 标识、可空布尔值和时间类型也由各业务模型明确转换。</p>
+     *
+     * @param logicalTable 受控交易逻辑表常量
+     * @param projection 管理端允许返回的显式字段投影
+     * @param beginTime 查询开始时间
+     * @param endTime 查询结束时间
+     * @param operationId 生命周期动作号
+     * @param rowMapper 当前表对应的强类型行映射器
+     * @param <T> 详情附属记录响应类型
+     * @return 按交易时间和物理主键升序排列的强类型记录
+     */
+    private <T> List<T> selectDetailRowsByOperationId(String logicalTable,
+                                                       String projection,
+                                                       LocalDateTime beginTime,
+                                                       LocalDateTime endTime,
+                                                       String operationId,
+                                                       RowMapper<T> rowMapper) {
         MapSqlParameterSource params = baseParams(beginTime, endTime).addValue("operationId", operationId);
-        List<Map<String, Object>> rows = toCamelCaseRows(jdbcTemplate.queryForList("""
+        return jdbcTemplate.query("""
                     SELECT %s
                     FROM %s
                     WHERE %s
@@ -1608,31 +2495,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                       AND transaction_date_time >= :beginTime
                       AND transaction_date_time < :endTime
                     ORDER BY transaction_date_time ASC, id ASC
-                    """.formatted(adminDetailProjection(logicalTable), logicalTable,
-                    softDeleteCondition(softDeleteTable)),
-                    params));
-        if (TRANSACTION_MERCHANT_NOTIFICATION_TABLE.equals(logicalTable)) {
-            rows.forEach(row -> row.remove("notifyConfigSnapshotJson"));
-        } else if (TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE.equals(logicalTable)) {
-            decorateMerchantNotificationLogRows(rows);
-        }
-        return rows;
-    }
-
-    /** 补齐商户通知投递日志的固定协议字段和 HTTP 响应完成时间。 */
-    private void decorateMerchantNotificationLogRows(List<Map<String, Object>> rows) {
-        rows.forEach(row -> {
-            row.put("httpMethod", "POST");
-            // 投递日志在 HTTP 完成后落库，create_time 即本次请求的响应完成时间。
-            row.putIfAbsent("responseTime", row.get("createTime"));
-        });
-    }
-
-    /** 返回管理端详情允许读取的字段投影。 */
-    private String adminDetailProjection(String logicalTable) {
-        return TRANSACTION_MERCHANT_NOTIFICATION_TABLE.equals(logicalTable)
-                ? TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION
-                : "*";
+                    """.formatted(projection, logicalTable,
+                    softDeleteCondition(hasSoftDeleteColumn(logicalTable))), params, rowMapper);
     }
 
     /**
@@ -1644,7 +2508,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 : transactionLogicalReadExecutor.read(query);
     }
 
-    /** 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。 */
+    /**
+     * 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。
+     */
     private LocalDateTime exclusiveEnd(LocalDateTime endTime) {
         LocalDateTime actualEnd = endTime == null ? LocalDateTime.now() : endTime;
         return actualEnd.plusNanos(1_000_000L);
@@ -1661,7 +2527,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 生成 Map 型交易日志查询的基础过滤条件。
+     * 生成交易逻辑表查询的基础过滤条件。
      *
      * @param softDeleteTable 当前逻辑表是否有 deleted 字段
      * @return 可直接拼入 WHERE 后的条件
@@ -1670,15 +2536,24 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return softDeleteTable ? "deleted = 0" : "1 = 1";
     }
 
+    /**
+     * 根据页码和页大小计算安全偏移量。
+     */
     private long offset(PageRequest query) {
         return (query.safePageNo() - 1) * query.safePageSize();
     }
 
+    /**
+     * 读取时间值。
+     */
     private LocalDateTime timeValue(MapSqlParameterSource params, String key) {
         Object value = params.getValue(key);
         return value instanceof LocalDateTime localDateTime ? localDateTime : null;
     }
 
+    /**
+     * 复制当前业务对象的可修改字段。
+     */
     private MapSqlParameterSource copy(MapSqlParameterSource source) {
         MapSqlParameterSource target = new MapSqlParameterSource();
         for (String name : source.getValues().keySet()) {
@@ -1688,119 +2563,117 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 将 JDBC Map 结果中的数据库字段名转换为前端统一使用的 lowerCamelCase。
-     * <p>
-     * 分表详情聚合使用 SELECT * 读取日志表，MySQL 返回的 key 是 transaction_id、request_body_json_masked
-     * 这类下划线字段；若原样返回，前端会因读取 transactionId、requestBodyJsonMasked 失败而展示为空。
-     *
-     * @param rows JDBC 原始 Map 行
-     * @return 字段名转换后的 Map 行
+     * 将动态字段安全转换为可空整数。
      */
-    private List<Map<String, Object>> toCamelCaseRows(List<Map<String, Object>> rows) {
-        if (rows == null || rows.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return rows.stream().map(this::toCamelCaseRow).toList();
-    }
-
-    /**
-     * 转换单行 Map 字段名，并保留字段原始顺序，方便管理端日志按表结构阅读。
-     *
-     * @param row JDBC 原始 Map 行
-     * @return lowerCamelCase 字段名 Map
-     */
-    private Map<String, Object> toCamelCaseRow(Map<String, Object> row) {
-        Map<String, Object> converted = new LinkedHashMap<>();
-        row.forEach((key, value) -> {
-            String convertedKey = toLowerCamelCase(key);
-            converted.put(convertedKey, frontendSafeMapValue(convertedKey, value));
-        });
-        return converted;
-    }
-
-    /**
-     * 将数据库数值型标识转换为字符串，防止 JavaScript 解析超过 2^53-1 的 BIGINT 时丢失精度。
-     * 金额、次数、耗时等非标识数值保持原类型，避免改变管理端统计和排序语义。
-     *
-     * @param key   已转换为 lowerCamelCase 的响应字段名
-     * @param value JDBC 返回值
-     * @return 可安全交给浏览器解析的响应值
-     */
-    private Object frontendSafeMapValue(String key, Object value) {
-        boolean identifierKey = "id".equals(key) || key != null && key.endsWith("Id");
-        if (identifierKey && (value instanceof Long || value instanceof BigInteger)) {
-            return value.toString();
-        }
-        return value;
-    }
-
-    /**
-     * 将下划线字段名转换为 lowerCamelCase；已经是驼峰的字段保持可读形式。
-     *
-     * @param value 数据库字段名或 SQL 别名
-     * @return lowerCamelCase 字段名
-     */
-    private String toLowerCamelCase(String value) {
-        if (!StringUtils.hasText(value)) {
-            return value;
-        }
-        StringBuilder builder = new StringBuilder(value.length());
-        boolean upperNext = false;
-        for (int index = 0; index < value.length(); index++) {
-            char current = value.charAt(index);
-            if (current == '_') {
-                upperNext = builder.length() > 0;
-                continue;
-            }
-            if (upperNext) {
-                builder.append(Character.toUpperCase(current));
-                upperNext = false;
-                continue;
-            }
-            builder.append(builder.isEmpty() ? Character.toLowerCase(current) : current);
-        }
-        return builder.toString();
-    }
-
     private Integer nullableInt(ResultSet rs, String column) throws SQLException {
         int value = rs.getInt(column);
         return rs.wasNull() ? null : value;
     }
 
+    /**
+     * 读取数据库可空布尔标志。
+     *
+     * @param resultSet 当前查询结果集
+     * @param column 数据库列名
+     * @return 数据库值为空时返回 {@code null}，否则返回布尔值
+     * @throws SQLException 读取结果集失败时抛出
+     */
+    private Boolean nullableBoolean(ResultSet resultSet, String column) throws SQLException {
+        boolean value = resultSet.getBoolean(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    /**
+     * 解析本地日期时间。
+     */
     private LocalDateTime localDateTime(ResultSet rs, String column) throws SQLException {
         return rs.getTimestamp(column) == null ? null : rs.getTimestamp(column).toLocalDateTime();
     }
 
+    /**
+     * 返回默认汇率。
+     */
     private BigDecimal defaultRate(BigDecimal rate) {
         return rate == null ? new BigDecimal("1.00000000") : rate;
     }
 
-    private String resolveMerchantResponseCode(String status) {
-        if ("SUCCESS".equals(status)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getCode();
-        }
-        if ("FAILED".equals(status)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getCode();
-        }
-        if ("PENDING".equals(status)) {
-            return ApiResultEnum.PENDING.getCode();
-        }
-        return ApiResultEnum.PROCESSING.getCode();
+    /**
+     * 从持久化状态和受控原因生成统一 V1.3 投影，渠道原始文案不参与公开码判断。
+     *
+     * @param resultSet 当前交易查询结果
+     * @param transactionStatus 支付核心持久化状态
+     * @return 统一公开码和标准化失败原因
+     */
+    private OpenApiTransactionProjection projectResult(ResultSet resultSet, String transactionStatus) {
+        return OpenApiTransactionResultProjector.project(
+                transactionStatus,
+                getStringIfExists(resultSet, "process_stage"),
+                getStringIfExists(resultSet, "fail_reason_code"),
+                getStringIfExists(resultSet, "pending_reason_code"),
+                null);
     }
 
-    private String resolveMerchantResponseMessage(String status) {
-        if ("SUCCESS".equals(status)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
-        }
-        if ("FAILED".equals(status)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        if ("PENDING".equals(status)) {
-            return ApiResultEnum.PENDING.getMessage();
-        }
-        return ApiResultEnum.PROCESSING.getMessage();
+    /**
+     * 为管理端主单生成内部、商户和付款人三类展示，三者共用同一个标准码但遵循不同信息边界。
+     */
+    private void applyAudienceProjection(TransactionOrderResponse row,
+                                         OpenApiTransactionProjection projection,
+                                         Map<String, String> internalParameters) {
+        row.setMerchantResponseCode(projection.resultCode().getCode());
+        row.setOpenApiResultCode(projection.resultCode().getCode());
+        row.setMerchantResponseMessage(projection.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        row.setPayerResultMessage(projection.message(
+                OpenApiMessageAudience.PAYER, OpenApiMessageLocale.EN_US));
+        row.setInternalResultMessage(OpenApiResultMessageCatalog.message(
+                projection.resultCode(), OpenApiMessageAudience.INTERNAL,
+                OpenApiMessageLocale.EN_US, internalParameters));
     }
 
+    /**
+     * 为管理端动作单生成内部、商户和付款人三类展示，渠道诊断参数只允许进入内部模板。
+     */
+    private void applyAudienceProjection(TransactionOperationResponse row,
+                                         OpenApiTransactionProjection projection,
+                                         Map<String, String> internalParameters) {
+        row.setMerchantResponseCode(projection.resultCode().getCode());
+        row.setOpenApiResultCode(projection.resultCode().getCode());
+        row.setMerchantResponseMessage(projection.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        row.setPayerResultMessage(projection.message(
+                OpenApiMessageAudience.PAYER, OpenApiMessageLocale.EN_US));
+        row.setInternalResultMessage(OpenApiResultMessageCatalog.message(
+                projection.resultCode(), OpenApiMessageAudience.INTERNAL,
+                OpenApiMessageLocale.EN_US, internalParameters));
+    }
+
+    /**
+     * 收集文案目录白名单允许的渠道摘要；最终敏感内容过滤仍由消息目录统一执行。
+     *
+     * @param resultSet 动作单查询结果
+     * @return 仅包含非空候选摘要的模板参数
+     */
+    private Map<String, String> internalDiagnosticParameters(ResultSet resultSet) {
+        Map<String, String> parameters = new LinkedHashMap<>();
+        putIfText(parameters, "channelName", getStringIfExists(resultSet, "channel_code"));
+        putIfText(parameters, "channelResponseCode", getStringIfExists(resultSet, "channel_response_code"));
+        putIfText(parameters, "channelResponseMessage", getStringIfExists(resultSet, "channel_response_message"));
+        putIfText(parameters, "channelReference", getStringIfExists(resultSet, "channel_order_no"));
+        return parameters;
+    }
+
+    /**
+     * 将非空白候选值规范化后加入内部模板参数，空值不会覆盖已有参数。
+     */
+    private void putIfText(Map<String, String> target, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            target.put(key, value.trim());
+        }
+    }
+
+    /**
+     * 兼容主单与动作单不同列集合；可选列不存在时返回 {@code null}，不影响主体查询。
+     */
     private String getStringIfExists(ResultSet rs, String column) {
         try {
             return rs.getString(column);
@@ -1809,6 +2682,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
+    /**
+     * 读取存在时的高精度金额字段。
+     */
     private BigDecimal getBigDecimalIfExists(ResultSet rs, String column) {
         try {
             return rs.getBigDecimal(column);
@@ -1817,7 +2693,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
-    /** 将最早已登记季度转换为 ShardingSphere 可路由的半开范围起点。 */
+    /**
+     * 将最早已登记季度转换为 ShardingSphere 可路由的半开范围起点。
+     */
     private static LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
         return physicalNodes == null ? LocalDateTime.of(1970, 1, 1, 0, 0)
                 : physicalNodes.stream()
@@ -1830,9 +2708,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .orElse(LocalDateTime.of(1970, 1, 1, 0, 0));
     }
 
+    /**
+     * 封装规范化后的查询开始和结束时间。
+     */
     private record QueryTimeRange(LocalDateTime beginTime, LocalDateTime endTime, String queryTimeZone) {
     }
 
+    /**
+     * 封装交易统计摘要查询行。
+     */
     private record SummaryRow(String transactionStatus,
                               String paymentMethod,
                               String paymentBrand,
@@ -1842,68 +2726,132 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                               BigDecimal amount) {
     }
 
+    /**
+     * 封装交易订单摘要及其聚合字段。
+     */
+    private record OrderSummaryRow(String currency,
+                                   Integer currencyExponent,
+                                   long totalCount,
+                                   long successCount,
+                                   long failedCount,
+                                   long processingCount,
+                                   long capturedCount,
+                                   BigDecimal totalAmount,
+                                   BigDecimal successAmount,
+                                   BigDecimal capturedAmount,
+                                   BigDecimal failedAmount) {
+    }
+
+    /**
+     * 汇总单次分币种查询结果，避免为四类订单指标重复扫描交易主单。
+     */
+    private static final class OrderSummaryAccumulator {
+
+        private long totalCount;
+        private long successCount;
+        private long failedCount;
+        private long processingCount;
+        private long capturedCount;
+        private final List<TransactionAmountSummaryResponse> amounts = new ArrayList<>();
+        private final List<TransactionAmountSummaryResponse> successAmounts = new ArrayList<>();
+        private final List<TransactionAmountSummaryResponse> capturedAmounts = new ArrayList<>();
+        private final List<TransactionAmountSummaryResponse> failedAmounts = new ArrayList<>();
+
+        /**
+         * 向当前统计结果累加有效值。
+         */
+        private void add(OrderSummaryRow row) {
+            totalCount += row.totalCount();
+            successCount += row.successCount();
+            failedCount += row.failedCount();
+            processingCount += row.processingCount();
+            capturedCount += row.capturedCount();
+            if (row.totalCount() > 0) {
+                amounts.add(amount(row.currency(), row.currencyExponent(), row.totalAmount()));
+            }
+            if (row.successCount() > 0) {
+                successAmounts.add(amount(row.currency(), row.currencyExponent(), row.successAmount()));
+            }
+            if (row.capturedCount() > 0) {
+                capturedAmounts.add(amount(row.currency(), row.currencyExponent(), row.capturedAmount()));
+            }
+            if (row.failedCount() > 0) {
+                failedAmounts.add(amount(row.currency(), row.currencyExponent(), row.failedAmount()));
+            }
+        }
+
+        /**
+         * 读取并校验高精度金额。
+         */
+        private TransactionAmountSummaryResponse amount(String currency,
+                                                        Integer currencyExponent,
+                                                        BigDecimal value) {
+            TransactionAmountSummaryResponse response = new TransactionAmountSummaryResponse();
+            response.setCurrency(currency);
+            response.setCurrencyExponent(currencyExponent);
+            response.setAmount(value == null ? BigDecimal.ZERO : value);
+            return response;
+        }
+
+        /**
+         * 将生命周期主单统计累加结果组装为接口响应。
+         *
+         * @return 生命周期主单统计响应
+         */
+        private TransactionOrderSummaryResponse toResponse() {
+            TransactionOrderSummaryResponse response = new TransactionOrderSummaryResponse();
+            response.setTotalCount(totalCount);
+            response.setSuccessCount(successCount);
+            response.setFailedCount(failedCount);
+            response.setProcessingCount(processingCount);
+            response.setCapturedCount(capturedCount);
+            response.setAmountSummaries(amounts);
+            response.setSuccessAmountSummaries(successAmounts);
+            response.setCapturedAmountSummaries(capturedAmounts);
+            response.setFailedAmountSummaries(failedAmounts);
+            return response;
+        }
+    }
+
+    /**
+     * 封装交易统计摘要的累加状态。
+     */
     private static final class SummaryAccumulator {
 
         /**
-         * 合计计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
+         * 当前筛选条件命中的交易操作单数量。
          */
         private long totalCount;
         /**
-         * 成功计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
+         * 当前筛选条件中成功的交易操作单数量。
          */
         private long successCount;
         /**
-         * 失败计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
+         * 当前筛选条件中失败的交易操作单数量。
          */
         private long failedCount;
         /**
-         * 按币种归集的交易金额汇总，用于列表统计展示。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
+         * 按标签币种归集的全部标签金额，禁止跨币种相加。
          */
         private final Map<String, TransactionAmountSummaryResponse> amounts = new LinkedHashMap<>();
         /**
-         * 按币种归集的成功交易金额汇总。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
+         * 按标签币种归集的成功交易标签金额。
          */
         private final Map<String, TransactionAmountSummaryResponse> successAmounts = new LinkedHashMap<>();
         /**
-         * 按币种归集的失败交易金额汇总。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
+         * 按标签币种归集的失败交易标签金额。
          */
         private final Map<String, TransactionAmountSummaryResponse> failedAmounts = new LinkedHashMap<>();
         /**
-         * {@code payments}字段，保存 {@code SummaryAccumulator} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
+         * 按支付方式和支付品牌分组，并在每组内按标签币种归集金额。
          */
         private final Map<String, TransactionPaymentMethodSummaryResponse> payments = new LinkedHashMap<>();
 
+        /**
+         * 将一条动作统计行累加到总数及对应交易状态的金额分组。
+         *
+         * @param row 动作统计行
+         */
         private void addAmount(SummaryRow row) {
             totalCount += row.count();
             addAmount(amounts, row);
@@ -1917,6 +2865,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             }
         }
 
+        /**
+         * 按支付方式、支付品牌和币种累加交易笔数及金额。
+         *
+         * @param row 支付方式统计行
+         */
         private void addPayment(SummaryRow row) {
             String key = (row.paymentMethod() == null ? "UNKNOWN" : row.paymentMethod()) + "|" + (row.paymentBrand() == null ? "" : row.paymentBrand());
             TransactionPaymentMethodSummaryResponse payment = payments.computeIfAbsent(key, ignored -> {
@@ -1933,6 +2886,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             payment.setAmountSummaries(new ArrayList<>(map.values()));
         }
 
+        /**
+         * 将统计行金额累加到指定币种分组。
+         *
+         * @param map 币种金额分组
+         * @param row 动作统计行
+         */
         private void addAmount(Map<String, TransactionAmountSummaryResponse> map, SummaryRow row) {
             TransactionAmountSummaryResponse amount = map.computeIfAbsent(row.currency(), ignored -> {
                 TransactionAmountSummaryResponse response = new TransactionAmountSummaryResponse();
@@ -1944,6 +2903,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             amount.setAmount(amount.getAmount().add(row.amount() == null ? BigDecimal.ZERO : row.amount()));
         }
 
+        /**
+         * 将交易动作统计累加结果组装为接口响应。
+         *
+         * @return 交易动作统计响应
+         */
         private TransactionOperationSummaryResponse toResponse() {
             TransactionOperationSummaryResponse response = new TransactionOperationSummaryResponse();
             response.setTotalCount(totalCount);

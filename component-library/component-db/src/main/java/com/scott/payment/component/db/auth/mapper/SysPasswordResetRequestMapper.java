@@ -6,13 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysPasswordResetRequestMapper
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 找回密码请求数据访问接口；状态流转读取使用行锁防止令牌并发重复消费。
- * @status : create
+ * 找回密码请求数据访问接口；状态流转读取使用行锁防止令牌并发重复消费。
  */
 public interface SysPasswordResetRequestMapper extends BaseMapper<SysPasswordResetRequestDO> {
 

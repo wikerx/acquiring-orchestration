@@ -8,13 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelPaymentResponse
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道统一响应，位于 payment-channel-api DTO 层，用于承载渠道原始状态映射后的统一结果；平台交易状态由 service-payment 状态机决定。
- * @status : create
+ * 收单渠道统一响应，位于 payment-channel-api DTO 层，用于承载渠道原始状态映射后的统一结果；平台交易状态由 service-payment 状态机决定。
  */
 @Data
 public class ChannelPaymentResponse implements Serializable {
@@ -142,13 +136,7 @@ public class ChannelPaymentResponse implements Serializable {
     private String responseBodyJsonMasked;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PaymentMethodSummary
-     * @date : 2026-07-12 00:00
-     * @email : scott_x@163.com
-     * @description : 渠道响应中的支付工具摘要，只保留品牌和掩码等非敏感展示字段。
-     * @status : create
+     * 渠道响应中的支付工具摘要，只保留品牌和掩码等非敏感展示字段。
      */
     @Data
     public static class PaymentMethodSummary implements Serializable {

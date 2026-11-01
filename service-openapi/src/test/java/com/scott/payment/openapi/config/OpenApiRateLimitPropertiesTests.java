@@ -8,7 +8,9 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 OpenAPI 商户限流配置在应用启动阶段拒绝非法资源边界。 */
+/**
+ * 验证 OpenAPI 商户限流配置在应用启动阶段拒绝非法资源边界。
+ */
 class OpenApiRateLimitPropertiesTests {
 
     @Test

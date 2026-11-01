@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutCreateClientResponseDTO
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : 代付create响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 代付核心返回的创建受理结果，包含平台代付单号、当前状态和商户订单号。
  */
 @Data
 public class PayoutCreateClientResponseDTO implements Serializable {

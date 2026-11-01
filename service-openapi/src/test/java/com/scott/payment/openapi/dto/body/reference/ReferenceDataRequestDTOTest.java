@@ -8,13 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReferenceDataRequestDTOTest
- * @date : 2026-08-11 15:47
- * @email : scott_x@163.com
- * @description : 商户基础数据检索请求校验测试，阻止空 IP、非法 BIN 和超过最长卡号长度的输入。
- * @status : create
+ * 商户基础数据检索请求校验测试，阻止空 IP、非法 BIN 和超过最长卡号长度的输入。
  */
 @Slf4j
 class ReferenceDataRequestDTOTest {

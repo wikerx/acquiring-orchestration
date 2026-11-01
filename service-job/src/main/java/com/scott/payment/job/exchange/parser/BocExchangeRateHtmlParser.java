@@ -17,54 +17,26 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BocExchangeRateHtmlParser
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : boc汇率汇率htmlparser协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 解析中国银行外汇牌价 HTML，并将每百单位报价统一为一单位原始币种兑人民币的汇率。
  */
 @Component
 public class BocExchangeRateHtmlParser {
 
-    /**
-     * {@code QUOTE_CURRENCY}，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private static final String QUOTE_CURRENCY = "CNY";
     private static final List<DateTimeFormatter> BOC_TIME_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"),
             DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")
     );
     /**
-     * 行正则模式常量，统一 {@code BocExchangeRateHtmlParser} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 匹配外汇牌价表格行的受限表达式。
      */
     private static final Pattern ROW_PATTERN = Pattern.compile("(?is)<tr[^>]*>(.*?)</tr>");
     /**
-     * {@code CELL_PATTERN}常量，统一 {@code BocExchangeRateHtmlParser} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 匹配单元格内容的受限表达式，同时兼容表头和数据单元格。
      */
     private static final Pattern CELL_PATTERN = Pattern.compile("(?is)<t[dh][^>]*>(.*?)</t[dh]>");
-    /**
-     * {@code CURRENCY_NAME_MAP}，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private static final Map<String, String> CURRENCY_NAME_MAP = buildCurrencyNameMap();
 
     /**
@@ -92,6 +64,12 @@ public class BocExchangeRateHtmlParser {
         return result;
     }
 
+    /**
+     * 提取单行表格中的文本单元格并移除 HTML 标记。
+     *
+     * @param rowHtml 单行 HTML
+     * @return 按页面顺序排列的单元格文本
+     */
     private List<String> parseCells(String rowHtml) {
         List<String> cells = new ArrayList<>();
         Matcher cellMatcher = CELL_PATTERN.matcher(rowHtml);
@@ -101,6 +79,12 @@ public class BocExchangeRateHtmlParser {
         return cells;
     }
 
+    /**
+     * 将中行固定列顺序转换为统一原始汇率模型。
+     *
+     * @param cells 已清理的数据单元格
+     * @return 一条原始汇率
+     */
     private RawRateItem toItem(List<String> cells) {
         RawRateItem item = new RawRateItem();
         item.setSourceCurrencyName(cells.get(0));
@@ -115,10 +99,22 @@ public class BocExchangeRateHtmlParser {
         return item;
     }
 
+    /**
+     * 判断当前行是否为包含列名的表头。
+     *
+     * @param cells 单元格文本
+     * @return true 表示该行不包含报价数据
+     */
     private boolean isHeaderRow(List<String> cells) {
         return cells.stream().anyMatch(cell -> cell.contains("货币") || cell.contains("发布时间"));
     }
 
+    /**
+     * 将中行每百单位外币报价转换为一单位外币兑人民币汇率。
+     *
+     * @param value 页面报价文本
+     * @return 12 位小数汇率；页面缺失值返回 {@code null}
+     */
     private BigDecimal parseBocRate(String value) {
         if (!StringUtils.hasText(value) || "-".equals(value.trim())) {
             return null;
@@ -130,6 +126,12 @@ public class BocExchangeRateHtmlParser {
         return new BigDecimal(normalized).divide(new BigDecimal("100"), 12, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 按中行现有两种发布时间格式解析报价时刻。
+     *
+     * @param value 页面发布时间
+     * @return 发布时间；空值返回 {@code null}
+     */
     private LocalDateTime parsePublishTime(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -146,6 +148,12 @@ public class BocExchangeRateHtmlParser {
         throw lastException;
     }
 
+    /**
+     * 删除脚本、样式和标签并还原当前解析需要的基础 HTML 实体。
+     *
+     * @param html 单元格 HTML
+     * @return 可用于币种和数值解析的纯文本
+     */
     private String cleanText(String html) {
         if (html == null) {
             return "";
@@ -158,6 +166,11 @@ public class BocExchangeRateHtmlParser {
                 .trim();
     }
 
+    /**
+     * 构造中行中文币种名称到 ISO 4217 编码的不可变映射。
+     *
+     * @return 支持的页面币种映射
+     */
     private static Map<String, String> buildCurrencyNameMap() {
         Map<String, String> mapping = new LinkedHashMap<>();
         mapping.put("美元", "USD");

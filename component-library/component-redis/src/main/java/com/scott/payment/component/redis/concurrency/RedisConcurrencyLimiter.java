@@ -16,19 +16,15 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisConcurrencyLimiter
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : Redis 基础设施层的集群级有界并发租约，使用摘要身份和自动续租限制同一主体的并发任务数。
- * @status : create
+ * Redis 基础设施层的集群级有界并发租约，使用摘要身份和自动续租限制同一主体的并发任务数。
  */
 @Service
 @Slf4j
 public class RedisConcurrencyLimiter {
 
-    /** Lua 获取结果：已占用一个并发租约。 */
+    /**
+     * Lua 获取结果：已占用一个并发租约。
+     */
     private static final long ACQUIRED = 1L;
 
     /**
@@ -41,9 +37,13 @@ public class RedisConcurrencyLimiter {
                 return thread;
             });
 
-    /** Redis 脚本执行和租约 ZSet 释放入口。 */
+    /**
+     * Redis 脚本执行和租约 ZSet 释放入口。
+     */
     private final StringRedisTemplate redisTemplate;
-    /** 环境隔离、Cluster Hash Tag 与身份摘要 Key 规则。 */
+    /**
+     * 环境隔离、Cluster Hash Tag 与身份摘要 Key 规则。
+     */
     private final PaymentRedisProperties redisProperties;
 
     /**
@@ -119,7 +119,8 @@ public class RedisConcurrencyLimiter {
             try {
                 redisTemplate.opsForZSet().remove(key, token);
             } catch (RuntimeException exception) {
-                log.warn("event: REDIS_CONCURRENCY_LEASE_RELEASE_FAILED domain: {} business: {} exceptionType: {}",
+                log.warn("Redis 并发租约释放失败, event: REDIS_CONCURRENCY_LEASE_RELEASE_FAILED, "
+                                + "domain: {}, business: {}, exceptionType: {}",
                         domain, business, exception.getClass().getSimpleName());
             }
         }
@@ -149,7 +150,9 @@ public class RedisConcurrencyLimiter {
         );
     }
 
-    /** 仅在当前 token 仍存在时原子续租；短暂 Redis 故障由后续周期继续重试。 */
+    /**
+     * 仅在当前 token 仍存在时原子续租；短暂 Redis 故障由后续周期继续重试。
+     */
     private void renewLease(String key,
                             String token,
                             long leaseMillis,
@@ -163,11 +166,13 @@ public class RedisConcurrencyLimiter {
                     token
             );
             if (!Long.valueOf(ACQUIRED).equals(renewed)) {
-                log.warn("event: REDIS_CONCURRENCY_LEASE_RENEW_REJECTED domain: {} business: {}",
+                log.warn("Redis 并发租约续期被拒绝, event: REDIS_CONCURRENCY_LEASE_RENEW_REJECTED, "
+                                + "domain: {}, business: {}",
                         domain, business);
             }
         } catch (RuntimeException exception) {
-            log.warn("event: REDIS_CONCURRENCY_LEASE_RENEW_FAILED domain: {} business: {} exceptionType: {}",
+            log.warn("Redis 并发租约续期失败, event: REDIS_CONCURRENCY_LEASE_RENEW_FAILED, "
+                            + "domain: {}, business: {}, exceptionType: {}",
                     domain, business, exception.getClass().getSimpleName());
         }
     }

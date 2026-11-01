@@ -16,18 +16,14 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutApplicationService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 应用编排服务。
- * @status : create
+ * Hosted Checkout 应用编排服务。
  */
 @Service
 public class PaymentCheckoutApplicationService {
 
-    /** Hosted Checkout 领域服务，负责持久化幂等、状态机和渠道编排。 */
+    /**
+     * Hosted Checkout 领域服务，负责持久化幂等、状态机和渠道编排。
+     */
     private final PaymentCheckoutService paymentCheckoutService;
 
     /**
@@ -89,12 +85,16 @@ public class PaymentCheckoutApplicationService {
         return paymentCheckoutService.handleThreeDsReturn(commandDTO);
     }
 
-    /** 执行收银台付款期限补偿扫描。 */
+    /**
+     * 执行收银台付款期限补偿扫描。
+     */
     public int expireDue(LocalDateTime now, int limit) {
         return paymentCheckoutService.expireDue(now, limit);
     }
 
-    /** 解析收银台卡 BIN 品牌及商户支持状态。 */
+    /**
+     * 解析收银台卡 BIN 品牌及商户支持状态。
+     */
     public PaymentCheckoutCardBinResultDTO resolveCardBin(PaymentCheckoutCardBinCommandDTO commandDTO) {
         return paymentCheckoutService.resolveCardBin(commandDTO);
     }

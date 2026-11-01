@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRoleDataScopeMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Admin 角色商户数据范围只读 Mapper。
- * @status : create
+ * Admin 角色商户数据范围只读 Mapper。
  */
 public interface AdminRoleDataScopeMapper {
 

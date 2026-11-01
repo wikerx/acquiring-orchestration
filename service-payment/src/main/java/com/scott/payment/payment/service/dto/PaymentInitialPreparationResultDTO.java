@@ -8,13 +8,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInitialPreparationResultDTO
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 首次 Payment 本地准备结果 DTO，位于 service-payment 服务 DTO 层，用于把已提交的本地事实传递给事务外渠道调用。
- * @status : create
+ * 首次 Payment 本地准备结果 DTO，位于 service-payment 服务 DTO 层，用于把已提交的本地事实传递给事务外渠道调用。
  */
 @Data
 public class PaymentInitialPreparationResultDTO implements Serializable {

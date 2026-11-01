@@ -13,13 +13,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskCommonController
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 收单风控公共查询接口，位于 service-admin 接口层，仅提供管理端功能定义和基础下拉选项。
- * @status : create
+ * 收单风控公共查询接口，位于 service-admin 接口层，仅提供管理端功能定义和基础下拉选项。
  */
 @RestController
 @RequestMapping("/admin/risk")

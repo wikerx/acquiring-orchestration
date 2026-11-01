@@ -2,27 +2,36 @@ package com.scott.payment.gateway.config;
 
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.rate.ReactiveRedisSlidingWindowRateLimiter;
+import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.gateway.config.HttpClientProperties;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayRouteConfig
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 网关路由配置，统一声明外部请求可以进入系统的路径规则
- * @status : create
+ * 网关路由配置，统一声明外部请求可以进入系统的路径规则
  */
 @Configuration
 @EnableConfigurationProperties({GatewayClientIpProperties.class, GatewayIngressProperties.class,
         GatewayRateLimitProperties.class})
 public class GatewayRouteConfig {
+
+    /**
+     * 在路由接收流量前校验 Gateway 到下游微服务的连接和响应超时边界。
+     *
+     * @param httpClientProperties Spring Cloud Gateway 实际使用的 HTTP 客户端配置
+     * @return 应用单例初始化阶段执行的失败关闭门禁
+     */
+    @Bean
+    public SmartInitializingSingleton gatewayHttpClientTimeoutGuard(HttpClientProperties httpClientProperties) {
+        return () -> GatewayHttpClientTimeoutPolicy.validate(
+                httpClientProperties.getConnectTimeout(),
+                httpClientProperties.getResponseTimeout());
+    }
 
     /**
      * 创建 WebFlux 专用的分布式滑动窗口限流器；本地降级身份容量与 Gateway 配置保持一致。
@@ -79,10 +88,14 @@ public class GatewayRouteConfig {
      */
     private static final String ISO_OPENAPI_PATH = "/api/rest/iso/**";
 
-    /** 商户 IP 归属查询 API 路径。 */
+    /**
+     * 商户 IP 归属查询 API 路径。
+     */
     private static final String IP_OPENAPI_PATH = "/api/rest/ip/**";
 
-    /** 商户卡 BIN 归属查询 API 路径。 */
+    /**
+     * 商户卡 BIN 归属查询 API 路径。
+     */
     private static final String CARD_BIN_OPENAPI_PATH = "/api/rest/card-bin/**";
 
     /**
@@ -131,6 +144,11 @@ public class GatewayRouteConfig {
     private static final String GATEWAY_NOT_FOUND_PATH = "/gateway/fallback/not-found";
 
     /**
+     * 商户 OpenAPI 未命中已发布路由时使用的 V1.3 专用兜底路径。
+     */
+    private static final String OPENAPI_NOT_FOUND_PATH = "/gateway/fallback/openapi-not-found";
+
+    /**
      * 网关本地兜底路径匹配表达式，避免兜底路由再次转发自身导致循环。
      */
     private static final String GATEWAY_FALLBACK_PATH = "/gateway/fallback/**";
@@ -167,6 +185,9 @@ public class GatewayRouteConfig {
                 .route("admin-api", route -> route.path(ADMIN_API_PATH).uri(SERVICE_ADMIN_URI))
                 .route("merchant-api", route -> route.path(MERCHANT_API_PATH).uri(SERVICE_MERCHANT_URI))
                 .route("checkout-config", route -> route.path(CHECKOUT_CONFIG_PATH, CHECKOUT_HEALTH_PATH).uri(SERVICE_CHECKOUT_URI))
+                .route("openapi-unmatched-path", route -> route.order(Ordered.LOWEST_PRECEDENCE - 1)
+                        .path("/api/rest/**")
+                        .uri("forward:" + OPENAPI_NOT_FOUND_PATH))
                 .route("gateway-unmatched-path", route -> route.order(Ordered.LOWEST_PRECEDENCE)
                         .path(ANY_PATH)
                         .and()

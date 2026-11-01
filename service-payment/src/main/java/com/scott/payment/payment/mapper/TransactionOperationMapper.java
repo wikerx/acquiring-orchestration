@@ -11,13 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionOperationMapper
- * @date : 2026-07-14 17:40
- * @email : scott_x@163.com
- * @description : 交易动作单 Mapper，位于 service-payment 数据访问层，仅访问 transaction_operation 逻辑表并显式携带交易分片时间。
- * @status : create
+ * 交易动作单 Mapper，位于 service-payment 数据访问层，仅访问 transaction_operation 逻辑表并显式携带交易分片时间。
  */
 public interface TransactionOperationMapper extends BaseMapper<TransactionOperationDO> {
 
@@ -178,6 +172,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             UPDATE transaction_operation
             SET transaction_status = #{transactionStatus},
                 process_stage = #{processStage},
+                pending_reason_code = NULL,
                 fail_reason_code = #{failReasonCode},
                 fail_reason_message = #{failReasonMessage},
                 channel_status = #{channelStatus},
@@ -285,6 +280,32 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                      @Param("expectedVersion") Integer expectedVersion,
                                      @Param("channelOrderNo") String channelOrderNo,
                                      @Param("channelTransactionId") String channelTransactionId);
+
+    /**
+     * 补写渠道查询或回调返回的真实身份和卡交易参考字段，不改变动作版本和平台状态。
+     * 非空渠道值可以替换请求前生成的临时身份，空值不得清除已有事实。
+     */
+    @Update("""
+            UPDATE transaction_operation
+            SET channel_order_no = COALESCE(#{channelOrderNo}, channel_order_no),
+                channel_transaction_id = COALESCE(#{channelTransactionId}, channel_transaction_id),
+                auth_code = COALESCE(#{authCode}, auth_code),
+                rrn = COALESCE(#{rrn}, rrn),
+                acquirer_reference_no = COALESCE(#{acquirerReferenceNo}, acquirer_reference_no),
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND deleted = 0
+            """)
+    int updateChannelReferencesLogical(@Param("id") Long id,
+                                       @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                       @Param("expectedVersion") Integer expectedVersion,
+                                       @Param("channelOrderNo") String channelOrderNo,
+                                       @Param("channelTransactionId") String channelTransactionId,
+                                       @Param("authCode") String authCode,
+                                       @Param("rrn") String rrn,
+                                       @Param("acquirerReferenceNo") String acquirerReferenceNo);
 
     /**
      * 在单季度半开范围内查询待渠道勾兑动作。

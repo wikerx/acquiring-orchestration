@@ -9,13 +9,7 @@ import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisTemplateConfig
- * @date : 2026-05-31 20:45
- * @email : scott_x@163.com
- * @description : Redis 序列化配置
- * @status : create
+ * Redis 序列化配置
  */
 @Configuration
 @EnableConfigurationProperties(PaymentRedisProperties.class)

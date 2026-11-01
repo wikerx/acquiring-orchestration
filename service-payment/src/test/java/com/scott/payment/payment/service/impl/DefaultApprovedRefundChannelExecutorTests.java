@@ -3,6 +3,8 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
+import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
+import com.scott.payment.payment.domain.state.PaymentPendingReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
@@ -34,17 +36,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultApprovedRefundChannelExecutorTests
- * @date : 2026-08-06
- * @email : scott_x@163.com
- * @description : 已批准退款渠道执行测试，锁定固定渠道恢复、请求身份复用和未知结果非终态语义。
- * @status : create
+ * 已批准退款渠道执行测试，锁定固定渠道恢复、请求身份复用和未知结果非终态语义。
  */
 class DefaultApprovedRefundChannelExecutorTests {
 
-    /** 审批后的首次执行必须复用受理事务保存的渠道和请求身份。 */
+    /**
+     * 审批后的首次执行必须复用受理事务保存的渠道和请求身份。
+     */
     @Test
     void shouldRestoreFixedRouteAndReusePreparedRequestIdentity() {
         Fixture fixture = new Fixture();
@@ -77,13 +75,16 @@ class DefaultApprovedRefundChannelExecutorTests {
                 eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), eq(new BigDecimal("2.50")), eq("USD"), any());
     }
 
-    /** 渠道超时且结果未知时必须保留处理中，禁止误记失败。 */
+    /**
+     * 渠道超时且结果未知时必须保留处理中，禁止误记失败。
+     */
     @Test
     void shouldKeepOutcomeUncertainTimeoutProcessing() {
         Fixture fixture = new Fixture();
         PaymentChannelInvokeResultDTO timeout = new PaymentChannelInvokeResultDTO();
         timeout.setRequestStatus("TIMEOUT");
         timeout.setExceptionType("SocketTimeoutException");
+        timeout.setFailureReasonCode(PaymentFailureReasonEnum.CHANNEL_TIMEOUT.getCode());
         timeout.setOutcomeUncertain(true);
         when(fixture.channelInvokeService.invoke(any(), same(fixture.route), eq("OP-1"), eq("RF-1"), any(PaymentPreparedChannelRequestDTO.class)))
                 .thenReturn(timeout);
@@ -93,12 +94,85 @@ class DefaultApprovedRefundChannelExecutorTests {
         RefundPreparationResultDTO preparation = fixture.capturedPreparation();
         assertThat(preparation.getResultDTO().getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         assertThat(preparation.getResultDTO().getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
-        assertThat(preparation.getResultDTO().getPendingReasonCode()).isEqualTo("CHANNEL_RESULT_UNKNOWN");
+        assertThat(preparation.getResultDTO().getPendingReasonCode())
+                .isEqualTo(PaymentPendingReasonEnum.CHANNEL_RESULT_UNKNOWN.getCode());
         assertThat(preparation.getResultDTO().getFailReasonCode()).isNull();
         verify(fixture.statusResolver, never()).resolveSync(any(), any(), any());
         verify(fixture.idempotencyService).complete(
                 eq("TRANSACTION_OPERATION"), eq("IDEMPOTENCY-KEY"), eq("OP-1"), eq("RF-1"),
                 eq(PaymentTransactionStatusEnum.PROCESSING.getCode()), eq(new BigDecimal("2.50")), eq("USD"), any());
+    }
+
+    /**
+     * 渠道响应已明确拒绝退款时可以形成失败终态，但必须保留渠道拒绝来源。
+     */
+    @Test
+    void shouldPersistConfirmedChannelDeclineAsFailed() {
+        Fixture fixture = new Fixture();
+        PaymentChannelInvokeResultDTO decline = new PaymentChannelInvokeResultDTO();
+        decline.setRequestStatus("FAILED");
+        decline.setExceptionType("ChannelResponseException");
+        decline.setFailureReasonCode(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
+        decline.setOutcomeUncertain(false);
+        when(fixture.channelInvokeService.invoke(
+                any(), same(fixture.route), eq("OP-1"), eq("RF-1"), any(PaymentPreparedChannelRequestDTO.class)))
+                .thenReturn(decline);
+
+        fixture.executor.execute(fixture.operation, fixture.request, fixture.message);
+
+        RefundPreparationResultDTO preparation = fixture.capturedPreparation();
+        assertThat(preparation.getResultDTO().getStatus())
+                .isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(preparation.getResultDTO().getFailReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
+        assertThat(preparation.getResultDTO().getPendingReasonCode()).isNull();
+    }
+
+    /**
+     * 并发回调先完成退款时，审批执行器必须从主库回读并以持久化终态完成幂等快照。
+     */
+    @Test
+    void shouldUsePrimaryPersistedResultWhenConcurrentCallbackWins() {
+        Fixture fixture = new Fixture();
+        PaymentChannelInvokeResultDTO invokeResult = fixture.successInvokeResult();
+        when(fixture.channelInvokeService.invoke(
+                any(), same(fixture.route), eq("OP-1"), eq("RF-1"), any(PaymentPreparedChannelRequestDTO.class)))
+                .thenReturn(invokeResult);
+        ChannelTransactionStatusResolution syncFailure = new ChannelTransactionStatusResolution();
+        syncFailure.setTargetStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        syncFailure.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+        syncFailure.setFailReasonCode("CHANNEL_DECLINED");
+        when(fixture.statusResolver.resolveSync("MPGS", "REFUND", invokeResult.getChannelResponse()))
+                .thenReturn(syncFailure);
+        when(fixture.resultService.recordRefundChannelResult(any(), any())).thenReturn(false);
+
+        TransactionOperationDO persistedSuccess = new TransactionOperationDO();
+        persistedSuccess.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        persistedSuccess.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+        persistedSuccess.setAuthCode("AUTH-CALLBACK");
+        when(fixture.recordService.findSourceOperationByTransactionIdPrimary("RF-1", fixture.refundTime))
+                .thenReturn(persistedSuccess);
+        TransactionOrderDO persistedOrder = new TransactionOrderDO();
+        persistedOrder.setAuthorizedAmount(new BigDecimal("50.00"));
+        persistedOrder.setCapturedAmount(new BigDecimal("50.00"));
+        persistedOrder.setAuthorizedCancelAmount(BigDecimal.ZERO);
+        persistedOrder.setRefundedAmount(new BigDecimal("12.50"));
+        persistedOrder.setChargebackAmount(BigDecimal.ZERO);
+        when(fixture.recordService.findOrderPrimary(fixture.sourceTime, "OP-1"))
+                .thenReturn(persistedOrder);
+
+        fixture.executor.execute(fixture.operation, fixture.request, fixture.message);
+
+        RefundPreparationResultDTO preparation = fixture.capturedPreparation();
+        assertThat(preparation.getResultDTO().getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(preparation.getResultDTO().getFailReasonCode()).isNull();
+        assertThat(preparation.getResultDTO().getAuthCode()).isEqualTo("AUTH-CALLBACK");
+        assertThat(preparation.getResultDTO().getTotalRefundAmount()).isEqualByComparingTo("12.50");
+        verify(fixture.recordService).findSourceOperationByTransactionIdPrimary("RF-1", fixture.refundTime);
+        verify(fixture.recordService).findOrderPrimary(fixture.sourceTime, "OP-1");
+        verify(fixture.idempotencyService).complete(
+                eq("TRANSACTION_OPERATION"), eq("IDEMPOTENCY-KEY"), eq("OP-1"), eq("RF-1"),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), eq(new BigDecimal("2.50")), eq("USD"), any());
     }
 
     private static final class Fixture {
@@ -134,6 +208,7 @@ class DefaultApprovedRefundChannelExecutorTests {
             when(routeService.restore("MPGS", 11L, 22L, "MID-TERM-1")).thenReturn(route);
             when(idempotencyService.buildTransactionOperationKey("M-1", "PAY-1:MR-1", "REFUND"))
                     .thenReturn("IDEMPOTENCY-KEY");
+            when(resultService.recordRefundChannelResult(any(), any())).thenReturn(true);
         }
 
         private PaymentChannelInvokeResultDTO successInvokeResult() {

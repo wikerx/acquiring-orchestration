@@ -4,13 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobManualTriggerRequest
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务Manual触发请求对象
- * @status : create
+ * 任务Manual触发请求对象
  */
 @Data
 public class JobManualTriggerRequest {

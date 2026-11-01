@@ -7,13 +7,7 @@ import javax.sql.DataSource;
 import java.sql.SQLException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataSourcePoolInspector
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 物理连接池解析器，通过标准 JDBC Wrapper API 识别 HikariDataSource，避免依赖动态数据源代理的内部实现。
- * @status : create
+ * 物理连接池解析器，通过标准 JDBC Wrapper API 识别 HikariDataSource，避免依赖动态数据源代理的内部实现。
  */
 @Component
 public class DataSourcePoolInspector {

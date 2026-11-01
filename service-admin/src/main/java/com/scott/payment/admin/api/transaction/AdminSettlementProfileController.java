@@ -20,13 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementProfileController
- * @date : 2026-09-01 22:50
- * @email : scott_x@163.com
- * @description : Admin 结算档案本地查询与调度参数维护入口；页面不直连 settlement 服务，更新操作受权限、数据范围、审计和乐观锁保护。
- * @status : update
+ * Admin 结算档案本地查询与调度参数维护入口；页面不直连 settlement 服务，更新操作受权限、数据范围、审计和乐观锁保护。
  */
 @RestController
 @RequestMapping("/admin/settlement/profiles")
@@ -34,6 +28,11 @@ public class AdminSettlementProfileController {
 
     private final AdminSettlementProfileApplicationService applicationService;
 
+    /**
+     * 创建结算档案管理控制器。
+     *
+     * @param applicationService 结算档案应用服务
+     */
     public AdminSettlementProfileController(AdminSettlementProfileApplicationService applicationService) {
         this.applicationService = applicationService;
     }

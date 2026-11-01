@@ -3,13 +3,7 @@ package com.scott.payment.payment.service;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionLocatorService
- * @date : 2026-08-14 12:35
- * @email : scott_x@163.com
- * @description : 交易定位服务，位于 service-payment 服务层，为商户后续动作和查询补齐内部交易分片路由字段。
- * @status : create
+ * 交易定位服务，位于 service-payment 服务层，为商户后续动作和查询补齐内部交易分片路由字段。
  */
 public interface TransactionLocatorService {
 

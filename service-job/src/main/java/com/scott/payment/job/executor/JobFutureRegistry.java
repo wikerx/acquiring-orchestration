@@ -7,13 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobFutureRegistry
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务Future注册表注册中心
- * @status : create
+ * 任务Future注册表注册中心
  */
 @Component
 public class JobFutureRegistry {

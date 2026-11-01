@@ -53,13 +53,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantEmailVerificationServiceImpl
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 商户账号激活和邮箱验证状态机；以租户绑定、行锁、哈希验证码和单次短期令牌阻止越权与重放。
- * @status : create
+ * 商户账号激活和邮箱验证状态机；以租户绑定、行锁、哈希验证码和单次短期令牌阻止越权与重放。
  */
 @Service
 public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerificationService {
@@ -76,7 +70,13 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
     private static final int EMAIL_CODE_TTL_SECONDS = 30 * 60;
     private static final int ACTION_TOKEN_TTL_SECONDS = 5 * 60;
     private static final int MAX_VERIFY_ATTEMPTS = 50;
+    /**
+     * 单个账号每小时允许签发的邮箱验证请求上限。
+     */
     private static final int ACCOUNT_REQUESTS_PER_HOUR = 50;
+    /**
+     * 单个客户端 IP 每小时允许签发的邮箱验证请求上限。
+     */
     private static final int IP_REQUESTS_PER_HOUR = 200;
     private static final int RESEND_COOLDOWN_SECONDS = 6;
     private static final int MAX_USER_AGENT_LENGTH = 500;
@@ -91,7 +91,13 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
     private static final String CODE_LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
     private static final String CODE_UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     private static final String CODE_CHARACTERS = CODE_DIGITS + CODE_LOWERCASE + CODE_UPPERCASE;
+    /**
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    /**
+     * 邮件时间格式化器，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+     */
     private static final DateTimeFormatter EMAIL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final SysAppMapper appMapper;
@@ -104,7 +110,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
     private final RedisSlidingWindowRateLimiter rateLimiter;
     private final AccountPasswordHistoryService passwordHistoryService;
 
-    /** 创建商户邮箱验证服务。 */
+    /**
+     * 创建商户邮箱验证服务。
+     */
     public MerchantEmailVerificationServiceImpl(SysAppMapper appMapper,
                                                 SysAccountMapper accountMapper,
                                                 SysUserMapper userMapper,
@@ -125,7 +133,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         this.passwordHistoryService = passwordHistoryService;
     }
 
-    /** 创建最新邮箱验证请求，并废止同账号尚未完成的旧请求。 */
+    /**
+     * 创建最新邮箱验证请求，并废止同账号尚未完成的旧请求。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -170,7 +180,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         sendVerificationEmailAfterCommit(account, row, code, targetEmail);
     }
 
-    /** 校验验证码；激活用途签发五分钟首次设密令牌，其余用途直接完成邮箱确认。 */
+    /**
+     * 校验验证码；激活用途签发五分钟首次设密令牌，其余用途直接完成邮箱确认。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = EmailVerificationException.class)
@@ -242,7 +254,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return response(NEXT_COMPLETED, null, 0, "Email verification completed.");
     }
 
-    /** 原子消费短期令牌，写入首次密码并激活账号。 */
+    /**
+     * 原子消费短期令牌，写入首次密码并激活账号。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = EmailVerificationException.class)
@@ -303,6 +317,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return response;
     }
 
+    /**
+     * 校验邮箱验证码用途及账号状态是否允许发起对应流程。
+     */
     private void validateIssuePurpose(SysAccountDO account, String purpose) {
         if (!Set.of(PURPOSE_ACCOUNT_ACTIVATION, PURPOSE_EMAIL_VERIFICATION, PURPOSE_EMAIL_CHANGE).contains(purpose)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "email verification purpose is invalid");
@@ -328,6 +345,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         }
     }
 
+    /**
+     * 查询并校验商户应用配置存在。
+     */
     private SysAppDO requireMerchantApp() {
         SysAppDO app = appMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
@@ -340,6 +360,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return app;
     }
 
+    /**
+     * 读取并校验账号，缺失时抛出业务异常。
+     */
     private SysAccountDO requireAccount(Long appId, Long accountId) {
         SysAccountDO account = accountId == null ? null : accountMapper.selectOne(Wrappers.<SysAccountDO>lambdaQuery()
                 .eq(SysAccountDO::getId, accountId)
@@ -352,6 +375,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return account;
     }
 
+    /**
+     * 判断重定向目标是否属于允许的商户前端地址。
+     */
     private boolean validTarget(SysEmailVerificationRequestDO row, SysAccountDO account) {
         return account != null
                 && Objects.equals(account.getAppId(), row.getAppId())
@@ -361,10 +387,16 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
                 && Objects.equals(emailFingerprint(verificationTargetEmail(account, row.getPurpose())), row.getEmailFingerprint());
     }
 
+    /**
+     * 按验证用途选择当前邮箱或待确认的新邮箱。
+     */
     private String verificationTargetEmail(SysAccountDO account, String purpose) {
         return PURPOSE_EMAIL_CHANGE.equals(purpose) ? account.getPendingEmail() : account.getEmail();
     }
 
+    /**
+     * 加锁读取邮箱验证申请，申请不存在时终止当前验证流程。
+     */
     private SysEmailVerificationRequestDO requireLockedRequest(String requestId) {
         SysEmailVerificationRequestDO row = requestMapper.selectByRequestNoForUpdate(requestId);
         if (row == null) {
@@ -374,6 +406,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return row;
     }
 
+    /**
+     * 按账号与客户端 IP 限制邮箱验证签发频率。
+     */
     private void enforceIssueRateLimit(Long appId, String merchantId, Long accountId,
                                        String ip, LocalDateTime now) {
         String identity = appId + ":" + merchantId + ":" + accountId;
@@ -390,6 +425,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         }
     }
 
+    /**
+     * 使用分布式计数器执行限流，防止多实例绕过请求上限。
+     */
     private void enforceDistributedRateLimit(String scope, String identity, int limit, Duration window) {
         SlidingWindowRateLimitResult result = rateLimiter.tryAcquire(scope, identity, limit, window);
         if (!result.allowed()) {
@@ -397,11 +435,17 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         }
     }
 
+    /**
+     * 创建密码重置或邮箱验证使用的限流异常。
+     */
     private ServiceException tooManyRequests() {
         return new ServiceException(ApiResultEnum.TOO_MANY_REQUESTS.getCode(),
                 "Too many requests. Please retry later.");
     }
 
+    /**
+     * 在事务提交后准备并发送验证邮件，避免回滚事务产生无效邮件。
+     */
     private void sendVerificationEmailAfterCommit(SysAccountDO account,
                                                   SysEmailVerificationRequestDO row,
                                                   String code,
@@ -409,6 +453,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         afterCommit(() -> sendVerificationEmail(account, row, code, targetEmail));
     }
 
+    /**
+     * 准备并发送验证邮件；账号不存在时只生成抑制投递记录。
+     */
     private void sendVerificationEmail(SysAccountDO account,
                                        SysEmailVerificationRequestDO row,
                                        String code,
@@ -440,6 +487,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         }
     }
 
+    /**
+     * 构建商户邮箱验证页面地址，不在日志中记录验证码。
+     */
     private String verificationUrl(String requestNo) {
         String baseUrl = configService.enabledConfigValue(FRONTEND_BASE_URL_KEY)
                 .filter(StringUtils::hasText).orElse("http://127.0.0.1:5174");
@@ -448,12 +498,18 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
                 .build().encode().toUriString();
     }
 
+    /**
+     * 在当前事务成功提交后执行延迟动作。
+     */
     private void afterCommit(Runnable task) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             task.run();
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -461,6 +517,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         });
     }
 
+    /**
+     * 构建当前安全流程的商户可见响应。
+     */
     private EmailVerificationVerifyResponse response(String nextStep, String token, int ttl, String message) {
         EmailVerificationVerifyResponse response = new EmailVerificationVerifyResponse();
         response.setNextStep(nextStep);
@@ -470,6 +529,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return response;
     }
 
+    /**
+     * 生成满足长度和字符类别约束的一次性邮箱验证码。
+     */
     private String generateEmailCode() {
         char[] code = new char[6];
         code[0] = randomCharacter(CODE_DIGITS);
@@ -487,10 +549,16 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return new String(code);
     }
 
+    /**
+     * 从受控字符集中使用安全随机数选取一个字符。
+     */
     private char randomCharacter(String source) {
         return source.charAt(SECURE_RANDOM.nextInt(source.length()));
     }
 
+    /**
+     * 计算规范化邮箱的不可逆摘要，用于限流和幂等比对。
+     */
     private String emailFingerprint(String email) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -507,12 +575,18 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         }
     }
 
+    /**
+     * 使用常量时间比较校验令牌摘要。
+     */
     private boolean tokenMatches(String token, String hash) {
         return StringUtils.hasText(token) && StringUtils.hasText(hash)
                 && MessageDigest.isEqual(LoginTokenUtils.hashToken(token).getBytes(StandardCharsets.UTF_8),
                 hash.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 在持久化状态仍开放但时间已过期时推进为过期状态。
+     */
     private void markExpiredIfNecessary(SysEmailVerificationRequestDO row, LocalDateTime now) {
         if (STATE_PENDING.equals(row.getState()) || STATE_VERIFIED.equals(row.getState())) {
             row.setState(STATE_EXPIRED);
@@ -521,10 +595,16 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         }
     }
 
+    /**
+     * 判断安全请求是否已经超过有效期。
+     */
     private boolean expired(LocalDateTime expireAt, LocalDateTime now) {
         return expireAt == null || !expireAt.isAfter(now);
     }
 
+    /**
+     * 返回脱敏后可展示的登录账号。
+     */
     private String displayLoginAccount(SysAccountDO account) {
         String suffix = "_" + account.getMerchantId();
         return StringUtils.hasText(account.getLoginAccount()) && account.getLoginAccount().endsWith(suffix)
@@ -532,14 +612,23 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
                 : account.getLoginAccount();
     }
 
+    /**
+     * 规范化客户端 IP，用于限流键和安全审计。
+     */
     private String normalizeIp(String value) {
         return StringUtils.hasText(value) ? truncate(value.trim(), 64) : "unknown";
     }
 
+    /**
+     * 规范化邮件语言，缺失或不支持时使用平台默认语言。
+     */
     private String normalizeLocale(String value) {
         return "en-US".equals(value) ? "en-US" : "zh-CN";
     }
 
+    /**
+     * 按持久化字段长度安全截断文本。
+     */
     private String truncate(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -548,22 +637,36 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 
+    /**
+     * 将空整数转换为指定默认值。
+     */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
 
+    /**
+     * 读取结果集字段并将数据库空值保持为 Java 空值。
+     */
     private long value(Long value) {
         return value == null ? 0L : value;
     }
 
+    /**
+     * 创建不暴露账号存在性和验证阶段的统一校验失败异常。
+     */
     private EmailVerificationException verificationFailed() {
         return new EmailVerificationException();
     }
 
-    /** 验证失败时保留计数或终态，同时统一对外错误。 */
+    /**
+     * 验证失败时保留计数或终态，同时统一对外错误。
+     */
     private static final class EmailVerificationException extends ServiceException {
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 禁止实例化邮箱验证异常工具类。
+         */
         private EmailVerificationException() {
             super(ApiResultEnum.UNAUTHORIZED.getCode(), "Verification failed or expired.");
         }

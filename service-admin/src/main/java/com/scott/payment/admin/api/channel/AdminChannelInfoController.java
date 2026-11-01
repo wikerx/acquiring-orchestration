@@ -26,13 +26,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelInfoController
- * @date : 2026-07-03 16:10
- * @email : scott_x@163.com
- * @description : admin渠道信息 HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 管理端渠道信息 HTTP 控制器，用于运营后台，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  */
 @RestController
 @RequestMapping("/admin/channel/info")
@@ -40,6 +34,11 @@ public class AdminChannelInfoController {
 
     private final AdminChannelApplicationService channelApplicationService;
 
+    /**
+     * 创建渠道基础信息管理控制器。
+     *
+     * @param channelApplicationService 渠道配置应用服务
+     */
     public AdminChannelInfoController(AdminChannelApplicationService channelApplicationService) {
         this.channelApplicationService = channelApplicationService;
     }

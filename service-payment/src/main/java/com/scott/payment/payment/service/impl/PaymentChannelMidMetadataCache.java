@@ -14,36 +14,43 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelMidMetadataCache
- * @date : 2026-08-01 15:40
- * @email : scott_x@163.com
- * @description : 支付实例内短时渠道 MID 敏感元数据缓存，以 merchant:route 中的 MID 修改时间隔离版本
- * @status : create
+ * 支付实例内的渠道 MID 敏感元数据短时缓存。
  *
- * <p>{@code metadata_value_json} 可能包含渠道密码、API Key、证书或私钥，因此只允许从 MASTER
- * 加载到当前 JVM，最长保留两分钟，绝不写入 Redis 或业务日志。</p>
+ * <p>缓存键由 MID 主键和路由快照中的修改时间组成，凭据轮换会自然产生新版本。元数据可能包含
+ * 渠道密码、API Key、证书或私钥，因此只从主库加载到当前 JVM，最长保留两分钟，绝不写入
+ * Redis、业务表或日志。</p>
  */
 @Service
 public class PaymentChannelMidMetadataCache {
 
-    /** 单条敏感元数据在进程内的最长驻留时间。 */
+    /**
+     * 单条敏感元数据在进程内的最长驻留时间。
+     */
     private static final long TTL_NANOS = Duration.ofMinutes(2).toNanos();
 
-    /** 单实例最多缓存的 MID 元数据版本数量。 */
+    /**
+     * 单实例最多缓存的 MID 元数据版本数量。
+     */
     private static final int MAXIMUM_SIZE = 2048;
 
-    /** 渠道 MID 主库 Mapper。 */
+    /**
+     * 渠道 MID 主库 Mapper。
+     */
     private final PaymentChannelMidConfigMapper midConfigMapper;
 
-    /** 版本维度的本地敏感元数据条目。 */
+    /**
+     * 版本维度的本地敏感元数据条目。
+     */
     private final ConcurrentHashMap<CacheKey, CacheEntry> entries = new ConcurrentHashMap<>();
 
-    /** 最近访问顺序，用于容量淘汰。 */
+    /**
+     * 最近访问顺序，用于容量淘汰。
+     */
     private final AtomicLong accessSequence = new AtomicLong();
 
-    /** 容量整理互斥对象，不包裹数据库查询。 */
+    /**
+     * 容量整理互斥对象，不包裹数据库查询。
+     */
     private final Object evictionMonitor = new Object();
 
     /**
@@ -78,6 +85,7 @@ public class PaymentChannelMidMetadataCache {
             cached.touch(accessSequence.incrementAndGet());
             return cached.metadataJson();
         }
+        // compute 保证同一实例、同一版本并发未命中时只由一个线程刷新缓存条目。
         CacheEntry loaded = entries.compute(key, (ignored, current) -> {
             long currentTime = System.nanoTime();
             if (current != null && !current.expired(currentTime)) {
@@ -87,18 +95,23 @@ public class PaymentChannelMidMetadataCache {
             return new CacheEntry(load(midConfigId), currentTime + TTL_NANOS,
                     accessSequence.incrementAndGet());
         });
+        // 新修改时间加载成功后立即清理同 MID 旧版本，缩短轮换凭据在内存中的驻留。
         entries.keySet().removeIf(existing -> existing.midConfigId().equals(midConfigId) && !existing.equals(key));
         evictOverflow();
         return loaded.metadataJson();
     }
 
-    /** 从主库读取敏感元数据正文。 */
+    /**
+     * 从主库读取敏感元数据正文。
+     */
     private String load(Long midConfigId) {
         ChannelMidConfigDO row = midConfigMapper.selectById(midConfigId);
         return row == null ? null : row.getMetadataValueJson();
     }
 
-    /** 超出容量时按最近访问顺序淘汰最旧条目。 */
+    /**
+     * 超出容量时按最近访问顺序淘汰最旧条目。
+     */
     private void evictOverflow() {
         if (entries.size() <= MAXIMUM_SIZE) {
             return;
@@ -113,24 +126,40 @@ public class PaymentChannelMidMetadataCache {
         }
     }
 
-    /** 本地缓存键，只包含 MID 主键和非敏感修改时间。 */
+    /**
+     * 本地缓存键，只包含 MID 主键和非敏感修改时间。
+     */
     private record CacheKey(Long midConfigId, LocalDateTime modifiedTime) {
+        /**
+         * 校验缓存键包含完整 MID 身份和配置修改时间。
+         *
+         * @param midConfigId 渠道 MID 配置主键
+         * @param modifiedTime 配置最后修改时间
+         */
         private CacheKey {
             Objects.requireNonNull(midConfigId, "midConfigId");
             Objects.requireNonNull(modifiedTime, "modifiedTime");
         }
     }
 
-    /** 本地敏感元数据条目。 */
+    /**
+     * 本地敏感元数据条目。
+     */
     private static final class CacheEntry {
 
-        /** 渠道敏感元数据 JSON，只驻留当前 JVM。 */
+        /**
+         * 渠道敏感元数据 JSON，只驻留当前 JVM。
+         */
         private final String metadataJson;
 
-        /** 基于单调时钟的过期时间。 */
+        /**
+         * 基于单调时钟的过期时间。
+         */
         private final long expiresAtNanos;
 
-        /** 最近访问顺序。 */
+        /**
+         * 最近访问顺序。
+         */
         private volatile long lastAccessSequence;
 
         /**
@@ -146,22 +175,30 @@ public class PaymentChannelMidMetadataCache {
             this.lastAccessSequence = lastAccessSequence;
         }
 
-        /** 返回只驻留 JVM 的渠道敏感元数据 JSON。 */
+        /**
+         * 返回只驻留 JVM 的渠道敏感元数据 JSON。
+         */
         private String metadataJson() {
             return metadataJson;
         }
 
-        /** 判断条目是否达到单调时钟到期点。 */
+        /**
+         * 判断条目是否达到单调时钟到期点。
+         */
         private boolean expired(long now) {
             return now >= expiresAtNanos;
         }
 
-        /** 返回最近访问顺序，用于容量淘汰排序。 */
+        /**
+         * 返回最近访问顺序，用于容量淘汰排序。
+         */
         private long lastAccessSequence() {
             return lastAccessSequence;
         }
 
-        /** 使用新的全局访问顺序标记当前条目刚被读取。 */
+        /**
+         * 使用新的全局访问顺序标记当前条目刚被读取。
+         */
         private void touch(long sequence) {
             this.lastAccessSequence = sequence;
         }

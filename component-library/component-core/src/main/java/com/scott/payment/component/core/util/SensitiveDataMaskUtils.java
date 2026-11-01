@@ -1,18 +1,18 @@
 package com.scott.payment.component.core.util;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.function.UnaryOperator;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SensitiveDataMaskUtils
- * @date : 2026-05-28 16:48
- * @email : scott_x@163.com
- * @description : Sensitive Data Mask Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
- * @status : create
+ * Sensitive Data Mask Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  */
 public final class SensitiveDataMaskUtils {
 
@@ -20,6 +20,11 @@ public final class SensitiveDataMaskUtils {
      * 脱敏失败时返回固定占位符，禁止回退输出原文。
      */
     private static final String MASK_FAILED_PLACEHOLDER = "***MASK_FAILED***";
+
+    /**
+     * 嵌套 JSON 字符串递归上限，避免异常深度载荷消耗线程栈。
+     */
+    private static final int MAX_JSON_MASK_DEPTH = 8;
 
     /**
      * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
@@ -41,7 +46,7 @@ public final class SensitiveDataMaskUtils {
      * IP 与卡 BIN 检索条件可识别具体查询对象，诊断日志中不保留任何明文片段。
      */
     private static final Pattern REFERENCE_LOOKUP_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:ipAddress|payerIp|cardBin)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:ipAddress|payerIp|ingressClientIp|cardBin)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -97,11 +102,13 @@ public final class SensitiveDataMaskUtils {
      * 姓名、地址、客户标识和设备指纹不保留明文片段。
      */
     private static final Pattern PERSONAL_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:firstName|lastName|cardholderName|nameOnCard|legalPerson|enterprise|subName|subCompanyName|customerId|deviceFingerprint|billingAddress|shippingAddress|merchantBillingAddress|street|subStreet)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:firstName|lastName|cardholderName|nameOnCard|legalPerson|enterprise|company|companyName|subName|subCompanyName|customerId|deviceFingerprint|address|billingAddress|shippingAddress|merchantBillingAddress|street|subStreet)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
-    /** 商户网站、通知和结果页 URL 可能携带路径或查询参数，普通日志中不保留原值。 */
+    /**
+     * 商户网站、通知和结果页 URL 可能携带路径或查询参数，普通日志中不保留原值。
+     */
     private static final Pattern MERCHANT_WEBSITE_FIELD_PATTERN = Pattern.compile(
             "(\"(?:merchantWebsite|callbackUrl|redirectUrl|checkoutUrl)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
@@ -131,7 +138,19 @@ public final class SensitiveDataMaskUtils {
         if (json == null || json.isEmpty()) {
             return json;
         }
-        String masked = SECRET_FIELD_PATTERN.matcher(json).replaceAll("$1***$3");
+        Object jsonValue = parseJsonValue(json);
+        if (jsonValue != null) {
+            maskJsonValue(jsonValue, 0);
+            return JSON.toJSONString(jsonValue);
+        }
+        return maskFlatText(json);
+    }
+
+    /**
+     * 对非 JSON 文本保留原正则脱敏能力，兼容 form-urlencoded 和日志片段。
+     */
+    private static String maskFlatText(String value) {
+        String masked = SECRET_FIELD_PATTERN.matcher(value).replaceAll("$1***$3");
         masked = maskCardNo(masked);
         masked = REFERENCE_LOOKUP_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = maskAccountNumber(masked);
@@ -142,6 +161,243 @@ public final class SensitiveDataMaskUtils {
         masked = PERSONAL_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = MERCHANT_WEBSITE_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
+    }
+
+    /**
+     * 递归处理对象、数组及 JSON 编码字符串中的敏感字段。
+     */
+    private static void maskJsonValue(Object value, int depth) {
+        if (value == null || depth >= MAX_JSON_MASK_DEPTH) {
+            return;
+        }
+        if (value instanceof JSONObject object) {
+            for (Map.Entry<String, Object> entry : object.entrySet()) {
+                Object fieldValue = entry.getValue();
+                if (fieldValue instanceof String text) {
+                    entry.setValue(maskJsonStringField(entry.getKey(), text, depth));
+                } else if (isStructuredJson(fieldValue) && depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                    entry.setValue("***");
+                } else {
+                    maskJsonValue(fieldValue, depth + 1);
+                }
+            }
+            return;
+        }
+        if (value instanceof JSONArray array) {
+            for (int index = 0; index < array.size(); index++) {
+                Object element = array.get(index);
+                if (element instanceof String text) {
+                    Object nested = parseJsonValue(text);
+                    if (nested != null) {
+                        if (depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                            array.set(index, "***");
+                        } else {
+                            maskJsonValue(nested, depth + 1);
+                            array.set(index, JSON.toJSONString(nested));
+                        }
+                    }
+                } else if (isStructuredJson(element) && depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                    array.set(index, "***");
+                } else {
+                    maskJsonValue(element, depth + 1);
+                }
+            }
+        }
+    }
+
+    /**
+     * 根据字段语义脱敏字符串；普通字符串若承载 JSON，则递归处理后重新编码。
+     */
+    private static String maskJsonStringField(String fieldName, String value, int depth) {
+        String key = fieldName == null ? "" : fieldName.toLowerCase(Locale.ROOT);
+        if (isSecretField(key) || isReferenceField(key) || isSecurityCodeField(key)
+                || isIdField(key) || isPersonalField(key) || isMerchantUrlField(key)) {
+            return "***";
+        }
+        if ("cardno".equals(key) || "pan".equals(key)) {
+            return maskPan(value);
+        }
+        if (isAccountField(key)) {
+            return maskAccountValue(value);
+        }
+        if (isMobileField(key)) {
+            return maskMobile(value);
+        }
+        if (isEmailField(key)) {
+            return maskEmail(value);
+        }
+        Object nested = parseJsonValue(value);
+        if (nested != null) {
+            if (depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                return "***";
+            }
+            maskJsonValue(nested, depth + 1);
+            return JSON.toJSONString(nested);
+        }
+        return value;
+    }
+
+    /**
+     * 判断值是否仍需递归检查，超过深度限制时对这类值整体遮蔽。
+     */
+    private static boolean isStructuredJson(Object value) {
+        return value instanceof JSONObject || value instanceof JSONArray;
+    }
+
+    /**
+     * 尝试解析嵌套 JSON 文本，以便继续执行字段级递归脱敏。
+     *
+     * @param value 可能包含对象或数组的文本
+     * @return 解析后的 JSON 对象或数组，非 JSON 和解析失败时返回 null
+     */
+    private static Object parseJsonValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        String candidate = value.trim();
+        if (!(candidate.startsWith("{") && candidate.endsWith("}"))
+                && !(candidate.startsWith("[") && candidate.endsWith("]"))) {
+            return null;
+        }
+        try {
+            return JSON.parse(candidate);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    /**
+     * 判断规范化字段名是否承载认证、密钥或密文材料。
+     *
+     * @param key 已去除分隔符并转小写的字段名
+     * @return 必须整体遮蔽时返回 true
+     */
+    private static boolean isSecretField(String key) {
+        return switch (key) {
+            case "password", "mid.password", "oldpassword", "newpassword", "apipassword",
+                    "mid.apipassword", "authorization", "accesstoken", "refreshtoken", "token",
+                    "opaquetoken", "tokenhash", "threedsreturntoken", "threedsreturntokenhash",
+                    "apitoken", "authenticationtoken", "apikey", "secret", "apisecret", "secretkey",
+                    "privatekey", "publickey", "merchantkey", "merchantsecret", "encryptedkey",
+                    "ciphertext", "nonce", "iv" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 判断字段是否属于可定位网络或卡范围的引用数据。
+     *
+     * @param key 规范化字段名
+     * @return 应使用引用值脱敏规则时返回 true
+     */
+    private static boolean isReferenceField(String key) {
+        return "ipaddress".equals(key) || "payerip".equals(key)
+                || "ingressclientip".equals(key) || "cardbin".equals(key);
+    }
+
+    /**
+     * 判断字段是否承载卡安全码或 3DS 认证载荷。
+     *
+     * @param key 规范化字段名
+     * @return 必须整体遮蔽时返回 true
+     */
+    private static boolean isSecurityCodeField(String key) {
+        return switch (key) {
+            case "securitycode", "cvv", "cvc", "cavv", "threedssessiondata",
+                    "threedsmethoddata", "pareq", "pares", "cres", "md" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 判断字段是否承载个人证件号码。
+     *
+     * @param key 规范化字段名
+     * @return 应按证件号码规则脱敏时返回 true
+     */
+    private static boolean isIdField(String key) {
+        return switch (key) {
+            case "idcard", "idnumber", "identitynumber", "nationalid", "passportno", "documentnumber" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 判断字段是否承载姓名、地址或设备标识等个人信息。
+     *
+     * @param key 规范化字段名
+     * @return 应按个人信息规则脱敏时返回 true
+     */
+    private static boolean isPersonalField(String key) {
+        return switch (key) {
+            case "firstname", "lastname", "cardholdername", "nameoncard", "legalperson", "enterprise",
+                    "company", "companyname", "subname", "subcompanyname", "customerid", "devicefingerprint",
+                    "address", "billingaddress", "shippingaddress", "merchantbillingaddress", "street", "substreet" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 判断字段是否承载商户站点、回调或跳转地址。
+     *
+     * @param key 规范化字段名
+     * @return 应按 URL 规则脱敏时返回 true
+     */
+    private static boolean isMerchantUrlField(String key) {
+        return "merchantwebsite".equals(key) || "callbackurl".equals(key)
+                || "redirecturl".equals(key) || "checkouturl".equals(key);
+    }
+
+    /**
+     * 判断字段是否承载银行账户、IBAN 或 SWIFT 信息。
+     *
+     * @param key 规范化字段名
+     * @return 应按账户规则脱敏时返回 true
+     */
+    private static boolean isAccountField(String key) {
+        return switch (key) {
+            case "bankaccount", "accountnumber", "receiveraccountno", "iban", "swiftcode", "bic" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 判断字段是否承载电话号码。
+     *
+     * @param key 规范化字段名
+     * @return 应按手机号规则脱敏时返回 true
+     */
+    private static boolean isMobileField(String key) {
+        return switch (key) {
+            case "mobile", "phone", "subphone", "payerphone", "customerphone", "billingphone", "cardholderphone" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 判断字段是否承载电子邮箱地址。
+     *
+     * @param key 规范化字段名
+     * @return 应按邮箱规则脱敏时返回 true
+     */
+    private static boolean isEmailField(String key) {
+        return switch (key) {
+            case "email", "subemail", "payeremail", "customeremail", "billingemail", "cardholderemail" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 对银行账户类字段仅保留前四位和后四位。
+     *
+     * @param value 原始账户标识
+     * @return 脱敏后的账户标识
+     */
+    private static String maskAccountValue(String value) {
+        if (value == null || value.length() < 8) {
+            return "***";
+        }
+        return value.substring(0, 4) + "******" + value.substring(value.length() - 4);
     }
 
     /**
@@ -285,12 +541,24 @@ public final class SensitiveDataMaskUtils {
         return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
     }
 
+    /**
+     * 对非 JSON 文本中的手机号字段执行正则替换脱敏。
+     *
+     * @param value 可能包含手机号字段的文本
+     * @return 手机号已脱敏的文本
+     */
     private static String maskMobileField(String value) {
         return MOBILE_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskMobile(matchResult.group(2)) + matchResult.group(3)
         ));
     }
 
+    /**
+     * 对非 JSON 文本中的邮箱字段执行正则替换脱敏。
+     *
+     * @param value 可能包含邮箱字段的文本
+     * @return 邮箱已脱敏的文本
+     */
     private static String maskEmailField(String value) {
         return EMAIL_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskEmail(matchResult.group(2) + matchResult.group(3)) + matchResult.group(4)

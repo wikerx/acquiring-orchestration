@@ -14,13 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelAlertNotifyLogController
- * @date : 2026-07-17 00:00
- * @email : scott_x@163.com
- * @description : 渠道预警通知日志查询接口，位于 service-admin 接口层，当前仅查询邮件通知日志。
- * @status : create
+ * 渠道预警通知日志查询接口，位于 service-admin 接口层，当前仅查询邮件通知日志。
  */
 @RestController
 @RequestMapping("/admin/channel/alert-notify-logs")

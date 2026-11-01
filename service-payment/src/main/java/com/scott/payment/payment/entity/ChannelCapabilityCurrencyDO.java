@@ -6,13 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCapabilityCurrencyDO
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : 渠道能力币种只读实体，位于 service-payment 数据访问层，用于判断商户标签币种是否可直连渠道或需要 EDC。
- * @status : create
+ * 渠道能力币种只读实体，位于 service-payment 数据访问层，用于判断商户标签币种是否可直连渠道或需要 EDC。
  */
 @Data
 @TableName("channel_capability_currency")

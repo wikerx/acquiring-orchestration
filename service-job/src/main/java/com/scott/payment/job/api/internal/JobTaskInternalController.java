@@ -24,13 +24,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskInternalController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心任务管理内部控制器
- * @status : create
+ * 调度中心任务管理内部控制器
  */
 @RestController
 @RequestMapping("/internal/job/tasks")

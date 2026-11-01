@@ -47,13 +47,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantFeeVersionSnapshotServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Payment action fee version cache and freezing tests.
- * @status : create
+ * Payment action fee version cache and freezing tests.
  */
 class DefaultMerchantFeeVersionSnapshotServiceTests {
 

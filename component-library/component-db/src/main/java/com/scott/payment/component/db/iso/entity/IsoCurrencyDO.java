@@ -9,13 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCurrencyDO
- * @date : 2026-06-03 14:24
- * @email : scott_x@163.com
- * @description : ISO 4217 币种基础字典数据库实体
- * @status : create
+ * ISO 4217 币种基础字典数据库实体
  */
 @Data
 @TableName("base_iso_currency")

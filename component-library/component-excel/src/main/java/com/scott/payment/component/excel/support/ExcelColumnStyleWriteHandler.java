@@ -20,13 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelColumnStyleWriteHandler
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : Excel 列级内容样式处理器，按导出列定义统一控制内容对齐方式和边框。
- * @status : create
+ * Excel 列级内容样式处理器，按导出列定义统一控制内容对齐方式和边框。
  */
 public class ExcelColumnStyleWriteHandler implements CellWriteHandler {
 

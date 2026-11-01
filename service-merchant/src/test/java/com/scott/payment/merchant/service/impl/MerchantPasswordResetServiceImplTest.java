@@ -48,13 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantPasswordResetServiceImplTest
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 商户找回密码安全边界测试，重点验证商户号与登录账号的联合定位。
- * @status : create
+ * 商户找回密码安全边界测试，重点验证商户号与登录账号的联合定位。
  */
 class MerchantPasswordResetServiceImplTest {
 

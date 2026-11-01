@@ -11,17 +11,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingFeeTierAccumulatorMapper
- * @date : 2026-08-26 10:45
- * @email : scott_x@163.com
- * @description : 月累计阶梯事实 Mapper，以批量初始化、有序 FOR UPDATE 和批量版本 CAS 串行化同一动作命中的全部规则。
- * @status : create
+ * 月累计阶梯事实 Mapper，以批量初始化、有序 FOR UPDATE 和批量版本 CAS 串行化同一动作命中的全部规则。
  */
 public interface ClearingFeeTierAccumulatorMapper {
 
-    /** 幂等创建零值累计行；仅业务唯一键竞争由数据库吸收，其它数据异常直接失败。 */
+    /**
+     * 幂等创建零值累计行；仅业务唯一键竞争由数据库吸收，其它数据异常直接失败。
+     */
     @Insert("""
             <script>
             INSERT INTO fee_tier_accumulator
@@ -41,7 +37,9 @@ public interface ClearingFeeTierAccumulatorMapper {
                             @Param("periodKey") String periodKey,
                             @Param("now") LocalDateTime now);
 
-    /** 按规则 ID 稳定排序，一次锁定当前动作适用的全部月累计事实。 */
+    /**
+     * 按规则 ID 稳定排序，一次锁定当前动作适用的全部月累计事实。
+     */
     @Select("""
             <script>
             SELECT *
@@ -63,7 +61,9 @@ public interface ClearingFeeTierAccumulatorMapper {
             @Param("feeRuleIds") List<Long> feeRuleIds,
             @Param("periodKey") String periodKey);
 
-    /** 在全部累计行已按规则 ID 锁定后清零期间权威累计，供稳定顺序重放从零重建。 */
+    /**
+     * 在全部累计行已按规则 ID 锁定后清零期间权威累计，供稳定顺序重放从零重建。
+     */
     @Update("""
             <script>
             UPDATE fee_tier_accumulator
@@ -89,7 +89,9 @@ public interface ClearingFeeTierAccumulatorMapper {
                     @Param("periodKey") String periodKey,
                     @Param("now") LocalDateTime now);
 
-    /** 在一次 SQL 中按各自行版本 CAS 提交当前动作命中的全部累计增量。 */
+    /**
+     * 在一次 SQL 中按各自行版本 CAS 提交当前动作命中的全部累计增量。
+     */
     @Update("""
             <script>
             UPDATE fee_tier_accumulator

@@ -7,17 +7,13 @@ import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 
 import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskListRuntimeRepository
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控运行时名单和规则查询仓储。
- * @status : create
+ * 风控运行时名单和规则查询仓储。
  */
 public interface RiskListRuntimeRepository {
 
@@ -43,24 +39,51 @@ public interface RiskListRuntimeRepository {
     boolean hasActiveListRule(RiskListFunction function, String merchantId);
 
     /**
+     * 判断商户是否显式开通指定可选风控功能。
+     *
+     * <p>平台全局规则不依赖该开关，仓储查询必须始终保留全局规则。</p>
+     *
+     * @param function 名单功能
+     * @param merchantId 当前商户号
+     * @return 商户已开通时返回 {@code true}
+     */
+    default boolean isMerchantFunctionEnabled(RiskListFunction function, String merchantId) {
+        return false;
+    }
+
+    /**
+     * 一次性读取商户已开通的可选名单功能，避免按交易输入维度重复访问数据库。
+     *
+     * <p>默认实现用于兼容隔离测试仓储；生产仓储必须覆盖为单次批量查询。</p>
+     *
+     * @param merchantId 当前商户号
+     * @return 已开通功能的不可变集合
+     */
+    default Set<RiskListFunction> findEnabledMerchantFunctions(String merchantId) {
+        EnumSet<RiskListFunction> enabledFunctions = EnumSet.noneOf(RiskListFunction.class);
+        for (RiskListFunction function : RiskListFunction.values()) {
+            if (isMerchantFunctionEnabled(function, merchantId)) {
+                enabledFunctions.add(function);
+            }
+        }
+        return Set.copyOf(enabledFunctions);
+    }
+
+    /**
      * 查询当前商户可用的来源主机白名单规则，命中时返回受控放行结论。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
-     * @return 查询得到的业务对象、分页结果或空结果
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值
+     * @return 来源主机在有效白名单内时返回 PASS 明细；未命中或未配置时返回空
      */
     Optional<RiskListMatch> findSourceUrlRule(String merchantId, RiskRuntimeLookupValue lookupValue);
 
     /**
      * 判断来源主机是否未命中商户白名单，并返回对应风控处置规则。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
-     * @return 查询得到的业务对象、分页结果或空结果
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值；主机缺失时仍需判断已配置白名单
+     * @return 已配置有效白名单但当前主机未命中时返回 REJECT 明细；未配置或已命中时返回空
      */
     Optional<RiskListMatch> findSourceUrlRestrictionMiss(String merchantId, RiskRuntimeLookupValue lookupValue);
 
@@ -74,11 +97,11 @@ public interface RiskListRuntimeRepository {
     Optional<RiskListMatch> findMerchantIpWhitelistHit(String merchantId, RiskRuntimeLookupValue lookupValue);
 
     /**
-     * 检查商户 IP 白名单是否启用但当前请求 IP 未命中。
+     * 检查商户业务 API 的 IP 白名单准入是否通过。
      *
      * @param merchantId 当前商户号
      * @param lookupValue 已解析为 IP 版本和数值的查询值
-     * @return 白名单已启用且未命中时返回拒绝明细
+     * @return 有效名单为空、请求 IP 缺失或未命中时返回拒绝明细
      */
     Optional<RiskListMatch> findMerchantIpWhitelistMiss(String merchantId, RiskRuntimeLookupValue lookupValue);
 
@@ -207,12 +230,10 @@ public interface RiskListRuntimeRepository {
     boolean hasActiveFrequencyRule(String merchantId);
 
     /**
-     * 查询{@code findIssuerCountryByCardBin}；筛选条件、分页上限和数据范围由方法参数共同限定。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param cardBinLookup 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 按规范化卡 BIN 数值解析发卡国家或地区。
+     *
+     * @param cardBinLookup 仅包含 BIN 展示片段和固定长度数值的查询值
+     * @return ISO alpha-3 国家或地区代码；无有效区间时返回空
      */
     Optional<String> findIssuerCountryByCardBin(RiskRuntimeLookupValue cardBinLookup);
 

@@ -15,19 +15,17 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EmailSendRecordMapperH2Tests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 使用真实 MyBatis 注解 SQL 验证 Admin 邮件投递状态机。
- * @status : create
+ * 使用真实 MyBatis 注解 SQL 验证 Admin 邮件投递状态机。
  */
 class EmailSendRecordMapperH2Tests {
 
-    /** 隔离 H2 数据源对应的 MyBatis 会话工厂。 */
+    /**
+     * 隔离 H2 数据源对应的 MyBatis 会话工厂。
+     */
     private SqlSessionFactory sqlSessionFactory;
-    /** 初始化状态机测试数据的 JDBC 工具。 */
+    /**
+     * 初始化状态机测试数据的 JDBC 工具。
+     */
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach

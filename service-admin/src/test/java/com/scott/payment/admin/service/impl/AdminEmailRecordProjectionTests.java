@@ -25,13 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailRecordProjectionTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证管理端邮件列表只读取展示字段，不读取投递密文。
- * @status : create
+ * 验证管理端邮件列表只读取展示字段，不读取投递密文。
  */
 class AdminEmailRecordProjectionTests {
 
@@ -85,7 +79,9 @@ class AdminEmailRecordProjectionTests {
         return factory;
     }
 
-    /** 列表查询夹具刻意不提供 delivery_content_cipher 和 content_type，锁定最小字段投影。 */
+    /**
+     * 列表查询夹具刻意不提供 delivery_content_cipher 和 content_type，锁定最小字段投影。
+     */
     private void createListProjectionTable(JdbcTemplate jdbcTemplate) {
         jdbcTemplate.execute("""
                 CREATE TABLE msg_email_send_record (

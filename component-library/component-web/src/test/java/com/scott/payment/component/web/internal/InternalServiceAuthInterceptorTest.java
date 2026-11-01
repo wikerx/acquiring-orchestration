@@ -17,13 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalServiceAuthInterceptorTest
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 内部服务 HMAC 签名拦截器测试，覆盖签名通过、缺失请求头和过期时间窗。
- * @status : create
+ * 内部服务 HMAC 签名拦截器测试，覆盖签名通过、缺失请求头和过期时间窗。
  */
 class InternalServiceAuthInterceptorTest {
 
@@ -88,7 +82,9 @@ class InternalServiceAuthInterceptorTest {
         assertThat(response.getContentAsString()).contains("internal service signature timestamp is expired");
     }
 
-    /** 验证请求体摘要发生变化时，原签名不能继续使用。 */
+    /**
+     * 验证请求体摘要发生变化时，原签名不能继续使用。
+     */
     @Test
     void shouldRejectRequestWhenPayloadDigestIsTampered() throws Exception {
         InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
@@ -105,7 +101,9 @@ class InternalServiceAuthInterceptorTest {
         assertThat(response.getContentAsString()).contains("internal service signature is invalid");
     }
 
-    /** 验证查询参数发生变化时，原签名不能继续使用。 */
+    /**
+     * 验证查询参数发生变化时，原签名不能继续使用。
+     */
     @Test
     void shouldRejectRequestWhenQueryStringIsTampered() throws Exception {
         InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
@@ -122,7 +120,9 @@ class InternalServiceAuthInterceptorTest {
         assertThat(response.getContentAsString()).contains("internal service signature is invalid");
     }
 
-    /** 验证同一调用方和 nonce 的第二次请求会被拒绝。 */
+    /**
+     * 验证同一调用方和 nonce 的第二次请求会被拒绝。
+     */
     @Test
     void shouldRejectRequestWhenNonceIsReplayed() throws Exception {
         InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
@@ -138,7 +138,9 @@ class InternalServiceAuthInterceptorTest {
         assertThat(repeatedResponse.getContentAsString()).contains("internal service request is replayed");
     }
 
-    /** nonce TTL 配置过短时必须提升到两倍时钟偏差，完整覆盖签名可重放窗口。 */
+    /**
+     * nonce TTL 配置过短时必须提升到两倍时钟偏差，完整覆盖签名可重放窗口。
+     */
     @Test
     void shouldEnforceNonceTtlSafetyFloor() throws Exception {
         InternalServiceAuthProperties properties = properties();
@@ -159,7 +161,9 @@ class InternalServiceAuthInterceptorTest {
         assertThat(actualTtl.get()).isEqualTo(Duration.ofMinutes(10));
     }
 
-    /** 调用方独立密钥启用后，持有其他调用方密钥不能伪造当前调用方。 */
+    /**
+     * 调用方独立密钥启用后，持有其他调用方密钥不能伪造当前调用方。
+     */
     @Test
     void shouldRejectRequestSignedWithAnotherCallersSecret() throws Exception {
         InternalServiceAuthProperties properties = callerScopedProperties();
@@ -175,7 +179,9 @@ class InternalServiceAuthInterceptorTest {
         assertThat(response.getContentAsString()).contains("internal service signature is invalid");
     }
 
-    /** 轮换窗口内服务端同时接受 active 和 previous，调用方只继续使用 active。 */
+    /**
+     * 轮换窗口内服务端同时接受 active 和 previous，调用方只继续使用 active。
+     */
     @Test
     void shouldAllowPreviousSecretDuringRotation() throws Exception {
         InternalServiceAuthProperties properties = callerScopedProperties();
@@ -188,7 +194,9 @@ class InternalServiceAuthInterceptorTest {
         assertThat(allowed).isTrue();
     }
 
-    /** 身份通过 HMAC 认证后仍必须受调用方路径授权约束，禁止横向调用其他内部命令。 */
+    /**
+     * 身份通过 HMAC 认证后仍必须受调用方路径授权约束，禁止横向调用其他内部命令。
+     */
     @Test
     void shouldRejectAuthenticatedCallerOutsideAllowedPaths() throws Exception {
         InternalServiceAuthProperties properties = callerScopedProperties();

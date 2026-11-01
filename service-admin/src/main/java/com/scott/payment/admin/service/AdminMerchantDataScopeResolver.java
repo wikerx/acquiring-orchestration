@@ -3,13 +3,7 @@ package com.scott.payment.admin.service;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantDataScopeResolver
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 从当前 Admin 账号的有效角色分配解析商户数据范围。
- * @status : create
+ * 从当前 Admin 账号的有效角色分配解析商户数据范围。
  */
 public interface AdminMerchantDataScopeResolver {
 

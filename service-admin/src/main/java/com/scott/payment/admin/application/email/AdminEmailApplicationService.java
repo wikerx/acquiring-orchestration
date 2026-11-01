@@ -18,22 +18,16 @@ import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailApplicationService
- * @date : 2026-07-04 16:11
- * @email : scott_x@163.com
- * @description : admin邮件应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端邮件应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminEmailApplicationService {
 
-    /**
-     * 邮件管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
-     */
     private final AdminEmailService adminEmailService;
 
+    /**
+     * 创建管理端邮件应用服务。
+     */
     public AdminEmailApplicationService(AdminEmailService adminEmailService) {
         this.adminEmailService = adminEmailService;
     }

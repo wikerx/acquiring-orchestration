@@ -7,24 +7,20 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClientRequestDTO;
 import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClientRequestDTO.TransactionInfoDTO;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelRequestResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountChangeResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionShardingTimeSerializationTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理后台交易列表分片时间序列化契约测试。
- * @status : create
- *
+ * 管理后台交易列表分片时间序列化契约测试。
  *
  * <p>页面展示仍可隐藏毫秒，但列表响应必须保留数据库 {@code DATETIME(3)} 精度，
  * 以便详情请求把真实交易时间和根主单时间原样传回后端。</p>
@@ -36,7 +32,9 @@ class AdminTransactionShardingTimeSerializationTest {
     private static final LocalDateTime TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 8, 2, 12, 8, 36, 233_000_000);
 
-    /** 使用秒级全局配置模拟生产 ObjectMapper，验证 DTO 的字段级毫秒格式覆盖。 */
+    /**
+     * 使用秒级全局配置模拟生产 ObjectMapper，验证 DTO 的字段级毫秒格式覆盖。
+     */
     private final ObjectMapper objectMapper = secondsConfiguredObjectMapper();
 
     /**
@@ -81,6 +79,39 @@ class AdminTransactionShardingTimeSerializationTest {
                 .isEqualTo("2026-08-02 12:08:36.233");
     }
 
+    /**
+     * 验证强类型详情记录继续使用原 lowerCamelCase JSON 契约，并将 BIGINT 标识作为字符串返回。
+     */
+    @Test
+    void typedDetailRecordsShouldPreserveFrontendJsonContract() throws Exception {
+        ChannelRequestResponse channelRequest = new ChannelRequestResponse();
+        channelRequest.setId("202603000000000825");
+        channelRequest.setChannelId("202603000000000042");
+        channelRequest.setChannelMidConfigId("202603000000000043");
+        channelRequest.setRequestCurrency("AUD");
+        channelRequest.setRequestAmount(new BigDecimal("89.590000"));
+        TransactionAmountChangeResponse persistedAmountChange = new TransactionAmountChangeResponse();
+        persistedAmountChange.setAmountChangeId("AMOUNT-1");
+        persistedAmountChange.setAmountCurrency("AUD");
+        persistedAmountChange.setChangeAmount(new BigDecimal("89.590000"));
+
+        JsonNode requestJson = objectMapper.valueToTree(channelRequest);
+        JsonNode amountJson = objectMapper.valueToTree(persistedAmountChange);
+
+        assertThat(requestJson.path("id").asText()).isEqualTo("202603000000000825");
+        assertThat(requestJson.path("channelId").asText()).isEqualTo("202603000000000042");
+        assertThat(requestJson.path("channelMidConfigId").asText()).isEqualTo("202603000000000043");
+        assertThat(requestJson.path("requestCurrency").asText()).isEqualTo("AUD");
+        assertThat(requestJson.path("requestAmount").decimalValue()).isEqualByComparingTo("89.590000");
+        assertThat(requestJson.has("channel_mid_config_id")).isFalse();
+        assertThat(amountJson.path("amountChangeId").asText()).isEqualTo("AMOUNT-1");
+        assertThat(amountJson.path("changeAmount").decimalValue()).isEqualByComparingTo("89.590000");
+        assertThat(amountJson.has("changeSource")).isFalse();
+    }
+
+    /**
+     * 创建使用公共秒级时间格式的测试 ObjectMapper。
+     */
     private ObjectMapper secondsConfiguredObjectMapper() {
         JavaTimeModule javaTimeModule = new JavaTimeModule();
         javaTimeModule.addSerializer(LocalDateTime.class,

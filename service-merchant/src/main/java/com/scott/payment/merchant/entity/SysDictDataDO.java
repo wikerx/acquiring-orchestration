@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysDictDataDO
- * @date : 2026-07-20 00:00
- * @email : scott_x@163.com
- * @description : 商户系统只读字典数据实体，位于 service-merchant 数据实体层，仅用于读取平台公共数据字典供商户页面展示和筛选。
- * @status : create
+ * 商户系统只读字典数据实体，位于 service-merchant 数据实体层，仅用于读取平台公共数据字典供商户页面展示和筛选。
  */
 @Data
 @TableName("sys_dict_data")

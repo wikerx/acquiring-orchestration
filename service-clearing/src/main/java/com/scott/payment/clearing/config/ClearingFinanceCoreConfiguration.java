@@ -5,13 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingFinanceCoreConfiguration
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分服务对纯领域计算组件的装配边界。
- * @status : update
+ * 清分服务对纯领域计算组件的装配边界。
  *
  * <p>领域库保持无 Spring 依赖；清分服务启动时无条件注册无状态计算器，供保证金计算、调整和释放流程复用。</p>
  */

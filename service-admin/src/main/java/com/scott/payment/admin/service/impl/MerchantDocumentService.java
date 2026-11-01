@@ -34,13 +34,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantDocumentService
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : 商户合规资料领域服务，负责文件安全校验、私有对象存储和数据库元数据一致性
- * @status : create
+ * 商户合规资料领域服务，负责文件安全校验、私有对象存储和数据库元数据一致性
  *
  * <p>文件正文只进入私有对象存储，数据库仅保存归属、摘要和存储定位信息。下载接口不暴露
  * Bucket 或 Object Key，上传回滚和删除提交后的对象清理由事务同步器协调。</p>
@@ -49,28 +43,44 @@ import java.util.UUID;
 @Service
 public class MerchantDocumentService {
 
-    /** 未删除标识；固定为 0，非敏感。 */
+    /**
+     * 未删除标识；固定为 0，非敏感。
+     */
     private static final int NOT_DELETED = 0;
 
-    /** 商户 KYB 资料业务类型；固定协议值，不允许为空，非敏感。 */
+    /**
+     * 商户 KYB 资料业务类型；固定协议值，不允许为空，非敏感。
+     */
     private static final String DOCUMENT_BIZ_TYPE = "MERCHANT_KYB";
 
-    /** 文件已完成对象存储写入的状态；固定协议值，不允许为空，非敏感。 */
+    /**
+     * 文件已完成对象存储写入的状态；固定协议值，不允许为空，非敏感。
+     */
     private static final String DOCUMENT_STATUS_UPLOADED = "UPLOADED";
 
-    /** 默认单文件大小上限，单位字节，当前为 20 MiB。 */
+    /**
+     * 默认单文件大小上限，单位字节，当前为 20 MiB。
+     */
     private static final long DEFAULT_MAX_FILE_SIZE_BYTES = 20L * 1024 * 1024;
 
-    /** 商户主档 Mapper；用于校验资料归属商户是否存在，不允许为空。 */
+    /**
+     * 商户主档 Mapper；用于校验资料归属商户是否存在，不允许为空。
+     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
-    /** 资料元数据 Mapper；只持久化归属、摘要和对象定位，不保存正文。 */
+    /**
+     * 资料元数据 Mapper；只持久化归属、摘要和对象定位，不保存正文。
+     */
     private final BizDocumentMapper documentMapper;
 
-    /** 对象存储实现提供器；存储未启用时允许没有 Bean，并在调用时返回明确错误。 */
+    /**
+     * 对象存储实现提供器；存储未启用时允许没有 Bean，并在调用时返回明确错误。
+     */
     private final ObjectProvider<ObjectStorageService> objectStorageProvider;
 
-    /** 对象存储配置；包含 Bucket 和访问凭证，凭证禁止写入日志。 */
+    /**
+     * 对象存储配置；包含 Bucket 和访问凭证，凭证禁止写入日志。
+     */
     private final ObjectStorageProperties storageProperties;
 
     /**
@@ -187,6 +197,9 @@ public class MerchantDocumentService {
         deleteAfterCommit(requireStorage(), document.getObjectKey());
     }
 
+    /**
+     * 校验并获取商户。
+     */
     private BaseMerchantInfoDO requireMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户号不能为空");
@@ -201,6 +214,14 @@ public class MerchantDocumentService {
         return merchant;
     }
 
+    /**
+     * 查询并校验归属于指定商户的资料记录。
+     *
+     * @param merchantId 平台商户号
+     * @param documentId 资料主键
+     * @return 未删除的商户资料记录
+     * @throws ServiceException 资料主键为空或资料不存在时抛出
+     */
     private BizDocumentDO requireDocument(String merchantId, Long documentId) {
         if (documentId == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "资料ID不能为空");
@@ -279,6 +300,9 @@ public class MerchantDocumentService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "仅支持 PDF、JPEG 或 PNG 资料");
     }
 
+    /**
+     * 判断文件正文是否以指定魔数签名开头。
+     */
     private boolean startsWith(byte[] content, byte[] signature) {
         if (content.length < signature.length) {
             return false;
@@ -291,6 +315,9 @@ public class MerchantDocumentService {
         return true;
     }
 
+    /**
+     * 规范化并校验商户资料类型编码。
+     */
     private String normalizeDocumentType(String documentType) {
         if (!StringUtils.hasText(documentType)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "资料类型不能为空");
@@ -347,11 +374,17 @@ public class MerchantDocumentService {
         }
     }
 
+    /**
+     * 规范化商户文件存储服务商编码。
+     */
     private String normalizedProvider() {
         return StringUtils.hasText(storageProperties.getProvider())
                 ? storageProperties.getProvider().trim().toUpperCase(Locale.ROOT) : "S3";
     }
 
+    /**
+     * 解析当前操作人的审计名称。
+     */
     private String operatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -363,6 +396,9 @@ public class MerchantDocumentService {
         return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount().trim() : "system";
     }
 
+    /**
+     * 将商户资料实体转换为管理端响应模型。
+     */
     private MerchantOnboardingDTOs.Document toDTO(BizDocumentDO row) {
         MerchantOnboardingDTOs.Document dto = new MerchantOnboardingDTOs.Document();
         dto.setId(row.getId());
@@ -390,6 +426,9 @@ public class MerchantDocumentService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在事务回滚时删除本次已上传但未提交的对象。
+             */
             @Override
             public void afterCompletion(int status) {
                 if (status != TransactionSynchronization.STATUS_COMMITTED) {
@@ -411,6 +450,9 @@ public class MerchantDocumentService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 deleteQuietly(storage, objectKey);
@@ -419,7 +461,7 @@ public class MerchantDocumentService {
     }
 
     /**
-     * 执行尽力而为的对象清理，补偿失败只记录对象键和异常类型，不记录文件正文或凭证。
+     * 执行尽力而为的对象清理，补偿失败只记录对象键摘要和异常类型，不记录文件正文或凭证。
      *
      * <p>该方法用于事务完成回调，不能继续向已完成的数据库事务传播异常。</p>
      *
@@ -430,8 +472,8 @@ public class MerchantDocumentService {
         try {
             storage.delete(objectKey);
         } catch (RuntimeException exception) {
-            log.warn("merchant document object cleanup failed, objectKey: {}, exceptionType: {}",
-                    objectKey, exception.getClass().getSimpleName());
+            log.warn("商户文档清理失败, event: ADMIN_MERCHANT_DOCUMENT_CLEANUP_FAILED, objectKeyDigest: {}, exceptionType: {}",
+                    sha256(objectKey.getBytes(StandardCharsets.UTF_8)), exception.getClass().getSimpleName());
         }
     }
 
@@ -445,6 +487,9 @@ public class MerchantDocumentService {
     public record DocumentDownload(String filename, String contentType, byte[] content) {
     }
 
+    /**
+     * 封装商户文件检测到的媒体类型和扩展名。
+     */
     private record DetectedFileType(String contentType, String extension) {
     }
 }

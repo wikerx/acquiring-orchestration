@@ -6,13 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisHashService
- * @date : 2026-05-31 21:52
- * @email : scott_x@163.com
- * @description : Redis Hash 数据结构服务
- * @status : create
+ * Redis Hash 数据结构服务
  */
 public interface RedisHashService {
 

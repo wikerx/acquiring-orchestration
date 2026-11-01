@@ -6,13 +6,7 @@ import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingPersistenceService
- * @date : 2026-08-26 09:12
- * @email : scott_x@163.com
- * @description : 清分两段事务的持久化边界；阶段A只领取租约，阶段B后续原子写入财务事实和成功幂等。
- * @status : create
+ * 清分两段事务的持久化边界；阶段A只领取租约，阶段B后续原子写入财务事实和成功幂等。
  */
 public interface ClearingPersistenceService {
 

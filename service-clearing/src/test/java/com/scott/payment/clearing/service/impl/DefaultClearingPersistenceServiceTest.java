@@ -24,13 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingPersistenceServiceTest
- * @date : 2026-08-26 09:05
- * @email : scott_x@163.com
- * @description : 验证清分阶段A只按动作分片时间和数据库权威身份领取处理租约，并安全处理重复消费。
- * @status : create
+ * 验证清分阶段A只按动作分片时间和数据库权威身份领取处理租约，并安全处理重复消费。
  */
 class DefaultClearingPersistenceServiceTest {
 

@@ -27,18 +27,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantRefundQueryServiceTests
- * @date : 2026-08-08 00:50
- * @email : scott_x@163.com
- * @description : 商户端退款本地查询测试，验证认证商户隔离、商户可见投影和 ShardingSphere 普通读路由。
- * @status : create
+ * 商户端退款本地查询测试，验证认证商户隔离、商户可见投影和 ShardingSphere 普通读路由。
  */
 @Slf4j
 class JdbcMerchantRefundQueryServiceTests {
 
-    /** 所有商户退款分页与统计 SQL 必须绑定认证商户号。 */
+    /**
+     * 所有商户退款分页与统计 SQL 必须绑定认证商户号。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void searchShouldBindAuthenticatedMerchantInEveryQuery() throws Exception {
@@ -89,7 +85,9 @@ class JdbcMerchantRefundQueryServiceTests {
         log.info("结果：商户退款查询全部绑定merchant-a且未读取内部失败或渠道响应字段");
     }
 
-    /** 缺少认证商户号时必须在进入读作用域和访问数据库前失败。 */
+    /**
+     * 缺少认证商户号时必须在进入读作用域和访问数据库前失败。
+     */
     @Test
     void searchShouldRejectMissingMerchantBeforeDatabaseAccess() {
         log.info("用例：验证缺少认证商户号时拒绝执行退款查询");
@@ -107,7 +105,9 @@ class JdbcMerchantRefundQueryServiceTests {
         log.info("结果：商户号缺失时未进入transaction读作用域且未访问数据库");
     }
 
-    /** 商户退款详情首查必须同时绑定认证商户号和毫秒级真实分片时间。 */
+    /**
+     * 商户退款详情首查必须同时绑定认证商户号和毫秒级真实分片时间。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldBindMerchantAndExactTransactionShardTime() {

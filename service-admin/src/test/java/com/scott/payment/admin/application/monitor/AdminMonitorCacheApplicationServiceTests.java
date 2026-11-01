@@ -1,5 +1,8 @@
 package com.scott.payment.admin.application.monitor;
 
+import com.scott.payment.admin.dto.monitor.CacheInfoResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyDetailResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyPageResponse;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.redis.cache.PaymentCacheProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -42,13 +45,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorCacheApplicationServiceTests
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : Redis 缓存监控应用服务测试，验证 SCAN、系统参数命名空间、元数据只读和分页上限。
- * @status : create
+ * Redis 缓存监控应用服务测试，验证 SCAN、系统参数命名空间、元数据只读和分页上限。
  */
 @Slf4j
 class AdminMonitorCacheApplicationServiceTests {
@@ -75,11 +72,11 @@ class AdminMonitorCacheApplicationServiceTests {
         ));
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
-        Map<String, Object> result = service.keys(null, 1, 10);
+        CacheKeyPageResponse result = service.keys(null, 1, 10);
 
-        assertThat(result.get("total")).isEqualTo(2);
-        assertThat(result.get("truncated")).isEqualTo(false);
-        assertThat((List<?>) result.get("records")).hasSize(2);
+        assertThat(result.getTotal()).isEqualTo(2);
+        assertThat(result.getTruncated()).isFalse();
+        assertThat(result.getRecords()).hasSize(2);
         ArgumentCaptor<ScanOptions> optionsCaptor = ArgumentCaptor.forClass(ScanOptions.class);
         verify(fixture.clusterConnection()).scan(eq(fixture.masterNodes().get(0)), optionsCaptor.capture());
         verify(fixture.clusterConnection()).scan(eq(fixture.masterNodes().get(1)), optionsCaptor.capture());
@@ -112,11 +109,11 @@ class AdminMonitorCacheApplicationServiceTests {
         )));
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
-        Map<String, Object> result = service.keys("*", 1, 500);
+        CacheKeyPageResponse result = service.keys("*", 1, 500);
 
-        assertThat(result.get("total")).isEqualTo(1000);
-        assertThat(result.get("truncated")).isEqualTo(true);
-        assertThat((List<?>) result.get("records")).hasSize(100);
+        assertThat(result.getTotal()).isEqualTo(1000);
+        assertThat(result.getTruncated()).isTrue();
+        assertThat(result.getRecords()).hasSize(100);
         verify(fixture.clusterConnection(), never()).scan(eq(fixture.masterNodes().get(1)), any(ScanOptions.class));
         log.info("缓存监控扫描边界测试完成，结果: 检查上限生效且全部系统参数 Key 均受管");
     }
@@ -138,15 +135,14 @@ class AdminMonitorCacheApplicationServiceTests {
         when(serverCommands.info(fixture.masterNodes().get(1))).thenReturn(secondInfo);
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
-        Map<String, Object> result = service.info();
+        CacheInfoResponse result = service.info();
 
-        assertThat(result)
-                .containsEntry("connected", true)
-                .containsEntry("deploymentMode", "cluster")
-                .containsEntry("masterCount", 2);
-        assertThat((Map<String, String>) result.get("info"))
+        assertThat(result.getConnected()).isTrue();
+        assertThat(result.getDeploymentMode()).isEqualTo("cluster");
+        assertThat(result.getMasterCount()).isEqualTo(2);
+        assertThat(result.getInfo())
                 .containsEntry("redis_version", "6.2.23");
-        assertThat((Map<String, Map<String, String>>) result.get("nodes"))
+        assertThat(result.getNodes())
                 .containsEntry("127.0.0.1:7001", Map.of("redis_version", "6.2.23"))
                 .containsEntry("127.0.0.1:7002", Map.of("role", "master"));
         verify(serverCommands).info(fixture.masterNodes().get(0));
@@ -246,14 +242,15 @@ class AdminMonitorCacheApplicationServiceTests {
                 .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
         AdminMonitorCacheApplicationService service = service(template);
 
-        Map<String, Object> result = service.info();
+        CacheInfoResponse result = service.info();
 
-        assertThat(result)
-                .containsEntry("connected", true)
-                .containsEntry("deploymentMode", "standalone")
-                .containsEntry("masterCount", 1)
-                .containsEntry("info", Map.of("redis_mode", "standalone", "redis_version", "6.2.23"));
-        assertThat((Map<?, ?>) result.get("nodes")).hasSize(1);
+        assertThat(result.getConnected()).isTrue();
+        assertThat(result.getDeploymentMode()).isEqualTo("standalone");
+        assertThat(result.getMasterCount()).isEqualTo(1);
+        assertThat(result.getInfo())
+                .containsExactlyInAnyOrderEntriesOf(
+                        Map.of("redis_mode", "standalone", "redis_version", "6.2.23"));
+        assertThat(result.getNodes()).hasSize(1);
         log.info("单节点 Redis INFO 测试完成，结果: 连接状态、摘要和节点详情均可用");
     }
 
@@ -277,14 +274,15 @@ class AdminMonitorCacheApplicationServiceTests {
                 .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
         AdminMonitorCacheApplicationService service = service(template);
 
-        Map<String, Object> result = service.info();
+        CacheInfoResponse result = service.info();
 
-        assertThat(result)
-                .containsEntry("connected", true)
-                .containsEntry("deploymentMode", "cluster")
-                .containsEntry("masterCount", 2)
-                .containsEntry("info", Map.of("redis_mode", "cluster", "redis_version", "6.2.23"));
-        assertThat((Map<String, Map<String, String>>) result.get("nodes"))
+        assertThat(result.getConnected()).isTrue();
+        assertThat(result.getDeploymentMode()).isEqualTo("cluster");
+        assertThat(result.getMasterCount()).isEqualTo(2);
+        assertThat(result.getInfo())
+                .containsExactlyInAnyOrderEntriesOf(
+                        Map.of("redis_mode", "cluster", "redis_version", "6.2.23"));
+        assertThat(result.getNodes())
                 .containsEntry("node-a", Map.of("redis_mode", "cluster", "redis_version", "6.2.23"))
                 .containsEntry("node-b", Map.of("redis_mode", "cluster", "role", "master"));
         log.info("聚合 Cluster INFO 测试完成，结果: 节点前缀已拆分为摘要和逐节点结构");
@@ -298,12 +296,14 @@ class AdminMonitorCacheApplicationServiceTests {
         log.info("测试单节点 Redis SCAN，关键输入: 两个配置 Key 与独立 pending Key");
         StringRedisTemplate template = mock(StringRedisTemplate.class);
         RedisConnection connection = mock(RedisConnection.class);
+        RedisKeyCommands keyCommands = mock(RedisKeyCommands.class);
         Cursor<byte[]> cursor = cursor(List.of(
                 MANAGED_PREFIX + "platform.gateway.base-url",
                 CACHE_PREFIX + "system:configPending:config-key-digest",
                 MANAGED_PREFIX + "system.name"
         ));
-        when(connection.scan(any(ScanOptions.class))).thenReturn(cursor);
+        when(connection.keyCommands()).thenReturn(keyCommands);
+        when(keyCommands.scan(any(ScanOptions.class))).thenReturn(cursor);
         when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
                 .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
         when(template.type(anyString())).thenReturn(DataType.STRING);
@@ -314,10 +314,11 @@ class AdminMonitorCacheApplicationServiceTests {
         when(valueOperations.size(anyString())).thenReturn(12L);
         AdminMonitorCacheApplicationService service = service(template);
 
-        Map<String, Object> result = service.keys(null, 1, 10);
+        CacheKeyPageResponse result = service.keys(null, 1, 10);
 
-        assertThat(result).containsEntry("total", 2).containsEntry("truncated", false);
-        verify(connection).scan(any(ScanOptions.class));
+        assertThat(result.getTotal()).isEqualTo(2);
+        assertThat(result.getTruncated()).isFalse();
+        verify(keyCommands).scan(any(ScanOptions.class));
         verify(template, never()).keys(anyString());
         verify(cursor).close();
         log.info("单节点 Redis SCAN 测试完成，结果: 返回配置数据且不包含 pending Key");
@@ -339,15 +340,14 @@ class AdminMonitorCacheApplicationServiceTests {
         when(valueOperations.size(key)).thenReturn(12L);
         AdminMonitorCacheApplicationService service = service(template);
 
-        Map<String, Object> result = service.value(key);
+        CacheKeyDetailResponse result = service.value(key);
 
-        assertThat(result)
-                .containsEntry("key", key)
-                .containsEntry("type", "string")
-                .containsEntry("ttl", 300L)
-                .containsEntry("size", 12L)
-                .containsEntry("valueReadable", false)
-                .containsEntry("value", null);
+        assertThat(result.getKey()).isEqualTo(key);
+        assertThat(result.getType()).isEqualTo("string");
+        assertThat(result.getTtl()).isEqualTo(300L);
+        assertThat(result.getSize()).isEqualTo(12L);
+        assertThat(result.getValueReadable()).isFalse();
+        assertThat(result.getValue()).isNull();
         verify(valueOperations).size(key);
         verify(valueOperations, never()).get(anyString());
         log.info("平台公开配置缓存元数据只读测试完成，结果: 返回类型、TTL、大小且未读取 Value");
@@ -386,17 +386,17 @@ class AdminMonitorCacheApplicationServiceTests {
         ScanFixture fixture = scanFixture(List.of(List.of(validKey, pendingKey), List.of(regularKey)));
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
-        Map<String, Object> result = service.keys("*", 1, 10);
+        CacheKeyPageResponse result = service.keys("*", 1, 10);
 
-        assertThat(result.get("total")).isEqualTo(2);
-        assertThat((List<Map<String, Object>>) result.get("records"))
-                .extracting(row -> row.get("key"))
+        assertThat(result.getTotal()).isEqualTo(2);
+        assertThat(result.getRecords())
+                .extracting(com.scott.payment.admin.dto.monitor.CacheKeyResponse::getKey)
                 .containsExactly(validKey, regularKey);
         assertThatThrownBy(() -> service.value(pendingKey))
                 .isInstanceOf(ServiceException.class);
         assertThatThrownBy(() -> service.delete(pendingKey))
                 .isInstanceOf(ServiceException.class);
-        assertThat(service.value(regularKey).get("key")).isEqualTo(regularKey);
+        assertThat(service.value(regularKey).getKey()).isEqualTo(regularKey);
         verify(fixture.template(), never()).delete(anyString());
         log.info("缓存监控控制 Key 隔离测试完成，结果: pending 不可见，普通唯一配置键可管理");
     }

@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysAccountRoleDO
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 账号角色关联数据库实体
- * @status : create
+ * 账号角色关联数据库实体
  */
 @Data
 @TableName("sys_account_role")

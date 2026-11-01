@@ -22,13 +22,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminExchangeRateServiceDataSourceContractTests
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 验证汇率管理纯查询固定路由从库，汇率配置及状态变更固定路由主库并保持事务边界。
- * @status : create
+ * 验证汇率管理纯查询固定路由从库，汇率配置及状态变更固定路由主库并保持事务边界。
  */
 class AdminExchangeRateServiceDataSourceContractTests {
 

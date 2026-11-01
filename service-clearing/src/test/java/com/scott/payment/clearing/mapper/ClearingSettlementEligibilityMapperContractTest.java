@@ -8,7 +8,9 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 锁定交易结算周期查询与管理端年度日历状态的统一契约。 */
+/**
+ * 锁定交易结算周期查询与管理端年度日历状态的统一契约。
+ */
 class ClearingSettlementEligibilityMapperContractTest {
 
     @Test

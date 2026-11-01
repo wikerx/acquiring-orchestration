@@ -4,13 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqResourceCheckResult
- * @date : 2026-06-20 22:47
- * @email : scott_x@163.com
- * @description : 单个 RocketMQ 资源检查结果
- * @status : create
+ * 单个 RocketMQ 资源检查结果
  */
 @Getter
 @Builder

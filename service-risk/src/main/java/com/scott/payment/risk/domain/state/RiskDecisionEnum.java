@@ -3,13 +3,7 @@ package com.scott.payment.risk.domain.state;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskDecisionEnum
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 风控结论枚举，位于 风控服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 风控结论枚举，位于 风控服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  */
 @Getter
 public enum RiskDecisionEnum {
@@ -49,6 +43,12 @@ public enum RiskDecisionEnum {
      */
     private final boolean allowProceed;
 
+    /**
+     * 定义风控结论及其是否允许交易继续执行的稳定语义。
+     *
+     * @param code 内部接口和审计消息使用的决策编码
+     * @param allowProceed 是否允许支付流程继续进入路由和渠道链路
+     */
     RiskDecisionEnum(String code, boolean allowProceed) {
         this.code = code;
         this.allowProceed = allowProceed;

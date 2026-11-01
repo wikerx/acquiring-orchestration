@@ -14,13 +14,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingPersistenceMapperContractTest
- * @date : 2026-08-26 18:50
- * @email : scott_x@163.com
- * @description : 锁定清分 Mapper 的季度分片、状态 CAS、行锁、明细分表边界和定时 Outbox 持久化合同。
- * @status : create
+ * 锁定清分 Mapper 的季度分片、状态 CAS、行锁、明细分表边界和定时 Outbox 持久化合同。
  */
 class ClearingPersistenceMapperContractTest {
 

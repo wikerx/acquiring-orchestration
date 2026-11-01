@@ -3,13 +3,7 @@ package com.scott.payment.admin.service;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculationOptionsResponse;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminClearingFeeVersionQueryService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 清分重算费用版本只读边界，只暴露可用于重算的不可变版本描述。
- * @status : create
+ * 清分重算费用版本只读边界，只暴露可用于重算的不可变版本描述。
  */
 public interface AdminClearingFeeVersionQueryService {
 

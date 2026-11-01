@@ -4,13 +4,7 @@ import com.scott.payment.component.core.result.IResult;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiResultEnum
- * @date : 2026-05-28 18:16
- * @email : scott_x@163.com
- * @description : 支付框架 OpenAPI 统一响应枚举
- * @status : create
+ * 支付框架 OpenAPI 统一响应枚举
  */
 
 @Getter
@@ -117,9 +111,6 @@ public enum ApiResultEnum implements IResult {
     MERCHANT_INVALID("F401009", "Merchant is invalid or unavailable"),
     /**
      * MERCHANT FROZEN 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
      */
     MERCHANT_FROZEN("F401010", "Merchant account is frozen"),
 
@@ -137,6 +128,13 @@ public enum ApiResultEnum implements IResult {
      * 请求体 data 缺失、格式非法或无法解密。
      */
     ENCRYPTED_DATA_INVALID("F402003", "Encrypted request data is invalid"),
+
+    /**
+     * 商户回调地址不满足当前环境的协议、主机或网络目标安全策略。
+     */
+    CALLBACK_URL_NOT_ALLOWED(
+            "F402004",
+            "Merchant callback URL is not allowed. Use an HTTPS URL that resolves only to public network addresses."),
 
     /**
      * 登录账号无权访问当前资源。
@@ -162,6 +160,12 @@ public enum ApiResultEnum implements IResult {
      * 商户配置不存在或不可用。
      */
     MERCHANT_CONFIG_NOT_FOUND("F409", "Merchant config not found"),
+
+    /**
+     * 商户支付配置存在，但当前支付方式、卡品牌或 MID 组合不可用。
+     */
+    MERCHANT_PAYMENT_CONFIG_UNAVAILABLE(
+            "F409001", "Merchant payment configuration is unavailable"),
 
     /**
      * 卡类型或卡品牌不支持。
@@ -194,6 +198,18 @@ public enum ApiResultEnum implements IResult {
     INTERNAL_SERVER_ERROR("F500", "The system is busy; please try again later."),
 
     /**
+     * 支付核心必需的状态机或其他平台组件未配置，属于平台故障而非商户请求不支持。
+     */
+    PAYMENT_CORE_CONFIG_UNAVAILABLE(
+            "F500001", "Payment core configuration is unavailable"),
+
+    /**
+     * 代付核心尚未具备持久化事实、幂等状态机或可靠渠道执行能力。
+     */
+    PAYOUT_CORE_UNAVAILABLE(
+            "F500002", "Payout core is unavailable"),
+
+    /**
      * 上游服务不可用或响应异常。
      */
     BAD_GATEWAY("F502", "Bad gateway"),
@@ -207,6 +223,18 @@ public enum ApiResultEnum implements IResult {
      * 商户订单号已存在。
      */
     ORDER_ALREADY_EXISTS("F510", "Order already exist"),
+
+    /**
+     * 同一幂等作用域和标识已绑定不同请求内容。
+     */
+    IDEMPOTENCY_REQUEST_CONFLICT(
+            "F510001", "Idempotency identifier is associated with a different request"),
+
+    /**
+     * 原交易已有互斥动作正在处理，当前动作不能并发推进。
+     */
+    TRANSACTION_ACTION_IN_PROGRESS(
+            "F510002", "A conflicting transaction action is already in progress"),
 
     /**
      * 订单不存在。
@@ -275,6 +303,12 @@ public enum ApiResultEnum implements IResult {
      */
     private final String message;
 
+    /**
+     * 创建统一接口结果定义。
+     *
+     * @param code 对外稳定响应码
+     * @param message 对外安全响应描述
+     */
     ApiResultEnum(String code, String message) {
         this.code = code;
         this.message = message;

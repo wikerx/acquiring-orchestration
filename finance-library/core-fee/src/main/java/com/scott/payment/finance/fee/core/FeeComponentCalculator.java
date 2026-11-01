@@ -23,30 +23,16 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeComponentCalculator
- * @date : 2026-08-25 19:20
- * @email : scott_x@163.com
- * @description : 按冻结的商户配置生成费用组件；百分比使用标签币种，固定费和上下限使用 USD，且不读取或推导汇率。
- * @status : create
+ * 按冻结的商户配置生成费用组件；百分比使用标签币种，固定费和上下限使用 USD，且不读取或推导汇率。
  */
 public class FeeComponentCalculator {
 
     /**
      * 百分比换算基数 100，用于把百分数转换为比例值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     /**
      * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 
@@ -118,7 +104,9 @@ public class FeeComponentCalculator {
                 appliedLimit, finalFee, minimum, maximum);
     }
 
-    /** 将标准规则或现有整笔适用阶梯规则解析为本次计价条款。 */
+    /**
+     * 将标准规则或现有整笔适用阶梯规则解析为本次计价条款。
+     */
     private PricingResolution resolvePricing(FeeCalculationCommand command) {
         FeeRuleSnapshot rule = command.rule();
         if (rule.feeMode() == FeeMode.STANDARD) {
@@ -178,6 +166,12 @@ public class FeeComponentCalculator {
         return sortedTiers;
     }
 
+    /**
+     * 校验笔数阶梯的上下界均为整数，避免交易笔数落入小数区间。
+     *
+     * @param tiers      已按下界排序的阶梯
+     * @param tierMetric 阶梯累计口径
+     */
     private void validateCountTierBounds(List<FeeTierSnapshot> tiers, TierMetric tierMetric) {
         if (tierMetric != TierMetric.COUNT) {
             return;
@@ -190,10 +184,21 @@ public class FeeComponentCalculator {
         }
     }
 
+    /**
+     * 判断十进制值去除末尾零后是否仍含小数部分。
+     *
+     * @param value 待检查数值
+     * @return 含有效小数位时返回 {@code true}
+     */
     private boolean hasFraction(BigDecimal value) {
         return value.stripTrailingZeros().scale() > 0;
     }
 
+    /**
+     * 校验阶梯从零开始、相邻连续且最后一档无上界。
+     *
+     * @param tiers 已按下界排序的阶梯
+     */
     private void validateTierContinuity(List<FeeTierSnapshot> tiers) {
         if (tiers.get(0).lowerBound().compareTo(BigDecimal.ZERO) != 0) {
             throw new IllegalArgumentException("tier intervals must start at zero");
@@ -211,6 +216,12 @@ public class FeeComponentCalculator {
         }
     }
 
+    /**
+     * 将命中阶梯转换为统一计价条款，未配置百分比时按零处理。
+     *
+     * @param tier 命中的冻结阶梯
+     * @return 百分比、固定费和上下限条款
+     */
     private RuleTerms terms(FeeTierSnapshot tier) {
         BigDecimal percentageRate = tier.percentageRate() == null ? BigDecimal.ZERO : tier.percentageRate();
         if (percentageRate.signum() < 0) {
@@ -219,6 +230,11 @@ public class FeeComponentCalculator {
         return new RuleTerms(percentageRate, tier.fixedFeeUsd(), tier.minimumFeeUsd(), tier.maximumFeeUsd());
     }
 
+    /**
+     * 校验单档阶梯标识、非负下界及严格递增的可选上界。
+     *
+     * @param tier 待校验阶梯
+     */
     private void validateTierBounds(FeeTierSnapshot tier) {
         if (tier.tierId() == null || tier.lowerBound() == null || tier.lowerBound().signum() < 0) {
             throw new IllegalArgumentException("tier id and non-negative lower bound are required");
@@ -245,6 +261,13 @@ public class FeeComponentCalculator {
         return new Money(amount, basis.currency(), basis.exponent()).rounded(roundingMode);
     }
 
+    /**
+     * 在费用组件落地边界按其币种 exponent 舍入可选金额。
+     *
+     * @param amount       待舍入金额，可为空
+     * @param roundingMode 冻结的费用舍入规则
+     * @return 舍入金额；输入为空时返回 {@code null}
+     */
     private Money rounded(Money amount, java.math.RoundingMode roundingMode) {
         return amount == null ? null : amount.rounded(roundingMode);
     }
@@ -346,15 +369,24 @@ public class FeeComponentCalculator {
         }
     }
 
+    /**
+     * 一条标准规则或命中阶梯解析出的最终计价条款。
+     */
     private record RuleTerms(BigDecimal percentageRate,
                              Money fixedFeeUsd,
                              Money minimumFeeUsd,
                              Money maximumFeeUsd) {
     }
 
+    /**
+     * 按指定费率计算的单段百分比计费基数。
+     */
     private record PercentageSlice(Money basis, BigDecimal percentageRate, Long tierId) {
     }
 
+    /**
+     * 规则解析结果，保留百分比切片、最终条款及命中阶梯证据。
+     */
     private record PricingResolution(List<PercentageSlice> percentageSlices,
                                      RuleTerms finalTerms,
                                      Long matchedTierId,

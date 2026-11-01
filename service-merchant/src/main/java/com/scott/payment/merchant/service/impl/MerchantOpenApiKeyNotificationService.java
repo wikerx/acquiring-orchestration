@@ -23,62 +23,33 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiKeyNotificationService
- * @date : 2026-08-05 00:00
- * @email : scott_x@163.com
- * @description : 商户门户密钥生命周期通知服务，只从密钥概要提取指纹尾号，不传输或记录完整密钥材料
- * @status : create
+ * 商户门户密钥生命周期通知服务，只提取密钥指纹尾号，不传输或记录完整密钥材料。
  */
 @Slf4j
 @Service
 public class MerchantOpenApiKeyNotificationService {
 
     /**
-     * 模板重置，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 密钥重置通知模板编码。
      */
     public static final String TEMPLATE_RESET = "API_KEY_RESET";
     /**
-     * 模板启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 密钥启用通知模板编码。
      */
     public static final String TEMPLATE_ENABLED = "API_KEY_ENABLED";
     /**
-     * {@code TEMPLATE_DISABLED}，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 密钥停用通知模板编码。
      */
     public static final String TEMPLATE_DISABLED = "API_KEY_DISABLED";
-    /**
-     * 场景常量，统一 {@code MerchantOpenApiKeyNotificationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String SCENE = "API_KEY_CHANGED";
-    /**
-     * 时间格式化器常量，统一 {@code MerchantOpenApiKeyNotificationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final MerchantTemplateEmailService templateEmailService;
     private final MerchantRuntimeProfileCacheService merchantProfileService;
 
+    /**
+     * 创建商户开放接口密钥生命周期通知服务。
+     */
     public MerchantOpenApiKeyNotificationService(MerchantTemplateEmailService templateEmailService,
                                                  MerchantRuntimeProfileCacheService merchantProfileService) {
         this.templateEmailService = templateEmailService;
@@ -107,6 +78,9 @@ public class MerchantOpenApiKeyNotificationService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -114,6 +88,9 @@ public class MerchantOpenApiKeyNotificationService {
         });
     }
 
+    /**
+     * 发送商户 OpenAPI 密钥安全通知，不在模板变量中放入密钥正文。
+     */
     private void send(MerchantRuntimeProfile merchant,
                       String templateCode,
                       OpenApiKeyType keyType,
@@ -141,11 +118,14 @@ public class MerchantOpenApiKeyNotificationService {
                     merchant.getMerchantId()
             ));
         } catch (RuntimeException exception) {
-            log.warn("merchant portal key notice send failed, merchantId: {}, templateCode: {}, exceptionType: {}",
+            log.warn("商户OpenAPI密钥通知发送失败, event: MERCHANT_OPENAPI_KEY_NOTICE_FAILED, merchantId: {}, templateCode: {}, exceptionType: {}",
                     merchant.getMerchantId(), templateCode, exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 返回密钥类型对应的商户可见名称。
+     */
     private String keyName(OpenApiKeyType keyType) {
         if (keyType == OpenApiKeyType.JWT_KEY) {
             return "JWT 签名密钥";
@@ -156,6 +136,9 @@ public class MerchantOpenApiKeyNotificationService {
         return "商户响应密钥";
     }
 
+    /**
+     * 提取密钥指纹末四位用于安全通知。
+     */
     private String fingerprintLast4(OpenApiKeyType keyType, OpenApiMerchantKeyMaterialVO material) {
         if (material == null) {
             return "----";
@@ -175,6 +158,9 @@ public class MerchantOpenApiKeyNotificationService {
         return compact.length() <= 4 ? compact : compact.substring(compact.length() - 4);
     }
 
+    /**
+     * 读取当前操作人名称，缺失时使用系统操作人标识。
+     */
     private String operatorName() {
         InternalAuthAccount operator = InternalAuthContextHolder.get();
         if (operator == null) {

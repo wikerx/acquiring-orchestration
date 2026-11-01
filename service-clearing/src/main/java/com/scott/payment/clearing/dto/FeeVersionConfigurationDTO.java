@@ -7,13 +7,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeVersionConfigurationDTO
- * @date : 2026-08-26 09:55
- * @email : scott_x@163.com
- * @description : 清分按确切版本读取的不可变费用配置载体，不包含动作金额、汇率、余额或持卡人信息。
- * @status : create
+ * 清分按确切版本读取的不可变费用配置载体，不包含动作金额、汇率、余额或持卡人信息。
  * @param merchantId 版本所属商户
  * @param feePlanId MERCHANT 费用方案 ID
  * @param feePlanVersionId 不可变版本 ID
@@ -46,6 +40,9 @@ public record FeeVersionConfigurationDTO(String merchantId,
                                          int reserveDelayDays,
                                          List<FeeRuleConfigurationSnapshot> rules) {
 
+    /**
+     * 将费用规则集合复制为不可变快照，空集合统一为空列表。
+     */
     public FeeVersionConfigurationDTO {
         rules = rules == null ? List.of() : List.copyOf(rules);
     }

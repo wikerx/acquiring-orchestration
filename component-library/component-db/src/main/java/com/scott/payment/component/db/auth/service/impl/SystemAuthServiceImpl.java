@@ -99,13 +99,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemAuthServiceImpl
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统登录注册与权限服务实现
- * @status : create
+ * 管理类系统登录注册与权限服务实现
  */
 @Service
 public class SystemAuthServiceImpl implements SystemAuthService {
@@ -299,7 +293,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * Spring 领域事件发布器，用于把登录审计移出可能回滚的认证事务。
      */
     private final ApplicationEventPublisher applicationEventPublisher;
-    /** 密码历史服务，用于在账号行锁内阻止当前及最近四个密码复用。 */
+    /**
+     * 密码历史服务，用于在账号行锁内阻止当前及最近四个密码复用。
+     */
     private final AccountPasswordHistoryService accountPasswordHistoryService;
     /**
      * 创建系统登录权限服务。
@@ -928,6 +924,14 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         validateLoginVerifyCode(getEnabledApp(appCode), verifyCodeId, verifyCodeText, clientIp);
     }
 
+    /**
+     * 在主库事务内校验图形验证码归属、有效期、来源 IP 和尝试次数，并原子标记为已使用。
+     *
+     * @param app 当前登录应用
+     * @param verifyCodeId 验证码记录编号
+     * @param verifyCodeText 用户输入的验证码
+     * @param clientIp 当前客户端 IP
+     */
     private void validateLoginVerifyCode(SysAppDO app, String verifyCodeId, String verifyCodeText, String clientIp) {
         if (!StringUtils.hasText(verifyCodeId) || !StringUtils.hasText(verifyCodeText)) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is required");
@@ -1055,6 +1059,13 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
     }
 
+    /**
+     * 在验证码画布绘制随机干扰线和噪点，降低简单 OCR 识别成功率。
+     *
+     * @param graphics 验证码画布
+     * @param width 画布宽度
+     * @param height 画布高度
+     */
     private void drawCaptchaNoise(Graphics2D graphics, int width, int height) {
         for (int i = 0; i < 8; i++) {
             graphics.setColor(new Color(180 + VERIFY_CODE_RANDOM.nextInt(50), 195 + VERIFY_CODE_RANDOM.nextInt(40), 215 + VERIFY_CODE_RANDOM.nextInt(35)));
@@ -1070,6 +1081,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
     }
 
+    /**
+     * 按字符位置选择对比度足够的固定文本颜色。
+     *
+     * @param index 验证码字符位置
+     * @return 对应的文本颜色
+     */
     private Color captchaTextColor(int index) {
         Color[] colors = {
                 new Color(29, 78, 216),
@@ -1187,6 +1204,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         validateMerchantAvailability(appCode, merchantId);
     }
 
+    /**
+     * 对商户后台登录校验商户号存在性和启用状态，其他应用不执行该约束。
+     *
+     * @param appCode 登录应用编码
+     * @param merchantId 商户号
+     */
     private void validateMerchantAvailability(String appCode, String merchantId) {
         if (!AuthConstants.APP_MERCHANT.equals(appCode)) {
             return;
@@ -1373,11 +1396,19 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                 null, null, null, null);
     }
 
+    /**
+     * 判断应用是否要求邮箱变更前完成 MFA 验证。
+     *
+     * @param appCode 应用编码
+     * @return 管理后台或商户后台返回 true
+     */
     private boolean requiresVerifiedEmailChange(String appCode) {
         return AuthConstants.APP_ADMIN.equals(appCode) || AuthConstants.APP_MERCHANT.equals(appCode);
     }
 
-    /** 保存邮箱变更 MFA 失败计数和审计后抛出不会回滚这些安全状态的异常。 */
+    /**
+     * 保存邮箱变更 MFA 失败计数和审计后抛出不会回滚这些安全状态的异常。
+     */
     private void recordProfileMfaFailure(SysAppDO app,
                                          SysAccountDO account,
                                          SysAccountMfaDO mfa,
@@ -1986,9 +2017,21 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         return loginAccount.substring(0, 2) + "***" + loginAccount.substring(loginAccount.length() - 1);
     }
 
+    /**
+     * MFA 登录票据明文及其持久化记录，仅在认证服务内部短暂使用。
+     *
+     * @param rawTicket 返回给当前认证流程的票据明文
+     * @param token 仅保存哈希值和状态的持久化记录
+     */
     private record MfaLoginTicket(String rawTicket, SysAccountMfaTokenDO token) {
     }
 
+    /**
+     * 已校验 MFA 票据及其绑定账号上下文。
+     *
+     * @param ticket 有效票据记录
+     * @param account 票据绑定账号
+     */
     private record MfaTicketContext(SysAccountMfaTokenDO ticket, SysAccountDO account) {
     }
 
@@ -2894,8 +2937,16 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         return value == null ? 0 : value;
     }
 
-    /** 邮箱变更 MFA 失败异常；事务保留失败计数、锁定状态和审计日志。 */
+    /**
+     * 邮箱变更 MFA 失败异常；事务保留失败计数、锁定状态和审计日志。
+     */
     private static final class ProfileMfaVerificationException extends ServiceException {
+        /**
+         * 创建需要保留失败计数和锁定状态的 MFA 校验异常。
+         *
+         * @param code 统一错误码
+         * @param message 安全错误描述
+         */
         private ProfileMfaVerificationException(String code, String message) {
             super(code, message);
         }

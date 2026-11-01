@@ -1,26 +1,26 @@
 package com.scott.payment.admin.api.system;
 
 import com.scott.payment.admin.application.system.AdminNoticeApplicationService;
-import com.scott.payment.component.core.model.CommonResult;
-import static com.scott.payment.component.core.model.CommonResult.success;
+import com.scott.payment.admin.dto.system.NoticeDTOs.BatchDeleteRequest;
+import com.scott.payment.admin.dto.system.NoticeDTOs.Response;
+import com.scott.payment.admin.dto.system.NoticeDTOs.SaveRequest;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.component.db.auth.entity.SysNoticeDO;
+import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.List;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminNoticeController
- * @date : 2026-06-12 17:37
- * @email : scott_x@163.com
- * @description : 通知公告管理控制器，提供通知公告的增删改查分页接口
- * @status : create
+ * 管理后台通知公告控制器。
+ *
+ * <p>负责公告查询和维护请求的协议适配，业务编排由应用服务完成。</p>
  */
 @RestController
 @RequestMapping("/admin/system/notice")
@@ -51,7 +51,7 @@ public class AdminNoticeController {
      */
     @GetMapping("/list")
     @RequiresPermission("system:notice:list")
-    public CommonResult<PageResult<SysNoticeDO>> list(
+    public CommonResult<PageResult<Response>> list(
             @RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
             @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
             @RequestParam(value = "noticeTitle", required = false) String noticeTitle,
@@ -68,7 +68,7 @@ public class AdminNoticeController {
      */
     @GetMapping("/latest")
     @RequiresPermission("dashboard:view")
-    public CommonResult<List<SysNoticeDO>> latest(@RequestParam(value = "limit", defaultValue = "3") int limit) {
+    public CommonResult<List<Response>> latest(@RequestParam(value = "limit", defaultValue = "3") int limit) {
         return success(adminNoticeApplicationService.listDashboardNotices(limit));
     }
 
@@ -76,39 +76,40 @@ public class AdminNoticeController {
      * 查询单条通知公告详情。
      *
      * @param id 通知公告主键 ID
-     * @return 通知公告实体
+     * @return 通知公告详情
      */
     @GetMapping("/{id}")
     @RequiresPermission("system:notice:list")
-    public CommonResult<SysNoticeDO> detail(@PathVariable("id") Long id) {
+    public CommonResult<Response> detail(@PathVariable("id") Long id) {
         return success(adminNoticeApplicationService.getNotice(id));
     }
 
     /**
      * 新增通知公告。
      *
-     * @param notice 通知公告实体（JSON 请求体）
-     * @return 新增后的通知公告实体
+     * @param request 通知公告保存请求
+     * @return 新增后的通知公告
      */
     @PostMapping
     @RequiresPermission("system:notice:add")
     @OperationLog(moduleName = "通知公告", businessType = OperationTypeConstants.CREATE, operation = "新增通知公告")
-    public CommonResult<SysNoticeDO> create(@RequestBody SysNoticeDO notice) {
-        return success(adminNoticeApplicationService.createNotice(notice));
+    public CommonResult<Response> create(@Valid @RequestBody SaveRequest request) {
+        return success(adminNoticeApplicationService.createNotice(request));
     }
 
     /**
      * 修改通知公告。
      *
-     * @param id     通知公告主键 ID
-     * @param notice 通知公告实体（JSON 请求体，只更新非空字段）
-     * @return 更新后的通知公告实体
+     * @param id 通知公告主键 ID
+     * @param request 通知公告保存请求
+     * @return 更新后的通知公告
      */
     @PutMapping("/{id}")
     @RequiresPermission("system:notice:edit")
     @OperationLog(moduleName = "通知公告", businessType = OperationTypeConstants.UPDATE, operation = "修改通知公告")
-    public CommonResult<SysNoticeDO> update(@PathVariable("id") Long id, @RequestBody SysNoticeDO notice) {
-        return success(adminNoticeApplicationService.updateNotice(id, notice));
+    public CommonResult<Response> update(@PathVariable("id") Long id,
+                                         @Valid @RequestBody SaveRequest request) {
+        return success(adminNoticeApplicationService.updateNotice(id, request));
     }
 
     /**
@@ -134,16 +135,8 @@ public class AdminNoticeController {
     @DeleteMapping("/batch")
     @RequiresPermission("system:notice:remove")
     @OperationLog(moduleName = "通知公告", businessType = OperationTypeConstants.DELETE, operation = "批量删除通知公告")
-    public CommonResult<Void> removeBatch(@RequestBody NoticeBatchDeleteRequest request) {
+    public CommonResult<Void> removeBatch(@Valid @RequestBody BatchDeleteRequest request) {
         adminNoticeApplicationService.removeNotices(request == null ? Collections.emptyList() : request.ids());
         return success(null);
-    }
-
-    /**
-     * 通知公告批量删除请求。
-     *
-     * @param ids 通知公告主键 ID 列表
-     */
-    public record NoticeBatchDeleteRequest(List<Long> ids) {
     }
 }

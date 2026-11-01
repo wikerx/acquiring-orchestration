@@ -15,13 +15,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisEnvironmentGuardAutoConfiguration
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : Redis 环境前缀启动门禁，阻止 test、uat、prod 复用其他环境的物理 Key 命名空间。
- * @status : create
+ * Redis 环境前缀启动门禁，阻止 test、uat、prod 复用其他环境的物理 Key 命名空间。
  */
 @AutoConfiguration(before = {RedisGlobalIdAutoConfiguration.class, PaymentRedisCacheAutoConfiguration.class})
 @EnableConfigurationProperties({
@@ -75,6 +69,12 @@ public class PaymentRedisEnvironmentGuardAutoConfiguration {
         return new RedisEnvironmentPrefixGuard();
     }
 
+    /**
+     * 解析唯一受保护环境，拒绝同时激活多个生产类 profile。
+     *
+     * @param environment Spring 环境
+     * @return 受保护环境名，当前仅为开发测试环境时返回 null
+     */
     private String resolveProtectedProfile(Environment environment) {
         List<String> protectedProfiles = Arrays.stream(environment.getActiveProfiles())
                 .map(profile -> profile.trim().toLowerCase(Locale.ROOT))

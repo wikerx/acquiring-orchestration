@@ -35,18 +35,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileChangeRequestServiceTest
- * @date : 2026-09-20 12:00
- * @email : scott_x@163.com
- * @description : 商户资料变更申请状态机测试，验证草稿提交不会提前修改正式商户主档
- * @status : create
+ * 商户资料变更申请状态机测试，验证草稿提交不会提前修改正式商户主档
  */
 @Slf4j
 class MerchantProfileChangeRequestServiceTest {
 
-    /** 初始化资料变更申请实体的 MyBatis-Plus 字段元数据。 */
+    /**
+     * 初始化资料变更申请实体的 MyBatis-Plus 字段元数据。
+     */
     @BeforeEach
     void setUp() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -55,7 +51,9 @@ class MerchantProfileChangeRequestServiceTest {
         TableInfoHelper.initTableInfo(assistant, MerchantDocumentDO.class);
     }
 
-    /** 新建草稿只保存加密快照，不得触碰正式商户主档。 */
+    /**
+     * 新建草稿只保存加密快照，不得触碰正式商户主档。
+     */
     @Test
     void shouldCreateDraftWithoutApplyingProfileChanges() {
         log.info("测试资料变更草稿，关键输入: 已激活商户修改法定名称");
@@ -84,7 +82,9 @@ class MerchantProfileChangeRequestServiceTest {
         log.info("资料变更草稿测试完成，结果: 草稿已保存且正式资料未变更");
     }
 
-    /** 草稿提交后必须进入待审核且仍不得应用正式资料。 */
+    /**
+     * 草稿提交后必须进入待审核且仍不得应用正式资料。
+     */
     @Test
     void shouldSubmitDraftForReviewWithoutApplyingProfileChanges() {
         log.info("测试资料变更提交，关键输入: DRAFT 申请");
@@ -112,7 +112,9 @@ class MerchantProfileChangeRequestServiceTest {
         log.info("资料变更提交测试完成，结果: 申请进入待审核且正式资料未变更");
     }
 
-    /** 待审核申请必须保持只读，不能被新草稿覆盖。 */
+    /**
+     * 待审核申请必须保持只读，不能被新草稿覆盖。
+     */
     @Test
     void shouldRejectDraftOverwriteWhileReviewIsPending() {
         log.info("测试待审核资料保护，关键输入: PENDING_REVIEW 申请再次保存");
@@ -138,7 +140,9 @@ class MerchantProfileChangeRequestServiceTest {
         log.info("待审核资料保护测试完成，结果: 旧申请未被覆盖");
     }
 
-    /** 草稿重存必须保留新相关人员的证件号明文，仅在响应中返回脱敏值。 */
+    /**
+     * 草稿重存必须保留新相关人员的证件号明文，仅在响应中返回脱敏值。
+     */
     @Test
     void shouldPreserveNewPersonIdNumberWhenDraftIsSavedAgain() throws Exception {
         MerchantProfileChangeRequestMapper requestMapper = mock(MerchantProfileChangeRequestMapper.class);
@@ -180,7 +184,9 @@ class MerchantProfileChangeRequestServiceTest {
         assertThat(draft.getVersion()).isEqualTo(1);
     }
 
-    /** 草稿并发更新失败时不得以旧版本覆盖已提交或已修改的申请。 */
+    /**
+     * 草稿并发更新失败时不得以旧版本覆盖已提交或已修改的申请。
+     */
     @Test
     void shouldRejectDraftUpdateWhenVersionChanges() throws Exception {
         MerchantProfileChangeRequestMapper requestMapper = mock(MerchantProfileChangeRequestMapper.class);
@@ -207,7 +213,9 @@ class MerchantProfileChangeRequestServiceTest {
         verifyNoInteractions(reviewRecordMapper);
     }
 
-    /** 补件状态允许修订后重新提交审核。 */
+    /**
+     * 补件状态允许修订后重新提交审核。
+     */
     @Test
     void shouldResubmitSupplementRequiredRequest() {
         log.info("测试补件重提，关键输入: SUPPLEMENT_REQUIRED 申请");
@@ -236,7 +244,9 @@ class MerchantProfileChangeRequestServiceTest {
         log.info("补件重提测试完成，结果: 申请重新进入待审核");
     }
 
-    /** 撤回活动申请必须进入终态并释放唯一占位。 */
+    /**
+     * 撤回活动申请必须进入终态并释放唯一占位。
+     */
     @Test
     void shouldWithdrawRequestAndReleaseActiveSlot() {
         log.info("测试资料变更撤回，关键输入: 活动草稿申请");
@@ -263,7 +273,9 @@ class MerchantProfileChangeRequestServiceTest {
         log.info("资料变更撤回测试完成，结果: 活动申请占位已释放");
     }
 
-    /** 构造变更申请资料快照。 */
+    /**
+     * 构造变更申请资料快照。
+     */
     private MerchantProfileChangeDTOs.ProfileSnapshot snapshot(String merchantName) {
         MerchantProfileChangeDTOs.ProfileSnapshot snapshot = new MerchantProfileChangeDTOs.ProfileSnapshot();
         snapshot.setMerchantName(merchantName);
@@ -295,7 +307,9 @@ class MerchantProfileChangeRequestServiceTest {
         return snapshot;
     }
 
-    /** 构造满足法人和 UBO 门槛的相关人员。 */
+    /**
+     * 构造满足法人和 UBO 门槛的相关人员。
+     */
     private List<MerchantProfileChangeDTOs.RelatedPerson> requiredPersons() {
         MerchantProfileChangeDTOs.RelatedPerson person = new MerchantProfileChangeDTOs.RelatedPerson();
         person.setId(1L);
@@ -305,7 +319,9 @@ class MerchantProfileChangeRequestServiceTest {
         return List.of(person);
     }
 
-    /** 构造尚未落库、通过草稿快照维护的相关人员。 */
+    /**
+     * 构造尚未落库、通过草稿快照维护的相关人员。
+     */
     private MerchantProfileChangeDTOs.RelatedPerson newRelatedPerson(String idNumber) {
         MerchantProfileChangeDTOs.RelatedPerson person = new MerchantProfileChangeDTOs.RelatedPerson();
         person.setFullName("Taylor Morgan");
@@ -316,7 +332,9 @@ class MerchantProfileChangeRequestServiceTest {
         return person;
     }
 
-    /** 构造提交审核所需的注册证明和人员身份证明。 */
+    /**
+     * 构造提交审核所需的注册证明和人员身份证明。
+     */
     private List<MerchantDocumentDO> requiredDocuments() {
         MerchantDocumentDO registration = new MerchantDocumentDO();
         registration.setDocumentType("BUSINESS_LICENSE");
@@ -327,7 +345,9 @@ class MerchantProfileChangeRequestServiceTest {
         return List.of(registration, identity);
     }
 
-    /** 构造活动草稿申请。 */
+    /**
+     * 构造活动草稿申请。
+     */
     private MerchantProfileChangeRequestDO draftRequest() {
         MerchantProfileChangeRequestDO row = new MerchantProfileChangeRequestDO();
         row.setId(1L);

@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewOrderMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 结算预审单数据访问接口；预审只追加，创建/决策请求键由唯一约束兜底，所有决策按待复核状态和版本 CAS 进入不可逆终态。
- * @status : create
+ * 结算预审单数据访问接口；预审只追加，创建/决策请求键由唯一约束兜底，所有决策按待复核状态和版本 CAS 进入不可逆终态。
  */
 public interface SettlementReviewOrderMapper {
 

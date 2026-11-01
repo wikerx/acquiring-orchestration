@@ -9,13 +9,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchCreateCommand
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 结算批次创建内部命令，冻结商户、账户、目标币种、结算配置和候选截止窗口。
- * @status : create
+ * 结算批次创建内部命令，冻结商户、账户、目标币种、结算配置和候选截止窗口。
  * @param createRequestKey 调度或人工请求全局幂等键，最大 128 字符
  * @param businessDate 结算业务日期，不从批次号反向解析
  * @param businessTimeZone 结算日历 IANA 时区

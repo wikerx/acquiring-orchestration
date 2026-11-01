@@ -4,13 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiMerchantKeyExportProperties
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : Open API Merchant Key Export Properties 配置属性模型，位于 公共组件库，绑定 application 配置项并提供运行时默认值。
- * @status : create
+ * Open API Merchant Key Export Properties 配置属性模型，位于 公共组件库，绑定 application 配置项并提供运行时默认值。
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.openapi.merchant-key-export")

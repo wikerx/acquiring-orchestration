@@ -24,13 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConfigurationSnapshotModelsTest
- * @date : 2026-08-25 23:40
- * @email : scott_x@163.com
- * @description : 验证交易动作冻结的费用版本快照保留标签币种百分比、USD 固定费/上下限、清分策略和不可变规则集合。
- * @status : create
+ * 验证交易动作冻结的费用版本快照保留标签币种百分比、USD 固定费/上下限、清分策略和不可变规则集合。
  */
 class FeeConfigurationSnapshotModelsTest {
 

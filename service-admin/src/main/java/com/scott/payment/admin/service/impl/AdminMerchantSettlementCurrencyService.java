@@ -21,13 +21,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantSettlementCurrencyService
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 商户费率审核中的结算币种生效服务，统一维护商户资料、单币种资金账户和跨服务共享缓存一致性。
- * @status : create
+ * 商户费率审核中的结算币种生效服务，统一维护商户资料、单币种资金账户和跨服务共享缓存一致性。
  */
 @Service
 public class AdminMerchantSettlementCurrencyService {

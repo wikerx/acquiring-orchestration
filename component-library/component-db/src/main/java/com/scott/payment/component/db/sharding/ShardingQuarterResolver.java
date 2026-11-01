@@ -11,13 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingQuarterResolver
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sharding Quarter Resolver 解析组件，位于 公共组件库，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
- * @status : create
+ * Sharding Quarter Resolver 解析组件，位于 公共组件库，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
  */
 @Component
 public class ShardingQuarterResolver {
@@ -123,6 +117,13 @@ public class ShardingQuarterResolver {
         return new ShardingQuarter(rule.getEndYear(), rule.getEndQuarter());
     }
 
+    /**
+     * 校验分表规则年份存在且季度位于一至四。
+     *
+     * @param year 规则年份
+     * @param quarter 规则季度
+     * @param label 起始或结束边界标签
+     */
     private void validateRuleQuarter(Integer year, Integer quarter, String label) {
         if (year == null || quarter == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), label + " sharding year and quarter are required");

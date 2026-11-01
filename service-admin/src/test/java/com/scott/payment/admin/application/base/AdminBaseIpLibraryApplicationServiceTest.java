@@ -28,13 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseIpLibraryApplicationServiceTest
- * @date : 2026-07-05 00:34
- * @email : scott_x@163.com
- * @description : admin基础iplibrary应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * admin基础iplibrary应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminBaseIpLibraryApplicationServiceTest {

@@ -25,6 +25,8 @@ import com.scott.payment.settlement.mapper.SettlementProjectionMapper;
 import com.scott.payment.settlement.mapper.SettlementReserveMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.service.SettlementBatchCreationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,16 +41,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchCommandApplicationService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 编排正式结算批次的受控取消与冲正；入账前通过状态和版本 CAS 释放候选，入账后只创建独立反向批次、资金流水和真实交易投影任务。
- * @status : create
+ * 正式结算批次管理命令编排。
+ *
+ * <p>入账前取消通过状态和版本 CAS 释放候选；入账后不得覆盖原资金事实，只能创建独立反向批次、
+ * 资金流水、保证金动作和交易投影任务。所有人工命令均冻结可信操作审计并支持数据库幂等回放。</p>
  */
 @Service
 public class SettlementBatchCommandApplicationService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            SettlementBatchCommandApplicationService.class);
 
     private final SettlementBatchMapper batchMapper;
     private final SettlementCandidateMapper candidateMapper;
@@ -100,20 +102,28 @@ public class SettlementBatchCommandApplicationService {
         SettlementBatchCancellationAuditDO requestReplay =
                 batchMapper.selectCancellationAuditByRequestKey(audit.requestKey());
         if (requestReplay != null) {
-            return replayResult(batchNo, requestReplay);
+            int releasedCount = replayResult(batchNo, requestReplay);
+            LOGGER.info("结算批次取消请求幂等返回, event: SETTLEMENT_BATCH_CANCEL_REPLAY, settlementBatchNo: {}, releasedCandidateCount: {}",
+                    batchNo, releasedCount);
+            return releasedCount;
         }
 
         SettlementBatchDO batch = requireBatch(batchNo);
         SettlementBatchCancellationAuditDO batchReplay =
                 batchMapper.selectCancellationAuditByBatchNo(batchNo);
         if (batchReplay != null) {
-            return replayResult(batchNo, audit.requestKey(), batchReplay);
+            int releasedCount = replayResult(batchNo, audit.requestKey(), batchReplay);
+            LOGGER.info("结算批次取消结果幂等返回, event: SETTLEMENT_BATCH_CANCEL_REPLAY, settlementBatchNo: {}, releasedCandidateCount: {}",
+                    batchNo, releasedCount);
+            return releasedCount;
         }
         if (batch.getVersion() != expectedVersion) {
             throw new IllegalStateException("settlement batch command uses a stale version");
         }
         // Pre-migration CANCELLED rows cannot be retroactively attributed to a new trusted operator.
         if (SettlementBatchStatus.CANCELLED.name().equals(batch.getBatchStatus())) {
+            LOGGER.warn("历史结算批次已取消但缺少当前请求审计, event: SETTLEMENT_BATCH_CANCEL_LEGACY_REPLAY, settlementBatchNo: {}",
+                    batchNo);
             return 0;
         }
         if (batch.getProcessingDeadline() != null && batch.getProcessingDeadline().isAfter(now)) {
@@ -133,15 +143,21 @@ public class SettlementBatchCommandApplicationService {
         if (batchMapper.insertCancellationAudit(row) != 1) {
             throw new IllegalStateException("settlement cancellation audit insert failed");
         }
+        LOGGER.info("结算批次取消事务写入完成, event: SETTLEMENT_BATCH_CANCEL_WRITE_END, settlementBatchNo: {}, releasedCandidateCount: {}, expectedVersion: {}",
+                batchNo, candidates, expectedVersion);
         return candidates;
     }
 
-    /** 校验按请求键命中的取消审计确属当前批次后返回首次释放数量。 */
+    /**
+     * 校验按请求键命中的取消审计确属当前批次后返回首次释放数量。
+     */
     private int replayResult(String batchNo, SettlementBatchCancellationAuditDO existing) {
         return replayResult(batchNo, existing.getRequestKey(), existing);
     }
 
-    /** 校验同一批次的后续取消请求键与首次审计一致，拒绝用新身份冒充历史取消。 */
+    /**
+     * 校验同一批次的后续取消请求键与首次审计一致，拒绝用新身份冒充历史取消。
+     */
     private int replayResult(String batchNo,
                              String requestKey,
                              SettlementBatchCancellationAuditDO existing) {
@@ -155,7 +171,9 @@ public class SettlementBatchCommandApplicationService {
         return existing.getReleasedCandidateCount();
     }
 
-    /** 将批次取消前状态、可信操作主体和实际释放数冻结为不可变审计行。 */
+    /**
+     * 将批次取消前状态、可信操作主体和实际释放数冻结为不可变审计行。
+     */
     private SettlementBatchCancellationAuditDO cancellationAudit(SettlementBatchDO batch,
                                                                   long expectedVersion,
                                                                   int releasedCandidates,
@@ -198,14 +216,20 @@ public class SettlementBatchCommandApplicationService {
         SettlementBatchRecoveryAuditDO requestReplay =
                 batchMapper.selectRecoveryAuditByRequestKey(audit.requestKey());
         if (requestReplay != null) {
-            return recoveryReplayResult(batchNo, audit.requestKey(), requestReplay);
+            int restoredCount = recoveryReplayResult(batchNo, audit.requestKey(), requestReplay);
+            LOGGER.info("结算批次汇率重试恢复请求幂等返回, event: SETTLEMENT_RATE_RECOVERY_REPLAY, settlementBatchNo: {}, restoredCandidateCount: {}",
+                    batchNo, restoredCount);
+            return restoredCount;
         }
 
         SettlementBatchDO batch = requireBatch(batchNo);
         SettlementBatchRecoveryAuditDO concurrentReplay =
                 batchMapper.selectRecoveryAuditByRequestKeyForUpdate(audit.requestKey());
         if (concurrentReplay != null) {
-            return recoveryReplayResult(batchNo, audit.requestKey(), concurrentReplay);
+            int restoredCount = recoveryReplayResult(batchNo, audit.requestKey(), concurrentReplay);
+            LOGGER.info("结算批次汇率重试恢复并发幂等返回, event: SETTLEMENT_RATE_RECOVERY_REPLAY, settlementBatchNo: {}, restoredCandidateCount: {}",
+                    batchNo, restoredCount);
+            return restoredCount;
         }
         if (batch.getVersion() != expectedVersion) {
             throw new IllegalStateException("settlement batch command uses a stale version");
@@ -234,9 +258,18 @@ public class SettlementBatchCommandApplicationService {
                 batch, expectedVersion, candidates, audit, now)) != 1) {
             throw new IllegalStateException("settlement recovery audit insert failed");
         }
+        LOGGER.info("结算批次汇率重试恢复事务写入完成, event: SETTLEMENT_RATE_RECOVERY_WRITE_END, settlementBatchNo: {}, restoredCandidateCount: {}, expectedVersion: {}",
+                batchNo, candidates, expectedVersion);
         return candidates;
     }
 
+    /**
+     * 校验恢复幂等记录仍属于当前批次和请求，并返回首次恢复的候选数量。
+     * @param batchNo 正式结算批次号，用于限定明细和资金流水归属
+     * @param requestKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param existing 首次恢复请求写入的不可变审计记录
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     private int recoveryReplayResult(String batchNo,
                                      String requestKey,
                                      SettlementBatchRecoveryAuditDO existing) {
@@ -251,6 +284,15 @@ public class SettlementBatchCommandApplicationService {
         return existing.getRestoredCandidateCount();
     }
 
+    /**
+     * 构造汇率锁定恢复审计，完整保存恢复前失败状态和本次恢复结果。
+     * @param batch 恢复前已加锁读取的结算批次快照
+     * @param expectedVersion 调用方读取到的批次版本，防止并发恢复覆盖
+     * @param restoredCandidates 本次恢复到待处理状态的候选数量
+     * @param audit 可信操作人、请求幂等键、恢复原因和客户端审计信息
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法生成的 {@code SettlementBatchRecoveryAuditDO} 结果
+     */
     private SettlementBatchRecoveryAuditDO recoveryAudit(SettlementBatchDO batch,
                                                           long expectedVersion,
                                                           int restoredCandidates,
@@ -314,6 +356,8 @@ public class SettlementBatchCommandApplicationService {
         if (existing != null) {
             if (SettlementBatchStatus.POSTED.name().equals(existing.getBatchStatus())
                     && SettlementBatchStatus.REVERSED.name().equals(original.getBatchStatus())) {
+                LOGGER.info("结算批次冲正幂等返回, event: SETTLEMENT_BATCH_REVERSAL_REPLAY, originalBatchNo: {}, reversalBatchNo: {}",
+                        original.getSettlementBatchNo(), existing.getSettlementBatchNo());
                 return existing.getSettlementBatchNo();
             }
             throw new IllegalStateException("settlement batch already has an incomplete reversal");
@@ -366,10 +410,15 @@ public class SettlementBatchCommandApplicationService {
                 || batchMapper.markReversed(original.getSettlementBatchNo(), original.getVersion(), now) != 1) {
             throw new IllegalStateException("settlement reversal completion state CAS failed");
         }
+        LOGGER.info("结算批次冲正事务写入完成, event: SETTLEMENT_BATCH_REVERSAL_WRITE_END, originalBatchNo: {}, reversalBatchNo: {}, candidateCount: {}, projectionTaskCount: {}",
+                original.getSettlementBatchNo(), reversal.getSettlementBatchNo(),
+                original.getCandidateCount(), reversalTasks.size());
         return reversal.getSettlementBatchNo();
     }
 
-    /** 以冲正单号构造独立 REVERSAL 批次命令，继承原批次商户、账户、币种和业务窗口。 */
+    /**
+     * 以冲正单号构造独立 REVERSAL 批次命令，继承原批次商户、账户、币种和业务窗口。
+     */
     private SettlementBatchCreateCommand reversalCommand(SettlementBatchDO original,
                                                           String requestKey,
                                                           LocalDateTime now) {
@@ -382,7 +431,9 @@ public class SettlementBatchCommandApplicationService {
                 original.getCutoffBeginTime(), original.getCutoffEndTime());
     }
 
-    /** 复制并反转原净入账结果，金额和目标币种保持不变，引用原结果项供审计。 */
+    /**
+     * 复制并反转原净入账结果，金额和目标币种保持不变，引用原结果项供审计。
+     */
     private SettlementResultItemDO reversalNet(SettlementBatchDO reversal,
                                                SettlementResultItemDO original,
                                                LocalDateTime now) {
@@ -413,7 +464,9 @@ public class SettlementBatchCommandApplicationService {
         return row;
     }
 
-    /** 锁定原资金流水，以相反方向追加唯一冲正流水并用余额/版本 CAS 更新同一 NORMAL 账户。 */
+    /**
+     * 锁定原资金流水，以相反方向追加唯一冲正流水并用余额/版本 CAS 更新同一 NORMAL 账户。
+     */
     private void reverseFund(SettlementBatchDO original,
                              SettlementBatchDO reversal,
                              SettlementResultItemDO originalNet,
@@ -481,7 +534,9 @@ public class SettlementBatchCommandApplicationService {
         }
     }
 
-    /** 逆序撤销原批全部保证金动作，每个 REVERSAL 动作引用原动作主键并保持原标签币种。 */
+    /**
+     * 逆序撤销原批全部保证金动作，每个 REVERSAL 动作引用原动作主键并保持原标签币种。
+     */
     private void reverseReserve(SettlementBatchDO original,
                                 SettlementBatchDO reversal,
                                 LocalDateTime now) {
@@ -517,7 +572,9 @@ public class SettlementBatchCommandApplicationService {
         }
     }
 
-    /** 按 HOLD、RETURN 或 RELEASE 类型调用对应聚合逆操作，受剩余责任金额和版本约束。 */
+    /**
+     * 按 HOLD、RETURN 或 RELEASE 类型调用对应聚合逆操作，受剩余责任金额和版本约束。
+     */
     private int reverseReserveAggregate(MerchantReserveActionDO action,
                                         MerchantReserveItemDO item,
                                         LocalDateTime now) {
@@ -530,7 +587,9 @@ public class SettlementBatchCommandApplicationService {
         };
     }
 
-    /** 按原 ADJUSTMENT 方向执行相反聚合更新，防止冲正后保证金责任出现负数。 */
+    /**
+     * 按原 ADJUSTMENT 方向执行相反聚合更新，防止冲正后保证金责任出现负数。
+     */
     private int reverseAdjustment(MerchantReserveActionDO action,
                                   MerchantReserveItemDO item,
                                   LocalDateTime now) {
@@ -543,7 +602,9 @@ public class SettlementBatchCommandApplicationService {
         };
     }
 
-    /** 仅复制原批真实交易投影身份生成 REVERSE 任务，不从保证金动作伪造交易。 */
+    /**
+     * 仅复制原批真实交易投影身份生成 REVERSE 任务，不从保证金动作伪造交易。
+     */
     private List<SettlementProjectionTaskDO> reversalTasks(SettlementBatchDO original,
                                                            SettlementBatchDO reversal,
                                                            List<SettlementProjectionTaskDO> originals,
@@ -575,7 +636,9 @@ public class SettlementBatchCommandApplicationService {
         return rows;
     }
 
-    /** 校验原净入账行属于原批次且具备非负金额、目标币种和资金幂等键。 */
+    /**
+     * 校验原净入账行属于原批次且具备非负金额、目标币种和资金幂等键。
+     */
     private void validateOriginalNet(SettlementBatchDO original, SettlementResultItemDO net) {
         boolean valid = net != null && net.getId() != null
                 && net.getTargetAmount() != null && net.getTargetAmount().signum() >= 0
@@ -587,7 +650,9 @@ public class SettlementBatchCommandApplicationService {
         }
     }
 
-    /** 锁读完整正式批次；不存在或版本字段缺失时立即阻断资金命令。 */
+    /**
+     * 锁读完整正式批次；不存在或版本字段缺失时立即阻断资金命令。
+     */
     private SettlementBatchDO requireBatch(String batchNo) {
         if (batchNo == null || batchNo.isBlank()) {
             throw new IllegalArgumentException("settlement batch number is required");
@@ -599,7 +664,9 @@ public class SettlementBatchCommandApplicationService {
         return row;
     }
 
-    /** 返回 CREDIT/DEBIT 的反向资金方向，拒绝未知方向字符串。 */
+    /**
+     * 返回 CREDIT/DEBIT 的反向资金方向，拒绝未知方向字符串。
+     */
     private String opposite(String direction) {
         return switch (direction) {
             case "CREDIT" -> "DEBIT";
@@ -608,12 +675,16 @@ public class SettlementBatchCommandApplicationService {
         };
     }
 
-    /** 生成批次级净入账资金流水最终幂等键。 */
+    /**
+     * 生成批次级净入账资金流水最终幂等键。
+     */
     private String ledgerKey(String batchNo) {
         return "SETTLEMENT:" + batchNo;
     }
 
-    /** 基于稳定业务身份生成固定长度 SHA-256 派生号，保证命令重放结果一致。 */
+    /**
+     * 基于稳定业务身份生成固定长度 SHA-256 派生号，保证命令重放结果一致。
+     */
     private String stableId(String prefix, String identity) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

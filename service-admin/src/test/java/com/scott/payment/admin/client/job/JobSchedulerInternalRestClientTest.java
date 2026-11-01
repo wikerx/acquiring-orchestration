@@ -27,17 +27,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerInternalRestClientTest
- * @date : 2026-08-21 08:30
- * @email : scott_x@163.com
- * @description : 校验管理端调度内部客户端不会通过异常链或日志 Throwable 泄露下游响应正文。
- * @status : create
+ * 校验管理端调度内部客户端不会通过异常链或日志 Throwable 泄露下游响应正文。
  */
 class JobSchedulerInternalRestClientTest {
 
-    /** 下游错误正文只用于 HTTP 状态判断，不得进入管理端异常链或日志 Throwable。 */
+    /**
+     * 下游错误正文只用于 HTTP 状态判断，不得进入管理端异常链或日志 Throwable。
+     */
     @Test
     void shouldNotPropagateDownstreamResponseBodyInExceptionOrLogThrowable() {
         RestTemplate restTemplate = mock(RestTemplate.class);

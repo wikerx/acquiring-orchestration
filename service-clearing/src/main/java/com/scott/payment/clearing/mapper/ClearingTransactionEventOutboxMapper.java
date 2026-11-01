@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTransactionEventOutboxMapper
- * @date : 2026-08-26 10:45
- * @email : scott_x@163.com
- * @description : 清分本地事件 Mapper，只负责把完成或重试事件写入当前动作季度 Outbox，不直接调用 RocketMQ。
- * @status : create
+ * 清分本地事件 Mapper，只负责把完成或重试事件写入当前动作季度 Outbox，不直接调用 RocketMQ。
  */
 public interface ClearingTransactionEventOutboxMapper {
 

@@ -1,8 +1,13 @@
 package com.scott.payment.openapi.api.rest.notify.v1;
 
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.id.GlobalIdConstants;
 import com.scott.payment.component.core.model.ApiResult;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackAcknowledgement;
+import com.scott.payment.channel.payment.dto.callback.VerifiedChannelEvent;
+import com.scott.payment.channel.payment.enums.ChannelCallbackScene;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
@@ -10,10 +15,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,13 +36,7 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.ApiResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackController
- * @date : 2026-05-28 10:58
- * @email : scott_x@163.com
- * @description : 渠道回调 HTTP 控制器，位于 商户开放接口服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 渠道公网回调入口，完成协议验签和来源校验后将标准事件写入支付核心 Inbox。
  */
 @RestController
 @RequestMapping("/channel/v1/callbacks")
@@ -86,31 +85,32 @@ public class ChannelCallbackController {
      * @param rawBody 渠道回调原文
      * @return 回调受理结果
      */
-    @PostMapping("/{channelCode}")
-    public Object receive(@PathVariable("channelCode") String channelCode,
-                          HttpServletRequest request,
-                          @RequestBody(required = false) String rawBody) {
+    @RequestMapping("/{channelCode}")
+    public ResponseEntity<?> receive(@PathVariable("channelCode") String channelCode,
+                                     HttpServletRequest request,
+                                     @RequestBody(required = false) byte[] rawBody) {
         long startNanos = System.nanoTime();
-        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerCount: {} bodyLength: {} bodyDigest: {}",
+        log.info("OpenAPI渠道回调接收开始, event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, method: {}, path: {}, sourceIpHash: {}, headerCount: {}, bodyLength: {}, bodyDigest: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 request.getMethod(),
                 request.getRequestURI(),
-                resolveClientIp(request),
+                digest16(resolveClientIp(request)),
                 headerCount(request),
-                utf8Length(rawBody),
+                bodyLength(rawBody),
                 digest16(rawBody));
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
-                callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
-        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, CHANNEL_CALLBACK_TYPE,
+                callbackSecuritySupport.verifyChannelCallback(
+                        channelCode, ChannelCallbackScene.STANDARD, request, rawBody);
+        paymentInternalClient.acceptChannelCallback(buildCallbackRequest(channelCode, CHANNEL_CALLBACK_TYPE,
                 null, request, rawBody, securityResult));
-        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
+        log.info("OpenAPI渠道回调接收完成, event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, signatureValid: {}, ipAllowed: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 securityResult.signatureValid(),
                 securityResult.ipAllowed(),
                 elapsedMillis(startNanos));
-        return callbackAcknowledgement(channelCode, channelCode + " accepted");
+        return callbackAcknowledgement(securityResult.acknowledgement());
     }
 
     /**
@@ -121,44 +121,50 @@ public class ChannelCallbackController {
      * @param rawBody 渠道 3DS 回调原文
      * @return 回调受理结果
      */
-    @PostMapping("/{channelCode}/3ds")
-    public Object receiveThreeDs(@PathVariable("channelCode") String channelCode,
-                                 HttpServletRequest request,
-                                 @RequestBody(required = false) String rawBody) {
+    @RequestMapping("/{channelCode}/3ds")
+    public ResponseEntity<?> receiveThreeDs(@PathVariable("channelCode") String channelCode,
+                                            HttpServletRequest request,
+                                            @RequestBody(required = false) byte[] rawBody) {
         long startNanos = System.nanoTime();
-        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerCount: {} bodyLength: {} bodyDigest: {}",
+        log.info("OpenAPI渠道3DS回调接收开始, event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, method: {}, path: {}, sourceIpHash: {}, headerCount: {}, bodyLength: {}, bodyDigest: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 request.getMethod(),
                 request.getRequestURI(),
-                resolveClientIp(request),
+                digest16(resolveClientIp(request)),
                 headerCount(request),
-                utf8Length(rawBody),
+                bodyLength(rawBody),
                 digest16(rawBody));
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
-                callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
-        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
+                callbackSecuritySupport.verifyChannelCallback(
+                        channelCode, ChannelCallbackScene.THREE_DS, request, rawBody);
+        paymentInternalClient.acceptChannelCallback(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
                 THREE_DS_EVENT_TYPE, request, rawBody, securityResult));
-        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
+        log.info("OpenAPI渠道3DS回调接收完成, event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, signatureValid: {}, ipAllowed: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 securityResult.signatureValid(),
                 securityResult.ipAllowed(),
                 elapsedMillis(startNanos));
-        return callbackAcknowledgement(channelCode, channelCode + " 3ds accepted");
+        return callbackAcknowledgement(securityResult.acknowledgement());
     }
 
     /**
      * 按渠道回调协议生成成功确认正文。
      *
-     * @param channelCode 渠道编码
-     * @param acceptedMessage 历史渠道使用的统一响应消息
-     * @return 纯文本 SUCCESS 或既有统一响应
+     * @param acknowledgement 渠道协议声明的 HTTP 状态、内容类型和响应体
+     * @return 渠道要求的成功响应
      */
-    private Object callbackAcknowledgement(String channelCode, String acceptedMessage) {
-        return callbackSecuritySupport.requiresPlainTextSuccessAcknowledgement(channelCode)
-                ? "SUCCESS"
-                : success(acceptedMessage);
+    private ResponseEntity<?> callbackAcknowledgement(ChannelCallbackAcknowledgement acknowledgement) {
+        Object body = acknowledgement.bodyMode()
+                == ChannelCallbackAcknowledgement.BodyMode.PLATFORM_SUCCESS_ENVELOPE
+                ? success(acknowledgement.body())
+                : acknowledgement.body();
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(acknowledgement.statusCode());
+        if (StringUtils.hasText(acknowledgement.contentType())) {
+            builder.contentType(MediaType.parseMediaType(acknowledgement.contentType()));
+        }
+        return builder.body(body);
     }
 
     /**
@@ -167,20 +173,22 @@ public class ChannelCallbackController {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiResult<Void>> handleCallbackApiException(ApiException exception) {
         HttpStatus status = switch (exception.getCode()) {
-            case "F401" -> HttpStatus.UNAUTHORIZED;
-            case "F502" -> HttpStatus.BAD_GATEWAY;
-            case "F500" -> HttpStatus.INTERNAL_SERVER_ERROR;
-            default -> exception.getCode() != null && exception.getCode().startsWith("F4")
+            case "A2002" -> HttpStatus.UNAUTHORIZED;
+            case "F2000" -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> exception.getCode() != null && exception.getCode().startsWith("A1")
                     ? HttpStatus.BAD_REQUEST : HttpStatus.SERVICE_UNAVAILABLE;
         };
-        return ResponseEntity.status(status).body(ApiResult.fail(exception.getCode(), exception.getMessage()));
+        String safeMessage = OpenApiResultCode.fromCode(exception.getCode())
+                .map(OpenApiResultCode::getMessage)
+                .orElse("Callback processing failed.");
+        return ResponseEntity.status(status).body(ApiResult.fail(exception.getCode(), safeMessage));
     }
 
     /**
      * 组装发送至支付核心的渠道回调记录请求。
      *
-     * <p>请求携带渠道安全校验结论和原始报文，由支付核心负责持久化、幂等处理及后续状态流转；
-     * 本方法不依据 Redis 或回调内容直接确认交易终态。原始报文仅用于受控审计链路，不应写入普通日志。</p>
+     * <p>请求只携带已验证标准事件、受控请求头摘要、原文长度和不可逆摘要，
+     * 由支付核心负责可靠持久化、幂等处理及后续状态流转；原始报文不会跨服务传输或写入 Inbox。</p>
      *
      * @param channelCode     渠道编码
      * @param callbackType    内部回调分类
@@ -195,21 +203,65 @@ public class ChannelCallbackController {
             String callbackType,
             String channelEventType,
             HttpServletRequest request,
-            String rawBody,
+            byte[] rawBody,
             OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult) {
+        VerifiedChannelEvent event = securityResult.event();
         TransactionChannelCallbackClientRequestDTO requestDTO = new TransactionChannelCallbackClientRequestDTO();
         requestDTO.setChannelCode(channelCode);
-        requestDTO.setCallbackType(callbackType);
-        requestDTO.setChannelEventType(channelEventType);
+        requestDTO.setCallbackType(resolveCallbackType(callbackType, event));
+        requestDTO.setChannelEventType(resolveChannelEventType(channelEventType, event));
+        requestDTO.setChannelCredentialHint(event.credentialHint());
+        requestDTO.setCallbackEventId(event.callbackEventId());
+        requestDTO.setCallbackKind(event.callbackKind() == null ? null : event.callbackKind().name());
+        requestDTO.setChannelOrderNo(event.channelOrderNo());
+        requestDTO.setChannelTransactionId(event.channelTransactionId());
+        requestDTO.setRawChannelStatus(event.rawChannelStatus());
+        requestDTO.setChannelTradeStatus(event.channelTradeStatus());
+        requestDTO.setAmount(event.amount());
+        requestDTO.setCurrency(event.currency());
+        requestDTO.setChannelResponseCode(event.channelResponseCode());
+        requestDTO.setChannelResponseMessage(event.channelResponseMessage());
+        requestDTO.setExtension(event.extension());
         requestDTO.setRequestUri(request.getRequestURI());
         requestDTO.setHttpMethod(request.getMethod());
         requestDTO.setSourceIp(resolveClientIp(request));
         requestDTO.setRequestHeaders(headers(request));
-        requestDTO.setRequestBody(rawBody);
+        requestDTO.setRequestBodyLength(bodyLength(rawBody));
+        requestDTO.setRequestBodySha256(sha256(rawBody));
         requestDTO.setSignatureValid(securityResult.signatureValid());
         requestDTO.setIpAllowed(securityResult.ipAllowed());
-        requestDTO.setReceivedTime(LocalDateTime.now());
+        requestDTO.setReceivedTime(LocalDateTime.now(GlobalIdConstants.DEFAULT_ZONE_ID));
         return requestDTO;
+    }
+
+    /**
+     * 根据渠道协议解析出的回调场景确定内部回调分类。
+     *
+     * @param endpointType 当前入口的默认回调分类
+     * @param event 已验签并标准化的渠道事件
+     * @return 财务交易或 3DS 回调分类
+     */
+    private String resolveCallbackType(String endpointType, VerifiedChannelEvent event) {
+        if (event.callbackKind() == null) {
+            return endpointType;
+        }
+        return event.callbackKind() == com.scott.payment.channel.payment.enums.ChannelCallbackKind.THREE_DS_AUTHENTICATION
+                ? THREE_DS_CALLBACK_TYPE : CHANNEL_CALLBACK_TYPE;
+    }
+
+    /**
+     * 为 3DS 事件补充支付核心识别的事件类型，普通财务回调保持为空。
+     *
+     * @param endpointEventType 当前入口的默认事件类型
+     * @param event 已验签并标准化的渠道事件
+     * @return 支付核心渠道事件类型
+     */
+    private String resolveChannelEventType(String endpointEventType, VerifiedChannelEvent event) {
+        if (event.callbackKind() == null) {
+            return endpointEventType;
+        }
+        return event.callbackKind() == com.scott.payment.channel.payment.enums.ChannelCallbackKind.THREE_DS_AUTHENTICATION
+                ? THREE_DS_EVENT_TYPE : null;
     }
 
     /**
@@ -262,8 +314,8 @@ public class ChannelCallbackController {
      * @param value 回调原文
      * @return UTF-8 字节数；空值返回 0
      */
-    private int utf8Length(String value) {
-        return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
+    private int bodyLength(byte[] value) {
+        return value == null ? 0 : value.length;
     }
 
     /**
@@ -351,10 +403,52 @@ public class ChannelCallbackController {
         }
     }
 
+    /**
+     * 计算回调原始字节的 SHA-256 短摘要，用于日志关联。
+     *
+     * @param value 回调原始字节
+     * @return 16 位十六进制摘要；空报文返回 {@code null}
+     */
+    private String digest16(byte[] value) {
+        if (value == null || value.length == 0) {
+            return null;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value);
+            return HexFormat.of().formatHex(digest).substring(0, 16);
+        } catch (NoSuchAlgorithmException exception) {
+            return "sha256_unavailable";
+        }
+    }
+
+    /**
+     * 计算回调原始字节的完整 SHA-256，跨服务仅传递该不可逆摘要。
+     */
+    private String sha256(byte[] value) {
+        byte[] bytes = value == null ? new byte[0] : value;
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
+        }
+    }
+
+    /**
+     * 通过统一可信代理策略解析渠道回调来源 IP。
+     *
+     * @param request 渠道回调 HTTP 请求
+     * @return 可信网关来源 IP 或直连地址
+     */
     private String resolveClientIp(HttpServletRequest request) {
         return callbackSecuritySupport.resolveClientIp(request);
     }
 
+    /**
+     * 使用单调时钟计算渠道回调处理耗时。
+     *
+     * @param startNanos 入口记录的单调时钟纳秒值
+     * @return 非负毫秒耗时
+     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }

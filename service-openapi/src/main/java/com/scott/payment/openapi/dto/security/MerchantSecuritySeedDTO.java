@@ -4,13 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecuritySeedDTO
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 商户安全材料初始化入参
- * @status : create
+ * OpenAPI 商户安全材料初始化入参
  */
 @Data
 @NoArgsConstructor

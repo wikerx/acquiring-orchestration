@@ -36,32 +36,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminHolidayCalendarServiceImpl
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 结算节假日日历实现，以数据库为事实源并缓存只读月视图。
- * @status : create
+ * 结算节假日日历实现，以数据库为事实源并缓存只读月视图。
  */
 @Service
 public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarService {
 
-    /**
-     * {@code REGION_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String REGION_CODE = "CN_MAINLAND";
-    /**
-     * 时间时区常量，统一 {@code AdminHolidayCalendarServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String TIME_ZONE = "Asia/Shanghai";
 
     private final SettlementCalendarYearMapper yearMapper;
@@ -87,7 +67,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         this.cachePolicy = cachePolicy;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询指定月份的工作日配置，并按月份策略使用缓存。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Cacheable(cacheNames = PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH,
@@ -113,7 +95,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return response;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按周末规则初始化全年日历，已存在的数据保持幂等。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -159,7 +143,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return toYear(calendarYear);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 批量保存指定月份的工作日和节假日标记，并刷新月份缓存。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -222,7 +208,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return uncachedMonth(firstDate.getYear(), firstDate.getMonthValue());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 确认全年日历已完整配置，使其可供结算调度使用。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -249,7 +237,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return toYear(calendarYear);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 判断指定日期是否为已配置的工作日。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public boolean isWorkingDay(LocalDate date) {
@@ -267,6 +257,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return "WORKDAY".equals(day.getDayType());
     }
 
+    /**
+     * 从数据库读取未命中缓存的月度日历。
+     */
     private CalendarMonthResponse uncachedMonth(int year, int month) {
         CalendarYearDO calendarYear = findYear(year);
         CalendarMonthResponse response = new CalendarMonthResponse();
@@ -282,19 +275,25 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return response;
     }
 
-    /** 登记指定年度全部月视图的可靠失效。 */
+    /**
+     * 登记指定年度全部月视图的可靠失效。
+     */
     private void invalidateYear(int year) {
         for (int month = 1; month <= 12; month++) {
             invalidateMonth(YearMonth.of(year, month));
         }
     }
 
-    /** 按顺序登记批量维护涉及月视图的可靠失效。 */
+    /**
+     * 按顺序登记批量维护涉及月视图的可靠失效。
+     */
     private void invalidateMonths(Set<YearMonth> months) {
         months.forEach(this::invalidateMonth);
     }
 
-    /** 在当前数据库事务内登记单个月视图的精确失效意图。 */
+    /**
+     * 在当前数据库事务内登记单个月视图的精确失效意图。
+     */
     private void invalidateMonth(YearMonth month) {
         cacheInvalidationCoordinator.prepare(
                 PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH,
@@ -302,6 +301,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         );
     }
 
+    /**
+     * 查询指定年份的日历配置记录。
+     */
     private CalendarYearDO findYear(int year) {
         return yearMapper.selectOne(Wrappers.<CalendarYearDO>lambdaQuery()
                 .eq(CalendarYearDO::getCalendarYear, year)
@@ -309,6 +311,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 将年度日历实体转换为管理端年度响应。
+     */
     private CalendarYearResponse toYear(CalendarYearDO row) {
         if (row == null) return null;
         CalendarYearResponse response = new CalendarYearResponse();
@@ -327,6 +332,9 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return response;
     }
 
+    /**
+     * 将单日历法实体转换为管理端日期响应。
+     */
     private CalendarDayResponse toDay(CalendarDayDO row) {
         CalendarDayResponse response = new CalendarDayResponse();
         response.setId(row.getId());
@@ -343,23 +351,38 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         return response;
     }
 
+    /**
+     * 判断日期是否为周末。
+     */
     private boolean isWeekend(LocalDate date) {
         return date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
     }
 
+    /**
+     * 校验日历年份和月份范围。
+     */
     private void validateYearMonth(int year, int month) {
         validateYear(year);
         if (month < 1 || month > 12) throw invalid("月份必须在 1 至 12 之间");
     }
 
+    /**
+     * 校验日历年份是否在系统支持范围内。
+     */
     private void validateYear(int year) {
         if (year < 2000 || year > 2100) throw invalid("年份必须在 2000 至 2100 之间");
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 构建参数校验异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

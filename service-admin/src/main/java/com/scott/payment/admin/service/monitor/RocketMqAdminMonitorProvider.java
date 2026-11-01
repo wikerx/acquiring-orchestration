@@ -22,36 +22,48 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqAdminMonitorProvider
- * @date : 2026-09-14 11:24
- * @email : scott_x@163.com
- * @description : service-admin RocketMQ 只读监控提供器，负责 Admin 客户端按需连接、脱敏探测和关闭。
- * @status : create
+ * service-admin RocketMQ 只读监控提供器，负责 Admin 客户端按需连接、脱敏探测和关闭。
  */
 @Component
 public class RocketMqAdminMonitorProvider implements DisposableBean {
 
-    /** 未启用 RocketMQ Admin 监控或缺少必要配置。 */
+    /**
+     * 未启用 RocketMQ Admin 监控或缺少必要配置。
+     */
     public static final String STATUS_NOT_CONFIGURED = "NOT_CONFIGURED";
-    /** RocketMQ Admin 连接和只读查询可用。 */
+    /**
+     * RocketMQ Admin 连接和只读查询可用。
+     */
     public static final String STATUS_AVAILABLE = "AVAILABLE";
-    /** 已启用但连接、鉴权或查询失败。 */
+    /**
+     * 已启用但连接、鉴权或查询失败。
+     */
     public static final String STATUS_UNAVAILABLE = "UNAVAILABLE";
 
-    /** RocketMQ Starter 配置；NameServer 和客户端基础选项从此读取。 */
+    /**
+     * RocketMQ Starter 配置；NameServer 和客户端基础选项从此读取。
+     */
     private final RocketMQProperties rocketMqProperties;
-    /** 管理端 RocketMQ Admin 专用监控配置。 */
+    /**
+     * 管理端 RocketMQ Admin 专用监控配置。
+     */
     private final AdminRocketMqMonitorProperties monitorProperties;
-    /** Admin 客户端构造工厂，生产环境使用 SDK 构造器，测试可替换。 */
+    /**
+     * Admin 客户端构造工厂，生产环境使用 SDK 构造器，测试可替换。
+     */
     private final AdminClientFactory clientFactory;
-    /** Admin 客户端创建、查询和关闭的进程内互斥锁。 */
+    /**
+     * Admin 客户端创建、查询和关闭的进程内互斥锁。
+     */
     private final Object clientMonitor = new Object();
 
-    /** 当前已启动的 RocketMQ Admin 客户端；未连接时为空。 */
+    /**
+     * 当前已启动的 RocketMQ Admin 客户端；未连接时为空。
+     */
     private DefaultMQAdminExt adminClient;
-    /** 当前客户端绑定的 NameServer 地址；未连接时为空且不得写入响应。 */
+    /**
+     * 当前客户端绑定的 NameServer 地址；未连接时为空且不得写入响应。
+     */
     private String connectedNameServer;
 
     /**
@@ -67,6 +79,9 @@ public class RocketMqAdminMonitorProvider implements DisposableBean {
                 monitorProperties, RocketMqAdminMonitorProvider::newAdminClient);
     }
 
+    /**
+     * 创建 RocketMQ 管理端监控数据提供器。
+     */
     RocketMqAdminMonitorProvider(RocketMQProperties rocketMqProperties,
                                  AdminRocketMqMonitorProperties monitorProperties,
                                  AdminClientFactory clientFactory) {
@@ -160,11 +175,13 @@ public class RocketMqAdminMonitorProvider implements DisposableBean {
      * @param client 尚未启动的 Admin 客户端，不允许为空
      * @throws IllegalArgumentException access-channel 不是 SDK 支持值时抛出，由快照入口统一降级
      */
+    @SuppressWarnings("deprecation")
     private void applyStarterClientOptions(DefaultMQAdminExt client) {
         RocketMQProperties.Producer producer = rocketMqProperties.getProducer();
         if (producer != null) {
             client.setUseTLS(producer.isTlsEnable());
             if (StringUtils.hasText(producer.getNamespace())) {
+                // RocketMQ 的旧 namespace 与 namespaceV2 语义不同，兼容已有 Starter 配置时必须调用旧 API。
                 client.setNamespace(producer.getNamespace().trim());
             } else if (StringUtils.hasText(producer.getNamespaceV2())) {
                 client.setNamespaceV2(producer.getNamespaceV2().trim());
@@ -193,7 +210,9 @@ public class RocketMqAdminMonitorProvider implements DisposableBean {
                 : new Credentials(trimToNull(producer.getAccessKey()), trimToNull(producer.getSecretKey()));
     }
 
-    /** 关闭当前 Admin 客户端并清除连接身份；方法允许重复调用。 */
+    /**
+     * 关闭当前 Admin 客户端并清除连接身份；方法允许重复调用。
+     */
     private void shutdownClient() {
         if (adminClient != null) {
             adminClient.shutdown();
@@ -316,7 +335,9 @@ public class RocketMqAdminMonitorProvider implements DisposableBean {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    /** 创建已配置但尚未启动的 RocketMQ Admin 客户端，便于隔离 SDK 构造和单元测试。 */
+    /**
+     * 创建已配置但尚未启动的 RocketMQ Admin 客户端，便于隔离 SDK 构造和单元测试。
+     */
     @FunctionalInterface
     interface AdminClientFactory {
 
@@ -333,11 +354,15 @@ public class RocketMqAdminMonitorProvider implements DisposableBean {
                                  String secretKey);
     }
 
-    /** Admin ACL 凭据对，仅在客户端创建期间使用。 */
+    /**
+     * Admin ACL 凭据对，仅在客户端创建期间使用。
+     */
     private record Credentials(String accessKey, String secretKey) {
     }
 
-    /** RocketMQ 集群和 Broker 路由表摘要。 */
+    /**
+     * RocketMQ 集群和 Broker 路由表摘要。
+     */
     private record ClusterSummary(String clusterName,
                                   int clusterCount,
                                   int brokerCount,

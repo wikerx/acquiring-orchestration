@@ -4,13 +4,7 @@ import java.time.Duration;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisSetService
- * @date : 2026-05-31 22:00
- * @email : scott_x@163.com
- * @description : Redis Set 数据结构服务
- * @status : create
+ * Redis Set 数据结构服务
  */
 public interface RedisSetService {
 

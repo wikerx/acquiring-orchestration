@@ -40,13 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantRuntimeProfileCacheServiceTests
- * @date : 2026-07-30 21:50
- * @email : scott_x@163.com
- * @description : 商户运行时正缓存、独立 miss marker、失效门禁与有界主库回源行为测试
- * @status : create
+ * 商户运行时正缓存、独立 miss marker、失效门禁与有界主库回源行为测试
  */
 @Slf4j
 class DefaultMerchantRuntimeProfileCacheServiceTests {

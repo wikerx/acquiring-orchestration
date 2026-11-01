@@ -18,13 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelRegistryTests
- * @date : 2026-07-12 22:43
- * @email : scott_x@163.com
- * @description : Payment Channel Registry Tests 自动化测试类，位于 渠道适配库，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
+ * Payment Channel Registry Tests 自动化测试类，位于 渠道适配库，验证当前模块的正常路径、异常边界和回归场景。
  */
 @Slf4j
 class PaymentChannelRegistryTests {

@@ -24,13 +24,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GlobalExceptionHandlerTest
- * @date : 2026-06-03 23:04
- * @email : scott_x@163.com
- * @description : 全局异常处理器测试
- * @status : create
+ * 全局异常处理器测试
  */
 class GlobalExceptionHandlerTest {
 
@@ -48,7 +42,9 @@ class GlobalExceptionHandlerTest {
                 .isEqualTo("Too many requests. Please retry later.");
     }
 
-    /** 所有 F500 异常都只向商户返回统一繁忙提示，不暴露内部失败详情。 */
+    /**
+     * 所有 F500 异常都只向商户返回统一繁忙提示，不暴露内部失败详情。
+     */
     @Test
     void shouldReturnStandardMerchantMessageForAllF500Exceptions() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
@@ -73,7 +69,9 @@ class GlobalExceptionHandlerTest {
         }
     }
 
-    /** ShardingSphere 包装路由异常后，Web 边界仍应返回明确的季度数据不可用错误。 */
+    /**
+     * ShardingSphere 包装路由异常后，Web 边界仍应返回明确的季度数据不可用错误。
+     */
     @Test
     void shouldReturnTransactionDataUnavailableForWrappedMissingNodeFailure() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
@@ -86,7 +84,9 @@ class GlobalExceptionHandlerTest {
         assertThat(result.getMessage()).isEqualTo(ApiResultEnum.TRANSACTION_DATA_UNAVAILABLE.getMessage());
     }
 
-    /** 普通未捕获异常仍由 F500 兜底，避免错误扩大为所有数据库故障。 */
+    /**
+     * 普通未捕获异常仍由 F500 兜底，避免错误扩大为所有数据库故障。
+     */
     @Test
     void shouldKeepGenericFailureForUnrelatedException() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
@@ -133,7 +133,9 @@ class GlobalExceptionHandlerTest {
         assertThat(result.getMessage()).isEqualTo(ApiResultEnum.NOT_FOUND.getMessage());
     }
 
-    /** 参数校验失败时只返回字段名和约束文案，不能暴露 rejected value。 */
+    /**
+     * 参数校验失败时只返回字段名和约束文案，不能暴露 rejected value。
+     */
     @Test
     void shouldNotExposeRejectedValueForMethodArgumentValidation() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
@@ -149,7 +151,9 @@ class GlobalExceptionHandlerTest {
         assertThat(result.getMessage()).doesNotContain(sensitiveValue);
     }
 
-    /** 请求正文无法解析时统一返回格式错误，日志与响应都不能包含原始 JSON 片段。 */
+    /**
+     * 请求正文无法解析时统一返回格式错误，日志与响应都不能包含原始 JSON 片段。
+     */
     @Test
     void shouldNotExposeUnreadableRequestBodyInResponseOrLog() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();

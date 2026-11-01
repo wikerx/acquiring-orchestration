@@ -12,13 +12,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : S3ObjectStorageService
- * @date : 2026-09-21 09:40
- * @email : scott_x@163.com
- * @description : 商户端 S3 协议对象存储实现，不向业务层暴露供应商差异
- * @status : create
+ * 商户资料 S3 协议对象存储实现，不向业务层暴露供应商差异。
  */
 @Service
 @ConditionalOnProperty(prefix = "acquiring.object-storage", name = "enabled", havingValue = "true")
@@ -27,13 +21,17 @@ public class S3ObjectStorageService implements ObjectStorageService {
     private final S3Client s3Client;
     private final ObjectStorageProperties properties;
 
-    /** 创建 S3 对象存储实现。 */
+    /**
+     * 创建 S3 对象存储实现。
+     */
     public S3ObjectStorageService(S3Client s3Client, ObjectStorageProperties properties) {
         this.s3Client = s3Client;
         this.properties = properties;
     }
 
-    /** 写入私有对象。 */
+    /**
+     * 写入私有对象。
+     */
     @Override
     public void put(String objectKey, String contentType, byte[] content) {
         try {
@@ -48,7 +46,9 @@ public class S3ObjectStorageService implements ObjectStorageService {
         }
     }
 
-    /** 读取私有对象。 */
+    /**
+     * 读取私有对象。
+     */
     @Override
     public byte[] get(String objectKey) {
         try {
@@ -59,7 +59,9 @@ public class S3ObjectStorageService implements ObjectStorageService {
         }
     }
 
-    /** 删除私有对象。 */
+    /**
+     * 删除私有对象。
+     */
     @Override
     public void delete(String objectKey) {
         try {
@@ -70,6 +72,9 @@ public class S3ObjectStorageService implements ObjectStorageService {
         }
     }
 
+    /**
+     * 将对象存储异常转换为不暴露基础设施细节的业务异常。
+     */
     private ServiceException storageFailure(String message, S3Exception exception) {
         return new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(),
                 message + "，对象存储返回状态：" + exception.statusCode());

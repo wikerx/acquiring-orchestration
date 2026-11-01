@@ -19,6 +19,9 @@ import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
+import com.scott.payment.merchant.config.MerchantDefaultLoginCredentialProperties;
 import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,13 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAuthApplicationServiceTest
- * @date : 2026-06-19 19:12
- * @email : scott_x@163.com
- * @description : 商户auth应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户auth应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @ExtendWith(MockitoExtension.class)
 class MerchantAuthApplicationServiceTest {
@@ -65,15 +62,18 @@ class MerchantAuthApplicationServiceTest {
     private HttpServletRequest servletRequest;
 
     private MerchantAuthApplicationService merchantAuthApplicationService;
+    private MerchantDefaultLoginCredentialProperties defaultLoginProperties;
 
     @BeforeEach
     void setUp() {
+        defaultLoginProperties = new MerchantDefaultLoginCredentialProperties();
         merchantAuthApplicationService = new MerchantAuthApplicationService(
                 systemAuthService,
                 sysAppMapper,
                 sysAccountMapper,
                 sysMerchantUserMapper,
-                environment
+                environment,
+                defaultLoginProperties
         );
     }
 
@@ -90,10 +90,12 @@ class MerchantAuthApplicationServiceTest {
     }
 
     @Test
-    void shouldUseForwardedIpWhenSendingVerifyCode() {
+    void shouldUseAuthenticatedGatewayClientIpWhenSendingVerifyCode() {
         AuthVerifyCodeSendRequest request = new AuthVerifyCodeSendRequest();
         AuthVerifyCodeSendResponse expected = new AuthVerifyCodeSendResponse();
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn("1.1.1.1, 2.2.2.2");
+        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("1.1.1.1");
+        when(servletRequest.getAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE))
+                .thenReturn(Boolean.TRUE);
         when(systemAuthService.sendLoginVerifyCode(AuthConstants.APP_MERCHANT, request, "1.1.1.1"))
                 .thenReturn(expected);
 
@@ -107,7 +109,6 @@ class MerchantAuthApplicationServiceTest {
     void shouldUseRemoteAddressAndUserAgentWhenLoggingIn() {
         AuthLoginRequest request = new AuthLoginRequest();
         AuthLoginResponse expected = new AuthLoginResponse();
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn(null);
         when(servletRequest.getRemoteAddr()).thenReturn("127.0.0.1");
         when(servletRequest.getHeader("User-Agent")).thenReturn("merchant-browser");
         when(systemAuthService.login(AuthConstants.APP_MERCHANT, request, "127.0.0.1", "merchant-browser"))
@@ -134,7 +135,9 @@ class MerchantAuthApplicationServiceTest {
     void shouldDelegateMfaBindConfirmToMerchantApp() {
         AuthMfaBindConfirmRequest request = new AuthMfaBindConfirmRequest();
         AuthLoginResponse expected = new AuthLoginResponse();
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn("8.8.8.8");
+        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("8.8.8.8");
+        when(servletRequest.getAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE))
+                .thenReturn(Boolean.TRUE);
         when(servletRequest.getHeader("User-Agent")).thenReturn("merchant-browser");
         when(systemAuthService.mfaBindConfirm(AuthConstants.APP_MERCHANT, request, "8.8.8.8", "merchant-browser"))
                 .thenReturn(expected);
@@ -149,7 +152,6 @@ class MerchantAuthApplicationServiceTest {
     void shouldDelegateMfaVerifyToMerchantApp() {
         AuthMfaVerifyRequest request = new AuthMfaVerifyRequest();
         AuthLoginResponse expected = new AuthLoginResponse();
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn(null);
         when(servletRequest.getRemoteAddr()).thenReturn("127.0.0.2");
         when(servletRequest.getHeader("User-Agent")).thenReturn("merchant-browser");
         when(systemAuthService.mfaVerify(AuthConstants.APP_MERCHANT, request, "127.0.0.2", "merchant-browser"))
@@ -163,6 +165,8 @@ class MerchantAuthApplicationServiceTest {
 
     @Test
     void shouldReturnDefaultLoginCredentialFromSeedAccount() {
+        defaultLoginProperties.setEnabled(true);
+        defaultLoginProperties.setPassword("configured-local-password");
         SysAppDO app = new SysAppDO();
         app.setId(2L);
         SysMerchantUserDO merchantUser = new SysMerchantUserDO();
@@ -184,13 +188,24 @@ class MerchantAuthApplicationServiceTest {
 
         assertThat(actual.getMerchantId()).isEqualTo("200045");
         assertThat(actual.getLoginAccount()).isEqualTo("admin");
-        assertThat(actual.getPassword()).isEqualTo("Merchant@123456");
+        assertThat(actual.getPassword()).isEqualTo("configured-local-password");
     }
 
     @Test
     void shouldHideDefaultLoginCredentialOutsideLocalProfiles() {
+        defaultLoginProperties.setEnabled(true);
+        defaultLoginProperties.setPassword("configured-local-password");
         when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(false);
 
+        MerchantDefaultLoginCredentialDTO actual = merchantAuthApplicationService.defaultLoginCredential();
+
+        assertThat(actual.getMerchantId()).isNull();
+        assertThat(actual.getLoginAccount()).isNull();
+        assertThat(actual.getPassword()).isNull();
+    }
+
+    @Test
+    void shouldHideDefaultLoginCredentialWhenFeatureIsDisabled() {
         MerchantDefaultLoginCredentialDTO actual = merchantAuthApplicationService.defaultLoginCredential();
 
         assertThat(actual.getMerchantId()).isNull();

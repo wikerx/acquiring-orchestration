@@ -19,23 +19,13 @@ import com.scott.payment.channel.payment.registry.PaymentChannelRegistry;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelExecutor
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道执行器，位于 payment-channel-core 执行层，用于按交易类型分发到对应渠道能力，禁止 service-payment 直接依赖具体渠道实现。
- * @status : create
+ * 收单渠道执行器，位于 payment-channel-core 执行层，用于按交易类型分发到对应渠道能力，禁止 service-payment 直接依赖具体渠道实现。
  */
 @Component
 public class PaymentChannelExecutor {
 
     /**
-     * 渠道注册表字段，保存 支付渠道执行器 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 已注册收单渠道客户端的只读索引。
      */
     private final PaymentChannelRegistry channelRegistry;
 
@@ -123,6 +113,14 @@ public class PaymentChannelExecutor {
         return client.supportsQueryReference(queryRequest);
     }
 
+    /**
+     * 将统一渠道请求复制为具体交易能力请求，保持持久化渠道身份和扩展字段不变。
+     *
+     * @param source 原统一请求
+     * @param target 具体能力请求实例
+     * @param <T>    具体请求类型
+     * @return 填充后的具体能力请求
+     */
     private <T extends ChannelPaymentRequest> T copy(ChannelPaymentRequest source, T target) {
         target.setChannelCode(source.getChannelCode());
         target.setOperationId(source.getOperationId());

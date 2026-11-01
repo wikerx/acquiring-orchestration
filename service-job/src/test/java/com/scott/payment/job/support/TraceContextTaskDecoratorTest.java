@@ -10,13 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TraceContextTaskDecoratorTest
- * @date : 2026-07-26 00:00
- * @email : scott_x@163.com
- * @description : TraceContextTaskDecorator 自动化测试，验证任务线程执行时恢复 traceId 并在执行结束后还原原线程上下文。
- * @status : create
+ * TraceContextTaskDecorator 自动化测试，验证任务线程执行时恢复 traceId 并在执行结束后还原原线程上下文。
  */
 class TraceContextTaskDecoratorTest {
 

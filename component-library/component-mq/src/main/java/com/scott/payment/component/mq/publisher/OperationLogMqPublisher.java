@@ -15,13 +15,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogMqPublisher
- * @date : 2026-06-20 01:36
- * @email : scott_x@163.com
- * @description : 基于 RocketMQ 的管理类系统操作日志发布器
- * @status : create
+ * 基于 RocketMQ 的管理类系统操作日志发布器
  *
  * <p>该发布器只负责把组件层采集好的日志记录转换为 MQ 消息并发送，
  * 不承担业务落库和消费幂等判断职责。</p>
@@ -88,7 +82,8 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
         }
         OperationLogMessage message = buildMessage(record);
         mqPublisher.publish(resolveTopic(), null, message);
-        log.info("操作日志消息已进入可靠投递队列，systemCode：{}，topic：{}，messageId：{}，requestId：{}",
+        log.info("操作日志消息已进入可靠投递队列, event: OPERATION_LOG_MQ_QUEUED, "
+                        + "systemCode: {}, topic: {}, messageId: {}, requestId: {}",
                 systemCode.name(),
                 resolveTopic(),
                 message.getMessageId(),

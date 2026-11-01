@@ -35,22 +35,39 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileChangeRequestService
- * @date : 2026-09-20 12:00
- * @email : scott_x@163.com
- * @description : 商户资料变更申请领域服务，确保待审核快照与正式商户主档隔离
- * @status : create
+ * 商户资料变更申请领域服务，确保待审核快照与正式商户主档隔离。
  */
 @Service
 public class MerchantProfileChangeRequestService {
 
+    /**
+     * 商户资料变更申请尚未提交的草稿状态。
+     */
     public static final String STATUS_DRAFT = "DRAFT";
+
+    /**
+     * 商户资料变更申请等待管理端审核的状态。
+     */
     public static final String STATUS_PENDING_REVIEW = "PENDING_REVIEW";
+
+    /**
+     * 商户资料变更申请需要补充材料的状态。
+     */
     public static final String STATUS_SUPPLEMENT_REQUIRED = "SUPPLEMENT_REQUIRED";
+
+    /**
+     * 商户资料变更申请审核通过的终态。
+     */
     public static final String STATUS_APPROVED = "APPROVED";
+
+    /**
+     * 商户资料变更申请审核拒绝的终态。
+     */
     public static final String STATUS_REJECTED = "REJECTED";
+
+    /**
+     * 商户主动撤回资料变更申请的终态。
+     */
     public static final String STATUS_WITHDRAWN = "WITHDRAWN";
 
     private static final int ACTIVE = 1;
@@ -68,7 +85,9 @@ public class MerchantProfileChangeRequestService {
     private final MerchantProfilePayloadCrypto payloadCrypto;
     private final ObjectMapper objectMapper;
 
-    /** 创建商户资料变更申请领域服务。 */
+    /**
+     * 创建商户资料变更申请领域服务。
+     */
     public MerchantProfileChangeRequestService(MerchantProfileChangeRequestMapper requestMapper,
                                                MerchantProfileReviewRecordMapper reviewRecordMapper,
                                                MerchantDocumentMapper documentMapper,
@@ -83,7 +102,9 @@ public class MerchantProfileChangeRequestService {
         this.objectMapper = objectMapper;
     }
 
-    /** 将草稿或已补件申请提交管理端审核，使用状态和版本条件阻止重复提交。 */
+    /**
+     * 将草稿或已补件申请提交管理端审核，使用状态和版本条件阻止重复提交。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public MerchantProfileChangeDTOs.ChangeRequest submit(
@@ -122,7 +143,9 @@ public class MerchantProfileChangeRequestService {
         return toResponse(row, readProposed(row), readChangedFields(row));
     }
 
-    /** 撤回尚未完成审核的申请并释放活动申请唯一占位。 */
+    /**
+     * 撤回尚未完成审核的申请并释放活动申请唯一占位。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public MerchantProfileChangeDTOs.ChangeRequest withdraw(String merchantId, String requestNo) {
@@ -155,7 +178,9 @@ public class MerchantProfileChangeRequestService {
         return toResponse(row, readProposed(row), readChangedFields(row));
     }
 
-    /** 保存当前认证商户的资料变更草稿，不修改正式商户主档。 */
+    /**
+     * 保存当前认证商户的资料变更草稿，不修改正式商户主档。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public MerchantProfileChangeDTOs.ChangeRequest saveDraft(
@@ -218,7 +243,9 @@ public class MerchantProfileChangeRequestService {
         return toResponse(existing, proposed, changedFields);
     }
 
-    /** 查询商户资料工作区，敏感证件号只返回脱敏值。 */
+    /**
+     * 查询商户资料工作区，敏感证件号只返回脱敏值。
+     */
     @DS(DataSourceName.MASTER)
     public MerchantProfileChangeDTOs.Workspace getWorkspace(String merchantId) {
         MerchantProfileChangeDTOs.Workspace workspace = new MerchantProfileChangeDTOs.Workspace();
@@ -249,7 +276,9 @@ public class MerchantProfileChangeRequestService {
         return workspace;
     }
 
-    /** 查询当前商户指定申请详情，不允许跨商户读取。 */
+    /**
+     * 查询当前商户指定申请详情，不允许跨商户读取。
+     */
     @DS(DataSourceName.MASTER)
     public MerchantProfileChangeDTOs.ChangeRequest getRequest(String merchantId, String requestNo) {
         MerchantProfileChangeRequestDO row = requestMapper.selectOne(
@@ -264,7 +293,9 @@ public class MerchantProfileChangeRequestService {
         return toResponse(row, readProposed(row), readChangedFields(row));
     }
 
-    /** 查询商户当前尚未进入终态的资料变更申请。 */
+    /**
+     * 查询商户当前尚未进入终态的资料变更申请。
+     */
     public MerchantProfileChangeRequestDO findActive(String merchantId) {
         return requestMapper.selectOne(Wrappers.<MerchantProfileChangeRequestDO>lambdaQuery()
                 .eq(MerchantProfileChangeRequestDO::getMerchantId, merchantId)
@@ -273,7 +304,9 @@ public class MerchantProfileChangeRequestService {
                 .last("LIMIT 1"));
     }
 
-    /** 查询并校验活动申请归属于当前认证商户。 */
+    /**
+     * 查询并校验活动申请归属于当前认证商户。
+     */
     private MerchantProfileChangeRequestDO requireActive(String merchantId, String requestNo) {
         MerchantProfileChangeRequestDO row = findActive(merchantId);
         if (row == null || requestNo == null || !requestNo.equals(row.getRequestNo())) {
@@ -282,7 +315,9 @@ public class MerchantProfileChangeRequestService {
         return row;
     }
 
-    /** 计算两个资料快照之间发生变化的稳定字段编码。 */
+    /**
+     * 计算两个资料快照之间发生变化的稳定字段编码。
+     */
     private List<String> changedFields(MerchantProfileChangeDTOs.ProfileSnapshot current,
                                        MerchantProfileChangeDTOs.ProfileSnapshot proposed) {
         ObjectNode currentNode = objectMapper.valueToTree(current);
@@ -299,7 +334,9 @@ public class MerchantProfileChangeRequestService {
         return changed;
     }
 
-    /** 将申请实体转换为不暴露密文的商户响应。 */
+    /**
+     * 将申请实体转换为不暴露密文的商户响应。
+     */
     private MerchantProfileChangeDTOs.ChangeRequest toResponse(
             MerchantProfileChangeRequestDO row,
             MerchantProfileChangeDTOs.ProfileSnapshot proposed,
@@ -319,7 +356,9 @@ public class MerchantProfileChangeRequestService {
         return response;
     }
 
-    /** 解密申请中的拟变更快照；任何解析失败均不返回密文或原始正文。 */
+    /**
+     * 解密申请中的拟变更快照；任何解析失败均不返回密文或原始正文。
+     */
     private MerchantProfileChangeDTOs.ProfileSnapshot readProposed(MerchantProfileChangeRequestDO row) {
         try {
             String json = payloadCrypto.decrypt(row.getRequestNo(), row.getProposedSnapshotCipher());
@@ -330,7 +369,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
-    /** 解析稳定字段编码列表。 */
+    /**
+     * 解析稳定字段编码列表。
+     */
     private List<String> readChangedFields(MerchantProfileChangeRequestDO row) {
         try {
             return objectMapper.readerForListOf(String.class).readValue(row.getChangedFieldsJson());
@@ -340,7 +381,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
-    /** 校验正式提交所需企业、经营、网站、相关人员和资料完整性。 */
+    /**
+     * 校验正式提交所需企业、经营、网站、相关人员和资料完整性。
+     */
     private void validateForSubmission(MerchantProfileChangeRequestDO row,
                                        MerchantProfileChangeDTOs.ProfileSnapshot profile) {
         List<String> issues = completenessIssues(
@@ -350,6 +393,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 收集商户资料快照缺失的必填业务项。
+     */
     private List<String> completenessIssues(MerchantProfileChangeDTOs.ProfileSnapshot profile,
                                             List<MerchantProfileChangeDTOs.Document> documents,
                                             String activeRequestNo) {
@@ -390,6 +436,9 @@ public class MerchantProfileChangeRequestService {
         return issues;
     }
 
+    /**
+     * 校验商户人员列表的角色、持股比例和身份完整性。
+     */
     private void validatePersons(List<String> issues, MerchantProfileChangeDTOs.ProfileSnapshot profile) {
         List<MerchantProfileChangeDTOs.RelatedPerson> persons = profile.getRelatedPersons() == null
                 ? List.of() : profile.getRelatedPersons();
@@ -410,11 +459,17 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 判断账号是否持有指定角色。
+     */
     private boolean hasRole(MerchantProfileChangeDTOs.RelatedPerson person, String role) {
         return person != null && person.getPersonRoles() != null
                 && person.getPersonRoles().stream().anyMatch(role::equalsIgnoreCase);
     }
 
+    /**
+     * 校验商户资料文件均属于当前申请且状态可提交。
+     */
     private void validateDocuments(List<String> issues,
                                    List<MerchantProfileChangeDTOs.Document> documents,
                                    String activeRequestNo) {
@@ -437,6 +492,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 查询商户当前有效的资料文件，并按上传时间倒序返回。
+     */
     private List<MerchantProfileChangeDTOs.Document> loadDocuments(String merchantId) {
         return documentMapper.selectList(Wrappers.<MerchantDocumentDO>lambdaQuery()
                         .eq(MerchantDocumentDO::getBizType, DOCUMENT_BIZ_TYPE)
@@ -446,6 +504,9 @@ public class MerchantProfileChangeRequestService {
                 .stream().map(this::toDocument).toList();
     }
 
+    /**
+     * 将资料文件实体转换为变更申请中的文件信息。
+     */
     private MerchantProfileChangeDTOs.Document toDocument(MerchantDocumentDO row) {
         MerchantProfileChangeDTOs.Document response = new MerchantProfileChangeDTOs.Document();
         response.setId(row.getId());
@@ -460,6 +521,9 @@ public class MerchantProfileChangeRequestService {
         return response;
     }
 
+    /**
+     * 清理不可信文本，避免控制字符进入日志或导出文件。
+     */
     private MerchantProfileChangeDTOs.ProfileSnapshot sanitize(
             MerchantProfileChangeDTOs.ProfileSnapshot source) {
         if (source == null) return null;
@@ -476,7 +540,9 @@ public class MerchantProfileChangeRequestService {
         return copy;
     }
 
-    /** 草稿重存时保留同一申请内已加密的新证件号，避免脱敏响应覆盖原值。 */
+    /**
+     * 草稿重存时保留同一申请内已加密的新证件号，避免脱敏响应覆盖原值。
+     */
     private void preserveSensitivePersonValues(
             MerchantProfileChangeDTOs.ProfileSnapshot previous,
             MerchantProfileChangeDTOs.ProfileSnapshot proposed) {
@@ -497,6 +563,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 判断两个人员快照是否指向同一业务身份。
+     */
     private boolean samePerson(MerchantProfileChangeDTOs.RelatedPerson previous,
                                MerchantProfileChangeDTOs.RelatedPerson proposed) {
         if (previous == null) {
@@ -514,11 +583,16 @@ public class MerchantProfileChangeRequestService {
                 && Objects.equals(upper(previous.getIdType()), upper(proposed.getIdType()));
     }
 
+    /**
+     * 校验必填文本并返回去除首尾空白后的值。
+     */
     private void required(List<String> issues, String value, String code) {
         if (!StringUtils.hasText(value)) issues.add(code);
     }
 
-    /** 追加资料变更审核轨迹；历史记录只新增不覆盖。 */
+    /**
+     * 追加资料变更审核轨迹；历史记录只新增不覆盖。
+     */
     private void appendReviewRecord(MerchantProfileChangeRequestDO request,
                                     String action,
                                     String fromStatus,
@@ -540,12 +614,18 @@ public class MerchantProfileChangeRequestService {
         reviewRecordMapper.insert(record);
     }
 
+    /**
+     * 读取当前操作人账号主键。
+     */
     private String currentOperatorId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         return account == null || account.getAccountId() == null
                 ? null : String.valueOf(account.getAccountId());
     }
 
+    /**
+     * 读取当前操作人名称，缺失时使用系统操作人标识。
+     */
     private String operatorName(InternalAuthAccount account) {
         if (account == null) return "system";
         if (account.getRealName() != null && !account.getRealName().isBlank()) {
@@ -554,14 +634,23 @@ public class MerchantProfileChangeRequestService {
         return account.getLoginAccount() == null ? "system" : account.getLoginAccount().trim();
     }
 
+    /**
+     * 去除字符串首尾空白，并将空字符串转换为空值。
+     */
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /**
+     * 将可空编码规范化为大写。
+     */
     private String upper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 将资料快照序列化为持久化使用的 JSON 文本。
+     */
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -571,6 +660,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 创建参数校验失败业务异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

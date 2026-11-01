@@ -4,13 +4,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinLookupCacheEntry
- * @date : 2026-09-30
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共享的 BIN 查询结果；分片索引命中时携带格式信息供调用方稳定复用。
- * @status : create
+ * 支付与 OpenAPI 共享的 BIN 查询结果；分片索引命中时携带格式信息供调用方稳定复用。
  *
  * @param generation 管理端当前可读代际；未装配 Redis 时为空且不缓存
  * @param formatVersion 缓存值格式版本，防止旧支付值被当作完整归属结果
@@ -23,7 +17,9 @@ public record CardBinLookupCacheEntry(String generation,
                                       LocalDateTime validUntil) implements Serializable {
 
     private static final long serialVersionUID = 1L;
-    /** 缓存值结构版本；旧短键或旧部署写入的值不能作为完整归属结果复用。 */
+    /**
+     * 缓存值结构版本；旧短键或旧部署写入的值不能作为完整归属结果复用。
+     */
     public static final int FORMAT_VERSION = 3;
 
     /**

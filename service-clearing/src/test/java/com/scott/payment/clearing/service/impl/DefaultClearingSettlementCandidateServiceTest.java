@@ -1,7 +1,10 @@
 package com.scott.payment.clearing.service.impl;
 
 import com.scott.payment.clearing.domain.model.ClearingOperationFacts;
+import com.scott.payment.clearing.domain.model.SettlementCandidateDependencyPlan;
+import com.scott.payment.clearing.domain.state.SettlementCandidateDependencyType;
 import com.scott.payment.clearing.entity.ClearingSettlementCandidateDO;
+import com.scott.payment.clearing.entity.ClearingSettlementCandidateDependencyDO;
 import com.scott.payment.clearing.mapper.ClearingSettlementCandidateMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -10,6 +13,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,13 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingSettlementCandidateServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证结算候选稳定身份、重复一致性、修订替换和保证金释放来源类型约束
- * @status : create
+ * 验证结算候选稳定身份、重复一致性、修订替换和保证金释放来源类型约束
  */
 class DefaultClearingSettlementCandidateServiceTest {
 
@@ -47,7 +46,8 @@ class DefaultClearingSettlementCandidateServiceTest {
         });
         when(mapper.selectForUpdate("FS-1", 2)).thenAnswer(invocation -> persisted.get());
 
-        service.create("FS-1", 2, operation(), "USD", eligibleDate, now);
+        service.create("FS-1", 2, operation(), "USD", eligibleDate,
+                SettlementCandidateDependencyPlan.none(), now);
 
         ArgumentCaptor<ClearingSettlementCandidateDO> captor =
                 ArgumentCaptor.forClass(ClearingSettlementCandidateDO.class);
@@ -67,7 +67,8 @@ class DefaultClearingSettlementCandidateServiceTest {
         when(duplicateMapper.insertIdempotent(any())).thenReturn(0);
         when(duplicateMapper.selectForUpdate("FS-1", 2)).thenReturn(inserted);
 
-        duplicateService.create("FS-1", 2, operation(), "USD", eligibleDate, now);
+        duplicateService.create("FS-1", 2, operation(), "USD", eligibleDate,
+                SettlementCandidateDependencyPlan.none(), now);
     }
 
     @Test
@@ -81,7 +82,8 @@ class DefaultClearingSettlementCandidateServiceTest {
 
         assertThatExceptionOfType(IllegalStateException.class)
                 .isThrownBy(() -> service.create("FS-1", 1, operation(), "USD",
-                        LocalDate.of(2026, 8, 27), LocalDateTime.of(2026, 8, 26, 13, 0)))
+                        LocalDate.of(2026, 8, 27), SettlementCandidateDependencyPlan.none(),
+                        LocalDateTime.of(2026, 8, 26, 13, 0)))
                 .withMessageContaining("mismatched");
     }
 
@@ -102,7 +104,8 @@ class DefaultClearingSettlementCandidateServiceTest {
             return 1;
         });
 
-        service.replace("FS-1", 1, 2, operation(), "USD", LocalDate.of(2026, 8, 27), now);
+        service.replace("FS-1", 1, 2, operation(), "USD", LocalDate.of(2026, 8, 27),
+                SettlementCandidateDependencyPlan.none(), now);
 
         verify(mapper).supersedeReady("FS-1", 1, 3L, now);
         ArgumentCaptor<ClearingSettlementCandidateDO> captor =
@@ -129,7 +132,8 @@ class DefaultClearingSettlementCandidateServiceTest {
         });
 
         service.replaceReplayHeld(
-                "FS-1", 1, 2, operation(), "USD", LocalDate.of(2026, 8, 27), now);
+                "FS-1", 1, 2, operation(), "USD", LocalDate.of(2026, 8, 27),
+                SettlementCandidateDependencyPlan.none(), now);
 
         verify(mapper).supersedeReplayHeld("FS-1", 1, 4L, now);
         verify(mapper, org.mockito.Mockito.never()).supersedeReady(
@@ -150,7 +154,7 @@ class DefaultClearingSettlementCandidateServiceTest {
         assertThatExceptionOfType(IllegalStateException.class)
                 .isThrownBy(() -> service.replaceReplayHeld(
                         "FS-1", 1, 2, operation(), "USD", LocalDate.of(2026, 8, 27),
-                        LocalDateTime.of(2026, 8, 26, 13, 0)))
+                        SettlementCandidateDependencyPlan.none(), LocalDateTime.of(2026, 8, 26, 13, 0)))
                 .withMessageContaining("replay-held");
         verify(mapper, org.mockito.Mockito.never()).supersedeReplayHeld(
                 anyString(), anyInt(), anyLong(), any());
@@ -171,7 +175,8 @@ class DefaultClearingSettlementCandidateServiceTest {
                 .thenAnswer(invocation -> persisted.get());
 
         service.createReserveRelease("RS-1", 4, "RRL-1", releaseTime,
-                "M-1", "USD", LocalDate.of(2026, 8, 26), now);
+                "M-1", "USD", LocalDate.of(2026, 8, 26),
+                SettlementCandidateDependencyPlan.none(), now);
 
         ClearingSettlementCandidateDO inserted = persisted.get();
         assertThat(inserted.getCandidateNo()).startsWith("SC").hasSize(34);
@@ -185,7 +190,9 @@ class DefaultClearingSettlementCandidateServiceTest {
         assertThat(inserted.getCandidateStatus()).isEqualTo("READY");
     }
 
-    /** MySQL DATETIME(3) 回读会截断纳秒，候选身份必须按同一数据库精度保持幂等。 */
+    /**
+     * MySQL DATETIME(3) 回读会截断纳秒，候选身份必须按同一数据库精度保持幂等。
+     */
     @Test
     void createReserveReleaseShouldUseDatabaseMillisecondPrecisionForIdentity() {
         ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
@@ -202,10 +209,171 @@ class DefaultClearingSettlementCandidateServiceTest {
 
         assertThatCode(() -> service.createReserveRelease(
                 "RS-DB-TIME", 1, "RRL-DB-TIME", releaseTime,
-                "M-1", "USD", LocalDate.of(2026, 9, 10), now))
+                "M-1", "USD", LocalDate.of(2026, 9, 10),
+                SettlementCandidateDependencyPlan.none(), now))
                 .doesNotThrowAnyException();
         assertThat(persisted.get().getSourceTransactionDateTime())
                 .isEqualTo(releaseTime.truncatedTo(ChronoUnit.MILLIS));
+    }
+
+    @Test
+    void createShouldPersistEachDependencyAgainstLockedSourceCandidate() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        LocalDateTime now = LocalDateTime.of(2026, 9, 10, 4, 0);
+        AtomicReference<ClearingSettlementCandidateDO> persisted = new AtomicReference<>();
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            ClearingSettlementCandidateDO row = invocation.getArgument(0);
+            row.setId(22L);
+            persisted.set(row);
+            return 1;
+        });
+        ClearingSettlementCandidateDO source = sourceCandidate(11L, "FS-SOURCE", 3, "PAY-1", "M-1");
+        when(mapper.selectDependencyPairForUpdate(
+                "CLEARING_REVISION", "FS-REFUND", 1, "FS-SOURCE", 3))
+                .thenAnswer(invocation -> List.of(source, persisted.get()));
+        when(mapper.insertDependencyIdempotent(any())).thenReturn(1);
+        when(mapper.selectDependencyForUpdate(anyLong(), anyLong(), anyString()))
+                .thenAnswer(invocation -> dependency(
+                        invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), now));
+        SettlementCandidateDependencyPlan plan = new SettlementCandidateDependencyPlan(
+                "FS-SOURCE", 3, "PAY-1", "M-1",
+                Set.of(SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED,
+                        SettlementCandidateDependencyType.RESERVE_HOLD_POSTED));
+
+        service.create("FS-REFUND", 1, refundOperation(), "USD", LocalDate.of(2026, 9, 10), plan, now);
+
+        ArgumentCaptor<ClearingSettlementCandidateDependencyDO> captor =
+                ArgumentCaptor.forClass(ClearingSettlementCandidateDependencyDO.class);
+        verify(mapper, org.mockito.Mockito.times(2)).insertDependencyIdempotent(captor.capture());
+        assertThat(captor.getAllValues())
+                .allSatisfy(row -> {
+                    assertThat(row.getCandidateId()).isEqualTo(22L);
+                    assertThat(row.getDependsOnCandidateId()).isEqualTo(11L);
+                    assertThat(row.getCreateTime()).isEqualTo(now);
+                });
+        assertThat(captor.getAllValues())
+                .extracting(ClearingSettlementCandidateDependencyDO::getDependencyType)
+                .containsExactlyInAnyOrder("SOURCE_FINANCIAL_POSTED", "RESERVE_HOLD_POSTED");
+    }
+
+    @Test
+    void createShouldAcceptExactDependencyReplay() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        LocalDateTime now = LocalDateTime.of(2026, 9, 10, 4, 0);
+        AtomicReference<ClearingSettlementCandidateDO> persisted = new AtomicReference<>();
+        ClearingSettlementCandidateDO source = sourceCandidate(
+                11L, "FS-SOURCE", 3, "PAY-1", "M-1");
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            ClearingSettlementCandidateDO row = databaseRoundTrip(invocation.getArgument(0));
+            row.setId(22L);
+            persisted.set(row);
+            return 0;
+        });
+        when(mapper.selectDependencyPairForUpdate(
+                "CLEARING_REVISION", "FS-REFUND", 1, "FS-SOURCE", 3))
+                .thenAnswer(invocation -> List.of(source, persisted.get()));
+        when(mapper.insertDependencyIdempotent(any())).thenReturn(0);
+        when(mapper.selectDependencyForUpdate(
+                22L, 11L, SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED.name()))
+                .thenReturn(dependency(
+                        22L, 11L, SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED.name(), now));
+        SettlementCandidateDependencyPlan plan = new SettlementCandidateDependencyPlan(
+                "FS-SOURCE", 3, "PAY-1", "M-1",
+                Set.of(SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED));
+
+        assertThatCode(() -> service.create(
+                "FS-REFUND", 1, refundOperation(), "USD", LocalDate.of(2026, 9, 10), plan, now))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void dependencyPlanShouldRejectNonPositiveSourceRevision() {
+        assertThatExceptionOfType(IllegalArgumentException.class)
+                .isThrownBy(() -> new SettlementCandidateDependencyPlan(
+                        "FS-SOURCE", 0, "PAY-1", "M-1",
+                        Set.of(SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED)))
+                .withMessageContaining("source identity");
+    }
+
+    @Test
+    void createShouldFailClosedWhenDependencySourceCandidateIsMissing() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        AtomicReference<ClearingSettlementCandidateDO> persisted = new AtomicReference<>();
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            ClearingSettlementCandidateDO row = invocation.getArgument(0);
+            row.setId(22L);
+            persisted.set(row);
+            return 1;
+        });
+        when(mapper.selectDependencyPairForUpdate(
+                "CLEARING_REVISION", "FS-REFUND", 1, "FS-SOURCE", 3))
+                .thenAnswer(invocation -> List.of(persisted.get()));
+        SettlementCandidateDependencyPlan plan = new SettlementCandidateDependencyPlan(
+                "FS-SOURCE", 3, "PAY-1", "M-1",
+                Set.of(SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED));
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.create(
+                        "FS-REFUND", 1, refundOperation(), "USD", LocalDate.of(2026, 9, 10), plan,
+                        LocalDateTime.of(2026, 9, 10, 4, 0)))
+                .withMessageContaining("source candidate");
+    }
+
+    @Test
+    void createShouldRejectCrossMerchantDependency() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        AtomicReference<ClearingSettlementCandidateDO> persisted = new AtomicReference<>();
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            ClearingSettlementCandidateDO row = invocation.getArgument(0);
+            row.setId(22L);
+            persisted.set(row);
+            return 1;
+        });
+        ClearingSettlementCandidateDO source = sourceCandidate(11L, "FS-SOURCE", 3, "PAY-1", "M-OTHER");
+        when(mapper.selectDependencyPairForUpdate(
+                "CLEARING_REVISION", "FS-REFUND", 1, "FS-SOURCE", 3))
+                .thenAnswer(invocation -> List.of(source, persisted.get()));
+        SettlementCandidateDependencyPlan plan = new SettlementCandidateDependencyPlan(
+                "FS-SOURCE", 3, "PAY-1", "M-1",
+                Set.of(SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED));
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.create(
+                        "FS-REFUND", 1, refundOperation(), "USD", LocalDate.of(2026, 9, 10), plan,
+                        LocalDateTime.of(2026, 9, 10, 4, 0)))
+                .withMessageContaining("identity");
+    }
+
+    private ClearingSettlementCandidateDO sourceCandidate(Long id,
+                                                          String financeStateId,
+                                                          int revision,
+                                                          String transactionId,
+                                                          String merchantId) {
+        ClearingSettlementCandidateDO row = new ClearingSettlementCandidateDO();
+        row.setId(id);
+        row.setSourceType("CLEARING_REVISION");
+        row.setSourceBusinessId(financeStateId);
+        row.setSourceRevision(revision);
+        row.setSourceTransactionId(transactionId);
+        row.setMerchantId(merchantId);
+        return row;
+    }
+
+    private ClearingSettlementCandidateDependencyDO dependency(Long candidateId,
+                                                               Long sourceCandidateId,
+                                                               String dependencyType,
+                                                               LocalDateTime now) {
+        ClearingSettlementCandidateDependencyDO row = new ClearingSettlementCandidateDependencyDO();
+        row.setId(1L);
+        row.setCandidateId(candidateId);
+        row.setDependsOnCandidateId(sourceCandidateId);
+        row.setDependencyType(dependencyType);
+        row.setCreateTime(now);
+        return row;
     }
 
     private ClearingSettlementCandidateDO databaseRoundTrip(ClearingSettlementCandidateDO source) {
@@ -237,5 +405,14 @@ class DefaultClearingSettlementCandidateServiceTest {
                 "EUR", new BigDecimal("100.00"), "EUR", new BigDecimal("100.00"),
                 "EUR", new BigDecimal("100.00"), 2, time, time.minusHours(8),
                 "Asia/Shanghai", 5);
+    }
+
+    private ClearingOperationFacts refundOperation() {
+        LocalDateTime time = LocalDateTime.of(2026, 9, 10, 12, 0);
+        return new ClearingOperationFacts(
+                "RF-1", "OP-1", "PAY-1", "M-1", "ORDER-1", "REFUND", "SUCCESS",
+                "EUR", new BigDecimal("10.00"), "EUR", new BigDecimal("10.00"),
+                "EUR", new BigDecimal("10.00"), 2, time, time.minusHours(8),
+                "Asia/Shanghai", 1);
     }
 }

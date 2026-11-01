@@ -8,7 +8,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 调用方隔离的内部服务鉴权配置启动门禁测试。 */
+/**
+ * 调用方隔离的内部服务鉴权配置启动门禁测试。
+ */
 class InternalServiceAuthPropertiesTest {
 
     @Test

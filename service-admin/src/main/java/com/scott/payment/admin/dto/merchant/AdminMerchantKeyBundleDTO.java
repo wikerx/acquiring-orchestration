@@ -6,13 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantKeyBundleDTO
- * @date : 2026-06-13 17:17
- * @email : scott_x@163.com
- * @description : Admin 商户密钥下载包 DTO，聚合一次性密钥材料、版本、指纹和生成时间，禁止在日志中输出完整内容。
- * @status : create
+ * Admin 商户密钥下载包 DTO，聚合一次性密钥材料、版本、指纹和生成时间，禁止在日志中输出完整内容。
  */
 @Data
 public class AdminMerchantKeyBundleDTO {

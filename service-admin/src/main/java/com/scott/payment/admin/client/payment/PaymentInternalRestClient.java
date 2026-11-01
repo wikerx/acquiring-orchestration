@@ -29,13 +29,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalRestClient
- * @date : 2026-07-14 23:57
- * @email : scott_x@163.com
- * @description : service-payment 内部命令 REST 客户端，为管理端交易变更、退款审批和异常案件处置封装 HMAC 签名与统一响应解包。
- * @status : create
+ * service-payment 内部命令 REST 客户端，为管理端交易变更、退款审批和异常案件处置封装 HMAC 签名与统一响应解包。
  */
 @Service
 @Slf4j
@@ -66,28 +60,31 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
 
-    /** 请款动作内部接口。 */
+    /**
+     * 请款动作内部接口。
+     */
     private static final String CAPTURE_PATH = "/internal/payment/capture";
 
-    /** 预授权完成动作内部接口。 */
+    /**
+     * 预授权完成动作内部接口。
+     */
     private static final String PRE_AUTH_COMPLETION_PATH = "/internal/payment/pre-auth-completion";
 
-    /** 退款动作内部接口。 */
+    /**
+     * 退款动作内部接口。
+     */
     private static final String REFUND_PATH = "/internal/payment/refund";
 
-    /** 撤销动作内部接口。 */
+    /**
+     * 撤销动作内部接口。
+     */
     private static final String VOID_PATH = "/internal/payment/void";
 
-    /** 单笔渠道勾兑内部接口。 */
+    /**
+     * 单笔渠道勾兑内部接口。
+     */
     private static final String CHANNEL_MATCH_REQUERY_PATH = "/internal/payment/channel-match";
 
-    /**
-     * {@code REFUND_APPROVAL_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
     private static final String REFUND_APPROVAL_PATH = "/internal/payment/refund-approvals";
 
     private static final String CHANNEL_MATCH_ABNORMAL_PATH =
@@ -114,19 +111,25 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         this.properties = properties;
     }
 
-    /** 审批通过退款。 */
+    /**
+     * 审批通过退款。
+     */
     @Override
     public ApprovalResult approveRefund(String approvalId, ApprovalClientRequest request) {
         return decideRefund(approvalId, "approve", request);
     }
 
-    /** 拒绝退款审批。 */
+    /**
+     * 拒绝退款审批。
+     */
     @Override
     public ApprovalResult rejectRefund(String approvalId, ApprovalClientRequest request) {
         return decideRefund(approvalId, "reject", request);
     }
 
-    /** 领取或转派勾兑异常案件。 */
+    /**
+     * 领取或转派勾兑异常案件。
+     */
     @Override
     public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord
     assignChannelMatchAbnormality(String eventId,
@@ -136,7 +139,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 });
     }
 
-    /** 单笔重新勾兑。 */
+    /**
+     * 单笔重新勾兑。
+     */
     @Override
     public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord
     requeryChannelMatchAbnormality(String eventId,
@@ -146,7 +151,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 });
     }
 
-    /** 批量重新勾兑。 */
+    /**
+     * 批量重新勾兑。
+     */
     @Override
     public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.BatchRequeryResult
     batchRequeryChannelMatchAbnormalities(
@@ -158,7 +165,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return unwrapData(result);
     }
 
-    /** 使用交易真实分片时间主动重查并勾兑单笔交易。 */
+    /**
+     * 使用交易真实分片时间主动重查并勾兑单笔交易。
+     */
     @Override
     public ChannelMatchRequeryResponse requeryChannelMatch(
             String transactionId,
@@ -171,7 +180,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return unwrapData(result);
     }
 
-    /** 关闭或忽略勾兑异常案件。 */
+    /**
+     * 关闭或忽略勾兑异常案件。
+     */
     @Override
     public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord
     resolveChannelMatchAbnormality(String eventId,
@@ -201,6 +212,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return unwrapData(result);
     }
 
+    /**
+     * 提交退款审批决策并返回执行结果。
+     */
     private ApprovalResult decideRefund(String approvalId,
                                         String action,
                                         ApprovalClientRequest request) {
@@ -305,8 +319,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException(HttpMethod.POST, uri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-payment post call failed, targetPath: {}, exceptionType: {}",
-                    uri.getPath(), exception.getClass().getSimpleName());
+            log.warn("支付内部接口调用失败, event: ADMIN_PAYMENT_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
+                    HttpMethod.POST.name(), uri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment post call failed");
         }
     }
@@ -368,6 +382,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return loadBalancedRestTemplate;
     }
 
+    /**
+     * 解包内部服务统一响应并校验业务状态。
+     */
     private <T> T unwrapData(CommonResult<T> result) {
         if (result == null) {
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response is empty");
@@ -381,8 +398,11 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return result.getData();
     }
 
+    /**
+     * 将内部服务 HTTP 异常转换为受控业务异常。
+     */
     private ApiException translateHttpException(HttpMethod method, URI uri, HttpStatusCodeException exception) {
-        log.warn("service-payment {} call returned non-success status, targetPath: {}, status: {}, exceptionType: {}",
+        log.warn("支付内部接口请求被拒绝, event: ADMIN_PAYMENT_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}, exceptionType: {}",
                 method.name(),
                 uri.getPath(),
                 exception.getStatusCode().value(),

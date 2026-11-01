@@ -9,13 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutCreateRequestDTO
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 代付创建请求数据传输对象
- * @status : create
+ * 代付创建请求数据传输对象
  */
 @Data
 public class PayoutCreateRequestDTO implements Serializable {

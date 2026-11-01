@@ -6,22 +6,20 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationNotifyCommandDTO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : service-data 单笔商户通知补偿命令。
- * @status : create
+ * service-data 单笔商户通知补偿命令。
  */
 @Data
 public class MerchantNotificationNotifyCommandDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** 平台交易号，只用于业务定位，不用于解析分片时间。 */
+    /**
+     * 平台交易号，只用于业务定位，不用于解析分片时间。
+     */
     private String transactionId;
 
-    /** 调用方从交易记录恢复的业务时间，用于精确定位季度分表。 */
+    /**
+     * 调用方从交易记录恢复的业务时间，用于精确定位季度分表。
+     */
     private LocalDateTime transactionDateTime;
 }

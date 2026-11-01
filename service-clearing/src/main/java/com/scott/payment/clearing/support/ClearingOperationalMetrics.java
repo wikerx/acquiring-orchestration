@@ -22,13 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationalMetrics
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分低基数运行指标。任何商户号、交易号、消息号和异常明文都不得作为 tag 传入。
- * @status : update
+ * 清分低基数运行指标。任何商户号、交易号、消息号和异常明文都不得作为 tag 传入。
  */
 @Component
 public class ClearingOperationalMetrics {
@@ -60,12 +54,7 @@ public class ClearingOperationalMetrics {
             ClearingStateEnum.FAILED,
             ClearingStateEnum.MANUAL_REVIEW);
     /**
-     * ISO币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
+     * 限制金额指标只使用三位大写 ISO 币种标签，避免标签基数失控。
      */
     private static final Pattern ISO_CURRENCY = Pattern.compile("[A-Z]{3}");
 
@@ -76,6 +65,9 @@ public class ClearingOperationalMetrics {
     private final Map<String, AtomicReference<BigDecimal>> reserveRemainingAmounts =
             new ConcurrentHashMap<>();
 
+    /**
+     * 创建清分指标门面，并为所有受控待处理状态注册固定 Gauge。
+     */
     public ClearingOperationalMetrics(MeterRegistry registry) {
         this.registry = registry;
         for (ClearingStateEnum status : PENDING_STATES) {
@@ -94,7 +86,11 @@ public class ClearingOperationalMetrics {
         }
     }
 
-    /** @param result 清分应用层有限结果枚举 */
+    /**
+     * 记录一次清分应用编排的受控处理结果。
+     *
+     * @param result 清分应用层有限结果枚举
+     */
     public void recordProcessing(ClearingProcessingResult result) {
         Counter.builder("clearing.processing")
                 .description("Clearing processing outcomes")
@@ -257,7 +253,9 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录向 RocketMQ 原生重试传播的未知技术异常。 */
+    /**
+     * 记录向 RocketMQ 原生重试传播的未知技术异常。
+     */
     public void recordTechnicalFailure() {
         Counter.builder("clearing.processing.failure")
                 .description("Clearing technical failures propagated to RocketMQ")
@@ -330,7 +328,11 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** @param anomalyType 固定清分异常分类 */
+    /**
+     * 记录一次固定类型的清分异常，保持监控标签低基数。
+     *
+     * @param anomalyType 固定清分异常分类
+     */
     public void recordAnomaly(ClearingAnomalyTypeEnum anomalyType) {
         Counter.builder("clearing.anomaly")
                 .description("Clearing anomaly occurrences")
@@ -404,6 +406,9 @@ public class ClearingOperationalMetrics {
         });
     }
 
+    /**
+     * 按受控模式标签批量增加计数器，非正数量不产生指标。
+     */
     private void increment(String name, String description, String mode, int amount) {
         if (amount <= 0) {
             return;
@@ -415,16 +420,24 @@ public class ClearingOperationalMetrics {
                 .increment(amount);
     }
 
+    /**
+     * 将指标标签限制在固定白名单内，未知值统一归入 OTHER。
+     */
     private String allowed(String value, Set<String> allowed) {
         return value != null && allowed.contains(value) ? value : "OTHER";
     }
 
+    /**
+     * 规范化交易类型并限制为指标允许的低基数标签。
+     */
     private String transactionType(String value) {
         String normalized = value == null ? null : value.trim().toUpperCase(Locale.ROOT);
         return allowed(normalized, TRANSACTION_TYPES);
     }
 
-    /** 仅允许 ISO 三字母币种进入指标标签，非法值归一为 UNKNOWN。 */
+    /**
+     * 仅允许 ISO 三字母币种进入指标标签，非法值归一为 UNKNOWN。
+     */
     private String currency(String value) {
         String normalized = value == null ? null : value.trim().toUpperCase(Locale.ROOT);
         return normalized != null && ISO_CURRENCY.matcher(normalized).matches() ? normalized : "OTHER";
@@ -432,8 +445,9 @@ public class ClearingOperationalMetrics {
 
     /**
      * 把清分状态规范化为受控指标标签，未知值统一归入 OTHER，避免指标基数失控。
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 当前方法生成或规范化后的文本值
+     *
+     * @param value 数据库返回的清分状态
+     * @return 已声明的清分状态名称，未知值返回 OTHER
      */
     private String clearingStatus(String value) {
         try {
@@ -443,6 +457,9 @@ public class ClearingOperationalMetrics {
         }
     }
 
+    /**
+     * 将可空或异常负数指标值归零，避免 Gauge 暴露无意义负数。
+     */
     private long nonNegative(Long value) {
         return value == null ? 0L : Math.max(0L, value);
     }

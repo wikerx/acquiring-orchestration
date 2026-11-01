@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
@@ -18,13 +18,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiReferenceDataServiceImplTest
- * @date : 2026-08-11 15:47
- * @email : scott_x@163.com
- * @description : 商户基础数据服务行为测试，校验最小响应映射和外部参数错误码
- * @status : create
+ * 商户基础数据服务行为测试，校验最小响应映射和外部参数错误码
  */
 @Slf4j
 class OpenApiReferenceDataServiceImplTest {
@@ -76,9 +70,9 @@ class OpenApiReferenceDataServiceImplTest {
         assertThatThrownBy(() -> service.queryIp(request))
                 .isInstanceOfSatisfying(ApiException.class,
                         exception -> {
-                            assertThat(exception.getCode()).isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                            assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.PARAM_INVALID.getCode());
                             assertThat(exception.getMessage()).doesNotContain("internal parser detail");
                         });
-        log.info("非法 IP 参数错误映射校验完成，预期错误码: {}", ApiResultEnum.PARAM_INVALID.getCode());
+        log.info("非法 IP 参数错误映射校验完成，预期错误码: {}", OpenApiResultCode.PARAM_INVALID.getCode());
     }
 }

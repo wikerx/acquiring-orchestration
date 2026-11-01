@@ -28,13 +28,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRefundController
- * @date : 2026-08-06 16:00
- * @email : scott_x@163.com
- * @description : 管理端退款管理接口，提供退款查询、详情和独立审批操作，不包含人工修改交易终态能力。
- * @status : create
+ * 管理端退款管理接口，提供退款查询、详情和独立审批操作，不包含人工修改交易终态能力。
  */
 @RestController
 @RequestMapping("/admin/transactions")
@@ -42,12 +36,16 @@ public class AdminRefundController {
 
     private final AdminRefundApplicationService applicationService;
 
-    /** @param applicationService 管理端退款应用服务 */
+    /**
+     * @param applicationService 管理端退款应用服务
+     */
     public AdminRefundController(AdminRefundApplicationService applicationService) {
         this.applicationService = applicationService;
     }
 
-    /** 查询退款/撤销分页和统计。 */
+    /**
+     * 查询退款/撤销分页和统计。
+     */
     @PostMapping("/refunds/search")
     @RequiresPermission("transaction:refund:list")
     @OperationLog(moduleName = "退款管理", businessType = OperationTypeConstants.QUERY, operation = "查询退款列表")
@@ -55,7 +53,9 @@ public class AdminRefundController {
         return success(applicationService.search(query));
     }
 
-    /** 查询退款详情。 */
+    /**
+     * 查询退款详情。
+     */
     @GetMapping("/refunds/{transactionId}")
     @RequiresPermission("transaction:refund:detail")
     @OperationLog(moduleName = "退款管理", businessType = OperationTypeConstants.QUERY, operation = "查询退款详情")
@@ -66,7 +66,9 @@ public class AdminRefundController {
         return success(applicationService.detail(transactionId, transactionDateTime));
     }
 
-    /** 导出退款和撤销记录。 */
+    /**
+     * 导出退款和撤销记录。
+     */
     @PostMapping("/refunds/export")
     @RequiresPermission("transaction:refund:export")
     @OperationLog(moduleName = "退款管理", businessType = OperationTypeConstants.EXPORT, operation = "导出退款列表")
@@ -74,7 +76,9 @@ public class AdminRefundController {
         applicationService.export(query, currentOperatorName(), response);
     }
 
-    /** 审批通过退款。 */
+    /**
+     * 审批通过退款。
+     */
     @PostMapping("/refund-approvals/{approvalId}/approve")
     @RequiresPermission("transaction:refund:approve")
     @OperationLog(moduleName = "退款审批", businessType = OperationTypeConstants.UPDATE, operation = "审批通过退款")
@@ -84,7 +88,9 @@ public class AdminRefundController {
         return success(applicationService.approve(approvalId, request));
     }
 
-    /** 拒绝退款审批。 */
+    /**
+     * 拒绝退款审批。
+     */
     @PostMapping("/refund-approvals/{approvalId}/reject")
     @RequiresPermission("transaction:refund:reject")
     @OperationLog(moduleName = "退款审批", businessType = OperationTypeConstants.UPDATE, operation = "拒绝退款审批")
@@ -94,6 +100,11 @@ public class AdminRefundController {
         return success(applicationService.reject(approvalId, request));
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称，供导出审计记录使用。
+     *
+     * @return 操作人姓名、登录账号或无法识别时的占位值
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

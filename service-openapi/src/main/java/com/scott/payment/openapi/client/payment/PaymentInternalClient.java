@@ -4,18 +4,12 @@ import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDT
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalClient
- * @date : 2026-05-31 21:12
- * @email : scott_x@163.com
- * @description : service-payment 内部交易调用客户端，位于 service-openapi 客户端层，为每个收单交易动作提供独立方法并封装内部签名。
- * @status : create
+ * service-payment 内部交易调用客户端，位于 service-openapi 客户端层，为每个收单交易动作提供独立方法并封装内部签名。
  */
 public interface PaymentInternalClient {
 
@@ -92,12 +86,13 @@ public interface PaymentInternalClient {
     PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO);
 
     /**
-     * 调用 service-payment 记录渠道回调。
+     * 调用 service-payment 可靠受理渠道回调 Inbox。
      *
      * @param requestDTO 渠道回调内部请求
-     * @return 渠道回调记录响应
+     * @return Inbox 持久化受理响应
      */
-    TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO);
+    TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
+            TransactionChannelCallbackClientRequestDTO requestDTO);
 
     /**
      * 回写商户 OpenAPI 响应加密后的密文摘要。
@@ -152,7 +147,9 @@ public interface PaymentInternalClient {
     PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
             PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO);
 
-    /** 解析收银台卡 BIN 品牌及 MID 支持状态。 */
+    /**
+     * 解析收银台卡 BIN 品牌及 MID 支持状态。
+     */
     PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
             PaymentCheckoutClientDTOs.CardBinRequest requestDTO);
 }

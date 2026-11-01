@@ -12,24 +12,22 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogPersistenceServiceTests
- * @date : 2026-08-01 14:40
- * @email : scott_x@163.com
- * @description : 操作日志数据库映射和唯一键重复吸收测试，确保异步消费保留原业务时间
- * @status : create
+ * 操作日志数据库映射和唯一键重复吸收测试，确保异步消费保留原业务时间
  */
 @Slf4j
 class OperationLogPersistenceServiceTests {
 
-    /** 消息字段应完整映射，且原操作时间不能被消费时间覆盖。 */
+    /**
+     * 消息字段应完整映射，且原操作时间不能被消费时间覆盖。
+     */
     @Test
     void shouldPersistMappedAuditFieldsAndOriginalOperationTime() {
         log.info("测试操作日志字段映射，关键输入: 原操作时间和 Merchant 默认操作人类型");
@@ -50,13 +48,16 @@ class OperationLogPersistenceServiceTests {
         log.info("操作日志字段映射完成，结果: 原操作时间与默认操作人类型正确保留");
     }
 
-    /** 数据库唯一键命中表示同一审计消息已经写入，应正常确认重复消费。 */
+    /**
+     * 数据库唯一键命中表示同一审计消息已经写入，应正常确认重复消费。
+     */
     @Test
     void shouldTreatDatabaseUniqueKeyAsCompletedDuplicate() {
         log.info("测试操作日志数据库最终幂等，关键输入: uk_sys_oper_idempotent_key 冲突");
         DataOperationLogMapper mapper = mock(DataOperationLogMapper.class);
         doThrow(new DuplicateKeyException("duplicate idempotent_key"))
                 .when(mapper).insert(any(DataOperationLogDO.class));
+        when(mapper.selectCount(any())).thenReturn(1L);
         OperationLogPersistenceService service = new OperationLogPersistenceService(mapper);
 
         assertThatCode(() -> service.persist(message(), "MERCHANT-LOG-003"))
@@ -64,7 +65,24 @@ class OperationLogPersistenceServiceTests {
         log.info("操作日志数据库最终幂等完成，结果: 重复消息被唯一索引安全吸收");
     }
 
-    /** 超长错误摘要必须在消费持久化边界收敛到数据库列长度。 */
+    /**
+     * 其他唯一键冲突且业务幂等键不存在时必须上抛，禁止静默丢失操作日志。
+     */
+    @Test
+    void shouldRethrowUnrelatedUniqueKeyConflict() {
+        DataOperationLogMapper mapper = mock(DataOperationLogMapper.class);
+        DuplicateKeyException conflict = new DuplicateKeyException("unrelated unique key");
+        doThrow(conflict).when(mapper).insert(any(DataOperationLogDO.class));
+        when(mapper.selectCount(any())).thenReturn(0L);
+        OperationLogPersistenceService service = new OperationLogPersistenceService(mapper);
+
+        assertThatThrownBy(() -> service.persist(message(), "MERCHANT-LOG-003"))
+                .isSameAs(conflict);
+    }
+
+    /**
+     * 超长错误摘要必须在消费持久化边界收敛到数据库列长度。
+     */
     @Test
     void shouldTruncateErrorMessageToDatabaseColumnLength() {
         log.info("测试操作日志错误摘要长度保护，关键输入: 8192 字符错误摘要");
@@ -83,7 +101,9 @@ class OperationLogPersistenceServiceTests {
         log.info("操作日志错误摘要长度保护完成，结果: 持久化字段长度为 1000");
     }
 
-    /** 超长错误码必须在消费持久化边界收敛，兼容已经投递到 RocketMQ 的历史消息。 */
+    /**
+     * 超长错误码必须在消费持久化边界收敛，兼容已经投递到 RocketMQ 的历史消息。
+     */
     @Test
     void shouldTruncateErrorCodeToDatabaseColumnLength() {
         log.info("测试操作日志错误码长度保护，关键输入: 34 字符异常类名错误码");
@@ -103,7 +123,9 @@ class OperationLogPersistenceServiceTests {
                 OperationLogMessage.ERROR_CODE_MAX_LENGTH);
     }
 
-    /** 创建不包含敏感内容的操作日志消息。 */
+    /**
+     * 创建不包含敏感内容的操作日志消息。
+     */
     private OperationLogMessage message() {
         OperationLogMessage message = new OperationLogMessage();
         message.setMessageId("MSG-MERCHANT-LOG-003");

@@ -31,35 +31,45 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingSphereMysql84CompatibilityPocTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 使用隔离 MySQL 8.4 容器验证季度分片、自增回填、事务、锁、Binding 和读写分离。
- * @status : create
+ * 使用隔离 MySQL 8.4 容器验证季度分片、自增回填、事务、锁、Binding 和读写分离。
  */
 @Testcontainers(disabledWithoutDocker = true)
 class ShardingSphereMysql84CompatibilityPocTest {
 
-    /** 容器内 MySQL 监听端口。 */
+    /**
+     * 容器内 MySQL 监听端口。
+     */
     private static final int MYSQL_PORT = 3306;
-    /** 模拟写库的隔离 schema。 */
+    /**
+     * 模拟写库的隔离 schema。
+     */
     private static final String PRIMARY_DATABASE = "sharding_poc_primary";
-    /** 模拟只读副本的隔离 schema。 */
+    /**
+     * 模拟只读副本的隔离 schema。
+     */
     private static final String REPLICA_DATABASE = "sharding_poc_replica";
 
-    /** 按测试类生命周期复用的 MySQL 8.4 容器。 */
+    /**
+     * 按测试类生命周期复用的 MySQL 8.4 容器。
+     */
     @Container
     private static final MySQLContainer<?> MYSQL = new MySQLContainer<>(DockerImageName.parse("mysql:8.4"));
 
-    /** 写库连接池。 */
+    /**
+     * 写库连接池。
+     */
     private HikariDataSource primary;
-    /** 只读副本连接池。 */
+    /**
+     * 只读副本连接池。
+     */
     private HikariDataSource replica;
-    /** 被测 ShardingSphere 分片与读写分离复合数据源。 */
+    /**
+     * 被测 ShardingSphere 分片与读写分离复合数据源。
+     */
     private DataSource shardingDataSource;
-    /** 通过逻辑表执行 SQL 的测试入口。 */
+    /**
+     * 通过逻辑表执行 SQL 的测试入口。
+     */
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
@@ -235,7 +245,9 @@ class ShardingSphereMysql84CompatibilityPocTest {
     }
 
     interface PocMapper {
-        /** 插入逻辑主单并验证 MySQL 自增主键回填。 */
+        /**
+         * 插入逻辑主单并验证 MySQL 自增主键回填。
+         */
         @Insert("""
                 INSERT INTO transaction_order(operation_id, transaction_date_time, status, version)
                 VALUES (#{row.operationId}, #{row.transactionDateTime}, #{row.status}, 0)
@@ -245,13 +257,21 @@ class ShardingSphereMysql84CompatibilityPocTest {
     }
 
     static final class PocOrder {
-        /** MySQL AUTO_INCREMENT 回填值。 */
+        /**
+         * MySQL AUTO_INCREMENT 回填值。
+         */
         private Long id;
-        /** Binding 表关联使用的动作单号。 */
+        /**
+         * Binding 表关联使用的动作单号。
+         */
         private final String operationId;
-        /** 决定季度物理表的分片时间。 */
+        /**
+         * 决定季度物理表的分片时间。
+         */
         private final LocalDateTime transactionDateTime;
-        /** 用于事务和主从语义断言的状态。 */
+        /**
+         * 用于事务和主从语义断言的状态。
+         */
         private final String status;
 
         private PocOrder(String operationId, LocalDateTime transactionDateTime, String status) {
@@ -260,27 +280,37 @@ class ShardingSphereMysql84CompatibilityPocTest {
             this.status = status;
         }
 
-        /** @return 自增主键 */
+        /**
+         * @return 自增主键
+         */
         public Long getId() {
             return id;
         }
 
-        /** @param id MyBatis 回填的自增主键 */
+        /**
+         * @param id MyBatis 回填的自增主键
+         */
         public void setId(Long id) {
             this.id = id;
         }
 
-        /** @return 动作单号 */
+        /**
+         * @return 动作单号
+         */
         public String getOperationId() {
             return operationId;
         }
 
-        /** @return 分片时间 */
+        /**
+         * @return 分片时间
+         */
         public LocalDateTime getTransactionDateTime() {
             return transactionDateTime;
         }
 
-        /** @return 交易状态 */
+        /**
+         * @return 交易状态
+         */
         public String getStatus() {
             return status;
         }

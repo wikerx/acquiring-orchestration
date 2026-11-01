@@ -8,13 +8,7 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelMatchResultTransactionService
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 主动渠道查询结果事务服务，位于 service-payment 服务层，负责在独立事务中回写原渠道请求并通过 CAS 推进或保留交易状态。
- * @status : create
+ * 主动渠道查询结果事务服务，位于 service-payment 服务层，负责在独立事务中回写原渠道请求并通过 CAS 推进或保留交易状态。
  */
 public interface TransactionChannelMatchResultTransactionService {
 

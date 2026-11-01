@@ -25,7 +25,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证交易结算首次周期和常规周期的工作日计算。 */
+/**
+ * 验证交易结算首次周期和常规周期的工作日计算。
+ */
 class DefaultSettlementEligibilityServiceTest {
 
     private static final String MERCHANT_ID = "200045";

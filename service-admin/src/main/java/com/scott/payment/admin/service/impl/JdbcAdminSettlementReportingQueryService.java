@@ -32,33 +32,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementReportingQueryService
- * @date : 2026-09-01 23:15
- * @email : scott_x@163.com
- * @description : 在 transaction 逻辑读数据源内查询不可变结算结果、保证金动作和资金流水；强制叠加 Admin 商户数据范围及查询预算。
- * @status : update
+ * 在 transaction 逻辑读数据源内查询不可变结算结果、保证金动作和资金流水；强制叠加 Admin 商户数据范围及查询预算。
  */
 @Service
 public class JdbcAdminSettlementReportingQueryService implements AdminSettlementReportingQueryService {
 
-    /**
-     * 默认页大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int DEFAULT_PAGE_SIZE = 10;
-    /**
-     * {@code MAX_DATE_SPAN_DAYS}常量，统一 {@code JdbcAdminSettlementReportingQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> RESULT_ITEM_TYPES = Set.of(
             "PRINCIPAL", "FEE_COMPONENT", "FEE_GROUP_FINAL", "RESERVE_HOLD",
@@ -184,6 +163,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
 
+    /**
+     * 创建管理端结算报表查询服务。
+     */
     @Autowired
     public JdbcAdminSettlementReportingQueryService(DataSource dataSource,
                                                     TransactionLogicalReadExecutor readExecutor,
@@ -192,6 +174,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         this(factory.create(dataSource, shardingProperties), readExecutor, shardingProperties);
     }
 
+    /**
+     * 创建带查询预算的管理端结算报表查询服务。
+     */
     public JdbcAdminSettlementReportingQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                                     TransactionLogicalReadExecutor readExecutor,
                                                     TransactionShardingProperties shardingProperties) {
@@ -200,7 +185,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询正式批次中的交易结算结果。
+     */
     @Override
     public PageResult<TransactionSettlementSummary> searchResultItems(ResultItemSearchRequest request,
                                                                       AdminMerchantDataScope dataScope) {
@@ -209,7 +196,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return readExecutor.read(() -> resultPage(query, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询指定批次和交易的本金、费用及调整组件。
+     */
     @Override
     public PageResult<ResultItemSummary> searchResultItemComponents(String settlementBatchNo,
                                                                     String transactionId,
@@ -222,7 +211,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return readExecutor.read(() -> resultComponentPage(query, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询指定交易关联的渠道与内部对账记录。
+     */
     @Override
     public List<ReconciliationRecord> findReconciliationRecordsByTransaction(
             String transactionId,
@@ -233,7 +224,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return readExecutor.read(() -> reconciliationRecords(query, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询指定交易参与过的结算结果明细。
+     */
     @Override
     public PageResult<ResultItemSummary> searchResultItemsByTransaction(String transactionId,
                                                                         LocalDateTime transactionDateTime,
@@ -246,7 +239,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return readExecutor.read(() -> resultHistoryPage(query, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询净额入账记录，并应用管理端商户数据范围。
+     */
     @Override
     public PageResult<PostingSummary> searchPostings(PostingSearchRequest request,
                                                      AdminMerchantDataScope dataScope) {
@@ -255,7 +250,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return readExecutor.read(() -> postingPage(query, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询保证金释放和调整结果。
+     */
     @Override
     public PageResult<ReserveItemSummary> searchReserveItems(ReserveItemSearchRequest request,
                                                              AdminMerchantDataScope dataScope) {
@@ -264,7 +261,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return readExecutor.read(() -> reservePage(query, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询指定交易关联的保证金释放和调整结果。
+     */
     @Override
     public PageResult<ReserveItemSummary> searchReserveItemsByTransaction(String transactionId,
                                                                           LocalDateTime transactionDateTime,
@@ -346,7 +345,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
-    /** 正式批次内交易组件使用独立分页，列表汇总不再重复展示同一交易。 */
+    /**
+     * 正式批次内交易组件使用独立分页，列表汇总不再重复展示同一交易。
+     */
     private PageResult<ResultItemSummary> resultComponentPage(TransactionComponentQuery query,
                                                               AdminMerchantDataScope scope) {
         if (scope.empty()) return emptyPage(query.pageNo(), query.pageSize());
@@ -370,7 +371,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 ResultItemSummary.class);
     }
 
-    /** 按候选真实交易身份读取结算结果，不依赖结算业务日期窗口。 */
+    /**
+     * 按候选真实交易身份读取结算结果，不依赖结算业务日期窗口。
+     */
     private PageResult<ResultItemSummary> resultHistoryPage(TransactionHistoryQuery query,
                                                             AdminMerchantDataScope scope) {
         if (scope.empty()) return emptyPage(query.pageNo(), query.pageSize());
@@ -395,7 +398,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 ResultItemSummary.class);
     }
 
-    /** 按交易精确身份读取动作状态，权限范围不足与记录不存在都返回空集合。 */
+    /**
+     * 按交易精确身份读取动作状态，权限范围不足与记录不存在都返回空集合。
+     */
     private List<ReconciliationRecord> reconciliationRecords(TransactionIdentityQuery query,
                                                               AdminMerchantDataScope scope) {
         if (scope.empty()) return List.of();
@@ -519,7 +524,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 ReserveItemSummary.class);
     }
 
-    /** 按原支付保证金状态的原交易分片键定位聚合，再读取跨批次完整动作历史。 */
+    /**
+     * 按原支付保证金状态的原交易分片键定位聚合，再读取跨批次完整动作历史。
+     */
     private PageResult<ReserveItemSummary> reserveHistoryPage(TransactionHistoryQuery query,
                                                               AdminMerchantDataScope scope) {
         if (scope.empty()) return emptyPage(query.pageNo(), query.pageSize());
@@ -553,6 +560,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 ReserveItemSummary.class);
     }
 
+    /**
+     * 按安全分页参数查询当前业务记录。
+     */
     private <T> PageResult<T> page(String columns,
                                    String from,
                                    String where,
@@ -571,6 +581,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return PageResult.of(total, pageNo, pageSize, rows);
     }
 
+    /**
+     * 规范化结果查询。
+     */
     private ResultItemSearchRequest normalizeResultQuery(ResultItemSearchRequest request) {
         if (request == null || !validDateRange(request.getBeginBusinessDate(), request.getEndBusinessDate())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -592,6 +605,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return request;
     }
 
+    /**
+     * 校验并规范化结算交易组成查询条件。
+     */
     private TransactionComponentQuery normalizeTransactionComponentQuery(String settlementBatchNo,
                                                                           String transactionId,
                                                                           Integer pageNo,
@@ -606,6 +622,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 page.pageNo(), page.pageSize());
     }
 
+    /**
+     * 规范化保证金查询。
+     */
     private ReserveItemSearchRequest normalizeReserveQuery(ReserveItemSearchRequest request) {
         if (request == null || !validDateRange(request.getBeginBusinessDate(), request.getEndBusinessDate())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -629,6 +648,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return request;
     }
 
+    /**
+     * 追加结算结果明细存在性筛选条件。
+     */
     private void appendResultItemExistsFilter(StringBuilder where, ResultItemSearchRequest query) {
         if (query.getResultItemType() == null && query.getDirection() == null && query.getTargetCurrency() == null) {
             return;
@@ -649,6 +671,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         where.append(" )\n");
     }
 
+    /**
+     * 校验可选业务日期范围。
+     */
     private void validateOptionalDateRange(java.time.LocalDate begin, java.time.LocalDate end) {
         if ((begin == null) != (end == null)
                 || begin != null && (!validDateRange(begin, end))) {
@@ -656,6 +681,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         }
     }
 
+    /**
+     * 规范化交易历史查询。
+     */
     private TransactionHistoryQuery normalizeTransactionHistoryQuery(String transactionId,
                                                                       LocalDateTime transactionDateTime,
                                                                       Integer pageNo,
@@ -669,6 +697,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 normalizedTransactionId, transactionDateTime, page.pageNo(), page.pageSize());
     }
 
+    /**
+     * 规范化交易身份。
+     */
     private TransactionIdentityQuery normalizeTransactionIdentity(String transactionId,
                                                                     LocalDateTime transactionDateTime) {
         String normalizedTransactionId = trimMax(transactionId, 64);
@@ -678,6 +709,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return new TransactionIdentityQuery(normalizedTransactionId, transactionDateTime);
     }
 
+    /**
+     * 校验并规范化结算入账查询条件。
+     */
     private PostingSearchRequest normalizePostingQuery(PostingSearchRequest request) {
         if (request == null || request.getBeginPostedTime() == null || request.getEndPostedTime() == null
                 || request.getBeginPostedTime().isAfter(request.getEndPostedTime())
@@ -697,11 +731,17 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return request;
     }
 
+    /**
+     * 校验并构建有效日期范围。
+     */
     private boolean validDateRange(java.time.LocalDate begin, java.time.LocalDate end) {
         return begin != null && end != null && !begin.isAfter(end)
                 && ChronoUnit.DAYS.between(begin, end) <= MAX_DATE_SPAN_DAYS;
     }
 
+    /**
+     * 校验可选日期时间范围。
+     */
     private void validateOptionalTimeRange(LocalDateTime begin, LocalDateTime end) {
         if ((begin == null) != (end == null)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -711,6 +751,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         }
     }
 
+    /**
+     * 校验并规范化分页参数。
+     */
     private void normalizePage(Integer rawPageNo,
                                Integer rawPageSize,
                                java.util.function.IntConsumer pageNoSetter,
@@ -720,6 +763,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         pageSizeSetter.accept(page.pageSize());
     }
 
+    /**
+     * 规范化分页筛选值集合，去除空值和重复项。
+     */
     private PageSpec normalizePageValues(Integer rawPageNo, Integer rawPageSize) {
         int pageNo = rawPageNo == null ? 1 : rawPageNo;
         int pageSize = rawPageSize == null ? DEFAULT_PAGE_SIZE : rawPageSize;
@@ -729,6 +775,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return new PageSpec(pageNo, pageSize);
     }
 
+    /**
+     * 构建交易历史查询参数。
+     */
     private MapSqlParameterSource transactionHistoryParameters(TransactionHistoryQuery query,
                                                                 AdminMerchantDataScope scope) {
         return new MapSqlParameterSource()
@@ -737,6 +786,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 .addValue("permittedMerchantIds", scope.merchantIds());
     }
 
+    /**
+     * 构建平台交易身份查询参数。
+     */
     private MapSqlParameterSource transactionIdentityParameters(TransactionIdentityQuery query,
                                                                  AdminMerchantDataScope scope) {
         return new MapSqlParameterSource()
@@ -745,6 +797,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 .addValue("permittedMerchantIds", scope.merchantIds());
     }
 
+    /**
+     * 读取枚举值。
+     */
     private String enumValue(String value, Set<String> allowed) {
         String normalized = trim(value);
         if (normalized == null) return null;
@@ -753,6 +808,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return normalized;
     }
 
+    /**
+     * 读取并校验标准币种代码。
+     */
     private String currency(String value) {
         String normalized = trim(value);
         if (normalized == null) return null;
@@ -761,6 +819,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return normalized;
     }
 
+    /**
+     * 去除文本空白并限制最大长度。
+     */
     private String trimMax(String value, int maxLength) {
         String normalized = trim(value);
         if (normalized != null && normalized.length() > maxLength) {
@@ -769,39 +830,62 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return normalized;
     }
 
-    /** 根据 ALL/SCOPED/EMPTY 数据范围生成固定白名单 SQL 片段，列名只允许调用方传入的常量。 */
+    /**
+     * 根据 ALL/SCOPED/EMPTY 数据范围生成固定白名单 SQL 片段，列名只允许调用方传入的常量。
+     */
     private String scopeSql(AdminMerchantDataScope scope, String merchantColumn) {
         return scope.allMerchants() ? "" : " AND " + merchantColumn + " IN (:permittedMerchantIds)\n";
     }
 
+    /**
+     * 校验并获取范围。
+     */
     private AdminMerchantDataScope requireScope(AdminMerchantDataScope scope) {
         if (scope == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         return scope;
     }
 
+    /**
+     * 构建保持分页参数的空分页结果。
+     */
     private <T> PageResult<T> emptyPage(int pageNo, int pageSize) {
         return PageResult.of(0L, pageNo, pageSize, List.of());
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 封装页码、页大小和安全查询上限。
+     */
     private record PageSpec(int pageNo, int pageSize) {
     }
 
+    /**
+     * 封装交易结算历史查询条件。
+     */
     private record TransactionHistoryQuery(String transactionId,
                                            LocalDateTime transactionDateTime,
                                            int pageNo,
                                            int pageSize) {
     }
 
+    /**
+     * 封装交易结算组件查询条件。
+     */
     private record TransactionComponentQuery(String settlementBatchNo,
                                              String transactionId,
                                              int pageNo,
                                              int pageSize) {
     }
 
+    /**
+     * 封装平台交易号及其分片时间范围。
+     */
     private record TransactionIdentityQuery(String transactionId,
                                             LocalDateTime transactionDateTime) {
     }

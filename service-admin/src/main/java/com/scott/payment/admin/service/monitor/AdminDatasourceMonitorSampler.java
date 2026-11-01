@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -32,28 +33,30 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDatasourceMonitorSampler
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 数据源指标采样器，按分钟聚合物理 Hikari 连接池和 MySQL performance_schema 指标，并在当前 Admin 进程内保留七天有界历史。
- * @status : create
+ * 数据源指标采样器，按分钟聚合物理 Hikari 连接池和 MySQL performance_schema 指标，并在当前 Admin 进程内保留七天有界历史。
  */
 @Slf4j
 @Component
 public class AdminDatasourceMonitorSampler {
 
-    /** 专门输出绕过 MyBatis 和 JdbcTemplate 的固定 JDBC SQL，便于独立调整日志级别。 */
+    /**
+     * 专门输出绕过 MyBatis 和 JdbcTemplate 的固定 JDBC SQL，便于独立调整日志级别。
+     */
     private static final Logger SQL_LOG = LoggerFactory.getLogger("sql.jdbc.direct");
 
-    /** 七天、每分钟一条采样对应的最大历史容量。 */
+    /**
+     * 七天、每分钟一条采样对应的最大历史容量。
+     */
     static final int MAX_SAMPLES = 7 * 24 * 60;
 
-    /** 页面刷新和定时任务共享的一分钟最小采样间隔。 */
+    /**
+     * 页面刷新和定时任务共享的一分钟最小采样间隔。
+     */
     private static final long MIN_SAMPLE_INTERVAL_NANOS = Duration.ofMinutes(1).toNanos();
 
-    /** MySQL statement digest 平均耗时查询，结果单位转换为毫秒。 */
+    /**
+     * MySQL statement digest 平均耗时查询，结果单位转换为毫秒。
+     */
     private static final String SQL_AVERAGE_LATENCY = """
             SELECT SUM(SUM_TIMER_WAIT) / NULLIF(SUM(COUNT_STAR), 0) / 1000000000 AS avg_millis
             FROM performance_schema.events_statements_summary_by_digest
@@ -61,7 +64,9 @@ public class AdminDatasourceMonitorSampler {
               AND DIGEST_TEXT IS NOT NULL
             """;
 
-    /** MySQL 全局语句直方图 P95 和 P99 查询，结果单位转换为毫秒。 */
+    /**
+     * MySQL 全局语句直方图 P95 和 P99 查询，结果单位转换为毫秒。
+     */
     private static final String SQL_PERCENTILE_LATENCY = """
             SELECT
               MIN(CASE WHEN BUCKET_QUANTILE >= 0.95 THEN BUCKET_TIMER_HIGH END) / 1000000000 AS p95_millis,
@@ -69,7 +74,9 @@ public class AdminDatasourceMonitorSampler {
             FROM performance_schema.events_statements_histogram_global
             """;
 
-    /** MySQL 平均耗时最高的十个 SQL 指纹查询，不读取绑定参数。 */
+    /**
+     * MySQL 平均耗时最高的十个 SQL 指纹查询，不读取绑定参数。
+     */
     private static final String SQL_SLOW_TOP = """
             SELECT DIGEST, DIGEST_TEXT, AVG_TIMER_WAIT / 1000000000 AS avg_millis
             FROM performance_schema.events_statements_summary_by_digest
@@ -80,28 +87,52 @@ public class AdminDatasourceMonitorSampler {
             LIMIT 10
             """;
 
-    /** 可选的动态数据源运行时入口；未装配时为空。 */
+    /**
+     * 可选的动态数据源运行时入口；未装配时为空。
+     */
     private final DynamicRoutingDataSource dynamicRoutingDataSource;
-    /** 动态数据源主库名称等静态配置。 */
+    /**
+     * 动态数据源主库名称等静态配置。
+     */
     private final MonitorDynamicDataSourceProperties dataSourceProperties;
-    /** 标准 JDBC Wrapper 连接池解析器。 */
+    /**
+     * 标准 JDBC Wrapper 连接池解析器。
+     */
     private final DataSourcePoolInspector poolInspector;
-    /** 慢 SQL 指纹脱敏和长度限制组件。 */
+    /**
+     * 慢 SQL 指纹脱敏和长度限制组件。
+     */
     private final MonitorSensitiveTextSanitizer textSanitizer;
-    /** Hikari 连接池进程内历史，元素按采样时间升序保存。 */
+    /**
+     * 是否执行启动及后台定时采样；关闭后管理页面仍可按需触发一次有节流的采样。
+     */
+    private final boolean scheduledSamplingEnabled;
+    /**
+     * Hikari 连接池进程内历史，元素按采样时间升序保存。
+     */
     private final Deque<TimeBucket> poolSamples = new ArrayDeque<>(MAX_SAMPLES);
-    /** MySQL 延迟进程内历史，元素按采样时间升序保存。 */
+    /**
+     * MySQL 延迟进程内历史，元素按采样时间升序保存。
+     */
     private final Deque<TimeBucket> latencySamples = new ArrayDeque<>(MAX_SAMPLES);
 
-    /** 最近一次慢 SQL 指纹 TopN；未采样时为空集合。 */
+    /**
+     * 最近一次慢 SQL 指纹 TopN；未采样时为空集合。
+     */
     private List<CategoryMetric> slowSqlTop = List.of();
-    /** Hikari 连接池采样能力状态，不包含连接地址或凭据。 */
+    /**
+     * Hikari 连接池采样能力状态，不包含连接地址或凭据。
+     */
     private ProviderCapability poolCapability = capability(
             "HIKARI_POOL_METRICS", "UNAVAILABLE", "No physical Hikari pool sample is available yet");
-    /** MySQL performance_schema 能力状态，不包含 SQL 参数。 */
+    /**
+     * MySQL performance_schema 能力状态，不包含 SQL 参数。
+     */
     private ProviderCapability sqlCapability = capability(
             "MYSQL_PERFORMANCE_SCHEMA", "UNAVAILABLE", "No performance_schema sample is available yet");
-    /** 最近一次采样尝试的单调时钟值，单位纳秒。 */
+    /**
+     * 最近一次采样尝试的单调时钟值，单位纳秒。
+     */
     private long lastSampleAttemptNanos = Long.MIN_VALUE;
 
     /**
@@ -111,27 +142,45 @@ public class AdminDatasourceMonitorSampler {
      * @param dataSourceProperties 动态数据源静态配置
      * @param poolInspector 标准 JDBC Wrapper 连接池解析器
      * @param textSanitizer 监控文本脱敏器
+     * @param scheduledSamplingEnabled 是否执行启动及后台定时采样；不影响管理页面按需查询
      */
     public AdminDatasourceMonitorSampler(
             ObjectProvider<DynamicRoutingDataSource> dynamicRoutingDataSourceProvider,
             MonitorDynamicDataSourceProperties dataSourceProperties,
             DataSourcePoolInspector poolInspector,
-            MonitorSensitiveTextSanitizer textSanitizer) {
+            MonitorSensitiveTextSanitizer textSanitizer,
+            @Value("${admin.monitor.datasource-sampling.scheduled-enabled:true}")
+            boolean scheduledSamplingEnabled) {
         this.dynamicRoutingDataSource = dynamicRoutingDataSourceProvider.getIfAvailable();
         this.dataSourceProperties = dataSourceProperties;
         this.poolInspector = poolInspector;
         this.textSanitizer = textSanitizer;
+        this.scheduledSamplingEnabled = scheduledSamplingEnabled;
     }
 
-    /** 在 Spring Bean 初始化完成后尝试采集首个数据点。 */
+    /**
+     * 在 Spring Bean 初始化完成后按后台采样开关决定是否采集首个数据点。
+     */
     @PostConstruct
     public void initialize() {
-        sample();
+        scheduledSample();
     }
 
-    /** 每分钟采集一次连接池和 SQL 指标；一分钟内的重复调用直接复用现有历史。 */
-    @Scheduled(fixedRate = 60_000L)
-    public synchronized void sample() {
+    /**
+     * 按配置周期执行后台采样；关闭时不访问连接池或 performance_schema。
+     */
+    @Scheduled(fixedRateString = "${admin.monitor.datasource-sampling.fixed-rate-ms:60000}")
+    public synchronized void scheduledSample() {
+        if (!scheduledSamplingEnabled) {
+            return;
+        }
+        sampleIfDue();
+    }
+
+    /**
+     * 页面按需采样和后台采样共享同一节流边界，避免刷新页面放大数据库查询。
+     */
+    private void sampleIfDue() {
         long nowNanos = System.nanoTime();
         if (lastSampleAttemptNanos != Long.MIN_VALUE
                 && nowNanos - lastSampleAttemptNanos < MIN_SAMPLE_INTERVAL_NANOS) {
@@ -150,7 +199,7 @@ public class AdminDatasourceMonitorSampler {
      * @return 当前 Admin 进程内的数据源监控指标
      */
     public synchronized DataSourceMetricsResponse metrics() {
-        sample();
+        sampleIfDue();
         DataSourceMetricsResponse response = new DataSourceMetricsResponse();
         response.setPoolTrend(new ArrayList<>(poolSamples));
         response.setLatencyTrend(new ArrayList<>(latencySamples));
@@ -236,7 +285,8 @@ public class AdminDatasourceMonitorSampler {
             sqlCapability = capability(
                     "MYSQL_PERFORMANCE_SCHEMA", "UNAVAILABLE",
                     "performance_schema metrics unavailable: " + exception.getClass().getSimpleName());
-            log.warn("event: ADMIN_DATASOURCE_SQL_METRICS_FAILED exceptionType: {}", exception.getClass().getSimpleName());
+            log.warn("数据源SQL指标采集失败, event: ADMIN_DATASOURCE_SQL_METRICS_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName());
         }
     }
 
@@ -314,12 +364,16 @@ public class AdminDatasourceMonitorSampler {
         }
     }
 
-    /** 测试支撑入口：追加一个连接池样本并执行容量淘汰。 */
+    /**
+     * 测试支撑入口：追加一个连接池样本并执行容量淘汰。
+     */
     synchronized void addPoolSample(TimeBucket sample) {
         addBounded(poolSamples, sample);
     }
 
-    /** 测试支撑入口：追加一个 SQL 延迟样本并执行容量淘汰。 */
+    /**
+     * 测试支撑入口：追加一个 SQL 延迟样本并执行容量淘汰。
+     */
     synchronized void addLatencySample(TimeBucket sample) {
         addBounded(latencySamples, sample);
     }
@@ -340,7 +394,9 @@ public class AdminDatasourceMonitorSampler {
         return capability;
     }
 
-    /** MySQL 单次 SQL 指标读取结果；延迟单位均为毫秒。 */
+    /**
+     * MySQL 单次 SQL 指标读取结果；延迟单位均为毫秒。
+     */
     private record SqlMetrics(BigDecimal averageMillis,
                               BigDecimal p95Millis,
                               BigDecimal p99Millis,

@@ -18,7 +18,9 @@ import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.Optional;
 
-/** 对外提供手动交易或保证金结算任务命令，并编排可恢复的后台分段处理。 */
+/**
+ * 对外提供手动交易或保证金结算任务命令，并编排可恢复的后台分段处理。
+ */
 @Service
 public class SettlementManualReviewApplicationService {
 
@@ -57,18 +59,52 @@ public class SettlementManualReviewApplicationService {
         this.clock = Objects.requireNonNull(clock, "settlement manual review clock is required");
     }
 
+    /**
+     * 创建手动结算预审任务并固化候选范围，重复请求按幂等键返回同一任务。
+     *
+     * @param command 预审类型、候选筛选条件、目标币种和操作审计信息
+     * @return 新建或幂等命中的预审任务结果
+     */
     public TaskResult preview(PreviewCommand command) {
-        return transactions.preview(command);
+        TaskResult result = transactions.preview(command);
+        LOGGER.info("手动结算预审任务已创建或幂等返回, event: SETTLEMENT_MANUAL_REVIEW_PREVIEW_END, taskNo: {}, reviewType: {}, taskStatus: {}, merchantId: {}, targetCurrency: {}, expectedCandidateCount: {}",
+                result.taskNo(), result.reviewType(), result.taskStatus(), result.merchantId(),
+                result.targetCurrency(), result.expectedCandidateCount());
+        return result;
     }
 
+    /**
+     * 校验预审任务类型和版本后启动后台分段处理。
+     *
+     * @param taskNo 待启动的手动结算任务号
+     * @param command 预期版本、启动原因和可信操作人审计信息
+     * @param expectedReviewType 接口路径限定的预审类型，用于阻止跨类型任务启动
+     * @return 启动后或幂等命中的任务结果
+     */
     public TaskResult start(String taskNo, StartCommand command, String expectedReviewType) {
-        return transactions.start(taskNo, command, expectedReviewType);
+        TaskResult result = transactions.start(taskNo, command, expectedReviewType);
+        LOGGER.info("手动结算预审任务已启动或幂等返回, event: SETTLEMENT_MANUAL_REVIEW_START_END, taskNo: {}, reviewType: {}, taskStatus: {}, expectedCandidateCount: {}",
+                result.taskNo(), result.reviewType(), result.taskStatus(), result.expectedCandidateCount());
+        return result;
     }
 
+    /**
+     * 查询指定类型手动结算任务的当前进度和处理结果。
+     *
+     * @param taskNo 可恢复后台任务号
+     * @param expectedReviewType 接口路径限定的预审类型
+     * @return 已持久化的任务快照
+     */
     public TaskResult get(String taskNo, String expectedReviewType) {
         return transactions.get(taskNo, expectedReviewType);
     }
 
+    /**
+     * 领取一个到期任务并执行下一处理段；取消中的任务进入补偿路径。
+     * 领取使用节点租约防止并发消费，单段异常由事务服务记录为可恢复状态。
+     *
+     * @return 成功领取到任务时返回 {@code true}，没有到期任务时返回 {@code false}
+     */
     public boolean processNext() {
         LocalDateTime now = nowUtc();
         String owner = workerIdentity.value();
@@ -84,8 +120,11 @@ public class SettlementManualReviewApplicationService {
             } else {
                 transactions.processClaimed(task.getTaskNo(), owner, chunkSize, nowUtc());
             }
+            LOGGER.info("手动结算预审任务分段处理完成, event: SETTLEMENT_MANUAL_REVIEW_CHUNK_END, taskNo: {}, processingAction: {}",
+                    task.getTaskNo(), "CANCELLING".equals(task.getTaskStatus())
+                            ? "COMPENSATE" : "PROCESS");
         } catch (RuntimeException exception) {
-            LOGGER.warn("Manual settlement review task processing failed, taskNo={}, failureType={}",
+            LOGGER.warn("手动结算预审任务处理失败，准备记录补偿状态, event: SETTLEMENT_MANUAL_REVIEW_CHUNK_FAILED, taskNo: {}, exceptionType: {}",
                     task.getTaskNo(), exception.getClass().getSimpleName());
             transactions.recordFailure(task.getTaskNo(), exception, maximumDuration, nowUtc());
         }

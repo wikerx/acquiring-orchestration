@@ -1,28 +1,30 @@
 package com.scott.payment.data.config;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
-import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.MerchantCallbackJwtSigner;
+import com.scott.payment.component.web.internal.InternalHttpTimeoutPolicy;
 import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
+import com.scott.payment.data.service.impl.MerchantCallbackDnsResolver;
+import com.scott.payment.data.service.impl.MerchantCallbackTargetValidator;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
-import java.net.Proxy;
-import java.net.HttpURLConnection;
-import java.io.IOException;
-
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationConfig
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知 HTTP 配置，提供禁用系统代理且具有有界连接和读取超时的独立客户端
- * @status : create
+ * 配置 service-data 商户通知协议组件和独立 HTTP 客户端。
+ *
+ * <p>客户端禁用系统代理、自动重试、重定向和 Cookie，并在实际建连使用的 DNS 解析结果上
+ * 再次执行公网边界校验，防止商户回调绕过出站策略。</p>
  */
 @Configuration
 @EnableConfigurationProperties(DataMerchantNotificationProperties.class)
@@ -53,23 +55,50 @@ public class DataMerchantNotificationConfig {
      *
      * @param properties 商户通知执行参数
      * @param traceCustomizer traceId 请求头定制器
+     * @param httpClient 已绑定公网 DNS 校验和禁止重定向策略的回调客户端
      * @return 仅供商户回调使用的 RestTemplate
      */
     @Bean("dataMerchantNotificationRestTemplate")
     public RestTemplate dataMerchantNotificationRestTemplate(DataMerchantNotificationProperties properties,
-                                                              TraceIdRestTemplateCustomizer traceCustomizer) {
+                                                              TraceIdRestTemplateCustomizer traceCustomizer,
+                                                              @Qualifier("dataMerchantNotificationHttpClient")
+                                                              CloseableHttpClient httpClient) {
         validateTimeouts(properties);
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory() {
-            @Override
-            protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
-                super.prepareConnection(connection, httpMethod);
-                connection.setInstanceFollowRedirects(false);
-            }
-        };
-        requestFactory.setProxy(Proxy.NO_PROXY);
-        requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
-        requestFactory.setReadTimeout(properties.getReadTimeoutMillis());
+        HttpComponentsClientHttpRequestFactory requestFactory =
+                new HttpComponentsClientHttpRequestFactory(httpClient);
         return traceCustomizer.customize(new RestTemplate(requestFactory));
+    }
+
+    /**
+     * 创建由 Spring 负责关闭的商户回调连接池客户端。
+     *
+     * @param targetValidator 回调 URL 和实际建连地址校验器
+     * @param properties 商户通知连接、读取和恢复参数
+     * @return 禁止自动重试、重定向、系统代理和 Cookie 的专用 HTTP 客户端
+     */
+    @Bean(name = "dataMerchantNotificationHttpClient", destroyMethod = "close")
+    public CloseableHttpClient dataMerchantNotificationHttpClient(
+            MerchantCallbackTargetValidator targetValidator,
+            DataMerchantNotificationProperties properties) {
+        validateTimeouts(properties);
+        ConnectionConfig connectionConfig = ConnectionConfig.custom()
+                .setConnectTimeout(Timeout.ofMilliseconds(properties.getConnectTimeoutMillis()))
+                .build();
+        PoolingHttpClientConnectionManager connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
+                .setDnsResolver(new MerchantCallbackDnsResolver(targetValidator))
+                .setDefaultConnectionConfig(connectionConfig)
+                .build();
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectionRequestTimeout(Timeout.ofMilliseconds(properties.getConnectTimeoutMillis()))
+                .setResponseTimeout(Timeout.ofMilliseconds(properties.getReadTimeoutMillis()))
+                .build();
+        return HttpClients.custom()
+                .setConnectionManager(connectionManager)
+                .setDefaultRequestConfig(requestConfig)
+                .disableAutomaticRetries()
+                .disableRedirectHandling()
+                .disableCookieManagement()
+                .build();
     }
 
     /**
@@ -77,36 +106,31 @@ public class DataMerchantNotificationConfig {
      *
      * @param properties 商户通知执行参数
      */
-    private void validateTimeouts(DataMerchantNotificationProperties properties) {
-        if (properties.getConnectTimeoutMillis() <= 0 || properties.getReadTimeoutMillis() <= 0) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
-                    "merchant notification HTTP timeouts must be greater than zero");
-        }
+    void validateTimeouts(DataMerchantNotificationProperties properties) {
+        InternalHttpTimeoutPolicy.validate("data merchant-notification",
+                properties.getConnectTimeoutMillis(), properties.getReadTimeoutMillis());
         long minimumProcessingTimeoutMillis = (long) properties.getConnectTimeoutMillis()
                 + properties.getReadTimeoutMillis();
         if (properties.getProcessingTimeoutSeconds() <= 0
                 || properties.getProcessingTimeoutSeconds() * 1_000L <= minimumProcessingTimeoutMillis) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
-                    "merchant notification processing timeout must exceed HTTP timeout");
+            throw new IllegalStateException("merchant notification processing timeout must exceed HTTP timeout");
         }
         if (properties.getRecoveryBatchLimit() <= 0 || properties.getRecoveryBatchLimit() > 500) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
-                    "merchant notification recovery batch limit must be between 1 and 500");
+            throw new IllegalStateException("merchant notification recovery batch limit must be between 1 and 500");
         }
         if (properties.getCallbackJwtTtlSeconds() <= 0 || properties.getCallbackJwtTtlSeconds() > 300) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
-                    "merchant callback JWT TTL must be between 1 and 300 seconds");
+            throw new IllegalStateException("merchant callback JWT TTL must be between 1 and 300 seconds");
         }
         if (properties.getSecurityMaterialCacheTtl() == null
                 || properties.getSecurityMaterialCacheTtl().isZero()
                 || properties.getSecurityMaterialCacheTtl().isNegative()
                 || properties.getSecurityMaterialCacheTtl().compareTo(java.time.Duration.ofMinutes(10)) > 0) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+            throw new IllegalStateException(
                     "merchant callback security material cache TTL must be between 1 nanosecond and 10 minutes");
         }
         if (properties.getSecurityMaterialCacheMaxEntries() <= 0
                 || properties.getSecurityMaterialCacheMaxEntries() > 100_000) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+            throw new IllegalStateException(
                     "merchant callback security material cache max entries must be between 1 and 100000");
         }
     }

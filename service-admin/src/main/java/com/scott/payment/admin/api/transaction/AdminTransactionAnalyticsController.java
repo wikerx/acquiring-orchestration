@@ -19,19 +19,15 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionAnalyticsController
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 管理端交易分析接口，负责权限校验、请求接收和统一响应，不在接口层执行统计或金额计算。
- * @status : create
+ * 管理端交易分析接口，负责权限校验、请求接收和统一响应，不在接口层执行统计或金额计算。
  */
 @RestController
 @RequestMapping("/admin/transactions/analytics")
 public class AdminTransactionAnalyticsController {
 
-    /** 管理端交易分析应用服务，不允许为空。 */
+    /**
+     * 管理端交易分析应用服务，不允许为空。
+     */
     private final AdminTransactionAnalyticsApplicationService analyticsApplicationService;
 
     /**

@@ -5,6 +5,8 @@ import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.MerchantCallbackJwtSigner;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
+import com.scott.payment.data.model.MerchantCallbackAuditBody;
+import com.scott.payment.data.model.MerchantCallbackEncryptedBody;
 import com.scott.payment.data.model.MerchantCallbackHttpRequest;
 import com.scott.payment.data.model.MerchantCallbackSecurityMaterial;
 import com.scott.payment.data.service.MerchantCallbackSecurityMaterialProvider;
@@ -19,42 +21,60 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantCallbackRequestFactory
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 构造 v1 商户回调请求，统一绑定 JWT、Header 事件标识和加密正文。
- * @status : create
+ * 构造 v1 商户回调请求，统一绑定 JWT、协议头、事件标识和加密正文。
+ *
+ * <p>JWT 的 eventId、jti、notifyId、transactionId 和正文摘要与 HTTP 请求保持一致，
+ * 商户可以据此校验完整性并对重复投递做持久幂等。</p>
  */
 @Component
 public class MerchantCallbackRequestFactory {
 
-    /** 当前商户回调协议版本。 */
+    /**
+     * 当前商户回调协议版本。
+     */
     public static final String CALLBACK_VERSION = "v1";
-    /** 回调协议版本请求头。 */
+    /**
+     * 回调协议版本请求头。
+     */
     public static final String HEADER_CALLBACK_VERSION = "X-Callback-Version";
-    /** 当前回调尝试次数请求头。 */
+    /**
+     * 当前回调尝试次数请求头。
+     */
     public static final String HEADER_CALLBACK_TIMES = "X-Callback-Times";
-    /** 本次回调事件号请求头，必须与 JWT 的 eventId 和 jti 一致。 */
+    /**
+     * 本次回调事件号请求头，必须与 JWT 的 eventId 和 jti 一致。
+     */
     public static final String HEADER_CALLBACK_EVENT_ID = "X-Callback-Event-Id";
-    /** 平台通知任务号请求头。 */
+    /**
+     * 平台通知任务号请求头。
+     */
     public static final String HEADER_NOTIFY_ID = "X-OPGS-Notify-Id";
-    /** 平台交易号请求头。 */
+    /**
+     * 平台交易号请求头。
+     */
     public static final String HEADER_TRANSACTION_ID = "X-OPGS-Transaction-Id";
 
-    /** 商户回调安全材料提供器。 */
+    /**
+     * 商户回调安全材料提供器。
+     */
     private final MerchantCallbackSecurityMaterialProvider materialProvider;
-    /** 回调正文加密器。 */
+    /**
+     * 回调正文加密器。
+     */
     private final OpenApiPayloadCrypto payloadCrypto;
-    /** 平台回调 JWT 签发器。 */
+    /**
+     * 平台回调 JWT 签发器。
+     */
     private final MerchantCallbackJwtSigner jwtSigner;
-    /** 回调 JWT 有效期等协议配置。 */
+    /**
+     * 回调 JWT 有效期等协议配置。
+     */
     private final DataMerchantNotificationProperties properties;
-    /** JWT 签发时钟，测试使用固定时钟验证 claims。 */
+    /**
+     * JWT 签发时钟，测试使用固定时钟验证 claims。
+     */
     private final Clock clock;
 
     /**
@@ -73,6 +93,15 @@ public class MerchantCallbackRequestFactory {
         this(materialProvider, payloadCrypto, jwtSigner, properties, Clock.systemUTC());
     }
 
+    /**
+     * 创建使用指定时钟的回调请求工厂，供 JWT 时间声明测试使用。
+     *
+     * @param materialProvider 商户安全材料提供器
+     * @param payloadCrypto 回调正文加密器
+     * @param jwtSigner 回调 JWT 签发器
+     * @param properties 回调协议配置
+     * @param clock JWT 签发时钟
+     */
     MerchantCallbackRequestFactory(MerchantCallbackSecurityMaterialProvider materialProvider,
                                    OpenApiPayloadCrypto payloadCrypto,
                                    MerchantCallbackJwtSigner jwtSigner,
@@ -132,8 +161,8 @@ public class MerchantCallbackRequestFactory {
                 callbackTimes,
                 issuedAt,
                 properties.getCallbackJwtTtlSeconds());
-        String body = JsonUtils.toJsonString(Map.of("data", compactPayload));
-        String auditBody = JsonUtils.toJsonString(Map.of("data", "***", "cipherLength", compactPayload.length()));
+        String body = JsonUtils.toJsonString(new MerchantCallbackEncryptedBody(compactPayload));
+        String auditBody = JsonUtils.toJsonString(new MerchantCallbackAuditBody("***", compactPayload.length()));
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(new MediaType(MediaType.APPLICATION_JSON, StandardCharsets.UTF_8));
@@ -159,7 +188,12 @@ public class MerchantCallbackRequestFactory {
         return payloadJson;
     }
 
-    /** 计算密文载荷摘要，用于把 JWT 与本次 RequestBody 绑定。 */
+    /**
+     * 计算密文载荷摘要，把 JWT 声明与本次 RequestBody 绑定。
+     *
+     * @param value 已加密的紧凑载荷
+     * @return 小写十六进制 SHA-256
+     */
     private String sha256Hex(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

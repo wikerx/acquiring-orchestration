@@ -5,6 +5,8 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.dto.monitor.OnlineUserPageResponse;
+import com.scott.payment.admin.dto.monitor.OnlineUserResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
@@ -17,19 +19,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorOnlineApplicationService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端在线用户监控应用服务，负责在线会话分页、账号与用户名称批量补充，以及带审计时间的强制下线状态更新。
- * @status : create
+ * 管理端在线用户监控应用服务，负责在线会话分页、账号与用户名称批量补充，以及带审计时间的强制下线状态更新。
  *
  * <p>负责管理后台在线用户监控用例编排，统一处理登录会话分页查询、账户与用户信息补充、
  * 以及强制下线等后台监控动作。</p>
@@ -77,7 +72,7 @@ public class AdminMonitorOnlineApplicationService {
      * @return 在线用户分页信息
      */
     @DS(DataSourceName.SLAVE)
-    public Map<String, Object> pageOnlineUsers(int pageNo, int pageSize, String loginIp, String userName) {
+    public OnlineUserPageResponse pageOnlineUsers(int pageNo, int pageSize, String loginIp, String userName) {
         int normalizedPageNo = Math.max(pageNo, 1);
         int normalizedPageSize = Math.min(Math.max(pageSize, 1), 100);
         LambdaQueryWrapper<SysLoginSessionDO> queryWrapper = new LambdaQueryWrapper<>();
@@ -121,29 +116,49 @@ public class AdminMonitorOnlineApplicationService {
         List<Long> userIds = page.getRecords().stream().map(SysLoginSessionDO::getUserId).distinct().toList();
 
         Map<Long, String> accountNameMap = accountIds.isEmpty() ? Map.of()
-                : sysAccountMapper.selectBatchIds(accountIds).stream()
+                : sysAccountMapper.selectByIds(accountIds).stream()
                 .collect(Collectors.toMap(SysAccountDO::getId, SysAccountDO::getLoginAccount, (left, right) -> left));
         Map<Long, String> userNameMap = userIds.isEmpty() ? Map.of()
-                : sysUserMapper.selectBatchIds(userIds).stream()
+                : sysUserMapper.selectByIds(userIds).stream()
                 .collect(Collectors.toMap(SysUserDO::getId, SysUserDO::getRealName, (left, right) -> left));
 
-        List<Map<String, Object>> records = page.getRecords().stream().map(session -> {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("sessionId", String.valueOf(session.getId()));
-            row.put("userName", userNameMap.getOrDefault(session.getUserId(),
-                    accountNameMap.getOrDefault(session.getAccountId(), "-")));
-            row.put("loginIp", session.getLoginIp());
-            row.put("loginTime", session.getCreatedAt());
-            row.put("userAgent", session.getUserAgent());
-            return row;
-        }).toList();
+        List<OnlineUserResponse> records = page.getRecords().stream()
+                .map(session -> toOnlineUser(session, accountNameMap, userNameMap))
+                .toList();
 
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("records", records);
-        result.put("total", page.getTotal());
-        return result;
+        OnlineUserPageResponse response = new OnlineUserPageResponse();
+        response.setRecords(records);
+        response.setTotal(page.getTotal());
+        return response;
     }
 
+    /**
+     * 将登录会话和批量查询得到的账号信息转换为管理端在线用户响应。
+     *
+     * @param session 登录会话
+     * @param accountNameMap 账号主键与登录账号映射
+     * @param userNameMap 用户主键与真实姓名映射
+     * @return 在线用户响应
+     */
+    private OnlineUserResponse toOnlineUser(SysLoginSessionDO session,
+                                            Map<Long, String> accountNameMap,
+                                            Map<Long, String> userNameMap) {
+        OnlineUserResponse response = new OnlineUserResponse();
+        response.setSessionId(session.getId() == null ? null : session.getId().toString());
+        response.setUserName(userNameMap.getOrDefault(session.getUserId(),
+                accountNameMap.getOrDefault(session.getAccountId(), "-")));
+        response.setLoginIp(session.getLoginIp());
+        response.setLoginTime(session.getCreatedAt());
+        response.setUserAgent(session.getUserAgent());
+        return response;
+    }
+
+    /**
+     * 规范化输入值。
+     *
+     * @param value 原始查询条件
+     * @return 去除首尾空白后的查询条件；空白值返回 {@code null}
+     */
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

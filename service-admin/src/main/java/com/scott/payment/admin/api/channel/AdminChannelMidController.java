@@ -23,13 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelMidController
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道 MID 配置管理接口，位于 service-admin 接口层，用于维护渠道真实 MID、能力范围和渠道元数据。
- * @status : create
+ * 渠道 MID 配置管理接口，位于 service-admin 接口层，用于维护渠道真实 MID、能力范围和渠道元数据。
  */
 @RestController
 @RequestMapping("/admin/channel/mids")
@@ -37,6 +31,11 @@ public class AdminChannelMidController {
 
     private final AdminChannelApplicationService channelApplicationService;
 
+    /**
+     * 创建渠道 MID 配置管理控制器。
+     *
+     * @param channelApplicationService 渠道配置应用服务
+     */
     public AdminChannelMidController(AdminChannelApplicationService channelApplicationService) {
         this.channelApplicationService = channelApplicationService;
     }

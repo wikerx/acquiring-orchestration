@@ -7,16 +7,13 @@ import lombok.EqualsAndHashCode;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantDictDTOs
- * @date : 2026-07-20 00:00
- * @email : scott_x@163.com
- * @description : 商户后台只读字典 DTO 集合，位于 service-merchant 接口传输层，用于页面筛选项和状态展示，不提供字典维护能力。
- * @status : create
+ * 商户后台只读字典 DTO 集合，位于 service-merchant 接口传输层，用于页面筛选项和状态展示，不提供字典维护能力。
  */
 public final class MerchantDictDTOs {
 
+    /**
+     * 禁止实例化商户字典 DTO 聚合类。
+     */
     private MerchantDictDTOs() {
     }
 

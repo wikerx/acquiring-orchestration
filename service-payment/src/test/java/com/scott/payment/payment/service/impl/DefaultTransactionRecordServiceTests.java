@@ -2,7 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -36,6 +36,7 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.mapper.TransactionLocatorMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
+import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.mockito.ArgumentCaptor;
@@ -61,13 +62,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionRecordServiceTests
- * @date : 2026-07-14 18:10
- * @email : scott_x@163.com
- * @description : 交易事实记录服务单元测试，验证逻辑表写入携带 transaction_date_time，并保护金额、状态和通知语义。
- * @status : create
+ * 交易事实记录服务单元测试，验证逻辑表写入携带 transaction_date_time，并保护金额、状态和通知语义。
  */
 class DefaultTransactionRecordServiceTests {
 
@@ -116,6 +111,80 @@ class DefaultTransactionRecordServiceTests {
                 eq("digest-a"),
                 eq("cipher-mask-a"),
                 any(LocalDateTime.class));
+    }
+
+    @Test
+    void shouldPersistAuthorizationReferencesReturnedByChannelQuery() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        when(channelRequestMapper.updateStatusLogical(
+                anyString(), any(LocalDateTime.class), any(), any(List.class), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(LocalDateTime.class), any()))
+                .thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                channelRequestMapper,
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 10, 31, 12, 0);
+        TransactionOperationDO operationDO = new TransactionOperationDO();
+        operationDO.setId(11L);
+        operationDO.setOperationId("OP202610311200000000001");
+        operationDO.setTransactionId("TX202610311200000000001");
+        operationDO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
+        operationDO.setTransactionDateTime(transactionDateTime);
+        operationDO.setVersion(3);
+        TransactionChannelRequestDO originalRequestDO = new TransactionChannelRequestDO();
+        originalRequestDO.setRequestId("CR202610311200000000001");
+        originalRequestDO.setRequestStatus("TIMEOUT");
+        originalRequestDO.setVersion(7);
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelOrderNo("CMA-001");
+        response.setChannelTransactionId("CMT-CHANNEL-001");
+        response.setAuthCode("000101");
+        response.setAcquirerReferenceNo("20261031000000000000101");
+        response.setRawChannelStatus("SUCCESS");
+        PaymentChannelInvokeResultDTO invokeResultDTO = new PaymentChannelInvokeResultDTO();
+        invokeResultDTO.setRequestStatus("SUCCESS");
+        invokeResultDTO.setChannelResponse(response);
+        invokeResultDTO.setResponseTime(transactionDateTime.plusSeconds(1));
+
+        boolean updated = recordService.updateOriginalChannelRequestByQuery(
+                operationDO,
+                originalRequestDO,
+                invokeResultDTO,
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                null);
+
+        assertThat(updated).isTrue();
+        verify(operationMapper).updateChannelReferencesLogical(
+                11L,
+                transactionDateTime,
+                3,
+                "CMA-001",
+                "CMT-CHANNEL-001",
+                "000101",
+                null,
+                "20261031000000000000101");
+        verify(channelRequestMapper).updateChannelIdentityLogical(
+                "CR202610311200000000001",
+                transactionDateTime,
+                8,
+                "CMA-001",
+                "CMT-CHANNEL-001");
+        verify(orderMapper).updateInitialChannelOrderNoIfUnresolved(
+                "OP202610311200000000001",
+                transactionDateTime,
+                "CMA-001");
     }
 
     /**
@@ -190,6 +259,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(operationCapture.value.getApprovedAmount()).isEqualByComparingTo("12.34");
         assertThat(operationCapture.value.getMerchantOperationNo()).isEqualTo("M202607140001");
         assertThat(operationCapture.value.getRequestSource()).isEqualTo("HOSTED_CHECKOUT");
+        assertThat(operationCapture.value.getIngressClientIp()).isEqualTo("198.51.100.11");
+        assertThat(operationCapture.value.getIngressClientIpHash()).hasSize(64).doesNotContain("198.51.100.11");
         assertThat(locatorCapture.value.getTransactionId()).isEqualTo("TX260714180001");
         assertThat(locatorCapture.value.getRootTransactionId()).isEqualTo("TX260714180001");
         assertThat(locatorCapture.value.getMerchantId()).isEqualTo("200001");
@@ -422,7 +493,7 @@ class DefaultTransactionRecordServiceTests {
         invokeResultDTO.getChannelResponse().setChannelResponseMessage("Unexpected parameter 'authentication.threeDs.acsEci'");
         PaymentCreateResultDTO resultDTO = resultDTO();
         resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
-        resultDTO.setFailReasonCode("CHANNEL_REQUEST_FAILED");
+        resultDTO.setFailReasonCode(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
         resultDTO.setFailReasonMessage("Channel request failed");
 
         recordService.recordInitialTransaction(baseCommand(), routeResult(), invokeResultDTO, resultDTO,
@@ -439,14 +510,49 @@ class DefaultTransactionRecordServiceTests {
         assertThat(channelEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(channelEvent.getEventContent()).contains("渠道交易状态：FAILED");
         assertThat(channelEvent.getErrorMessage()).contains("Unexpected parameter");
-        assertThat(statusEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(statusEvent.getEventStatus()).isEqualTo("SUCCESS");
+        assertThat(statusEvent.getCurrentStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(statusEvent.getEventName()).isEqualTo("交易失败");
         assertThat(statusEvent.getEventContent())
-                .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode() + "：" + ApiResultEnum.PAYMENT_REJECTED.getMessage());
-        assertThat(statusEvent.getErrorCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+                .isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode()
+                        + "：The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
+        assertThat(statusEvent.getErrorCode()).isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
         assertThat(statusEvent.getErrorCode()).isNotEqualTo(resultDTO.getFailReasonCode());
         assertThat(orderCapture.value.getMerchantVisibleMessage())
-                .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+                .isEqualTo("The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
+    }
+
+    @Test
+    void shouldKeepChannelFlowEventProcessingWhenTimeoutOutcomeIsUncertain() {
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                mock(TransactionOrderMapper.class),
+                mock(TransactionOperationMapper.class),
+                mock(TransactionStatusHistoryMapper.class),
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
+        invokeResultDTO.setRequestStatus("TIMEOUT");
+        invokeResultDTO.setExceptionType("ChannelTimeoutException");
+        invokeResultDTO.setExceptionMessage("channel result is unknown");
+        invokeResultDTO.setOutcomeUncertain(true);
+        PaymentCreateResultDTO resultDTO = resultDTO();
+        resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+
+        String eventStatus = ReflectionTestUtils.invokeMethod(
+                recordService, "resolveChannelFlowEventStatus", invokeResultDTO, resultDTO);
+
+        assertThat(eventStatus).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
     }
 
     /**
@@ -495,7 +601,7 @@ class DefaultTransactionRecordServiceTests {
         resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
         resultDTO.setFailReasonCode(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         resultDTO.setFailReasonMessage(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
-        resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        resultDTO.setMerchantResponseCode(OpenApiResultCode.PLATFORM_RISK_REJECTED.getCode());
         resultDTO.setMerchantResponseMessage(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
 
         recordService.recordInitialTransaction(commandDTO, null, null, resultDTO, PaymentRiskDecisionEnum.REJECT, 2);
@@ -510,16 +616,19 @@ class DefaultTransactionRecordServiceTests {
                 .orElseThrow();
         assertThat(orderCapture.value.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(orderCapture.value.getFailReasonMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
-        assertThat(orderCapture.value.getMerchantVisibleMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
+        assertThat(orderCapture.value.getMerchantVisibleMessage())
+                .isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getMessage());
         assertThat(orderCapture.value.getInternalRiskRecordNo()).isEqualTo("RK202607280001");
         assertThat(operationCapture.value.getFailReasonMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
         assertThat(riskEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(riskEvent.getEventContent()).contains("REJECT").contains("RK202607280001").contains("AML_HIT");
         assertThat(riskEvent.getErrorCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         assertThat(statusEvent.getEventName()).isEqualTo("交易失败");
-        assertThat(statusEvent.getEventContent()).isEqualTo("F210：Risk blocked");
-        assertThat(statusEvent.getErrorCode()).isEqualTo("F210");
-        assertThat(statusEvent.getErrorMessage()).isEqualTo("Risk blocked");
+        assertThat(statusEvent.getEventContent())
+                .isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getCode()
+                        + "：" + OpenApiResultCode.PLATFORM_RISK_REJECTED.getMessage());
+        assertThat(statusEvent.getErrorCode()).isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getCode());
+        assertThat(statusEvent.getErrorMessage()).isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getMessage());
         assertThat(statusEvent.getErrorCode()).isNotEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         assertThat(flowEventCapture.values)
                 .noneMatch(event -> "ROUTE_SELECTED".equals(event.getEventType()))
@@ -921,6 +1030,7 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        ArgumentCaptor<TransactionFlowEventDO> flowEventCaptor = ArgumentCaptor.forClass(TransactionFlowEventDO.class);
         when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1);
         when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString()))
@@ -974,10 +1084,126 @@ class DefaultTransactionRecordServiceTests {
                 0,
                 "MATCHED");
         verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
-        verify(flowEventMapper).insertLogical(any());
+        verify(flowEventMapper).insertLogical(flowEventCaptor.capture());
+        assertThat(flowEventCaptor.getValue().getEventType()).isEqualTo("CHANNEL_CALLBACK_PROCESSED");
+        assertThat(flowEventCaptor.getValue().getEventStage()).isEqualTo("CHANNEL");
         verify(notificationMapper).activateByTransactionId(
                 anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
                 any(LocalDateTime.class), any(LocalDateTime.class));
+    }
+
+    /**
+     * 后续退款失败只终结退款动作，不覆盖原支付主单，但仍必须激活该退款动作的商户通知。
+     */
+    @Test
+    void shouldNotifyFailedFollowUpCallbackWithoutOverwritingSourceOrder() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        ArgumentCaptor<TransactionStatusHistoryDO> historyCaptor = ArgumentCaptor.forClass(TransactionStatusHistoryDO.class);
+        ArgumentCaptor<TransactionFlowEventDO> flowEventCaptor = ArgumentCaptor.forClass(TransactionFlowEventDO.class);
+        when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), anyString())).thenReturn(1);
+        when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
+        when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenReturn(1);
+        when(notificationMapper.activateByTransactionId(
+                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any()))
+                .thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                flowEventMapper,
+                mock(TransactionAmountChangeLogMapper.class),
+                notificationMapper,
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        TransactionOperationDO refund = processingInitialOperation();
+        refund.setTransactionId("RF202610250001");
+        refund.setSourceTransactionId("TX202607010030000000001");
+        refund.setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+        TransactionOrderDO sourceOrder = processingInitialOrder();
+        sourceOrder.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+
+        boolean changed = recordService.completeByChannelCallback(
+                refund,
+                sourceOrder,
+                "CCB202610250001",
+                PaymentTransactionStatusEnum.FAILED.getCode(),
+                PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode(),
+                "Declined",
+                "FAILED",
+                "05",
+                "Declined");
+
+        assertThat(changed).isTrue();
+        verify(orderMapper, never()).completeStatus(anyString(), any(LocalDateTime.class), anyString(),
+                any(), anyString(), anyString(), any(), any(), any(), any(), anyString());
+        verify(notificationMapper).activateByTransactionId(
+                eq("RF202610250001"),
+                eq(refund.getTransactionDateTime()),
+                eq(0),
+                anyString(),
+                anyString(),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class));
+        verify(historyMapper, times(2)).insertLogical(historyCaptor.capture());
+        TransactionStatusHistoryDO orderHistory = historyCaptor.getAllValues().stream()
+                .filter(history -> "ORDER".equals(history.getStatusObject()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(orderHistory.getTransitionResult()).isEqualTo("IGNORED");
+        assertThat(orderHistory.getFailReason()).isEqualTo(
+                "lifecycle order change is not required for this operation result");
+        verify(flowEventMapper).insertLogical(flowEventCaptor.capture());
+        assertThat(flowEventCaptor.getValue().getEventStatus()).isEqualTo("SUCCESS");
+    }
+
+    /**
+     * 首次交易动作已 CAS 成功但主单 CAS 失败时必须抛错，使外层事务回滚动作终态。
+     */
+    @Test
+    void shouldFailClosedWhenInitialCallbackCannotUpdateLifecycleOrder() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), anyString())).thenReturn(1);
+        when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(), anyString())).thenReturn(0);
+        TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                notificationMapper,
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+
+        assertThatThrownBy(() -> recordService.completeByChannelCallback(
+                processingInitialOperation(),
+                processingInitialOrder(),
+                "CCB202610250002",
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                null,
+                null,
+                "AUTHORIZED",
+                "00",
+                "Approved"))
+                .hasMessageContaining("order state has changed");
+        verify(notificationMapper, never()).activateByTransactionId(
+                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any());
     }
 
     /**
@@ -993,6 +1219,7 @@ class DefaultTransactionRecordServiceTests {
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
         TransactionMerchantApiInteractionLogMapper merchantApiLogMapper = mock(TransactionMerchantApiInteractionLogMapper.class);
+        TransactionIdempotencyService idempotencyService = mock(TransactionIdempotencyService.class);
         when(operationMapper.selectByTransactionId(
                 "202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
                 .thenReturn(processingInitialOperation());
@@ -1023,6 +1250,7 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionPaymentMethodInfoMapper.class),
                 new TransactionShardingKeyParser(),
                 logicalShardingProperties());
+        ReflectionTestUtils.setField(recordService, "transactionIdempotencyService", idempotencyService);
         PaymentCreateCommandDTO commandDTO = baseCommand();
         commandDTO.setRequestId(commandDTO.getMerchantOrderId());
         commandDTO.setMerchantRequestPlainJsonMasked("{\"orderInfo\":{\"orderNo\":\"M202607140001\"}}");
@@ -1100,11 +1328,81 @@ class DefaultTransactionRecordServiceTests {
                 eq("AUTH202607140001"),
                 eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
                 eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
-                eq("T200"),
+                eq(OpenApiResultCode.TRANSACTION_SUCCESS.getCode()),
                 eq("Success"),
                 contains("\"transactionStatus\":\"SUCCESS\""),
                 any(),
                 any());
+        verify(idempotencyService).synchronizeInitialTransactionStatus(
+                "202607010030000000001", PaymentTransactionStatusEnum.SUCCESS.getCode());
+    }
+
+    /**
+     * 后续动作终态只允许 CAS 成功方在当前事务内同步幂等状态。
+     */
+    @Test
+    void shouldSynchronizeFollowUpIdempotencyOnlyForTerminalCasWinner() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
+        TransactionIdempotencyService idempotencyService = mock(TransactionIdempotencyService.class);
+        TransactionFollowUpRecordDTO followUp = followUpRecord();
+        PaymentCreateCommandDTO commandDTO = followUp.getCommandDTO();
+        PaymentCreateResultDTO resultDTO = followUp.getResultDTO();
+        PaymentChannelInvokeResultDTO invokeResultDTO = followUp.getChannelInvokeResultDTO();
+        TransactionOperationDO operationDO = processingInitialOperation();
+        operationDO.setTransactionId(resultDTO.getTransactionId());
+        operationDO.setSourceTransactionId(resultDTO.getSourceTransactionId());
+        operationDO.setTransactionType(resultDTO.getTransactionType());
+        operationDO.setTransactionAmount(new BigDecimal("5.00"));
+        operationDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        when(channelRequestMapper.selectByRequestId(
+                invokeResultDTO.getRequestId(), commandDTO.getTransactionDateTime()))
+                .thenReturn(channelRequestFact("INIT", 0));
+        when(channelRequestMapper.updateStatusLogical(anyString(), any(LocalDateTime.class), any(), any(), anyString(),
+                any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(interactionLogMapper.updateByRequestIdLogical(anyString(), any(LocalDateTime.class), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), anyString()))
+                .thenReturn(1, 0);
+        when(orderMapper.increaseCapturedAmount(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any())).thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                channelRequestMapper,
+                interactionLogMapper,
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        ReflectionTestUtils.setField(recordService, "transactionIdempotencyService", idempotencyService);
+
+        boolean winnerChanged = recordService.completeCaptureChannelResult(
+                operationDO, followUp.getSourceOrderDO(), commandDTO, followUp.getRouteResultDTO(),
+                invokeResultDTO, resultDTO, followUp.getCurrencyExponent());
+        boolean loserChanged = recordService.completeCaptureChannelResult(
+                operationDO, followUp.getSourceOrderDO(), commandDTO, followUp.getRouteResultDTO(),
+                invokeResultDTO, resultDTO, followUp.getCurrencyExponent());
+
+        assertThat(winnerChanged).isTrue();
+        assertThat(loserChanged).isFalse();
+        verify(idempotencyService, times(1)).synchronizeInitialTransactionStatus(
+                resultDTO.getTransactionId(), PaymentTransactionStatusEnum.SUCCESS.getCode());
+        verify(orderMapper, times(1)).increaseCapturedAmount(
+                followUp.getSourceOrderDO().getOperationId(),
+                followUp.getSourceOrderDO().getTransactionDateTime(),
+                resultDTO.getTransactionId(),
+                new BigDecimal("5.00"),
+                followUp.getSourceOrderDO().getVersion());
     }
 
     @Test
@@ -1456,6 +1754,9 @@ class DefaultTransactionRecordServiceTests {
         TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
         TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        TransactionIdempotencyService idempotencyService = mock(TransactionIdempotencyService.class);
+        ArgumentCaptor<TransactionStatusHistoryDO> historyCaptor = ArgumentCaptor.forClass(TransactionStatusHistoryDO.class);
+        ArgumentCaptor<TransactionFlowEventDO> flowEventCaptor = ArgumentCaptor.forClass(TransactionFlowEventDO.class);
         when(operationMapper.selectByTransactionId(
                 "202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
                 .thenReturn(processingInitialOperation());
@@ -1485,6 +1786,7 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionPaymentMethodInfoMapper.class),
                 new TransactionShardingKeyParser(),
                 logicalShardingProperties());
+        ReflectionTestUtils.setField(recordService, "transactionIdempotencyService", idempotencyService);
 
         PaymentCreateResultDTO resultDTO = initialResultDTO(
                 PaymentTransactionStatusEnum.PROCESSING.getCode(),
@@ -1529,8 +1831,17 @@ class DefaultTransactionRecordServiceTests {
                 matchTimeCaptor.getValue());
         verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString());
         verify(operationMapper, never()).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
-        verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
-        verify(flowEventMapper).insertLogical(any(TransactionFlowEventDO.class));
+        verify(historyMapper, times(2)).insertLogical(historyCaptor.capture());
+        TransactionStatusHistoryDO orderHistory = historyCaptor.getAllValues().stream()
+                .filter(history -> "ORDER".equals(history.getStatusObject()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(orderHistory.getTransitionResult()).isEqualTo("IGNORED");
+        assertThat(orderHistory.getFailReason()).isEqualTo(
+                "lifecycle order change is not required for this operation result");
+        verify(flowEventMapper).insertLogical(flowEventCaptor.capture());
+        assertThat(flowEventCaptor.getValue().getEventStatus()).isEqualTo("SUCCESS");
+        verify(idempotencyService, never()).synchronizeInitialTransactionStatus(anyString(), anyString());
     }
 
     /**
@@ -1753,7 +2064,9 @@ class DefaultTransactionRecordServiceTests {
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
     }
 
-    /** 渠道已生成并发出请求但网络异常时，应从请求扩展保存真实脱敏渠道报文。 */
+    /**
+     * 渠道已生成并发出请求但网络异常时，应从请求扩展保存真实脱敏渠道报文。
+     */
     @Test
     void shouldRecordGeneratedChannelPayloadFromRequestWhenResponseIsMissing() {
         PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
@@ -1777,7 +2090,9 @@ class DefaultTransactionRecordServiceTests {
         assertThat(interactionDO.getRequestBodyJsonMasked()).doesNotContain("\"channelCode\"");
     }
 
-    /** 渠道发送前校验失败时没有真实 HTTP 请求，后台不得把内部统一请求对象冒充渠道报文。 */
+    /**
+     * 渠道发送前校验失败时没有真实 HTTP 请求，后台不得把内部统一请求对象冒充渠道报文。
+     */
     @Test
     void shouldLeaveChannelPayloadEmptyWhenRequestWasNotGenerated() {
         PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
@@ -1791,7 +2106,9 @@ class DefaultTransactionRecordServiceTests {
         assertThat(interactionDO.getRequestBodyJsonMasked()).isNull();
     }
 
-    /** 执行首次交易事实写入并捕获渠道交互日志。 */
+    /**
+     * 执行首次交易事实写入并捕获渠道交互日志。
+     */
     private TransactionChannelInteractionLogDO recordInitialInteraction(PaymentChannelInvokeResultDTO invokeResultDTO) {
         TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
         Captured<TransactionChannelInteractionLogDO> interactionCapture = new Captured<>();
@@ -1828,6 +2145,7 @@ class DefaultTransactionRecordServiceTests {
         commandDTO.setCurrency("USD");
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 1, 0, 30));
         commandDTO.setRequestSource("HOSTED_CHECKOUT");
+        commandDTO.setIngressClientIp("198.51.100.11");
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setCardBrand("MASTERCARD");
         transactionInfoDTO.setIssuerCountry("AE");

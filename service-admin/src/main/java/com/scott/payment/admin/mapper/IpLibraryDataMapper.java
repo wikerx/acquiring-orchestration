@@ -8,13 +8,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLibraryDataMapper
- * @date : 2026-07-05 00:34
- * @email : scott_x@163.com
- * @description : IP Library Data Mapper 映射组件，位于 运营后台服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
- * @status : create
+ * IP Library Data 数据访问接口，负责对应持久化记录的查询和写入。
  */
 public interface IpLibraryDataMapper {
 

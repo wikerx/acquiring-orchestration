@@ -13,20 +13,16 @@ import java.time.format.DateTimeFormatter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentClientShardingTimeSerializationTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : OpenAPI 调用 Payment 时的分片时间序列化契约测试。
- * @status : create
+ * OpenAPI 调用 Payment 时的分片时间序列化契约测试。
  */
 class PaymentClientShardingTimeSerializationTest {
 
     private static final LocalDateTime SHARDING_TIME =
             LocalDateTime.of(2026, 8, 2, 12, 8, 36, 255_000_000);
 
-    /** 使用秒级全局配置模拟生产 ObjectMapper，验证内部请求保留毫秒分片时间。 */
+    /**
+     * 使用秒级全局配置模拟生产 ObjectMapper，验证内部请求保留毫秒分片时间。
+     */
     private final ObjectMapper objectMapper = secondsConfiguredObjectMapper();
 
     /**

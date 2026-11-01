@@ -21,13 +21,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPostServiceImpl
- * @date : 2026-06-19 21:56
- * @email : scott_x@163.com
- * @description : 管理后台岗位领域服务实现
- * @status : create
+ * 管理后台岗位领域服务实现
  *
  * <p>负责岗位查询、维护和 admin 应用归属校验等领域规则，不承担权限控制或页面交互逻辑。</p>
  */

@@ -14,13 +14,7 @@ import java.util.Properties;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRuntimeConfigurationContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 锁定结算服务的环境配置、Nacos 基础设施导入和统一日志资源。
- * @status : create
+ * 锁定结算服务的环境配置、Nacos 基础设施导入和统一日志资源。
  */
 class SettlementRuntimeConfigurationContractTest {
 
@@ -51,7 +45,9 @@ class SettlementRuntimeConfigurationContractTest {
             "rocketmq-${spring.profiles.active}"
     );
 
-    /** 每套环境只连接 Nacos，并导入结算实际依赖的六个 DataId。 */
+    /**
+     * 每套环境只连接 Nacos，并导入结算实际依赖的六个 DataId。
+     */
     @Test
     void runtimeProfilesShouldImportRequiredInfrastructureAndUnifiedLogging() throws Exception {
         for (String profile : PROFILES) {
@@ -75,7 +71,9 @@ class SettlementRuntimeConfigurationContractTest {
         }
     }
 
-    /** UAT 和生产配置不得携带 Nacos 开发账号或密码默认值。 */
+    /**
+     * UAT 和生产配置不得携带 Nacos 开发账号或密码默认值。
+     */
     @Test
     void restrictedProfilesShouldRequireNacosCredentials() throws Exception {
         for (String profile : List.of("uat", "prod")) {
@@ -86,7 +84,9 @@ class SettlementRuntimeConfigurationContractTest {
         }
     }
 
-    /** Logback 文件必须可解析，并使用结算服务名和统一链路日志格式。 */
+    /**
+     * Logback 文件必须可解析，并使用结算服务名和统一链路日志格式。
+     */
     @Test
     void logbackConfigurationShouldBeLoadableAndUseSettlementIdentity() throws Exception {
         Path path = Path.of("src/main/resources/log-config/logback-spring.xml");
@@ -102,7 +102,9 @@ class SettlementRuntimeConfigurationContractTest {
         );
     }
 
-    /** 专属 DataId 保存内部调用路由但不保存真实密钥，也不得引入结算业务开关或资金规则。 */
+    /**
+     * 专属 DataId 保存内部调用路由但不保存真实密钥，也不得引入结算业务开关或资金规则。
+     */
     @Test
     void serviceNacosBaselineShouldContainInternalRoutingWithoutSettlementRules() throws Exception {
         Path path = repositoryPath("docs/deployment/nacos/service-settlement-dev.yaml");
@@ -125,7 +127,9 @@ class SettlementRuntimeConfigurationContractTest {
                         "reserve-rate");
     }
 
-    /** 所有 application.yml 仅允许启动基线和不可远程关闭的内部鉴权 enabled 门禁。 */
+    /**
+     * 所有 application.yml 仅允许启动基线和不可远程关闭的内部鉴权 enabled 门禁。
+     */
     @Test
     void serviceApplicationsShouldKeepOnlyBootstrapAndLocalSecurityGate() throws Exception {
         for (String service : SERVICES) {
@@ -147,7 +151,9 @@ class SettlementRuntimeConfigurationContractTest {
         }
     }
 
-    /** 仓库模板不得携带脚本管理的真实密钥段，内部密钥字段只能引用本服务调用边。 */
+    /**
+     * 仓库模板不得携带脚本管理的真实密钥段，内部密钥字段只能引用本服务调用边。
+     */
     @Test
     void serviceNacosTemplatesShouldReferenceManagedEdgesWithoutEmbeddingBundle() throws Exception {
         for (String service : SERVICES) {
@@ -168,7 +174,9 @@ class SettlementRuntimeConfigurationContractTest {
         }
     }
 
-    /** 标准嵌套结构必须继续暴露既有 Spring 属性路径，业务配置与鉴权配置共享唯一 acquiring 根节点。 */
+    /**
+     * 标准嵌套结构必须继续暴露既有 Spring 属性路径，业务配置与鉴权配置共享唯一 acquiring 根节点。
+     */
     @Test
     void serviceBundleShouldExposeInternalAuthProperties() {
         String yaml = "acquiring:\n"
@@ -188,7 +196,9 @@ class SettlementRuntimeConfigurationContractTest {
         assertThat(yaml).doesNotContain("acquiring.internal-auth.edges:");
     }
 
-    /** Admin 调用端与 Settlement 验签端必须引用同一条中性 edge 属性。 */
+    /**
+     * Admin 调用端与 Settlement 验签端必须引用同一条中性 edge 属性。
+     */
     @Test
     void adminAndSettlementNacosShouldUseTheSameInjectedSecret() throws Exception {
         Properties admin = parseYaml(Files.readString(

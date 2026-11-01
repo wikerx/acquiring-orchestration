@@ -8,13 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiAccessPolicyCacheService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 访问策略缓存服务。
- * @status : create
+ * 商户 OpenAPI IP 访问策略缓存服务。
  */
 @Service
 public class MerchantOpenApiAccessPolicyCacheService {
@@ -45,7 +39,7 @@ public class MerchantOpenApiAccessPolicyCacheService {
     }
 
     /**
-     * 读取商户 IP 访问策略，缓存未启用状态可防止配置表穿透。
+     * 读取商户 IP 访问策略，缓存空白名单策略可防止配置表穿透。
      *
      * @param merchantId 商户号
      * @return 商户访问策略
@@ -78,7 +72,7 @@ public class MerchantOpenApiAccessPolicyCacheService {
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: SECURITY_CACHE_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
+                    "OpenAPI访问策略缓存保护检查失败, event: SECURITY_CACHE_GUARD_CHECK_FAILED, cacheName: {}, exceptionType: {}",
                     PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
                     exception.getClass().getSimpleName()
             );

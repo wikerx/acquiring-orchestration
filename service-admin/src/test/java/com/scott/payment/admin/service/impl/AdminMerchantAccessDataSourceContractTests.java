@@ -11,13 +11,7 @@ import java.lang.reflect.Method;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantAccessDataSourceContractTests
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 固定商户访问配置的后台查询与内部安全查询数据源边界。
- * @status : create
+ * 固定商户访问配置的后台查询与内部安全查询数据源边界。
  */
 class AdminMerchantAccessDataSourceContractTests {
 

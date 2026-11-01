@@ -3,16 +3,13 @@ package com.scott.payment.admin.service;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantDataScope
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Admin 商户数据范围；allMerchants 与有限 merchantIds 明确区分，空集合绝不代表全量。
- * @status : create
+ * Admin 商户数据范围；allMerchants 与有限 merchantIds 明确区分，空集合绝不代表全量。
  */
 public record AdminMerchantDataScope(boolean allMerchants, Set<String> merchantIds) {
 
+    /**
+     * 创建管理端商户数据范围。
+     */
     public AdminMerchantDataScope {
         merchantIds = merchantIds == null ? Set.of() : Set.copyOf(merchantIds);
         if (allMerchants && !merchantIds.isEmpty()) {

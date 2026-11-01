@@ -6,13 +6,7 @@ import com.scott.payment.merchant.entity.MerchantFinanceEntities.ReserveBalanceA
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantPendingBalanceQueryService
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 商户端在途余额只读边界，按认证商户号从交易副本实时聚合未结算成功资金动作。
- * @status : create
+ * 商户端在途余额只读边界，按认证商户号从交易副本实时聚合未结算成功资金动作。
  */
 public interface MerchantPendingBalanceQueryService {
 

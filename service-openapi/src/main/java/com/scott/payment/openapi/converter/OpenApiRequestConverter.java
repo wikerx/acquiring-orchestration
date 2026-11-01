@@ -7,7 +7,10 @@ import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDT
 import com.scott.payment.openapi.dto.body.PaymentCreateRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.springframework.util.StringUtils;
@@ -20,13 +23,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestConverter
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 请求对象转换器，位于 service-openapi 转换层，只做字段映射，不承担币种金额精度换算。
- * @status : create
+ * 商户 OpenAPI 请求对象转换器，位于 service-openapi 转换层，只做字段映射，不承担币种金额精度换算。
  */
 @Mapper(componentModel = "spring")
 public interface OpenApiRequestConverter {
@@ -80,8 +77,6 @@ public interface OpenApiRequestConverter {
         vo.setOrderInfo(orderInfoVO);
 
         PaymentCreateVO.TransactionInfoVO transactionInfoVO = new PaymentCreateVO.TransactionInfoVO();
-        transactionInfoVO.setCode(responseDTO.getMerchantResponseCode());
-        transactionInfoVO.setMessage(responseDTO.getMerchantResponseMessage());
         transactionInfoVO.setTransactionId(responseDTO.getTransactionId());
         transactionInfoVO.setSourceTransactionId(responseDTO.getSourceTransactionId());
         transactionInfoVO.setSourceTransactionDateTime(toOffsetDateTime(
@@ -102,9 +97,13 @@ public interface OpenApiRequestConverter {
         transactionInfoVO.setMerchantWebsite(responseDTO.getMerchantWebsite());
         transactionInfoVO.setRedirectUrl(responseDTO.getRedirectUrl());
         transactionInfoVO.setLanguage(responseDTO.getLanguage());
-        transactionInfoVO.setFailReasonCode(responseDTO.getFailReasonCode());
-        transactionInfoVO.setFailReasonMessage(responseDTO.getFailReasonMessage());
         transactionInfoVO.setPendingReasonCode(responseDTO.getPendingReasonCode());
+        applyTransactionProjection(transactionInfoVO,
+                responseDTO.getStatus(),
+                responseDTO.getProcessStage(),
+                responseDTO.getFailReasonCode(),
+                responseDTO.getPendingReasonCode(),
+                responseDTO.getMerchantResponseCode());
         vo.setTransactionInfo(transactionInfoVO);
 
         vo.setCurrency(responseDTO.getCurrency());
@@ -141,7 +140,9 @@ public interface OpenApiRequestConverter {
             orderInfoVO.setOrderNo(requestDTO.getOrderInfo().getOrderNo());
             orderInfoVO.setOrderId(requestDTO.getOrderInfo().getOrderId());
             orderInfoVO.setAmount(requestDTO.getOrderInfo().getAmount());
-            orderInfoVO.setCurrency(requestDTO.getOrderInfo().getCurrency());
+            if (StringUtils.hasText(requestDTO.getOrderInfo().getCurrency())) {
+                orderInfoVO.setCurrency(requestDTO.getOrderInfo().getCurrency());
+            }
             normalizeCreateActionTotals(orderInfoVO, responseDTO);
             vo.setOrderInfo(orderInfoVO);
         }
@@ -152,7 +153,6 @@ public interface OpenApiRequestConverter {
             transactionInfoVO.setCallbackUrl(requestDTO.getTransactionInfo().getCallbackUrl());
             vo.setTransactionInfo(transactionInfoVO);
         }
-        normalizeMerchantFailureMessage(vo, responseDTO);
         overrideSettlementCurrency(vo, merchantSettlementCurrency);
         return vo;
     }
@@ -226,7 +226,9 @@ public interface OpenApiRequestConverter {
         return vo;
     }
 
-    /** 组装查询响应商户信息，子商户必须来自首次交易冻结快照。 */
+    /**
+     * 组装查询响应商户信息，子商户必须来自首次交易冻结快照。
+     */
     private PaymentCreateVO.MerchantInfoVO toMerchantInfoVO(PaymentQueryClientResponseDTO source) {
         if (source == null || (!StringUtils.hasText(source.getMerchantId()) && source.getSubMerchantInfo() == null)) {
             return null;
@@ -238,12 +240,10 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造商户信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
+     * 将商户请求中的商户号和子商户快照转换为响应视图。
+     *
+     * @param source 商户 OpenAPI 请求中的商户信息
+     * @return 商户响应视图；来源为空时返回 {@code null}
      */
     private PaymentCreateVO.MerchantInfoVO toMerchantInfoVO(ApiMerchantPaymentRequestDTO.MerchantInfoDTO source) {
         if (source == null) {
@@ -256,12 +256,10 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造商户信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
+     * 将支付核心响应中的商户号和冻结子商户快照转换为响应视图。
+     *
+     * @param responseDTO 支付核心交易响应
+     * @return 商户响应视图；商户信息全部缺失时返回 {@code null}
      */
     private PaymentCreateVO.MerchantInfoVO toMerchantInfoVO(PaymentCreateClientResponseDTO responseDTO) {
         if (!StringUtils.hasText(responseDTO.getMerchantId()) && responseDTO.getSubMerchantInfo() == null) {
@@ -274,12 +272,10 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 将内部或 OpenAPI 子商户信息转换为对外响应视图，并限制敏感字段集合。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
+     * 将支付核心冻结的子商户快照转换为对外响应视图。
+     *
+     * @param source 支付核心子商户快照
+     * @return 子商户响应视图；来源为空时返回 {@code null}
      */
     private PaymentCreateVO.SubMerchantInfoVO toSubMerchantInfoVO(PaymentCreateClientResponseDTO.SubMerchantInfoDTO source) {
         if (source == null) {
@@ -304,12 +300,10 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 将内部或 OpenAPI 子商户信息转换为对外响应视图，并限制敏感字段集合。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
+     * 将商户请求中的子商户信息转换为对外响应视图。
+     *
+     * @param source 商户请求子商户信息
+     * @return 子商户响应视图；来源为空时返回 {@code null}
      */
     private PaymentCreateVO.SubMerchantInfoVO toSubMerchantInfoVO(ApiMerchantPaymentRequestDTO.SubMerchantInfoDTO source) {
         if (source == null) {
@@ -333,7 +327,9 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
-    /** 将 payment 查询响应中的子商户快照转换为商户响应。 */
+    /**
+     * 将 payment 查询响应中的子商户快照转换为商户响应。
+     */
     private PaymentCreateVO.SubMerchantInfoVO toSubMerchantInfoVO(
             PaymentCreateClientRequestDTO.SubMerchantInfoDTO source) {
         if (source == null) {
@@ -358,12 +354,10 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造账单卡持有人信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
+     * 将商户请求中的账单持卡人信息转换为响应视图。
+     *
+     * @param source 商户请求账单持卡人信息
+     * @return 账单持卡人响应视图；来源为空时返回 {@code null}
      */
     private PaymentCreateVO.BillingCardHolderInfoVO toBillingCardHolderInfoVO(ApiMerchantPaymentRequestDTO.BillingCardHolderInfoDTO source) {
         if (source == null) {
@@ -382,7 +376,9 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
-    /** Convert the payment-service billing snapshot to the merchant response model. */
+    /**
+     * Convert the payment-service billing snapshot to the merchant response model.
+     */
     private PaymentCreateVO.BillingCardHolderInfoVO toBillingCardHolderInfoVO(
             PaymentCreateClientRequestDTO.BillingCardHolderInfoDTO source) {
         if (source == null) {
@@ -401,7 +397,9 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
-    /** Convert product snapshot rows in their original order. */
+    /**
+     * Convert product snapshot rows in their original order.
+     */
     private List<PaymentCreateVO.GoodsInfoVO> toGoodsInfoVO(
             List<PaymentCreateClientRequestDTO.GoodsInfoDTO> source) {
         if (source == null) {
@@ -417,7 +415,9 @@ public interface OpenApiRequestConverter {
         }).toList();
     }
 
-    /** Convert the decrypted payer snapshot to the merchant response model. */
+    /**
+     * Convert the decrypted payer snapshot to the merchant response model.
+     */
     private PaymentCreateVO.PayerInfoVO toPayerInfoVO(PaymentCreateClientRequestDTO.PayerInfoDTO source) {
         if (source == null) {
             return null;
@@ -440,7 +440,9 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
-    /** Convert the shipping snapshot to the merchant response model. */
+    /**
+     * Convert the shipping snapshot to the merchant response model.
+     */
     private PaymentCreateVO.ShippingInfoVO toShippingInfoVO(PaymentCreateClientRequestDTO.ShippingInfoDTO source) {
         if (source == null) {
             return null;
@@ -478,8 +480,8 @@ public interface OpenApiRequestConverter {
      * <p>
      * 仅返回规范化或计算结果，不直接提交交易状态。
      * </p>
-     * @param orderInfoVO 待组装或返回的接口视图对象，只允许写入调用方有权查看的字段
-     * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param orderInfoVO 待补齐累计金额的订单响应
+     * @param responseDTO 支付核心初始交易响应
      */
     private void normalizeCreateActionTotals(PaymentCreateVO.OrderInfoVO orderInfoVO, PaymentCreateClientResponseDTO responseDTO) {
         if (orderInfoVO == null || responseDTO == null || !isInitialCreateAction(responseDTO.getTransactionType())) {
@@ -505,35 +507,6 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 解析商户失败说明，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param vo 待组装或返回的接口视图对象，只允许写入调用方有权查看的字段
-     * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
-    private void normalizeMerchantFailureMessage(PaymentCreateVO vo, PaymentCreateClientResponseDTO responseDTO) {
-        if (vo == null || vo.getTransactionInfo() == null || responseDTO == null) {
-            return;
-        }
-        if (isInitialCreateAction(responseDTO.getTransactionType())
-                && "FAILED".equals(responseDTO.getStatus())
-                && shouldUseDefaultRejectedMessage(responseDTO.getMerchantResponseMessage())) {
-            vo.getTransactionInfo().setMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
-        }
-    }
-
-    /**
-     * 判断渠道或内部失败说明是否缺失或仍为通用 Rejected，以决定是否回退统一商户文案。
-     * @param merchantResponseMessage 候选商户可见响应说明，内部错误和渠道敏感细节不得直接透传
-     * @return 当前业务条件成立时返回 true，否则返回 false
-     */
-    private boolean shouldUseDefaultRejectedMessage(String merchantResponseMessage) {
-        return !StringUtils.hasText(merchantResponseMessage)
-                || "Rejected".equalsIgnoreCase(merchantResponseMessage.trim());
-    }
-
-    /**
      * 判断交易类型是否属于支付、授权或预授权等初始创建动作。
      * <p>
      * 纯判断操作，不修改业务状态。
@@ -548,21 +521,20 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 规范化{@code defaultZero}，返回调用链后续步骤可直接使用的业务值。
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 当前方法生成的 {@code BigDecimal} 结果
+     * 将缺失金额转换为零，避免累计金额响应出现不一致的空值。
+     *
+     * @param value 支付核心累计金额
+     * @return 原金额或 {@link BigDecimal#ZERO}
      */
     private BigDecimal defaultZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
     /**
-     * 构造账单信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
+     * 将创建类交易的标签金额、渠道交易金额、汇率和费用转换为账单响应。
+     *
+     * @param responseDTO 支付核心创建类交易响应
+     * @return 账单响应；所有金额和汇率字段均为空时返回 {@code null}
      */
     private PaymentCreateVO.BillingInfoVO toBillingInfoVO(PaymentCreateClientResponseDTO responseDTO) {
         if (responseDTO.getLabelAmount() == null
@@ -596,12 +568,10 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造账单信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
+     * 将查询聚合中的标签金额、渠道交易金额、汇率和费用转换为账单响应。
+     *
+     * @param responseDTO 支付核心订单查询响应
+     * @return 账单响应；所有金额和汇率字段均为空时返回 {@code null}
      */
     private PaymentCreateVO.BillingInfoVO toBillingInfoVO(PaymentQueryClientResponseDTO responseDTO) {
         if (responseDTO == null
@@ -635,7 +605,9 @@ public interface OpenApiRequestConverter {
         return billingInfoVO;
     }
 
-    /** 转换商户可见的 3DS 安全字段白名单。 */
+    /**
+     * 转换商户可见的 3DS 安全字段白名单。
+     */
     private PaymentCreateVO.ThreeDsInfoVO toThreeDsInfoVO(
             PaymentCreateClientResponseDTO.ThreeDsInfoDTO source) {
         if (source == null) {
@@ -650,7 +622,9 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
-    /** 转换已形成的费用明细，不在 OpenAPI 层重新计算金额或汇率。 */
+    /**
+     * 转换已形成的费用明细，不在 OpenAPI 层重新计算金额或汇率。
+     */
     private List<PaymentCreateVO.FeeItemVO> toFeeItemVO(
             List<PaymentCreateClientResponseDTO.FeeItemDTO> source) {
         if (source == null || source.isEmpty()) {
@@ -667,13 +641,11 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造查询交易信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 构造、转换或解析后的业务值
+     * 将单笔支付核心交易事实转换为查询响应，并统一投影公开状态码和文案。
+     *
+     * @param source 支付核心单笔交易事实
+     * @param timeZone 商户交易时区，用于解释无偏移本地时间
+     * @return 单笔交易查询响应；来源为空时返回空响应对象
      */
     private PaymentQueryVO.TransactionInfoVO toQueryTransactionInfoVO(PaymentQueryClientResponseDTO.TransactionInfoDTO source,
                                                                       String timeZone) {
@@ -684,10 +656,16 @@ public interface OpenApiRequestConverter {
         target.setTransactionId(source.getTransactionId());
         target.setSourceTransactionId(source.getSourceTransactionId());
         target.setSourceTransactionDateTime(toOffsetDateTime(source.getSourceTransactionDateTime(), timeZone));
-        target.setCode(source.getCode());
-        target.setMessage(source.getMessage());
         target.setTransactionType(source.getTransactionType());
         target.setTransactionStatus(source.getTransactionStatus());
+        target.setProcessStage(source.getProcessStage());
+        target.setPendingReasonCode(source.getPendingReasonCode());
+        applyTransactionProjection(target,
+                source.getTransactionStatus(),
+                source.getProcessStage(),
+                source.getFailReasonCode(),
+                source.getPendingReasonCode(),
+                source.getCode());
         target.setTransactionDateTime(toOffsetDateTime(source.getTransactionDateTime(), timeZone));
         target.setRootTransactionDateTime(toOffsetDateTime(source.getRootTransactionDateTime(), timeZone));
         target.setPaymentMethod(source.getPaymentMethod());
@@ -704,25 +682,62 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 将非空汇率统一保留八位小数，使用 HALF_UP 舍入。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param rate 汇率、费率或币种小数位，必须使用明确精度且禁止隐式浮点换算
-     * @return 构造、转换或解析后的业务值
+     * 将支付核心事实投影到创建类交易响应，公开原因始终使用平台固定模板。
+     *
+     * @param target 商户创建类交易信息
+     * @param status 支付核心状态
+     * @param processStage 支付核心处理阶段
+     * @param failureReasonCode 支付核心受控失败原因码
+     * @param pendingReasonCode 支付核心受控等待原因码
+     * @param legacyMerchantCode 历史内部响应码，仅用于兼容输入
+     */
+    private void applyTransactionProjection(PaymentCreateVO.TransactionInfoVO target,
+                                            String status,
+                                            String processStage,
+                                            String failureReasonCode,
+                                            String pendingReasonCode,
+                                            String legacyMerchantCode) {
+        OpenApiTransactionProjection projection = OpenApiTransactionResultProjector.project(
+                status, processStage, failureReasonCode, pendingReasonCode, legacyMerchantCode);
+        target.setCode(projection.resultCode().getCode());
+        target.setMessage(projection.message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        target.setFailReasonCode(projection.failureReasonCode());
+        target.setFailReasonMessage(projection.failureReasonMessage());
+    }
+
+    /**
+     * 查询响应与创建响应共享同一投影规则，避免相同交易事实产生不同公开结果。
+     */
+    private void applyTransactionProjection(PaymentQueryVO.TransactionInfoVO target,
+                                            String status,
+                                            String processStage,
+                                            String failureReasonCode,
+                                            String pendingReasonCode,
+                                            String legacyMerchantCode) {
+        OpenApiTransactionProjection projection = OpenApiTransactionResultProjector.project(
+                status, processStage, failureReasonCode, pendingReasonCode, legacyMerchantCode);
+        target.setCode(projection.resultCode().getCode());
+        target.setMessage(projection.message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        target.setFailReasonCode(projection.failureReasonCode());
+        target.setFailReasonMessage(projection.failureReasonMessage());
+    }
+
+    /**
+     * 将非空汇率统一保留八位小数并使用 {@link RoundingMode#HALF_UP} 舍入。
+     *
+     * @param rate 支付核心已冻结的交易或结算汇率
+     * @return 八位小数汇率；输入为空时返回 {@code null}
      */
     private BigDecimal normalizeRate(BigDecimal rate) {
         return rate == null ? null : rate.setScale(8, RoundingMode.HALF_UP);
     }
 
     /**
-     * 按指定 IANA 时区把本地日期时间转换为带 UTC 偏移的时间。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param dateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 构造、转换或解析后的业务值
+     * 按指定 IANA 时区把支付核心本地时间转换为带 UTC 偏移的时间。
+     *
+     * @param dateTime 支付核心保存的本地日期时间
+     * @param timeZone 商户交易时区；为空时使用平台默认时区
+     * @return 带偏移的交易时间；输入为空时返回 {@code null}
      */
     private OffsetDateTime toOffsetDateTime(LocalDateTime dateTime, String timeZone) {
         if (dateTime == null) {
@@ -748,13 +763,19 @@ public interface OpenApiRequestConverter {
      */
     PaymentCreateClientRequestDTO.BillingCardHolderInfoDTO toPaymentClientBillingCardHolderInfo(ApiMerchantPaymentRequestDTO.BillingCardHolderInfoDTO source);
 
-    /** 转换首次交易商品明细。 */
+    /**
+     * 转换首次交易商品明细。
+     */
     List<PaymentCreateClientRequestDTO.GoodsInfoDTO> toPaymentClientGoodsInfo(List<ApiMerchantPaymentRequestDTO.GoodsInfoDTO> source);
 
-    /** 转换付款人身份和浏览器上下文。 */
+    /**
+     * 转换付款人身份和浏览器上下文。
+     */
     PaymentCreateClientRequestDTO.PayerInfoDTO toPaymentClientPayerInfo(ApiMerchantPaymentRequestDTO.PayerInfoDTO source);
 
-    /** 转换收货人及收货地址。 */
+    /**
+     * 转换收货人及收货地址。
+     */
     PaymentCreateClientRequestDTO.ShippingInfoDTO toPaymentClientShippingInfo(ApiMerchantPaymentRequestDTO.ShippingInfoDTO source);
 
     /**

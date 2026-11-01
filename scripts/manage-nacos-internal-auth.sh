@@ -357,8 +357,17 @@ encrypted_data_key_from() {
 
 normalize_empty_secret() {
   local value="$1"
-  if [[ "$value" == '""' || "$value" == "''" ]]; then
-    value=""
+  local quote
+  local unquoted
+  if [[ ${#value} -ge 2 ]]; then
+    quote="${value:0:1}"
+    if [[ ( "$quote" == '"' || "$quote" == "'" ) && "${value: -1}" == "$quote" ]]; then
+      unquoted="${value:1:${#value}-2}"
+      # 内部鉴权密钥由本脚本生成，仅允许安全的 Base64/hex 标量；不在此实现通用 YAML 转义解析。
+      if [[ -z "$unquoted" || "$unquoted" =~ ^[A-Za-z0-9_+/=-]+$ ]]; then
+        value="$unquoted"
+      fi
+    fi
   fi
   printf '%s' "$value"
 }
@@ -1052,18 +1061,101 @@ validate_service_config_template() {
   fi
 }
 
+# 读取 payment.mfa 下的单行标量；只用于同步时保留已由受控流程写入 Nacos 的运行时密钥。
+payment_mfa_scalar_from() {
+  local content_file="$1"
+  local field="$2"
+  awk -v field="$field" '
+    $0 == "payment:" { in_payment=1; next }
+    in_payment && /^[^[:space:]#]/ { exit }
+    in_payment && $0 == "  mfa:" { in_mfa=1; next }
+    in_mfa && /^  [^ ]/ { exit }
+    in_mfa && index($0, "    " field ":") == 1 {
+      sub("^    " field ":[[:space:]]*", "")
+      print
+      exit
+    }
+  ' "$content_file"
+}
+
+# Admin/Merchant 共用的 MFA 主密钥属于 Nacos 运行时秘密；模板同步不得将稳定密钥覆盖回空占位符。
+preserve_service_runtime_secrets() {
+  local service="$1"
+  local current_file="$2"
+  local template_file="$3"
+  local output_file="$4"
+  local active_secret
+  local normalized_active_secret
+  local previous_secrets
+  case "$service" in
+    service-admin|service-merchant) ;;
+    *)
+      cp "$template_file" "$output_file"
+      return
+      ;;
+  esac
+  active_secret="$(payment_mfa_scalar_from "$current_file" secret)"
+  if [[ -z "$active_secret" || "$active_secret" == '${PAYMENT_MFA_SECRET:}' ]]; then
+    cp "$template_file" "$output_file"
+    return
+  fi
+  normalized_active_secret="$(normalize_empty_secret "$active_secret")"
+  if [[ ${#normalized_active_secret} -lt 32 \
+      || ! "$normalized_active_secret" =~ ^[A-Za-z0-9_+/=-]+$ ]]; then
+    printf 'Existing MFA secret is invalid or unsafe to preserve: %s.\n' "$service" >&2
+    exit 1
+  fi
+  previous_secrets="$(payment_mfa_scalar_from "$current_file" previous-secrets)"
+  if [[ -z "$previous_secrets" ]]; then
+    previous_secrets='${PAYMENT_MFA_PREVIOUS_SECRETS:}'
+  elif [[ "$previous_secrets" != '${PAYMENT_MFA_PREVIOUS_SECRETS:}' \
+      && "$previous_secrets" != '""' && "$previous_secrets" != "''" \
+      && ! "$previous_secrets" =~ ^[A-Za-z0-9_+/=,-]+$ ]]; then
+    printf 'Existing MFA previous secrets are unsafe to preserve: %s.\n' "$service" >&2
+    exit 1
+  fi
+  if ! awk -v active="$normalized_active_secret" -v previous="$previous_secrets" '
+    BEGIN { in_payment=0; in_mfa=0; replacements=0 }
+    $0 == "payment:" { in_payment=1 }
+    in_payment && NR > 1 && /^[^[:space:]#]/ && $0 != "payment:" {
+      in_payment=0
+      in_mfa=0
+    }
+    in_payment && $0 == "  mfa:" { in_mfa=1 }
+    in_mfa && /^  [^ ]/ && $0 != "  mfa:" { in_mfa=0 }
+    in_mfa && $0 ~ /^    secret:[[:space:]]*/ {
+      print "    secret: " active
+      replacements++
+      next
+    }
+    in_mfa && $0 ~ /^    previous-secrets:[[:space:]]*/ {
+      print "    previous-secrets: " previous
+      replacements++
+      next
+    }
+    { print }
+    END { if (replacements != 2) exit 42 }
+  ' "$template_file" >"$output_file"; then
+    printf 'Cannot preserve MFA runtime secrets in service template: %s.\n' "$service" >&2
+    exit 1
+  fi
+}
+
 build_synced_service_config() {
   local service="$1"
   local environment="$2"
   local current_file="${work_dir}/bundle-${service}.yaml"
   local template_file
+  local runtime_template_file="${work_dir}/runtime-template-${service}.yaml"
   local auth_file="${work_dir}/auth-${service}.yaml"
   local expected_file="${work_dir}/synced-${service}.yaml"
   local validation_headers="${work_dir}/synced-${service}.headers"
   template_file="$(service_config_template "$service" "$environment")"
   validate_service_config_template "$service" "$environment"
+  preserve_service_runtime_secrets "$service" "$current_file" "$template_file" \
+    "$runtime_template_file"
   write_managed_auth_fragment_from_bundle "$service" "$current_file" "$auth_file"
-  inject_managed_auth_fragment "$template_file" "$auth_file" "$expected_file"
+  inject_managed_auth_fragment "$runtime_template_file" "$auth_file" "$expected_file"
   : >"$validation_headers"
   verify_service_bundle_file "$service" "$expected_file" "$validation_headers"
 }

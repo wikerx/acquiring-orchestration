@@ -8,13 +8,7 @@ import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientRequestD
 import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientResponseDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskInternalClient
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : service-risk 内部调用客户端契约，位于 service-payment 客户端层，用于隔离支付核心与风控服务通信细节。
- * @status : create
+ * service-risk 内部调用客户端契约，位于 service-payment 客户端层，用于隔离支付核心与风控服务通信细节。
  */
 public interface RiskInternalClient {
 

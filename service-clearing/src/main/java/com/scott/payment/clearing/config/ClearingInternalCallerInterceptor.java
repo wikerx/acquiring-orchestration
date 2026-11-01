@@ -15,60 +15,38 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalCallerInterceptor
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 在 HMAC 验证之后限制清分内部接口的调用方服务身份。
- * @status : update
+ * 在 HMAC 验证之后限制清分内部接口的调用方服务身份。
  */
 public class ClearingInternalCallerInterceptor implements HandlerInterceptor {
 
     /**
-     * {@code ADMIN_CALLER}常量，统一 {@code ClearingInternalCallerInterceptor} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 允许调用清分交易管理接口的管理服务身份。
      */
     private static final String ADMIN_CALLER = "service-admin";
     /**
-     * {@code JOB_CALLER}常量，统一 {@code ClearingInternalCallerInterceptor} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 允许调用清分补偿接口的任务调度服务身份。
      */
     private static final String JOB_CALLER = "service-job";
     /**
-     * {@code ADMIN_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 仅允许管理服务访问的清分交易查询和人工命令路径。
      */
     private static final String ADMIN_PATH = "/internal/clearing/v1/transactions/**";
     /**
-     * {@code JOB_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 仅允许任务调度服务访问的清分补偿扫描路径。
      */
     private static final String JOB_PATH = "/internal/clearing/v1/compensations/**";
     /**
-     * {@code PATH_MATCHER}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 将内部请求路径匹配到对应的调用方服务权限边界。
      */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private final Set<String> allowedCallers;
 
-    /** @param properties 清分内部调用方总白名单 */
+    /**
+     * 创建清分调用方授权拦截器，并冻结启动时的调用方白名单。
+     *
+     * @param properties 清分内部调用方总白名单
+     */
     public ClearingInternalCallerInterceptor(ClearingProperties properties) {
         this.allowedCallers = Set.copyOf(properties.getInternalAllowedCallers());
     }

@@ -7,13 +7,7 @@ import org.springframework.core.task.TaskDecorator;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskTraceContextTaskDecorator
- * @date : 2026-08-05 00:00
- * @email : scott_x@163.com
- * @description : 风控只读线程池链路上下文装饰器，传播并在任务结束后恢复 MDC 与 TraceContext
- * @status : create
+ * 风控只读线程池链路上下文装饰器，传播并在任务结束后恢复 MDC 与 TraceContext
  */
 final class RiskTraceContextTaskDecorator implements TaskDecorator {
 

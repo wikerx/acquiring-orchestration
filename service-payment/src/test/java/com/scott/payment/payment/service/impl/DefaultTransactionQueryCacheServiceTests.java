@@ -15,13 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionQueryCacheServiceTests
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 验证交易查询缓存的命中、失效竞态、敏感字段边界、TTL 和 Redis 故障降级契约。
- * @status : create
+ * 验证交易查询缓存的命中、失效竞态、敏感字段边界、TTL 和 Redis 故障降级契约。
  */
 class DefaultTransactionQueryCacheServiceTests {
 

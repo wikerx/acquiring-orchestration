@@ -39,13 +39,7 @@ import java.util.Locale;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalController
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分内部协议适配层，仅允许 Admin 与 Job 通过 HMAC、防重放和调用方白名单访问；只做参数转换并委托领域服务，不信任浏览器传入的操作人或目标状态。
- * @status : update
+ * 清分内部协议适配层，仅允许 Admin 与 Job 通过 HMAC、防重放和调用方白名单访问；只做参数转换并委托领域服务，不信任浏览器传入的操作人或目标状态。
  */
 @RestController
 @RequestMapping("/internal/clearing/v1")
@@ -57,6 +51,9 @@ public class ClearingInternalController {
     private final ReserveAdjustmentService reserveAdjustmentService;
     private final TierPeriodReplayService tierPeriodReplayService;
 
+    /**
+     * 创建清分内部接口适配器，并注入查询、管理、补偿、保证金和阶梯重放服务。
+     */
     public ClearingInternalController(ClearingQueryService queryService,
                                       ClearingManagementCommandService commandService,
                                       ClearingCompensationService compensationService,
@@ -224,6 +221,9 @@ public class ClearingInternalController {
         return success(tierReplayResponse(result));
     }
 
+    /**
+     * 将协议中的可空版本转换为领域层要求的必填版本。
+     */
     private long requiredVersion(Long version) {
         if (version == null) {
             throw new IllegalArgumentException("expected version is required");
@@ -231,6 +231,9 @@ public class ClearingInternalController {
         return version;
     }
 
+    /**
+     * 将外部枚举文本去除首尾空白并规范为大写值。
+     */
     private String requiredEnum(String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("enum value is required");
@@ -238,6 +241,9 @@ public class ClearingInternalController {
         return value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 将保证金调整领域结果转换为内部接口响应。
+     */
     private ReserveAdjustmentResponse adjustmentResponse(
             ReserveAdjustmentService.ReserveAdjustmentResult result) {
         ReserveAdjustmentResponse response = new ReserveAdjustmentResponse();
@@ -249,6 +255,9 @@ public class ClearingInternalController {
         return response;
     }
 
+    /**
+     * 将阶梯期间重放领域结果转换为内部接口响应。
+     */
     private TierPeriodReplayResponse tierReplayResponse(TierPeriodReplayService.ReplayResult result) {
         TierPeriodReplayResponse response = new TierPeriodReplayResponse();
         response.setReplayNo(result.replayNo());

@@ -12,16 +12,13 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserMfaDTOs
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 后台用户 MFA 管理 DTO 集合，位于 service-admin 传输层；用于 OTP 开启、重置、豁免、解锁和审计日志查询。
- * @status : create
+ * 后台用户 MFA 管理 DTO 集合，位于 service-admin 传输层；用于 OTP 开启、重置、豁免、解锁和审计日志查询。
  */
 public final class AdminUserMfaDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private AdminUserMfaDTOs() {
     }
 

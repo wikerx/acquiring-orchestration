@@ -15,17 +15,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogMqPublisherTests
- * @date : 2026-08-02 00:31
- * @email : scott_x@163.com
- * @description : 操作日志 MQ 发布契约测试，确保错误摘要符合数据库字段边界
- * @status : create
+ * 操作日志 MQ 发布契约测试，确保错误摘要符合数据库字段边界
  */
 class OperationLogMqPublisherTests {
 
-    /** 错误摘要使用数据库上限，请求和响应正文继续使用通用消息上限。 */
+    /**
+     * 错误摘要使用数据库上限，请求和响应正文继续使用通用消息上限。
+     */
     @Test
     void shouldLimitErrorSummaryWithoutReducingRequestAndResponseLimit() {
         IndependentReliableMqPublisher mqPublisher = mock(IndependentReliableMqPublisher.class);
@@ -54,7 +50,9 @@ class OperationLogMqPublisherTests {
         assertThat(message.getResponseResult()).hasSize(properties.getMaxMessageLength());
     }
 
-    /** 错误码必须在发布前符合数据库契约，避免不合规消息进入 RocketMQ 重试链路。 */
+    /**
+     * 错误码必须在发布前符合数据库契约，避免不合规消息进入 RocketMQ 重试链路。
+     */
     @Test
     void shouldLimitErrorCodeToDatabaseContract() {
         IndependentReliableMqPublisher mqPublisher = mock(IndependentReliableMqPublisher.class);

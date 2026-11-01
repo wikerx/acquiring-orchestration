@@ -3,13 +3,7 @@ package com.scott.payment.component.core.exception;
 import com.scott.payment.component.core.result.IResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiException
- * @date : 2026-05-28 18:16
- * @email : scott_x@163.com
- * @description : 对外 API 业务异常
- * @status : create
+ * 对外 API 业务异常
  */
 public class ApiException extends ServiceException {
 

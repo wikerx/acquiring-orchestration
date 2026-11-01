@@ -8,13 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqResourceInitializerProperties
- * @date : 2026-06-20 22:43
- * @email : scott_x@163.com
- * @description : 声明式 RocketMQ 资源初始化器配置
- * @status : create
+ * 声明式 RocketMQ 资源初始化器配置
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.mq.initializer")

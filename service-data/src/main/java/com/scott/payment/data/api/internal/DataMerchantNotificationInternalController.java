@@ -13,19 +13,15 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationInternalController
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知内部接口，只向通过 HMAC 服务间鉴权的定时补偿调用方开放
- * @status : create
+ * service-data 商户通知内部接口，只向通过 HMAC 服务间鉴权的定时补偿调用方开放
  */
 @RestController
 @RequestMapping("/internal/data/merchant-notifications")
 public class DataMerchantNotificationInternalController {
 
-    /** 商户通知应用服务。 */
+    /**
+     * 商户通知应用服务。
+     */
     private final MerchantNotificationApplicationService applicationService;
 
     /**

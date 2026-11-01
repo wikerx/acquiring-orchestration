@@ -37,24 +37,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobDispatchService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心任务分发编排服务
- * @status : create
+ * 调度中心任务分发编排服务
  */
 @Slf4j
 @Service
 public class JobDispatchService {
 
     /**
-     * {@code LOCK_BUFFER_SECONDS}常量，统一 {@code JobDispatchService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 任务锁在执行超时之外额外保留的缓冲秒数，避免边界时刻被重复抢占。
      */
     private static final int LOCK_BUFFER_SECONDS = 30;
 
@@ -251,7 +241,9 @@ public class JobDispatchService {
         }));
     }
 
-    /** 提交带 traceId 生命周期的同步处理器。 */
+    /**
+     * 提交带 traceId 生命周期的同步处理器。
+     */
     private CompletableFuture<JobExecuteResult> submitSyncHandler(JobExecuteContext context, JobHandler handler) {
         return CompletableFuture.supplyAsync(() -> {
             TraceIdSupport.bindTraceId(context.getTraceId());
@@ -340,10 +332,12 @@ public class JobDispatchService {
         logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
     }
 
-    /** 释放当前节点持有的任务锁；锁已转移时保留新持有者并记录可观测告警。 */
+    /**
+     * 释放当前节点持有的任务锁；锁已转移时保留新持有者并记录可观测告警。
+     */
     private void finishTaskRun(Long taskId, JobRunStatusEnum status, String runId) {
         if (!jobTaskService.finishTaskRun(taskId, status, jobNodeContext.nodeId())) {
-            log.warn("event: JOB_TASK_LOCK_RELEASE_SKIPPED jobId: {} runId: {} status: {} nodeId: {}",
+            log.warn("任务锁释放被跳过, event: JOB_TASK_LOCK_RELEASE_SKIPPED, jobId: {}, runId: {}, status: {}, nodeId: {}",
                     taskId, runId, status.name(), jobNodeContext.nodeId());
         }
     }
@@ -365,7 +359,7 @@ public class JobDispatchService {
                     () -> dispatch(task, JobTriggerTypeEnum.RETRY, context.getParamsJson(), context.getOperatorId(), context.getOperatorName(), retryIndex, context.getTraceId()),
                     Instant.now().plusSeconds(task.getRetryIntervalSeconds())
             );
-            runWithTrace(context, () -> log.info("event: JOB_RETRY_SCHEDULED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} shardIndex: {} shardTotal: {}",
+            runWithTrace(context, () -> log.info("任务重试已调度, event: JOB_RETRY_SCHEDULED, traceId: {}, jobId: {}, handler: {}, runId: {}, retryIndex: {}, nextRetryIndex: {}, shardIndex: {}, shardTotal: {}",
                     context.getTraceId(),
                     context.getJobId(),
                     context.getHandlerCode(),
@@ -376,7 +370,7 @@ public class JobDispatchService {
                     context.getShardTotal()));
             return true;
         } catch (RuntimeException exception) {
-            runWithTrace(context, () -> log.error("event: JOB_RETRY_SCHEDULE_FAILED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} nodeId: {} exceptionType: {}",
+            runWithTrace(context, () -> log.error("任务重试调度失败, event: JOB_RETRY_SCHEDULE_FAILED, traceId: {}, jobId: {}, handler: {}, runId: {}, retryIndex: {}, nextRetryIndex: {}, nodeId: {}, exceptionType: {}",
                     context.getTraceId(),
                     context.getJobId(),
                     context.getHandlerCode(),
@@ -437,7 +431,7 @@ public class JobDispatchService {
      * @param context 任务执行上下文
      */
     private void logJobStart(JobExecuteContext context) {
-        runWithTrace(context, () -> log.info("event: JOB_EXECUTE_START traceId: {} jobId: {} handler: {} runId: {} triggerType: {} retryIndex: {} shardIndex: {} shardTotal: {}",
+        runWithTrace(context, () -> log.info("任务执行开始, event: JOB_EXECUTE_START, traceId: {}, jobId: {}, handler: {}, runId: {}, triggerType: {}, retryIndex: {}, shardIndex: {}, shardTotal: {}",
                 context.getTraceId(),
                 context.getJobId(),
                 context.getHandlerCode(),
@@ -457,7 +451,7 @@ public class JobDispatchService {
      * @param failureMessage 失败原因摘要
      */
     private void logJobEnd(JobExecuteContext context, long durationMs, String status, String failureMessage) {
-        runWithTrace(context, () -> log.info("event: JOB_EXECUTE_END traceId: {} jobId: {} handler: {} runId: {} status: {} retryIndex: {} shardIndex: {} shardTotal: {} durationMs: {} failureMessage: {}",
+        runWithTrace(context, () -> log.info("任务执行结束, event: JOB_EXECUTE_END, traceId: {}, jobId: {}, handler: {}, runId: {}, status: {}, retryIndex: {}, shardIndex: {}, shardTotal: {}, durationMs: {}, failureMessage: {}",
                 context.getTraceId(),
                 context.getJobId(),
                 context.getHandlerCode(),

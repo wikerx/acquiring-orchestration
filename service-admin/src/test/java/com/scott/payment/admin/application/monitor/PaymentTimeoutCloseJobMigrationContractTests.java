@@ -10,13 +10,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTimeoutCloseJobMigrationContractTests
- * @date : 2026-08-21 10:20
- * @email : scott_x@163.com
- * @description : 校验支付超时关单正式任务初始化及历史定时演示任务停用的数据迁移契约
- * @status : create
+ * 校验支付超时关单正式任务初始化及历史定时演示任务停用的数据迁移契约
  */
 @Slf4j
 class PaymentTimeoutCloseJobMigrationContractTests {

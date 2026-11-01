@@ -1,22 +1,12 @@
 package com.scott.payment.channel.payment.exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackVerificationException
- * @date : 2026-08-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道回调验签失败异常，向入口层提供稳定原因分类，不包含密钥、签名原文或敏感报文。
- * @status : create
+ * 渠道回调验签失败异常，向入口层提供稳定原因分类，不包含密钥、签名原文或敏感报文。
  */
 public class ChannelCallbackVerificationException extends ChannelException {
 
     /**
-     * 原因字段，保存 {@code ChannelCallbackVerificationException} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 不暴露签名和密钥细节的稳定验签失败分类。
      */
     private final Reason reason;
 
@@ -53,55 +43,36 @@ public class ChannelCallbackVerificationException extends ChannelException {
         return reason;
     }
 
-    /** 不暴露协议细节的稳定验签失败分类。 */
+    /**
+     * 不暴露协议细节的稳定验签失败分类。
+     */
     public enum Reason {
         /**
          * HEADER MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         HEADER_MISSING,
         /**
          * HEADER INVALID 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         HEADER_INVALID,
         /**
          * TIMESTAMP INVALID 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         TIMESTAMP_INVALID,
         /**
          * TIMESTAMP EXPIRED 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         TIMESTAMP_EXPIRED,
         /**
          * SECRET MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         SECRET_MISSING,
         /**
          * ALGORITHM UNSUPPORTED 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         ALGORITHM_UNSUPPORTED,
         /**
          * SIGNATURE INVALID 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         SIGNATURE_INVALID,
         INTERNAL_ERROR

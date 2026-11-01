@@ -16,26 +16,26 @@ import java.util.List;
 import java.util.Properties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSmtpEmailSender
- * @date : 2026-08-02 23:40
- * @email : scott_x@163.com
- * @description : Merchant SMTP 外部系统适配器，只发送冻结记录，不负责投递状态流转或重试决策
- * @status : create
+ * 商户 SMTP 外部系统适配器，只发送已冻结内容，不负责投递状态流转或重试决策。
  */
 @Component
 public class MerchantSmtpEmailSender {
 
-    /** SMTP 密码解密组件，运行时密钥缺失时拒绝发送。 */
+    /**
+     * SMTP 密码解密组件，运行时密钥缺失时拒绝发送。
+     */
     private final EmailPayloadCrypto payloadCrypto;
 
-    /** 创建 Merchant SMTP 适配器。 */
+    /**
+     * 创建 Merchant SMTP 适配器。
+     */
     public MerchantSmtpEmailSender(EmailPayloadCrypto payloadCrypto) {
         this.payloadCrypto = payloadCrypto;
     }
 
-    /** 将已解密正文发送到记录冻结的商户收件地址。 */
+    /**
+     * 将已解密正文发送到记录冻结的商户收件地址。
+     */
     public void send(MerchantEmailAccountDO account,
                      MerchantEmailSendRecordDO record,
                      String content,
@@ -57,7 +57,9 @@ public class MerchantSmtpEmailSender {
         }
     }
 
-    /** 根据冻结账户配置创建单次使用的 SMTP 客户端。 */
+    /**
+     * 根据冻结账户配置创建单次使用的 SMTP 客户端。
+     */
     private JavaMailSenderImpl buildMailSender(MerchantEmailAccountDO account) {
         JavaMailSenderImpl sender = new JavaMailSenderImpl();
         sender.setHost(account.getSmtpHost());
@@ -80,7 +82,9 @@ public class MerchantSmtpEmailSender {
         return sender;
     }
 
-    /** 将数据库 JSON 地址数组解析为 JavaMail 接收的字符串数组。 */
+    /**
+     * 将数据库 JSON 地址数组解析为 JavaMail 接收的字符串数组。
+     */
     private String[] parseEmailArray(String value) {
         if (!StringUtils.hasText(value)) {
             return new String[0];

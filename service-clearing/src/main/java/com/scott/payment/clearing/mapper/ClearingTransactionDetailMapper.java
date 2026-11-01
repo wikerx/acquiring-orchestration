@@ -11,17 +11,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTransactionDetailMapper
- * @date : 2026-08-26 10:40
- * @email : scott_x@163.com
- * @description : 不可变交易清分明细 Mapper，负责精确分片读取和批量写入，不进行费用或返费计算。
- * @status : create
+ * 不可变交易清分明细 Mapper，负责精确分片读取和批量写入，不进行费用或返费计算。
  */
 public interface ClearingTransactionDetailMapper {
 
-    /** 批量写入当前动作同一修订的本金、费用和返费原子事实。 */
+    /**
+     * 批量写入当前动作同一修订的本金、费用和返费原子事实。
+     */
     @Insert("""
             <script>
             INSERT INTO transaction_clearing_detail
@@ -65,7 +61,9 @@ public interface ClearingTransactionDetailMapper {
             """)
     int insertBatch(@Param("rows") List<ClearingTransactionDetailDO> rows);
 
-    /** 按源动作真实分片时间读取当前有效修订明细。 */
+    /**
+     * 按源动作真实分片时间读取当前有效修订明细。
+     */
     @Select("""
             SELECT *
             FROM transaction_clearing_detail
@@ -103,7 +101,9 @@ public interface ClearingTransactionDetailMapper {
             @Param("sourceTransactionId") String sourceTransactionId,
             @Param("locators") List<LocatorFacts> locators);
 
-    /** 人工重算保留旧修订，仅将精确旧修订的 ACTIVE 明细改为 SUPERSEDED。 */
+    /**
+     * 人工重算保留旧修订，仅将精确旧修订的 ACTIVE 明细改为 SUPERSEDED。
+     */
     @Update("""
             UPDATE transaction_clearing_detail
             SET record_status = 'SUPERSEDED',

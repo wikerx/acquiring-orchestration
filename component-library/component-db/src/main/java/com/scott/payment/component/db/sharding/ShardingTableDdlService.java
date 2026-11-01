@@ -8,13 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTableDdlService
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表ddl服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 分表表ddl服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 @Service
 public class ShardingTableDdlService {

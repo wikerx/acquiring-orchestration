@@ -13,16 +13,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskPaymentTransactionStatusRepositoryTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 校验 Risk 使用持久化业务时间范围查询 ShardingSphere 交易逻辑表。
- * @status : create
+ * 校验 Risk 使用持久化业务时间范围查询 ShardingSphere 交易逻辑表。
  */
 class DefaultRiskPaymentTransactionStatusRepositoryTests {
 
+    /**
+     * 验证按持久化业务期间查询逻辑交易表中的状态事实。
+     */
     @Test
     void shouldQueryLogicalTableWithinPersistedBusinessPeriod() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -42,6 +39,9 @@ class DefaultRiskPaymentTransactionStatusRepositoryTests {
         verify(mapper).selectPaymentTransactionStatus("TX-2026-Q3", beginTime, endTime);
     }
 
+    /**
+     * 验证业务期间内不存在交易时返回明确的缺失结果。
+     */
     @Test
     void shouldReturnAbsentWhenNoTransactionExistsInBusinessPeriod() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -58,6 +58,9 @@ class DefaultRiskPaymentTransactionStatusRepositoryTests {
         verify(mapper).selectPaymentTransactionStatus("TX-ABSENT", beginTime, endTime);
     }
 
+    /**
+     * 验证业务期间无效时不访问数据库并返回 UNKNOWN。
+     */
     @Test
     void shouldReturnUnknownWithoutDatabaseAccessForInvalidBusinessPeriod() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);

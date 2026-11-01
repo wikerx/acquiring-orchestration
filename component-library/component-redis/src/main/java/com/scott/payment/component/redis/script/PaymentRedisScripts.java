@@ -7,13 +7,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisScripts
- * @date : 2026-07-30 09:42
- * @email : scott_x@163.com
- * @description : 集中注册支付系统公共 Redis Lua 脚本，固定资源路径、版本和返回类型
- * @status : create
+ * 集中注册支付系统公共 Redis Lua 脚本，固定资源路径、版本和返回类型
  */
 public final class PaymentRedisScripts {
 
@@ -58,6 +52,9 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<List> SLIDING_WINDOW_RATE_LIMIT_V1 =
             load("v1/sliding-window-rate-limit.lua", List.class);
 
+    /**
+     * 禁止实例化版本化 Redis Lua 脚本注册表。
+     */
     private PaymentRedisScripts() {
     }
 
@@ -151,12 +148,16 @@ public final class PaymentRedisScripts {
         return CACHE_GENERATION_COMMIT_V1;
     }
 
-    /** 获取 Card BIN 单分片候选批量追加脚本，并限制每个前缀字段的候选数量。 */
+    /**
+     * 获取 Card BIN 单分片候选批量追加脚本，并限制每个前缀字段的候选数量。
+     */
     public static RedisScript<Long> cardBinBucketAppendV1() {
         return CARD_BIN_BUCKET_APPEND_V1;
     }
 
-    /** 获取精确滑动窗口限流脚本。 */
+    /**
+     * 获取精确滑动窗口限流脚本。
+     */
     public static RedisScript<List> slidingWindowRateLimitV1() {
         return SLIDING_WINDOW_RATE_LIMIT_V1;
     }

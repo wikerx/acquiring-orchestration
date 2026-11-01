@@ -35,13 +35,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictServiceImpl
- * @date : 2026-06-19 21:55
- * @email : scott_x@163.com
- * @description : 管理后台数据字典领域服务实现
- * @status : create
+ * 管理后台数据字典领域服务实现
  *
  * <p>该类只负责字典主表和字典项的持久化规则、唯一键约束与软删除处理，不承担权限控制或页面交互逻辑。</p>
  */
@@ -78,13 +72,19 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     private final SysDictDataMapper dictDataMapper;
 
-    /** 跨系统启用字典下拉快照读取器。 */
+    /**
+     * 跨系统启用字典下拉快照读取器。
+     */
     private final DictionaryOptionCacheReader dictionaryOptionCacheReader;
 
-    /** 事务感知的 Spring Cache 管理器。 */
+    /**
+     * 事务感知的 Spring Cache 管理器。
+     */
     private final CacheManager cacheManager;
 
-    /** 字典项写事务使用的可靠精确缓存失效协调器。 */
+    /**
+     * 字典项写事务使用的可靠精确缓存失效协调器。
+     */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
@@ -379,13 +379,17 @@ public class AdminDictServiceImpl implements AdminDictService {
         evictOptionCache(entity.getDictType(), entity.getLocale());
     }
 
-    /** 清空两端共享的启用数据字典下拉快照。 */
+    /**
+     * 清空两端共享的启用数据字典下拉快照。
+     */
     @Override
     public void refreshOptionCache() {
         clearOptionCache();
     }
 
-    /** 判断是否为可使用共享快照的纯启用字典下拉查询。 */
+    /**
+     * 判断是否为可使用共享快照的纯启用字典下拉查询。
+     */
     private boolean isEnabledOptionQuery(SysDictDataQueryRequest query) {
         return StringUtils.hasText(query.getDictType())
                 && !StringUtils.hasText(query.getDictLabel())
@@ -395,7 +399,9 @@ public class AdminDictServiceImpl implements AdminDictService {
                 && query.getStatus() == ENABLED;
     }
 
-    /** 在当前业务事务内登记指定字典类型和语言的下拉快照可靠失效。 */
+    /**
+     * 在当前业务事务内登记指定字典类型和语言的下拉快照可靠失效。
+     */
     private void evictOptionCache(String dictType, String locale) {
         cacheInvalidationCoordinator.prepare(
                 PaymentCacheNames.SYSTEM_DICT_OPTIONS,
@@ -403,7 +409,9 @@ public class AdminDictServiceImpl implements AdminDictService {
         );
     }
 
-    /** 新旧字典分组相同时只失效一次，不同时分别删除两个精确业务键。 */
+    /**
+     * 新旧字典分组相同时只失效一次，不同时分别删除两个精确业务键。
+     */
     private void evictOptionCaches(String previousType,
                                    String previousLocale,
                                    String currentType,
@@ -418,7 +426,9 @@ public class AdminDictServiceImpl implements AdminDictService {
         }
     }
 
-    /** 在当前事务提交后清空所有共享字典下拉快照。 */
+    /**
+     * 在当前事务提交后清空所有共享字典下拉快照。
+     */
     private void clearOptionCache() {
         Cache cache = cacheManager.getCache(PaymentCacheNames.SYSTEM_DICT_OPTIONS);
         if (cache != null) {

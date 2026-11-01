@@ -28,62 +28,42 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentChannelRouteService
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道路由默认实现，位于 service-payment 服务实现层，按商户 MID 绑定和 MID 能力范围选择渠道，当前不做权重和复杂路由。
- * @status : create
+ * 根据商户绑定、MID 范围和渠道能力选择收单路由。
+ *
+ * <p>多个候选同时满足硬性约束时，原币直连优先于 EDC，再使用能力配置中的
+ * {@code capabilitySortOrder}。最高优先级仍重复时拒绝交易，禁止依赖集合顺序随机选择资金通道。</p>
  */
 @Service
 @Slf4j
 public class DefaultPaymentChannelRouteService implements PaymentChannelRouteService {
 
     /**
-     * {@code NOT_DELETED}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 逻辑删除字段的有效值。
      */
     private static final long NOT_DELETED = 0L;
 
     /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 配置、渠道和能力表统一使用的启用值。
      */
     private static final int ENABLED = 1;
 
     /**
-     * {@code BUSINESS_ACQUIRING}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 本服务只消费收单业务路由。
      */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
 
     /**
-     * {@code ALL}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 范围配置不限制具体值时使用的通配字面量。
      */
     private static final String ALL = "ALL";
 
+    /**
+     * 数据库存储多值范围时使用的分隔符。
+     */
     private static final String SCOPE_SEPARATOR = ",";
 
     /**
-     * 默认支付方式，表示支付方式、通知方式或调用方式。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 历史命令未显式传支付方式时兼容为银行卡。
      */
     private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
 
@@ -91,10 +71,14 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
 
     private final PaymentChannelInfoMapper channelInfoMapper;
 
-    /** 商户非敏感路由永久快照查询服务。 */
+    /**
+     * 商户非敏感路由永久快照查询服务。
+     */
     private final MerchantRouteProfileCacheService routeProfileCacheService;
 
-    /** 仅驻留当前 JVM 的短时渠道敏感元数据缓存。 */
+    /**
+     * 仅驻留当前 JVM 的短时渠道敏感元数据缓存。
+     */
     private final PaymentChannelMidMetadataCache midMetadataCache;
 
     /**
@@ -124,7 +108,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     @Override
     public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
-        log.info("event: PAYMENT_ROUTE_START stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} payerCountry: {}",
+        log.info("收单渠道路由开始, event: PAYMENT_ROUTE_START, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, payerCountry: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -146,7 +130,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 .map(option -> toCandidate(option, commandDTO, now))
                 .filter(candidate -> candidate != null)
                 .toList();
-        log.info("event: PAYMENT_ROUTE_CANDIDATES stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} bindingCount: {} candidateCount: {} candidates: {}",
+        log.info("收单渠道候选已完成筛选, event: PAYMENT_ROUTE_CANDIDATES, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, bindingCount: {}, candidateCount: {}, candidates: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -159,7 +143,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 candidates.size(),
                 candidateSummary(candidates));
         if (candidates.isEmpty()) {
-            log.warn("event: PAYMENT_ROUTE_NO_CANDIDATE stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} bindingCount: {} candidateCount: {} durationMs: {}",
+            log.warn("收单渠道无可用候选, event: PAYMENT_ROUTE_NO_CANDIDATE, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, bindingCount: {}, candidateCount: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
@@ -173,8 +157,9 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        if (candidates.size() > 1) {
-            log.warn("event: PAYMENT_ROUTE_MULTI_CANDIDATE stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} candidateCount: {} candidates: {} durationMs: {}",
+        RouteCandidate candidate = selectCandidate(candidates);
+        if (candidate == null) {
+            log.warn("收单渠道最高优先级候选不唯一, event: PAYMENT_ROUTE_MULTI_CANDIDATE, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, candidateCount: {}, candidates: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
@@ -188,7 +173,6 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        RouteCandidate candidate = candidates.get(0);
         PaymentRouteResultDTO resultDTO = PaymentRouteResultDTO.routed(candidate.channelInfo().getChannelCode());
         resultDTO.setChannelId(candidate.channelInfo().getId());
         resultDTO.setMidConfigId(candidate.midConfig().getId());
@@ -207,7 +191,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setThreeDsSupported(Integer.valueOf(ENABLED).equals(candidate.capability().getSupport3ds()));
         resultDTO.setSupportedCurrencies(candidate.supportedCurrencies());
         resultDTO.setRouteReason("MERCHANT_MID_BINDING");
-        log.info("event: PAYMENT_ROUTE_END stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelId: {} midConfigId: {} midNo: {} capabilityId: {} supportedCurrencies: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routeReason: {} durationMs: {}",
+        log.info("收单渠道路由完成, event: PAYMENT_ROUTE_END, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, channelCode: {}, channelId: {}, midConfigId: {}, midNo: {}, capabilityId: {}, supportedCurrencies: {}, requestedCurrency: {}, routedCurrency: {}, edcRequired: {}, endpointHost: {}, connectTimeoutSeconds: {}, readTimeoutSeconds: {}, routeReason: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -231,6 +215,41 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 resultDTO.getRouteReason(),
                 elapsedMillis(startNanos));
         return resultDTO;
+    }
+
+    /**
+     * 按原币直连和能力顺序选择唯一最高优先级候选。
+     *
+     * <p>没有配置顺序的候选只能在其本层唯一时被选择；两条候选的直连属性与最小
+     * {@code capabilitySortOrder} 均相同时返回 {@code null}，由调用方 fail closed。</p>
+     *
+     * @param candidates 已通过全部硬性能力校验的候选
+     * @return 唯一最高优先级候选；存在同优先级歧义时返回 {@code null}
+     */
+    private RouteCandidate selectCandidate(List<RouteCandidate> candidates) {
+        if (candidates.size() == 1) {
+            return candidates.get(0);
+        }
+        boolean directCandidateExists = candidates.stream().anyMatch(candidate -> !candidate.edcRequired());
+        List<RouteCandidate> currencyPreferred = directCandidateExists
+                ? candidates.stream().filter(candidate -> !candidate.edcRequired()).toList()
+                : candidates;
+        if (currencyPreferred.size() == 1) {
+            return currencyPreferred.get(0);
+        }
+
+        Integer minimumSortOrder = currencyPreferred.stream()
+                .map(candidate -> candidate.capability().getSortOrder())
+                .filter(sortOrder -> sortOrder != null)
+                .min(Integer::compareTo)
+                .orElse(null);
+        if (minimumSortOrder == null) {
+            return null;
+        }
+        List<RouteCandidate> priorityPreferred = currencyPreferred.stream()
+                .filter(candidate -> minimumSortOrder.equals(candidate.capability().getSortOrder()))
+                .toList();
+        return priorityPreferred.size() == 1 ? priorityPreferred.get(0) : null;
     }
 
     /**
@@ -282,7 +301,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setReadTimeoutSeconds(channelInfo.getReadTimeoutSeconds());
         resultDTO.setMetadataValues(parseMetadata(midConfig.getMetadataValueJson()));
         resultDTO.setRouteReason("RESTORED_FROM_TRANSACTION_OPERATION");
-        log.info("event: PAYMENT_ROUTE_RESTORED stage=ROUTE traceId: {} channelCode: {} channelId: {} midConfigId: {} resolvedChannelCode: {} midNo: {} routeReason: {} durationMs: {}",
+        log.info("原交易渠道路由已恢复, event: PAYMENT_ROUTE_RESTORED, stage: ROUTE, traceId: {}, channelCode: {}, channelId: {}, midConfigId: {}, resolvedChannelCode: {}, midNo: {}, routeReason: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 channelId,
@@ -301,7 +320,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                                            String channelCode,
                                            Long channelId,
                                            Long midConfigId) {
-        log.warn("event: ORIGINAL_TRANSACTION_ROUTE_REJECTED stage=ROUTE traceId: {} channelCode: {} channelId: {} midConfigId: {} reason: {}",
+        log.warn("原交易渠道路由不可继续, event: ORIGINAL_TRANSACTION_ROUTE_REJECTED, stage: ROUTE, traceId: {}, channelCode: {}, channelId: {}, midConfigId: {}, reason: {}",
                 TraceContext.getTraceId(), channelCode, channelId, midConfigId, internalReason);
         throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
     }
@@ -381,7 +400,9 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         );
     }
 
-    /** 银行卡路由必须命中能力表明确启用的卡品牌。 */
+    /**
+     * 银行卡路由必须命中能力表明确启用的卡品牌。
+     */
     private boolean matchesCapabilityCardBrand(List<String> supportedCardBrands, String cardBrand) {
         if (supportedCardBrands == null || supportedCardBrands.isEmpty() || !StringUtils.hasText(cardBrand)) {
             return false;
@@ -393,7 +414,9 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 .anyMatch(normalizedCardBrand::equals);
     }
 
-    /** 将缓存候选适配为既有路由内部渠道对象。 */
+    /**
+     * 将缓存候选适配为既有路由内部渠道对象。
+     */
     private ChannelInfoDO toChannelInfo(RouteOption option) {
         ChannelInfoDO channel = new ChannelInfoDO();
         channel.setId(option.getChannelId());
@@ -407,7 +430,9 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return channel;
     }
 
-    /** 将缓存候选适配为既有路由内部 MID 对象，不填充敏感元数据正文。 */
+    /**
+     * 将缓存候选适配为既有路由内部 MID 对象，不填充敏感元数据正文。
+     */
     private ChannelMidConfigDO toMidConfig(RouteOption option) {
         ChannelMidConfigDO mid = new ChannelMidConfigDO();
         mid.setId(option.getMidConfigId());
@@ -428,7 +453,9 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return mid;
     }
 
-    /** 将缓存候选适配为既有路由内部能力对象。 */
+    /**
+     * 将缓存候选适配为既有路由内部能力对象。
+     */
     private ChannelPaymentCapabilityDO toCapability(RouteOption option) {
         ChannelPaymentCapabilityDO capability = new ChannelPaymentCapabilityDO();
         capability.setId(option.getCapabilityId());
@@ -455,25 +482,22 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
      * @return 候选摘要 JSON
      */
     private String candidateSummary(List<RouteCandidate> candidates) {
-        List<Map<String, Object>> rows = candidates.stream()
-                .map(candidate -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("channelCode", candidate.channelInfo().getChannelCode());
-                    row.put("channelId", candidate.channelInfo().getId());
-                    row.put("midConfigId", candidate.midConfig().getId());
-                    row.put("midNo", maskMidNo(candidate.midConfig().getChannelMid()));
-                    row.put("capabilityId", candidate.capability().getId());
-                    row.put("capabilityTransactionType", candidate.capability().getTransactionType());
-                    row.put("threeDsSupported", Integer.valueOf(ENABLED).equals(candidate.capability().getSupport3ds()));
-                    row.put("supportedCurrencies", candidate.supportedCurrencies());
-                    row.put("defaultTransactionCurrency", candidate.capability().getDefaultTransactionCurrency());
-                    row.put("routedCurrency", candidate.routedCurrency());
-                    row.put("edcRequired", candidate.edcRequired());
-                    row.put("endpointHost", endpointHost(candidate.channelInfo().getDefaultRequestUrl()));
-                    row.put("connectTimeoutSeconds", candidate.channelInfo().getConnectTimeoutSeconds());
-                    row.put("readTimeoutSeconds", candidate.channelInfo().getReadTimeoutSeconds());
-                    return row;
-                })
+        List<RouteCandidateLogSummary> rows = candidates.stream()
+                .map(candidate -> new RouteCandidateLogSummary(
+                        candidate.channelInfo().getChannelCode(),
+                        candidate.channelInfo().getId(),
+                        candidate.midConfig().getId(),
+                        maskMidNo(candidate.midConfig().getChannelMid()),
+                        candidate.capability().getId(),
+                        candidate.capability().getTransactionType(),
+                        Integer.valueOf(ENABLED).equals(candidate.capability().getSupport3ds()),
+                        candidate.supportedCurrencies(),
+                        candidate.capability().getDefaultTransactionCurrency(),
+                        candidate.routedCurrency(),
+                        candidate.edcRequired(),
+                        endpointHost(candidate.channelInfo().getDefaultRequestUrl()),
+                        candidate.channelInfo().getConnectTimeoutSeconds(),
+                        candidate.channelInfo().getReadTimeoutSeconds()))
                 .toList();
         return JsonUtils.toJsonString(rows);
     }
@@ -528,6 +552,9 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 && (expireTime == null || now.isBefore(expireTime));
     }
 
+    /**
+     * 判断渠道能力是否匹配请求范围。
+     */
     private boolean matchesScope(String scope, String value) {
         if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
             return true;
@@ -544,10 +571,16 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return false;
     }
 
+    /**
+     * 判断渠道能力是否匹配交易类型。
+     */
     private boolean matchesTransactionType(String capabilityTransactionType, String requestedTransactionType) {
         return matchesScope(capabilityTransactionType, requestedTransactionType);
     }
 
+    /**
+     * 规范化渠道能力匹配值。
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
@@ -580,14 +613,34 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return null;
     }
 
+    /**
+     * 解析路由使用的支付方式，商户未指定时使用银行卡默认值。
+     *
+     * @param commandDTO 支付创建命令
+     * @return 规范化后的支付方式编码
+     */
     private String resolvePaymentMethod(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getPaymentMethod()) ? normalize(commandDTO.getPaymentMethod()) : DEFAULT_PAYMENT_METHOD;
     }
 
+    /**
+     * 计算从单调时钟起点开始的耗时毫秒数。
+     *
+     * @param startNanos 开始时的单调时钟纳秒值
+     * @return 已经过的毫秒数
+     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
+    /**
+     * 解析渠道 MID 的动态路由扩展元数据。
+     *
+     * <p>元数据键由渠道配置动态扩展，因此此处保留字符串 Map；固定路由字段由强类型对象承载。</p>
+     *
+     * @param metadataValueJson 渠道 MID 元数据 JSON
+     * @return 允许渠道适配器按键读取的字符串元数据
+     */
     private Map<String, String> parseMetadata(String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
             return Map.of();
@@ -602,11 +655,48 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return result;
     }
 
+    /**
+     * 封装渠道路由候选项及其排序依据。
+     */
     private record RouteCandidate(ChannelInfoDO channelInfo,
                                   ChannelMidConfigDO midConfig,
                                   ChannelPaymentCapabilityDO capability,
                                   List<String> supportedCurrencies,
                                   String routedCurrency,
                                   boolean edcRequired) {
+    }
+
+    /**
+     * 渠道路由候选的脱敏日志摘要。
+     *
+     * @param channelCode 渠道编码
+     * @param channelId 渠道配置主键
+     * @param midConfigId 渠道 MID 配置主键
+     * @param midNo 渠道 MID 掩码
+     * @param capabilityId 渠道能力主键
+     * @param capabilityTransactionType 能力支持的交易类型
+     * @param threeDsSupported 是否支持 3DS
+     * @param supportedCurrencies 支持的交易币种
+     * @param defaultTransactionCurrency 默认交易币种
+     * @param routedCurrency 本次路由币种
+     * @param edcRequired 是否需要动态换汇
+     * @param endpointHost 渠道请求主机
+     * @param connectTimeoutSeconds 连接超时秒数
+     * @param readTimeoutSeconds 读取超时秒数
+     */
+    private record RouteCandidateLogSummary(String channelCode,
+                                            Long channelId,
+                                            Long midConfigId,
+                                            String midNo,
+                                            Long capabilityId,
+                                            String capabilityTransactionType,
+                                            boolean threeDsSupported,
+                                            List<String> supportedCurrencies,
+                                            String defaultTransactionCurrency,
+                                            String routedCurrency,
+                                            boolean edcRequired,
+                                            String endpointHost,
+                                            Integer connectTimeoutSeconds,
+                                            Integer readTimeoutSeconds) {
     }
 }

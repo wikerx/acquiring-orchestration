@@ -10,17 +10,13 @@ import java.time.LocalDateTime;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EmailSendRecordMapper
- * @date : 2026-07-04 16:11
- * @email : scott_x@163.com
- * @description : Email Send Record Mapper 映射组件，位于 运营后台服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
- * @status : create
+ * Email Send Record 数据访问接口，负责对应持久化记录的查询和写入。
  */
 public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
 
-    /** 按消息携带的完整投递键读取未删除记录。 */
+    /**
+     * 按消息携带的完整投递键读取未删除记录。
+     */
     @Select("""
             SELECT *
             FROM msg_email_send_record
@@ -33,7 +29,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                                           @Param("emailNo") String emailNo,
                                           @Param("appCode") String appCode);
 
-    /** 仅允许一个消费者将待发送记录抢占为发送中。 */
+    /**
+     * 仅允许一个消费者将待发送记录抢占为发送中。
+     */
     @Update("""
             UPDATE msg_email_send_record
             SET send_status = 1,
@@ -54,7 +52,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                          @Param("appCode") String appCode,
                          @Param("now") LocalDateTime now);
 
-    /** SMTP 成功后只允许从发送中推进到成功终态。 */
+    /**
+     * SMTP 成功后只允许从发送中推进到成功终态。
+     */
     @Update("""
             UPDATE msg_email_send_record
             SET send_status = 2,
@@ -78,7 +78,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                             @Param("now") LocalDateTime now,
                             @Param("costMs") Long costMs);
 
-    /** SMTP 失败后按最大重试次数进入等待或关闭，且不得覆盖其它状态。 */
+    /**
+     * SMTP 失败后按最大重试次数进入等待或关闭，且不得覆盖其它状态。
+     */
     @Update("""
             UPDATE msg_email_send_record
             SET send_status = CASE
@@ -110,7 +112,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                             @Param("errorCode") String errorCode,
                             @Param("errorMessage") String errorMessage);
 
-    /** 查询已经到达重投时间的记录。 */
+    /**
+     * 查询已经到达重投时间的记录。
+     */
     @Select("""
             SELECT *
             FROM msg_email_send_record
@@ -125,7 +129,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                                                         @Param("now") LocalDateTime now,
                                                         @Param("limit") int limit);
 
-    /** 到期记录只有 CAS 成功后才重新进入待发送状态。 */
+    /**
+     * 到期记录只有 CAS 成功后才重新进入待发送状态。
+     */
     @Update("""
             UPDATE msg_email_send_record
             SET send_status = 0,
@@ -143,7 +149,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                            @Param("appCode") String appCode,
                            @Param("now") LocalDateTime now);
 
-    /** 将超时发送中的记录推进到重试等待或关闭，不触碰其它状态。 */
+    /**
+     * 将超时发送中的记录推进到重试等待或关闭，不触碰其它状态。
+     */
     @Update("""
             UPDATE msg_email_send_record
             SET send_status = CASE

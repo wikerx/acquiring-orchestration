@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskListMatch
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 运行时风控命中结果。
- * @status : create
+ * 运行时风控命中结果。
  */
 @Data
 public class RiskListMatch implements Serializable {
@@ -63,6 +57,11 @@ public class RiskListMatch implements Serializable {
      * 可用于内部审计的命中原因摘要。
      */
     private String decisionReason;
+
+    /**
+     * 稳定审计原因码，例如 NOT_ENABLED、NOT_CONFIGURED、NO_MATCH 或 INPUT_MISSING。
+     */
+    private String reasonCode;
 
     /**
      * 频率规则时间窗口，单位秒；非频率规则允许为空。

@@ -7,31 +7,35 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultSummary
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementQueryService
- * @date : 2026-08-27 14:10
- * @email : scott_x@163.com
- * @description : Admin 结算只读查询边界；直接读取交易逻辑数据源，不承担取消、冲正或资金入账。
- * @status : create
+ * Admin 结算只读查询边界；直接读取交易逻辑数据源，不承担取消、冲正或资金入账。
  */
 public interface AdminSettlementQueryService {
 
-    /** @return 按业务日期和主键倒序的结算批次标准分页 */
+    /**
+     * @return 按业务日期和主键倒序的结算批次标准分页
+     */
     PageResult<BatchSummary> search(BatchSearchRequest request, AdminMerchantDataScope dataScope);
 
-    /** @return 批次、锁定汇率、结果汇总、净入账与异步联动状态 */
+    /**
+     * @return 批次、锁定汇率、结果汇总、净入账与异步联动状态
+     */
     BatchDetailResponse detail(String settlementBatchNo, AdminMerchantDataScope dataScope);
 
-    /** @return 用于下载正式结算凭证的批次、锁定汇率和完整不可变汇总快照 */
+    /**
+     * @return 用于下载正式结算凭证的批次、锁定汇率和完整不可变汇总快照
+     */
     BatchDetailResponse voucherDetail(String settlementBatchNo, AdminMerchantDataScope dataScope);
 
-    /** @return 当前数据范围内指定批次的结算聚合结果标准分页 */
+    /**
+     * @return 当前数据范围内指定批次的结算聚合结果标准分页
+     */
     PageResult<ResultSummaryLine> searchResultSummaries(String settlementBatchNo,
                                                         Integer pageNo,
                                                         Integer pageSize,
                                                         AdminMerchantDataScope dataScope);
 
-    /** 命令远程调用前，从本地交易逻辑数据源确认批次仍位于当前商户范围。 */
+    /**
+     * 命令远程调用前，从本地交易逻辑数据源确认批次仍位于当前商户范围。
+     */
     void requireBatchAccess(String settlementBatchNo, AdminMerchantDataScope dataScope);
 }

@@ -51,112 +51,22 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseMccApplicationService
- * @date : 2026-06-27 16:49
- * @email : scott_x@163.com
- * @description : admin基础mcc应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端 MCC 应用服务，编排分类、编码、风险策略、导入导出和缓存失效流程。
  */
 @Service
 public class AdminBaseMccApplicationService {
 
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * 一级分类常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String LEVEL1 = "LEVEL1";
-    /**
-     * 二级分类常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String LEVEL2 = "LEVEL2";
-    /**
-     * {@code MCC_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String MCC_CODE = "MCC_CODE";
-    /**
-     * {@code APPLY_SCOPE_ALL}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String APPLY_SCOPE_ALL = "ALL";
-    /**
-     * {@code APPLY_SCOPE_SPECIFIC}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String APPLY_SCOPE_SPECIFIC = "SPECIFIC";
-    /**
-     * {@code CARD_BRAND_DICT}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CARD_BRAND_DICT = "card_brand";
-    /**
-     * 默认语言区域常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DEFAULT_LOCALE = "zh-CN";
-    /**
-     * {@code FOUR_DIGIT_MCC}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String FOUR_DIGIT_MCC = "^[0-9]{4}$";
 
     private final BaseMccLevel1Mapper level1Mapper;
@@ -171,7 +81,9 @@ public class AdminBaseMccApplicationService {
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     private final ExcelLocaleResolver excelLocaleResolver;
 
-    /** MCC 公共选项常驻缓存失效器。 */
+    /**
+     * MCC 公共选项常驻缓存失效器。
+     */
     private final MccOptionCacheInvalidator mccOptionCacheInvalidator;
 
     /**
@@ -493,13 +405,13 @@ public class AdminBaseMccApplicationService {
      * 查询页面下拉选项。
      */
     @DS(DataSourceName.SLAVE)
-    public Map<String, Object> options() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("level1", level1Mapper.selectList(baseLevel1Query()).stream().map(row -> option(row.getId(), row.getLevel1Code(), row.getNameCn(), row.getNameEn(), LEVEL1, null)).toList());
-        result.put("level2", level2Mapper.selectList(baseLevel2Query()).stream().map(row -> option(row.getId(), row.getLevel2Code(), row.getNameCn(), row.getNameEn(), LEVEL2, row.getLevel1Id())).toList());
-        result.put("mccCodes", codeMapper.selectList(baseCodeQuery().orderByAsc(MccEntities.BaseMccCodeDO::getMccCode)).stream().map(row -> option(row.getId(), row.getMccCode(), row.getNameCn(), row.getNameEn(), MCC_CODE, row.getLevel2Id())).toList());
-        result.put("cardSchemes", cardBrandDictRows().stream().map(row -> option(row.getId(), row.getDictValue(), row.getDictLabel(), row.getDictLabel(), CARD_BRAND_DICT, null)).toList());
-        result.put("countries", isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
+    public MccVO.MccOptionsVO options() {
+        MccVO.MccOptionsVO result = new MccVO.MccOptionsVO();
+        result.setLevel1(level1Mapper.selectList(baseLevel1Query()).stream().map(row -> option(row.getId(), row.getLevel1Code(), row.getNameCn(), row.getNameEn(), LEVEL1, null)).toList());
+        result.setLevel2(level2Mapper.selectList(baseLevel2Query()).stream().map(row -> option(row.getId(), row.getLevel2Code(), row.getNameCn(), row.getNameEn(), LEVEL2, row.getLevel1Id())).toList());
+        result.setMccCodes(codeMapper.selectList(baseCodeQuery().orderByAsc(MccEntities.BaseMccCodeDO::getMccCode)).stream().map(row -> option(row.getId(), row.getMccCode(), row.getNameCn(), row.getNameEn(), MCC_CODE, row.getLevel2Id())).toList());
+        result.setCardSchemes(cardBrandDictRows().stream().map(row -> option(row.getId(), row.getDictValue(), row.getDictLabel(), row.getDictLabel(), CARD_BRAND_DICT, null)).toList());
+        result.setCountries(isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
                         .eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED)
                         .eq(IsoCountryDO::getStatus, ENABLED)
                         .orderByAsc(IsoCountryDO::getAlpha2Code))
@@ -535,6 +447,9 @@ public class AdminBaseMccApplicationService {
         );
     }
 
+    /**
+     * 新增或更新一级 MCC 分类并失效选项缓存。
+     */
     private MccEntities.BaseMccLevel1DO saveLevel1(MccRequests.MccCategorySaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         String code = normalizeRequired(request.getCategoryCode(), "categoryCode is required");
@@ -552,6 +467,9 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 新增或更新二级 MCC 分类并校验父级关系。
+     */
     private MccEntities.BaseMccLevel2DO saveLevel2(MccRequests.MccCategorySaveRequest request) {
         if (request.getParentId() == null || level1Mapper.selectCount(baseLevel1Query().eq(MccEntities.BaseMccLevel1DO::getId, request.getParentId())) == 0) {
             throw badRequest("新增二级分类时一级分类必须存在");
@@ -573,6 +491,9 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 将保存请求字段填充到一级 MCC 分类实体。
+     */
     private void fillLevel1(MccEntities.BaseMccLevel1DO row, MccRequests.MccCategorySaveRequest request, LocalDateTime now) {
         row.setNameCn(normalizeRequired(request.getNameCn(), "nameCn is required"));
         row.setNameEn(normalizeRequired(request.getNameEn(), "nameEn is required"));
@@ -582,6 +503,9 @@ public class AdminBaseMccApplicationService {
         row.setUpdateTime(now);
     }
 
+    /**
+     * 将保存请求字段填充到二级 MCC 分类实体。
+     */
     private void fillLevel2(MccEntities.BaseMccLevel2DO row, MccRequests.MccCategorySaveRequest request, LocalDateTime now) {
         row.setNameCn(normalizeRequired(request.getNameCn(), "nameCn is required"));
         row.setNameEn(normalizeRequired(request.getNameEn(), "nameEn is required"));
@@ -591,6 +515,9 @@ public class AdminBaseMccApplicationService {
         row.setUpdateTime(now);
     }
 
+    /**
+     * 校验编码请求。
+     */
     private void validateCodeRequest(MccRequests.MccCodeSaveRequest request, boolean creating) {
         if (creating && !StringUtils.hasText(request.getMccCode())) {
             throw badRequest("MCC 编码不能为空");
@@ -615,6 +542,9 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 填充编码。
+     */
     private void fillCode(MccEntities.BaseMccCodeDO row, MccRequests.MccCodeSaveRequest request) {
         if (StringUtils.hasText(request.getMccCode())) {
             row.setMccCode(request.getMccCode().trim());
@@ -635,6 +565,9 @@ public class AdminBaseMccApplicationService {
         row.setRemark(trimToNull(request.getRemark()));
     }
 
+    /**
+     * 校验 MCC 风险策略的基础字段和时间范围。
+     */
     private void validatePolicyBase(MccRequests.MccRiskPolicySaveRequest request) {
         if (!existsMccCode(request.getMccCode(), null)) {
             throw badRequest("MCC 编码不存在");
@@ -648,6 +581,9 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 解析并规范化风险策略支持的卡组织集合。
+     */
     private List<String> resolveCardSchemes(MccRequests.MccRiskPolicySaveRequest request) {
         Set<String> allowed = cardBrandValues();
         List<String> schemes = Boolean.TRUE.equals(request.getSelectAllCardSchemes())
@@ -667,6 +603,9 @@ public class AdminBaseMccApplicationService {
         return schemes;
     }
 
+    /**
+     * 填充策略。
+     */
     private void fillPolicy(MccEntities.BaseMccRiskPolicyDO row, MccRequests.MccRiskPolicySaveRequest request, String cardScheme) {
         String channelScope = request.getChannelScope().trim();
         String countryScope = request.getCountryScope().trim();
@@ -686,6 +625,9 @@ public class AdminBaseMccApplicationService {
         row.setRemark(trimToNull(request.getRemark()));
     }
 
+    /**
+     * 校验 MCC 策略维度不存在重复配置。
+     */
     private void assertPolicyNotExists(Long excludeId, MccRequests.MccRiskPolicySaveRequest request, String cardScheme) {
         String channelScope = request.getChannelScope().trim();
         String channelCode = APPLY_SCOPE_SPECIFIC.equals(channelScope) ? request.getChannelCode().trim() : "";
@@ -704,6 +646,9 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 构建策略查询。
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccRiskPolicyDO> buildPolicyQuery(MccRequests.MccRiskPolicyQueryRequest query) {
         LambdaQueryWrapper<MccEntities.BaseMccRiskPolicyDO> wrapper = basePolicyQuery()
                 .eq(StringUtils.hasText(query.getMccCode()), MccEntities.BaseMccRiskPolicyDO::getMccCode, trimToNull(query.getMccCode()))
@@ -732,6 +677,9 @@ public class AdminBaseMccApplicationService {
         return wrapper;
     }
 
+    /**
+     * 校验范围。
+     */
     private void validateScope(String scope, String code, String codeFieldName) {
         if (!APPLY_SCOPE_ALL.equals(scope) && !APPLY_SCOPE_SPECIFIC.equals(scope)) {
             throw badRequest(scope + " is not supported");
@@ -744,11 +692,17 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 读取卡品牌值集合。
+     */
     private Set<String> cardBrandValues() {
         List<SysDictDataDO> rows = cardBrandDictRows();
         return rows.stream().map(SysDictDataDO::getDictValue).filter(StringUtils::hasText).collect(Collectors.toSet());
     }
 
+    /**
+     * 读取卡品牌数据字典条目。
+     */
     private List<SysDictDataDO> cardBrandDictRows() {
         List<SysDictDataDO> rows = dictDataMapper.selectList(Wrappers.<SysDictDataDO>lambdaQuery()
                 .eq(SysDictDataDO::getDictType, CARD_BRAND_DICT)
@@ -761,6 +715,9 @@ public class AdminBaseMccApplicationService {
         return rows == null ? List.of() : rows;
     }
 
+    /**
+     * 判断二位国家或地区代码是否有效。
+     */
     private boolean existsCountryAlpha2(String alpha2) {
         if (!StringUtils.hasText(alpha2)) {
             return false;
@@ -771,6 +728,9 @@ public class AdminBaseMccApplicationService {
         return count != null && count > 0;
     }
 
+    /**
+     * 校验 MCC 分类编码尚未被占用。
+     */
     private void assertCategoryCodeNotExists(String nodeType, String code, Long parentId, Long excludeId) {
         Long count;
         if (LEVEL1.equals(nodeType)) {
@@ -788,6 +748,9 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 判断 MCC 编码是否已存在。
+     */
     private boolean existsMccCode(String mccCode, Long excludeId) {
         if (!StringUtils.hasText(mccCode)) {
             return false;
@@ -798,6 +761,9 @@ public class AdminBaseMccApplicationService {
         return count != null && count > 0;
     }
 
+    /**
+     * 按查询条件过滤 MCC 分类树。
+     */
     private MccVO.MccTreeNodeVO filterTree(MccVO.MccTreeNodeVO node, MccRequests.MccTreeQueryRequest query) {
         List<MccVO.MccTreeNodeVO> children = node.getChildren().stream()
                 .map(child -> filterTree(child, query))
@@ -811,6 +777,9 @@ public class AdminBaseMccApplicationService {
         return node;
     }
 
+    /**
+     * 判断 MCC 树节点是否满足全部查询条件。
+     */
     private boolean matches(MccVO.MccTreeNodeVO node, MccRequests.MccTreeQueryRequest query) {
         return containsAny(node, query.getKeyword())
                 && fieldContains(node.getMccCode(), query.getMccCode())
@@ -821,6 +790,9 @@ public class AdminBaseMccApplicationService {
                 && (query.getStatus() == null || Objects.equals(node.getStatus(), query.getStatus()));
     }
 
+    /**
+     * 判断文本是否包含任一查询关键字。
+     */
     private boolean containsAny(MccVO.MccTreeNodeVO node, String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return true;
@@ -833,22 +805,37 @@ public class AdminBaseMccApplicationService {
                 || fieldContains(node.getRiskLevel(), keyword);
     }
 
+    /**
+     * 判断 MCC 字段是否包含查询文本。
+     */
     private boolean fieldContains(String source, String target) {
         return !StringUtils.hasText(target) || (source != null && source.toLowerCase(Locale.ROOT).contains(target.trim().toLowerCase(Locale.ROOT)));
     }
 
+    /**
+     * 判断 MCC 字段是否等于查询值。
+     */
     private boolean fieldEquals(String source, String target) {
         return !StringUtils.hasText(target) || Objects.equals(source, target.trim());
     }
 
+    /**
+     * 将一级 MCC 分类实体转换为树节点。
+     */
     private MccVO.MccTreeNodeVO toLevel1Node(MccEntities.BaseMccLevel1DO row) {
         return baseNode(LEVEL1, row.getId(), null, 1, row.getLevel1Code(), row.getNameCn(), row.getNameEn(), row.getStatus(), row.getSortNo(), row.getRemark(), row.getCreateTime(), row.getUpdateTime());
     }
 
+    /**
+     * 将二级 MCC 分类实体转换为树节点。
+     */
     private MccVO.MccTreeNodeVO toLevel2Node(MccEntities.BaseMccLevel2DO row) {
         return baseNode(LEVEL2, row.getId(), LEVEL1 + ":" + row.getLevel1Id(), 2, row.getLevel2Code(), row.getNameCn(), row.getNameEn(), row.getStatus(), row.getSortNo(), row.getRemark(), row.getCreateTime(), row.getUpdateTime());
     }
 
+    /**
+     * 将 MCC 编码实体转换为树节点。
+     */
     private MccVO.MccTreeNodeVO toMccCodeNode(MccEntities.BaseMccCodeDO row) {
         MccVO.MccTreeNodeVO node = baseNode(MCC_CODE, row.getLevel2Id(), LEVEL2 + ":" + row.getLevel2Id(), 3, row.getMccCode(), row.getNameCn(), row.getNameEn(), row.getStatus(), row.getSortNo(), row.getRemark(), row.getCreateTime(), row.getUpdateTime());
         node.setNodeKey(MCC_CODE + ":" + row.getId());
@@ -867,6 +854,9 @@ public class AdminBaseMccApplicationService {
         return node;
     }
 
+    /**
+     * 构建 MCC 分类树基础节点。
+     */
     private MccVO.MccTreeNodeVO baseNode(String type, Long id, String parentNodeKey, Integer level, String code,
                                          String nameCn, String nameEn, Integer status, Integer sortNo, String remark,
                                          LocalDateTime createTime, LocalDateTime updateTime) {
@@ -888,6 +878,9 @@ public class AdminBaseMccApplicationService {
         return node;
     }
 
+    /**
+     * 将子节点追加到父节点，忽略空节点输入。
+     */
     private void addChild(MccVO.MccTreeNodeVO parent, MccVO.MccTreeNodeVO child) {
         if (parent == null || child == null) {
             return;
@@ -896,6 +889,9 @@ public class AdminBaseMccApplicationService {
         parent.getChildren().sort(Comparator.comparing(MccVO.MccTreeNodeVO::getSortNo, Comparator.nullsLast(Integer::compareTo)));
     }
 
+    /**
+     * 将 MCC 编码实体转换为详情响应。
+     */
     private MccVO.MccCodeVO toCodeVO(MccEntities.BaseMccCodeDO row) {
         MccVO.MccCodeVO vo = new MccVO.MccCodeVO();
         vo.setId(row.getId());
@@ -920,6 +916,9 @@ public class AdminBaseMccApplicationService {
         return vo;
     }
 
+    /**
+     * 补充 MCC 编码所属一级、二级分类路径。
+     */
     private void fillCategoryPath(MccVO.MccCodeVO vo, Long level1Id, Long level2Id) {
         if (level2Id != null) {
             MccEntities.BaseMccLevel2DO level2 = level2Mapper.selectById(level2Id);
@@ -937,6 +936,9 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 将 MCC 风险策略实体转换为管理端响应。
+     */
     private MccVO.MccRiskPolicyVO toPolicyVO(MccEntities.BaseMccRiskPolicyDO row) {
         MccVO.MccRiskPolicyVO vo = new MccVO.MccRiskPolicyVO();
         vo.setId(row.getId());
@@ -964,6 +966,9 @@ public class AdminBaseMccApplicationService {
         return vo;
     }
 
+    /**
+     * 根据国家或地区代码补充中英文名称。
+     */
     private void fillCountryName(MccVO.MccRiskPolicyVO vo, String countryCode) {
         if (!StringUtils.hasText(countryCode)) {
             return;
@@ -978,6 +983,9 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 解析卡组织编码的展示标签。
+     */
     private String cardSchemeLabel(String cardScheme) {
         SysDictDataQueryRequest query = new SysDictDataQueryRequest();
         query.setDictType(CARD_BRAND_DICT);
@@ -987,6 +995,9 @@ public class AdminBaseMccApplicationService {
         return rows.isEmpty() ? cardScheme : rows.get(0).getDictLabel();
     }
 
+    /**
+     * 转换为导出行数据。
+     */
     private MccCodeExportRow toExportRow(MccEntities.BaseMccCodeDO row, Locale locale) {
         MccVO.MccCodeVO code = toCodeVO(row);
         MccCodeExportRow exportRow = new MccCodeExportRow();
@@ -1010,6 +1021,9 @@ public class AdminBaseMccApplicationService {
         return exportRow;
     }
 
+    /**
+     * 构建管理端下拉选项。
+     */
     private MccVO.MccOptionVO option(Long id, String code, String nameCn, String nameEn, String nodeType, Long parentId) {
         MccVO.MccOptionVO option = new MccVO.MccOptionVO();
         option.setId(id);
@@ -1022,6 +1036,9 @@ public class AdminBaseMccApplicationService {
         return option;
     }
 
+    /**
+     * 软删除 MCC 一级分类及其关联关系。
+     */
     private void softDeleteLevel1(MccEntities.BaseMccLevel1DO row) {
         row.setStatus(DISABLED);
         row.setDeleted(row.getId());
@@ -1029,6 +1046,9 @@ public class AdminBaseMccApplicationService {
         level1Mapper.updateById(row);
     }
 
+    /**
+     * 软删除 MCC 二级分类及其关联关系。
+     */
     private void softDeleteLevel2(MccEntities.BaseMccLevel2DO row) {
         row.setStatus(DISABLED);
         row.setDeleted(row.getId());
@@ -1036,6 +1056,9 @@ public class AdminBaseMccApplicationService {
         level2Mapper.updateById(row);
     }
 
+    /**
+     * 查询未删除的一级 MCC 分类，不存在时返回业务错误。
+     */
     private MccEntities.BaseMccLevel1DO getLevel1(Long id) {
         MccEntities.BaseMccLevel1DO row = level1Mapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1044,6 +1067,9 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 查询未删除的二级 MCC 分类，不存在时返回业务错误。
+     */
     private MccEntities.BaseMccLevel2DO getLevel2(Long id) {
         MccEntities.BaseMccLevel2DO row = level2Mapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1052,6 +1078,9 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 按主键查询未删除的 MCC 编码。
+     */
     private MccEntities.BaseMccCodeDO getCodeById(Long id) {
         MccEntities.BaseMccCodeDO row = codeMapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1060,6 +1089,9 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 获取策略。
+     */
     private MccEntities.BaseMccRiskPolicyDO getPolicy(Long id) {
         MccEntities.BaseMccRiskPolicyDO row = riskPolicyMapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1068,6 +1100,9 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 构建 MCC 一级分类基础查询条件。
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccLevel1DO> baseLevel1Query() {
         return Wrappers.<MccEntities.BaseMccLevel1DO>lambdaQuery()
                 .eq(MccEntities.BaseMccLevel1DO::getDeleted, NOT_DELETED)
@@ -1075,6 +1110,9 @@ public class AdminBaseMccApplicationService {
                 .orderByAsc(MccEntities.BaseMccLevel1DO::getId);
     }
 
+    /**
+     * 构建 MCC 二级分类基础查询条件。
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccLevel2DO> baseLevel2Query() {
         return Wrappers.<MccEntities.BaseMccLevel2DO>lambdaQuery()
                 .eq(MccEntities.BaseMccLevel2DO::getDeleted, NOT_DELETED)
@@ -1082,16 +1120,25 @@ public class AdminBaseMccApplicationService {
                 .orderByAsc(MccEntities.BaseMccLevel2DO::getId);
     }
 
+    /**
+     * 构建 MCC 编码基础查询条件。
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccCodeDO> baseCodeQuery() {
         return Wrappers.<MccEntities.BaseMccCodeDO>lambdaQuery()
                 .eq(MccEntities.BaseMccCodeDO::getDeleted, NOT_DELETED);
     }
 
+    /**
+     * 构建 MCC 策略基础查询条件。
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccRiskPolicyDO> basePolicyQuery() {
         return Wrappers.<MccEntities.BaseMccRiskPolicyDO>lambdaQuery()
                 .eq(MccEntities.BaseMccRiskPolicyDO::getDeleted, NOT_DELETED);
     }
 
+    /**
+     * 规范化必填文本，并在缺失时返回参数错误。
+     */
     private String normalizeRequired(String value, String message) {
         if (!StringUtils.hasText(value)) {
             throw badRequest(message);
@@ -1099,22 +1146,37 @@ public class AdminBaseMccApplicationService {
         return value.trim();
     }
 
+    /**
+     * 在文本为空时返回默认值。
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 返回有效排序值，空值时使用默认顺序。
+     */
     private int defaultSort(Integer sortNo) {
         return sortNo == null ? 100 : sortNo;
     }
 
+    /**
+     * 返回默认状态。
+     */
     private int defaultStatus(Integer status) {
         return status == null ? ENABLED : validStatus(status);
     }
 
+    /**
+     * 解析有效状态。
+     */
     private int validStatus(Integer status) {
         if (!Objects.equals(status, ENABLED) && !Objects.equals(status, DISABLED)) {
             throw badRequest("status must be 0 or 1");
@@ -1122,6 +1184,9 @@ public class AdminBaseMccApplicationService {
         return status;
     }
 
+    /**
+     * 返回默认标志。
+     */
     private int defaultFlag(Integer flag, int defaultValue) {
         if (flag == null) {
             return defaultValue;
@@ -1132,10 +1197,16 @@ public class AdminBaseMccApplicationService {
         return flag;
     }
 
+    /**
+     * 统计非空参数数量。
+     */
     private long nonNullCount(Long count) {
         return count == null ? 0L : count;
     }
 
+    /**
+     * 构建参数校验失败异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);
     }

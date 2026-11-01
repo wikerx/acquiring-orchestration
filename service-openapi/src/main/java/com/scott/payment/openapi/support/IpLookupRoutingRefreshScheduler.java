@@ -10,13 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLookupRoutingRefreshScheduler
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : OpenAPI IP 分片路由预加载与轮询器；短 Key 缓存值按路由版本校验并由物理 TTL 回收
- * @status : create
+ * OpenAPI IP 分片路由预加载与轮询器；短 Key 缓存值按路由版本校验并由物理 TTL 回收
  */
 @Slf4j
 @Component
@@ -25,11 +19,18 @@ public class IpLookupRoutingRefreshScheduler implements ApplicationRunner {
     private final IpShardRoutingSnapshot routingSnapshot;
     private final AtomicLong lastWarningMillis = new AtomicLong();
 
+    /**
+     * 创建 IP 分片路由刷新任务。
+     *
+     * @param routingSnapshot 可原子发布的 IP 分片路由快照
+     */
     public IpLookupRoutingRefreshScheduler(IpShardRoutingSnapshot routingSnapshot) {
         this.routingSnapshot = routingSnapshot;
     }
 
-    /** 在应用进入就绪状态前加载路由，避免首个冷 IP 多执行一次路由 SQL。 */
+    /**
+     * 在应用进入就绪状态前加载路由，避免首个冷 IP 多执行一次路由 SQL。
+     */
     @Override
     public void run(ApplicationArguments args) {
         refresh();
@@ -42,13 +43,13 @@ public class IpLookupRoutingRefreshScheduler implements ApplicationRunner {
     public void refresh() {
         try {
             if (routingSnapshot.refresh()) {
-                log.info("event: IP_LOOKUP_ROUTING_REFRESHED");
+                log.info("IP查询路由快照已刷新, event: IP_LOOKUP_ROUTING_REFRESHED");
             }
         } catch (RuntimeException exception) {
             long now = System.currentTimeMillis();
             long previous = lastWarningMillis.get();
             if (now - previous >= 60_000 && lastWarningMillis.compareAndSet(previous, now)) {
-                log.warn("event: IP_LOOKUP_ROUTING_REFRESH_FAILED exceptionType: {}",
+                log.warn("IP查询路由快照刷新失败, event: IP_LOOKUP_ROUTING_REFRESH_FAILED, exceptionType: {}",
                         exception.getClass().getSimpleName(), exception);
             }
         }

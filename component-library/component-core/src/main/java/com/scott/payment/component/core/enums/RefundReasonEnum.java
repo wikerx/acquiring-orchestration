@@ -4,30 +4,63 @@ import com.scott.payment.component.core.exception.ApiException;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundReasonEnum
- * @date : 2026-09-27 18:00
- * @email : scott_x@163.com
- * @description : 管理端和商户端共用的退款原因契约，校验原因编码和补充说明并生成现有审计字段；不改变支付核心或渠道协议。
- * @status : create
+ * 管理端和商户端共用的退款原因契约，校验原因编码和补充说明并生成现有审计字段；不改变支付核心或渠道协议。
  */
 public enum RefundReasonEnum {
+    /**
+     * CUSTOMER CANCELLED 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     CUSTOMER_CANCELLED("客户取消订单", "Customer cancelled order"),
+    /**
+     * DUPLICATE PAYMENT 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     DUPLICATE_PAYMENT("重复支付", "Duplicate payment"),
+    /**
+     * PRODUCT UNAVAILABLE 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     PRODUCT_UNAVAILABLE("商品缺货或服务无法提供", "Product or service unavailable"),
+    /**
+     * QUALITY ISSUE 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     QUALITY_ISSUE("商品质量或服务质量问题", "Product or service quality issue"),
+    /**
+     * NOT AS DESCRIBED 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     NOT_AS_DESCRIBED("商品或服务与描述不符", "Product or service not as described"),
+    /**
+     * PARTIAL RETURN 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     PARTIAL_RETURN("部分商品退货", "Partial return of goods"),
+    /**
+     * PARTIAL CANCELLATION 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     PARTIAL_CANCELLATION("部分商品取消或缺货", "Partial cancellation or stock shortage"),
+    /**
+     * UNUSED SERVICE 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     UNUSED_SERVICE("部分服务未使用或提前终止", "Unused service or early termination"),
+    /**
+     * PRICE ADJUSTMENT 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     PRICE_ADJUSTMENT("优惠补退或价格差额退还", "Discount or price adjustment"),
+    /**
+     * AGREED COMPENSATION 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     AGREED_COMPENSATION("协商补偿退款", "Agreed compensation"),
+    /**
+     * OTHER 枚举值，表示当前枚举定义中的一个受控业务取值。
+     */
     OTHER("其他", "Other");
 
     private final String chineseLabel;
     private final String englishLabel;
 
+    /**
+     * 创建退款原因的中英文展示定义。
+     *
+     * @param chineseLabel 中文展示文案
+     * @param englishLabel 英文展示文案
+     */
     RefundReasonEnum(String chineseLabel, String englishLabel) {
         this.chineseLabel = chineseLabel;
         this.englishLabel = englishLabel;
@@ -70,11 +103,21 @@ public enum RefundReasonEnum {
         return notes.isEmpty() ? label : label + " - " + notes;
     }
 
-    /** 与浏览器 trim 保持一致，拒绝仅含不换行空格或 Unicode 空白的说明。 */
+    /**
+     * 与浏览器 trim 保持一致，拒绝仅含不换行空格或 Unicode 空白的说明。
+     */
     private static String stripWhitespace(String value) {
         return value == null ? "" : value.replaceAll("(?U)^[\\s\\x{FEFF}]+|[\\s\\x{FEFF}]+$", "");
     }
 
+    /**
+     * 按当前语言创建参数校验异常，避免把未受控输入写入错误信息。
+     *
+     * @param chinese 是否返回中文文案
+     * @param zh 中文校验文案
+     * @param en 英文校验文案
+     * @return 统一参数错误异常
+     */
     private static ApiException invalid(boolean chinese, String zh, String en) {
         return new ApiException(ApiResultEnum.PARAM_INVALID.getCode(), chinese ? zh : en);
     }

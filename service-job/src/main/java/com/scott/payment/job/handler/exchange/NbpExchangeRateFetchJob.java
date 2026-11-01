@@ -13,27 +13,17 @@ import com.scott.payment.job.exchange.service.ExchangeRateFetchService;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NbpExchangeRateFetchJob
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : NBP 汇率拉取任务处理器，固定拉取 Table C 外币兑 PLN 报价并复用统一原始汇率和业务汇率生成链路。
- * @status : create
+ * NBP 汇率拉取任务处理器，固定拉取 Table C 外币兑 PLN 报价并复用统一原始汇率和业务汇率生成链路。
  */
 @Component
 public class NbpExchangeRateFetchJob implements JobHandler {
 
-    /** 调度中心注册的 NBP 任务处理器编码。 */
+    /**
+     * 调度中心注册的 NBP 任务处理器编码。
+     */
     public static final String HANDLER_CODE = "nbpExchangeRateFetchJob";
 
-    /**
-     * {@code exchangeRateFetchService} 依赖，用于 {@code NbpExchangeRateFetchJob} 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
-     * </p>
-     */
+
     private final ExchangeRateFetchService exchangeRateFetchService;
 
     /**

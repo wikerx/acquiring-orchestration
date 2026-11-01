@@ -10,13 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingDeploymentConfigurationContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 清分环境接入和自动运行合同，防止服务脱离基础设施或重新引入业务启停、商户范围过滤配置。
- * @status : create
+ * 清分环境接入和自动运行合同，防止服务脱离基础设施或重新引入业务启停、商户范围过滤配置。
  */
 class ClearingDeploymentConfigurationContractTest {
 
@@ -27,7 +21,9 @@ class ClearingDeploymentConfigurationContractTest {
             "redis-${spring.profiles.active}",
             "rocketmq-${spring.profiles.active}");
 
-    /** 所有部署 Profile 必须加载清分原有服务配置和五个必需公共 DataId。 */
+    /**
+     * 所有部署 Profile 必须加载清分原有服务配置和五个必需公共 DataId。
+     */
     @Test
     void allProfilesShouldImportRequiredNacosDataIds() throws IOException {
         for (String profile : List.of("dev", "test", "uat", "prod", "sample")) {
@@ -42,7 +38,9 @@ class ClearingDeploymentConfigurationContractTest {
         }
     }
 
-    /** UAT 和生产不得为 Nacos 凭据或内部 HMAC 密钥提供仓库默认值。 */
+    /**
+     * UAT 和生产不得为 Nacos 凭据或内部 HMAC 密钥提供仓库默认值。
+     */
     @Test
     void protectedProfilesShouldRequireInjectedSecrets() throws IOException {
         for (String profile : List.of("uat", "prod")) {
@@ -56,7 +54,9 @@ class ClearingDeploymentConfigurationContractTest {
         }
     }
 
-    /** 清分 DataId 只保留容量、安全和调度周期参数，并通过共享凭据边引用内部鉴权密钥。 */
+    /**
+     * 清分 DataId 只保留容量、安全和调度周期参数，并通过共享凭据边引用内部鉴权密钥。
+     */
     @Test
     void devDataIdShouldContainRuntimeTuningWithoutBusinessSwitches() throws IOException {
         String configuration = readRepositoryFile("docs/deployment/nacos/service-clearing-dev.yaml");
@@ -82,7 +82,9 @@ class ClearingDeploymentConfigurationContractTest {
                         "dev-internal-service-secret");
     }
 
-    /** 两个消息消费者和指标调度器必须随服务自动装配，不能依赖 ConditionalOnProperty。 */
+    /**
+     * 两个消息消费者和指标调度器必须随服务自动装配，不能依赖 ConditionalOnProperty。
+     */
     @Test
     void clearingRuntimeComponentsShouldNotHaveBusinessEnableConditions() throws IOException {
         for (String source : List.of(

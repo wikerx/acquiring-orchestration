@@ -6,14 +6,19 @@ import com.scott.payment.admin.dto.export.TransactionMerchantNotificationExportR
 import com.scott.payment.admin.dto.export.TransactionOperationExportRow;
 import com.scott.payment.admin.dto.export.TransactionOrderExportRow;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
@@ -46,17 +51,10 @@ import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionApplicationService
- * @date : 2026-07-14 23:58
- * @email : scott_x@163.com
- * @description : admin交易应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端交易应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminTransactionApplicationService {
@@ -65,11 +63,15 @@ public class AdminTransactionApplicationService {
      * 内部分页拉取大小，受 PageRequest 安全上限保护。
      */
     private static final int EXPORT_PAGE_SIZE = 500;
-    /** 退款预览沿用支付核心非终态退款查询的状态口径。 */
+    /**
+     * 退款预览沿用支付核心非终态退款查询的状态口径。
+     */
     private static final Set<String> REFUND_IN_PROGRESS_STATUSES = Set.of("PROCESSING", "PENDING");
     private static final String REFUND_OPERATION_TYPE = "REFUND";
     private static final String SUCCESS_STATUS = "SUCCESS";
-    /** 异常退出后 Redis 并发租约的最长自恢复时间。 */
+    /**
+     * 异常退出后 Redis 并发租约的最长自恢复时间。
+     */
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
 
     /**
@@ -141,9 +143,13 @@ public class AdminTransactionApplicationService {
      * Excel 导出语言解析器。
      */
     private final ExcelLocaleResolver excelLocaleResolver;
-    /** 交易查询和同步导出资源预算。 */
+    /**
+     * 交易查询和同步导出资源预算。
+     */
     private final TransactionShardingProperties shardingProperties;
-    /** 跨实例限制同一后台账号并发导出的 Redis 租约服务。 */
+    /**
+     * 跨实例限制同一后台账号并发导出的 Redis 租约服务。
+     */
     private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
     /**
@@ -181,6 +187,16 @@ public class AdminTransactionApplicationService {
      */
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         return transactionQueryService.pageOrders(query);
+    }
+
+    /**
+     * 分页查询交易生命周期主单，并返回相同条件下的全量统计。
+     *
+     * @param query 查询条件
+     * @return 主单分页和全量统计
+     */
+    public TransactionOrderSearchResponse searchOrders(TransactionPageQuery query) {
+        return transactionQueryService.searchOrders(query);
     }
 
     /**
@@ -412,7 +428,9 @@ public class AdminTransactionApplicationService {
         return request.getTransactionDateTime();
     }
 
-    /** 校验后台动作携带的生命周期根主单分片时间。 */
+    /**
+     * 校验后台动作携带的生命周期根主单分片时间。
+     */
     private LocalDateTime requiredRootTransactionDateTime(TransactionActionRequest request) {
         if (request == null || request.getRootTransactionDateTime() == null) {
             throw new ApiException(ApiResultEnum.PARAM_MISSING, "rootTransactionDateTime is required");
@@ -426,7 +444,7 @@ public class AdminTransactionApplicationService {
      * @param query 查询条件
      * @return 渠道交互日志分页结果
      */
-    public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
+    public PageResult<ChannelInteractionLogResponse> pageChannelLogs(ChannelLogQuery query) {
         return transactionQueryService.pageChannelLogs(query);
     }
 
@@ -436,7 +454,7 @@ public class AdminTransactionApplicationService {
      * @param query 查询条件
      * @return 渠道回调分页结果
      */
-    public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
+    public PageResult<ChannelCallbackResponse> pageChannelCallbacks(ChannelCallbackQuery query) {
         return transactionQueryService.pageChannelCallbacks(query);
     }
 
@@ -446,7 +464,7 @@ public class AdminTransactionApplicationService {
      * @param query 查询条件
      * @return 商户通知任务分页结果
      */
-    public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
+    public PageResult<MerchantNotificationResponse> pageMerchantNotifications(MerchantNotificationQuery query) {
         return transactionQueryService.pageMerchantNotifications(query);
     }
 
@@ -457,8 +475,8 @@ public class AdminTransactionApplicationService {
      * @param transactionDateTime 页面列表返回的真实交易分片时间
      * @return 通知任务和按尝试次数排序的投递日志
      */
-    public Map<String, Object> merchantNotificationDetail(String notifyId,
-                                                          LocalDateTime transactionDateTime) {
+    public MerchantNotificationDetailResponse merchantNotificationDetail(String notifyId,
+                                                                          LocalDateTime transactionDateTime) {
         return transactionQueryService.merchantNotificationDetail(notifyId, transactionDateTime);
     }
 
@@ -480,6 +498,14 @@ public class AdminTransactionApplicationService {
         });
     }
 
+    /**
+     * 复制查询条件并加载一页交易主单导出数据。
+     *
+     * @param sourceQuery 原始页面查询条件
+     * @param pageNo 导出分页页码
+     * @param locale 导出语言
+     * @return 已转换为 Excel 行模型的交易主单
+     */
     private List<TransactionOrderExportRow> loadOrderExportPage(TransactionPageQuery sourceQuery,
                                                                 int pageNo,
                                                                 Locale locale) {
@@ -491,6 +517,14 @@ public class AdminTransactionApplicationService {
                 .toList();
     }
 
+    /**
+     * 复制查询条件并加载一页交易动作导出数据。
+     *
+     * @param sourceQuery 原始页面查询条件
+     * @param pageNo 导出分页页码
+     * @param locale 导出语言
+     * @return 已转换为 Excel 行模型的交易动作
+     */
     private List<TransactionOperationExportRow> loadOperationExportPage(TransactionPageQuery sourceQuery,
                                                                         int pageNo,
                                                                         Locale locale) {
@@ -502,6 +536,13 @@ public class AdminTransactionApplicationService {
                 .toList();
     }
 
+    /**
+     * 复制查询条件并加载一页商户通知导出数据。
+     *
+     * @param sourceQuery 原始页面查询条件
+     * @param pageNo 导出分页页码
+     * @return 已转换为 Excel 行模型的商户通知任务
+     */
     private List<TransactionMerchantNotificationExportRow> loadMerchantNotificationExportPage(
             MerchantNotificationQuery sourceQuery, int pageNo) {
         MerchantNotificationQuery query = copyNotificationQuery(sourceQuery);
@@ -512,7 +553,9 @@ public class AdminTransactionApplicationService {
                 .toList();
     }
 
-    /** 在同一后台账号的集群级并发预算内执行一次同步交易导出。 */
+    /**
+     * 在同一后台账号的集群级并发预算内执行一次同步交易导出。
+     */
     private void runExport(String operator, Runnable action) {
         boolean acquired = exportConcurrencyLimiter.execute(
                 "transaction",
@@ -528,7 +571,9 @@ public class AdminTransactionApplicationService {
         }
     }
 
-    /** 返回稳定账号身份；Redis Key 构造器只保存该值的 SHA-256 摘要。 */
+    /**
+     * 返回稳定账号身份；Redis Key 构造器只保存该值的 SHA-256 摘要。
+     */
     private String exportIdentity(String operator) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account != null && account.getAccountId() != null) {
@@ -537,6 +582,9 @@ public class AdminTransactionApplicationService {
         return StringUtils.hasText(operator) ? "admin-operator:" + operator : "admin-operator:unknown";
     }
 
+    /**
+     * 按有界分页查询导出 Excel 数据。
+     */
     private <T> void exportPagedExcel(String titleKey,
                                       Class<T> rowClass,
                                       java.util.function.IntFunction<List<T>> pageLoader,
@@ -563,6 +611,9 @@ public class AdminTransactionApplicationService {
         );
     }
 
+    /**
+     * 转换为交易订单导出行数据。
+     */
     private TransactionOrderExportRow toOrderExportRow(TransactionOrderResponse source, Locale locale) {
         TransactionOrderExportRow row = new TransactionOrderExportRow();
         row.setRootTransactionId(source.getRootTransactionId());
@@ -593,6 +644,9 @@ public class AdminTransactionApplicationService {
         return row;
     }
 
+    /**
+     * 转换为交易动作导出行数据。
+     */
     private TransactionOperationExportRow toOperationExportRow(TransactionOperationResponse source, Locale locale) {
         TransactionOperationExportRow row = new TransactionOperationExportRow();
         row.setTransactionId(source.getTransactionId());
@@ -630,32 +684,40 @@ public class AdminTransactionApplicationService {
         return row;
     }
 
-    /** 将数据库 0/1 标志转换为当前 Excel 语言下的可读状态。 */
+    /**
+     * 将数据库 0/1 标志转换为当前 Excel 语言下的可读状态。
+     */
     private String binaryLabel(Integer value, String enabledKey, String disabledKey, Locale locale) {
         return excelI18nMessageResolver.resolve(Integer.valueOf(1).equals(value) ? enabledKey : disabledKey, locale);
     }
 
-    private TransactionMerchantNotificationExportRow toMerchantNotificationExportRow(Map<String, Object> source) {
+    /**
+     * 转换为商户通知导出行数据。
+     */
+    private TransactionMerchantNotificationExportRow toMerchantNotificationExportRow(MerchantNotificationResponse source) {
         TransactionMerchantNotificationExportRow row = new TransactionMerchantNotificationExportRow();
-        row.setNotifyId(textValue(source, "notifyId", "notify_id"));
-        row.setTransactionId(textValue(source, "transactionId", "transaction_id"));
-        row.setOperationId(textValue(source, "operationId", "operation_id"));
-        row.setMerchantId(textValue(source, "merchantId", "merchant_id"));
-        row.setMerchantOrderNo(textValue(source, "merchantOrderNo", "merchant_order_no"));
-        row.setNotifyType(textValue(source, "notifyType", "notify_type"));
-        row.setEventType(textValue(source, "eventType", "event_type"));
-        row.setNotifyStatus(textValue(source, "notifyStatus", "notify_status"));
-        row.setLastAttemptNo(integerValue(source, "lastAttemptNo", "last_attempt_no"));
-        row.setMaxRetryCount(integerValue(source, "maxRetryCount", "max_retry_count"));
-        row.setNextRetryTime(timeValue(source, "nextRetryTime", "next_retry_time"));
-        row.setLastNotifyTime(timeValue(source, "lastNotifyTime", "last_notify_time"));
-        row.setLastFailReason(textValue(source, "lastFailReason", "last_fail_reason"));
-        row.setTransactionDateTime(timeValue(source, "transactionDateTime", "transaction_date_time"));
-        row.setCreateTime(timeValue(source, "createTime", "create_time"));
-        row.setUpdateTime(timeValue(source, "updateTime", "update_time"));
+        row.setNotifyId(source.getNotifyId());
+        row.setTransactionId(source.getTransactionId());
+        row.setOperationId(source.getOperationId());
+        row.setMerchantId(source.getMerchantId());
+        row.setMerchantOrderNo(source.getMerchantOrderNo());
+        row.setNotifyType(source.getNotifyType());
+        row.setEventType(source.getEventType());
+        row.setNotifyStatus(source.getNotifyStatus());
+        row.setLastAttemptNo(source.getLastAttemptNo());
+        row.setMaxRetryCount(source.getMaxRetryCount());
+        row.setNextRetryTime(source.getNextRetryTime());
+        row.setLastNotifyTime(source.getSuccessTime());
+        row.setLastFailReason(source.getFailReason());
+        row.setTransactionDateTime(source.getTransactionDateTime());
+        row.setCreateTime(source.getCreateTime());
+        row.setUpdateTime(source.getUpdateTime());
         return row;
     }
 
+    /**
+     * 复制交易查询。
+     */
     private TransactionPageQuery copyTransactionQuery(TransactionPageQuery source) {
         TransactionPageQuery query = source == null ? new TransactionPageQuery() : source;
         TransactionPageQuery copy = new TransactionPageQuery();
@@ -683,6 +745,9 @@ public class AdminTransactionApplicationService {
         return copy;
     }
 
+    /**
+     * 复制通知查询。
+     */
     private MerchantNotificationQuery copyNotificationQuery(MerchantNotificationQuery source) {
         MerchantNotificationQuery query = source == null ? new MerchantNotificationQuery() : source;
         MerchantNotificationQuery copy = new MerchantNotificationQuery();
@@ -695,6 +760,9 @@ public class AdminTransactionApplicationService {
         return copy;
     }
 
+    /**
+     * 查询摘要。
+     */
     private String querySummary(TransactionPageQuery query, Locale locale) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         List<String> conditions = new ArrayList<>();
@@ -712,6 +780,9 @@ public class AdminTransactionApplicationService {
         return conditions.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : String.join("; ", conditions);
     }
 
+    /**
+     * 构建商户通知查询审计摘要。
+     */
     private String notificationQuerySummary(MerchantNotificationQuery query, Locale locale) {
         MerchantNotificationQuery safeQuery = query == null ? new MerchantNotificationQuery() : query;
         List<String> conditions = new ArrayList<>();
@@ -723,6 +794,14 @@ public class AdminTransactionApplicationService {
         return conditions.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : String.join("; ", conditions);
     }
 
+    /**
+     * 将非空查询条件追加到导出审计摘要。
+     *
+     * @param conditions 查询条件摘要集合
+     * @param labelKey 条件名称国际化键
+     * @param value 条件值
+     * @param locale 导出语言
+     */
     private void addCondition(List<String> conditions, String labelKey, Object value, Locale locale) {
         if (value == null) {
             return;
@@ -733,40 +812,16 @@ public class AdminTransactionApplicationService {
         conditions.add(excelI18nMessageResolver.resolve(labelKey, locale) + "=" + value);
     }
 
-    private String textValue(Map<String, Object> source, String camelKey, String snakeKey) {
-        Object value = value(source, camelKey, snakeKey);
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private Integer integerValue(Map<String, Object> source, String camelKey, String snakeKey) {
-        Object value = value(source, camelKey, snakeKey);
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
-            return null;
-        }
-        return Integer.valueOf(String.valueOf(value));
-    }
-
-    private LocalDateTime timeValue(Map<String, Object> source, String camelKey, String snakeKey) {
-        Object value = value(source, camelKey, snakeKey);
-        if (value instanceof LocalDateTime localDateTime) {
-            return localDateTime;
-        }
-        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
-            return null;
-        }
-        return LocalDateTime.parse(String.valueOf(value));
-    }
-
-    private Object value(Map<String, Object> source, String camelKey, String snakeKey) {
-        if (source == null) {
-            return null;
-        }
-        return source.containsKey(camelKey) ? source.get(camelKey) : source.get(snakeKey);
-    }
-
+    /**
+     * 组装管理端交易动作的支付核心请求，沿用源交易的商户、币种和分片信息。
+     *
+     * @param sourceOperation 源交易动作
+     * @param request 管理端动作请求
+     * @param labelAmount 面向商户的标签金额
+     * @param transactionAmount 面向渠道的交易金额
+     * @param orderIdPrefix 管理端幂等订单号前缀
+     * @return 支付核心内部动作请求
+     */
     private PaymentTransactionActionClientRequestDTO buildActionRequest(TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
                                                                        BigDecimal labelAmount,
@@ -803,7 +858,9 @@ public class AdminTransactionApplicationService {
         return requestDTO;
     }
 
-    /** 返回审批审计使用的稳定申请人显示名。 */
+    /**
+     * 返回审批审计使用的稳定申请人显示名。
+     */
     private String resolveApplicantName(InternalAuthAccount account, String fallback) {
         if (account == null) {
             return fallback;
@@ -814,6 +871,9 @@ public class AdminTransactionApplicationService {
         return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount() : fallback;
     }
 
+    /**
+     * 解析原交易动作。
+     */
     private TransactionOperationResponse resolveSourceOperation(TransactionDetailResponse detailResponse, String transactionId) {
         if (detailResponse == null || detailResponse.getOperations() == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -863,7 +923,9 @@ public class AdminTransactionApplicationService {
                 refundLabelAmount(source, available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
     }
 
-    /** 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。 */
+    /**
+     * 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。
+     */
     private BigDecimal refundLabelAmount(TransactionOperationResponse source, BigDecimal amount,
                                          int digits, RoundingMode roundingMode) {
         if (source.getLabelAmount() != null && source.getTransactionAmount() != null
@@ -873,6 +935,9 @@ public class AdminTransactionApplicationService {
         return amount.setScale(digits, roundingMode);
     }
 
+    /**
+     * 解析标签币种。
+     */
     private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
         if (StringUtils.hasText(request == null ? null : request.getCurrency())) {
             return request.getCurrency().trim().toUpperCase(Locale.ROOT);
@@ -883,6 +948,9 @@ public class AdminTransactionApplicationService {
         return sourceOperation.getTransactionCurrency();
     }
 
+    /**
+     * 解析后续动作使用的完整交易币种金额，并拒绝非正数。
+     */
     private BigDecimal fullTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal preferredAmount) {
         BigDecimal amount = preferredAmount == null ? sourceOperation.getTransactionAmount() : preferredAmount;
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -891,6 +959,9 @@ public class AdminTransactionApplicationService {
         return amount;
     }
 
+    /**
+     * 按原交易冻结比例将交易金额换算为商户标签金额。
+     */
     private BigDecimal fullLabelAmount(TransactionOperationResponse sourceOperation, BigDecimal transactionAmount) {
         BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
         BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
@@ -902,6 +973,9 @@ public class AdminTransactionApplicationService {
         return amount.multiply(sourceLabelAmount).divide(sourceTransactionAmount, 6, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 转换为交易金额。
+     */
     private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
         if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");

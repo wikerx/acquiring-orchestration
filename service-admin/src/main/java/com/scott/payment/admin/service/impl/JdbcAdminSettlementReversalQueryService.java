@@ -26,33 +26,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementReversalQueryService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 直接读取 transaction 逻辑数据源的冲正单分页和详情。
- * @status : create
+ * 直接读取 transaction 逻辑数据源的冲正单分页和详情。
  */
 @Service
 public class JdbcAdminSettlementReversalQueryService implements AdminSettlementReversalQueryService {
 
-    /**
-     * 默认页大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int DEFAULT_PAGE_SIZE = 10;
-    /**
-     * {@code MAX_DATE_SPAN_DAYS}常量，统一 {@code JdbcAdminSettlementReversalQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> STATUSES = Set.of("PENDING_APPROVAL", "APPROVED", "REJECTED");
     private static final String COLUMNS = """
@@ -67,6 +46,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
 
+    /**
+     * 创建管理端结算冲正查询服务。
+     */
     @Autowired
     public JdbcAdminSettlementReversalQueryService(DataSource dataSource,
                                                    TransactionLogicalReadExecutor readExecutor,
@@ -75,6 +57,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         this(factory.create(dataSource, shardingProperties), readExecutor, shardingProperties);
     }
 
+    /**
+     * 创建带查询预算的管理端结算冲正查询服务。
+     */
     public JdbcAdminSettlementReversalQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                                    TransactionLogicalReadExecutor readExecutor,
                                                    TransactionShardingProperties shardingProperties) {
@@ -84,7 +69,7 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
     }
 
     /**
-     * 查询{@code search}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 按管理数据范围分页查询业务记录。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -126,6 +111,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         detail(reversalOrderNo, dataScope);
     }
 
+    /**
+     * 按安全分页参数查询当前业务记录。
+     */
     private PageResult<ReversalSummary> page(ReversalSearchRequest query, AdminMerchantDataScope scope) {
         if (scope.empty()) return PageResult.of(0, query.getPageNo(), query.getPageSize(), List.of());
         StringBuilder where = new StringBuilder("WHERE submitted_time >= :beginTime AND submitted_time < :endTime\n");
@@ -151,6 +139,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
+    /**
+     * 查询本地。
+     */
     private ReversalDetailResponse detailLocal(String orderNo, AdminMerchantDataScope scope) {
         if (scope.empty()) throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         MapSqlParameterSource parameters = new MapSqlParameterSource("orderNo", orderNo)
@@ -182,6 +173,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return response;
     }
 
+    /**
+     * 规范化输入值。
+     */
     private ReversalSearchRequest normalize(ReversalSearchRequest request) {
         if (request == null || request.getBeginSubmittedDate() == null || request.getEndSubmittedDate() == null
                 || request.getBeginSubmittedDate().isAfter(request.getEndSubmittedDate())
@@ -206,6 +200,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return request;
     }
 
+    /**
+     * 向当前构建结果追加非空字段。
+     */
     private void append(StringBuilder where, MapSqlParameterSource parameters,
                         String column, String parameter, String value) {
         if (value != null) {
@@ -214,6 +211,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         }
     }
 
+    /**
+     * 校验并获取订单号。
+     */
     private String requireOrderNo(String value) {
         String normalized = trim(value);
         if (normalized == null || !normalized.matches("SRO\\d{8}-\\d{8}")) {
@@ -222,95 +222,64 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return normalized;
     }
 
+    /**
+     * 校验并获取范围。
+     */
     private AdminMerchantDataScope requireScope(AdminMerchantDataScope scope) {
         if (scope == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         return scope;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 封装结算冲正申请和复核的不可变审计快照。
+     */
     @Data
     private static class ReversalAuditSnapshot {
         /**
          * 冲正来源事实指纹，用于复核时确认原批次、净结果和资金流水未被替换。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String sourceFingerprint;
         /**
          * 申请冲正时读取的原结算批次版本号，用于复核阶段执行乐观一致性校验。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private Long originalBatchVersion;
         /**
          * 原批次净入账结果明细主键，用于把冲正申请绑定到唯一结算结果。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private Long originalNetResultItemId;
         /**
          * 原结算资金流水主键，用于防止同一入账流水被重复冲正。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private Long originalFundLedgerId;
         /**
          * 冲正申请人提交时的角色快照，用于 Maker-Checker 审计。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String submittedRoleSnapshot;
         /**
          * 冲正申请提交端 IP 快照，仅用于安全审计，展示和日志必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String submitClientIp;
         /**
          * 冲正申请提交端 User-Agent 快照，用于安全审计并限制长度。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String submitUserAgent;
         /**
          * 冲正复核人决策时的角色快照，用于 Maker-Checker 审计。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String decidedRoleSnapshot;
         /**
          * 冲正复核端 IP 快照，仅用于安全审计，展示和日志必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String decisionClientIp;
         /**
          * 冲正复核端 User-Agent 快照，用于安全审计并限制长度。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String decisionUserAgent;
     }

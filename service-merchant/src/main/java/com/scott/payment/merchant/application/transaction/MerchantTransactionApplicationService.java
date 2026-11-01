@@ -42,13 +42,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionApplicationService
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户交易应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户交易应用服务，编排交易查询以及请款、预授权完成、退款和撤销操作。
  */
 @Service
 public class MerchantTransactionApplicationService {
@@ -57,11 +51,15 @@ public class MerchantTransactionApplicationService {
      * 内部分页拉取大小。
      */
     private static final int EXPORT_PAGE_SIZE = 500;
-    /** 退款预览沿用支付核心非终态退款查询的状态口径。 */
+    /**
+     * 退款预览沿用支付核心非终态退款查询的状态口径。
+     */
     private static final Set<String> REFUND_IN_PROGRESS_STATUSES = Set.of("PROCESSING", "PENDING");
     private static final String REFUND_OPERATION_TYPE = "REFUND";
     private static final String SUCCESS_STATUS = "SUCCESS";
-    /** 异常退出后 Redis 并发租约的最长自恢复时间。 */
+    /**
+     * 异常退出后 Redis 并发租约的最长自恢复时间。
+     */
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
 
     /**
@@ -74,7 +72,9 @@ public class MerchantTransactionApplicationService {
      */
     private static final String MERCHANT_CAPTURE_ORDER_ID_PREFIX = "MCHCP";
 
-    /** 商户后台预授权完成动作幂等号前缀。 */
+    /**
+     * 商户后台预授权完成动作幂等号前缀。
+     */
     private static final String MERCHANT_PRE_AUTH_COMPLETION_ORDER_ID_PREFIX = "MCHPA";
 
     /**
@@ -97,7 +97,9 @@ public class MerchantTransactionApplicationService {
      */
     private static final Set<String> CAPTURE_SOURCE_TYPES = Set.of("AUTHORIZATION");
 
-    /** 可作为预授权完成来源的动作类型。 */
+    /**
+     * 可作为预授权完成来源的动作类型。
+     */
     private static final Set<String> PRE_AUTH_COMPLETION_SOURCE_TYPES = Set.of("PRE_AUTHORIZATION");
 
     /**
@@ -113,9 +115,13 @@ public class MerchantTransactionApplicationService {
     private final PaymentInternalClient paymentInternalClient;
 
     private final MerchantTransactionQueryService transactionQueryService;
-    /** 交易查询和同步导出资源预算。 */
+    /**
+     * 交易查询和同步导出资源预算。
+     */
     private final TransactionShardingProperties shardingProperties;
-    /** 跨实例限制同一商户账号并发导出的 Redis 租约服务。 */
+    /**
+     * 跨实例限制同一商户账号并发导出的 Redis 租约服务。
+     */
     private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
     /**
@@ -371,6 +377,9 @@ public class MerchantTransactionApplicationService {
         });
     }
 
+    /**
+     * 复制查询条件并强制覆盖为认证上下文中的商户号。
+     */
     private TransactionPageQuery merchantScopedQuery(String merchantId, TransactionPageQuery source) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant context missing");
@@ -380,7 +389,9 @@ public class MerchantTransactionApplicationService {
         return query;
     }
 
-    /** 按页读取当前商户交易并直接写入响应流，不在内存中聚合全部导出数据。 */
+    /**
+     * 按页读取当前商户交易并直接写入响应流，不在内存中聚合全部导出数据。
+     */
     private void writeOperationPages(PrintWriter writer,
                                      String merchantId,
                                      TransactionPageQuery sourceQuery,
@@ -401,7 +412,9 @@ public class MerchantTransactionApplicationService {
         }
     }
 
-    /** 在同一商户账号的集群级并发预算内执行一次同步交易导出。 */
+    /**
+     * 在同一商户账号的集群级并发预算内执行一次同步交易导出。
+     */
     private void runExport(String merchantId, String operator, Runnable action) {
         boolean acquired = exportConcurrencyLimiter.execute(
                 "transaction",
@@ -417,7 +430,9 @@ public class MerchantTransactionApplicationService {
         }
     }
 
-    /** 返回商户与账号组合身份；Redis Key 构造器只保存该值的 SHA-256 摘要。 */
+    /**
+     * 返回商户与账号组合身份；Redis Key 构造器只保存该值的 SHA-256 摘要。
+     */
     private String exportIdentity(String merchantId, String operator) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         String accountIdentity = account != null && account.getAccountId() != null
@@ -426,6 +441,9 @@ public class MerchantTransactionApplicationService {
         return "merchant-account:" + merchantId + ":" + accountIdentity;
     }
 
+    /**
+     * 复制交易查询条件，避免修改控制器接收的原始对象。
+     */
     private TransactionPageQuery copyTransactionQuery(TransactionPageQuery source) {
         TransactionPageQuery query = source == null ? new TransactionPageQuery() : source;
         TransactionPageQuery copy = new TransactionPageQuery();
@@ -448,6 +466,9 @@ public class MerchantTransactionApplicationService {
         return copy;
     }
 
+    /**
+     * 校验交易详情属于当前认证商户，防止越权操作。
+     */
     private void ensureBelongsToMerchant(String merchantId, TransactionDetailResponse detailResponse) {
         if (detailResponse == null || detailResponse.getOrder() == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -462,6 +483,9 @@ public class MerchantTransactionApplicationService {
         }
     }
 
+    /**
+     * 从聚合详情中定位后续动作引用的原交易操作。
+     */
     private TransactionOperationResponse resolveSourceOperation(TransactionDetailResponse detailResponse, String transactionId) {
         if (detailResponse == null || detailResponse.getOperations() == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -472,6 +496,9 @@ public class MerchantTransactionApplicationService {
                 .orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
     }
 
+    /**
+     * 构建发送支付核心的后续交易命令，并绑定认证商户与原交易身份。
+     */
     private PaymentTransactionActionClientRequestDTO buildActionRequest(String merchantId,
                                                                        TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
@@ -509,7 +536,9 @@ public class MerchantTransactionApplicationService {
         return requestDTO;
     }
 
-    /** 返回审批审计使用的稳定商户申请人显示名。 */
+    /**
+     * 返回审批审计使用的稳定商户申请人显示名。
+     */
     private String resolveApplicantName(InternalAuthAccount account, String fallback) {
         if (account == null) {
             return fallback;
@@ -533,7 +562,9 @@ public class MerchantTransactionApplicationService {
         return request.getTransactionDateTime();
     }
 
-    /** 校验商户动作携带的生命周期根主单分片时间。 */
+    /**
+     * 校验商户动作携带的生命周期根主单分片时间。
+     */
     private LocalDateTime requiredRootTransactionDateTime(TransactionActionRequest request) {
         if (request == null || request.getRootTransactionDateTime() == null) {
             throw new ApiException(ApiResultEnum.PARAM_MISSING, "rootTransactionDateTime is required");
@@ -582,7 +613,9 @@ public class MerchantTransactionApplicationService {
                 refundLabelAmount(source, available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
     }
 
-    /** 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。 */
+    /**
+     * 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。
+     */
     private BigDecimal refundLabelAmount(TransactionOperationResponse source, BigDecimal amount,
                                          int digits, RoundingMode roundingMode) {
         if (source.getLabelAmount() != null && source.getTransactionAmount() != null
@@ -592,6 +625,9 @@ public class MerchantTransactionApplicationService {
         return amount.setScale(digits, roundingMode);
     }
 
+    /**
+     * 解析后续动作的标签币种；未上送时沿用原交易币种，上送时必须一致。
+     */
     private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
         if (StringUtils.hasText(request == null ? null : request.getCurrency())) {
             return request.getCurrency().trim().toUpperCase(Locale.ROOT);
@@ -602,6 +638,9 @@ public class MerchantTransactionApplicationService {
         return sourceOperation.getTransactionCurrency();
     }
 
+    /**
+     * 读取原交易剩余可操作金额，保证后续动作沿用原交易币种口径。
+     */
     private BigDecimal fullTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal preferredAmount) {
         BigDecimal amount = preferredAmount == null ? sourceOperation.getTransactionAmount() : preferredAmount;
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -610,6 +649,9 @@ public class MerchantTransactionApplicationService {
         return amount;
     }
 
+    /**
+     * 读取原交易剩余标签金额，保证商户侧金额口径不随渠道换汇变化。
+     */
     private BigDecimal fullLabelAmount(TransactionOperationResponse sourceOperation, BigDecimal transactionAmount) {
         BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
         BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
@@ -621,6 +663,9 @@ public class MerchantTransactionApplicationService {
         return amount.multiply(sourceLabelAmount).divide(sourceTransactionAmount, 6, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 按原交易锁定的标签金额与交易金额比例换算本次渠道交易金额。
+     */
     private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
         if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
@@ -634,6 +679,9 @@ public class MerchantTransactionApplicationService {
         return labelAmount.multiply(sourceTransactionAmount).divide(sourceLabelAmount, 6, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 将交易动作转换为 CSV 行并执行字段转义。
+     */
     private String toOperationCsvLine(TransactionOperationResponse row, Locale locale) {
         return String.join(",",
                 csv(row.getTransactionId()),
@@ -667,6 +715,9 @@ public class MerchantTransactionApplicationService {
         );
     }
 
+    /**
+     * 根据布尔值返回导出文件使用的中文标签。
+     */
     private String binaryLabel(Integer value,
                                Locale locale,
                                String zhEnabled,
@@ -677,11 +728,17 @@ public class MerchantTransactionApplicationService {
         return csvLabel(locale, enabled ? zhEnabled : zhDisabled, enabled ? enEnabled : enDisabled);
     }
 
+    /**
+     * 将布尔值转换为 CSV 展示文本。
+     */
     private String csvLabel(Locale locale, String zhText, String enText) {
         return locale != null && Locale.CHINESE.getLanguage().equalsIgnoreCase(locale.getLanguage())
                 ? zhText : enText;
     }
 
+    /**
+     * 转义 CSV 单元格中的引号、逗号和换行。
+     */
     private String csv(Object value) {
         if (value == null) {
             return "";

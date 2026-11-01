@@ -19,13 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ImmediateCacheEvictionServiceTests
- * @date : 2026-07-30 21:40
- * @email : scott_x@163.com
- * @description : 安全缓存立即失效与商户资料正负缓存协同删除测试
- * @status : create
+ * 安全缓存立即失效与商户资料正负缓存协同删除测试
  */
 @Slf4j
 class ImmediateCacheEvictionServiceTests {

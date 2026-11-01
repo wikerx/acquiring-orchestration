@@ -1,5 +1,8 @@
 # service-admin 专属配置：管理后台服务个性化参数。
 acquiring:
+  gateway-ingress:
+    # 与 service-gateway 共享环境专属入口签名密钥；UAT/生产必须开启门户路径保护。
+    secret: ${acquiring.internal-auth.edges.gateway-checkout.active-secret}
   mq:
     outbox:
       # 参数说明：service-admin 启动后首次扫描通用 MQ Outbox 到期消息前的等待时间，单位毫秒。
@@ -29,6 +32,13 @@ acquiring:
       # 环境说明：环境变量 ADMIN_MQ_OUTBOX_METRICS_DELAY_MS；dev 默认 60000，长期数据增长后应配合终态记录归档治理。
       metrics-delay-ms: ${ADMIN_MQ_OUTBOX_METRICS_DELAY_MS:60000}
   monitor:
+    datasource-sampling:
+      # 参数说明：是否执行 Admin 启动及后台定时数据源采样；false 只关闭持续查询，访问监控页面仍会按需采样。
+      # dev 默认关闭以避免无人查看时持续查询 performance_schema；test/uat/prod 应按监控需求和数据库容量显式配置。
+      scheduled-enabled: ${ADMIN_DATASOURCE_SAMPLING_SCHEDULED_ENABLED:false}
+      # 参数说明：后台采样周期，单位毫秒；仅在 scheduled-enabled=true 时生效，页面按需采样仍受一分钟节流保护。
+      # 生产调小前必须评估 Admin 实例数、performance_schema 开销和慢 SQL TopN 查询成本。
+      fixed-rate-ms: ${ADMIN_DATASOURCE_SAMPLING_FIXED_RATE_MS:60000}
     datasource-console:
       # 参数说明：是否在数据源监控页提供外部 Druid 控制台入口；Druid 不是 JDBC 默认监控，目标服务必须实际使用 DruidDataSource。
       enabled: ${ADMIN_DATASOURCE_CONSOLE_ENABLED:false}
@@ -45,6 +55,11 @@ acquiring:
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
 
 payment:
+  mfa:
+    # dev 也必须由 Secret 管理系统提供至少 32 字节的稳定环境专属值，禁止公开固定兜底。
+    secret: ${PAYMENT_MFA_SECRET:}
+    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}
+    allow-ephemeral-test-secret: false
   merchant:
     cache-invalidation:
       # 参数说明：service-admin 启动后首次扫描商户及永久业务缓存失效 Outbox 前的等待时间，单位毫秒。

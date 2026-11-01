@@ -3,13 +3,7 @@ package com.scott.payment.clearing.dto;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingFailureResult
- * @date : 2026-08-26 16:00
- * @email : scott_x@163.com
- * @description : 清分受控失败提交结果，供应用编排层决定ACK并记录低基数状态，不包含异常正文或财务数据。
- * @status : create
+ * 清分受控失败提交结果，供应用编排层决定ACK并记录低基数状态，不包含异常正文或财务数据。
  * @param targetStatus 已持久化的清分状态
  * @param recordedFailureCode 已持久化的稳定失败码
  * @param clearingRetryCount 当前累计业务重试序号

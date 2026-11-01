@@ -10,13 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentQueryResultDTO
- * @date : 2026-07-17 21:10
- * @email : scott_x@163.com
- * @description : service-payment 交易查询内部响应，位于内部 DTO 层，按商户订单聚合同一生命周期下的交易动作列表。
- * @status : create
+ * service-payment 交易查询内部响应，位于内部 DTO 层，按商户订单聚合同一生命周期下的交易动作列表。
  */
 @Data
 public class PaymentQueryResultDTO implements Serializable {
@@ -38,22 +32,34 @@ public class PaymentQueryResultDTO implements Serializable {
      */
     private String merchantOrderId;
 
-    /** 首次交易保存的子商户快照；不存在子商户时为空。 */
+    /**
+     * 首次交易保存的子商户快照；不存在子商户时为空。
+     */
     private PaymentCreateCommandDTO.SubMerchantInfoDTO subMerchantInfo;
 
-    /** 首次交易保存的商品或服务明细；未上送时为空列表。 */
+    /**
+     * 首次交易保存的商品或服务明细；未上送时为空列表。
+     */
     private List<PaymentCreateCommandDTO.GoodsInfoDTO> goodsInfo = new ArrayList<>();
 
-    /** 首次交易保存的持卡人账单信息。 */
+    /**
+     * 首次交易保存的持卡人账单信息。
+     */
     private PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 首次交易保存的付款人信息。 */
+    /**
+     * 首次交易保存的付款人信息。
+     */
     private PaymentCreateCommandDTO.PayerInfoDTO payerInfo;
 
-    /** 首次交易保存的收货人信息。 */
+    /**
+     * 首次交易保存的收货人信息。
+     */
     private PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo;
 
-    /** 查询目标动作可向商户返回的 3DS 安全字段子集。 */
+    /**
+     * 查询目标动作可向商户返回的 3DS 安全字段子集。
+     */
     private PaymentCreateResultDTO.ThreeDsInfoDTO threeDSInfo;
 
     /**
@@ -136,13 +142,19 @@ public class PaymentQueryResultDTO implements Serializable {
      */
     private String settlementCurrency;
 
-    /** 已形成的结算换汇汇率；没有真实财务记录时为空。 */
+    /**
+     * 已形成的结算换汇汇率；没有真实财务记录时为空。
+     */
     private BigDecimal settlementRate;
 
-    /** 已形成的结算费用金额；没有真实财务记录时为空。 */
+    /**
+     * 已形成的结算费用金额；没有真实财务记录时为空。
+     */
     private BigDecimal settlementFeeAmount;
 
-    /** 已形成的费用明细；没有真实财务记录时为空列表。 */
+    /**
+     * 已形成的费用明细；没有真实财务记录时为空列表。
+     */
     private List<PaymentCreateResultDTO.FeeItemDTO> feeItems = new ArrayList<>();
 
     /**
@@ -173,12 +185,14 @@ public class PaymentQueryResultDTO implements Serializable {
          */
         private String sourceTransactionId;
 
-        /** 后续动作源交易发生时间；首次交易为空。 */
+        /**
+         * 后续动作源交易发生时间；首次交易为空。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
 
         /**
-         * 当前动作商户响应码，例如 T200、T202、T203、F210。
+         * 当前动作商户响应码，例如 T0000、T0001、T0002、F1000、F2000 或 F3000。
          */
         private String code;
 
@@ -192,8 +206,30 @@ public class PaymentQueryResultDTO implements Serializable {
          */
         private String transactionType;
 
-        /** 当前动作交易状态。 */
+        /**
+         * 当前动作交易状态。
+         */
         private String transactionStatus;
+
+        /**
+         * 当前动作内部处理阶段，用于 OpenAPI 按交易事实投影公开结果。
+         */
+        private String processStage;
+
+        /**
+         * 支付核心受控失败原因码，不包含渠道原始码。
+         */
+        private String failReasonCode;
+
+        /**
+         * 支付核心内部失败摘要；OpenAPI 不得直接透传。
+         */
+        private String failReasonMessage;
+
+        /**
+         * 支付核心受控等待原因码，用于区分普通等待和渠道结果未确认。
+         */
+        private String pendingReasonCode;
 
         /**
          * 交易发生时间。
@@ -201,7 +237,9 @@ public class PaymentQueryResultDTO implements Serializable {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 生命周期根主单的分片时间，供查询结果继续发起后续动作。 */
+        /**
+         * 生命周期根主单的分片时间，供查询结果继续发起后续动作。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
@@ -245,10 +283,14 @@ public class PaymentQueryResultDTO implements Serializable {
          */
         private String merchantWebsite;
 
-        /** Hosted Checkout 结果页返回地址。 */
+        /**
+         * Hosted Checkout 结果页返回地址。
+         */
         private String redirectUrl;
 
-        /** Hosted Checkout 创建会话语言。 */
+        /**
+         * Hosted Checkout 创建会话语言。
+         */
         private String language;
     }
 }

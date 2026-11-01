@@ -36,23 +36,25 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingSphereJdbcCompatibilityPocTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 三表 POC，验证 ShardingSphere 5.5.3 的精确/范围路由、自增回填、Binding、事务、锁、读写分离和通知 CAS。
- * @status : create
+ * 三表 POC，验证 ShardingSphere 5.5.3 的精确/范围路由、自增回填、Binding、事务、锁、读写分离和通知 CAS。
  */
 class ShardingSphereJdbcCompatibilityPocTest {
 
-    /** 模拟写库的 H2 连接池。 */
+    /**
+     * 模拟写库的 H2 连接池。
+     */
     private HikariDataSource primary;
-    /** 模拟只读副本的 H2 连接池。 */
+    /**
+     * 模拟只读副本的 H2 连接池。
+     */
     private HikariDataSource replica;
-    /** 被测 ShardingSphere 分片与读写分离复合数据源。 */
+    /**
+     * 被测 ShardingSphere 分片与读写分离复合数据源。
+     */
     private DataSource shardingDataSource;
-    /** 通过逻辑表执行 SQL 的测试入口。 */
+    /**
+     * 通过逻辑表执行 SQL 的测试入口。
+     */
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
@@ -406,7 +408,9 @@ class ShardingSphereJdbcCompatibilityPocTest {
     }
 
     interface PocMapper {
-        /** 插入逻辑主单并验证自增主键回填。 */
+        /**
+         * 插入逻辑主单并验证自增主键回填。
+         */
         @Insert("""
                 INSERT INTO transaction_order(operation_id, transaction_date_time, status, version)
                 VALUES (#{row.operationId}, #{row.transactionDateTime}, #{row.status}, 0)
@@ -416,7 +420,9 @@ class ShardingSphereJdbcCompatibilityPocTest {
     }
 
     interface PocPagingMapper {
-        /** 验证 MyBatis-Plus 分页插件只在跨季度归并后执行一次。 */
+        /**
+         * 验证 MyBatis-Plus 分页插件只在跨季度归并后执行一次。
+         */
         @Select("""
                 SELECT id, operation_id, transaction_date_time, status
                 FROM transaction_order
@@ -430,51 +436,75 @@ class ShardingSphereJdbcCompatibilityPocTest {
     }
 
     static final class PocOrder {
-        /** 物理表自增主键。 */
+        /**
+         * 物理表自增主键。
+         */
         private Long id;
-        /** Binding 表关联使用的动作单号。 */
+        /**
+         * Binding 表关联使用的动作单号。
+         */
         private String operationId;
-        /** 决定季度物理表的分片时间。 */
+        /**
+         * 决定季度物理表的分片时间。
+         */
         private LocalDateTime transactionDateTime;
-        /** 用于主从路由断言的交易状态。 */
+        /**
+         * 用于主从路由断言的交易状态。
+         */
         private String status;
 
-        /** @return 自增主键 */
+        /**
+         * @return 自增主键
+         */
         public Long getId() {
             return id;
         }
 
-        /** @param id MyBatis 回填的自增主键 */
+        /**
+         * @param id MyBatis 回填的自增主键
+         */
         public void setId(Long id) {
             this.id = id;
         }
 
-        /** @return 动作单号 */
+        /**
+         * @return 动作单号
+         */
         public String getOperationId() {
             return operationId;
         }
 
-        /** @param operationId 动作单号 */
+        /**
+         * @param operationId 动作单号
+         */
         public void setOperationId(String operationId) {
             this.operationId = operationId;
         }
 
-        /** @return 分片时间 */
+        /**
+         * @return 分片时间
+         */
         public LocalDateTime getTransactionDateTime() {
             return transactionDateTime;
         }
 
-        /** @param transactionDateTime 分片时间 */
+        /**
+         * @param transactionDateTime 分片时间
+         */
         public void setTransactionDateTime(LocalDateTime transactionDateTime) {
             this.transactionDateTime = transactionDateTime;
         }
 
-        /** @return 交易状态 */
+        /**
+         * @return 交易状态
+         */
         public String getStatus() {
             return status;
         }
 
-        /** @param status 交易状态 */
+        /**
+         * @param status 交易状态
+         */
         public void setStatus(String status) {
             this.status = status;
         }

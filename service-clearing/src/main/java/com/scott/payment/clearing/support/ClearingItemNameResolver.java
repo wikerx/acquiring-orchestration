@@ -6,13 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingItemNameResolver
- * @date : 2026-08-27 14:20
- * @email : scott_x@163.com
- * @description : 清分事实专业名称解析器；只生成展示名称，不改变稳定编码、费用规则、币种、金额或快照哈希。
- * @status : create
+ * 清分事实专业名称解析器；只生成展示名称，不改变稳定编码、费用规则、币种、金额或快照哈希。
  */
 public final class ClearingItemNameResolver {
 
@@ -34,6 +28,9 @@ public final class ClearingItemNameResolver {
             "RELEASE", "保证金释放",
             "ADJUSTMENT", "保证金调整");
 
+    /**
+     * 禁止实例化仅提供稳定名称解析的工具类。
+     */
     private ClearingItemNameResolver() {
     }
 
@@ -79,6 +76,9 @@ public final class ClearingItemNameResolver {
         return RESERVE_NAMES.getOrDefault(normalized, normalized);
     }
 
+    /**
+     * 将可选稳定编码规范化为大写形式，空白值按未提供处理。
+     */
     private static String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }

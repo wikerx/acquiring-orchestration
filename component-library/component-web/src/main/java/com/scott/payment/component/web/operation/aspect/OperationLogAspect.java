@@ -29,13 +29,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogAspect
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统操作日志 AOP 自动采集切面
- * @status : create
+ * 管理类系统操作日志 AOP 自动采集切面
  */
 @Slf4j
 @Aspect
@@ -188,7 +182,8 @@ public class OperationLogAspect {
             publisher.publish(record);
             logStructuredOperation(record);
         } catch (RuntimeException exception) {
-            log.warn("管理类系统操作日志采集失败，方法：{}，异常类型：{}",
+            log.warn("管理系统操作日志采集失败, event: ADMIN_OPERATION_LOG_CAPTURE_FAILED, "
+                            + "method: {}, exceptionType: {}",
                     methodName(point), exception.getClass().getSimpleName());
         }
     }
@@ -206,7 +201,10 @@ public class OperationLogAspect {
             return;
         }
         String event = isQuery(record.getBusinessType()) ? "ADMIN_QUERY_ACCESS" : "ADMIN_WRITE_OPERATION";
-        log.info("event: {} traceId: {} module: {} operation: {} businessType: {} method: {} path: {} requestMethod: {} merchantId: {} operatorId: {} operatorType: {} querySummary: {} resultRecorded: {} status: {} durationMs: {}",
+        log.info("管理系统操作日志已记录, event: {}, traceId: {}, module: {}, operation: {}, "
+                        + "businessType: {}, method: {}, path: {}, requestMethod: {}, merchantId: {}, "
+                        + "operatorId: {}, operatorType: {}, querySummary: {}, resultRecorded: {}, "
+                        + "status: {}, durationMs: {}",
                 event,
                 record.getTraceId(),
                 record.getModuleName(),
@@ -367,14 +365,7 @@ public class OperationLogAspect {
      * @return 客户端 IP
      */
     private String clientIp(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return com.scott.payment.component.web.gateway.TrustedClientIpResolver.resolve(request);
     }
 
     /**

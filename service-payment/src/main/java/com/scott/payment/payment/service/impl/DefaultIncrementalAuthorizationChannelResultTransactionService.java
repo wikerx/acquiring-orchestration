@@ -5,6 +5,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.IncrementalAuthorizationChannelResultTransactionService;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
@@ -15,13 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultIncrementalAuthorizationChannelResultTransactionService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Incremental Authorization 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进增量授权动作。
- * @status : create
+ * 增额授权渠道结果的独立事务服务。
+ *
+ * <p>服务重新读取主库动作与原交易主单后执行状态 CAS。只有 CAS 获胜的成功动作才能增加累计
+ * 授权金额，并与终态 Outbox 共同提交；重复或晚到结果不得重复增加授权额度。</p>
  */
 @Service
 public class DefaultIncrementalAuthorizationChannelResultTransactionService implements IncrementalAuthorizationChannelResultTransactionService {
@@ -57,21 +55,25 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void recordIncrementalAuthorizationChannelResult(
+    public boolean recordIncrementalAuthorizationChannelResult(
             IncrementalAuthorizationPreparationResultDTO preparationResultDTO,
             PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (preparationResultDTO == null || preparationResultDTO.getResultDTO() == null) {
-            return;
+            return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
-        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+        // 结果落库以当前主库事实为准，不能继续信任渠道调用前的准备快照。
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
-        if (operationDO == null) {
-            return;
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
+                resultDTO.getRootTransactionDateTime(), resultDTO.getOperationId());
+        if (operationDO == null || sourceOrderDO == null) {
+            return false;
         }
+        // 累计授权金额的变化封装在状态 CAS 内，确保并发结果至多生效一次。
         boolean statusChanged = transactionRecordService.completeIncrementalAuthorizationChannelResult(
                 operationDO,
-                preparationResultDTO.getSourceOrderDO(),
+                sourceOrderDO,
                 preparationResultDTO.getCommandDTO(),
                 preparationResultDTO.getRouteResultDTO(),
                 invokeResultDTO,
@@ -80,9 +82,12 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
         if (statusChanged && isTerminal(resultDTO)) {
             saveStatusChanged(preparationResultDTO, resultDTO);
         }
+        return statusChanged;
     }
 
-    /** 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。 */
+    /**
+     * 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。
+     */
     private void saveStatusChanged(IncrementalAuthorizationPreparationResultDTO preparationResultDTO,
                                    PaymentCreateResultDTO resultDTO) {
         lifecycleEventService.saveStatusChanged(
@@ -95,7 +100,9 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
                 preparationResultDTO.getCommandDTO().getTransactionDateTime());
     }
 
-    /** 判断渠道映射结果是否已经进入不可逆成功或失败终态。 */
+    /**
+     * 判断渠道映射结果是否已经进入不可逆成功或失败终态。
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());

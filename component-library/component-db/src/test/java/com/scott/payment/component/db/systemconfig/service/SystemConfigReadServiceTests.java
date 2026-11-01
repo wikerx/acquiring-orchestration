@@ -17,17 +17,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemConfigReadServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 跨服务系统参数永久缓存门禁和降级测试。
- * @status : create
+ * 跨服务系统参数永久缓存门禁和降级测试。
  */
 class SystemConfigReadServiceTests {
 
-    /** 前置 pending 门禁存在时必须完全绕过永久缓存。 */
+    /**
+     * 前置 pending 门禁存在时必须完全绕过永久缓存。
+     */
     @Test
     void shouldReadMasterWhenInvalidationIsAlreadyPending() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
@@ -45,7 +41,9 @@ class SystemConfigReadServiceTests {
         verify(cacheReader).findFresh("risk.transaction.max-attempts");
     }
 
-    /** 缓存读取期间开始失效时必须丢弃旧快照并读取主库。 */
+    /**
+     * 缓存读取期间开始失效时必须丢弃旧快照并读取主库。
+     */
     @Test
     void shouldDiscardCachedSnapshotWhenInvalidationStartsDuringRead() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
@@ -68,7 +66,9 @@ class SystemConfigReadServiceTests {
         ordered.verify(cacheReader).findFresh("system.name");
     }
 
-    /** Redis 门禁状态不可判定时必须降级主库而不能使用永久缓存。 */
+    /**
+     * Redis 门禁状态不可判定时必须降级主库而不能使用永久缓存。
+     */
     @Test
     void shouldReadMasterWhenGateStateIsUnavailable() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
@@ -84,7 +84,9 @@ class SystemConfigReadServiceTests {
         verify(cacheReader, never()).findCached("system.name");
     }
 
-    /** 运行服务只能取得启用且非空的配置值。 */
+    /**
+     * 运行服务只能取得启用且非空的配置值。
+     */
     @Test
     void shouldExposeOnlyEnabledNonBlankValue() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);

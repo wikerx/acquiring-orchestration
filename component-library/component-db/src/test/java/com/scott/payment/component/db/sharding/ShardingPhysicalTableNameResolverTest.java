@@ -8,13 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingPhysicalTableNameResolverTest
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sharding Physical Table Name Resolver Test 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
+ * Sharding Physical Table Name Resolver Test 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  */
 class ShardingPhysicalTableNameResolverTest {
 

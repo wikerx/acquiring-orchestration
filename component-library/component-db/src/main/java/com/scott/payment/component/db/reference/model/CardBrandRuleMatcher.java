@@ -1,16 +1,13 @@
 package com.scott.payment.component.db.reference.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBrandRuleMatcher
- * @date : 2026-09-30
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的公开 IIN 卡品牌兜底规则；只识别品牌，不伪造 BIN 区间归属。
- * @status : create
+ * 支付与 OpenAPI 共用的公开 IIN 卡品牌兜底规则；只识别品牌，不伪造 BIN 区间归属。
  */
 public final class CardBrandRuleMatcher {
 
+    /**
+     * 禁止实例化公开 IIN 卡品牌匹配工具类。
+     */
     private CardBrandRuleMatcher() {
     }
 
@@ -56,6 +53,13 @@ public final class CardBrandRuleMatcher {
         return "UNKNOWN";
     }
 
+    /**
+     * 判断卡号数字是否匹配任一受控品牌前缀。
+     *
+     * @param digits 纯数字卡号或 BIN
+     * @param prefixes 受控品牌前缀
+     * @return 命中任一前缀时返回 true
+     */
     private static boolean startsWithAny(String digits, String... prefixes) {
         for (String prefix : prefixes) {
             if (digits.startsWith(prefix)) {
@@ -65,6 +69,15 @@ public final class CardBrandRuleMatcher {
         return false;
     }
 
+    /**
+     * 判断固定长度数字前缀是否位于品牌规则闭区间。
+     *
+     * @param digits 纯数字卡号或 BIN
+     * @param length 需要读取的前缀长度
+     * @param start 区间起点
+     * @param end 区间终点
+     * @return 前缀位于闭区间时返回 true
+     */
     private static boolean prefixInRange(String digits, int length, int start, int end) {
         if (digits.length() < length) {
             return false;

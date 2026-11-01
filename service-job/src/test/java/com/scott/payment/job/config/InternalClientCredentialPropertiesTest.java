@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 Job 调用 Data、Payment 时使用固定 service-job 身份和独立强密钥。 */
+/**
+ * 验证 Job 调用 Data、Payment 时使用固定 service-job 身份和独立强密钥。
+ */
 class InternalClientCredentialPropertiesTest {
 
     @Test
@@ -27,5 +29,14 @@ class InternalClientCredentialPropertiesTest {
         properties.setInternalSecret("unit-test-job-payment-secret-at-least-32-bytes");
 
         assertThatCode(properties::validate).doesNotThrowAnyException();
+    }
+
+    @Test
+    void dataClientShouldRejectTimeoutsAboveThePlatformLimit() {
+        DataInternalClientProperties properties = new DataInternalClientProperties();
+        properties.setInternalSecret("unit-test-job-data-secret-at-least-32-bytes");
+        properties.setReadTimeoutMillis(60_001);
+
+        assertThatThrownBy(properties::validate).hasMessageContaining("60000ms");
     }
 }

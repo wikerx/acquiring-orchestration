@@ -31,13 +31,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GlobalExceptionHandler
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 全局异常处理器
- * @status : create
+ * 全局异常处理器
  */
 @Slf4j
 @RestControllerAdvice
@@ -66,7 +60,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ApiException.class)
     public CommonResult<Void> handleApiException(ApiException exception) {
-        log.warn("Open API exception, code: {}, exceptionType: {}, messageLength: {}",
+        log.warn("开放 API 请求处理失败, event: OPEN_API_EXCEPTION, code: {}, exceptionType: {}, messageLength: {}",
                 exception.getCode(), exception.getClass().getSimpleName(), messageLength(exception.getMessage()));
         return errorResult(exception.getCode(), exception.getMessage());
     }
@@ -79,7 +73,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ServiceException.class)
     public CommonResult<Void> handleServiceException(ServiceException exception) {
-        log.warn("Service exception, code: {}, exceptionType: {}, messageLength: {}",
+        log.warn("服务请求处理失败, event: SERVICE_EXCEPTION, code: {}, exceptionType: {}, messageLength: {}",
                 exception.getCode(), exception.getClass().getSimpleName(), messageLength(exception.getMessage()));
         return errorResult(exception.getCode(), exception.getMessage());
     }
@@ -92,7 +86,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BizException.class)
     public CommonResult<Void> handleBizException(BizException exception) {
-        log.warn("Business exception, code: {}, exceptionType: {}, messageLength: {}",
+        log.warn("业务请求处理失败, event: BUSINESS_EXCEPTION, code: {}, exceptionType: {}, messageLength: {}",
                 exception.getCode(), exception.getClass().getSimpleName(), messageLength(exception.getMessage()));
         return errorResult(exception.getCode(), exception.getMessage());
     }
@@ -106,7 +100,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public CommonResult<Void> handleValidException(MethodArgumentNotValidException exception) {
         String fieldName = firstFieldName(exception.getBindingResult());
-        log.warn("Request parameter validation failed, field: {}", fieldName);
+        log.warn("请求参数校验失败, event: REQUEST_VALIDATION_FAILED, field: {}", fieldName);
         return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(),
                 resolveBindingValidationMessage(exception.getBindingResult()));
     }
@@ -119,7 +113,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public CommonResult<Void> handleMethodNotSupportedException(HttpRequestMethodNotSupportedException exception) {
-        log.warn("Request method not supported, method: {}", exception.getMethod());
+        log.warn("请求方法不支持, event: REQUEST_METHOD_NOT_SUPPORTED, method: {}", exception.getMethod());
         return CommonResult.error(ApiResultEnum.METHOD_NOT_ALLOWED);
     }
 
@@ -140,7 +134,8 @@ public class GlobalExceptionHandler {
 
     public CommonResult<Void> handleRouteNotFoundException(Exception exception, HttpServletRequest request) {
         String requestPath = resolveRouteNotFoundPath(exception, request);
-        log.warn("Request route not found, path: {}, exception: {}", requestPath, exception.getClass().getSimpleName());
+        log.warn("请求路由不存在, event: REQUEST_ROUTE_NOT_FOUND, path: {}, exceptionType: {}",
+                requestPath, exception.getClass().getSimpleName());
         return OpenApiErrorResponseSupport.routeNotFound(request, requestPath);
     }
 
@@ -161,7 +156,7 @@ public class GlobalExceptionHandler {
 
     public CommonResult<Void> handleRequestParameterException(Exception exception) {
         String safeMessage = resolveRequestParameterMessage(exception);
-        log.warn("Request parameter exception, type: {}, field: {}",
+        log.warn("请求参数解析失败, event: REQUEST_PARAMETER_EXCEPTION, exceptionType: {}, field: {}",
                 exception.getClass().getSimpleName(), resolveRequestParameterField(exception));
         return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(), safeMessage);
     }
@@ -298,12 +293,13 @@ public class GlobalExceptionHandler {
     public CommonResult<Void> handleException(Exception exception) {
         TransactionDataUnavailableException unavailable = findTransactionDataUnavailable(exception);
         if (unavailable != null) {
-            log.warn("event: TRANSACTION_DATA_UNAVAILABLE logicalTable: {} quarter: {} ruleVersion: {} wrapperType: {}",
+            log.warn("交易分片数据不可用, event: TRANSACTION_DATA_UNAVAILABLE, "
+                            + "logicalTable: {}, quarter: {}, ruleVersion: {}, wrapperType: {}",
                     unavailable.getLogicalTable(), unavailable.getQuarter(), unavailable.getRuleVersion(),
                     exception.getClass().getSimpleName());
             return CommonResult.error(ApiResultEnum.TRANSACTION_DATA_UNAVAILABLE);
         }
-        log.error("System exception", exception);
+        log.error("系统请求处理异常, event: SYSTEM_EXCEPTION", exception);
         return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
     }
 

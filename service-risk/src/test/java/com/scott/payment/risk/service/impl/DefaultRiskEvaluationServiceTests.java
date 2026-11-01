@@ -6,6 +6,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.mq.message.RiskAuditHitMessage;
 import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
@@ -18,8 +19,10 @@ import com.scott.payment.risk.domain.state.RiskDecisionEnum;
 import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
 import com.scott.payment.risk.repository.RiskListRuntimeRepository;
+import com.scott.payment.risk.service.RiskRuntimeValueNormalizer;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -31,6 +34,7 @@ import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -40,18 +44,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskEvaluationServiceTests
- * @date : 2026-07-12 22:43
- * @email : scott_x@163.com
- * @description : Default Risk Evaluation Service Tests 自动化测试类，位于 风控服务，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
+ * 验证实时风控阶段顺序、短路决策、只读并发边界、预占回滚和脱敏审计行为。
  */
 class DefaultRiskEvaluationServiceTests {
 
-    private final DefaultRiskEvaluationService service = new DefaultRiskEvaluationService();
+    /**
+     * 验证 Spring 在存在测试构造器时仍选择标注的生产构造器，并解析命名只读执行器。
+     */
+    @Test
+    void shouldSelectProductionConstructorWhenCreatedBySpring() {
+        RiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository();
+        RiskRuntimeValueNormalizer normalizer = new RiskRuntimeValueNormalizer();
+        RiskEvaluationProperties properties = runtimeProperties();
+        Executor executor = Runnable::run;
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(RiskListRuntimeRepository.class, () -> repository);
+            context.registerBean(RiskRuntimeValueNormalizer.class, () -> normalizer);
+            context.registerBean(RiskEvaluationProperties.class, () -> properties);
+            context.registerBean("riskReadOnlyEvaluationExecutor", Executor.class, () -> executor);
+            context.register(DefaultRiskEvaluationService.class);
 
+            context.refresh();
+
+            assertThat(context.getBean(DefaultRiskEvaluationService.class)).isNotNull();
+        }
+    }
+
+    /**
+     * 验证三个相互独立的只读风控组并发执行。
+     */
     @Test
     void shouldExecuteIndependentReadOnlyRiskGroupsConcurrently() {
         ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -67,13 +88,16 @@ class DefaultRiskEvaluationServiceTests {
 
             RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
 
-            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
             assertThat(repository.concurrentGroupsReached()).isTrue();
         } finally {
             executor.shutdownNow();
         }
     }
 
+    /**
+     * 验证并发查询完成后仍按既定优先级选择 AML 决策。
+     */
     @Test
     void shouldKeepAmlDecisionPriorityAfterParallelQueriesComplete() {
         ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -108,6 +132,9 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 验证只读风控组超时时失败关闭且不进入有副作用阶段。
+     */
     @Test
     void shouldFailClosedWhenReadOnlyRiskGroupTimesOut() {
         ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -136,6 +163,9 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 验证只读风控组异常时失败关闭且不创建任何预占。
+     */
     @Test
     void shouldFailClosedWhenReadOnlyRiskGroupThrows() {
         ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -163,6 +193,9 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 验证累计限额、频控和 3DS 等有状态阶段留在请求线程执行。
+     */
     @Test
     void shouldKeepStatefulRiskStagesOnRequestThread() {
         ExecutorService executor = Executors.newFixedThreadPool(
@@ -181,7 +214,7 @@ class DefaultRiskEvaluationServiceTests {
 
             RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
 
-            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
             assertThat(repository.readOnlyThreadNames)
                     .isNotEmpty()
                     .allMatch(name -> name.startsWith("risk-read-only-test"));
@@ -193,6 +226,9 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 验证关闭并发后恢复惰性串行短路且不调用只读执行器。
+     */
     @Test
     void shouldPreserveLazySerialShortCircuitWhenParallelEvaluationIsDisabled() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -216,44 +252,149 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(repository.merchantLimitQueryCount).isZero();
     }
 
+    /**
+     * 验证商户未启用任何风控功能时返回明确 SKIP。
+     */
     @Test
-    void shouldPassNormalPaymentRiskEvaluation() {
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(baseRequest(new BigDecimal("12.34")));
+    void shouldSkipWhenNoMerchantRiskFunctionIsEnabled() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository();
+        RiskEvaluationProperties properties = runtimeProperties();
+        DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                repository,
+                new RecordingRiskAuditRecordPublisher(),
+                properties);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(
+                baseRequest(new BigDecimal("12.34")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NOT_ENABLED");
+    }
+
+    /**
+     * 验证已配置黑名单未命中时返回 NO_MATCH。
+     */
+    @Test
+    void shouldSkipWhenConfiguredBlacklistDoesNotMatch() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withActiveListRule(RiskListFunction.BLACK_CARD_BIN);
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository,
+                new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setCardBin("411111");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NO_MATCH");
+    }
+
+    /**
+     * 验证规则存在但商户未启用对应功能时跳过该规则。
+     */
+    @Test
+    void shouldSkipWhenMerchantRiskFunctionIsNotEnabled() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository();
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository,
+                new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setCardBin("411111");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NOT_ENABLED");
+    }
+
+    /**
+     * 验证商户启用功能但无生效规则时返回 NOT_CONFIGURED。
+     */
+    @Test
+    void shouldSkipWhenMerchantRiskFunctionIsEnabledButNotConfigured() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withEnabledMerchantFunction(RiskListFunction.BLACK_CARD_BIN);
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository,
+                new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setCardBin("411111");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NOT_CONFIGURED");
+    }
+
+    /**
+     * 验证普通支付在未配置任何风控规则时保持可继续的跳过结论。
+     */
+    @Test
+    void shouldSkipNormalPaymentWhenNoRiskFunctionIsConfigured() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(baseRequest(new BigDecimal("12.34")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
         assertThat(resultDTO.getRiskRecordNo()).startsWith("RK");
     }
 
+    /**
+     * 验证来源地址关键字不会触发代码内硬编码阻断。
+     */
     @Test
-    void shouldRejectBlockedSource() {
+    void shouldNotUseSourceKeywordAsHardcodedBlockRule() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
         RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
         requestDTO.setSourceUrl("https://blocked.example.test/pay");
 
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(requestDTO);
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.BLOCKED_SOURCE.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
+    /**
+     * 验证未配置规则时不使用代码内硬编码金额触发 3DS。
+     */
     @Test
-    void shouldRequireThreeDsForLargePaymentWithoutThreeDsProof() {
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(baseRequest(new BigDecimal("1000.00")));
+    void shouldNotApplyHardcodedThreeDsAmountThreshold() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REQUIRE_3DS.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.THREE_DS_REQUIRED.getCode());
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(baseRequest(new BigDecimal("1000.00")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
+    /**
+     * 验证未配置规则时不使用代码内硬编码金额触发人工复核。
+     */
     @Test
-    void shouldReviewVeryLargePayment() {
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(baseRequest(new BigDecimal("5000.00")));
+    void shouldNotApplyHardcodedManualReviewAmountThreshold() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REVIEW.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED.getCode());
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(baseRequest(new BigDecimal("5000.00")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
+    /**
+     * 验证商户强白名单命中后大额交易按规则允许通过。
+     */
     @Test
-    void shouldPassWhenWhitelistMerchantHitBeforeSkeletonAmountRejection() {
+    void shouldPassWhenWhitelistMerchantMatchesForLargeAmount() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
                 .withListHit(RiskListFunction.WHITE_MERCHANT, match("WHITE", "merchant", "CRITICAL", "PASS"));
         RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
@@ -271,6 +412,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages.get(0).getHitCount()).isEqualTo(1);
     }
 
+    /**
+     * 验证付款人邮箱命中黑名单时拒绝交易。
+     */
     @Test
     void shouldRejectWhenBlacklistEmailHit() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -286,25 +430,40 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getDecisionResult()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
+        assertThat(publisher.messages.get(0).getDecisionReasonCode())
+                .isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
         assertThat(publisher.messages.get(0).getRiskLevel()).isEqualTo("HIGH");
+        assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(hit -> "BLACK".equals(hit.getModuleType())
+                        && "email".equals(hit.getFunctionCode())
+                        && "HIT".equals(hit.getMatchResult()))
+                .singleElement()
+                .extracting(RiskAuditHitMessage::getReasonCode)
+                .isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
     }
 
+    /**
+     * 验证启用商户 IP 白名单后请求 IP 未命中时拒绝交易。
+     */
     @Test
-    void shouldRejectWhenMerchantIpWhitelistEnabledButRequestIpMissed() {
+    void shouldRejectWhenMerchantHasActiveIpWhitelistButRequestIpMissed() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
                 .withMerchantIpWhitelistMiss(match("SYSTEM", "merchantIpWhitelist", "HIGH", "REJECT"));
         RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
         DefaultRiskEvaluationService runtimeService = runtimeService(repository, publisher);
         RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setIngressClientIp("198.51.100.24");
         requestDTO.setPayerIp("203.0.113.9");
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.IP_WHITELIST_MISSED.getCode());
+        assertThat(repository.merchantIpWhitelistLookup.getRawValue()).isEqualTo("198.51.100.24");
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> !"NONE".equals(detail.getDecisionEffect()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(
                         "MERCHANT_IP_WHITELIST", "MISS", "BLOCK"));
@@ -313,6 +472,9 @@ class DefaultRiskEvaluationServiceTests {
                 .doesNotContain("放行");
     }
 
+    /**
+     * 验证配置来源限制后请求主机未命中时按规则拒绝。
+     */
     @Test
     void shouldRejectWhenSourceUrlRestrictionConfiguredButSourceMissed() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -333,6 +495,9 @@ class DefaultRiskEvaluationServiceTests {
                 .doesNotContain("放行");
     }
 
+    /**
+     * 验证托管收银台只豁免来源地址限制，不扩大其他风控豁免。
+     */
     @Test
     void shouldBypassOnlySourceUrlRestrictionForHostedCheckout() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -346,10 +511,13 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
+    /**
+     * 验证托管收银台交易命中 AML 时仍然拒绝。
+     */
     @Test
     void shouldStillRejectAmlHitForHostedCheckout() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -369,6 +537,33 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
     }
 
+    /**
+     * 验证托管收银台跳过商户入口白名单后仍执行付款人 IP 黑名单。
+     */
+    @Test
+    void shouldBypassMerchantWhitelistButStillRejectPayerIpBlacklistForHostedCheckout() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withMerchantIpWhitelistMiss(match("SYSTEM", "merchantIpWhitelist", "HIGH", "REJECT"))
+                .withListHit(RiskListFunction.BLACK_IP, match("BLACK", "ip", "HIGH", "REJECT"));
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository, new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setRequestSource("HOSTED_CHECKOUT");
+        requestDTO.setIngressClientIp("198.51.100.11");
+        requestDTO.setPayerIp("203.0.113.9");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
+        assertThat(repository.merchantIpWhitelistLookupCount).isZero();
+        assertThat(repository.lookups.get(RiskListFunction.BLACK_IP).getRawValue())
+                .isEqualTo("203.0.113.9");
+    }
+
+    /**
+     * 验证卡 BIN 命中 AML 且动作配置为 REVIEW 时进入人工复核。
+     */
     @Test
     void shouldReviewWhenAmlCardBinHitWithReviewAction() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -390,6 +585,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages.get(0).getHits().get(0).getMatchResult()).isEqualTo("HIT");
     }
 
+    /**
+     * 验证 AML 阶段优先于强白名单执行。
+     */
     @Test
     void shouldApplyAmlBeforeStrongWhitelist() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -405,6 +603,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
     }
 
+    /**
+     * 验证 AML 拒绝前已执行节点均写入脱敏决策审计。
+     */
     @Test
     void shouldAuditDecisionProcessBeforeAmlReject() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -424,6 +625,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> !"NONE".equals(detail.getDecisionEffect()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("MERCHANT_IP_WHITELIST", "HIT", "ALLOW"),
@@ -432,6 +634,9 @@ class DefaultRiskEvaluationServiceTests {
                 );
     }
 
+    /**
+     * 验证强白名单阶段优先于 A 级黑名单。
+     */
     @Test
     void shouldUseStrongWhitelistBeforeBlackA() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -448,6 +653,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> !"NONE".equals(detail.getDecisionEffect()))
                 .extracting(RiskAuditHitMessage::getModuleType, RiskAuditHitMessage::getFunctionCode, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "ALLOW"),
@@ -455,6 +661,9 @@ class DefaultRiskEvaluationServiceTests {
                 );
     }
 
+    /**
+     * 验证 A 级黑名单优先于优先白名单。
+     */
     @Test
     void shouldUseBlackABeforePriorityWhitelist() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -471,6 +680,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
     }
 
+    /**
+     * 验证优先白名单优先于 B 级黑名单。
+     */
     @Test
     void shouldUsePriorityWhitelistBeforeBlackB() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -486,6 +698,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
     }
 
+    /**
+     * 验证 B 级黑名单优先于弱白名单。
+     */
     @Test
     void shouldUseBlackBBeforeWeakWhitelist() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -501,6 +716,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
     }
 
+    /**
+     * 验证弱白名单优先于 C 级黑名单。
+     */
     @Test
     void shouldUseWeakWhitelistBeforeBlackC() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -516,6 +734,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
     }
 
+    /**
+     * 验证卡号名单使用完整 PAN 指纹匹配且不保留明文卡号。
+     */
     @Test
     void shouldUseFullPanHashForCardNoListMatch() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -532,6 +753,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(repository.lookups.get(RiskListFunction.BLACK_CARD_NO).getMatchValueHash()).hasSize(64);
     }
 
+    /**
+     * 验证发卡国家名单使用卡 BIN 解析结果进行匹配。
+     */
     @Test
     void shouldMatchIssuerCountryResolvedByCardBin() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -547,6 +771,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(repository.lookups.get(RiskListFunction.BLACK_ISSUER_COUNTRY).getCountryAlpha3()).isEqualTo("USA");
     }
 
+    /**
+     * 验证商户限额在名单仲裁完成后执行。
+     */
     @Test
     void shouldApplyMerchantLimitAfterListArbitration() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -603,6 +830,53 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 评估开始日志必须保持关键字段可追踪，并且只记录来源 URL 的不可逆摘要。
+     */
+    @Test
+    void shouldLogEvaluationContextWithoutRawSourceUrl() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(), new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("10.00"));
+        requestDTO.setTransactionId("TX202611010001");
+        requestDTO.setTransactionType("AUTHORIZATION");
+        requestDTO.setPaymentMethod("BANK_CARD");
+        requestDTO.setIngressClientIp("198.51.100.10");
+        requestDTO.setPayerIp("203.0.113.9");
+        requestDTO.setSourceUrl("https://merchant.example.test/payment?token=secret");
+        Logger logger = (Logger) LoggerFactory.getLogger(DefaultRiskEvaluationService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            runtimeService.evaluatePayment(requestDTO);
+
+            assertThat(appender.list)
+                    .extracting(ILoggingEvent::getFormattedMessage)
+                    .filteredOn(message -> message.contains("event: RISK_EVALUATION_START"))
+                    .singleElement()
+                    .satisfies(message -> assertThat(message)
+                            .contains(
+                                    "transactionType: AUTHORIZATION",
+                                    "paymentMethod: BANK_CARD",
+                                    "amount: 10.00",
+                                    "currency: USD",
+                                    "ruleCount: 5",
+                                    "ingressClientIpHash: " + RedisKeyDigest.sha256("198.51.100.10"),
+                                    "payerIpHash: " + RedisKeyDigest.sha256("203.0.113.9"),
+                                    "sourceUrlHash: " + RedisKeyDigest.sha256(
+                                            "https://merchant.example.test/payment?token=secret"))
+                            .doesNotContain("merchant.example.test", "token=secret"));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    /**
+     * 验证已配置商户限额未命中时仍记录通过检查点。
+     */
     @Test
     void shouldAuditPassCheckpointWhenConfiguredMerchantLimitMissed() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -615,10 +889,14 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MERCHANT_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("MERCHANT_LIMIT", "PASS", "PASS"));
     }
 
+    /**
+     * 验证频控阶段在商户限额阶段之后执行。
+     */
     @Test
     void shouldApplyFrequencyAfterMerchantLimit() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -631,6 +909,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.FREQUENCY_LIMIT_HIT.getCode());
     }
 
+    /**
+     * 验证最终决策前审计每条已配置频控规则的结果。
+     */
     @Test
     void shouldAuditEveryConfiguredFrequencyRuleBeforeFinalDecision() {
         RiskListMatch passed = match("RULE", "frequency", "LOW", "PASS");
@@ -650,6 +931,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "FREQUENCY_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getRuleId,
                         RiskAuditHitMessage::getStageOrder,
                         RiskAuditHitMessage::getMatchResult,
@@ -660,6 +942,9 @@ class DefaultRiskEvaluationServiceTests {
                 );
     }
 
+    /**
+     * 验证黑白名单审计明细按配置的仲裁优先级排序。
+     */
     @Test
     void shouldOrderBlackAndWhiteDetailsByConfiguredArbitrationPriority() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -684,7 +969,8 @@ class DefaultRiskEvaluationServiceTests {
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(publisher.messages.get(0).getHits())
-                .filteredOn(detail -> "BLACK_WHITE_ARBITRATION".equals(detail.getStageCode()))
+                .filteredOn(detail -> "BLACK_WHITE_ARBITRATION".equals(detail.getStageCode())
+                        && "HIT".equals(detail.getMatchResult()))
                 .extracting(RiskAuditHitMessage::getModuleType,
                         RiskAuditHitMessage::getRiskLevel,
                         RiskAuditHitMessage::getStageOrder)
@@ -697,6 +983,9 @@ class DefaultRiskEvaluationServiceTests {
                 );
     }
 
+    /**
+     * 验证每条累计商户限额规则均产生独立审计检查点。
+     */
     @Test
     void shouldAuditEveryCumulativeMerchantLimitCheckpoint() {
         RiskListMatch daily = cumulativeLimitMatch("DAILY", "PASS", "PASS");
@@ -715,6 +1004,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(repository.merchantLimitRollbackCount).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MERCHANT_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getHitElement, RiskAuditHitMessage::getMatchResult)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("MERCHANT_LIMIT", "DAILY", "PASS"),
@@ -723,6 +1013,9 @@ class DefaultRiskEvaluationServiceTests {
                 );
     }
 
+    /**
+     * 验证累计商户限额超限时拒绝交易。
+     */
     @Test
     void shouldRejectWhenCumulativeMerchantLimitIsExceeded() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -739,6 +1032,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.RULE_HIT.getCode());
     }
 
+    /**
+     * 验证累计限额运行时不可用时进入 REVIEW 而不放行。
+     */
     @Test
     void shouldReviewWhenCumulativeMerchantLimitRuntimeFails() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -756,6 +1052,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MERCHANT_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode,
                         RiskAuditHitMessage::getMatchResult,
                         RiskAuditHitMessage::getDecisionEffect)
@@ -763,6 +1060,9 @@ class DefaultRiskEvaluationServiceTests {
                         "MERCHANT_LIMIT", "ERROR", "REVIEW"));
     }
 
+    /**
+     * 验证后续频控拒绝时回滚此前创建的累计限额预占。
+     */
     @Test
     void shouldRollbackCumulativeReservationWhenFrequencyRejects() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -781,6 +1081,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(repository.frequencySuccessReleaseCount).isEqualTo(1);
     }
 
+    /**
+     * 验证已配置频控未命中时仍记录通过检查点。
+     */
     @Test
     void shouldAuditPassCheckpointWhenConfiguredFrequencyMissed() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -793,10 +1096,14 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "FREQUENCY_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("FREQUENCY_LIMIT", "PASS", "PASS"));
     }
 
+    /**
+     * 验证已配置但未命中的名单检查仍保留审计明细。
+     */
     @Test
     void shouldAuditConfiguredListChecksThatDoNotMatch() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -810,21 +1117,25 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MISS".equals(detail.getMatchResult()))
                 .extracting(RiskAuditHitMessage::getModuleType,
                         RiskAuditHitMessage::getFunctionCode,
                         RiskAuditHitMessage::getMatchResult,
                         RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("AML", "card", "MISS", "PASS"),
-                        org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "MISS", "PASS"),
-                        org.assertj.core.groups.Tuple.tuple("BLACK", "cardNo", "MISS", "PASS")
+                        org.assertj.core.groups.Tuple.tuple("AML", "card", "MISS", "SKIP"),
+                        org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "MISS", "SKIP"),
+                        org.assertj.core.groups.Tuple.tuple("BLACK", "cardNo", "MISS", "SKIP")
                 );
     }
 
+    /**
+     * 验证来源地址规则命中后执行规则配置的决策动作。
+     */
     @Test
     void shouldApplySourceUrlRuleAction() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -839,6 +1150,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.RULE_HIT.getCode());
     }
 
+    /**
+     * 验证运行时规则要求 3DS 且请求无认证证明时返回 REQUIRE_3DS。
+     */
     @Test
     void shouldRequireThreeDsWhenRuntimeRuleForcesThreeDsWithoutProof() {
         RiskListMatch frequencyPass = match("RULE", "frequency", "LOW", "PASS");
@@ -858,6 +1172,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(repository.frequencySuccessReleaseCount).isEqualTo(1);
     }
 
+    /**
+     * 验证每个已配置名单维度恰好记录一次评估明细。
+     */
     @Test
     void shouldAuditEveryConfiguredListEvaluationDimensionExactlyOnce() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -869,18 +1186,29 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
         assertThat(publisher.messages).singleElement().satisfies(message -> {
-            int expectedEvaluationDimensions = RiskListFunction.values().length + 5;
             assertThat(message.getHitCount()).isZero();
-            assertThat(message.getHits()).hasSize(expectedEvaluationDimensions);
             assertThat(message.getHits().stream()
                     .map(detail -> detail.getModuleType() + ":" + detail.getFunctionCode() + ":" + detail.getHitElement())
                     .distinct()
-                    .count()).isEqualTo(expectedEvaluationDimensions);
+                    .count()).isEqualTo(message.getHits().size());
+            assertThat(EnumSet.allOf(RiskListFunction.class)).allSatisfy(function ->
+                    assertThat(message.getHits()).anySatisfy(detail -> {
+                        assertThat(detail.getModuleType()).isEqualTo(function.getModuleType().getCode());
+                        assertThat(detail.getFunctionCode()).isEqualTo(function.getFunctionCode());
+                    }));
+            assertThat(message.getHits())
+                    .filteredOn(detail -> "MISS".equals(detail.getMatchResult())
+                            || "SKIPPED".equals(detail.getMatchResult()))
+                    .allSatisfy(detail -> assertThat(detail.getDecisionAction())
+                            .isEqualTo(RiskDecisionEnum.SKIP.getCode()));
         });
     }
 
+    /**
+     * 验证 AML 国家维度审计相互独立且不修改缓存规则对象。
+     */
     @Test
     void shouldKeepAmlCountryAuditDimensionsSeparateWithoutMutatingCachedRule() {
         RiskListMatch cachedRule = match("AML", "country", "CRITICAL", "REJECT");
@@ -898,6 +1226,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "HIT".equals(detail.getMatchResult()))
                 .extracting(RiskAuditHitMessage::getHitElement, RiskAuditHitMessage::getHitValueMasked)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("issuerCountry", "CAN"),
@@ -907,6 +1236,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(cachedRule.getStageCode()).isNull();
     }
 
+    /**
+     * 验证账单、付款人和收货地区作为独立风险维度评估。
+     */
     @Test
     void shouldEvaluateBillingPayerAndShippingAsIndependentRiskDimensions() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
@@ -932,7 +1264,7 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
         assertThat(publisher.messages).singleElement().satisfies(message ->
                 assertThat(message.getHits())
                         .extracting(RiskAuditHitMessage::getHitElement)
@@ -944,6 +1276,9 @@ class DefaultRiskEvaluationServiceTests {
                                 "billingCountry", "payerCountry", "shippingCountry"));
     }
 
+    /**
+     * 构造覆盖名单、来源、地区和 3DS 字段的完整风控请求。
+     */
     private RiskPaymentEvaluateRequestDTO fullyPopulatedRequest() {
         RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
         requestDTO.setCardNo("4111111111111234");
@@ -968,6 +1303,9 @@ class DefaultRiskEvaluationServiceTests {
         return requestDTO;
     }
 
+    /**
+     * 构造包含商户、订单、金额和币种的最小风控请求。
+     */
     private RiskPaymentEvaluateRequestDTO baseRequest(BigDecimal amount) {
         RiskPaymentEvaluateRequestDTO requestDTO = new RiskPaymentEvaluateRequestDTO();
         requestDTO.setMerchantId("200001");
@@ -977,20 +1315,27 @@ class DefaultRiskEvaluationServiceTests {
         return requestDTO;
     }
 
+    /**
+     * 使用同步执行器和测试审计发布器构造实时风控服务。
+     */
     private DefaultRiskEvaluationService runtimeService(FakeRiskListRuntimeRepository repository,
                                                         RecordingRiskAuditRecordPublisher publisher) {
         return new DefaultRiskEvaluationService(repository, publisher, runtimeProperties());
     }
 
+    /**
+     * 构造启用运行时规则且使用安全默认值的风控配置。
+     */
     private RiskEvaluationProperties runtimeProperties() {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
-        properties.setSkeletonFallbackEnabled(true);
-        properties.setRuntimeEnabled(true);
         properties.setAuditMqEnabled(true);
         properties.setReadOnlyParallelEnabled(false);
         return properties;
     }
 
+    /**
+     * 构造具有指定阶段、字段、风险等级和动作的规则命中结果。
+     */
     private RiskListMatch match(String moduleType, String functionCode, String riskLevel, String decisionAction) {
         RiskListMatch match = new RiskListMatch();
         match.setRuleId(1001L);
@@ -1005,6 +1350,9 @@ class DefaultRiskEvaluationServiceTests {
         return match;
     }
 
+    /**
+     * 构造具有周期阈值的累计限额规则命中结果。
+     */
     private RiskListMatch cumulativeLimitMatch(String limitType,
                                                String matchResult,
                                                String decisionAction) {
@@ -1015,158 +1363,278 @@ class DefaultRiskEvaluationServiceTests {
         return match;
     }
 
+    /**
+     * 提供可编排规则命中、预占和审计路径的内存风控仓储。
+     */
     private static class FakeRiskListRuntimeRepository implements RiskListRuntimeRepository {
 
-        /** 按名单功能预置的测试命中结果。 */
+        /**
+         * 按名单功能预置的测试命中结果。
+         */
         private final Map<RiskListFunction, RiskListMatch> listHits = new EnumMap<>(RiskListFunction.class);
 
-        /** 记录服务传给仓储的规范化查询值，供脱敏和路由断言使用。 */
+        /**
+         * 记录服务传给仓储的规范化查询值，供脱敏和路由断言使用。
+         */
         private final Map<RiskListFunction, RiskRuntimeLookupValue> lookups = new ConcurrentHashMap<>();
 
-        /** 记录只读规则查询实际使用的线程，验证并发边界不扩展到有副作用阶段。 */
+        /**
+         * 记录只读规则查询实际使用的线程，验证并发边界不扩展到有副作用阶段。
+         */
         private final java.util.Set<String> readOnlyThreadNames = ConcurrentHashMap.newKeySet();
 
-        /** 在测试场景中声明已启用的名单节点。 */
+        /**
+         * 在测试场景中声明已启用的名单节点。
+         */
         private final EnumSet<RiskListFunction> activeListRules = EnumSet.noneOf(RiskListFunction.class);
 
-        /** 预置的商户 IP 白名单命中结果。 */
+        /**
+         * 在测试场景中声明商户已开通但可以尚未配置规则的名单功能。
+         */
+        private final EnumSet<RiskListFunction> enabledMerchantFunctions = EnumSet.noneOf(RiskListFunction.class);
+
+        /**
+         * 预置的商户 IP 白名单命中结果。
+         */
         private RiskListMatch merchantIpWhitelistHit;
 
-        /** 预置的商户 IP 白名单未命中结果。 */
+        /**
+         * 预置的商户 IP 白名单未命中结果。
+         */
         private RiskListMatch merchantIpWhitelistMiss;
 
-        /** 预置的来源网址限制未命中结果。 */
+        /**
+         * 记录商户接入白名单实际使用的查询值。
+         */
+        private RiskRuntimeLookupValue merchantIpWhitelistLookup;
+
+        /**
+         * 记录商户接入白名单查询次数，Hosted Checkout 必须保持为零。
+         */
+        private int merchantIpWhitelistLookupCount;
+
+        /**
+         * 预置的来源网址限制未命中结果。
+         */
         private RiskListMatch sourceUrlMiss;
 
-        /** 预置的来源网址允许规则命中结果。 */
+        /**
+         * 预置的来源网址允许规则命中结果。
+         */
         private RiskListMatch sourceUrlRule;
 
-        /** 预置的商户单笔限额命中结果。 */
+        /**
+         * 预置的商户单笔限额命中结果。
+         */
         private RiskListMatch merchantLimitRule;
 
-        /** 测试场景是否声明存在启用金额限额规则。 */
+        /**
+         * 测试场景是否声明存在启用金额限额规则。
+         */
         private boolean activeMerchantLimitRule;
 
-        /** 记录单笔限额只读查询次数。 */
+        /**
+         * 记录单笔限额只读查询次数。
+         */
         private int merchantLimitQueryCount;
 
-        /** 记录累计限额预占调用次数。 */
+        /**
+         * 记录累计限额预占调用次数。
+         */
         private int cumulativeReservationCount;
 
-        /** 记录累计限额预占所在的线程。 */
+        /**
+         * 记录累计限额预占所在的线程。
+         */
         private String cumulativeLimitThreadName;
 
-        /** 预置的累计限额明细和 Redis 预占结果。 */
+        /**
+         * 预置的累计限额明细和 Redis 预占结果。
+         */
         private MerchantLimitEvaluation cumulativeLimitEvaluation = MerchantLimitEvaluation.empty();
 
-        /** 记录服务触发累计限额回滚的次数。 */
+        /**
+         * 记录服务触发累计限额回滚的次数。
+         */
         private int merchantLimitRollbackCount;
 
-        /** 按仓储执行顺序预置的频率规则明细。 */
+        /**
+         * 按仓储执行顺序预置的频率规则明细。
+         */
         private List<RiskListMatch> frequencyRules = List.of();
 
-        /** 测试场景是否声明存在启用频率规则。 */
+        /**
+         * 测试场景是否声明存在启用频率规则。
+         */
         private boolean activeFrequencyRule;
 
-        /** 记录后续节点阻断时释放频控成功名额的次数。 */
+        /**
+         * 记录后续节点阻断时释放频控成功名额的次数。
+         */
         private int frequencySuccessReleaseCount;
 
-        /** 记录频控评估调用次数。 */
+        /**
+         * 记录频控评估调用次数。
+         */
         private int frequencyEvaluationCount;
 
-        /** 记录频控评估所在的线程。 */
+        /**
+         * 记录频控评估所在的线程。
+         */
         private String frequencyThreadName;
 
-        /** 预置的 3DS 规则命中结果。 */
+        /**
+         * 预置的 3DS 规则命中结果。
+         */
         private RiskListMatch threeDsRule;
 
-        /** 按卡 BIN 预置的发卡行国家代码。 */
+        /**
+         * 按卡 BIN 预置的发卡行国家代码。
+         */
         private String issuerCountry;
 
-        /** 记录 3DS 查询所在的线程。 */
+        /**
+         * 记录 3DS 查询所在的线程。
+         */
         private String threeDsThreadName;
 
+        /**
+         * 为指定名单功能登记测试命中结果。
+         */
         private FakeRiskListRuntimeRepository withListHit(RiskListFunction function, RiskListMatch match) {
             listHits.put(function, match);
             activeListRules.add(function);
             return this;
         }
 
+        /**
+         * 登记已生效但默认不命中的名单规则。
+         */
         private FakeRiskListRuntimeRepository withActiveListRule(RiskListFunction function) {
             activeListRules.add(function);
             return this;
         }
 
+        /**
+         * 登记全部名单功能为已生效状态。
+         */
         private FakeRiskListRuntimeRepository withAllActiveListRules() {
             activeListRules.addAll(EnumSet.allOf(RiskListFunction.class));
             return this;
         }
 
+        /**
+         * 登记商户已启用的风控功能。
+         */
+        private FakeRiskListRuntimeRepository withEnabledMerchantFunction(RiskListFunction function) {
+            enabledMerchantFunctions.add(function);
+            return this;
+        }
+
+        /**
+         * 登记来源地址规则的命中结果。
+         */
         private FakeRiskListRuntimeRepository withSourceUrlRule(RiskListMatch match) {
             sourceUrlRule = match;
             return this;
         }
 
+        /**
+         * 登记来源地址规则未命中且返回指定决策。
+         */
         private FakeRiskListRuntimeRepository withSourceUrlMiss(RiskListMatch match) {
             sourceUrlMiss = match;
             return this;
         }
 
+        /**
+         * 登记商户 IP 白名单未命中结果。
+         */
         private FakeRiskListRuntimeRepository withMerchantIpWhitelistMiss(RiskListMatch match) {
             merchantIpWhitelistMiss = match;
             return this;
         }
 
+        /**
+         * 登记商户 IP 白名单命中结果。
+         */
         @SuppressWarnings("unused")
         private FakeRiskListRuntimeRepository withMerchantIpWhitelistHit(RiskListMatch match) {
             merchantIpWhitelistHit = match;
             return this;
         }
 
+        /**
+         * 登记商户单笔限额规则命中结果。
+         */
         private FakeRiskListRuntimeRepository withMerchantLimitRule(RiskListMatch match) {
             merchantLimitRule = match;
             activeMerchantLimitRule = true;
             return this;
         }
 
+        /**
+         * 登记已生效但默认不命中的商户限额规则。
+         */
         private FakeRiskListRuntimeRepository withActiveMerchantLimitRule() {
             activeMerchantLimitRule = true;
             return this;
         }
 
+        /**
+         * 登记累计限额评估结果及其预占信息。
+         */
         private FakeRiskListRuntimeRepository withCumulativeLimitEvaluation(MerchantLimitEvaluation evaluation) {
             cumulativeLimitEvaluation = evaluation;
             activeMerchantLimitRule = evaluation != null && !evaluation.details().isEmpty();
             return this;
         }
 
+        /**
+         * 登记单条频控规则评估结果。
+         */
         private FakeRiskListRuntimeRepository withFrequencyRule(RiskListMatch match) {
             frequencyRules = match == null ? List.of() : List.of(match);
             activeFrequencyRule = true;
             return this;
         }
 
+        /**
+         * 登记一组按顺序评估的频控规则结果。
+         */
         private FakeRiskListRuntimeRepository withFrequencyRules(List<RiskListMatch> matches) {
             frequencyRules = matches == null ? List.of() : List.copyOf(matches);
             activeFrequencyRule = !frequencyRules.isEmpty();
             return this;
         }
 
+        /**
+         * 登记已生效但默认不命中的频控规则。
+         */
         private FakeRiskListRuntimeRepository withActiveFrequencyRule() {
             activeFrequencyRule = true;
             return this;
         }
 
+        /**
+         * 登记 3DS 规则命中结果。
+         */
         private FakeRiskListRuntimeRepository withThreeDsRule(RiskListMatch match) {
             threeDsRule = match;
             return this;
         }
 
+        /**
+         * 登记卡 BIN 对应的发卡国家解析结果。
+         */
         private FakeRiskListRuntimeRepository withIssuerCountry(String country) {
             issuerCountry = country;
             return this;
         }
 
+        /**
+         * 按名单功能返回预先登记的测试命中结果。
+         */
         @Override
         public Optional<RiskListMatch> findListMatch(RiskListFunction function,
                                                      String merchantId,
@@ -1184,6 +1652,22 @@ class DefaultRiskEvaluationServiceTests {
         @Override
         public boolean hasActiveListRule(RiskListFunction function, String merchantId) {
             return activeListRules.contains(function);
+        }
+
+        /**
+         * 判断测试商户是否启用指定风控功能。
+         */
+        @Override
+        public boolean isMerchantFunctionEnabled(RiskListFunction function, String merchantId) {
+            return enabledMerchantFunctions.contains(function);
+        }
+
+        /**
+         * 返回测试商户已登记的全部风控功能。
+         */
+        @Override
+        public java.util.Set<RiskListFunction> findEnabledMerchantFunctions(String merchantId) {
+            return java.util.Set.copyOf(enabledMerchantFunctions);
         }
 
         /**
@@ -1207,6 +1691,8 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public Optional<RiskListMatch> findMerchantIpWhitelistHit(String merchantId, RiskRuntimeLookupValue lookupValue) {
+            merchantIpWhitelistLookup = lookupValue;
+            merchantIpWhitelistLookupCount++;
             return Optional.ofNullable(merchantIpWhitelistHit);
         }
 
@@ -1215,6 +1701,8 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public Optional<RiskListMatch> findMerchantIpWhitelistMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
+            merchantIpWhitelistLookup = lookupValue;
+            merchantIpWhitelistLookupCount++;
             return Optional.ofNullable(merchantIpWhitelistMiss);
         }
 
@@ -1332,10 +1820,15 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 模拟商户限额只读查询超时的风控仓储。
+     */
     private static final class SlowMerchantLimitRiskListRuntimeRepository
             extends FakeRiskListRuntimeRepository {
 
-        /** 模拟单笔限额查询超过只读阶段共享超时。 */
+        /**
+         * 模拟单笔限额查询超过只读阶段共享超时。
+         */
         @Override
         public Optional<RiskListMatch> findMerchantLimitRule(String merchantId,
                                                              BigDecimal amount,
@@ -1349,10 +1842,15 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 模拟商户限额只读查询抛出异常的风控仓储。
+     */
     private static final class ThrowingMerchantLimitRiskListRuntimeRepository
             extends FakeRiskListRuntimeRepository {
 
-        /** 模拟单笔限额查询发生基础设施异常。 */
+        /**
+         * 模拟单笔限额查询发生基础设施异常。
+         */
         @Override
         public Optional<RiskListMatch> findMerchantLimitRule(String merchantId,
                                                              BigDecimal amount,
@@ -1361,15 +1859,24 @@ class DefaultRiskEvaluationServiceTests {
         }
     }
 
+    /**
+     * 使用并发屏障验证三个只读规则组同时执行的风控仓储。
+     */
     private static final class ParallelProbeRiskListRuntimeRepository extends FakeRiskListRuntimeRepository {
 
-        /** 三个只读规则组必须在超时前同时到达的测试屏障。 */
+        /**
+         * 三个只读规则组必须在超时前同时到达的测试屏障。
+         */
         private final CyclicBarrier readOnlyGroupBarrier = new CyclicBarrier(3);
 
-        /** 记录三个规则组是否完成并发会合。 */
+        /**
+         * 记录三个规则组是否完成并发会合。
+         */
         private volatile boolean concurrentGroupsReached;
 
-        /** 在 AML 和白名单组的首个查询处等待其他只读组。 */
+        /**
+         * 在 AML 和白名单组的首个查询处等待其他只读组。
+         */
         @Override
         public Optional<RiskListMatch> findListMatch(RiskListFunction function,
                                                      String merchantId,
@@ -1380,7 +1887,9 @@ class DefaultRiskEvaluationServiceTests {
             return super.findListMatch(function, merchantId, lookupValue);
         }
 
-        /** 在单笔限额组首个查询处等待 AML 和黑白名单组。 */
+        /**
+         * 在单笔限额组首个查询处等待 AML 和黑白名单组。
+         */
         @Override
         public Optional<RiskListMatch> findMerchantLimitRule(String merchantId,
                                                              BigDecimal amount,
@@ -1389,6 +1898,9 @@ class DefaultRiskEvaluationServiceTests {
             return super.findMerchantLimitRule(merchantId, amount, currency);
         }
 
+        /**
+         * 等待三个只读规则组到达并发屏障，并记录超时或中断。
+         */
         private void awaitReadOnlyGroups() {
             try {
                 readOnlyGroupBarrier.await(500, TimeUnit.MILLISECONDS);
@@ -1401,14 +1913,22 @@ class DefaultRiskEvaluationServiceTests {
             }
         }
 
+        /**
+         * 返回三个只读规则组是否在超时前同时到达屏障。
+         */
         private boolean concurrentGroupsReached() {
             return concurrentGroupsReached;
         }
     }
 
+    /**
+     * 在内存中收集风控审计消息供顺序和脱敏断言。
+     */
     private static final class RecordingRiskAuditRecordPublisher implements RiskAuditRecordPublisher {
 
-        /** 收集服务发布的审计消息，供字段和顺序断言使用。 */
+        /**
+         * 收集服务发布的审计消息，供字段和顺序断言使用。
+         */
         private final List<RiskEvaluationAuditMessage> messages = new ArrayList<>();
 
         /**

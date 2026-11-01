@@ -6,18 +6,12 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReversalSumma
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReversalQueryService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Admin 冲正单本地只读查询边界。
- * @status : create
+ * Admin 冲正单本地只读查询边界。
  */
 public interface AdminSettlementReversalQueryService {
 
     /**
-     * 查询{@code search}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 按管理数据范围分页查询业务记录。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>

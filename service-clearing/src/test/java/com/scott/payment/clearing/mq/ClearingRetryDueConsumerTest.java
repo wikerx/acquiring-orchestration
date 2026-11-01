@@ -24,13 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingRetryDueConsumerTest
- * @date : 2026-08-26 16:40
- * @email : scott_x@163.com
- * @description : 验证清分延时消费者保留修订、重试序号、失败码和UTC投递时间，并使用独立Delay Topic并发消费。
- * @status : create
+ * 验证清分延时消费者保留修订、重试序号、失败码和UTC投递时间，并使用独立Delay Topic并发消费。
  */
 class ClearingRetryDueConsumerTest {
 
@@ -67,7 +61,9 @@ class ClearingRetryDueConsumerTest {
         assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.CONCURRENTLY);
     }
 
-    /** 空载荷不记录正文，只按固定来源和原因累计拒绝指标并触发 Broker 重试。 */
+    /**
+     * 空载荷不记录正文，只按固定来源和原因累计拒绝指标并触发 Broker 重试。
+     */
     @Test
     void emptyPayloadShouldRecordLowCardinalityMetric() {
         ClearingOperationalMetrics metrics = mock(ClearingOperationalMetrics.class);

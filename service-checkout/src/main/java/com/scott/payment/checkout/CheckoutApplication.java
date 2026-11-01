@@ -4,13 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutApplication
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : Checkout 服务启动类
- * @status : create
+ * 启动托管收银台展示配置服务。
  */
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
 public class CheckoutApplication {

@@ -23,13 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisCacheInvalidationGuardTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 受管共享缓存失效 Redis 门禁测试。
- * @status : create
+ * 受管共享缓存失效 Redis 门禁测试。
  */
 @Slf4j
 class RedisCacheInvalidationGuardTests {
@@ -181,7 +175,9 @@ class RedisCacheInvalidationGuardTests {
                 .isEqualTo("acquiring:test:merchant:activeFee:pending:200045");
     }
 
-    /** ISO 国家和币种永久快照必须使用相互隔离的固定业务键门禁。 */
+    /**
+     * ISO 国家和币种永久快照必须使用相互隔离的固定业务键门禁。
+     */
     @Test
     void shouldBuildIsoSnapshotGateKeys() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -210,7 +206,9 @@ class RedisCacheInvalidationGuardTests {
         );
     }
 
-    /** MCC、邮件模板与字典快照必须使用隔离门禁，复合业务键只以摘要进入物理键。 */
+    /**
+     * MCC、邮件模板与字典快照必须使用隔离门禁，复合业务键只以摘要进入物理键。
+     */
     @Test
     void shouldBuildMccAndEmailTemplateGateKeys() {
         log.info("测试 MCC 与邮件模板缓存门禁，关键输入: all 与 FUND_RECHARGE_POSTED:zh-CN");

@@ -5,13 +5,7 @@ import com.scott.payment.openapi.client.payout.dto.PayoutCreateClientResponseDTO
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutInternalClient
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : Payout Internal Client 客户端，位于 商户开放接口服务，封装内部服务或渠道接口调用，统一处理请求构造、响应解析、超时和异常转换。
- * @status : create
+ * OpenAPI 调用代付核心的内部客户端契约；商户入口不直接拥有代付状态。
  */
 public interface PayoutInternalClient {
 

@@ -32,13 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateFetchServiceImplTest
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 汇率汇率fetch服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 汇率汇率fetch服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @ExtendWith(MockitoExtension.class)
 class ExchangeRateFetchServiceImplTest {
@@ -91,6 +85,26 @@ class ExchangeRateFetchServiceImplTest {
         assertThat(businessRate.getFinalRate()).isEqualByComparingTo("7.19368650");
         assertThat(businessRate.getGenerateMethod()).isEqualTo("AUTO");
         assertThat(businessRate.getRateStatus()).isEqualTo("ENABLED");
+    }
+
+    @Test
+    void shouldDescribeZeroAdjustmentWhenNoneRuleHasNullAdjustValue() {
+        ExchangeRateRuleDO rule = transactionRule();
+        rule.setAdjustDirection("NONE");
+        rule.setAdjustValue(null);
+        when(sourceMapper.selectOne(any())).thenReturn(source());
+        when(rawRateMapper.selectCount(any())).thenReturn(0L);
+        when(ruleMapper.selectList(any())).thenReturn(List.of(rule));
+        when(businessRateMapper.selectList(any())).thenReturn(List.of());
+
+        ExchangeRateFetchResult result = service.fetch(new ExchangeRateFetchRequest(), null);
+
+        assertThat(result.getFetchStatus()).isEqualTo("SUCCESS");
+        ArgumentCaptor<ExchangeBusinessRateDO> captor = ArgumentCaptor.forClass(ExchangeBusinessRateDO.class);
+        verify(businessRateMapper).insert(captor.capture());
+        ExchangeBusinessRateDO businessRate = captor.getValue();
+        assertThat(businessRate.getFinalRate()).isEqualByComparingTo("7.18650000");
+        assertThat(businessRate.getAdjustDescription()).contains("NONE 0 BP");
     }
 
     @Test

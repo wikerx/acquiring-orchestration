@@ -10,13 +10,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisProperties
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 支付系统 Redis 物理 Key 配置。
- * @status : create
+ * 支付系统 Redis 物理 Key 配置。
  *
  *
  * <p>所有直接访问 Redis 的业务 Key 都必须经过本配置拼接系统和环境前缀，
@@ -161,6 +155,11 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
         return physicalKey;
     }
 
+    /**
+     * 校验并返回 acquiring 与单一环境组成的严格 Redis Key 前缀。
+     *
+     * @return 格式为 acquiring:{environment} 的前缀
+     */
     private String strictPrefix() {
         String prefix = normalizeSegment(keyPrefix, "acquiring:local");
         String[] segments = prefix.split(":", -1);
@@ -173,6 +172,13 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
         return String.join(":", segments);
     }
 
+    /**
+     * 校验 Redis Key 分段只包含受控字符且长度合规。
+     *
+     * @param value 待校验分段
+     * @param label 安全错误中使用的分段名称
+     * @return 原分段值
+     */
     private String requireSafeSegment(String value, String label) {
         if (!StringUtils.hasText(value) || !SAFE_KEY_SEGMENT.matcher(value).matches()) {
             throw new IllegalArgumentException("Redis " + label + " contains unsafe characters or length");
@@ -180,6 +186,13 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
         return value;
     }
 
+    /**
+     * 去除 Key 分段首尾空白和冒号，空值使用受控默认值。
+     *
+     * @param value 配置分段
+     * @param fallback 空值默认分段
+     * @return 规范化分段
+     */
     private String normalizeSegment(String value, String fallback) {
         if (!StringUtils.hasText(value)) {
             return fallback;

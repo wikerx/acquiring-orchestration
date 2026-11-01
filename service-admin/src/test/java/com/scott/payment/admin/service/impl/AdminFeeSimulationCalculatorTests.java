@@ -13,20 +13,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFeeSimulationCalculatorTests
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 费用试算纯计算测试，验证标签币种百分比、USD 固定费用、上下限和月累计阶梯规则。
- * @status : create
+ * 费用试算纯计算测试，验证标签币种百分比、USD 固定费用、上下限和月累计阶梯规则。
  */
 class AdminFeeSimulationCalculatorTests {
 
-    /** 标签币种百分比费用转换为 USD 后，与固定费用合并并应用最高限额。 */
+    /**
+     * 标签币种百分比费用转换为 USD 后，与固定费用合并并应用最高限额。
+     */
     @Test
     void shouldCombinePercentageAndFixedFeeThenApplyUsdCap() {
-        System.out.println("费用试算：验证标签币种百分比转换、USD固定费用及最高限额");
         FeeRuleDO rule = standardRule("2.3", "1", "1.5", "5");
         FeeSimulationRequest request = request("200", "EUR", "1.10");
 
@@ -41,10 +36,11 @@ class AdminFeeSimulationCalculatorTests {
                 "EUR 200.00 * 2.30% * 1.1 + USD 1.00; min=USD 1.50; max=USD 5.00");
     }
 
-    /** 月累计笔数应包含当前交易，并按达到的档位对当前整笔交易计费。 */
+    /**
+     * 月累计笔数应包含当前交易，并按达到的档位对当前整笔交易计费。
+     */
     @Test
     void shouldSelectCountTierAfterIncludingCurrentTransaction() {
-        System.out.println("阶梯试算：验证当前交易计入月累计笔数后按整笔落档");
         FeeRuleDO rule = standardRule("0", "0", null, null);
         rule.setFeeMode("TIER");
         rule.setTierMetric("COUNT");
@@ -61,7 +57,9 @@ class AdminFeeSimulationCalculatorTests {
         assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("2");
     }
 
-    /** 仅有固定费用时直接显示固定金额，并省略无意义的百分比、汇率及上下限。 */
+    /**
+     * 仅有固定费用时直接显示固定金额，并省略无意义的百分比、汇率及上下限。
+     */
     @Test
     void shouldSimplifyFixedOnlyFormulaAndOmitUnconfiguredLimits() {
         FeeRuleDO rule = standardRule("0", "0.08", null, null);
@@ -75,7 +73,9 @@ class AdminFeeSimulationCalculatorTests {
                 .doesNotContain("min=", "max=");
     }
 
-    /** 仅有百分比费用时省略零固定费，并仅删除结算汇率的无意义尾随零。 */
+    /**
+     * 仅有百分比费用时省略零固定费，并仅删除结算汇率的无意义尾随零。
+     */
     @Test
     void shouldSimplifyPercentageOnlyFormulaAndTrimRateTrailingZeros() {
         FeeRuleDO rule = standardRule("1", "0", null, null);
@@ -91,7 +91,9 @@ class AdminFeeSimulationCalculatorTests {
                 .doesNotContain("USD 0.00");
     }
 
-    /** 百分比和固定费用都为零时保留明确的零费用结果。 */
+    /**
+     * 百分比和固定费用都为零时保留明确的零费用结果。
+     */
     @Test
     void shouldDisplayZeroUsdWhenPercentageAndFixedFeeAreBothZero() {
         FeeRuleDO rule = standardRule("0", "0", null, null);
@@ -104,10 +106,11 @@ class AdminFeeSimulationCalculatorTests {
         assertThat(response.getFormulaSnapshot()).isEqualTo("USD 0.00");
     }
 
-    /** 百分比费用组件先按标签币种 exponent 舍入，再仅用于 Admin 预览换算到 USD。 */
+    /**
+     * 百分比费用组件先按标签币种 exponent 舍入，再仅用于 Admin 预览换算到 USD。
+     */
     @Test
     void shouldRoundNativePercentageComponentBeforeAdminFxPreview() {
-        System.out.println("费用试算币种精度：验证101 JPY的1%组件先舍入为1 JPY再预览换算");
         FeeRuleDO rule = standardRule("1", "0", null, null);
         FeeSimulationRequest request = request("101", "JPY", "0.0067");
 
@@ -118,10 +121,11 @@ class AdminFeeSimulationCalculatorTests {
         assertThat(response.getRawFeeUsd()).isEqualByComparingTo("0.0067");
     }
 
-    /** 试算只接受标签币种到 USD 的直接汇率，零值或负值必须拒绝。 */
+    /**
+     * 试算只接受标签币种到 USD 的直接汇率，零值或负值必须拒绝。
+     */
     @Test
     void shouldRejectMissingDirectRate() {
-        System.out.println("汇率校验：验证标签币种到USD的直接汇率缺失时拒绝试算");
         FeeSimulationRequest request = request("100", "EUR", "0");
 
         assertThatThrownBy(() -> new AdminFeeSimulationCalculator().calculate(
@@ -130,10 +134,11 @@ class AdminFeeSimulationCalculatorTests {
                 .hasMessageContaining("direct rate");
     }
 
-    /** 标签币种本身为 USD 时只能使用恒等汇率，避免错误放大或缩小百分比费用。 */
+    /**
+     * 标签币种本身为 USD 时只能使用恒等汇率，避免错误放大或缩小百分比费用。
+     */
     @Test
     void shouldRejectNonIdentityUsdRate() {
-        System.out.println("USD汇率校验：验证USD标签币种只能使用1作为直接汇率");
         FeeSimulationRequest request = request("100", "USD", "1.1");
 
         assertThatThrownBy(() -> new AdminFeeSimulationCalculator().calculate(

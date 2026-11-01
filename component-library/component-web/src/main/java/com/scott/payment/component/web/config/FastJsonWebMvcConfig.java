@@ -14,13 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FastJsonWebMvcConfig
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : Web 层统一 fastjson2 报文转换配置
- * @status : create
+ * Web 层统一 fastjson2 报文转换配置
  */
 @Configuration
 public class FastJsonWebMvcConfig implements WebMvcConfigurer {

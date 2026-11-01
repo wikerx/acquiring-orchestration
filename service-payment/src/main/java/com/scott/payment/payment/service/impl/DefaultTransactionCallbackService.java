@@ -1,11 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
-import com.scott.payment.channel.payment.executor.PaymentChannelCallbackExecutor;
-import com.scott.payment.channel.payment.exception.ChannelException;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -15,6 +12,7 @@ import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -39,26 +37,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionCallbackService
- * @date : 2026-07-14 22:42
- * @email : scott_x@163.com
- * @description : 交易渠道回调服务默认实现，位于 service-payment 服务实现层，通过渠道回调 SPI 解析渠道事件，再完成脱敏原文、幂等记录落库和状态推进。
- * @status : create
+ * 交易渠道回调服务默认实现，位于 service-payment 服务实现层，只接收已认证标准事件，完成业务幂等落库、状态机 CAS 和事务 Outbox 编排。
  */
 @Service
 @Slf4j
@@ -94,7 +81,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      */
     private static final String THREE_DS_CALLBACK_TYPE = "THREE_DS_AUTHENTICATION_CALLBACK";
 
-    /** 通用 3DS 渠道事件类型，用于兼容已进入回调链的旧内部分类值。 */
+    /**
+     * 通用 3DS 渠道事件类型，用于兼容已进入回调链的旧内部分类值。
+     */
     private static final String THREE_DS_EVENT_TYPE = "THREE_DS_CALLBACK";
 
     /**
@@ -188,8 +177,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
 
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
-    private final Optional<PaymentChannelCallbackExecutor> callbackExecutor;
-
     /**
      * 渠道状态解析服务，用于让渠道回调和查询勾兑共享平台状态映射。
      */
@@ -203,21 +190,18 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @param transactionRecordService 交易事实记录服务
      * @param transactionEventOutboxService 交易本地事件服务
      * @param transactionShardingKeyParser 交易分表键解析器
-     * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
      */
     @Autowired
     public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
                                              TransactionChannelCallbackMapper callbackMapper,
                                              TransactionRecordService transactionRecordService,
                                              TransactionEventOutboxService transactionEventOutboxService,
-                                             TransactionShardingKeyParser transactionShardingKeyParser,
-                                             Optional<PaymentChannelCallbackExecutor> callbackExecutor) {
+                                             TransactionShardingKeyParser transactionShardingKeyParser) {
         this(callbackLogMapper,
                 callbackMapper,
                 transactionRecordService,
                 transactionEventOutboxService,
                 transactionShardingKeyParser,
-                callbackExecutor,
                 new DefaultChannelTransactionStatusResolver());
     }
 
@@ -229,7 +213,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @param transactionRecordService 交易事实记录服务
      * @param transactionEventOutboxService 交易本地事件服务
      * @param transactionShardingKeyParser 交易分表键解析器
-     * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
      * @param channelStatusResolver 渠道状态解析服务
      */
     public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
@@ -237,14 +220,12 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                              TransactionRecordService transactionRecordService,
                                              TransactionEventOutboxService transactionEventOutboxService,
                                              TransactionShardingKeyParser transactionShardingKeyParser,
-                                             Optional<PaymentChannelCallbackExecutor> callbackExecutor,
                                              ChannelTransactionStatusResolver channelStatusResolver) {
         this.callbackLogMapper = callbackLogMapper;
         this.callbackMapper = callbackMapper;
         this.transactionRecordService = transactionRecordService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
-        this.callbackExecutor = callbackExecutor == null ? Optional.empty() : callbackExecutor;
         this.channelStatusResolver = channelStatusResolver == null
                 ? new DefaultChannelTransactionStatusResolver()
                 : channelStatusResolver;
@@ -262,20 +243,21 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
         validate(commandDTO);
         long startNanos = System.nanoTime();
-        CallbackBodyLogMetadata bodyLogMetadata = callbackBodyLogMetadata(commandDTO.getRequestBody());
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_START stage=CALLBACK traceId: {} channelCode: {} callbackType: {} requestUri: {} sourceIp: {} signatureValid: {} ipAllowed: {} bodyLength: {} bodySha256: {}",
+        CallbackBodyLogMetadata bodyLogMetadata = callbackBodyLogMetadata(commandDTO);
+        log.info("渠道回调处理开始, event: PAYMENT_CHANNEL_CALLBACK_START, stage: CALLBACK, traceId: {}, channelCode: {}, callbackType: {}, requestUri: {}, sourceIpHash: {}, signatureValid: {}, ipAllowed: {}, bodyLength: {}, bodySha256: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 resolveCallbackType(commandDTO),
                 commandDTO.getRequestUri(),
-                commandDTO.getSourceIp(),
+                StringUtils.hasText(commandDTO.getSourceIp())
+                        ? RedisKeyDigest.sha256(commandDTO.getSourceIp().trim()) : null,
                 commandDTO.getSignatureValid(),
                 commandDTO.getIpAllowed(),
                 bodyLogMetadata.length(),
                 bodyLogMetadata.sha256());
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of(DEFAULT_TIME_ZONE));
         LocalDateTime receivedTime = commandDTO.getReceivedTime() == null ? now : commandDTO.getReceivedTime();
-        ChannelCallbackResult channelCallbackResult = parseByChannelHandler(commandDTO);
+        ChannelCallbackResult channelCallbackResult = verifiedChannelResult(commandDTO);
         CallbackContext context = resolveContext(commandDTO, channelCallbackResult);
         String callbackLogId = PaymentOrderNoGenerator.nextOrderNo(CALLBACK_LOG_PREFIX, context.transactionDateTime());
         String callbackId = PaymentOrderNoGenerator.nextOrderNo(CALLBACK_PREFIX, context.transactionDateTime());
@@ -284,7 +266,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         TransactionChannelCallbackLogDO callbackLogDO = buildCallbackLog(
                 commandDTO, channelCallbackResult, context, callbackLogId, receivedTime, now);
         int callbackLogRows = callbackLogMapper.insertLogical(callbackLogDO);
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_LOG_SAVED stage=CALLBACK traceId: {} channelCode: {} callbackLogId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} signatureValid: {} ipAllowed: {} logicalTable: {} physicalTable: {} affectedRows: {}",
+        log.info("渠道回调审计已保存, event: PAYMENT_CHANNEL_CALLBACK_LOG_SAVED, stage: CALLBACK, traceId: {}, channelCode: {}, callbackLogId: {}, transactionId: {}, operationId: {}, channelOrderNo: {}, channelTransactionId: {}, signatureValid: {}, ipAllowed: {}, logicalTable: {}, physicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 callbackLogId,
@@ -317,7 +299,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
             }
             return duplicateResult(callbackLogId, idempotencyKey, startNanos, concurrentlyCreated);
         }
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_IDEMPOTENCY_SAVED stage=CALLBACK_IDEMPOTENCY traceId: {} channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} idempotencyKey: {} duplicated=false logicalTable: {} physicalTable: {} affectedRows: {}",
+        log.info("渠道回调幂等记录已保存, event: PAYMENT_CHANNEL_CALLBACK_IDEMPOTENCY_SAVED, stage: CALLBACK_IDEMPOTENCY, traceId: {}, channelCode: {}, callbackLogId: {}, callbackId: {}, transactionId: {}, operationId: {}, channelOrderNo: {}, channelTransactionId: {}, idempotencyKey: {}, duplicated: false, logicalTable: {}, physicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 callbackLogId,
@@ -338,7 +320,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         resultDTO.setCallbackStatus(outcome.callbackStatus());
         resultDTO.setProcessResult(outcome.processResult());
         resultDTO.setFailReason(outcome.failReason());
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_END stage=CALLBACK traceId: {} channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} callbackStatus: {} processResult: {} merchantNotifyEvent: {} durationMs: {}",
+        log.info("渠道回调处理完成, event: PAYMENT_CHANNEL_CALLBACK_END, stage: CALLBACK, traceId: {}, channelCode: {}, callbackLogId: {}, callbackId: {}, transactionId: {}, operationId: {}, channelOrderNo: {}, channelTransactionId: {}, callbackStatus: {}, processResult: {}, merchantNotifyEvent: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 callbackLogId,
@@ -380,7 +362,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         logDO.setHttpMethod(commandDTO.getHttpMethod());
         logDO.setSourceIp(commandDTO.getSourceIp());
         logDO.setRequestHeaderJsonMasked(maskedJson(commandDTO.getRequestHeaders()));
-        logDO.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(commandDTO.getRequestBody()));
+        logDO.setRequestBodyJsonMasked(JsonUtils.toJsonString(Map.of(
+                "length", commandDTO.getRequestBodyLength(),
+                "sha256", commandDTO.getRequestBodySha256())));
         logDO.setSignatureValid(Boolean.TRUE.equals(commandDTO.getSignatureValid()) ? 1 : 0);
         logDO.setIpAllowed(Boolean.TRUE.equals(commandDTO.getIpAllowed()) ? 1 : 0);
         logDO.setPlatformResponseCode("ACCEPTED");
@@ -392,19 +376,19 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 构造渠道回调对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * 构造待持久化的渠道回调幂等事实，不推进交易状态。
+     *
+     * <p>回调正文只保存渠道适配层提供的脱敏版本；幂等键、回调号和分片时间由调用方在写库前固定。</p>
+     *
+     * @param commandDTO 已通过入口安全校验的回调命令
      * @param channelCallbackResult 已完成渠道验签和协议解析的回调结果，不包含可直接记录的敏感原文
-     * @param context 当前交易或请求上下文，用于透传交易身份、分片时间和审计信息
-     * @param callbackLogId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param callbackId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param idempotencyKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @param receivedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
-     * @return 构造、转换或解析后的业务值
+     * @param context 原交易身份、动作事实和分片时间上下文
+     * @param callbackLogId 关联入口回调日志号
+     * @param callbackId 平台回调事实唯一标识
+     * @param idempotencyKey 不含原始回调正文的稳定幂等键
+     * @param receivedTime 网关收到回调的时间
+     * @param now 当前持久化时间
+     * @return INIT 状态的渠道回调事实
      */
     private TransactionChannelCallbackDO buildCallback(TransactionChannelCallbackCommandDTO commandDTO,
                                                        ChannelCallbackResult channelCallbackResult,
@@ -454,7 +438,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                              LocalDateTime now) {
         String securityFailReason = callbackSecurityFailReason(commandDTO);
         if (securityFailReason != null) {
-            log.warn("event: PAYMENT_CHANNEL_CALLBACK_SECURITY_REJECTED stage=CALLBACK_SECURITY traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} signatureValid: {} ipAllowed: {} failReason: {}",
+            log.warn("渠道回调安全校验拒绝, event: PAYMENT_CHANNEL_CALLBACK_SECURITY_REJECTED, stage: CALLBACK_SECURITY, traceId: {}, channelCode: {}, callbackId: {}, transactionId: {}, operationId: {}, channelOrderNo: {}, channelTransactionId: {}, signatureValid: {}, ipAllowed: {}, failReason: {}",
                     TraceContext.getTraceId(),
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     callbackId,
@@ -477,7 +461,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     now);
         }
         if (!context.transactionIdResolved() || context.operationDO() == null || context.orderDO() == null) {
-            log.warn("event: PAYMENT_CHANNEL_CALLBACK_UNRESOLVED stage=CALLBACK_PROCESS traceId: {} channelCode: {} transactionId: {} channelOrderNo: {} channelTransactionId: {}",
+            log.warn("渠道回调无法定位交易, event: PAYMENT_CHANNEL_CALLBACK_UNRESOLVED, stage: CALLBACK_PROCESS, traceId: {}, channelCode: {}, transactionId: {}, channelOrderNo: {}, channelTransactionId: {}",
                     TraceContext.getTraceId(),
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     context.transactionId(),
@@ -489,7 +473,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         }
         ParsedCallbackStatus parsedStatus = parseCallbackStatus(commandDTO, channelCallbackResult, context.operationDO().getTransactionType());
         if (isThreeDsCallback(commandDTO, channelCallbackResult)) {
-            log.info("event: PAYMENT_CHANNEL_CALLBACK_3DS_RECEIVED stage=CALLBACK_PROCESS traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} rawChannelStatus: {} channelTradeStatus: {}",
+            log.info("渠道 3DS 回调已接收, event: PAYMENT_CHANNEL_CALLBACK_3DS_RECEIVED, stage: CALLBACK_PROCESS, traceId: {}, channelCode: {}, callbackId: {}, transactionId: {}, operationId: {}, rawChannelStatus: {}, channelTradeStatus: {}",
                     TraceContext.getTraceId(),
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     callbackId,
@@ -507,7 +491,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     now);
         }
         if (parsedStatus.targetStatus() == null) {
-            log.warn("event: PAYMENT_CHANNEL_CALLBACK_STATUS_UNMAPPED stage=CALLBACK_PROCESS traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} rawChannelStatus: {} channelTradeStatus: {}",
+            log.warn("渠道回调状态无法映射, event: PAYMENT_CHANNEL_CALLBACK_STATUS_UNMAPPED, stage: CALLBACK_PROCESS, traceId: {}, channelCode: {}, callbackId: {}, transactionId: {}, operationId: {}, rawChannelStatus: {}, channelTradeStatus: {}",
                     TraceContext.getTraceId(),
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     callbackId,
@@ -521,7 +505,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     "callback status can not be mapped yet", now);
         }
         if (!isTerminalStatus(parsedStatus.targetStatus())) {
-            log.info("event: PAYMENT_CHANNEL_CALLBACK_NON_TERMINAL stage=CALLBACK_PROCESS traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} currentStatus: {} parsedStatus: {} channelStatus: {}",
+            log.info("渠道回调保持交易非终态, event: PAYMENT_CHANNEL_CALLBACK_NON_TERMINAL, stage: CALLBACK_PROCESS, traceId: {}, channelCode: {}, callbackId: {}, transactionId: {}, operationId: {}, currentStatus: {}, parsedStatus: {}, channelStatus: {}",
                     TraceContext.getTraceId(),
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     callbackId,
@@ -539,6 +523,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     "callback status is non-terminal and waits channel query match",
                     now);
         }
+        applyCallbackReferences(context.operationDO(), channelCallbackResult);
         boolean changed = transactionRecordService.completeByChannelCallback(
                 context.operationDO(),
                 context.orderDO(),
@@ -549,7 +534,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 parsedStatus.channelStatus(),
                 parsedStatus.channelResponseCode(),
                 parsedStatus.channelResponseMessage());
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_PROCESS_UPDATE stage=CALLBACK_PROCESS traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} previousStatus: {} targetStatus: {} changed: {} channelStatus: {} channelResponseCode: {}",
+        log.info("渠道回调状态更新完成, event: PAYMENT_CHANNEL_CALLBACK_PROCESS_UPDATE, stage: CALLBACK_PROCESS, traceId: {}, channelCode: {}, callbackId: {}, transactionId: {}, operationId: {}, previousStatus: {}, targetStatus: {}, changed: {}, channelStatus: {}, channelResponseCode: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 callbackId,
@@ -660,7 +645,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         eventDO.setCreateTime(now);
         eventDO.setUpdateTime(now);
         transactionEventOutboxService.save(eventDO);
-        log.info("event: PAYMENT_CALLBACK_OUTBOX_SAVED stage=MQ traceId: {} callbackId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} transactionType: {} eventType: {} topic: {} tag: {} retryCount: {}",
+        log.info("渠道回调 Outbox 已保存, event: PAYMENT_CALLBACK_OUTBOX_SAVED, stage: MQ, traceId: {}, callbackId: {}, transactionId: {}, operationId: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, eventType: {}, topic: {}, tag: {}, retryCount: {}",
                 TraceContext.getTraceId(),
                 callbackId,
                 operationDO.getTransactionId(),
@@ -701,7 +686,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 processResult,
                 failReason,
                 processedTime);
-        log.info("event: PAYMENT_CALLBACK_DB_UPDATE stage=CALLBACK_PROCESS traceId: {} callbackId: {} callbackStatus: {} previousStatus: {} targetStatus: {} processResult: {} logicalTable: {} physicalTable: {} affectedRows: {}",
+        log.info("渠道回调处理状态已更新, event: PAYMENT_CALLBACK_DB_UPDATE, stage: CALLBACK_PROCESS, traceId: {}, callbackId: {}, callbackStatus: {}, previousStatus: {}, targetStatus: {}, processResult: {}, logicalTable: {}, physicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 callbackId,
                 callbackStatus,
@@ -712,7 +697,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 callbackTable,
                 affectedRows);
         if (affectedRows != 1) {
-            log.warn("event: PAYMENT_CALLBACK_CAS_CONFLICT stage=CALLBACK_PROCESS traceId: {} callbackId: {} transactionDateTime: {} expectedVersion: {} expectedStatuses: {} affectedRows: {}",
+            log.warn("渠道回调状态更新发生 CAS 冲突, event: PAYMENT_CALLBACK_CAS_CONFLICT, stage: CALLBACK_PROCESS, traceId: {}, callbackId: {}, transactionDateTime: {}, expectedVersion: {}, expectedStatuses: {}, affectedRows: {}",
                     TraceContext.getTraceId(),
                     callbackId,
                     transactionDateTime,
@@ -736,11 +721,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 normalizeChannelCode(channelCode), idempotencyKey, transactionDateTime);
     }
 
+    /**
+     * 构建幂等重复请求结果。
+     */
     private TransactionChannelCallbackResultDTO duplicateResult(String callbackLogId,
                                                                 String idempotencyKey,
                                                                 long startNanos,
                                                                 TransactionChannelCallbackDO existed) {
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_DUPLICATE stage=CALLBACK_IDEMPOTENCY traceId: {} channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} idempotencyKey: {} callbackStatus: {} duplicated=true durationMs: {}",
+        log.info("渠道重复回调已幂等吸收, event: PAYMENT_CHANNEL_CALLBACK_DUPLICATE, stage: CALLBACK_IDEMPOTENCY, traceId: {}, channelCode: {}, callbackLogId: {}, callbackId: {}, transactionId: {}, operationId: {}, channelOrderNo: {}, channelTransactionId: {}, idempotencyKey: {}, callbackStatus: {}, duplicated: true, durationMs: {}",
                 TraceContext.getTraceId(),
                 existed.getChannelCode(),
                 callbackLogId,
@@ -762,6 +750,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return resultDTO;
     }
 
+    /**
+     * 按渠道身份和平台交易号解析回调上下文。
+     */
     private CallbackContext resolveContext(TransactionChannelCallbackCommandDTO commandDTO,
                                            ChannelCallbackResult channelCallbackResult) {
         CallbackPayload payload = parsePayload(commandDTO, channelCallbackResult);
@@ -797,7 +788,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
             }
         }
         if (transactionDateTime == null) {
-            transactionDateTime = LocalDateTime.now();
+            transactionDateTime = LocalDateTime.now(ZoneId.of(DEFAULT_TIME_ZONE));
         }
         return new CallbackContext(
                 firstText(transactionId, commandDTO.getChannelOrderNo(), payload.channelOrderNo(), UNKNOWN_TRANSACTION_ID),
@@ -812,16 +803,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 解析回调动作，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param channelCallbackResult 已完成渠道验签和协议解析的回调结果，不包含可直接记录的敏感原文
-     * @param transactionId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param channelOrderNo 渠道订单号，用于回调关联、渠道查询和对账
-     * @param channelTransactionId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @return 构造、转换或解析后的业务值
+     * 按回调类型和渠道身份解析目标动作单。
+     *
+     * <p>普通回调优先使用渠道订单号与渠道交易号精确定位，定位失败时再按平台交易号降级；
+     * 3DS 回调直接关联平台交易号，避免把认证回调误匹配为资金动作。</p>
      */
     private TransactionOperationDO resolveCallbackOperation(TransactionChannelCallbackCommandDTO commandDTO,
                                                             ChannelCallbackResult channelCallbackResult,
@@ -833,7 +818,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         }
         if (StringUtils.hasText(channelOrderNo) && StringUtils.hasText(channelTransactionId)) {
             try {
-                return transactionRecordService.findOperationByChannelTransaction(channelOrderNo, channelTransactionId);
+                TransactionOperationDO operationDO = transactionRecordService.findOperationByChannelTransaction(
+                        channelOrderNo, channelTransactionId);
+                if (operationDO != null) {
+                    return operationDO;
+                }
             } catch (ServiceException exception) {
                 // 渠道部分回调可能只携带 order.id，继续按平台交易号降级定位原交易。
             }
@@ -841,12 +830,46 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return transactionRecordService.findSourceOperationByTransactionId(transactionId);
     }
 
+    /**
+     * 从已验签回调结果中提取受控交易身份。
+     */
     private CallbackPayload parsePayload(TransactionChannelCallbackCommandDTO commandDTO,
                                          ChannelCallbackResult channelCallbackResult) {
+        Map<String, String> extension = channelCallbackResult == null
+                || channelCallbackResult.getExtension() == null
+                ? Map.of()
+                : channelCallbackResult.getExtension();
         return new CallbackPayload(
-                firstText(commandDTO.getTransactionId(), channelCallbackResult == null ? null : channelCallbackResult.getChannelOrderNo()),
+                firstText(
+                        commandDTO.getTransactionId(),
+                        extension.get("merchantOrderNo"),
+                        channelCallbackResult == null ? null : channelCallbackResult.getChannelOrderNo()),
                 firstText(commandDTO.getChannelOrderNo(), channelCallbackResult == null ? null : channelCallbackResult.getChannelOrderNo()),
                 firstText(commandDTO.getChannelTransactionId(), channelCallbackResult == null ? null : channelCallbackResult.getChannelTransactionId()));
+    }
+
+    /**
+     * 将卡授权回调中的真实渠道身份、授权码和 ARN 合并到终态 CAS 输入。
+     */
+    private void applyCallbackReferences(TransactionOperationDO operationDO,
+                                         ChannelCallbackResult channelCallbackResult) {
+        if (operationDO == null || channelCallbackResult == null) {
+            return;
+        }
+        Map<String, String> extension = channelCallbackResult.getExtension() == null
+                ? Map.of()
+                : channelCallbackResult.getExtension();
+        operationDO.setChannelOrderNo(firstText(
+                extension.get("authorizationId"),
+                channelCallbackResult.getChannelOrderNo(),
+                operationDO.getChannelOrderNo()));
+        operationDO.setChannelTransactionId(firstText(
+                channelCallbackResult.getChannelTransactionId(),
+                operationDO.getChannelTransactionId()));
+        operationDO.setAuthCode(firstText(extension.get("authorizationCode"), operationDO.getAuthCode()));
+        operationDO.setAcquirerReferenceNo(firstText(
+                extension.get("acquirerReferenceNumber"),
+                operationDO.getAcquirerReferenceNo()));
     }
 
     /**
@@ -879,31 +902,33 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 调用渠道回调处理器解析原文。
-     * <p>
-     * 渠道处理器异常时仍保留原始回调日志，后续可人工排查；生产验签和 IP 白名单结果来自 OpenAPI 回调入口，
-     * 这里不补做外部安全判断。
-     *
-     * @param commandDTO 回调内部命令
-     * @return 渠道解析结果，解析失败时为空
+     * 将 service-openapi 已认证并标准化的不可变事件重建为支付核心既有渠道结果模型。
      */
-    private ChannelCallbackResult parseByChannelHandler(TransactionChannelCallbackCommandDTO commandDTO) {
-        if (callbackExecutor.isEmpty()) {
-            return null;
-        }
-        try {
-            ChannelCallbackRequest request = new ChannelCallbackRequest();
-            request.setChannelCode(commandDTO.getChannelCode());
-            request.setRequestUri(commandDTO.getRequestUri());
-            request.setClientIp(commandDTO.getSourceIp());
-            if (commandDTO.getRequestHeaders() != null) {
-                request.setHeaders(commandDTO.getRequestHeaders());
+    private ChannelCallbackResult verifiedChannelResult(TransactionChannelCallbackCommandDTO commandDTO) {
+        ChannelCallbackResult result = new ChannelCallbackResult();
+        result.setChannelCode(normalizeChannelCode(commandDTO.getChannelCode()));
+        result.setCallbackEventId(commandDTO.getCallbackEventId());
+        if (StringUtils.hasText(commandDTO.getCallbackKind())) {
+            try {
+                result.setCallbackKind(ChannelCallbackKind.valueOf(
+                        commandDTO.getCallbackKind().trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException exception) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID);
             }
-            request.setBody(commandDTO.getRequestBody());
-            return callbackExecutor.get().execute(request);
-        } catch (ChannelException exception) {
-            return null;
         }
+        result.setChannelOrderNo(commandDTO.getChannelOrderNo());
+        result.setChannelTransactionId(commandDTO.getChannelTransactionId());
+        result.setRawChannelStatus(commandDTO.getRawChannelStatus());
+        result.setChannelTradeStatus(commandDTO.getChannelTradeStatus());
+        result.setAmount(commandDTO.getAmount());
+        result.setCurrency(commandDTO.getCurrency());
+        result.setSignatureValid(Boolean.TRUE.equals(commandDTO.getSignatureValid()));
+        result.setChannelResponseCode(commandDTO.getChannelResponseCode());
+        result.setChannelResponseMessage(commandDTO.getChannelResponseMessage());
+        if (commandDTO.getExtension() != null) {
+            result.setExtension(new java.util.LinkedHashMap<>(commandDTO.getExtension()));
+        }
+        return result;
     }
 
     /**
@@ -974,7 +999,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return resolveCallbackType(commandDTO);
     }
 
-    /** Provider 明确识别为资金事件时清除入口遗留的 3DS event type。 */
+    /**
+     * Provider 明确识别为资金事件时清除入口遗留的 3DS event type。
+     */
     private String resolveChannelEventType(TransactionChannelCallbackCommandDTO commandDTO,
                                            ChannelCallbackResult channelCallbackResult) {
         if (channelCallbackResult != null
@@ -988,14 +1015,23 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return commandDTO.getChannelEventType();
     }
 
+    /**
+     * 解析回调类型。
+     */
     private String resolveCallbackType(TransactionChannelCallbackCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getCallbackType()) ? commandDTO.getCallbackType() : DEFAULT_CALLBACK_TYPE;
     }
 
+    /**
+     * 规范化渠道编码。
+     */
     private String normalizeChannelCode(String channelCode) {
         return channelCode == null ? null : channelCode.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 生成只含脱敏字段的审计 JSON。
+     */
     private String maskedJson(Object value) {
         if (value == null) {
             return null;
@@ -1003,18 +1039,27 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(value));
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionChannelCallbackLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionChannelCallbackDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime) {
         return transactionDateTime.atZone(ZoneId.of(DEFAULT_TIME_ZONE)).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
@@ -1030,32 +1075,39 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return logicalTable;
     }
 
+    /**
+     * 解析交易日期时间。
+     */
     private LocalDateTime parseTransactionDateTime(String transactionId) {
         return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
     }
 
+    /**
+     * 解析动作日期时间。
+     */
     private LocalDateTime parseOperationDateTime(String operationId) {
         return transactionShardingKeyParser.parseOperationDateTime(operationId);
     }
 
+    /**
+     * 计算从单调时钟起点开始的耗时毫秒数。
+     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /** 将不可信渠道回调正文转换为 UTF-8 字节长度和不可逆 SHA-256 日志元数据。 */
-    private CallbackBodyLogMetadata callbackBodyLogMetadata(String requestBody) {
-        byte[] bodyBytes = requestBody == null
-                ? new byte[0]
-                : requestBody.getBytes(StandardCharsets.UTF_8);
-        try {
-            String sha256 = HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(bodyBytes));
-            return new CallbackBodyLogMetadata(bodyBytes.length, sha256);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
-        }
+    /**
+     * 读取入口按原始字节计算的长度与摘要；支付核心不再持有可逆回调正文。
+     */
+    private CallbackBodyLogMetadata callbackBodyLogMetadata(TransactionChannelCallbackCommandDTO commandDTO) {
+        return new CallbackBodyLogMetadata(
+                commandDTO.getRequestBodyLength() == null ? 0 : commandDTO.getRequestBodyLength(),
+                commandDTO.getRequestBodySha256());
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -1068,19 +1120,37 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return null;
     }
 
-    /** 渠道回调正文的安全日志元数据，不保留任何可逆原文。 */
+    /**
+     * 渠道回调正文的安全日志元数据，不保留任何可逆原文。
+     */
     private record CallbackBodyLogMetadata(int length, String sha256) {
     }
 
+    /**
+     * 校验渠道回调命令及可信安全校验结果。
+     */
     private void validate(TransactionChannelCallbackCommandDTO commandDTO) {
-        if (commandDTO == null || !StringUtils.hasText(commandDTO.getChannelCode())) {
+        if (commandDTO == null
+                || !StringUtils.hasText(commandDTO.getChannelCode())
+                || !StringUtils.hasText(commandDTO.getCallbackEventId())
+                || !Boolean.TRUE.equals(commandDTO.getSignatureValid())
+                || !Boolean.TRUE.equals(commandDTO.getIpAllowed())
+                || commandDTO.getRequestBodyLength() == null
+                || commandDTO.getRequestBodyLength() < 0
+                || !StringUtils.hasText(commandDTO.getRequestBodySha256())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 封装渠道回调的受控解析载荷。
+     */
     private record CallbackPayload(String transactionId, String channelOrderNo, String channelTransactionId) {
     }
 
+    /**
+     * 封装渠道回调处理上下文。
+     */
     private record CallbackContext(String transactionId,
                                    String operationId,
                                    String channelOrderNo,
@@ -1091,6 +1161,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                    TransactionOrderDO orderDO) {
     }
 
+    /**
+     * 封装渠道回调状态解析结果。
+     */
     private record ParsedCallbackStatus(String targetStatus,
                                         String failReasonCode,
                                         String failReasonMessage,
@@ -1099,6 +1172,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                         String channelResponseMessage) {
     }
 
+    /**
+     * 封装渠道回调处理结果。
+     */
     private record CallbackProcessOutcome(String callbackStatus,
                                           String processResult,
                                           String failReason) {

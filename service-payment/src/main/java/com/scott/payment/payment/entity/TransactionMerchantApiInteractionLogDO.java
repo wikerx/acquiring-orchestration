@@ -9,13 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMerchantApiInteractionLogDO
- * @date : 2026-07-15 23:20
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 交互日志实体，位于 service-payment 持久化层，保存商户请求与平台响应的脱敏明文、密文摘要和处理结果，禁止保存完整卡号、CVV、JWT 或密钥。
- * @status : create
+ * 商户 OpenAPI 交互日志实体，位于 service-payment 持久化层，保存商户请求与平台响应的脱敏明文、密文摘要和处理结果，禁止保存完整卡号、CVV、JWT 或密钥。
  */
 @Data
 @TableName("transaction_merchant_api_interaction_log")

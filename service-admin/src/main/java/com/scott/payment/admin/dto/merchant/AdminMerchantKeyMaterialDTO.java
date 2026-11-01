@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantKeyMaterialDTO
- * @date : 2026-06-13 17:17
- * @email : scott_x@163.com
- * @description : Admin 商户密钥材料 DTO，仅在受控创建、轮换或下载流程中短暂承载公钥、密文和指纹信息。
- * @status : create
+ * Admin 商户密钥材料 DTO，仅在受控创建、轮换或下载流程中短暂承载公钥、密文和指纹信息。
  */
 @Data
 public class AdminMerchantKeyMaterialDTO {

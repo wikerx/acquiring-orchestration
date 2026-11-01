@@ -18,13 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisCacheMissMarkerStoreTests
- * @date : 2026-07-30 21:40
- * @email : scott_x@163.com
- * @description : Redis 空结果标记三态、精简 Key 与短 TTL 抖动策略单元测试
- * @status : create
+ * Redis 空结果标记三态、精简 Key 与短 TTL 抖动策略单元测试
  */
 @Slf4j
 class RedisCacheMissMarkerStoreTests {

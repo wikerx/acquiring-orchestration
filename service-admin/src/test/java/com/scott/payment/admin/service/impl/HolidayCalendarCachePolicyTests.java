@@ -10,17 +10,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HolidayCalendarCachePolicyTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证节假日月视图缓存键和失效门禁的安全读取契约。
- * @status : create
+ * 验证节假日月视图缓存键和失效门禁的安全读取契约。
  */
 class HolidayCalendarCachePolicyTests {
 
-    /** 单位数月份必须补零，避免同一月份生成多个缓存键。 */
+    /**
+     * 单位数月份必须补零，避免同一月份生成多个缓存键。
+     */
     @Test
     void shouldNormalizeMonthKeyAndAllowReadWhenNoInvalidationIsPending() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
@@ -33,7 +29,9 @@ class HolidayCalendarCachePolicyTests {
         verify(guard).isPending(PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH, "2026-08");
     }
 
-    /** Redis 门禁状态无法确定时必须绕过永久缓存。 */
+    /**
+     * Redis 门禁状态无法确定时必须绕过永久缓存。
+     */
     @Test
     void shouldBypassCacheWhenGuardLookupFails() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);

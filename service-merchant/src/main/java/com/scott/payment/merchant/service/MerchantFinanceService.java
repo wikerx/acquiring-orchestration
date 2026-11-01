@@ -7,13 +7,7 @@ import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundAccountResponse;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundLedgerResponse;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFinanceService
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户端当前费率和资金账户只读服务契约，所有查询必须显式限定当前商户号。
- * @status : create
+ * 商户端当前费率和资金账户只读服务契约，所有查询必须显式限定当前商户号。
  */
 public interface MerchantFinanceService {
     /**

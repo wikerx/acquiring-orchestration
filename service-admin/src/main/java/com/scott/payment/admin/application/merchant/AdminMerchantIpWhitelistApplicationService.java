@@ -1,6 +1,5 @@
 package com.scott.payment.admin.application.merchant;
 
-import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistItem;
@@ -25,24 +24,11 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistApplicationService
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : admin商户ipwhitelist应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端商户 IP 白名单应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminMerchantIpWhitelistApplicationService {
 
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminMerchantIpWhitelistApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final AdminMerchantIpWhitelistService whitelistService;
@@ -172,28 +158,22 @@ public class AdminMerchantIpWhitelistApplicationService {
     }
 
     /**
-     * 更新商户维度白名单校验开关。
-     *
-     * @param request 开关请求
-     * @return 当前配置视图
+     * 转换为导出行数据。
      */
-    public MerchantIpWhitelistResponse updateConfig(MerchantIpWhitelistConfigRequest request) {
-        return whitelistService.updateConfig(request);
-    }
-
     private MerchantIpWhitelistExportRow toExportRow(MerchantIpWhitelistResponse source, Locale locale) {
         MerchantIpWhitelistExportRow row = new MerchantIpWhitelistExportRow();
         row.setMerchantId(source.getMerchantId());
         row.setMerchantName(blankToPlaceholder(source.getMerchantName()));
         row.setMerchantShortName(blankToPlaceholder(source.getMerchantShortName()));
-        row.setAccessControl(resolveStatusText(source.getIpWhitelistEnabled(), locale));
         row.setIpWhitelists(formatIpWhitelists(source.getIpWhitelists(), locale));
         row.setUpdateBy(blankToPlaceholder(source.getUpdateBy()));
         row.setUpdateTime(source.getGmtModified());
-        row.setConfigRemark(blankToPlaceholder(source.getConfigRemark()));
         return row;
     }
 
+    /**
+     * 格式化 IPWhitelists。
+     */
     private String formatIpWhitelists(List<MerchantIpWhitelistItem> items, Locale locale) {
         if (items == null || items.isEmpty()) {
             return excelI18nMessageResolver.resolve("excel.common.noData", locale);
@@ -203,6 +183,9 @@ public class AdminMerchantIpWhitelistApplicationService {
                 .collect(Collectors.joining("; "));
     }
 
+    /**
+     * 构建查询摘要。
+     */
     private String buildQuerySummary(MerchantIpWhitelistQuery query, Locale locale) {
         MerchantIpWhitelistQuery condition = query == null ? new MerchantIpWhitelistQuery() : query;
         StringBuilder builder = new StringBuilder();
@@ -210,10 +193,12 @@ public class AdminMerchantIpWhitelistApplicationService {
         addCondition(builder, "excel.merchantIpWhitelist.ipType", condition.getIpType(), locale);
         addCondition(builder, "excel.merchantIpWhitelist.ipValue", condition.getIpValue(), locale);
         addCondition(builder, "excel.merchantIpWhitelist.status", resolveNullableStatusText(condition.getStatus(), locale), locale);
-        addCondition(builder, "excel.merchantIpWhitelist.accessControl", resolveNullableStatusText(condition.getIpWhitelistEnabled(), locale), locale);
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
+    /**
+     * 将非空查询条件追加到导出审计摘要。
+     */
     private void addCondition(StringBuilder builder, String labelKey, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return;
@@ -224,14 +209,23 @@ public class AdminMerchantIpWhitelistApplicationService {
         builder.append(excelI18nMessageResolver.resolve(labelKey, locale)).append("=").append(value.trim());
     }
 
+    /**
+     * 将可空白名单状态解析为展示文本。
+     */
     private String resolveNullableStatusText(Integer status, Locale locale) {
         return status == null ? null : resolveStatusText(status, locale);
     }
 
+    /**
+     * 将白名单状态解析为展示文本。
+     */
     private String resolveStatusText(Integer status, Locale locale) {
         return excelI18nMessageResolver.resolve(status != null && status == 1 ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
+    /**
+     * 将空白展示值转换为统一占位文本。
+     */
     private String blankToPlaceholder(String value) {
         return StringUtils.hasText(value) ? value : "-";
     }

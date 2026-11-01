@@ -25,13 +25,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateDevDryRunAcceptanceTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 使用 dev 真实配置和数据库验收季度预建 Dry Run；默认禁用且不执行 DDL 或发布 Nacos。
- * @status : create
+ * 使用 dev 真实配置和数据库验收季度预建 Dry Run；默认禁用且不执行 DDL 或发布 Nacos。
  */
 @ActiveProfiles("dev")
 @EnabledIfSystemProperty(named = "shardingsphere.dev-dry-run.enabled", matches = "true")
@@ -47,26 +41,46 @@ import static org.assertj.core.api.Assertions.assertThat;
         })
 class ShardingTablePreCreateDevDryRunAcceptanceTest {
 
-    /** 隔离本验收入口治理日志的非敏感操作人标识。 */
+    /**
+     * 隔离本验收入口治理日志的非敏感操作人标识。
+     */
     private static final String OPERATOR_ID = "codex-shardingsphere-dev-dry-run";
-    /** 治理日志中用于识别本验收入口的非敏感操作人名称。 */
+    /**
+     * 治理日志中用于识别本验收入口的非敏感操作人名称。
+     */
     private static final String OPERATOR_NAME = "Codex Dev Dry Run Acceptance";
-    /** 必须完整参与季度治理的正式交易逻辑表数量。 */
+    /**
+     * 必须完整参与季度治理的正式交易逻辑表数量。
+     */
     private static final int FORMAL_TABLE_COUNT = TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT;
-    /** 本次 Dry Run 固定覆盖当前季度和下一季度。 */
+    /**
+     * 本次 Dry Run 固定覆盖当前季度和下一季度。
+     */
     private static final int TARGET_QUARTER_COUNT = 2;
 
-    /** 复用生产请求映射、审计上下文和治理服务的应用入口。 */
+    /**
+     * 复用生产请求映射、审计上下文和治理服务的应用入口。
+     */
     private final ShardingTablePreCreateApplicationService applicationService;
-    /** 按治理时区解析当前和下一季度。 */
+    /**
+     * 按治理时区解析当前和下一季度。
+     */
     private final ShardingQuarterResolver quarterResolver;
-    /** 从 dev Nacos 绑定的 25 表物理治理规则。 */
+    /**
+     * 从 dev Nacos 绑定的 25 表物理治理规则。
+     */
     private final TransactionShardingGovernanceProperties governanceProperties;
-    /** 从 dev Nacos 绑定的已发布 ShardingSphere 逻辑节点。 */
+    /**
+     * 从 dev Nacos 绑定的已发布 ShardingSphere 逻辑节点。
+     */
     private final TransactionShardingProperties transactionShardingProperties;
-    /** 只核验本轮目标物理表治理记录，不执行 DDL。 */
+    /**
+     * 只核验本轮目标物理表治理记录，不执行 DDL。
+     */
     private final SysShardingPhysicalTableMapper physicalTableMapper;
-    /** 核验本验收入口每次执行只新增一条 Dry Run 审计日志。 */
+    /**
+     * 核验本验收入口每次执行只新增一条 Dry Run 审计日志。
+     */
     private final SysShardingTableCreateLogMapper createLogMapper;
 
     /**
@@ -177,7 +191,9 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
                 .eq(SysShardingTableCreateLogDO::getOperatorId, OPERATOR_ID));
     }
 
-    /** 输出不含 JDBC、Nacos 地址或凭证的验收摘要，供 CI 和人工验收留证。 */
+    /**
+     * 输出不含 JDBC、Nacos 地址或凭证的验收摘要，供 CI 和人工验收留证。
+     */
     private void printNonSensitiveSummary(ShardingTablePreCreateResult result) {
         log.info(
                 "SHARDING_DEV_DRY_RUN_RESULT targetQuarters={}, planned={}, created={}, skipped={}, failed={}, "

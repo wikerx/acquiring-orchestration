@@ -14,13 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultChannelTransactionStatusResolver
- * @date : 2026-07-19 22:00
- * @email : scott_x@163.com
- * @description : 默认渠道状态解析器，位于 service-payment 服务实现层，只根据渠道统一动作状态和平台交易类型决定平台状态。
- * @status : create
+ * 将渠道适配层的统一交易状态映射为平台交易状态。
+ *
+ * <p>本类只解释标准化后的渠道状态，不根据渠道原始文案推断交易结果。缺失或未知状态必须保留为
+ * 待确认结果，避免网络超时、回调乱序或新渠道状态被错误写成失败终态。</p>
  */
 @Service
 public class DefaultChannelTransactionStatusResolver implements ChannelTransactionStatusResolver {
@@ -37,6 +34,7 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     public ChannelTransactionStatusResolution resolveSync(String channelCode,
                                                           String transactionType,
                                                           ChannelPaymentResponse response) {
+        // 无同步响应只能证明本次调用未取得确定结果，不能据此判定渠道拒绝。
         if (response == null) {
             return processing();
         }
@@ -59,6 +57,7 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     public ChannelTransactionStatusResolution resolveCallback(String channelCode,
                                                               String transactionType,
                                                               ChannelCallbackResult callbackResult) {
+        // 回调缺少标准状态时保留渠道证据并等待查询勾兑，不使用原始文案猜测终态。
         if (callbackResult == null || !StringUtils.hasText(callbackResult.getChannelTradeStatus())) {
             return unresolved(callbackResult);
         }
@@ -86,6 +85,7 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
                                                               String rawChannelStatus,
                                                               String channelResponseCode,
                                                               String channelResponseMessage) {
+        // AUTHORIZED 只完成授权类动作；支付、请款等动作仍需等待与其语义匹配的渠道终态。
         if (ChannelTradeStatus.AUTHORIZED.getCode().equals(channelTradeStatus)) {
             return isAuthorizationTransaction(transactionType)
                     ? success(rawChannelStatus, channelResponseCode, channelResponseMessage)
@@ -94,11 +94,19 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         if (ChannelTradeStatus.CAPTURED.getCode().equals(channelTradeStatus)) {
             return success(rawChannelStatus, channelResponseCode, channelResponseMessage);
         }
+        // REFUNDED 仅能完成退款动作；其他动作收到该状态时交由查询勾兑确认生命周期关系。
         if (ChannelTradeStatus.REFUNDED.getCode().equals(channelTradeStatus)) {
             return PaymentTransactionTypeEnum.REFUND.getCode().equals(transactionType)
                     ? success(rawChannelStatus, channelResponseCode, channelResponseMessage)
                     : processing(rawChannelStatus, channelResponseCode, channelResponseMessage);
         }
+        // 撤销完成只能终结 VOID 动作，禁止把原支付或其他后续动作误推进成功。
+        if (ChannelTradeStatus.VOIDED.getCode().equals(channelTradeStatus)) {
+            return PaymentTransactionTypeEnum.VOID.getCode().equals(transactionType)
+                    ? success(rawChannelStatus, channelResponseCode, channelResponseMessage)
+                    : processing(rawChannelStatus, channelResponseCode, channelResponseMessage);
+        }
+        // SUCCESS/FAILED 是渠道适配层已经确认的通用终态，不再依赖原始 message 判断。
         if (ChannelTradeStatus.SUCCESS.getCode().equals(channelTradeStatus)) {
             return success(rawChannelStatus, channelResponseCode, channelResponseMessage);
         }
@@ -111,16 +119,22 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         if (ChannelTradeStatus.PENDING.getCode().equals(channelTradeStatus)) {
             return waitingCallback(rawChannelStatus, channelResponseCode, channelResponseMessage);
         }
+        // 对新增、空白或暂未识别的状态保持处理中，禁止把不确定结果降级成失败。
         return processing(rawChannelStatus, channelResponseCode, channelResponseMessage);
     }
 
-    /** 统一授权完成状态只对授权类平台动作构成成功终态。 */
+    /**
+     * 统一授权完成状态只对授权类平台动作构成成功终态。
+     */
     private boolean isAuthorizationTransaction(String transactionType) {
         return PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(transactionType)
                 || PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode().equals(transactionType)
                 || PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(transactionType);
     }
 
+    /**
+     * 构造已确认成功终态，保留渠道码用于内部审计。
+     */
     private ChannelTransactionStatusResolution success(String channelStatus,
                                                        String channelResponseCode,
                                                        String channelResponseMessage) {
@@ -130,17 +144,23 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 构造已确认渠道失败终态；渠道原始文案不会直接成为商户公开文案。
+     */
     private ChannelTransactionStatusResolution failed(String channelStatus,
                                                       String channelResponseCode,
                                                       String channelResponseMessage) {
         ChannelTransactionStatusResolution resolution = base(channelStatus, channelResponseCode, channelResponseMessage);
         resolution.setTargetStatus(PaymentTransactionStatusEnum.FAILED.getCode());
         resolution.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
-        resolution.setFailReasonCode(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
+        resolution.setFailReasonCode(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
         resolution.setFailReasonMessage(firstText(channelResponseMessage, "channel declined transaction"));
         return resolution;
     }
 
+    /**
+     * 将持卡人交互要求映射为等待 3DS 阶段，不提前结束交易。
+     */
     private ChannelTransactionStatusResolution needRedirect(String channelStatus,
                                                             String channelResponseCode,
                                                             String channelResponseMessage) {
@@ -151,6 +171,9 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 将渠道处理中状态映射为等待回调，后续由回调或主动查询继续推进。
+     */
     private ChannelTransactionStatusResolution waitingCallback(String channelStatus,
                                                                String channelResponseCode,
                                                                String channelResponseMessage) {
@@ -161,10 +184,16 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 构造没有任何渠道证据时的平台待确认结果。
+     */
     private ChannelTransactionStatusResolution processing() {
         return processing(null, null, null);
     }
 
+    /**
+     * 构造携带渠道证据的平台待确认结果。
+     */
     private ChannelTransactionStatusResolution processing(String channelStatus,
                                                           String channelResponseCode,
                                                           String channelResponseMessage) {
@@ -174,6 +203,9 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 保留未解析回调中的非敏感渠道证据，等待查询勾兑。
+     */
     private ChannelTransactionStatusResolution unresolved(ChannelCallbackResult callbackResult) {
         if (callbackResult == null) {
             return new ChannelTransactionStatusResolution();
@@ -183,12 +215,18 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
                 callbackResult.getChannelResponseMessage());
     }
 
+    /**
+     * 构造状态无法解析的待确认结果，不伪造平台终态。
+     */
     private ChannelTransactionStatusResolution unresolved(String channelStatus,
                                                           String channelResponseCode,
                                                           String channelResponseMessage) {
         return base(channelStatus, channelResponseCode, channelResponseMessage);
     }
 
+    /**
+     * 初始化内部解析结果；这里只保存证据，不决定公开文案。
+     */
     private ChannelTransactionStatusResolution base(String channelStatus,
                                                     String channelResponseCode,
                                                     String channelResponseMessage) {
@@ -200,7 +238,7 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
     /**
-     * 返回首个非空渠道摘要文本。
+     * 返回首个非空内部诊断文本；该值不得绕过受众投影直接返回商户或持卡人。
      *
      * @param values 候选渠道状态、响应码或响应描述
      * @return 首个非空文本；全部为空时返回 null

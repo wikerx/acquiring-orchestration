@@ -5,13 +5,7 @@ import com.scott.payment.job.entity.exchange.ExchangeJobEntities.ExchangeRateSou
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeJobRateSourceMapper
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : Exchange Job Rate Source Mapper 映射组件，位于 调度任务服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
- * @status : create
+ * Exchange Job Rate Source Mapper 映射组件，位于 调度任务服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  */
 public interface ExchangeJobRateSourceMapper extends BaseMapper<ExchangeRateSourceDO> {
 }

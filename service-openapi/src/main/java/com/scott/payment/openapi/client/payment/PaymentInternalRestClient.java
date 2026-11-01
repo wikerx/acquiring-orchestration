@@ -1,18 +1,19 @@
 package com.scott.payment.openapi.client.payment;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.trace.TraceContext;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
+import com.scott.payment.openapi.client.InternalServiceCallExceptionMapper;
+import com.scott.payment.openapi.client.InternalServiceResponseParser;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.PaymentClientProperties;
@@ -32,19 +33,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalRestClient
- * @date : 2026-07-14 12:30
- * @email : scott_x@163.com
- * @description : service-payment REST 客户端，位于 service-openapi 客户端层，为收单交易动作封装内部 HMAC 签名、负载均衡选择和统一响应解包。
- * @status : create
+ * service-payment REST 客户端，位于 service-openapi 客户端层，为收单交易动作封装内部 HMAC 签名、负载均衡选择和统一响应解包。
  */
 @Service
 @Slf4j
@@ -123,7 +116,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /**
      * service-payment 渠道回调内部入口，公网回调必须先经过 OpenAPI 安全校验。
      */
-    private static final String CHANNEL_CALLBACK_PATH = "/internal/payment/channel-callback";
+    private static final String CHANNEL_CALLBACK_INBOX_PATH = "/internal/payment/channel-callback/inbox";
 
     /**
      * service-payment 商户响应日志内部入口，只记录脱敏响应摘要。
@@ -155,7 +148,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String CHECKOUT_THREE_DS_RETURN_PATH = "/internal/payment/checkout/3ds/return";
 
-    /** Hosted Checkout 卡 BIN 解析内部路径。 */
+    /**
+     * Hosted Checkout 卡 BIN 解析内部路径。
+     */
     private static final String CHECKOUT_CARD_BIN_RESOLVE_PATH = "/internal/payment/checkout/card-bin/resolve";
 
     /**
@@ -288,7 +283,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         String targetUrl = targetUrl(OpenApiPaymentOperationEnum.QUERY);
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestSummary: {}",
+        log.info("OpenAPI调用支付核心开始, event: OPENAPI_PAYMENT_CALL_START, stage: PAYMENT_CALL, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, targetService: {}, path: {}, requestSummary: {}",
                 TraceContext.getTraceId(),
                 OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
@@ -304,13 +299,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     String.class
             );
             String responseBody = responseEntity.getBody();
-            CommonResult<PaymentQueryClientResponseDTO> result = JsonUtils.parseObject(
+            CommonResult<PaymentQueryClientResponseDTO> result = InternalServiceResponseParser.parse(
                     responseBody,
                     new TypeReference<CommonResult<PaymentQueryClientResponseDTO>>() {
-                    }
+                    },
+                    "service-payment query response is invalid",
+                    false
             );
             PaymentQueryClientResponseDTO responseDTO = result == null ? null : result.getData();
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} transactionId: {} operationId: {} platformStatus: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            log.info("OpenAPI调用支付核心完成, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, transactionId: {}, operationId: {}, platformStatus: {}, httpStatus: {}, platformCode: {}, success: {}, responseSummary: {}, responseLength: {}, responseDigest: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
@@ -329,7 +326,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             responseDTO = unwrapQueryResult(result);
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+            log.warn("OpenAPI调用支付核心失败, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, targetService: {}, path: {}, requestDigest: {}, durationMs: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
@@ -340,23 +337,25 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment query call failed");
+            throw InternalServiceCallExceptionMapper.map(
+                    exception, "service-payment query call failed", false);
         }
     }
 
     /**
-     * 调用 service-payment 记录渠道回调。
+     * 调用 service-payment 可靠受理渠道回调 Inbox。
      *
      * @param requestDTO 渠道回调内部请求
-     * @return 渠道回调记录响应
+     * @return Inbox 持久化受理响应
      */
     @Override
-    public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
+    public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
+            TransactionChannelCallbackClientRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
-        String targetUrl = servicePaymentUrl(CHANNEL_CALLBACK_PATH);
+        String targetUrl = servicePaymentUrl(CHANNEL_CALLBACK_INBOX_PATH);
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestSummary: {}",
+        log.info("OpenAPI渠道回调入箱调用开始, event: OPENAPI_PAYMENT_CALL_START, stage: PAYMENT_CALL, traceId: {}, operation: CHANNEL_CALLBACK_INBOX, channelCode: {}, transactionId: {}, targetService: {}, path: {}, requestSummary: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getChannelCode(),
                 requestDTO == null ? null : requestDTO.getTransactionId(),
@@ -370,18 +369,21 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     String.class
             );
             String responseBody = responseEntity.getBody();
-            CommonResult<TransactionChannelCallbackClientResponseDTO> result = JsonUtils.parseObject(
+            CommonResult<TransactionCallbackInboxAcceptClientResponseDTO> result = InternalServiceResponseParser.parse(
                     responseBody,
-                    new TypeReference<CommonResult<TransactionChannelCallbackClientResponseDTO>>() {
-                    }
+                    new TypeReference<CommonResult<TransactionCallbackInboxAcceptClientResponseDTO>>() {
+                    },
+                    "service-payment callback response is invalid",
+                    true
             );
-            TransactionChannelCallbackClientResponseDTO responseDTO = result == null ? null : result.getData();
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} callbackId: {} callbackStatus: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            TransactionCallbackInboxAcceptClientResponseDTO responseDTO = result == null ? null : result.getData();
+            log.info("OpenAPI渠道回调入箱调用完成, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: CHANNEL_CALLBACK_INBOX, channelCode: {}, transactionId: {}, inboxId: {}, inboxStatus: {}, acceptResult: {}, httpStatus: {}, platformCode: {}, success: {}, responseSummary: {}, responseLength: {}, responseDigest: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getChannelCode(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
-                    responseDTO == null ? null : responseDTO.getCallbackId(),
-                    responseDTO == null ? null : responseDTO.getCallbackStatus(),
+                    responseDTO == null ? null : responseDTO.getInboxId(),
+                    responseDTO == null ? null : responseDTO.getInboxStatus(),
+                    responseDTO == null ? null : responseDTO.getAcceptResult(),
                     responseEntity.getStatusCode().value(),
                     result == null ? null : result.getCode(),
                     CommonResult.isSuccess(result),
@@ -389,10 +391,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     responseBody == null ? 0 : responseBody.length(),
                     digest16(responseBody),
                     elapsedMillis(startNanos));
-            responseDTO = unwrapCallbackResult(result);
+            responseDTO = unwrapCallbackInboxResult(result);
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+            log.warn("OpenAPI渠道回调入箱调用失败, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: CHANNEL_CALLBACK_INBOX, channelCode: {}, transactionId: {}, targetService: {}, path: {}, requestDigest: {}, durationMs: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getChannelCode(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
@@ -401,7 +403,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback call failed");
+            throw InternalServiceCallExceptionMapper.map(
+                    exception, "service-payment callback call failed", true);
         }
     }
 
@@ -416,7 +419,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         long startNanos = System.nanoTime();
         String targetUrl = servicePaymentUrl(MERCHANT_API_RESPONSE_LOG_PATH);
         URI uri = URI.create(targetUrl);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} targetService: {} path: {} requestSummary: {}",
+        log.info("OpenAPI商户响应审计回写开始, event: OPENAPI_PAYMENT_CALL_START, stage: PAYMENT_CALL, traceId: {}, operation: MERCHANT_API_RESPONSE_LOG, transactionId: {}, requestId: {}, targetService: {}, path: {}, requestSummary: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getTransactionId(),
                 requestDTO == null ? null : requestDTO.getRequestId(),
@@ -430,13 +433,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     String.class
             );
             String responseBody = responseEntity.getBody();
-            CommonResult<Boolean> result = JsonUtils.parseObject(
+            CommonResult<Boolean> result = InternalServiceResponseParser.parse(
                     responseBody,
                     new TypeReference<CommonResult<Boolean>>() {
-                    }
+                    },
+                    "service-payment merchant api log response is invalid",
+                    false
             );
             boolean updated = unwrapBooleanResult(result);
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} httpStatus: {} platformCode: {} updated: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            log.info("OpenAPI商户响应审计回写完成, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: MERCHANT_API_RESPONSE_LOG, transactionId: {}, requestId: {}, httpStatus: {}, platformCode: {}, updated: {}, responseSummary: {}, responseLength: {}, responseDigest: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
                     requestDTO == null ? null : requestDTO.getRequestId(),
@@ -449,7 +454,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     elapsedMillis(startNanos));
             return updated;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+            log.warn("OpenAPI商户响应审计回写失败, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: MERCHANT_API_RESPONSE_LOG, transactionId: {}, requestId: {}, targetService: {}, path: {}, requestDigest: {}, durationMs: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
                     requestDTO == null ? null : requestDTO.getRequestId(),
@@ -458,7 +463,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment merchant api log update failed");
+            throw InternalServiceCallExceptionMapper.map(
+                    exception, "service-payment merchant api log update failed", false);
         }
     }
 
@@ -475,18 +481,17 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 "CHECKOUT_SESSION_CREATE",
                 servicePaymentUrl(CHECKOUT_SESSION_CREATE_PATH),
                 requestDTO,
+                true,
                 new TypeReference<CommonResult<PaymentCheckoutClientDTOs.SessionCreateResponse>>() {
                 }
         );
     }
 
     /**
-     * 解析{@code resolveCheckoutCardBin}，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param requestDTO request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
+     * 调用支付核心解析卡 BIN，并校验当前收银台会话可用的卡品牌能力。
+     *
+     * @param requestDTO 会话令牌摘要和卡 BIN 前缀
+     * @return 支付核心返回的卡品牌及支持状态
      */
     @Override
     public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
@@ -495,6 +500,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 "CHECKOUT_CARD_BIN_RESOLVE",
                 servicePaymentUrl(CHECKOUT_CARD_BIN_RESOLVE_PATH),
                 requestDTO,
+                false,
                 new TypeReference<CommonResult<PaymentCheckoutClientDTOs.CardBinResponse>>() {
                 }
         );
@@ -513,6 +519,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 "CHECKOUT_SESSION_QUERY",
                 servicePaymentUrl(CHECKOUT_SESSION_QUERY_PATH),
                 requestDTO,
+                false,
                 new TypeReference<CommonResult<PaymentCheckoutClientDTOs.SessionQueryResponse>>() {
                 }
         );
@@ -533,6 +540,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 "CHECKOUT_PAYMENT_SUBMIT",
                 servicePaymentUrl(CHECKOUT_PAYMENT_SUBMIT_PATH),
                 requestDTO,
+                true,
                 new TypeReference<CommonResult<PaymentCheckoutClientDTOs.PaymentResultResponse>>() {
                 }
         );
@@ -551,6 +559,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 "CHECKOUT_PAYMENT_STATUS",
                 servicePaymentUrl(CHECKOUT_PAYMENT_STATUS_PATH),
                 requestDTO,
+                false,
                 new TypeReference<CommonResult<PaymentCheckoutClientDTOs.PaymentResultResponse>>() {
                 }
         );
@@ -569,6 +578,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 "CHECKOUT_THREE_DS_RETURN",
                 servicePaymentUrl(CHECKOUT_THREE_DS_RETURN_PATH),
                 requestDTO,
+                true,
                 new TypeReference<CommonResult<PaymentCheckoutClientDTOs.PaymentResultResponse>>() {
                 }
         );
@@ -587,7 +597,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         String targetUrl = targetUrl(operation);
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestSummary: {}",
+        log.info("OpenAPI调用支付核心开始, event: OPENAPI_PAYMENT_CALL_START, stage: PAYMENT_CALL, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, targetService: {}, path: {}, requestSummary: {}",
                 TraceContext.getTraceId(),
                 operation.getTransactionType(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
@@ -603,13 +613,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     String.class
             );
             String responseBody = responseEntity.getBody();
-            CommonResult<PaymentCreateClientResponseDTO> result = JsonUtils.parseObject(
+            CommonResult<PaymentCreateClientResponseDTO> result = InternalServiceResponseParser.parse(
                     responseBody,
                     new TypeReference<CommonResult<PaymentCreateClientResponseDTO>>() {
-                    }
+                    },
+                    "service-payment transaction response is invalid",
+                    true
             );
             PaymentCreateClientResponseDTO responseDTO = result == null ? null : result.getData();
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            log.info("OpenAPI调用支付核心完成, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, platformStatus: {}, httpStatus: {}, platformCode: {}, success: {}, responseSummary: {}, responseLength: {}, responseDigest: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     operation.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
@@ -630,7 +642,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             responseDTO = unwrapResult(result);
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+            log.warn("OpenAPI调用支付核心失败, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, targetService: {}, path: {}, requestDigest: {}, durationMs: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     operation.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
@@ -641,7 +653,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment call failed");
+            throw InternalServiceCallExceptionMapper.map(
+                    exception, "service-payment transaction call failed", true);
         }
     }
 
@@ -651,16 +664,18 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @param operation  checkout 操作标识
      * @param targetUrl  service-payment 内部接口地址
      * @param requestDTO 内部请求
+     * @param writeOperation 当前调用是否可能改变会话或交易状态
      * @param typeRef    响应泛型
      * @param <T>        响应 data 类型
      * @return 解包后的响应 data
      */
     private <T> T postCheckout(String operation, String targetUrl, Object requestDTO,
+                               boolean writeOperation,
                                TypeReference<CommonResult<T>> typeRef) {
         long startNanos = System.nanoTime();
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation: {} targetService: {} path: {} requestSummary: {}",
+        log.info("OpenAPI收银台内部调用开始, event: OPENAPI_PAYMENT_CALL_START, stage: PAYMENT_CALL, traceId: {}, operation: {}, targetService: {}, path: {}, requestSummary: {}",
                 TraceContext.getTraceId(),
                 operation,
                 uri.getHost(),
@@ -673,8 +688,12 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     String.class
             );
             String responseBody = responseEntity.getBody();
-            CommonResult<T> result = JsonUtils.parseObject(responseBody, typeRef);
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            CommonResult<T> result = InternalServiceResponseParser.parse(
+                    responseBody,
+                    typeRef,
+                    "service-payment checkout response is invalid",
+                    writeOperation);
+            log.info("OpenAPI收银台内部调用完成, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: {}, httpStatus: {}, platformCode: {}, success: {}, responseSummary: {}, responseLength: {}, responseDigest: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     operation,
                     responseEntity.getStatusCode().value(),
@@ -686,15 +705,16 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     elapsedMillis(startNanos));
             return unwrapCheckoutResult(result, operation);
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+            log.warn("OpenAPI收银台内部调用失败, event: OPENAPI_PAYMENT_CALL_END, stage: PAYMENT_CALL, traceId: {}, operation: {}, targetService: {}, path: {}, requestDigest: {}, durationMs: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     operation,
                     uri.getHost(),
                     uri.getPath(),
-                    digest16(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO))),
+                    digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment checkout call failed");
+            throw InternalServiceCallExceptionMapper.map(
+                    exception, "service-payment checkout call failed", writeOperation);
         }
     }
 
@@ -732,7 +752,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         if (OpenApiPaymentOperationEnum.QUERY == operation) {
             return servicePaymentUrl(QUERY_PATH);
         }
-        throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        throw new ApiException(OpenApiResultCode.TRANSACTION_TYPE_NOT_SUPPORTED);
     }
 
     /**
@@ -755,7 +775,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         URI uri = URI.create(targetUrl);
         String host = uri.getHost();
         if (host == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment url host is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment url host is empty");
         }
         if (LOCALHOST.equalsIgnoreCase(host) || IPV6_LOOPBACK.equals(host)
                 || IPV4_HOST_PATTERN.matcher(host).matches() || host.contains(DOMAIN_SEPARATOR)) {
@@ -797,41 +817,73 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /**
      * 生成 OpenAPI 调用 service-payment 的请求摘要。
      * <p>
-     * 摘要来自内部 DTO JSON 的统一脱敏结果，并限制最大长度；不会输出内部签名头、Authorization、
-     * 完整卡号、CVV、完整密文或完整商户请求体。
+     * 支付提交只记录会话、尝试号和卡密文信封算法等受控字段；其它请求只记录对象类型、JSON 长度和
+     * 不可逆摘要，不输出内部签名头、Authorization、完整卡号、CVV、密文或业务报文。
      * </p>
      * @param requestDTO 内部服务请求对象
      * @return 可写入日志的请求摘要
      */
     private String requestSummary(Object requestDTO) {
         if (requestDTO instanceof PaymentCheckoutClientDTOs.PaymentSubmitRequest submitRequest) {
-            Map<String, Object> summary = new LinkedHashMap<>();
-            summary.put("checkoutSessionId", submitRequest.getCheckoutSessionId());
-            summary.put("attemptRequestId", submitRequest.getAttemptRequestId());
-            summary.put("paymentMethod", submitRequest.getPaymentMethod());
-            summary.put("requestFingerprint", submitRequest.getRequestFingerprint());
-            summary.put("cardEnvelopeAlgorithm", submitRequest.getCardDataEnvelope() == null
-                    ? null : submitRequest.getCardDataEnvelope().getAlgorithm());
-            summary.put("cardEnvelopeKeyId", submitRequest.getCardDataEnvelope() == null
-                    ? null : submitRequest.getCardDataEnvelope().getKeyId());
-            summary.put("billingCountry", submitRequest.getBillingCardHolderInfo() == null
-                    ? null : submitRequest.getBillingCardHolderInfo().getCountry());
+            PaymentSubmitDiagnosticSummary summary = new PaymentSubmitDiagnosticSummary(
+                    submitRequest.getCheckoutSessionId(),
+                    submitRequest.getAttemptRequestId(),
+                    submitRequest.getPaymentMethod(),
+                    submitRequest.getRequestFingerprint(),
+                    submitRequest.getCardDataEnvelope() == null
+                            ? null : submitRequest.getCardDataEnvelope().getAlgorithm(),
+                    submitRequest.getCardDataEnvelope() == null
+                            ? null : submitRequest.getCardDataEnvelope().getKeyId(),
+                    submitRequest.getBillingCardHolderInfo() == null
+                            ? null : submitRequest.getBillingCardHolderInfo().getCountry()
+            );
             return truncate(JsonUtils.toJsonString(summary));
         }
-        return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO)));
+        return payloadMetadata(requestDTO);
     }
 
     /**
      * 生成 service-payment 统一响应摘要。
      * <p>
-     * 摘要包含平台业务码、消息和脱敏后的 data 简要结构，用于定位内部服务响应内容。
-     * 完整响应体只记录长度和摘要指纹，不直接写入日志。
+     * 摘要只包含平台业务码、成功标记、data 类型、长度和不可逆摘要。内部消息和业务字段不写入日志。
      * </p>
      * @param result 内部服务统一响应
      * @return 可写入日志的响应摘要
      */
     private String responseSummary(CommonResult<?> result) {
-        return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(result)));
+        if (result == null) {
+            return null;
+        }
+        InternalResponseDiagnosticSummary summary = new InternalResponseDiagnosticSummary(
+                result.getCode(),
+                CommonResult.isSuccess(result),
+                payloadMetadataValue(result.getData())
+        );
+        return JsonUtils.toJsonString(summary);
+    }
+
+    /**
+     * 生成不包含业务字段值的内部调用对象元数据。
+     *
+     * @param value 请求或响应 data 对象
+     * @return 对象类型、JSON 长度和不可逆摘要
+     */
+    private String payloadMetadata(Object value) {
+        return value == null ? null : JsonUtils.toJsonString(payloadMetadataValue(value));
+    }
+
+    /**
+     * 构造强类型对象元数据，供请求和统一响应摘要复用。
+     *
+     * @param value 请求或响应 data 对象
+     * @return 不包含业务字段值的元数据对象
+     */
+    private PayloadDiagnosticMetadata payloadMetadataValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String json = JsonUtils.toJsonString(value);
+        return new PayloadDiagnosticMetadata(value.getClass().getSimpleName(), json.length(), digest16(json));
     }
 
     /**
@@ -929,13 +981,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private PaymentCreateClientResponseDTO unwrapResult(CommonResult<PaymentCreateClientResponseDTO> result) {
         if (result == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment response is empty");
         }
         if (!CommonResult.isSuccess(result)) {
             throw new ApiException(result.getCode(), result.getMessage());
         }
         if (result.getData() == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response data is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment response data is empty");
         }
         return result.getData();
     }
@@ -948,33 +1000,33 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private PaymentQueryClientResponseDTO unwrapQueryResult(CommonResult<PaymentQueryClientResponseDTO> result) {
         if (result == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment query response is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment query response is empty");
         }
         if (!CommonResult.isSuccess(result)) {
             throw new ApiException(result.getCode(), result.getMessage());
         }
         if (result.getData() == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment query response data is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment query response data is empty");
         }
         return result.getData();
     }
 
     /**
-     * 解包渠道回调内部服务统一响应。
+     * 解包渠道回调 Inbox 内部服务统一响应。
      *
      * @param result 内部服务统一响应
-     * @return 渠道回调记录响应
+     * @return Inbox 受理响应
      */
-    private TransactionChannelCallbackClientResponseDTO unwrapCallbackResult(
-            CommonResult<TransactionChannelCallbackClientResponseDTO> result) {
+    private TransactionCallbackInboxAcceptClientResponseDTO unwrapCallbackInboxResult(
+            CommonResult<TransactionCallbackInboxAcceptClientResponseDTO> result) {
         if (result == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback response is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment callback response is empty");
         }
         if (!CommonResult.isSuccess(result)) {
             throw new ApiException(result.getCode(), result.getMessage());
         }
         if (result.getData() == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback response data is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment callback response data is empty");
         }
         return result.getData();
     }
@@ -987,7 +1039,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private boolean unwrapBooleanResult(CommonResult<Boolean> result) {
         if (result == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment response is empty");
         }
         if (!CommonResult.isSuccess(result)) {
             throw new ApiException(result.getCode(), result.getMessage());
@@ -1005,13 +1057,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private <T> T unwrapCheckoutResult(CommonResult<T> result, String operation) {
         if (result == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment checkout response is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payment checkout response is empty");
         }
         if (!CommonResult.isSuccess(result)) {
             throw new ApiException(result.getCode(), result.getMessage());
         }
         if (result.getData() == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, operation + " response data is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, operation + " response data is empty");
         }
         return result.getData();
     }
@@ -1027,5 +1079,49 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
+    }
+
+    /**
+     * 承载收银台支付提交允许进入日志的非敏感字段。
+     *
+     * @param checkoutSessionId 收银台会话号
+     * @param attemptRequestId 本次支付尝试号
+     * @param paymentMethod 支付方式
+     * @param requestFingerprint 幂等请求指纹
+     * @param cardEnvelopeAlgorithm 卡数据加密算法
+     * @param cardEnvelopeKeyId 卡数据加密密钥标识
+     * @param billingCountry 账单国家
+     */
+    private record PaymentSubmitDiagnosticSummary(
+            String checkoutSessionId,
+            String attemptRequestId,
+            String paymentMethod,
+            String requestFingerprint,
+            String cardEnvelopeAlgorithm,
+            String cardEnvelopeKeyId,
+            String billingCountry) {
+    }
+
+    /**
+     * 承载 service-payment 统一响应的安全诊断字段。
+     *
+     * @param platformCode 平台业务码
+     * @param success 内部调用是否成功
+     * @param data 响应 data 的不可逆元数据
+     */
+    private record InternalResponseDiagnosticSummary(
+            String platformCode,
+            boolean success,
+            PayloadDiagnosticMetadata data) {
+    }
+
+    /**
+     * 承载内部请求或响应对象的不可逆元数据，不保存业务字段值。
+     *
+     * @param payloadType 对象类型
+     * @param jsonLength 序列化字符数
+     * @param jsonDigest 序列化内容摘要
+     */
+    private record PayloadDiagnosticMetadata(String payloadType, int jsonLength, String jsonDigest) {
     }
 }

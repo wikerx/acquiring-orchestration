@@ -2,6 +2,7 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.application.monitor.AdminMonitorCacheApplicationService;
 import com.scott.payment.admin.application.monitor.AdminMonitorDatasourceApplicationService;
+import com.scott.payment.admin.dto.monitor.CacheInfoResponse;
 import com.scott.payment.admin.dto.monitor.DataSourceMonitorResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertActionRequest;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertDetailResponse;
@@ -9,6 +10,7 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertHistoryItem
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertItem;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertSearchResponse;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertSourceMetrics;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ApiAggregateItem;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ApiMonitorQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ApiMonitorResponse;
@@ -38,6 +40,11 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookItem;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelRequestResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantApiInteractionLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionFlowEventResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.service.AdminMonitorWorkbenchService;
@@ -88,32 +95,42 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminMonitorWorkbenchService
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 系统监控工作台 JDBC 实现，交易事实通过 ShardingSphere 逻辑表读取，管理事实从 Admin 数据库读取，并统一执行脱敏、能力声明和告警乐观锁处理。
- * @status : create
+ * 系统监控工作台 JDBC 实现，交易事实通过 ShardingSphere 逻辑表读取，管理事实从 Admin 数据库读取，并统一执行脱敏、能力声明和告警乐观锁处理。
  */
 @Service
 public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchService {
 
-    /** 单次结构化日志聚合允许保留的最大记录数，防止内存排序失控。 */
+    /**
+     * 单次结构化日志聚合允许保留的最大记录数，防止内存排序失控。
+     */
     private static final int MAX_RESULT_ROWS = 1000;
-    /** 监控提供方未配置状态。 */
+    /**
+     * 监控提供方未配置状态。
+     */
     private static final String STATUS_NOT_CONFIGURED = "NOT_CONFIGURED";
-    /** 监控提供方可用状态。 */
+    /**
+     * 监控提供方可用状态。
+     */
     private static final String STATUS_AVAILABLE = "AVAILABLE";
-    /** 告警待处理状态。 */
+    /**
+     * 告警待处理状态。
+     */
     private static final String ALERT_OPEN = "OPEN";
-    /** 告警处理中状态。 */
+    /**
+     * 告警处理中状态。
+     */
     private static final String ALERT_PROCESSING = "PROCESSING";
-    /** 来源告警已自动恢复状态。 */
+    /**
+     * 来源告警已自动恢复状态。
+     */
     private static final String ALERT_RECOVERED = "RECOVERED";
-    /** 告警已人工关闭状态。 */
+    /**
+     * 告警已人工关闭状态。
+     */
     private static final String ALERT_CLOSED = "CLOSED";
-    /** API 业务交互表中用于统一判断失败的 SQL 条件，不依赖 HTTP 状态码。 */
+    /**
+     * API 业务交互表中用于统一判断失败的 SQL 条件，不依赖 HTTP 状态码。
+     */
     private static final String API_FAILURE_CONDITION = """
             (UPPER(COALESCE(request_result, '')) IN ('FAILED', 'FAIL', 'ERROR', 'REJECTED', 'TIMEOUT', 'CLOSED')
              OR UPPER(COALESCE(request_result, '')) LIKE 'F%'
@@ -122,12 +139,16 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
              OR UPPER(COALESCE(response_result, '')) LIKE 'F%'
              OR UPPER(COALESCE(response_result, '')) LIKE 'Z%')
             """.strip();
-    /** 渠道交互表中用于统一判断超时的 SQL 条件。 */
+    /**
+     * 渠道交互表中用于统一判断超时的 SQL 条件。
+     */
     private static final String CHANNEL_TIMEOUT_CONDITION = """
             (UPPER(COALESCE(r.request_status, '')) = 'TIMEOUT'
              OR UPPER(COALESCE(r.platform_result_code, '')) LIKE '%TIMEOUT%')
             """.strip();
-    /** 渠道错误码选择表达式，优先平台码，其次收单机构码。 */
+    /**
+     * 渠道错误码选择表达式，优先平台码，其次收单机构码。
+     */
     private static final String CHANNEL_ERROR_CODE_EXPRESSION = """
             COALESCE(
                 NULLIF(TRIM(r.platform_result_code), ''),
@@ -135,7 +156,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                 'UNKNOWN'
             )
             """.strip();
-    /** 渠道告警和安全拦截事件的统一来源查询，不读取敏感业务报文。 */
+    /**
+     * 渠道告警和安全拦截事件的统一来源查询，不读取敏感业务报文。
+     */
     private static final String ALERT_SOURCE_SQL = """
             SELECT 'CHANNEL' AS source_type,
                    event_code AS source_id,
@@ -185,25 +208,45 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
             WHERE event_time >= :beginTime AND event_time <= :endTime
             """;
 
-    /** Admin 数据库命名参数查询模板，查询超时固定为五秒。 */
+    /**
+     * Admin 数据库命名参数查询模板，查询超时固定为五秒。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 跨交易分表执行逻辑表只读查询的执行器。 */
+    /**
+     * 跨交易分表执行逻辑表只读查询的执行器。
+     */
     private final TransactionLogicalReadExecutor transactionReadExecutor;
-    /** 监控时间范围、时区和桶宽度规范器。 */
+    /**
+     * 监控时间范围、时区和桶宽度规范器。
+     */
     private final MonitorTimeRangeNormalizer rangeNormalizer;
-    /** 当前 Admin JVM 运行时指标采样器。 */
+    /**
+     * 当前 Admin JVM 运行时指标采样器。
+     */
     private final AdminRuntimeMonitorSampler runtimeSampler;
-    /** Nacos 等注册中心的服务发现客户端。 */
+    /**
+     * Nacos 等注册中心的服务发现客户端。
+     */
     private final DiscoveryClient discoveryClient;
-    /** 管理端交易详情查询服务，用于构建结构化交易链路。 */
+    /**
+     * 管理端交易详情查询服务，用于构建结构化交易链路。
+     */
     private final AdminTransactionQueryService transactionQueryService;
-    /** Redis 运行指标和受控 Key 元数据查询应用服务。 */
+    /**
+     * Redis 运行指标和受控 Key 元数据查询应用服务。
+     */
     private final AdminMonitorCacheApplicationService cacheApplicationService;
-    /** 数据源、Hikari 和分表运行快照查询应用服务。 */
+    /**
+     * 数据源、Hikari 和分表运行快照查询应用服务。
+     */
     private final AdminMonitorDatasourceApplicationService datasourceApplicationService;
-    /** 日志、告警和链路摘要统一脱敏器。 */
+    /**
+     * 日志、告警和链路摘要统一脱敏器。
+     */
     private final MonitorSensitiveTextSanitizer sensitiveTextSanitizer;
-    /** RocketMQ Admin 只读能力提供器。 */
+    /**
+     * RocketMQ Admin 只读能力提供器。
+     */
     private final RocketMqAdminMonitorProvider rocketMqAdminMonitorProvider;
 
     /**
@@ -430,7 +473,7 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         TransactionDetailResponse detail = transactionQueryService.detail(
                 transactionId, transactionDateTime, rootTransactionDateTime);
 
-        List<TraceEvent> events = sanitizedTraceEvents(detail);
+        List<TraceEvent> events = new ArrayList<>(sanitizedTraceEvents(detail));
         events.sort(Comparator.comparing(TraceEvent::getStartTime,
                 Comparator.nullsLast(Comparator.naturalOrder())));
         TraceResponse response = new TraceResponse();
@@ -745,48 +788,49 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
      */
     private List<TraceEvent> sanitizedTraceEvents(TransactionDetailResponse detail) {
         List<TraceEvent> events = new ArrayList<>();
-        for (Map<String, Object> row : detail.getMerchantApiInteractionLogs()) {
+        for (MerchantApiInteractionLogResponse row : detail.getMerchantApiInteractionLogs()) {
             events.add(traceEvent(
-                    string(row, "api_log_id"), string(row, "transaction_id"), string(row, "trace_id"),
-                    "service-openapi", string(row, "api_operation"), string(row, "request_path"),
-                    string(row, "request_result"), dateTime(row, "request_time"), dateTime(row, "response_time"),
-                    nullableInteger(row, "duration_millis"), string(row, "merchant_response_code"),
-                    isFailure(string(row, "request_result")) ? string(row, "merchant_response_message") : null,
+                    row.getApiLogId(), row.getTransactionId(), row.getTraceId(),
+                    "service-openapi", row.getApiOperation(), row.getRequestPath(),
+                    row.getRequestResult(), row.getRequestTime(), row.getResponseTime(),
+                    row.getDurationMillis(), row.getMerchantResponseCode(),
+                    isFailure(row.getRequestResult()) ? row.getMerchantResponseMessage() : null,
                     "Merchant API interaction"));
         }
-        for (Map<String, Object> row : detail.getFlowEvents()) {
+        for (TransactionFlowEventResponse row : detail.getFlowEvents()) {
             events.add(traceEvent(
-                    string(row, "flow_event_id"), string(row, "transaction_id"), null,
-                    serviceForStage(string(row, "event_stage")), string(row, "event_type"), string(row, "event_name"),
-                    string(row, "event_status"), dateTime(row, "event_time"), dateTime(row, "event_time"),
-                    0, string(row, "error_code"), string(row, "error_message"), string(row, "event_content")));
+                    row.getFlowEventId(), row.getTransactionId(), null,
+                    serviceForStage(row.getEventStage()), row.getEventType(), row.getEventName(),
+                    row.getEventStatus(), row.getEventTime(), row.getEventTime(),
+                    0, row.getErrorCode(), row.getErrorMessage(), row.getEventContent()));
         }
-        for (Map<String, Object> row : detail.getChannelRequests()) {
+        for (ChannelRequestResponse row : detail.getChannelRequests()) {
             events.add(traceEvent(
-                    string(row, "request_id"), string(row, "transaction_id"), null,
-                    "channel-" + lowerOrUnknown(string(row, "channel_code")), string(row, "request_scene"),
-                    string(row, "channel_code"), string(row, "request_status"), dateTime(row, "request_start_time"),
-                    dateTime(row, "response_time"), nullableInteger(row, "duration_millis"),
-                    firstText(row, "platform_result_code", row, "acquirer_code"),
-                    string(row, "platform_fail_reason"), "Channel request"));
+                    row.getRequestId(), row.getTransactionId(), null,
+                    "channel-" + lowerOrUnknown(row.getChannelCode()), row.getRequestScene(),
+                    row.getChannelCode(), row.getRequestStatus(), row.getRequestStartTime(),
+                    row.getResponseTime(), row.getDurationMillis(),
+                    firstText(row.getPlatformResultCode(), row.getAcquirerCode()),
+                    row.getPlatformFailReason(), "Channel request"));
         }
-        for (Map<String, Object> row : detail.getChannelInteractionLogs()) {
+        for (ChannelInteractionLogResponse row : detail.getChannelInteractionLogs()) {
             events.add(traceEvent(
-                    string(row, "interaction_log_id"), string(row, "transaction_id"), string(row, "trace_id"),
-                    "channel-" + lowerOrUnknown(string(row, "channel_code")), string(row, "interaction_type"),
-                    string(row, "channel_code"), interactionResult(row), dateTime(row, "interaction_time"),
-                    dateTime(row, "interaction_time"), nullableInteger(row, "duration_millis"),
-                    nullableInteger(row, "http_status") == null ? null : String.valueOf(integer(row, "http_status")),
-                    string(row, "exception_message"), "Channel interaction"));
+                    row.getInteractionLogId(), row.getTransactionId(), row.getTraceId(),
+                    "channel-" + lowerOrUnknown(row.getChannelCode()), row.getInteractionType(),
+                    row.getChannelCode(), interactionResult(row), row.getInteractionTime(),
+                    row.getInteractionTime(), row.getDurationMillis(),
+                    row.getHttpStatus() == null ? null : String.valueOf(row.getHttpStatus()),
+                    row.getExceptionMessage(), "Channel interaction"));
         }
-        for (Map<String, Object> row : detail.getMerchantNotificationLogs()) {
+        for (MerchantNotificationDeliveryLogResponse row : detail.getMerchantNotificationLogs()) {
             events.add(traceEvent(
-                    string(row, "notify_log_id"), string(row, "transaction_id"), null,
-                    "service-webhook", "MERCHANT_NOTIFICATION", "Attempt " + integer(row, "attempt_no"),
-                    bool(row, "success") ? "SUCCESS" : "FAILED", dateTime(row, "notify_time"),
-                    dateTime(row, "notify_time"), nullableInteger(row, "duration_millis"),
-                    nullableInteger(row, "http_status") == null ? null : String.valueOf(integer(row, "http_status")),
-                    string(row, "error_message"), "Merchant notification attempt"));
+                    row.getNotifyLogId(), row.getTransactionId(), null,
+                    "service-webhook", "MERCHANT_NOTIFICATION",
+                    "Attempt " + Objects.requireNonNullElse(row.getAttemptNo(), 0),
+                    Boolean.TRUE.equals(row.getSuccess()) ? "SUCCESS" : "FAILED", row.getNotifyTime(),
+                    row.getNotifyTime(), row.getDurationMillis(),
+                    row.getHttpStatus() == null ? null : String.valueOf(row.getHttpStatus()),
+                    row.getErrorMessage(), "Merchant notification attempt"));
         }
         return events.stream().filter(item -> item.getStartTime() != null).toList();
     }
@@ -1413,7 +1457,7 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
      * @param alert 已定位的来源告警
      * @return 来源指标映射；来源不存在时返回空映射
      */
-    private Map<String, Object> loadAlertSourceMetrics(AlertItem alert) {
+    private AlertSourceMetrics loadAlertSourceMetrics(AlertItem alert) {
         if ("CHANNEL".equals(alert.getSourceType())) {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                     SELECT channel_code, rule_type, window_minutes, sample_count, failure_count,
@@ -1424,7 +1468,7 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                     WHERE event_code = :sourceId AND deleted = 0
                     LIMIT 1
                     """, new MapSqlParameterSource("sourceId", alert.getSourceId()));
-            return rows.isEmpty() ? Map.of() : sanitizeMetricMap(rows.get(0));
+            return rows.isEmpty() ? new AlertSourceMetrics() : toChannelAlertSourceMetrics(rows.get(0));
         }
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT source_layer, event_type, risk_level, action, merchant_id,
@@ -1433,7 +1477,47 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                 WHERE event_no = :sourceId
                 LIMIT 1
                 """, new MapSqlParameterSource("sourceId", alert.getSourceId()));
-        return rows.isEmpty() ? Map.of() : sanitizeMetricMap(rows.get(0));
+        return rows.isEmpty() ? new AlertSourceMetrics() : toSecurityAlertSourceMetrics(rows.get(0));
+    }
+
+    /**
+     * 将渠道告警指标行转换为固定响应，避免数据库新增列自动扩展管理端接口。
+     */
+    private AlertSourceMetrics toChannelAlertSourceMetrics(Map<String, Object> row) {
+        AlertSourceMetrics metrics = new AlertSourceMetrics();
+        metrics.setChannelCode(safeText(string(row, "channel_code"), 256));
+        metrics.setRuleType(safeText(string(row, "rule_type"), 256));
+        metrics.setWindowMinutes(nullableInteger(row, "window_minutes"));
+        metrics.setSampleCount(longValue(row, "sample_count"));
+        metrics.setFailureCount(longValue(row, "failure_count"));
+        metrics.setSuccessCount(longValue(row, "success_count"));
+        metrics.setSuccessRate(nullableDecimalValue(row, "success_rate"));
+        metrics.setErrorRate(nullableDecimalValue(row, "error_rate"));
+        metrics.setMaxContinuousFailureCount(longValue(row, "max_continuous_failure_count"));
+        metrics.setAverageLatencyMillis(nullableDecimalValue(row, "average_latency_millis"));
+        metrics.setTriggerValueCount(longValue(row, "trigger_value_count"));
+        metrics.setTriggerValueRate(nullableDecimalValue(row, "trigger_value_rate"));
+        metrics.setTriggerValueMillis(nullableDecimalValue(row, "trigger_value_millis"));
+        metrics.setWindowStartTime(dateTime(row, "window_start_time"));
+        metrics.setWindowEndTime(dateTime(row, "window_end_time"));
+        return metrics;
+    }
+
+    /**
+     * 将安全拦截指标行转换为固定响应，并限制所有可展示文本长度。
+     */
+    private AlertSourceMetrics toSecurityAlertSourceMetrics(Map<String, Object> row) {
+        AlertSourceMetrics metrics = new AlertSourceMetrics();
+        metrics.setSourceLayer(safeText(string(row, "source_layer"), 256));
+        metrics.setEventType(safeText(string(row, "event_type"), 256));
+        metrics.setRiskLevel(safeText(string(row, "risk_level"), 256));
+        metrics.setAction(safeText(string(row, "action"), 256));
+        metrics.setMerchantId(safeText(string(row, "merchant_id"), 256));
+        metrics.setServiceName(safeText(string(row, "service_name"), 256));
+        metrics.setHitRuleCode(safeText(string(row, "hit_rule_code"), 256));
+        metrics.setReasonCode(safeText(string(row, "reason_code"), 256));
+        metrics.setEventTime(dateTime(row, "event_time"));
+        return metrics;
     }
 
     /**
@@ -1554,6 +1638,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         }
     }
 
+    /**
+     * 将渠道告警记录转换为摘要列表。
+     */
     private List<MetricSummary> alertSummaries(Map<String, Object> totals) {
         long open = longValue(totals, "open_count");
         long processing = longValue(totals, "processing_count");
@@ -2603,14 +2690,23 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return quarterKey(range.beginTime()).equals(quarterKey(range.endTime()));
     }
 
+    /**
+     * 根据交易时间生成季度分片标识。
+     */
     private String quarterKey(LocalDateTime value) {
         return value.getYear() + "Q" + ((value.getMonthValue() - 1) / 3 + 1);
     }
 
+    /**
+     * 复制命名 SQL 参数，供派生查询追加条件时独立使用。
+     */
     private MapSqlParameterSource copyParams(MapSqlParameterSource source) {
         return new MapSqlParameterSource(source.getValues());
     }
 
+    /**
+     * 构建空的 API 监控响应。
+     */
     private ApiMonitorResponse emptyApiResponse(ApiMonitorQuery query, NormalizedRange range) {
         ApiMonitorResponse response = new ApiMonitorResponse();
         response.setSummaries(List.of(
@@ -2657,6 +2753,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return result;
     }
 
+    /**
+     * 解析渠道状态。
+     */
     private String channelStatus(String channelCode, Map<String, String> alertStatuses) {
         String alert = alertStatuses.get(channelCode);
         if ("ERROR".equals(alert)) {
@@ -2668,6 +2767,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return "HEALTHY";
     }
 
+    /**
+     * 将原始统计行聚合为时间趋势。
+     */
     private List<TimeBucket> aggregatedCountTrend(List<Map<String, Object>> rows,
                                                   NormalizedRange range,
                                                   String valueKey) {
@@ -2682,6 +2784,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return toTimeBuckets(values);
     }
 
+    /**
+     * 构建空的接口延迟趋势。
+     */
     private List<TimeBucket> emptyLatencyTrend(NormalizedRange range) {
         Map<LocalDateTime, Map<String, BigDecimal>> buckets = initializeBuckets(
                 range, List.of("avg", "p95", "p99"));
@@ -2689,6 +2794,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return toTimeBuckets(buckets);
     }
 
+    /**
+     * 解析缓存监控指标分类。
+     */
     private CategoryMetric category(String key, String label, BigDecimal value) {
         CategoryMetric metric = new CategoryMetric();
         metric.setKey(key);
@@ -2697,6 +2805,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return metric;
     }
 
+    /**
+     * 初始化监控时间桶集合。
+     */
     private Map<LocalDateTime, Map<String, BigDecimal>> initializeBuckets(NormalizedRange range,
                                                                           List<String> valueKeys) {
         Map<LocalDateTime, Map<String, BigDecimal>> result = new LinkedHashMap<>();
@@ -2711,6 +2822,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return result;
     }
 
+    /**
+     * 初始化查询时间范围内的时间桶，并将各指标初始值设置为空。
+     */
     private Map<LocalDateTime, Map<String, BigDecimal>> initializeNullableBuckets(
             NormalizedRange range,
             List<String> valueKeys) {
@@ -2719,6 +2833,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return result;
     }
 
+    /**
+     * 计算监控时间桶的起始时间。
+     */
     private LocalDateTime bucketStart(LocalDateTime value, int bucketMinutes) {
         if (value == null) return null;
         LocalDateTime day = value.toLocalDate().atStartOfDay();
@@ -2726,6 +2843,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return day.plusMinutes((minuteOfDay / bucketMinutes) * bucketMinutes);
     }
 
+    /**
+     * 将按时间排序的指标映射转换为监控响应时间桶。
+     */
     private List<TimeBucket> toTimeBuckets(Map<LocalDateTime, Map<String, BigDecimal>> source) {
         List<TimeBucket> result = new ArrayList<>();
         source.forEach((timestamp, values) -> {
@@ -2749,10 +2869,10 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
     private List<DependencyStatus> dependencyStatuses(ServiceInventoryResponse services) {
         List<DependencyStatus> statuses = new ArrayList<>();
         try {
-            Map<String, Object> redis = cacheApplicationService.info();
-            boolean connected = Boolean.TRUE.equals(redis.get("connected"));
+            CacheInfoResponse redis = cacheApplicationService.info();
+            boolean connected = Boolean.TRUE.equals(redis.getConnected());
             statuses.add(dependency("redis", "Redis", connected ? "HEALTHY" : "ERROR",
-                    connected ? "Connected" : "Unavailable", Objects.toString(redis.get("message"), null)));
+                    connected ? "Connected" : "Unavailable", redis.getMessage()));
         } catch (RuntimeException exception) {
             statuses.add(dependency("redis", "Redis", "ERROR", "Unavailable", exception.getClass().getSimpleName()));
         }
@@ -2844,6 +2964,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         }
     }
 
+    /**
+     * 解析监控依赖项的当前状态。
+     */
     private DependencyStatus dependency(String key, String label, String status, String value, String description) {
         DependencyStatus item = new DependencyStatus();
         item.setKey(key);
@@ -2854,11 +2977,17 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return item;
     }
 
+    /**
+     * 查询摘要。
+     */
     private MetricSummary findSummary(List<MetricSummary> summaries, String key, String fallbackLabel) {
         return summaries.stream().filter(item -> key.equals(item.getKey())).findFirst()
                 .orElseGet(() -> summary(key, fallbackLabel, null, "count", "UNKNOWN", null));
     }
 
+    /**
+     * 组装单个监控指标摘要。
+     */
     private MetricSummary summary(String key,
                                   String label,
                                   BigDecimal value,
@@ -2875,6 +3004,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return summary;
     }
 
+    /**
+     * 解析缓存监控能力标识。
+     */
     private ProviderCapability capability(String provider, String status, String reason) {
         ProviderCapability capability = new ProviderCapability();
         capability.setProvider(provider);
@@ -2883,6 +3015,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return capability;
     }
 
+    /**
+     * 将查询时间范围和分页参数复制到目标查询对象。
+     */
     private <T extends TimeRangeQuery> T copyRange(TimeRangeQuery source, T target) {
         target.setBeginTime(source.getBeginTime());
         target.setEndTime(source.getEndTime());
@@ -2892,16 +3027,25 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return target;
     }
 
+    /**
+     * 构建时间范围查询参数。
+     */
     private MapSqlParameterSource rangeParams(NormalizedRange range) {
         return new MapSqlParameterSource()
                 .addValue("beginTime", range.beginTime())
                 .addValue("endTime", range.endTime());
     }
 
+    /**
+     * 构建交易查询基础 SQL 参数。
+     */
     private MapSqlParameterSource baseParams(NormalizedRange range) {
         return rangeParams(range).addValue("limit", MAX_RESULT_ROWS);
     }
 
+    /**
+     * 按安全分页参数查询当前业务记录。
+     */
     private <T> PageResult<T> page(List<T> source, long pageNo, long pageSize) {
         long offset = Math.max((pageNo - 1L) * pageSize, 0L);
         int from = (int) Math.min(offset, source.size());
@@ -2996,6 +3140,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return item;
     }
 
+    /**
+     * 读取动态查询行中的可用文本字段。
+     */
     private String searchableText(StructuredLogItem item) {
         return lower(String.join(" ",
                 Objects.toString(item.getServiceName(), ""), Objects.toString(item.getEventType(), ""),
@@ -3026,21 +3173,6 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
     }
 
     /**
-     * 清理告警来源指标中的字符串值，数值和时间类型保持原始精度。
-     *
-     * @param source 来源指标查询行
-     * @return 可安全返回前端的有序副本
-     */
-    private Map<String, Object> sanitizeMetricMap(Map<String, Object> source) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        source.forEach((key, value) -> {
-            if (value instanceof String text) result.put(key, safeText(text, 256));
-            else result.put(key, value);
-        });
-        return result;
-    }
-
-    /**
      * 解析当前告警操作人；无内部认证上下文的系统调用使用 system 身份。
      *
      * <p>只保存账号标识和展示名称，不保存 Token、权限或其他认证上下文。</p>
@@ -3055,6 +3187,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return new Operator(Objects.toString(accountId, "system"), Objects.toString(name, "system"));
     }
 
+    /**
+     * 按结算阶段解析对应的查询服务。
+     */
     private String serviceForStage(String stage) {
         String normalized = upper(stage);
         if (normalized == null) {
@@ -3069,22 +3204,35 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         };
     }
 
-    private String interactionResult(Map<String, Object> row) {
-        if ("EXCEPTION".equals(upper(string(row, "interaction_type")))) return "FAILED";
-        Integer status = nullableInteger(row, "http_status");
-        return status != null && status >= 400 ? "FAILED" : "SUCCESS";
+    /**
+     * 根据交互类型和 HTTP 状态推导渠道交互结果。
+     */
+    private String interactionResult(ChannelInteractionLogResponse row) {
+        if ("EXCEPTION".equals(upper(row.getInteractionType()))) return "FAILED";
+        Integer status = row.getHttpStatus();
+        if (status == null) return "UNKNOWN";
+        return status >= 400 ? "FAILED" : "SUCCESS";
     }
 
+    /**
+     * 判断是否失败 API。
+     */
     private boolean isFailedApi(Map<String, Object> row) {
         return isFailure(string(row, "request_result")) || isFailure(string(row, "response_result"));
     }
 
+    /**
+     * 判断是否失败。
+     */
     private boolean isFailure(String value) {
         String normalized = upper(value);
-        return normalized != null && (Set.of("FAILED", "FAIL", "ERROR", "REJECTED", "TIMEOUT", "CLOSED")
-                .contains(normalized) || normalized.startsWith("F") || normalized.startsWith("Z"));
+        return normalized != null
+                && Set.of("FAILED", "FAIL", "ERROR", "REJECTED", "TIMEOUT", "CLOSED").contains(normalized);
     }
 
+    /**
+     * 将来源告警状态映射为平台监控状态。
+     */
     private String sourceAlertStatus(String value) {
         String normalized = upper(value);
         if (normalized == null) {
@@ -3113,6 +3261,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return normalizedOverlay == null ? normalizedSource : normalizedOverlay;
     }
 
+    /**
+     * 将告警级别规范化为管理端支持的固定集合。
+     */
     private String normalizeAlertLevel(String value) {
         String normalized = upper(value);
         if (normalized == null) {
@@ -3125,16 +3276,25 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         };
     }
 
+    /**
+     * 读取并校验高精度汇率。
+     */
     private BigDecimal rate(long numerator, long denominator) {
         if (denominator <= 0) return null;
         return BigDecimal.valueOf(numerator).multiply(BigDecimal.valueOf(100))
                 .divide(BigDecimal.valueOf(denominator), 2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 将监控指标安全转换为高精度数值。
+     */
     private BigDecimal decimal(long value) {
         return BigDecimal.valueOf(value);
     }
 
+    /**
+     * 读取可为空的十进制指标值。
+     */
     private BigDecimal nullableDecimalValue(Map<String, Object> row, String field) {
         if (row == null) return null;
         Object value = row.get(field);
@@ -3155,23 +3315,43 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         }
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(Map<String, Object> first, String firstKey,
                              Map<String, Object> second, String secondKey) {
         String value = first == null ? null : trim(string(first, firstKey));
         return value == null && second != null ? trim(string(second, secondKey)) : value;
     }
 
+    /**
+     * 返回两个强类型字段中的首个非空文本。
+     */
+    private String firstText(String first, String second) {
+        String value = trim(first);
+        return value == null ? trim(second) : value;
+    }
+
+    /**
+     * 将动态字段安全转换为文本。
+     */
     private String string(Map<String, Object> row, String field) {
         if (row == null) return null;
         Object value = row.get(field);
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 将动态监控字段转换为整数，空值和非法值按零处理。
+     */
     private int integer(Map<String, Object> row, String field) {
         Integer value = nullableInteger(row, field);
         return value == null ? 0 : value;
     }
 
+    /**
+     * 将动态字段安全转换为可空整数。
+     */
     private Integer nullableInteger(Map<String, Object> row, String field) {
         if (row == null) return null;
         Object value = row.get(field);
@@ -3185,6 +3365,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         }
     }
 
+    /**
+     * 读取可为空的长整型指标值。
+     */
     private Long longValue(Map<String, Object> row, String field) {
         if (row == null) return null;
         Object value = row.get(field);
@@ -3198,6 +3381,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         }
     }
 
+    /**
+     * 将动态数据库字段安全转换为布尔值。
+     */
     private boolean bool(Map<String, Object> row, String field) {
         if (row == null) return false;
         Object value = row.get(field);
@@ -3207,6 +3393,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return text != null && Set.of("TRUE", "Y", "YES", "1", "SUCCESS").contains(text);
     }
 
+    /**
+     * 解析日期时间。
+     */
     private LocalDateTime dateTime(Map<String, Object> row, String field) {
         if (row == null) return null;
         Object value = row.get(field);
@@ -3224,37 +3413,61 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return null;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 将业务编码规范化为小写文本。
+     */
     private String lower(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 将空业务编码转换为 unknown，否则规范化为小写。
+     */
     private String lowerOrUnknown(String value) {
         String normalized = lower(value);
         return normalized == null ? "unknown" : normalized;
     }
 
+    /**
+     * 清理审计文本并限制最大长度。
+     */
     private String safeText(String value, int maxLength) {
         return sensitiveTextSanitizer.sanitize(value, maxLength);
     }
 
+    /**
+     * 构建跨告警来源稳定唯一的聚合键。
+     */
     private String alertKey(String sourceType, String sourceId) {
         return sourceType + "|" + sourceId;
     }
 
+    /**
+     * 构建监控查询参数校验异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
+    /**
+     * 封装可信操作人的账户主键、姓名和登录账号。
+     */
     private record Operator(String accountId, String name) {
     }
 }

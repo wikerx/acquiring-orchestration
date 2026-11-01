@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysOperLogRecordRequest
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 系统后台操作日志写入请求
- * @status : create
+ * 系统后台操作日志写入请求
  */
 @Data
 public class SysOperLogRecordRequest {

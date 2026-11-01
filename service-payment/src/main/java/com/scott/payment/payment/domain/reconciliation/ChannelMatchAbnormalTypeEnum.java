@@ -3,55 +3,39 @@ package com.scott.payment.payment.domain.reconciliation;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelMatchAbnormalTypeEnum
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 渠道勾兑异常类型枚举，用稳定编码区分查询身份缺失、长期未知和平台渠道结果差异。
- * @status : create
+ * 渠道勾兑异常类型枚举，用稳定编码区分查询身份缺失、长期未知和平台渠道结果差异。
  */
 @Getter
 public enum ChannelMatchAbnormalTypeEnum {
 
     /**
-     * QUERY IDENTITY MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 原渠道、原 MID 或渠道订单号缺失，无法安全发起主动查询。
      */
     QUERY_IDENTITY_MISSING("QUERY_IDENTITY_MISSING"),
     /**
-     * QUERY RESULT UNKNOWN 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 渠道查询超时、不可用或返回无法识别的状态，平台继续保留非终态。
      */
     QUERY_RESULT_UNKNOWN("QUERY_RESULT_UNKNOWN"),
     /**
-     * STATUS MISMATCH 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 渠道权威状态与平台已记录状态不一致。
      */
     STATUS_MISMATCH("STATUS_MISMATCH"),
     /**
-     * CURRENCY MISMATCH 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 渠道返回币种与原动作上送渠道的交易币种不一致。
      */
     CURRENCY_MISMATCH("CURRENCY_MISMATCH"),
     /**
-     * AMOUNT MISMATCH 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 渠道返回金额与原动作上送渠道的交易金额不一致。
      */
     AMOUNT_MISMATCH("AMOUNT_MISMATCH");
 
     private final String code;
 
+    /**
+     * 创建勾兑异常类型。
+     *
+     * @param code 持久化和接口使用的稳定异常编码
+     */
     ChannelMatchAbnormalTypeEnum(String code) {
         this.code = code;
     }

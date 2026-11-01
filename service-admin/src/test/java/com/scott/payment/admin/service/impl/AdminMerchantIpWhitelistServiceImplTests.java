@@ -12,7 +12,6 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.MerchantIpWhitelistDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.MerchantIpWhitelistMapper;
-import com.scott.payment.component.db.auth.mapper.MerchantOpenApiAccessConfigMapper;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
@@ -32,13 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistServiceImplTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户 IP 白名单审批状态、CAS 更新和通知参数测试。
- * @status : create
+ * 商户 IP 白名单审批状态、CAS 更新和通知参数测试。
  */
 class AdminMerchantIpWhitelistServiceImplTests {
 
@@ -57,13 +50,11 @@ class AdminMerchantIpWhitelistServiceImplTests {
     @Test
     void shouldApprovePendingIpWithAllowedTransactionByDefault() {
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
-        MerchantOpenApiAccessConfigMapper configMapper = mock(MerchantOpenApiAccessConfigMapper.class);
         BaseMerchantInfoMapper merchantMapper = mock(BaseMerchantInfoMapper.class);
         MerchantAccessApprovalNotificationService notificationService =
                 mock(MerchantAccessApprovalNotificationService.class);
         AdminMerchantIpWhitelistServiceImpl service = new AdminMerchantIpWhitelistServiceImpl(
                 whitelistMapper,
-                configMapper,
                 merchantMapper,
                 mock(RiskRuleCacheInvalidationCoordinator.class),
                 mock(ManagedCacheInvalidationCoordinator.class),
@@ -102,7 +93,6 @@ class AdminMerchantIpWhitelistServiceImplTests {
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
         AdminMerchantIpWhitelistServiceImpl service = new AdminMerchantIpWhitelistServiceImpl(
                 whitelistMapper,
-                mock(MerchantOpenApiAccessConfigMapper.class),
                 mock(BaseMerchantInfoMapper.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
                 mock(ManagedCacheInvalidationCoordinator.class),

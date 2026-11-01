@@ -3,13 +3,7 @@ package com.scott.payment.settlement.dto;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalCreateCommand
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 表示可信 Admin 操作人提交的结算冲正申请；请求键提供创建幂等，原批次版本用于阻止基于过期页面状态发起冲正。
- * @status : create
+ * 表示可信 Admin 操作人提交的结算冲正申请；请求键提供创建幂等，原批次版本用于阻止基于过期页面状态发起冲正。
  * @param requestKey 冲正创建请求数据库幂等键
  * @param originalBatchNo 待冲正的已入账正式结算批次号
  * @param expectedBatchVersion service-admin 页面读取的原批次版本

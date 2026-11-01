@@ -20,13 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinCacheGenerationConsumerTests
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 验证 Card BIN generation 消费者的重复投递、门禁过期恢复和失败重试契约。
- * @status : create
+ * 验证 Card BIN generation 消费者的重复投递、门禁过期恢复和失败重试契约。
  */
 class CardBinCacheGenerationConsumerTests {
 

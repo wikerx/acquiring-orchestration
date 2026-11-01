@@ -22,13 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelTransactionMatchJob
- * @date : 2026-07-19 22:40
- * @email : scott_x@163.com
- * @description : 渠道交易查询勾兑任务，位于 service-job 任务处理层，按 transaction_date_time 定位分表并触发 service-payment 查询渠道终态；任务本身不决定资金状态。
- * @status : create
+ * 渠道交易查询勾兑任务，位于 service-job 任务处理层，按 transaction_date_time 定位分表并触发 service-payment 查询渠道终态；任务本身不决定资金状态。
  */
 @Component
 @Slf4j
@@ -44,24 +38,10 @@ public class ChannelTransactionMatchJob implements JobHandler {
      */
     public static final String HANDLER_CODE = "channelTransactionMatch";
 
-    /**
-     * {@code DEFAULT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int DEFAULT_LIMIT = 100;
 
-    /**
-     * {@code MAX_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int MAX_LIMIT = 500;
 
     /**
@@ -69,13 +49,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
      */
     private static final int DEFAULT_LOOKBACK_QUARTERS = 2;
 
-    /**
-     * {@code paymentInternalClient} 依赖，用于 渠道交易匹配任务 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * </p>
-     */
+
     private final PaymentInternalClient paymentInternalClient;
 
     /**
@@ -128,7 +102,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
         int limit = normalizeLimit(request.getLimit());
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request, context);
         long startNanos = System.nanoTime();
-        log.info("event: JOB_HANDLER_SCAN_START traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} channelCode: {} limit: {}",
+        log.info("渠道交易勾兑扫描开始, event: JOB_HANDLER_SCAN_START, traceId: {}, jobId: {}, handler: {}, runId: {}, shardIndex: {}, shardTotal: {}, paramsSummary: {}, scanRanges: {}, channelCode: {}, limit: {}",
                 context == null ? TraceContext.getTraceId() : context.getTraceId(),
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
@@ -154,7 +128,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
                 matchResult = paymentInternalClient.matchDueChannelTransactions(clientRequestDTO);
             } catch (RuntimeException exception) {
                 failedCount++;
-                log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED traceId: {} jobId: {} handler: {} runId: {} scanRange: {} channelCode: {} failureReason: {}",
+                log.warn("渠道交易勾兑分片失败, event: JOB_HANDLER_SCAN_ITEM_FAILED, traceId: {}, jobId: {}, handler: {}, runId: {}, scanRange: {}, channelCode: {}, failureReason: {}",
                         context == null ? TraceContext.getTraceId() : context.getTraceId(),
                         context == null ? null : context.getJobId(),
                         HANDLER_CODE,
@@ -172,7 +146,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
             }
             result.put(transactionDateTime.toString(), matchResult);
         }
-        log.info("event: JOB_HANDLER_SCAN_END traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} channelCode: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+        log.info("渠道交易勾兑扫描结束, event: JOB_HANDLER_SCAN_END, traceId: {}, jobId: {}, handler: {}, runId: {}, shardIndex: {}, shardTotal: {}, scanRanges: {}, channelCode: {}, scannedCount: {}, successCount: {}, failureCount: {}, skipCount: {}, failureReasons: {}, durationMs: {}",
                 context == null ? TraceContext.getTraceId() : context.getTraceId(),
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,

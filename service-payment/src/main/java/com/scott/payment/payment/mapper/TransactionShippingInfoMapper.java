@@ -8,17 +8,13 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShippingInfoMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Mapper for the transaction shipping snapshot logical table.
- * @status : create
+ * Mapper for the transaction shipping snapshot logical table.
  */
 public interface TransactionShippingInfoMapper extends BaseMapper<TransactionShippingInfoDO> {
 
-    /** Query the initial shipping snapshot through the exact shard key. */
+    /**
+     * Query the initial shipping snapshot through the exact shard key.
+     */
     @Select("""
             SELECT *
             FROM transaction_shipping_info

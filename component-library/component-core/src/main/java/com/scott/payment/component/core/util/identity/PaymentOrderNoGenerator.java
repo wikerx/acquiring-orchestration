@@ -10,13 +10,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentOrderNoGenerator
- * @date : 2026-05-31 20:40
- * @email : scott_x@163.com
- * @description : 支付平台订单号生成工具，按 UTC+8 毫秒时间生成可解析的交易标识和内部业务编号。
- * @status : create
+ * 支付平台订单号生成工具，按 UTC+8 毫秒时间生成可解析的交易标识和内部业务编号。
  */
 public final class PaymentOrderNoGenerator {
 
@@ -40,6 +34,9 @@ public final class PaymentOrderNoGenerator {
      */
     private static final int MAX_SEQUENCE = 9999;
 
+    /**
+     * 禁止实例化平台订单号生成工具类。
+     */
     private PaymentOrderNoGenerator() {
     }
 

@@ -7,20 +7,19 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantEmailVerificationDTOs
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 商户账号激活和邮箱验证接口模型；验证码、动作令牌与首次密码禁止记录明文。
- * @status : create
+ * 商户账号激活和邮箱验证接口模型；验证码、动作令牌与首次密码禁止记录明文。
  */
 public final class MerchantEmailVerificationDTOs {
 
+    /**
+     * 禁止实例化邮箱验证 DTO 聚合类。
+     */
     private MerchantEmailVerificationDTOs() {
     }
 
-    /** 邮箱验证码校验请求。 */
+    /**
+     * 邮箱验证码校验请求。
+     */
     @Data
     public static class EmailVerificationVerifyRequest {
         @NotBlank(message = "requestId is required")
@@ -31,7 +30,9 @@ public final class MerchantEmailVerificationDTOs {
         private String emailCode;
     }
 
-    /** 邮箱验证结果。 */
+    /**
+     * 邮箱验证结果。
+     */
     @Data
     public static class EmailVerificationVerifyResponse {
         private String nextStep;
@@ -40,7 +41,9 @@ public final class MerchantEmailVerificationDTOs {
         private String message;
     }
 
-    /** 新账号首次设密和激活请求。 */
+    /**
+     * 新账号首次设密和激活请求。
+     */
     @Data
     public static class AccountActivationCompleteRequest {
         @NotBlank(message = "requestId is required")
@@ -54,7 +57,9 @@ public final class MerchantEmailVerificationDTOs {
         private String newPassword;
     }
 
-    /** 账号激活完成响应。 */
+    /**
+     * 账号激活完成响应。
+     */
     @Data
     public static class AccountActivationCompleteResponse {
         private String message;

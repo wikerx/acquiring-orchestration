@@ -25,32 +25,27 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalRestClient
- * @date : 2026-09-01 22:30
- * @email : scott_x@163.com
- * @description : 带 HMAC、防重放随机数、有界超时和 CommonResult 解包的清分补偿 REST 客户端；不承载补偿业务规则。
- * @status : update
+ * 带 HMAC、防重放随机数、有界超时和 CommonResult 解包的清分补偿 REST 客户端；不承载补偿业务规则。
  */
 @Service
 @Slf4j
 public class ClearingInternalRestClient implements ClearingInternalClient {
 
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
-    /**
-     * {@code PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String PATH = "/internal/clearing/v1/compensations/scan";
 
     private final RestTemplate direct;
     private final RestTemplate loadBalanced;
     private final ClearingInternalClientProperties properties;
 
+    /**
+     * 创建清分补偿内部 REST 客户端。
+     *
+     * @param direct 固定地址直连客户端
+     * @param loadBalanced 服务发现负载均衡客户端
+     * @param properties 清分内部调用地址、身份和超时配置
+     */
     public ClearingInternalRestClient(
             @Qualifier("jobClearingInternalRestTemplate") RestTemplate direct,
             @Qualifier("jobClearingInternalLoadBalancedRestTemplate") RestTemplate loadBalanced,
@@ -60,7 +55,13 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
         this.properties = properties;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用 service-clearing 在指定季度半开区间内执行一页幂等补偿扫描。
+     * 调用失败或响应结构无效时抛出内部服务异常，不返回部分统计。
+     *
+     * @param request 扫描模式、时间范围、复合游标和页大小
+     * @return 本页处理统计及下一页游标
+     */
     @Override
     public Response scan(Request request) {
         URI uri = URI.create(normalizeBaseUrl(properties.getBaseUrl()) + PATH);
@@ -74,18 +75,25 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
             }
             return result.getData();
         } catch (HttpStatusCodeException exception) {
-            log.warn("service-clearing compensation call rejected, status: {}",
+            log.warn("清分服务补偿调用被拒绝, event: JOB_CLEARING_COMPENSATION_REJECTED, status: {}",
                     exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-clearing compensation call rejected");
         } catch (RestClientException exception) {
-            log.warn("service-clearing compensation call failed, exceptionType: {}",
+            log.warn("清分服务补偿调用失败, event: JOB_CLEARING_COMPENSATION_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-clearing compensation call failed");
         }
     }
 
+    /**
+     * 序列化补偿请求并生成绑定请求目标、正文摘要、时间戳和 nonce 的 HMAC 请求头。
+     *
+     * @param uri 清分内部接口 URI
+     * @param request 补偿扫描请求
+     * @return 已签名 JSON 请求实体
+     */
     private HttpEntity<String> signed(URI uri, Request request) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
@@ -118,6 +126,12 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
                 || IPV4.matcher(host).matches() || host.contains(".") ? direct : loadBalanced;
     }
 
+    /**
+     * 规范化清分服务根地址，避免拼接路径时产生重复斜杠。
+     *
+     * @param value 配置的服务根地址
+     * @return 不以斜杠结尾的服务根地址
+     */
     private String normalizeBaseUrl(String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("job clearing-client base-url is required");

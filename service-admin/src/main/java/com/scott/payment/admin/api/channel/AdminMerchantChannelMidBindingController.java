@@ -23,13 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantChannelMidBindingController
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 商户渠道 MID 绑定管理接口，位于 service-admin 接口层，用于维护商户可用渠道 MID 的启停关系。
- * @status : create
+ * 商户渠道 MID 绑定管理接口，位于 service-admin 接口层，用于维护商户可用渠道 MID 的启停关系。
  */
 @RestController
 @RequestMapping("/admin/channel/mid-bindings")
@@ -37,6 +31,11 @@ public class AdminMerchantChannelMidBindingController {
 
     private final AdminChannelApplicationService channelApplicationService;
 
+    /**
+     * 创建商户渠道 MID 绑定管理控制器。
+     *
+     * @param channelApplicationService 渠道配置应用服务
+     */
     public AdminMerchantChannelMidBindingController(AdminChannelApplicationService channelApplicationService) {
         this.channelApplicationService = channelApplicationService;
     }

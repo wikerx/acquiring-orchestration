@@ -23,13 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantFeeVersionQueryServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Payment merchant fee version read-boundary tests.
- * @status : create
+ * Payment merchant fee version read-boundary tests.
  */
 class DefaultMerchantFeeVersionQueryServiceTests {
 

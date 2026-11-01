@@ -5,6 +5,10 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
@@ -40,13 +44,16 @@ import com.scott.payment.payment.mapper.TransactionOperationMapper;
 import com.scott.payment.payment.mapper.TransactionOrderMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.mapper.TransactionStatusHistoryMapper;
+import com.scott.payment.payment.model.notification.MerchantNotificationPayload;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import com.scott.payment.payment.support.ProcessorNodeIdentity;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.baomidou.dynamic.datasource.annotation.DS;
@@ -71,17 +78,20 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionRecordService
- * @date : 2026-07-14 17:45
- * @email : scott_x@163.com
- * @description : 交易事实记录服务默认实现，位于 service-payment 服务实现层，通过交易逻辑表写入共享 transaction_date_time 的主单、动作单和状态历史。
- * @status : create
+ * 持久化支付生命周期主单、交易动作单及其审计事实。
+ *
+ * <p>同一生命周期内的记录共享真实 {@code transactionDateTime} 作为分片路由键。状态和金额副作用
+ * 必须以动作版本 CAS 成功为前提，终态、累计金额、状态历史、通知任务和出站事件由同一结果事务协调，
+ * 避免重复回调、查询勾兑或迟到同步响应造成终态覆盖和金额重复累计。</p>
  */
 @Service
 @Slf4j
 public class DefaultTransactionRecordService implements TransactionRecordService {
+
+    /**
+     * 节点身份来自进程启动时的显式部署环境，未完成迁移时默认关闭持久化。
+     */
+    private static final ProcessorNodeIdentity PROCESSOR_NODE_IDENTITY = ProcessorNodeIdentity.fromEnvironment();
 
     /**
      * 交易生命周期主单逻辑表名。
@@ -168,51 +178,33 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private static final String MERCHANT_API_LOG_PREFIX = "MAL";
 
-    /** 渠道适配器生成真实 HTTP 请求后写入请求扩展的 HTTP 方法。 */
+    /**
+     * 渠道适配器生成真实 HTTP 请求后写入请求扩展的 HTTP 方法。
+     */
     private static final String RAW_HTTP_METHOD = "httpMethod";
 
     /**
-     * {@code RAW_REQUEST_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * </p>
+     * 渠道适配器写入的脱敏请求头扩展键；授权凭证、签名和 Cookie 不得以明文进入该字段。
      */
     private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
 
     /**
-     * {@code RAW_REQUEST_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * </p>
+     * 渠道适配器写入的脱敏请求体扩展键；PAN、CVV、密钥和完整认证数据禁止持久化。
      */
     private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
 
     /**
-     * {@code RAW_RESPONSE_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * </p>
+     * 渠道适配器写入的脱敏响应头扩展键；只保存排障需要的最小头部集合。
      */
     private static final String RAW_RESPONSE_HEADER_JSON_MASKED = "responseHeaderJsonMasked";
 
     /**
-     * {@code RAW_RESPONSE_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * </p>
+     * 渠道适配器写入的脱敏响应体扩展键；原始敏感载荷不得作为审计日志保存。
      */
     private static final String RAW_RESPONSE_BODY_JSON_MASKED = "responseBodyJsonMasked";
 
     /**
-     * 原始请求URL脱敏，表示当前内部调用、渠道调用或商户通知的目标地址。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * </p>
+     * 脱敏请求地址扩展键；查询参数中的令牌、签名和客户标识必须在进入持久层前移除。
      */
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
@@ -311,7 +303,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private static final String TRIGGER_TYPE_CHANNEL_CALLBACK = "CHANNEL_CALLBACK";
 
-    /** 退款审批拒绝或过期触发类型。 */
+    /**
+     * 退款审批拒绝或过期触发类型。
+     */
     private static final String TRIGGER_TYPE_REFUND_APPROVAL = "REFUND_APPROVAL";
 
     /**
@@ -374,10 +368,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private final TransactionPaymentMethodInfoMapper transactionPaymentMethodInfoMapper;
 
-    /** 非分表交易定位 Mapper，为商户后续动作保存可验证的分片路由索引。 */
+    /**
+     * 非分表交易定位 Mapper，为商户后续动作保存可验证的分片路由索引。
+     */
     private final TransactionLocatorMapper transactionLocatorMapper;
 
-    /** 首次交易商户可见快照服务，与主单、动作单共享本地事务。 */
+    /**
+     * 首次交易商户可见快照服务，与主单、动作单共享本地事务。
+     */
     private final MerchantTransactionSnapshotService merchantTransactionSnapshotService;
 
     /**
@@ -395,10 +393,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private final MerchantNotificationProperties merchantNotificationProperties;
 
-    /** 首次交易请求幂等和商户订单流守卫状态同步服务。 */
+    /**
+     * 首次交易请求幂等和商户订单流守卫状态同步服务。
+     */
     private final TransactionIdempotencyService transactionIdempotencyService;
 
-    /** 终态通知首次五秒延时事件调度服务。 */
+    /**
+     * 终态通知首次五秒延时事件调度服务。
+     */
     private final MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService;
 
     /**
@@ -457,7 +459,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         this.merchantNotificationInitialDeliveryService = merchantNotificationInitialDeliveryService;
     }
 
-    /** 测试构造入口，使用与生产默认值一致的有界通知策略。 */
+    /**
+     * 测试构造入口，使用与生产默认值一致的有界通知策略。
+     */
     DefaultTransactionRecordService(TransactionOrderMapper transactionOrderMapper,
                                     TransactionOperationMapper transactionOperationMapper,
                                     TransactionStatusHistoryMapper transactionStatusHistoryMapper,
@@ -485,7 +489,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 transactionShardingProperties);
     }
 
-    /** 测试构造入口，可显式验证固定表定位记录与交易事实同批写入。 */
+    /**
+     * 测试构造入口，可显式验证固定表定位记录与交易事实同批写入。
+     */
     DefaultTransactionRecordService(TransactionOrderMapper transactionOrderMapper,
                                     TransactionOperationMapper transactionOperationMapper,
                                     TransactionStatusHistoryMapper transactionStatusHistoryMapper,
@@ -555,7 +561,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         int orderHistoryRows = transactionStatusHistoryMapper.insertLogical(orderHistoryDO);
         int operationHistoryRows = transactionStatusHistoryMapper.insertLogical(operationHistoryDO);
-        log.info("event: PAYMENT_LOCAL_PREPARE_COMMIT stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} platformStatus: {} logicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
+        log.info("支付首次交易本地准备已提交, event: PAYMENT_LOCAL_PREPARE_COMMIT, stage: LOCAL_PREPARE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, channelCode: {}, channelMidId: {}, platformStatus: {}, logicalTable: {}, affectedRows: {}, statusBefore: {}, statusAfter: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -628,13 +634,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (channelInvokeResultDTO == null || channelInvokeResultDTO.getChannelRequest() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        TransactionOperationDO operationDO = findSourceOperationByTransactionId(
+        TransactionOperationDO operationDO = findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), commandDTO.getTransactionDateTime());
-        TransactionOrderDO orderDO = findOrder(commandDTO.getTransactionDateTime(), resultDTO.getOperationId());
+        TransactionOrderDO orderDO = findOrderPrimary(
+                commandDTO.getTransactionDateTime(), resultDTO.getOperationId());
         if (operationDO == null || orderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         LocalDateTime now = LocalDateTime.now();
+        // 终态检查先快速拒绝已完成动作；真正的并发保护仍由下面带版本条件的更新承担。
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus())) {
             recordCallbackStatusHistory(operationDO, channelInvokeResultDTO.getRequestId(), resultDTO.getStatus(), TRANSITION_IGNORED,
@@ -660,12 +668,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO.getStatus(),
                 resultDTO.getFailReasonCode(),
                 resultDTO.getFailReasonMessage(),
-                true,
+                isTerminal(resultDTO),
                 now);
         if (isTerminal(resultDTO)) {
             activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
         }
         updateMerchantApiFinalResult(commandDTO, resultDTO, now);
+        synchronizeTerminalIdempotencyStatus(resultDTO.getTransactionId(), resultDTO.getStatus());
         return true;
     }
 
@@ -682,7 +691,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 requestId, transactionDateTime, LocalDateTime.now()) == 1;
     }
 
-    /** 通过 INIT 状态抢占 3DS 等渠道调用前失败收敛。 */
+    /**
+     * 通过 INIT 状态抢占 3DS 等渠道调用前失败收敛。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public boolean claimInitialPreChannelFailure(String requestId, LocalDateTime transactionDateTime) {
@@ -726,7 +737,28 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return transactionOrderMapper.selectByOperationId(operationId, transactionDateTime);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 在主库路由作用域内读取状态推进前或 CAS 冲突后的生命周期资金汇总。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionOrderDO findOrderPrimary(LocalDateTime transactionDateTime, String operationId) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            if (transactionDateTime == null || !StringUtils.hasText(operationId)) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            TransactionOrderDO orderDO = transactionOrderMapper.selectByOperationId(
+                    operationId, transactionDateTime);
+            if (orderDO == null) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            return orderDO;
+        }
+    }
+
+    /**
+     * 按平台交易号和精确分片时间查询单笔支付工具摘要。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public TransactionPaymentMethodInfoDO findPaymentMethodInfo(
@@ -738,7 +770,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return transactionPaymentMethodInfoMapper.selectByTransactionId(transactionId, transactionDateTime);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 批量查询交易动作对应的支付工具摘要，并以平台交易号建立索引。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public Map<String, TransactionPaymentMethodInfoDO> findPaymentMethodInfos(
@@ -883,6 +917,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 在主库路由作用域内读取状态推进前或 CAS 冲突后的当前动作事实，作用域关闭时必须清理线程 Hint。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionOperationDO findSourceOperationByTransactionIdPrimary(
+            String sourceTransactionId,
+            LocalDateTime sourceTransactionDateTime) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            if (sourceTransactionDateTime == null) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            TransactionOperationDO operationDO = transactionOperationMapper.selectByTransactionId(
+                    sourceTransactionId, sourceTransactionDateTime);
+            if (operationDO == null) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            return operationDO;
+        }
+    }
+
+    /**
      * 按商户订单号查询交易动作单。
      *
      * @param merchantId      平台商户号
@@ -911,6 +966,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         LocalDateTime now = LocalDateTime.now();
         return transactionOperationMapper.selectByMerchantOrder(
                 merchantId, merchantOrderNo, transactionId, logicalBegin(rootTransactionDateTime), exclusiveEnd(now));
+    }
+
+    /**
+     * 按生命周期关联标识查询全部动作事实。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public List<TransactionOperationDO> findOperationsByOperationId(String operationId,
+                                                                    LocalDateTime beginTime,
+                                                                    LocalDateTime endTime) {
+        if (!StringUtils.hasText(operationId) || beginTime == null || endTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return transactionOperationMapper.selectByOperationId(
+                operationId, logicalBegin(beginTime), exclusiveEnd(endTime));
     }
 
     /**
@@ -1098,6 +1168,25 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     @Override
     @DS(DataSourceName.TRANSACTION)
     public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
+        return findOriginalChannelRequest(operationDO);
+    }
+
+    /**
+     * 在主库路由作用域内恢复已准备交易使用的原渠道请求。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionChannelRequestDO findOriginalChannelRequestForQueryPrimary(
+            TransactionOperationDO operationDO) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            return findOriginalChannelRequest(operationDO);
+        }
+    }
+
+    /**
+     * 查询原始渠道请求。
+     */
+    private TransactionChannelRequestDO findOriginalChannelRequest(TransactionOperationDO operationDO) {
         if (operationDO == null || operationDO.getTransactionDateTime() == null) {
             return null;
         }
@@ -1162,7 +1251,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 commandDTO, resultDTO, STATUS_OBJECT_OPERATION, actionTransactionDateTime, now);
         int orderHistoryRows = transactionStatusHistoryMapper.insertLogical(orderHistory);
         int operationHistoryRows = transactionStatusHistoryMapper.insertLogical(operationHistory);
-        log.info("event: PAYMENT_LOCAL_PREPARE_COMMIT stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} platformStatus: {} logicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
+        log.info("支付后续动作本地准备已提交, event: PAYMENT_LOCAL_PREPARE_COMMIT, stage: LOCAL_PREPARE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, channelCode: {}, channelMidId: {}, platformStatus: {}, logicalTable: {}, affectedRows: {}, statusBefore: {}, statusAfter: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -1305,7 +1394,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setVersion(operationDO.getVersion() + 1);
         activateMerchantNotification(operationDO, PaymentTransactionStatusEnum.FAILED.getCode(),
                 reasonCode, reasonMessage, actualNow);
-        log.info("event: REFUND_APPROVAL_TERMINATED stage=REFUND_APPROVAL traceId: {} transactionId: {} operationId: {} merchantId: {} triggerId: {} operatorType: {} operatorId: {} affectedRows: {}",
+        log.info("退款审核动作已终止, event: REFUND_APPROVAL_TERMINATED, stage: REFUND_APPROVAL, traceId: {}, transactionId: {}, operationId: {}, merchantId: {}, triggerId: {}, operatorType: {}, operatorId: {}, affectedRows: {}",
                 TraceContext.getTraceId(), operationDO.getTransactionId(), operationDO.getOperationId(),
                 operationDO.getMerchantId(), triggerId, operatorType, operatorId, updated);
         return true;
@@ -1345,10 +1434,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * 将增量授权渠道结果写入交易主单、动作单和认证事实，并按状态机推进交易状态。
      * @param operationDO 待完成的增量授权动作单，版本用于状态 CAS
      * @param sourceOrderDO 被增额的授权主单，累计金额只在动作成功时更新
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param commandDTO 已归一到原授权币种的增量授权命令
+     * @param routeResultDTO 原授权冻结的渠道和 MID 快照
+     * @param invokeResultDTO 本次渠道请求身份、发送状态及结构化响应
+     * @param resultDTO 状态解析后的商户响应和累计金额投影
      * @param currencyExponent 交易币种 ISO 4217 小数位数
      * @return 动作状态 CAS 成功并完成事实写入时返回 true，否则返回 false
      */
@@ -1412,6 +1501,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return false;
         }
         LocalDateTime now = LocalDateTime.now();
+        // 动作单是回调推进的竞争点，只有版本和当前状态仍匹配的线程才能取得后续副作用执行权。
         int operationUpdated = transactionOperationMapper.completeStatus(
                 operationDO.getId(),
                 operationDO.getTransactionDateTime(),
@@ -1423,19 +1513,31 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 channelStatus,
                 channelResponseCode,
                 channelResponseMessage,
-                null,
-                null,
-                null,
+                operationDO.getAuthCode(),
+                operationDO.getRrn(),
+                operationDO.getAcquirerReferenceNo(),
                 CHANNEL_MATCH_MATCHED);
         if (operationUpdated != 1) {
             recordCallbackStatusHistory(operationDO, callbackId, targetTransactionStatus, TRANSITION_IGNORED,
                     "operation state has changed");
             return false;
         }
+        transactionOperationMapper.updateChannelIdentityLogical(
+                operationDO.getId(),
+                operationDO.getTransactionDateTime(),
+                operationDO.getVersion() + 1,
+                operationDO.getChannelOrderNo(),
+                operationDO.getChannelTransactionId());
+        updateInitialOrderChannelIdentity(operationDO, operationDO.getChannelOrderNo());
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus);
+        // 主单只承载生命周期累计事实；后续动作允许主单状态不变化，但首次动作必须成功推进主单。
         boolean orderUpdated = updateOrderByCallback(orderDO, operationDO, success,
                 targetTransactionStatus, failReasonCode, failReasonMessage);
-        log.info("event: PAYMENT_CALLBACK_DB_UPDATE stage=CALLBACK_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} logicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
+        boolean followUpOperation = StringUtils.hasText(operationDO.getSourceTransactionId());
+        if (!followUpOperation && !orderUpdated) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
+        }
+        log.info("支付回调交易事实已更新, event: PAYMENT_CALLBACK_DB_UPDATE, stage: CALLBACK_RESULT, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, channelCode: {}, channelTransactionId: {}, platformStatus: {}, channelResultCode: {}, logicalTable: {}, affectedRows: {}, statusBefore: {}, statusAfter: {}",
                 TraceContext.getTraceId(),
                 operationDO.getMerchantId(),
                 operationDO.getMerchantOrderNo(),
@@ -1453,18 +1555,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 operationUpdated + (orderUpdated ? 1 : 0),
                 operationDO.getTransactionStatus(),
                 targetTransactionStatus);
+        // 只有 CAS 胜出且主单累计字段确实更新时才记录金额变化，重复回调不得重复累计。
         if (success && orderUpdated && StringUtils.hasText(operationDO.getSourceTransactionId())) {
             recordAmountChange(operationDO, orderDO, now);
         }
         insertCallbackStateAndFlow(operationDO, orderDO, callbackId, targetTransactionStatus,
                 failReasonCode, failReasonMessage, orderUpdated, now);
-        if (orderUpdated) {
-            activateMerchantNotification(operationDO, targetTransactionStatus, failReasonCode, failReasonMessage, now);
-        }
-        if (transactionIdempotencyService != null) {
-            transactionIdempotencyService.synchronizeInitialTransactionStatus(
-                    operationDO.getTransactionId(), targetTransactionStatus);
-        }
+        activateMerchantNotification(operationDO, targetTransactionStatus, failReasonCode, failReasonMessage, now);
+        synchronizeTerminalIdempotencyStatus(operationDO.getTransactionId(), targetTransactionStatus);
         return true;
     }
 
@@ -1574,11 +1672,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                                        PaymentChannelInvokeResultDTO invokeResultDTO,
                                                        String platformResultCode,
                                                        String failReason) {
-        if (operationDO == null || operationDO.getTransactionDateTime() == null || originalRequestDO == null
-                || !StringUtils.hasText(originalRequestDO.getRequestId())) {
+        if (operationDO == null || operationDO.getTransactionDateTime() == null) {
             return true;
         }
         ChannelPaymentResponse response = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+        updateOperationChannelReferences(operationDO, response, operationDO.getVersion());
+        updateInitialOrderChannelIdentity(
+                operationDO,
+                response == null ? null : response.getChannelOrderNo());
+        if (originalRequestDO == null || !StringUtils.hasText(originalRequestDO.getRequestId())) {
+            return true;
+        }
         Map<String, String> rawResponse = response == null ? Map.of() : response.getRawResponse();
         String requestStatus = invokeResultDTO == null ? originalRequestDO.getRequestStatus() : invokeResultDTO.getRequestStatus();
         int updated = transactionChannelRequestMapper.updateStatusLogical(
@@ -1600,7 +1704,53 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 invokeResultDTO == null || invokeResultDTO.getResponseTime() == null
                         ? LocalDateTime.now() : invokeResultDTO.getResponseTime(),
                 invokeResultDTO == null ? null : invokeResultDTO.getDurationMillis());
+        if (updated == 1 && response != null) {
+            transactionChannelRequestMapper.updateChannelIdentityLogical(
+                    originalRequestDO.getRequestId(),
+                    operationDO.getTransactionDateTime(),
+                    originalRequestDO.getVersion() + 1,
+                    response.getChannelOrderNo(),
+                    response.getChannelTransactionId());
+        }
         return updated == 1 || !isOriginalRequestResultConflict(originalRequestDO, platformResultCode);
+    }
+
+    /**
+     * 补写查询返回的渠道身份和卡交易参考字段，不参与平台状态竞争。
+     */
+    private void updateOperationChannelReferences(TransactionOperationDO operationDO,
+                                                  ChannelPaymentResponse response,
+                                                  Integer expectedVersion) {
+        if (operationDO == null || response == null || operationDO.getId() == null
+                || operationDO.getTransactionDateTime() == null || expectedVersion == null) {
+            return;
+        }
+        transactionOperationMapper.updateChannelReferencesLogical(
+                operationDO.getId(),
+                operationDO.getTransactionDateTime(),
+                expectedVersion,
+                response.getChannelOrderNo(),
+                response.getChannelTransactionId(),
+                response.getAuthCode(),
+                response.getRrn(),
+                response.getAcquirerReferenceNo());
+    }
+
+    /**
+     * 首次交易只在渠道身份尚未解析时补写生命周期授权号。
+     */
+    private void updateInitialOrderChannelIdentity(TransactionOperationDO operationDO,
+                                                   String channelOrderNo) {
+        if (operationDO == null || StringUtils.hasText(operationDO.getSourceTransactionId())
+                || !StringUtils.hasText(operationDO.getOperationId())
+                || operationDO.getTransactionDateTime() == null
+                || !StringUtils.hasText(channelOrderNo)) {
+            return;
+        }
+        transactionOrderMapper.updateInitialChannelOrderNoIfUnresolved(
+                operationDO.getOperationId(),
+                operationDO.getTransactionDateTime(),
+                channelOrderNo);
     }
 
     /**
@@ -1626,7 +1776,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 commandDTO.getResponseCipherDigest(),
                 commandDTO.getResponseCipherMasked(),
                 commandDTO.getResponseTime() == null ? LocalDateTime.now() : commandDTO.getResponseTime());
-        log.info("event: PAYMENT_MERCHANT_API_LOG_RESPONSE_UPDATED stage=RESPONSE_LOG traceId: {} transactionId: {} requestId: {} logicalTable: {} affectedRows: {} responseCipherDigest: {} responseCipherMasked: {} responsePlainLength: {}",
+        log.info("支付商户API响应审计已更新, event: PAYMENT_MERCHANT_API_LOG_RESPONSE_UPDATED, stage: RESPONSE_LOG, traceId: {}, transactionId: {}, requestId: {}, logicalTable: {}, affectedRows: {}, responseCipherDigest: {}, responseCipherMasked: {}, responsePlainLength: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getTransactionId(),
                 commandDTO.getRequestId(),
@@ -1669,8 +1819,12 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setPendingReasonCode(resultDTO.getPendingReasonCode());
         orderDO.setFailReasonCode(resultDTO.getFailReasonCode());
         orderDO.setFailReasonMessage(resolveFailureMessage(resultDTO, channelResponse));
-        orderDO.setMerchantVisibleMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
-        orderDO.setPayerVisibleMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
+        OpenApiTransactionProjection publicResult = projectTransactionResult(resultDTO);
+        orderDO.setMerchantVisibleMessage(failureMessage(
+                publicResult, OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        // 持久化公开快照必须稳定为英文；收银台界面本地化不能改变商户回调或查询契约。
+        orderDO.setPayerVisibleMessage(failureMessage(
+                publicResult, OpenApiMessageAudience.PAYER, OpenApiMessageLocale.EN_US));
         fillAmountFields(orderDO, commandDTO, resultDTO, currencyExponent);
         fillOrderRouteFields(orderDO, routeResultDTO, channelResponse, riskDecisionEnum);
         orderDO.setInternalRiskRecordNo(commandDTO.getRiskRecordNo());
@@ -1719,6 +1873,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderNo());
         operationDO.setRequestSource(commandDTO.getRequestSource());
+        operationDO.setIngressClientIp(commandDTO.getIngressClientIp());
+        operationDO.setIngressClientIpHash(sha256Hex(commandDTO.getIngressClientIp()));
         operationDO.setDescription(commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getDescription());
         operationDO.setOperationSequence(INITIAL_OPERATION_SEQUENCE);
@@ -1748,6 +1904,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return operationDO;
     }
 
+    /**
+     * 构建后续交易动作记录。
+     */
     private TransactionOperationDO buildFollowUpOperation(TransactionFollowUpRecordDTO recordDTO,
                                                           LocalDateTime now,
                                                           int operationSequence) {
@@ -1765,6 +1924,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderId());
         RefundRequestSourceEnum requestSource = RefundRequestSourceEnum.from(commandDTO.getRequestSource());
         operationDO.setRequestSource(requestSource.getCode());
+        operationDO.setIngressClientIp(commandDTO.getIngressClientIp());
+        operationDO.setIngressClientIpHash(sha256Hex(commandDTO.getIngressClientIp()));
         operationDO.setRefundScope(commandDTO.getRefundScope());
         operationDO.setRequestReason(commandDTO.getRequestReason());
         operationDO.setDescription(commandDTO.getTransactionInfo() == null
@@ -1838,6 +1999,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return transactionLocatorMapper.insert(locatorDO);
     }
 
+    /**
+     * 从原渠道请求恢复动作路由字段。
+     */
     private void fillOperationRouteFieldsFromRequest(TransactionOperationDO operationDO,
                                                      PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (operationDO == null || invokeResultDTO == null || invokeResultDTO.getChannelRequest() == null) {
@@ -1848,6 +2012,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setChannelTransactionId(firstText(operationDO.getChannelTransactionId(), invokeResultDTO.getChannelRequest().getChannelTransactionId()));
     }
 
+    /**
+     * 从原渠道请求恢复主单路由字段。
+     */
     private void fillOrderRouteFieldsFromRequest(TransactionOrderDO orderDO,
                                                  PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (orderDO == null || invokeResultDTO == null || invokeResultDTO.getChannelRequest() == null) {
@@ -1857,6 +2024,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setChannelOrderNo(firstText(orderDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
     }
 
+    /**
+     * 构建交易状态历史记录。
+     */
     private TransactionStatusHistoryDO buildStatusHistory(PaymentCreateCommandDTO commandDTO,
                                                           PaymentCreateResultDTO resultDTO,
                                                           String statusObject,
@@ -1982,31 +2152,52 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setTransactionRate(resolveTransactionRate(commandDTO));
     }
 
+    /**
+     * 解析标签币种。
+     */
     private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getLabelCurrency()) ? commandDTO.getLabelCurrency() : commandDTO.getCurrency();
     }
 
+    /**
+     * 解析标签金额。
+     */
     private BigDecimal resolveLabelAmount(PaymentCreateCommandDTO commandDTO) {
         return commandDTO.getLabelAmount() == null ? commandDTO.getAmount() : commandDTO.getLabelAmount();
     }
 
+    /**
+     * 解析交易币种。
+     */
     private String resolveTransactionCurrency(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getTransactionCurrency()) ? commandDTO.getTransactionCurrency() : commandDTO.getCurrency();
     }
 
+    /**
+     * 解析交易金额。
+     */
     private BigDecimal resolveTransactionAmount(PaymentCreateCommandDTO commandDTO) {
         BigDecimal amount = commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount();
         return amount == null ? BigDecimal.ZERO : amount;
     }
 
+    /**
+     * 解析交易汇率。
+     */
     private BigDecimal resolveTransactionRate(PaymentCreateCommandDTO commandDTO) {
         return commandDTO.getTransactionRate() == null ? new BigDecimal("1.00000000") : commandDTO.getTransactionRate();
     }
 
+    /**
+     * 把可空开关值规范化为持久化标志。
+     */
     private int flagValue(Integer value) {
         return value != null && ENABLED == value ? ENABLED : DISABLED;
     }
 
+    /**
+     * 填充交易主单路由字段。
+     */
     private void fillOrderRouteFields(TransactionOrderDO orderDO,
                                       PaymentRouteResultDTO routeResultDTO,
                                       ChannelPaymentResponse channelResponse,
@@ -2029,6 +2220,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setInternalRiskDecision(riskDecisionEnum == null ? PaymentRiskDecisionEnum.UNKNOWN.getCode() : riskDecisionEnum.getCode());
     }
 
+    /**
+     * 填充交易动作路由字段。
+     */
     private void fillOperationRouteFields(TransactionOperationDO operationDO,
                                           PaymentRouteResultDTO routeResultDTO,
                                           ChannelPaymentResponse channelResponse) {
@@ -2051,15 +2245,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 解析支付方式。
+     */
     private String resolvePaymentMethod(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getPaymentMethod()) ? commandDTO.getPaymentMethod() : DEFAULT_PAYMENT_METHOD;
     }
 
+    /**
+     * 判断交易是否属于授权类动作。
+     */
     private boolean isAuthorizationLike(String transactionType) {
         return Objects.equals(PaymentTransactionTypeEnum.AUTHORIZATION.getCode(), transactionType)
                 || Objects.equals(PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode(), transactionType);
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
@@ -2106,9 +2309,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             updateSourceOrderAmount(orderDO, resultDTO);
             return true;
         }
-        if (StringUtils.hasText(operationDO.getSourceTransactionId())
-                && PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(operationDO.getTransactionType())) {
-            return true;
+        if (StringUtils.hasText(operationDO.getSourceTransactionId())) {
+            return false;
         }
         int updated = transactionOrderMapper.completeStatus(
                 orderDO.getOperationId(),
@@ -2125,6 +2327,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return updated == 1;
     }
 
+    /**
+     * 更新首次交易渠道请求记录。
+     */
     private void updateInitialChannelRequest(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
                                              PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -2165,7 +2370,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             }
         }
         updateChannelRequestIdentity(invokeResultDTO, commandDTO.getTransactionDateTime(), requestDO, updated);
-        log.info("event: PAYMENT_CHANNEL_REQUEST_DB_UPDATED stage=CHANNEL_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelRequestId: {} channelTransactionId: {} requestStatus: {} platformStatus: {} channelResultCode: {} acquirerCode: {} logicalTable: {} affectedRows: {}",
+        log.info("支付渠道请求结果已更新, event: PAYMENT_CHANNEL_REQUEST_DB_UPDATED, stage: CHANNEL_RESULT, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, currency: {}, amount: {}, channelCode: {}, channelRequestId: {}, channelTransactionId: {}, requestStatus: {}, platformStatus: {}, channelResultCode: {}, acquirerCode: {}, logicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -2216,6 +2421,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 channelTransactionId);
     }
 
+    /**
+     * 更新渠道交互审计日志。
+     */
     private void updateChannelInteractionLog(PaymentCreateCommandDTO commandDTO,
                                              PaymentChannelInvokeResultDTO invokeResultDTO,
                                              PaymentCreateResultDTO resultDTO,
@@ -2253,7 +2461,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel interaction result has changed");
             }
         }
-        log.info("event: PAYMENT_CHANNEL_INTERACTION_LOG_SAVED stage=CHANNEL_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelRequestId: {} httpStatus: {} durationMs: {} logicalTable: {} affectedRows: {}",
+        log.info("支付渠道交互审计已保存, event: PAYMENT_CHANNEL_INTERACTION_LOG_SAVED, stage: CHANNEL_RESULT, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, channelRequestId: {}, httpStatus: {}, durationMs: {}, logicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -2290,6 +2498,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 && Objects.equals(current.getDurationMillis(), incoming.getDurationMillis());
     }
 
+    /**
+     * 判断渠道请求结果是否发生并发冲突。
+     */
     private boolean isRequestResultConflict(TransactionChannelRequestDO requestDO,
                                             PaymentChannelInvokeResultDTO invokeResultDTO,
                                             PaymentCreateResultDTO resultDTO) {
@@ -2302,6 +2513,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
     }
 
+    /**
+     * 更新商户 API 最终响应事实。
+     */
     private void updateMerchantApiFinalResult(PaymentCreateCommandDTO commandDTO,
                                               PaymentCreateResultDTO resultDTO,
                                               LocalDateTime now) {
@@ -2324,6 +2538,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
     }
 
+    /**
+     * 判断原渠道请求结果是否发生并发冲突。
+     */
     private boolean isOriginalRequestResultConflict(TransactionChannelRequestDO requestDO, String platformResultCode) {
         return requestDO == null
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(requestDO.getPlatformResultCode())
@@ -2331,12 +2548,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
-     * 完成{@code completeInitialTerminalStatus}状态收口，通过既有状态机和版本条件写入终态或失败事实。
-     * @param operationDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param orderDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 当前业务条件成立时返回 true，否则返回 false
+     * 以动作版本 CAS 收口首次交易终态。
+     *
+     * <p>只有动作 CAS 胜出方才能继续更新主单、金额累计、状态历史和通知；失败方必须回读权威结果。</p>
      */
     private boolean completeInitialTerminalStatus(TransactionOperationDO operationDO,
                                                   TransactionOrderDO orderDO,
@@ -2361,6 +2575,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (operationUpdated != 1) {
             return false;
         }
+        updateOperationChannelIdentity(operationDO, invokeResultDTO);
+        updateInitialOrderChannelIdentity(
+                operationDO,
+                response == null ? null : response.getChannelOrderNo());
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
         if (success) {
             int orderUpdated = transactionOrderMapper.markInitialSuccess(
@@ -2394,6 +2612,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return true;
     }
 
+    /**
+     * 更新首次交易的非终态结果。
+     */
     private boolean updateInitialNonTerminalStatus(TransactionOperationDO operationDO,
                                                    PaymentChannelInvokeResultDTO invokeResultDTO,
                                                    PaymentCreateResultDTO resultDTO,
@@ -2413,7 +2634,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 response == null ? null : response.getChannelResponseMessage(),
                 invokeResultDTO.getRequestId(),
                 now);
-        log.info("event: PAYMENT_STATUS_DB_UPDATED stage=STATUS_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} logicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
+        if (updated == 1) {
+            updateOperationChannelIdentity(operationDO, invokeResultDTO);
+            updateInitialOrderChannelIdentity(
+                    operationDO,
+                    response == null ? null : response.getChannelOrderNo());
+        }
+        log.info("支付交易状态已更新, event: PAYMENT_STATUS_DB_UPDATED, stage: STATUS_RESULT, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, channelCode: {}, channelRequestId: {}, channelTransactionId: {}, platformStatus: {}, channelResultCode: {}, logicalTable: {}, affectedRows: {}, statusBefore: {}, statusAfter: {}",
                 TraceContext.getTraceId(),
                 operationDO.getMerchantId(),
                 operationDO.getMerchantOrderNo(),
@@ -2483,23 +2710,28 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus()),
                 now);
         activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
+        synchronizeTerminalIdempotencyStatus(resultDTO.getTransactionId(), resultDTO.getStatus());
         return true;
     }
 
     /**
-     * 更新{@code updateCaptureNonTerminalStatus}，保持业务状态、配置项或展示字段与请求意图一致。
-     * <p>
-     * 状态或配置变更必须通过 支付核心服务 既有权限、版本和状态流转校验。
-     * </p>
-     * @param operationDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param sourceOrderDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
-     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
-     * @return 写入、更新或删除后的处理结果
+     * 在交易终态事实所在事务内同步幂等状态，避免进程在事务提交后、响应快照补写前退出时遗留 PROCESSING。
+     *
+     * <p>这里只推进稳定终态；完整响应快照仍由外层请求编排补写。重复请求会以幂等表终态覆盖旧快照状态。</p>
+     */
+    private void synchronizeTerminalIdempotencyStatus(String transactionId, String transactionStatus) {
+        if (transactionIdempotencyService == null
+                || (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)
+                && !PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus))) {
+            return;
+        }
+        transactionIdempotencyService.synchronizeInitialTransactionStatus(transactionId, transactionStatus);
+    }
+
+    /**
+     * 保存请款类非终态渠道结果。
+     *
+     * <p>先用动作版本 CAS 保持 PROCESSING/PENDING，再写渠道身份和审计事实；不会提前累计请款金额。</p>
      */
     private boolean updateCaptureNonTerminalStatus(TransactionOperationDO operationDO,
                                                    TransactionOrderDO sourceOrderDO,
@@ -2525,6 +2757,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return true;
     }
 
+    /**
+     * 合并交易动作事实与渠道调用结果。
+     */
     private TransactionOperationDO mergeOperationResult(TransactionOperationDO source,
                                                        PaymentChannelInvokeResultDTO invokeResultDTO,
                                                        PaymentCreateResultDTO resultDTO) {
@@ -2537,6 +2772,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         target.setMerchantOrderNo(source.getMerchantOrderNo());
         target.setMerchantOrderId(source.getMerchantOrderId());
         target.setMerchantOperationNo(source.getMerchantOperationNo());
+        target.setIngressClientIp(source.getIngressClientIp());
+        target.setIngressClientIpHash(source.getIngressClientIpHash());
         target.setDescription(source.getDescription());
         target.setTransactionType(source.getTransactionType());
         target.setTransactionStatus(resultDTO.getStatus());
@@ -2563,10 +2800,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
-     * 将渠道响应中的真实订单身份回写动作事实。
-     *
-     * <p>状态 CAS 已先完成并将版本加一；身份更新使用该新版本校验，不改变版本，避免后续退款、回调和勾兑继续
-     * 使用请求发起前生成的本地临时交易号。</p>
+     * 状态 CAS 成功后补写渠道真实身份、授权码和 ARN。
      */
     private void updateOperationChannelIdentity(TransactionOperationDO operationDO,
                                                PaymentChannelInvokeResultDTO invokeResultDTO) {
@@ -2578,17 +2812,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return;
         }
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
-        String channelOrderNo = response.getChannelOrderNo();
-        String channelTransactionId = response.getChannelTransactionId();
-        if (!StringUtils.hasText(channelOrderNo) && !StringUtils.hasText(channelTransactionId)) {
-            return;
-        }
-        transactionOperationMapper.updateChannelIdentityLogical(
+        transactionOperationMapper.updateChannelReferencesLogical(
                 operationDO.getId(),
                 operationDO.getTransactionDateTime(),
                 operationDO.getVersion() + 1,
-                channelOrderNo,
-                channelTransactionId);
+                response.getChannelOrderNo(),
+                response.getChannelTransactionId(),
+                response.getAuthCode(),
+                response.getRrn(),
+                response.getAcquirerReferenceNo());
     }
 
     /**
@@ -2600,7 +2832,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param targetTransactionStatus 目标交易状态
      * @param failReasonCode 失败原因码
      * @param failReasonMessage 失败原因描述
-     * @param orderUpdated 主单是否更新成功
+     * @param orderUpdated 生命周期主单是否实际完成了状态或金额更新
      * @param now 当前处理时间
      */
     private void insertCallbackStateAndFlow(TransactionOperationDO operationDO,
@@ -2611,13 +2843,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                             String failReasonMessage,
                                             boolean orderUpdated,
                                             LocalDateTime now) {
+        boolean followUpOperation = StringUtils.hasText(operationDO.getSourceTransactionId());
+        boolean terminal = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus)
+                || PaymentTransactionStatusEnum.FAILED.getCode().equals(targetTransactionStatus);
+        boolean orderChangeRequired = followUpOperation
+                ? PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus)
+                : terminal;
+        String orderTransitionReason = orderUpdated
+                ? null
+                : orderChangeRequired
+                        ? "order state has changed"
+                        : "lifecycle order change is not required for this operation result";
         TransactionStatusHistoryDO operationHistory = buildCallbackStatusHistory(
                 operationDO, STATUS_OBJECT_OPERATION, callbackId, targetTransactionStatus,
                 TRANSITION_SUCCESS, null, now);
         TransactionStatusHistoryDO orderHistory = buildCallbackStatusHistory(
                 operationDO, STATUS_OBJECT_ORDER, callbackId, targetTransactionStatus,
                 orderUpdated ? TRANSITION_SUCCESS : TRANSITION_IGNORED,
-                orderUpdated ? null : "order state has changed", now);
+                orderTransitionReason, now);
         transactionStatusHistoryMapper.insertLogical(operationHistory);
         transactionStatusHistoryMapper.insertLogical(orderHistory);
         TransactionFlowEventDO eventDO = new TransactionFlowEventDO();
@@ -2625,8 +2868,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setTransactionId(operationDO.getTransactionId());
         eventDO.setOperationId(operationDO.getOperationId());
         eventDO.setEventType("CHANNEL_CALLBACK_PROCESSED");
-        eventDO.setEventStage("CALLBACK");
-        eventDO.setEventStatus(orderUpdated ? "SUCCESS" : "SKIPPED");
+        eventDO.setEventStage("CHANNEL");
+        eventDO.setEventStatus("SUCCESS");
         eventDO.setEventName("渠道回调处理");
         eventDO.setEventContent(safeLength("回调状态：" + targetTransactionStatus, 1024));
         eventDO.setPreviousStatus(operationDO.getTransactionStatus());
@@ -2636,6 +2879,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setReferenceId(callbackId);
         eventDO.setErrorCode(failReasonCode);
         eventDO.setErrorMessage(safeLength(failReasonMessage, 512));
+        fillProcessorNodeAudit(eventDO);
         eventDO.setEventTime(now);
         fillTransactionTime(eventDO, operationDO.getTransactionDateTime());
         eventDO.setCreateTime(now);
@@ -2722,10 +2966,12 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         TransactionMerchantNotificationDO pendingNotification =
                 transactionMerchantNotificationMapper.selectPendingActivation(
                         operationDO.getTransactionId(), operationDO.getTransactionDateTime(), INITIAL_VERSION);
+        // 通知载荷只使用商户受众投影，禁止携带渠道原始 message、内部异常或管理端诊断细节。
         String callbackPayloadJson = JsonUtils.toJsonString(
                 merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode));
         LocalDateTime firstDeliveryTime = now.plusSeconds(
                 MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS);
+        // 初始版本条件保证通知只激活一次；调度器仅在激活成功后登记提交后发送任务。
         int affectedRows = transactionMerchantNotificationMapper.activateByTransactionId(
                 operationDO.getTransactionId(),
                 operationDO.getTransactionDateTime(),
@@ -2740,7 +2986,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             merchantNotificationInitialDeliveryService.schedule(
                     pendingNotification, INITIAL_VERSION + 1, now);
         }
-        log.info("event: PAYMENT_MERCHANT_NOTIFY_ACTIVATED stage=NOTIFY_CREATE traceId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} platformStatus: {} logicalTable: {} affectedRows: {} willNotify: {}",
+        log.info("支付商户通知已激活, event: PAYMENT_MERCHANT_NOTIFY_ACTIVATED, stage: NOTIFY_CREATE, traceId: {}, transactionId: {}, operationId: {}, merchantId: {}, merchantOrderNo: {}, platformStatus: {}, logicalTable: {}, affectedRows: {}, willNotify: {}",
                 TraceContext.getTraceId(),
                 operationDO.getTransactionId(),
                 operationDO.getOperationId(),
@@ -2809,7 +3055,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (updated != 1) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "source transaction state has changed");
         }
-        log.info("event: PAYMENT_AMOUNT_CHANGED stage=AMOUNT_UPDATE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} affectedRows: {} authorizedBefore: {} capturedBefore: {} refundedBefore: {} availableCaptureBefore: {} availableRefundBefore: {}",
+        log.info("支付生命周期累计金额已更新, event: PAYMENT_AMOUNT_CHANGED, stage: AMOUNT_UPDATE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, logicalTable: {}, affectedRows: {}, authorizedBefore: {}, capturedBefore: {}, refundedBefore: {}, availableCaptureBefore: {}, availableRefundBefore: {}",
                 TraceContext.getTraceId(),
                 sourceOrderDO.getMerchantId(),
                 sourceOrderDO.getMerchantOrderNo(),
@@ -2844,6 +3090,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return BigDecimal.valueOf(resultDTO.getAmount()).movePointLeft(exponent);
     }
 
+    /**
+     * 计算原交易剩余可授权金额。
+     */
     private BigDecimal remainingAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         BigDecimal authorizedAmount = sourceOrderDO.getAuthorizedAmount() == null
                 ? BigDecimal.ZERO : sourceOrderDO.getAuthorizedAmount();
@@ -2877,7 +3126,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 commandDTO, invokeResultDTO, resultDTO, now);
         int requestRows = transactionChannelRequestMapper.insertLogical(requestDO);
         int interactionRows = transactionChannelInteractionLogMapper.insertLogical(interactionDO);
-        log.info("event: PAYMENT_CHANNEL_AUDIT_SAVED stage=CHANNEL_AUDIT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} logicalTable: {} affectedRows: {}",
+        log.info("支付渠道审计事实已保存, event: PAYMENT_CHANNEL_AUDIT_SAVED, stage: CHANNEL_AUDIT, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, currency: {}, amount: {}, channelCode: {}, channelMidId: {}, channelRequestId: {}, channelTransactionId: {}, platformStatus: {}, logicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -2951,7 +3200,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         infoDO.setCreateTime(now);
         infoDO.setUpdateTime(now);
         int affectedRows = transactionPaymentMethodInfoMapper.insertLogical(infoDO);
-        log.info("event: PAYMENT_METHOD_INFO_SAVED stage=PAYMENT_METHOD traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} paymentBrand: {} cardBin: {} cardLast4: {} logicalTable: {} affectedRows: {}",
+        log.info("支付工具脱敏摘要已保存, event: PAYMENT_METHOD_INFO_SAVED, stage: PAYMENT_METHOD, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, paymentMethod: {}, paymentBrand: {}, cardBin: {}, cardLast4: {}, logicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 commandDTO == null ? null : commandDTO.getMerchantId(),
                 commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
@@ -3078,6 +3327,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         infoDO.setCscResult(firstText(resultDTO.getCscResult(), infoDO.getCscResult()));
     }
 
+    /**
+     * 从脱敏卡号解析 BIN 和卡尾号。
+     */
     private void fillCardPartsFromMaskedNumber(TransactionPaymentMethodInfoDO infoDO, String cardNumberMasked) {
         if (!StringUtils.hasText(cardNumberMasked)) {
             return;
@@ -3268,6 +3520,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 解析渠道 HTTP方式。
+     */
     private String resolveChannelHttpMethod(PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (invokeResultDTO == null) {
             return null;
@@ -3279,6 +3534,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 invokeResultDTO.getHttpMethod());
     }
 
+    /**
+     * 解析渠道请求 URL。
+     */
     private String resolveChannelRequestUrl(PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (invokeResultDTO == null) {
             return null;
@@ -3291,7 +3549,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 invokeResultDTO.getRequestUrlMasked());
     }
 
-    /** 读取渠道适配器在真实报文生成后写入统一请求扩展的脱敏审计字段。 */
+    /**
+     * 读取渠道适配器在真实报文生成后写入统一请求扩展的脱敏审计字段。
+     */
     private String channelRequestRawAudit(ChannelPaymentRequest request, String key) {
         if (request == null || request.getExtension() == null || !StringUtils.hasText(key)) {
             return null;
@@ -3299,6 +3559,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return request.getExtension().get(key);
     }
 
+    /**
+     * 读取渠道交互扩展中的脱敏审计字段。
+     */
     private String channelRawAudit(ChannelPaymentResponse response, String key) {
         if (response == null || !StringUtils.hasText(key)) {
             return null;
@@ -3318,6 +3581,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return rawResponseValue(response, key);
     }
 
+    /**
+     * 读取渠道原始响应中的指定字段。
+     */
     private String rawResponseValue(ChannelPaymentResponse response, String key) {
         if (response == null || response.getRawResponse() == null || !StringUtils.hasText(key)) {
             return null;
@@ -3371,7 +3637,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         String merchantResponseCode = resolveMerchantResponseCode(resultDTO);
         String merchantResponseMessage = resolveMerchantResponseMessage(resultDTO);
         boolean transactionFailed = PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
-        insertFlowEvent(commandDTO, resultDTO, "STATUS_RECORDED", "STATUS", resolveResultFlowEventStatus(resultDTO),
+        insertFlowEvent(commandDTO, resultDTO, "STATUS_RECORDED", "STATUS", TRANSITION_SUCCESS,
                 resultFlowEventName(resultDTO.getStatus()),
                 resultFlowEventContent(resultDTO.getStatus(), merchantResponseCode, merchantResponseMessage),
                 null, resultDTO.getStatus(),
@@ -3438,6 +3704,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (invokeResultDTO == null) {
             return PaymentTransactionStatusEnum.PROCESSING.getCode();
         }
+        if (invokeResultDTO.isOutcomeUncertain()) {
+            return PaymentTransactionStatusEnum.PROCESSING.getCode();
+        }
         if (StringUtils.hasText(invokeResultDTO.getExceptionType())
                 || "FAILED".equals(invokeResultDTO.getRequestStatus())
                 || "TIMEOUT".equals(invokeResultDTO.getRequestStatus())) {
@@ -3458,19 +3727,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return resultDTO == null || !StringUtils.hasText(resultDTO.getStatus())
                 ? PaymentTransactionStatusEnum.PROCESSING.getCode()
                 : resultDTO.getStatus();
-    }
-
-    /**
-     * 解析状态入库节点的时间轴状态。
-     *
-     * @param resultDTO 平台交易结果
-     * @return transaction_status 字典值
-     */
-    private String resolveResultFlowEventStatus(PaymentCreateResultDTO resultDTO) {
-        if (resultDTO == null || !StringUtils.hasText(resultDTO.getStatus())) {
-            return PaymentTransactionStatusEnum.PROCESSING.getCode();
-        }
-        return resultDTO.getStatus();
     }
 
     /**
@@ -3557,7 +3813,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         fillTransactionTime(logDO, commandDTO.getTransactionDateTime());
         logDO.setCreateTime(now);
         int affectedRows = transactionMerchantApiInteractionLogMapper.insertLogical(logDO);
-        log.info("event: PAYMENT_MERCHANT_API_LOG_SAVED stage=REQUEST_LOG traceId: {} apiLogId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} requestId: {} apiOperation: {} logicalTable: {} affectedRows: {} requestCipherDigest: {} requestCipherMasked: {} requestPlainLength: {} responsePlainLength: {} durationMs: {}",
+        log.info("支付商户API请求审计已保存, event: PAYMENT_MERCHANT_API_LOG_SAVED, stage: REQUEST_LOG, traceId: {}, apiLogId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, requestId: {}, apiOperation: {}, logicalTable: {}, affectedRows: {}, requestCipherDigest: {}, requestCipherMasked: {}, requestPlainLength: {}, responsePlainLength: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 logDO.getApiLogId(),
                 logDO.getMerchantId(),
@@ -3643,10 +3899,25 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setReferenceId(referenceId);
         eventDO.setErrorCode(errorCode);
         eventDO.setErrorMessage(safeLength(errorMessage, 512));
+        fillProcessorNodeAudit(eventDO);
         eventDO.setEventTime(now);
         fillTransactionTime(eventDO, commandDTO.getTransactionDateTime());
         eventDO.setCreateTime(now);
         transactionFlowEventMapper.insertLogical(eventDO);
+    }
+
+    /**
+     * 迁移完成并显式开启时，为流程事件写入当前支付节点的内部审计快照。
+     */
+    private void fillProcessorNodeAudit(TransactionFlowEventDO eventDO) {
+        if (!PROCESSOR_NODE_IDENTITY.persistenceEnabled()) {
+            return;
+        }
+        eventDO.setProcessorService(PROCESSOR_NODE_IDENTITY.serviceName());
+        eventDO.setProcessorInstanceId(PROCESSOR_NODE_IDENTITY.instanceId());
+        eventDO.setProcessorHostName(PROCESSOR_NODE_IDENTITY.hostName());
+        eventDO.setProcessorPrivateIp(PROCESSOR_NODE_IDENTITY.privateIp());
+        eventDO.setTraceId(safeLength(TraceContext.getTraceId(), 64));
     }
 
     /**
@@ -3676,7 +3947,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
         int affectedRows = transactionAmountChangeLogMapper.insertLogical(logDO);
-        log.info("event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED stage=AMOUNT_UPDATE traceId: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} affectedRows: {} authorizedBefore: {} authorizedAfter: {} capturedBefore: {} capturedAfter: {} refundedBefore: {} refundedAfter: {} availableCaptureBefore: {} availableCaptureAfter: {} availableRefundBefore: {} availableRefundAfter: {}",
+        log.info("支付金额变动审计已保存, event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED, stage: AMOUNT_UPDATE, traceId: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, logicalTable: {}, affectedRows: {}, authorizedBefore: {}, authorizedAfter: {}, capturedBefore: {}, capturedAfter: {}, refundedBefore: {}, refundedAfter: {}, availableCaptureBefore: {}, availableCaptureAfter: {}, availableRefundBefore: {}, availableRefundAfter: {}",
                 TraceContext.getTraceId(),
                 result.getTransactionId(),
                 source.getOperationId(),
@@ -3724,7 +3995,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
         int affectedRows = transactionAmountChangeLogMapper.insertLogical(logDO);
-        log.info("event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED stage=CALLBACK_AMOUNT_UPDATE traceId: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} affectedRows: {} authorizedBefore: {} authorizedAfter: {} capturedBefore: {} capturedAfter: {} refundedBefore: {} refundedAfter: {} availableCaptureBefore: {} availableCaptureAfter: {} availableRefundBefore: {} availableRefundAfter: {}",
+        log.info("支付回调金额变动审计已保存, event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED, stage: CALLBACK_AMOUNT_UPDATE, traceId: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, logicalTable: {}, affectedRows: {}, authorizedBefore: {}, authorizedAfter: {}, capturedBefore: {}, capturedAfter: {}, refundedBefore: {}, refundedAfter: {}, availableCaptureBefore: {}, availableCaptureAfter: {}, availableRefundBefore: {}, availableRefundAfter: {}",
                 TraceContext.getTraceId(),
                 operationDO.getTransactionId(),
                 sourceOrderDO.getOperationId(),
@@ -3814,7 +4085,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setNotifyType(resultDTO.getTransactionType() + "_RESULT");
         notificationDO.setEventType("TRANSACTION_CREATED");
         notificationDO.setNotifyStatus(NOTIFY_STATUS_INIT);
-        Map<String, Object> callbackPayload = merchantVisiblePayload(commandDTO, resultDTO);
+        MerchantNotificationPayload callbackPayload = merchantVisiblePayload(commandDTO, resultDTO);
         String callbackPayloadJson = JsonUtils.toJsonString(callbackPayload);
         notificationDO.setCallbackUrl(callbackUrl);
         notificationDO.setPayloadJson(callbackPayloadJson);
@@ -3836,7 +4107,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (affectedRows == 1 && terminal && merchantNotificationInitialDeliveryService != null) {
             merchantNotificationInitialDeliveryService.schedule(notificationDO, INITIAL_VERSION, now);
         }
-        log.info("event: PAYMENT_MERCHANT_NOTIFY_CREATED stage=NOTIFY_CREATE traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} targetUrlHash: {} notifyStatus: {} nextRetryTime: {} logicalTable: {} affectedRows: {}",
+        log.info("支付商户通知任务已创建, event: PAYMENT_MERCHANT_NOTIFY_CREATED, stage: NOTIFY_CREATE, traceId: {}, notifyId: {}, transactionId: {}, operationId: {}, merchantId: {}, merchantOrderNo: {}, targetUrlHash: {}, notifyStatus: {}, nextRetryTime: {}, logicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 notificationDO.getNotifyId(),
                 notificationDO.getTransactionId(),
@@ -3860,168 +4131,191 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param resultDTO  交易处理结果
      * @return 已剔除空字段的商户可见载荷
      */
-    private Map<String, Object> merchantVisiblePayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        putIfPresent(payload, "merchantInfo", merchantInfoPayload(commandDTO, resultDTO));
-        putIfPresent(payload, "orderInfo", orderInfoPayload(commandDTO, resultDTO));
-        putIfPresent(payload, "transactionInfo", transactionInfoPayload(commandDTO, resultDTO));
-        putIfPresent(payload, "billingInfo", billingInfoPayload(commandDTO, resultDTO));
-        return compactMap(payload);
-    }
-
-    private Map<String, Object> merchantVisiblePayload(TransactionOperationDO operationDO,
-                                                       String targetTransactionStatus,
-                                                       String failReasonCode) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        Map<String, Object> merchantInfo = new LinkedHashMap<>();
-        putIfPresent(merchantInfo, "merchantId", operationDO.getMerchantId());
-        putIfPresent(payload, "merchantInfo", merchantInfo);
-
-        Map<String, Object> orderInfo = new LinkedHashMap<>();
-        putIfPresent(orderInfo, "orderNo", operationDO.getMerchantOrderNo());
-        putIfPresent(orderInfo, "orderId", firstText(operationDO.getMerchantOrderId(), operationDO.getMerchantOperationNo()));
-        putIfPresent(orderInfo, "amount", operationDO.getLabelAmount());
-        putIfPresent(orderInfo, "currency", operationDO.getLabelCurrency());
-        putIfPresent(payload, "orderInfo", orderInfo);
-
-        Map<String, Object> transactionInfo = new LinkedHashMap<>();
-        putIfPresent(transactionInfo, "code", resolveMerchantResponseCode(targetTransactionStatus));
-        putIfPresent(transactionInfo, "message", resolveMerchantResponseMessage(targetTransactionStatus, failReasonCode));
-        putIfPresent(transactionInfo, "transactionId", operationDO.getTransactionId());
-        putIfPresent(transactionInfo, "sourceTransactionId", operationDO.getSourceTransactionId());
-        putIfPresent(transactionInfo, "transactionType", operationDO.getTransactionType());
-        putIfPresent(transactionInfo, "transactionStatus", targetTransactionStatus);
-        putIfPresent(transactionInfo, "processStage", PaymentProcessStageEnum.FINISHED.getCode());
-        putIfPresent(transactionInfo, "transactionDateTime", offsetDateTimeString(operationDO.getTransactionDateTime(), operationDO.getTransactionTimeZone()));
-        putIfPresent(transactionInfo, "authCode", operationDO.getAuthCode());
-        putIfPresent(transactionInfo, "arn", operationDO.getAcquirerReferenceNo());
-        putIfPresent(transactionInfo, "failReasonCode", merchantVisibleFailureCode(failReasonCode));
-        putIfPresent(transactionInfo, "failReasonMessage", merchantVisibleFailureMessage(targetTransactionStatus, failReasonCode));
-        putIfPresent(payload, "transactionInfo", transactionInfo);
-
-        Map<String, Object> billingInfo = new LinkedHashMap<>();
-        putIfPresent(billingInfo, "labelAmount", operationDO.getLabelAmount());
-        putIfPresent(billingInfo, "labelCurrency", operationDO.getLabelCurrency());
-        putIfPresent(billingInfo, "transactionAmount", operationDO.getTransactionAmount());
-        putIfPresent(billingInfo, "transactionCurrency", operationDO.getTransactionCurrency());
-        putIfPresent(billingInfo, "transactionRate", normalizeRate(operationDO.getTransactionRate()));
-        putIfPresent(billingInfo, "settlementCurrency", operationDO.getSettlementCurrency());
-        putIfPresent(billingInfo, "settlementAmount", operationDO.getSettlementAmount());
-        putIfPresent(payload, "billingInfo", billingInfo);
-        return compactMap(payload);
-    }
-
-    private Map<String, Object> merchantInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
-        Map<String, Object> merchantInfo = new LinkedHashMap<>();
-        putIfPresent(merchantInfo, "merchantId", firstText(resultDTO.getMerchantId(), commandDTO.getMerchantId()));
-        putIfPresent(merchantInfo, "subMerchantInfo", subMerchantInfoPayload(resultDTO.getSubMerchantInfo()));
-        return compactMap(merchantInfo);
-    }
-
-    private Map<String, Object> subMerchantInfoPayload(PaymentCreateResultDTO.SubMerchantInfoDTO source) {
-        if (source == null) {
-            return Map.of();
-        }
-        Map<String, Object> subMerchantInfo = new LinkedHashMap<>();
-        putIfPresent(subMerchantInfo, "subId", source.getSubId());
-        putIfPresent(subMerchantInfo, "subName", source.getSubName());
-        putIfPresent(subMerchantInfo, "subCompanyName", source.getSubCompanyName());
-        putIfPresent(subMerchantInfo, "subCountryCode", source.getSubCountryCode());
-        putIfPresent(subMerchantInfo, "subState", source.getSubState());
-        putIfPresent(subMerchantInfo, "subCity", source.getSubCity());
-        putIfPresent(subMerchantInfo, "subStreet", source.getSubStreet());
-        putIfPresent(subMerchantInfo, "merchantCategory", source.getMerchantCategory());
-        putIfPresent(subMerchantInfo, "intesCode", source.getIntesCode());
-        putIfPresent(subMerchantInfo, "chargeType", source.getChargeType());
-        return compactMap(subMerchantInfo);
-    }
-
-    private Map<String, Object> orderInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
-        Map<String, Object> orderInfo = new LinkedHashMap<>();
-        putIfPresent(orderInfo, "orderNo", firstText(resultDTO.getMerchantOrderNo(), commandDTO.getMerchantOrderNo()));
-        putIfPresent(orderInfo, "orderId", firstText(resultDTO.getMerchantOrderId(), commandDTO.getMerchantOrderId()));
-        putIfPresent(orderInfo, "amount", firstAmount(resultDTO.getOrderAmount(), commandDTO.getLabelAmount(), commandDTO.getAmount()));
-        putIfPresent(orderInfo, "currency", firstText(resultDTO.getOrderCurrency(), commandDTO.getLabelCurrency(), commandDTO.getCurrency()));
-        putIfPresent(orderInfo, "totalAuthorizedAmount", resultDTO.getTotalAuthorizedAmount());
-        putIfPresent(orderInfo, "totalAuthorizedCancelAmount", resultDTO.getTotalAuthorizedCancelAmount());
-        putIfPresent(orderInfo, "totalCapturedAmount", resultDTO.getTotalCapturedAmount());
-        putIfPresent(orderInfo, "totalRefundAmount", resultDTO.getTotalRefundAmount());
-        putIfPresent(orderInfo, "totalRefuseAmount", resultDTO.getTotalRefuseAmount());
-        return compactMap(orderInfo);
-    }
-
-    private Map<String, Object> transactionInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
-        Map<String, Object> transactionInfo = new LinkedHashMap<>();
-        putIfPresent(transactionInfo, "code", resolveMerchantResponseCode(resultDTO));
-        putIfPresent(transactionInfo, "message", resolveMerchantResponseMessage(resultDTO));
-        putIfPresent(transactionInfo, "transactionId", resultDTO.getTransactionId());
-        putIfPresent(transactionInfo, "sourceTransactionId", resultDTO.getSourceTransactionId());
-        putIfPresent(transactionInfo, "transactionType", resultDTO.getTransactionType());
-        putIfPresent(transactionInfo, "transactionStatus", resultDTO.getStatus());
-        putIfPresent(transactionInfo, "processStage", resultDTO.getProcessStage());
-        putIfPresent(transactionInfo, "transactionDateTime", offsetDateTimeString(resultDTO.getTransactionDateTime(), resultDTO.getTransactionTimeZone()));
-        putIfPresent(transactionInfo, "paymentMethod", firstText(resultDTO.getPaymentMethod(), commandDTO.getPaymentMethod()));
-        putIfPresent(transactionInfo, "cardBrand", resultDTO.getPaymentBrand());
-        putIfPresent(transactionInfo, "cardBin", resultDTO.getCardBin());
-        putIfPresent(transactionInfo, "authCode", resultDTO.getAuthCode());
-        putIfPresent(transactionInfo, "arn", resultDTO.getAcquirerReferenceNo());
-        putIfPresent(transactionInfo, "description", resultDTO.getDescription());
-        putIfPresent(transactionInfo, "callbackUrl", resultDTO.getCallbackUrl());
-        putIfPresent(transactionInfo, "failReasonCode", merchantVisibleFailureCode(resultDTO.getFailReasonCode()));
-        putIfPresent(transactionInfo, "failReasonMessage", merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
-        putIfPresent(transactionInfo, "pendingReasonCode", resultDTO.getPendingReasonCode());
-        return compactMap(transactionInfo);
-    }
-
-    private Map<String, Object> billingInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
-        Map<String, Object> billingInfo = new LinkedHashMap<>();
-        putIfPresent(billingInfo, "labelAmount", firstAmount(resultDTO.getLabelAmount(), commandDTO.getLabelAmount(), commandDTO.getAmount()));
-        putIfPresent(billingInfo, "labelCurrency", firstText(resultDTO.getLabelCurrency(), commandDTO.getLabelCurrency(), commandDTO.getCurrency()));
-        putIfPresent(billingInfo, "transactionAmount", firstAmount(resultDTO.getTransactionAmount(), commandDTO.getTransactionAmount(), commandDTO.getAmount()));
-        putIfPresent(billingInfo, "transactionCurrency", firstText(resultDTO.getTransactionCurrency(), commandDTO.getTransactionCurrency(), resultDTO.getCurrency(), commandDTO.getCurrency()));
-        putIfPresent(billingInfo, "transactionRate", normalizeRate(firstAmount(resultDTO.getTransactionRate(), commandDTO.getTransactionRate(), DEFAULT_TRANSACTION_RATE)));
-        putIfPresent(billingInfo, "rateSource", resultDTO.getRateSource());
-        putIfPresent(billingInfo, "rateTime", offsetDateTimeString(resultDTO.getRateTime(), resultDTO.getTransactionTimeZone()));
-        putIfPresent(billingInfo, "settlementCurrency", resultDTO.getSettlementCurrency());
-        putIfPresent(billingInfo, "settlementAmount", resultDTO.getSettlementAmount());
-        return compactMap(billingInfo);
-    }
-
-    private void putIfPresent(Map<String, Object> target, String key, Object value) {
-        if (value == null) {
-            return;
-        }
-        if (value instanceof String text && !StringUtils.hasText(text)) {
-            return;
-        }
-        if (value instanceof Map<?, ?> map && map.isEmpty()) {
-            return;
-        }
-        target.put(key, value);
-    }
-
-    private Map<String, Object> compactMap(Map<String, Object> source) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        source.forEach((key, value) -> {
-            if (value instanceof Map<?, ?> mapValue) {
-                Map<String, Object> nested = new LinkedHashMap<>();
-                mapValue.forEach((nestedKey, nestedValue) -> {
-                    if (nestedKey != null) {
-                        putIfPresent(nested, String.valueOf(nestedKey), nestedValue);
-                    }
-                });
-                putIfPresent(compact, key, nested);
-                return;
-            }
-            putIfPresent(compact, key, value);
-        });
-        return compact;
+    private MerchantNotificationPayload merchantVisiblePayload(PaymentCreateCommandDTO commandDTO,
+                                                               PaymentCreateResultDTO resultDTO) {
+        MerchantNotificationPayload payload = new MerchantNotificationPayload();
+        payload.setMerchantInfo(merchantInfoPayload(commandDTO, resultDTO));
+        payload.setOrderInfo(orderInfoPayload(commandDTO, resultDTO));
+        payload.setTransactionInfo(transactionInfoPayload(commandDTO, resultDTO));
+        payload.setBillingInfo(billingInfoPayload(commandDTO, resultDTO));
+        return payload;
     }
 
     /**
-     * 规范化首个金额，返回调用链后续步骤可直接使用的业务值。
-     * @param values 有界参数集合或键值片段，空元素按当前方法约定忽略或拒绝
-     * @return 当前方法生成的 {@code BigDecimal} 结果
+     * 构建商户可见交易载荷。
+     */
+    private MerchantNotificationPayload merchantVisiblePayload(TransactionOperationDO operationDO,
+                                                               String targetTransactionStatus,
+                                                               String failReasonCode) {
+        MerchantNotificationPayload payload = new MerchantNotificationPayload();
+        MerchantNotificationPayload.MerchantInfo merchantInfo =
+                new MerchantNotificationPayload.MerchantInfo();
+        merchantInfo.setMerchantId(operationDO.getMerchantId());
+        payload.setMerchantInfo(merchantInfo);
+
+        MerchantNotificationPayload.OrderInfo orderInfo = new MerchantNotificationPayload.OrderInfo();
+        orderInfo.setOrderNo(operationDO.getMerchantOrderNo());
+        orderInfo.setOrderId(firstText(
+                operationDO.getMerchantOrderId(), operationDO.getMerchantOperationNo()));
+        orderInfo.setAmount(operationDO.getLabelAmount());
+        orderInfo.setCurrency(operationDO.getLabelCurrency());
+        payload.setOrderInfo(orderInfo);
+
+        MerchantNotificationPayload.TransactionInfo transactionInfo =
+                new MerchantNotificationPayload.TransactionInfo();
+        OpenApiTransactionProjection publicResult = projectTransactionResult(
+                targetTransactionStatus, PaymentProcessStageEnum.FINISHED.getCode(), failReasonCode, null, null);
+        transactionInfo.setCode(publicResult.resultCode().getCode());
+        transactionInfo.setMessage(publicResult.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        transactionInfo.setTransactionId(operationDO.getTransactionId());
+        transactionInfo.setSourceTransactionId(operationDO.getSourceTransactionId());
+        transactionInfo.setTransactionType(operationDO.getTransactionType());
+        transactionInfo.setTransactionStatus(targetTransactionStatus);
+        transactionInfo.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+        transactionInfo.setTransactionDateTime(offsetDateTimeString(
+                operationDO.getTransactionDateTime(), operationDO.getTransactionTimeZone()));
+        transactionInfo.setAuthCode(operationDO.getAuthCode());
+        transactionInfo.setArn(operationDO.getAcquirerReferenceNo());
+        transactionInfo.setFailReasonCode(publicResult.failureReasonCode());
+        transactionInfo.setFailReasonMessage(failureMessage(
+                publicResult, OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        payload.setTransactionInfo(transactionInfo);
+
+        MerchantNotificationPayload.BillingInfo billingInfo =
+                new MerchantNotificationPayload.BillingInfo();
+        billingInfo.setLabelAmount(operationDO.getLabelAmount());
+        billingInfo.setLabelCurrency(operationDO.getLabelCurrency());
+        billingInfo.setTransactionAmount(operationDO.getTransactionAmount());
+        billingInfo.setTransactionCurrency(operationDO.getTransactionCurrency());
+        billingInfo.setTransactionRate(normalizeRate(operationDO.getTransactionRate()));
+        billingInfo.setSettlementCurrency(operationDO.getSettlementCurrency());
+        billingInfo.setSettlementAmount(operationDO.getSettlementAmount());
+        payload.setBillingInfo(billingInfo);
+        return payload;
+    }
+
+    /**
+     * 构建商户信息载荷。
+     */
+    private MerchantNotificationPayload.MerchantInfo merchantInfoPayload(
+            PaymentCreateCommandDTO commandDTO,
+            PaymentCreateResultDTO resultDTO) {
+        MerchantNotificationPayload.MerchantInfo merchantInfo =
+                new MerchantNotificationPayload.MerchantInfo();
+        merchantInfo.setMerchantId(firstText(resultDTO.getMerchantId(), commandDTO.getMerchantId()));
+        merchantInfo.setSubMerchantInfo(subMerchantInfoPayload(resultDTO.getSubMerchantInfo()));
+        return merchantInfo;
+    }
+
+    /**
+     * 构建子商户信息载荷。
+     */
+    private MerchantNotificationPayload.SubMerchantInfo subMerchantInfoPayload(
+            PaymentCreateResultDTO.SubMerchantInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        MerchantNotificationPayload.SubMerchantInfo subMerchantInfo =
+                new MerchantNotificationPayload.SubMerchantInfo();
+        subMerchantInfo.setSubId(source.getSubId());
+        subMerchantInfo.setSubName(source.getSubName());
+        subMerchantInfo.setSubCompanyName(source.getSubCompanyName());
+        subMerchantInfo.setSubCountryCode(source.getSubCountryCode());
+        subMerchantInfo.setSubState(source.getSubState());
+        subMerchantInfo.setSubCity(source.getSubCity());
+        subMerchantInfo.setSubStreet(source.getSubStreet());
+        subMerchantInfo.setMerchantCategory(source.getMerchantCategory());
+        subMerchantInfo.setIntesCode(source.getIntesCode());
+        subMerchantInfo.setChargeType(source.getChargeType());
+        return subMerchantInfo;
+    }
+
+    /**
+     * 构建订单信息载荷。
+     */
+    private MerchantNotificationPayload.OrderInfo orderInfoPayload(PaymentCreateCommandDTO commandDTO,
+                                                                    PaymentCreateResultDTO resultDTO) {
+        MerchantNotificationPayload.OrderInfo orderInfo = new MerchantNotificationPayload.OrderInfo();
+        orderInfo.setOrderNo(firstText(resultDTO.getMerchantOrderNo(), commandDTO.getMerchantOrderNo()));
+        orderInfo.setOrderId(firstText(resultDTO.getMerchantOrderId(), commandDTO.getMerchantOrderId()));
+        orderInfo.setAmount(firstAmount(
+                resultDTO.getOrderAmount(), commandDTO.getLabelAmount(), commandDTO.getAmount()));
+        orderInfo.setCurrency(firstText(
+                resultDTO.getOrderCurrency(), commandDTO.getLabelCurrency(), commandDTO.getCurrency()));
+        orderInfo.setTotalAuthorizedAmount(resultDTO.getTotalAuthorizedAmount());
+        orderInfo.setTotalAuthorizedCancelAmount(resultDTO.getTotalAuthorizedCancelAmount());
+        orderInfo.setTotalCapturedAmount(resultDTO.getTotalCapturedAmount());
+        orderInfo.setTotalRefundAmount(resultDTO.getTotalRefundAmount());
+        orderInfo.setTotalRefuseAmount(resultDTO.getTotalRefuseAmount());
+        return orderInfo;
+    }
+
+    /**
+     * 构建交易信息载荷。
+     */
+    private MerchantNotificationPayload.TransactionInfo transactionInfoPayload(
+            PaymentCreateCommandDTO commandDTO,
+            PaymentCreateResultDTO resultDTO) {
+        MerchantNotificationPayload.TransactionInfo transactionInfo =
+                new MerchantNotificationPayload.TransactionInfo();
+        transactionInfo.setCode(resolveMerchantResponseCode(resultDTO));
+        transactionInfo.setMessage(resolveMerchantResponseMessage(resultDTO));
+        transactionInfo.setTransactionId(resultDTO.getTransactionId());
+        transactionInfo.setSourceTransactionId(resultDTO.getSourceTransactionId());
+        transactionInfo.setTransactionType(resultDTO.getTransactionType());
+        transactionInfo.setTransactionStatus(resultDTO.getStatus());
+        transactionInfo.setProcessStage(resultDTO.getProcessStage());
+        transactionInfo.setTransactionDateTime(offsetDateTimeString(
+                resultDTO.getTransactionDateTime(), resultDTO.getTransactionTimeZone()));
+        transactionInfo.setPaymentMethod(firstText(
+                resultDTO.getPaymentMethod(), commandDTO.getPaymentMethod()));
+        transactionInfo.setCardBrand(resultDTO.getPaymentBrand());
+        transactionInfo.setCardBin(resultDTO.getCardBin());
+        transactionInfo.setAuthCode(resultDTO.getAuthCode());
+        transactionInfo.setArn(resultDTO.getAcquirerReferenceNo());
+        transactionInfo.setDescription(resultDTO.getDescription());
+        transactionInfo.setCallbackUrl(resultDTO.getCallbackUrl());
+        OpenApiTransactionProjection publicResult = projectTransactionResult(resultDTO);
+        transactionInfo.setFailReasonCode(publicResult.failureReasonCode());
+        transactionInfo.setFailReasonMessage(failureMessage(
+                publicResult, OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        transactionInfo.setPendingReasonCode(resultDTO.getPendingReasonCode());
+        return transactionInfo;
+    }
+
+    /**
+     * 构建账单信息载荷。
+     */
+    private MerchantNotificationPayload.BillingInfo billingInfoPayload(
+            PaymentCreateCommandDTO commandDTO,
+            PaymentCreateResultDTO resultDTO) {
+        MerchantNotificationPayload.BillingInfo billingInfo =
+                new MerchantNotificationPayload.BillingInfo();
+        billingInfo.setLabelAmount(firstAmount(
+                resultDTO.getLabelAmount(), commandDTO.getLabelAmount(), commandDTO.getAmount()));
+        billingInfo.setLabelCurrency(firstText(
+                resultDTO.getLabelCurrency(), commandDTO.getLabelCurrency(), commandDTO.getCurrency()));
+        billingInfo.setTransactionAmount(firstAmount(
+                resultDTO.getTransactionAmount(), commandDTO.getTransactionAmount(), commandDTO.getAmount()));
+        billingInfo.setTransactionCurrency(firstText(
+                resultDTO.getTransactionCurrency(), commandDTO.getTransactionCurrency(),
+                resultDTO.getCurrency(), commandDTO.getCurrency()));
+        billingInfo.setTransactionRate(normalizeRate(firstAmount(
+                resultDTO.getTransactionRate(), commandDTO.getTransactionRate(), DEFAULT_TRANSACTION_RATE)));
+        billingInfo.setRateSource(resultDTO.getRateSource());
+        billingInfo.setRateTime(offsetDateTimeString(
+                resultDTO.getRateTime(), resultDTO.getTransactionTimeZone()));
+        billingInfo.setSettlementCurrency(resultDTO.getSettlementCurrency());
+        billingInfo.setSettlementAmount(resultDTO.getSettlementAmount());
+        return billingInfo;
+    }
+
+    /**
+     * 按参数优先级返回首个非空金额，不执行换汇或舍入。
+     *
+     * @param values 按优先级排列的金额候选值
+     * @return 首个非空金额；全部为空时返回 {@code null}
      */
     private BigDecimal firstAmount(BigDecimal... values) {
         for (BigDecimal value : values) {
@@ -4032,11 +4326,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return null;
     }
 
+    /**
+     * 规范化汇率。
+     */
     private BigDecimal normalizeRate(BigDecimal value) {
         BigDecimal rate = value == null ? DEFAULT_TRANSACTION_RATE : value;
         return rate.setScale(8, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 将交易时间转换为带时区偏移的文本。
+     */
     private String offsetDateTimeString(LocalDateTime dateTime, String timeZone) {
         if (dateTime == null) {
             return null;
@@ -4045,18 +4345,19 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return dateTime.atZone(zoneId).toOffsetDateTime().toString();
     }
 
+    /**
+     * 解析商户响应编码。
+     */
     private String resolveMerchantResponseCode(PaymentCreateResultDTO resultDTO) {
-        if (resultDTO != null && StringUtils.hasText(resultDTO.getMerchantResponseCode())) {
-            return resultDTO.getMerchantResponseCode();
-        }
-        return resolveMerchantResponseCode(resultDTO == null ? null : resultDTO.getStatus());
+        return projectTransactionResult(resultDTO).resultCode().getCode();
     }
 
+    /**
+     * 解析商户响应说明。
+     */
     private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO) {
-        if (resultDTO != null && StringUtils.hasText(resultDTO.getMerchantResponseMessage())) {
-            return resultDTO.getMerchantResponseMessage();
-        }
-        return resolveMerchantResponseMessage(resultDTO == null ? null : resultDTO.getStatus());
+        return projectTransactionResult(resultDTO).message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US);
     }
 
     /**
@@ -4079,51 +4380,20 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return resultDTO.getFailReasonMessage();
     }
 
-    private String merchantVisibleFailureCode(String failReasonCode) {
-        return StringUtils.hasText(failReasonCode) ? "PAYMENT_FAILED" : null;
+    /**
+     * 解析商户响应编码。
+     */
+    private String resolveMerchantResponseCode(String transactionStatus) {
+        return projectTransactionResult(transactionStatus, null, null, null, null)
+                .resultCode().getCode();
     }
 
     /**
-     * 根据交易状态和受控失败码生成商户可见失败说明，不暴露渠道或内部异常细节。
-     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @param failReasonCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
-     * @return 当前方法生成或规范化后的文本值
+     * 解析商户响应说明。
      */
-    private String merchantVisibleFailureMessage(String transactionStatus, String failReasonCode) {
-        if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
-                || !StringUtils.hasText(failReasonCode)) {
-            return null;
-        }
-        if (PaymentRiskDecisionSupport.isRiskRejected(failReasonCode)) {
-            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
-        }
-        return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-    }
-
-    private String resolveMerchantResponseCode(String transactionStatus) {
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getCode();
-        }
-        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getCode();
-        }
-        if (PaymentTransactionStatusEnum.PENDING.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PENDING.getCode();
-        }
-        return ApiResultEnum.PROCESSING.getCode();
-    }
-
     private String resolveMerchantResponseMessage(String transactionStatus) {
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
-        }
-        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        if (PaymentTransactionStatusEnum.PENDING.getCode().equals(transactionStatus)) {
-            return ApiResultEnum.PENDING.getMessage();
-        }
-        return ApiResultEnum.PROCESSING.getMessage();
+        return projectTransactionResult(transactionStatus, null, null, null, null)
+                .message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US);
     }
 
     /**
@@ -4134,13 +4404,46 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 商户可见响应说明
      */
     private String resolveMerchantResponseMessage(String transactionStatus, String failReasonCode) {
-        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
-                && PaymentRiskDecisionSupport.isRiskRejected(failReasonCode)) {
-            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
-        }
-        return resolveMerchantResponseMessage(transactionStatus);
+        return projectTransactionResult(transactionStatus, null, failReasonCode, null, null)
+                .message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US);
     }
 
+    /**
+     * 将支付核心受控事实投影为统一 V1.3 结果，不采信旧商户码推断渠道责任。
+     */
+    private OpenApiTransactionProjection projectTransactionResult(PaymentCreateResultDTO resultDTO) {
+        if (resultDTO == null) {
+            return projectTransactionResult(null, null, null, null, null);
+        }
+        return projectTransactionResult(resultDTO.getStatus(), resultDTO.getProcessStage(),
+                resultDTO.getFailReasonCode(), resultDTO.getPendingReasonCode(),
+                resultDTO.getMerchantResponseCode());
+    }
+
+    /**
+     * 按状态、阶段和受控原因生成同一标准码，调用方再按可信对象选择文案。
+     */
+    private OpenApiTransactionProjection projectTransactionResult(String transactionStatus,
+                                                                  String processStage,
+                                                                  String failureReasonCode,
+                                                                  String pendingReasonCode,
+                                                                  String legacyMerchantCode) {
+        return OpenApiTransactionResultProjector.project(transactionStatus, processStage,
+                failureReasonCode, pendingReasonCode, legacyMerchantCode);
+    }
+
+    /**
+     * 只有失败类投影才填写原接口既有失败说明字段，成功和普通在途结果保持为空。
+     */
+    private String failureMessage(OpenApiTransactionProjection projection,
+                                  OpenApiMessageAudience audience,
+                                  OpenApiMessageLocale locale) {
+        return projection.failureReasonCode() == null ? null : projection.message(audience, locale);
+    }
+
+    /**
+     * 解析渠道编码。
+     */
     private String resolveChannelCode(PaymentRouteResultDTO routeResultDTO, ChannelPaymentResponse response) {
         if (response != null && StringUtils.hasText(response.getChannelCode())) {
             return response.getChannelCode();
@@ -4149,12 +4452,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
-     * 解析回调地址，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
+     * 本次请求未指定回调地址时，后续动作按原交易精确分片身份继承回调地址。
      */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
@@ -4166,7 +4464,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return resolveSourceTransactionCallbackUrl(commandDTO);
     }
 
-    /** 后续动作按源交易精确分片时间继承 Payment 内部保存的通知地址。 */
+    /**
+     * 后续动作按源交易精确分片时间继承 Payment 内部保存的通知地址。
+     */
     private String resolveSourceTransactionCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfo = commandDTO.getTransactionInfo();
         if (transactionInfo == null
@@ -4183,6 +4483,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return sourceNotification == null ? null : sourceNotification.getCallbackUrl();
     }
 
+    /**
+     * 生成只含脱敏字段的审计 JSON。
+     */
     private String maskedJson(Object value) {
         if (value == null) {
             return null;
@@ -4203,6 +4506,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(JsonUtils.toJsonString(value));
     }
 
+    /**
+     * 移除请求地址中的敏感查询参数。
+     */
     private String maskUrl(String url) {
         if (!StringUtils.hasText(url)) {
             return null;
@@ -4211,6 +4517,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return queryIndex < 0 ? url : url.substring(0, queryIndex) + "?***";
     }
 
+    /**
+     * 计算文本的 SHA-256 十六进制摘要。
+     */
     private String sha256Hex(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -4228,10 +4537,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 返回默认时间。
+     */
     private LocalDateTime defaultTime(LocalDateTime value, LocalDateTime fallback) {
         return value == null ? fallback : value;
     }
 
+    /**
+     * 将文本截断到持久化字段允许的长度。
+     */
     private String safeLength(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
@@ -4239,68 +4554,104 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return value.substring(0, maxLength);
     }
 
+    /**
+     * 判断交易结果是否仍处于非终态。
+     */
     private boolean isNonTerminal(PaymentCreateResultDTO resultDTO) {
         return !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 && !PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
     }
 
+    /**
+     * 将空金额转换为零值。
+     */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionChannelRequestDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionChannelInteractionLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionFlowEventDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionStatusHistoryDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionAmountChangeLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionMerchantNotificationDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionMerchantApiInteractionLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充交易发生时间和分片时间。
+     */
     private void fillTransactionTime(TransactionPaymentMethodInfoDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 校验交易记录命令与结果包含完整业务身份。
+     */
     private void validate(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         if (commandDTO == null
                 || resultDTO == null
@@ -4318,6 +4669,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 校验后续动作记录。
+     */
     private void validateFollowUpRecord(TransactionFollowUpRecordDTO recordDTO) {
         if (recordDTO == null
                 || recordDTO.getSourceOrderDO() == null
@@ -4415,6 +4769,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return actualEnd.plusNanos(1_000_000L);
     }
 
+    /**
+     * 统计生命周期内的既有交易动作。
+     */
     private int countExistingOperations(String operationId, LocalDateTime sourceTransactionDateTime, LocalDateTime actionTransactionDateTime) {
         LocalDateTime beginTime = sourceTransactionDateTime.isAfter(actionTransactionDateTime)
                 ? actionTransactionDateTime
@@ -4426,10 +4783,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 operationId, logicalBegin(beginTime), exclusiveEnd(endTime));
     }
 
+    /**
+     * 解析交易日期时间。
+     */
     private LocalDateTime parseTransactionDateTime(String transactionId) {
         return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
     }
 
+    /**
+     * 解析动作日期时间。
+     */
     private LocalDateTime parseOperationDateTime(String operationId) {
         return transactionShardingKeyParser.parseOperationDateTime(operationId);
     }

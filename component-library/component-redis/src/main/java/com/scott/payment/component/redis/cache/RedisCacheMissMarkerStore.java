@@ -10,13 +10,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisCacheMissMarkerStore
- * @date : 2026-07-30 21:20
- * @email : scott_x@163.com
- * @description : 基于 Redis String 的空结果标记存储实现，使用统一环境 Key 前缀和有界 TTL 抖动，并保留读取故障与业务未命中的语义差异
- * @status : create
+ * 基于 Redis String 的空结果标记存储实现，使用统一环境 Key 前缀和有界 TTL 抖动，并保留读取故障与业务未命中的语义差异
  */
 @Slf4j
 public class RedisCacheMissMarkerStore implements CacheMissMarkerStore {
@@ -104,7 +98,8 @@ public class RedisCacheMissMarkerStore implements CacheMissMarkerStore {
                     metrics.classifyFallback(exception)
             );
             log.warn(
-                    "event: REDIS_CACHE_MISS_MARKER_READ_FAILED domain: {} business: {} exceptionType: {}",
+                    "Redis 缓存缺失标记读取失败, event: REDIS_CACHE_MISS_MARKER_READ_FAILED, "
+                            + "domain: {}, business: {}, exceptionType: {}",
                     domain,
                     business,
                     exception.getClass().getSimpleName()

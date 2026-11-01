@@ -42,157 +42,27 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseCardBinApplicationService
- * @date : 2026-07-04 00:00
- * @email : scott_x@163.com
- * @description : admin基础卡BIN应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端卡 BIN应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminBaseCardBinApplicationService {
 
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    /**
-     * 批次时间格式化器常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter BATCH_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = AuthConstants.NOT_DELETED;
-    /**
-     * {@code STATUS_DISABLED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_DISABLED = 0;
-    /**
-     * 状态启用标识，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_ENABLED = 1;
-    /**
-     * 状态等待，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_PENDING = 2;
-    /**
-     * {@code STATUS_EXPIRED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_EXPIRED = 3;
-    /**
-     * 默认优先级常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DEFAULT_PRIORITY = 50;
-    /**
-     * {@code NORMALIZED_BIN_LENGTH}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int NORMALIZED_BIN_LENGTH = 11;
-    /**
-     * {@code CARD_BRAND_DICT}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CARD_BRAND_DICT = "card_brand";
-    /**
-     * {@code CARD_TYPE_DICT}，用于区分 {@code AdminBaseCardBinApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CARD_TYPE_DICT = "base_card_type";
-    /**
-     * {@code CARD_BIN_STATUS_DICT}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String CARD_BIN_STATUS_DICT = "base_card_bin_status";
-    /**
-     * {@code DATA_SOURCE_DICT}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DATA_SOURCE_DICT = "base_card_bin_data_source";
-    /**
-     * 默认语言区域常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DEFAULT_LOCALE = "zh-CN";
-    /**
-     * {@code DATA_SOURCE_MANUAL}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DATA_SOURCE_MANUAL = "MANUAL";
-    /**
-     * {@code DATA_SOURCE_LEGACY}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DATA_SOURCE_LEGACY = "LEGACY_DB";
-    /**
-     * {@code IMPORT_TYPE_DB_INIT}，用于区分 {@code AdminBaseCardBinApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String IMPORT_TYPE_DB_INIT = "DB_INIT";
     private static final Set<Integer> VALID_STATUSES = Set.of(STATUS_DISABLED, STATUS_ENABLED, STATUS_PENDING, STATUS_EXPIRED);
 
@@ -204,7 +74,9 @@ public class AdminBaseCardBinApplicationService {
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     private final ExcelLocaleResolver excelLocaleResolver;
 
-    /** Card BIN 数据变更与 Redis generation、可靠 MQ 的事务协调器。 */
+    /**
+     * Card BIN 数据变更与 Redis generation、可靠 MQ 的事务协调器。
+     */
     private final CardBinCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
@@ -451,19 +323,10 @@ public class AdminBaseCardBinApplicationService {
 
         int totalCount = cardBinRangeMapper.countLegacyRows();
         int failedCount = cardBinRangeMapper.countInvalidLegacyRows();
-        int successCount = 0;
-        int duplicateCount = 0;
         cacheInvalidationCoordinator.prepare();
-        for (Map<String, Object> legacy : cardBinRangeMapper.selectValidLegacyRows()) {
-            Long legacyPkId = longValue(legacy.get("legacyPkId"));
-            if (legacyPkId == null || existsLegacyRow(legacyPkId)) {
-                duplicateCount++;
-                continue;
-            }
-            CardBinEntities.BaseCardBinRangeDO row = toRangeFromLegacy(legacy, batchNo);
-            cardBinRangeMapper.insert(row);
-            successCount++;
-        }
+        int successCount = cardBinRangeMapper.insertValidLegacyRows(batchNo, currentOperatorName());
+        int validCount = Math.max(0, totalCount - failedCount);
+        int duplicateCount = Math.max(0, validCount - successCount);
         batch.setTotalCount(totalCount);
         batch.setSuccessCount(successCount);
         batch.setFailedCount(failedCount);
@@ -520,6 +383,9 @@ public class AdminBaseCardBinApplicationService {
         return response;
     }
 
+    /**
+     * 构建列表查询。
+     */
     private LambdaQueryWrapper<CardBinEntities.BaseCardBinRangeDO> buildListQuery(CardBinDTOs.CardBinQueryRequest query) {
         LambdaQueryWrapper<CardBinEntities.BaseCardBinRangeDO> wrapper = Wrappers.<CardBinEntities.BaseCardBinRangeDO>lambdaQuery()
                 .eq(CardBinEntities.BaseCardBinRangeDO::getDeleted, NOT_DELETED)
@@ -538,6 +404,9 @@ public class AdminBaseCardBinApplicationService {
                 .orderByDesc(CardBinEntities.BaseCardBinRangeDO::getId);
     }
 
+    /**
+     * 将保存请求中的业务字段填充到卡 BIN 实体。
+     */
     private void fillSaveFields(CardBinEntities.BaseCardBinRangeDO row,
                                 CardBinDTOs.CardBinSaveRequest request,
                                 NormalizedBinRange range,
@@ -565,6 +434,9 @@ public class AdminBaseCardBinApplicationService {
         row.setRemark(trimToNull(request.getRemark()));
     }
 
+    /**
+     * 根据冲突记录调整卡 BIN 导入结果状态。
+     */
     private Integer adjustStatusByConflicts(Long currentId, NormalizedBinRange range, Integer requestedStatus) {
         List<CardBinEntities.BaseCardBinRangeDO> conflicts = cardBinRangeMapper.selectList(
                 Wrappers.<CardBinEntities.BaseCardBinRangeDO>lambdaQuery()
@@ -595,6 +467,9 @@ public class AdminBaseCardBinApplicationService {
         return requestedStatus;
     }
 
+    /**
+     * 校验并规范化卡 BIN 起止范围。
+     */
     private NormalizedBinRange normalizeRange(String start, String end) {
         String normalizedStart = validateBin(start, "CardBin 仅允许输入 6 到 11 位数字，不允许输入完整卡号。");
         String normalizedEnd = StringUtils.hasText(end) ? validateBin(end, "CardBin 仅允许输入 6 到 11 位数字，不允许输入完整卡号。") : normalizedStart;
@@ -609,6 +484,9 @@ public class AdminBaseCardBinApplicationService {
         return new NormalizedBinRange(startValue, endValue, normalizedStart.length());
     }
 
+    /**
+     * 校验 BIN。
+     */
     private String validateBin(String value, String message) {
         String normalized = trimToNull(value);
         if (normalized == null || !normalized.matches("^[0-9]{6,11}$")) {
@@ -617,14 +495,23 @@ public class AdminBaseCardBinApplicationService {
         return normalized;
     }
 
+    /**
+     * 将卡 BIN 起始值补齐为固定长度数字串。
+     */
     private long normalizeStartValue(String value) {
         return Long.parseLong(value + "0".repeat(NORMALIZED_BIN_LENGTH - value.length()));
     }
 
+    /**
+     * 规范化完成值。
+     */
     private long normalizeEndValue(String value) {
         return Long.parseLong(value + "9".repeat(NORMALIZED_BIN_LENGTH - value.length()));
     }
 
+    /**
+     * 将卡 BIN 规范化为管理端展示文本。
+     */
     private String binToDisplay(Long value) {
         if (value == null) {
             return null;
@@ -632,6 +519,9 @@ public class AdminBaseCardBinApplicationService {
         return String.format("%011d", value);
     }
 
+    /**
+     * 规范化状态。
+     */
     private Integer normalizeStatus(Integer status, Integer defaultStatus) {
         Integer target = status == null ? defaultStatus : status;
         if (target == null || !VALID_STATUSES.contains(target)) {
@@ -640,6 +530,9 @@ public class AdminBaseCardBinApplicationService {
         return target;
     }
 
+    /**
+     * 校验卡 BIN 状态变更符合状态机约束。
+     */
     private void assertStatusTransition(Integer currentStatus, Integer targetStatus) {
         if (Objects.equals(currentStatus, targetStatus)) {
             return;
@@ -656,6 +549,9 @@ public class AdminBaseCardBinApplicationService {
         }
     }
 
+    /**
+     * 读取并校验数据字典值。
+     */
     private void assertDictValue(String dictType, String dictValue, String message) {
         String value = upper(trimToNull(dictValue));
         if (value == null) {
@@ -668,6 +564,9 @@ public class AdminBaseCardBinApplicationService {
         }
     }
 
+    /**
+     * 查询指定类型的启用数据字典项。
+     */
     private List<SysDictDataDTO> listDict(String dictType) {
         SysDictDataQueryRequest request = new SysDictDataQueryRequest();
         request.setDictType(dictType);
@@ -677,6 +576,9 @@ public class AdminBaseCardBinApplicationService {
         return adminDictService.listDictData(request);
     }
 
+    /**
+     * 将数据字典条目转换为下拉选项。
+     */
     private List<CardBinDTOs.CardBinOption> dictOptions(String dictType) {
         return listDict(dictType).stream()
                 .map(item -> {
@@ -687,6 +589,9 @@ public class AdminBaseCardBinApplicationService {
                 .toList();
     }
 
+    /**
+     * 查询国家或地区下拉选项。
+     */
     private List<CardBinDTOs.CardBinOption> countryOptions() {
         return isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
                         .eq(IsoCountryDO::getDeleted, 0)
@@ -708,6 +613,9 @@ public class AdminBaseCardBinApplicationService {
                 .toList();
     }
 
+    /**
+     * 构建管理端下拉选项。
+     */
     private CardBinDTOs.CardBinOption option(String label, String value) {
         CardBinDTOs.CardBinOption option = new CardBinDTOs.CardBinOption();
         option.setLabel(label);
@@ -715,6 +623,9 @@ public class AdminBaseCardBinApplicationService {
         return option;
     }
 
+    /**
+     * 批量加载数据字典展示标签。
+     */
     private DictLabels loadDictLabels() {
         return new DictLabels(
                 labels(CARD_BRAND_DICT),
@@ -724,6 +635,9 @@ public class AdminBaseCardBinApplicationService {
         );
     }
 
+    /**
+     * 批量读取数据字典展示标签。
+     */
     private Map<String, String> labels(String dictType) {
         return listDict(dictType).stream()
                 .collect(Collectors.toMap(
@@ -734,6 +648,9 @@ public class AdminBaseCardBinApplicationService {
                 ));
     }
 
+    /**
+     * 将卡 BIN 持久化记录转换为管理端响应。
+     */
     private CardBinDTOs.CardBinResponse toResponse(CardBinEntities.BaseCardBinRangeDO row, DictLabels labels) {
         CardBinDTOs.CardBinResponse response = new CardBinDTOs.CardBinResponse();
         response.setId(row.getId());
@@ -770,6 +687,9 @@ public class AdminBaseCardBinApplicationService {
         return response;
     }
 
+    /**
+     * 转换为导出行数据。
+     */
     private CardBinExportRow toExportRow(CardBinEntities.BaseCardBinRangeDO row, DictLabels labels) {
         CardBinDTOs.CardBinResponse response = toResponse(row, labels);
         CardBinExportRow exportRow = new CardBinExportRow();
@@ -799,6 +719,9 @@ public class AdminBaseCardBinApplicationService {
         return exportRow;
     }
 
+    /**
+     * 将卡 BIN 导入批次实体转换为管理端响应。
+     */
     private CardBinDTOs.CardBinImportBatchResponse toBatchResponse(CardBinEntities.BaseCardBinImportBatchDO row) {
         CardBinDTOs.CardBinImportBatchResponse response = new CardBinDTOs.CardBinImportBatchResponse();
         response.setId(row.getId());
@@ -820,95 +743,9 @@ public class AdminBaseCardBinApplicationService {
         return response;
     }
 
-    private boolean existsLegacyRow(Long legacyPkId) {
-        Long count = cardBinRangeMapper.selectCount(
-                Wrappers.<CardBinEntities.BaseCardBinRangeDO>lambdaQuery()
-                        .eq(CardBinEntities.BaseCardBinRangeDO::getDeleted, NOT_DELETED)
-                        .eq(CardBinEntities.BaseCardBinRangeDO::getDataSource, DATA_SOURCE_LEGACY)
-                        .eq(CardBinEntities.BaseCardBinRangeDO::getLegacyPkId, legacyPkId)
-        );
-        return count != null && count > 0;
-    }
-
-    private CardBinEntities.BaseCardBinRangeDO toRangeFromLegacy(Map<String, Object> legacy, String batchNo) {
-        Long start = longValue(legacy.get("cardBinStart"));
-        Long end = longValue(legacy.get("cardBinEnd"));
-        CardBinEntities.BaseCardBinRangeDO row = new CardBinEntities.BaseCardBinRangeDO();
-        row.setLegacyPkId(longValue(legacy.get("legacyPkId")));
-        row.setCardBinStart(start);
-        row.setCardBinEnd(end);
-        row.setBinLength(inferBinLength(start, end));
-        row.setCardBrand(defaultIfBlank(upper(stringValue(legacy.get("cardBrand"))), "UNKNOWN"));
-        row.setCardSubBrand(trimToNull(stringValue(legacy.get("cardSubBrand"))));
-        row.setCardType(normalizeLegacyCardType(stringValue(legacy.get("creditDebit"))));
-        row.setIssuerCountryName(trimToNull(stringValue(legacy.get("issuerCountryName"))));
-        row.setIssuerCountryAlpha2(upper(trimToNull(stringValue(legacy.get("issuerCountryAlpha2")))));
-        row.setIssuerCountryAlpha3(upper(trimToNull(stringValue(legacy.get("issuerCountryAlpha3")))));
-        row.setIssuerCountryNumeric(trimToNull(stringValue(legacy.get("issuerCountryNumeric"))));
-        row.setIssuerBank(trimToNull(stringValue(legacy.get("issuerBank"))));
-        row.setIssuerWebUrl(trimToNull(stringValue(legacy.get("issuerWebUrl"))));
-        row.setIssuerTelephone(trimToNull(stringValue(legacy.get("issuerTelephone"))));
-        row.setDataSource(DATA_SOURCE_LEGACY);
-        row.setSourceBatchNo(batchNo);
-        row.setSourcePriority(DEFAULT_PRIORITY);
-        row.setStatus(STATUS_ENABLED);
-        row.setRemark("旧表card_bin_type_info初始化导入");
-        row.setCreateBy(currentOperatorName());
-        row.setUpdateBy(currentOperatorName());
-        row.setCreateTime(localDateTimeValue(legacy.get("createTime")));
-        row.setUpdateTime(localDateTimeValue(legacy.get("updateTime")));
-        row.setDeleted(NOT_DELETED);
-        return row;
-    }
-
-    private int inferBinLength(Long start, Long end) {
-        if (start == null || end == null) {
-            return NORMALIZED_BIN_LENGTH;
-        }
-        for (int length = 6; length <= NORMALIZED_BIN_LENGTH; length++) {
-            long factor = (long) Math.pow(10, NORMALIZED_BIN_LENGTH - length);
-            if (factor <= 1) {
-                return NORMALIZED_BIN_LENGTH;
-            }
-            if (start % factor == 0 && end % factor == factor - 1 && start / factor == end / factor) {
-                return length;
-            }
-        }
-        return NORMALIZED_BIN_LENGTH;
-    }
-
-    private String normalizeLegacyCardType(String value) {
-        String normalized = upper(trimToNull(value));
-        if (normalized == null) {
-            return "UNKNOWN";
-        }
-        return switch (normalized) {
-            case "CREDIT", "DEBIT", "PREPAID", "CHARGE", "COMMERCIAL" -> normalized;
-            default -> "UNKNOWN";
-        };
-    }
-
-    private Long longValue(Object value) {
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        if (value == null) {
-            return null;
-        }
-        return Long.parseLong(value.toString());
-    }
-
-    private String stringValue(Object value) {
-        return value == null ? null : value.toString();
-    }
-
-    private LocalDateTime localDateTimeValue(Object value) {
-        if (value instanceof LocalDateTime localDateTime) {
-            return localDateTime;
-        }
-        return LocalDateTime.now();
-    }
-
+    /**
+     * 查询当前生效的卡 BIN 记录。
+     */
     private CardBinEntities.BaseCardBinRangeDO getActiveRow(Long id) {
         if (id == null) {
             throw badRequest("id is required");
@@ -924,6 +761,9 @@ public class AdminBaseCardBinApplicationService {
         return row;
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -935,6 +775,9 @@ public class AdminBaseCardBinApplicationService {
         return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount() : "admin";
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -944,11 +787,17 @@ public class AdminBaseCardBinApplicationService {
         return "";
     }
 
+    /**
+     * 在文本为空时返回默认值。
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         String normalized = trimToNull(value);
         return normalized == null ? defaultValue : normalized;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -956,17 +805,29 @@ public class AdminBaseCardBinApplicationService {
         return value.trim();
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 构建参数校验失败异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);
     }
 
+    /**
+     * 封装规范化后的卡 BIN 起止区间。
+     */
     private record NormalizedBinRange(long start, long end, int length) {
     }
 
+    /**
+     * 封装数据字典编码与展示标签索引。
+     */
     private record DictLabels(Map<String, String> cardBrands,
                               Map<String, String> cardTypes,
                               Map<String, String> statuses,

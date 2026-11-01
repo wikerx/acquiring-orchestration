@@ -25,13 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingProjectionServiceTest
- * @date : 2026-08-26 18:45
- * @email : scott_x@163.com
- * @description : 验证成功和失败清分事务使用动作分片 CAS、根主单行锁及统一生命周期聚合更新查询投影。
- * @status : create
+ * 验证成功和失败清分事务使用动作分片 CAS、根主单行锁及统一生命周期聚合更新查询投影。
  */
 @SuppressWarnings("unchecked")
 class DefaultClearingProjectionServiceTest {

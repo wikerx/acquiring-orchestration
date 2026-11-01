@@ -7,13 +7,7 @@ import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSearchRespo
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRefundQueryService
- * @date : 2026-08-08 00:10
- * @email : scott_x@163.com
- * @description : 管理端退款只读查询服务，在 service-admin 内完成退款列表、统计和详情读取，不承载审批等资金状态变更。
- * @status : create
+ * 管理端退款只读查询服务，在 service-admin 内完成退款列表、统计和详情读取，不承载审批等资金状态变更。
  */
 public interface AdminRefundQueryService {
 

@@ -4,6 +4,9 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.converter.NoticeConverter;
+import com.scott.payment.admin.dto.system.NoticeDTOs.Response;
+import com.scott.payment.admin.dto.system.NoticeDTOs.SaveRequest;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -22,26 +25,23 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminNoticeApplicationService
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台通知公告应用服务
- * @status : create
+ * 管理后台通知公告应用服务
  */
 @Service
 public class AdminNoticeApplicationService {
 
     private final SysNoticeMapper sysNoticeMapper;
+    private final NoticeConverter noticeConverter;
 
     /**
      * 创建后台通知公告应用服务。
      *
      * @param sysNoticeMapper 通知公告 Mapper
+     * @param noticeConverter 通知公告接口模型转换器
      */
-    public AdminNoticeApplicationService(SysNoticeMapper sysNoticeMapper) {
+    public AdminNoticeApplicationService(SysNoticeMapper sysNoticeMapper, NoticeConverter noticeConverter) {
         this.sysNoticeMapper = sysNoticeMapper;
+        this.noticeConverter = noticeConverter;
     }
 
     /**
@@ -55,8 +55,8 @@ public class AdminNoticeApplicationService {
      * @return 分页结果
      */
     @DS(DataSourceName.SLAVE)
-    public PageResult<SysNoticeDO> pageNotices(int pageNo, int pageSize, String noticeTitle,
-                                               String noticeType, String createBy) {
+    public PageResult<Response> pageNotices(int pageNo, int pageSize, String noticeTitle,
+                                            String noticeType, String createBy) {
         LambdaQueryWrapper<SysNoticeDO> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.like(StringUtils.hasText(noticeTitle), SysNoticeDO::getNoticeTitle, noticeTitle);
         queryWrapper.eq(StringUtils.hasText(noticeType), SysNoticeDO::getNoticeType, noticeType);
@@ -65,7 +65,8 @@ public class AdminNoticeApplicationService {
         queryWrapper.orderByDesc(SysNoticeDO::getCreatedAt);
 
         Page<SysNoticeDO> page = sysNoticeMapper.selectPage(new Page<>(pageNo, pageSize), queryWrapper);
-        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
+                noticeConverter.toResponses(page.getRecords()));
     }
 
     /**
@@ -75,8 +76,8 @@ public class AdminNoticeApplicationService {
      * @return 通知公告
      */
     @DS(DataSourceName.SLAVE)
-    public SysNoticeDO getNotice(Long id) {
-        return findNotice(id);
+    public Response getNotice(Long id) {
+        return noticeConverter.toResponse(findNotice(id));
     }
 
     /**
@@ -86,46 +87,49 @@ public class AdminNoticeApplicationService {
      * @return 启用公告列表
      */
     @DS(DataSourceName.SLAVE)
-    public List<SysNoticeDO> listDashboardNotices(int limit) {
+    public List<Response> listDashboardNotices(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 5));
-        return sysNoticeMapper.selectPage(new Page<>(1, safeLimit), new LambdaQueryWrapper<SysNoticeDO>()
+        List<SysNoticeDO> notices = sysNoticeMapper.selectPage(
+                new Page<>(1, safeLimit), new LambdaQueryWrapper<SysNoticeDO>()
                 .eq(SysNoticeDO::getDeleted, AuthConstants.NOT_DELETED)
                 .eq(SysNoticeDO::getStatus, 1)
                 .orderByDesc(SysNoticeDO::getCreatedAt)).getRecords();
+        return noticeConverter.toResponses(notices);
     }
 
     /**
      * 新增通知公告。
      *
-     * @param notice 通知公告实体
-     * @return 保存后的实体
+     * @param request 通知公告保存请求
+     * @return 保存后的通知公告
      */
-    public SysNoticeDO createNotice(SysNoticeDO notice) {
+    public Response createNotice(SaveRequest request) {
+        SysNoticeDO notice = noticeConverter.toEntity(request);
         notice.setId(null);
         notice.setCreatedAt(LocalDateTime.now());
         notice.setUpdatedAt(LocalDateTime.now());
         notice.setCreateBy(currentOperatorName());
         notice.setDeleted(0L);
         sysNoticeMapper.insert(notice);
-        return notice;
+        return noticeConverter.toResponse(notice);
     }
 
     /**
      * 更新通知公告。
      *
      * @param id     主键
-     * @param notice 更新输入
-     * @return 更新后的实体
+     * @param request 更新输入
+     * @return 更新后的通知公告
      */
-    public SysNoticeDO updateNotice(Long id, SysNoticeDO notice) {
+    public Response updateNotice(Long id, SaveRequest request) {
         SysNoticeDO existing = findNotice(id);
-        existing.setNoticeTitle(notice.getNoticeTitle());
-        existing.setNoticeType(notice.getNoticeType());
-        existing.setNoticeContent(notice.getNoticeContent());
-        existing.setStatus(notice.getStatus());
+        existing.setNoticeTitle(request.getNoticeTitle());
+        existing.setNoticeType(request.getNoticeType());
+        existing.setNoticeContent(request.getNoticeContent());
+        existing.setStatus(request.getStatus());
         existing.setUpdatedAt(LocalDateTime.now());
         sysNoticeMapper.updateById(existing);
-        return existing;
+        return noticeConverter.toResponse(existing);
     }
 
     /**
@@ -166,6 +170,9 @@ public class AdminNoticeApplicationService {
                 });
     }
 
+    /**
+     * 查询未删除的系统公告，不存在时返回业务错误。
+     */
     private SysNoticeDO findNotice(Long id) {
         SysNoticeDO notice = sysNoticeMapper.selectOne(new LambdaQueryWrapper<SysNoticeDO>()
                 .eq(SysNoticeDO::getDeleted, AuthConstants.NOT_DELETED)
@@ -176,6 +183,9 @@ public class AdminNoticeApplicationService {
         return notice;
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

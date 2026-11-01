@@ -10,17 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingRuleChecksumTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 验证规则 checksum 的稳定性和启用前完整性门禁。
- * @status : create
+ * 验证规则 checksum 的稳定性和启用前完整性门禁。
  */
 class TransactionShardingRuleChecksumTest {
 
-    /** 当前 28 表规则缺少任一正式表且又不构成完整旧 25 表时必须拒绝激活。 */
+    /**
+     * 当前 28 表规则缺少任一正式表且又不构成完整旧 25 表时必须拒绝激活。
+     */
     @Test
     void shouldRejectIncompleteTwentySevenTableFormalTopology() {
         TransactionShardingProperties properties = validProperties();
@@ -32,7 +28,9 @@ class TransactionShardingRuleChecksumTest {
         assertThrows(IllegalStateException.class, properties::validateForActivation);
     }
 
-    /** 滚动迁移期间允许完整旧 25 表继续启动，但不能混入任意清分表形成 26/27 表半拓扑。 */
+    /**
+     * 滚动迁移期间允许完整旧 25 表继续启动，但不能混入任意清分表形成 26/27 表半拓扑。
+     */
     @Test
     void shouldAcceptOnlyCompleteLegacyTopologyDuringClearingMigration() {
         TransactionShardingProperties legacy = validProperties();
@@ -48,7 +46,9 @@ class TransactionShardingRuleChecksumTest {
         assertThrows(IllegalStateException.class, legacy::validateForActivation);
     }
 
-    /** 默认正式拓扑必须完整包含三张清分表。 */
+    /**
+     * 默认正式拓扑必须完整包含三张清分表。
+     */
     @Test
     void shouldExposeCompleteTwentyEightTableFormalTopology() {
         TransactionShardingProperties properties = validProperties();
@@ -58,7 +58,9 @@ class TransactionShardingRuleChecksumTest {
         assertEquals(true, properties.usesFormalLogicTableTopology());
     }
 
-    /** 兼容集合也不能把未知表误判为正式拓扑。 */
+    /**
+     * 兼容集合也不能把未知表误判为正式拓扑。
+     */
     @Test
     void shouldRejectUnknownTableInsideHistoricalTopology() {
         TransactionShardingProperties properties = validProperties();
@@ -104,7 +106,9 @@ class TransactionShardingRuleChecksumTest {
         assertThrows(IllegalStateException.class, properties::validateForActivation);
     }
 
-    /** 候选规则校验失败后，上一版完整拓扑仍可通过激活门禁。 */
+    /**
+     * 候选规则校验失败后，上一版完整拓扑仍可通过激活门禁。
+     */
     @Test
     void shouldRestorePreviousPublishedRuleAfterCandidateChecksumFailure() {
         TransactionShardingProperties previous = validProperties();

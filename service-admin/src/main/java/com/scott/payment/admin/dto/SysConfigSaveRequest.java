@@ -5,13 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysConfigSaveRequest
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 系统参数配置保存请求
- * @status : create
+ * 系统参数配置保存请求
  */
 @Data
 public class SysConfigSaveRequest {

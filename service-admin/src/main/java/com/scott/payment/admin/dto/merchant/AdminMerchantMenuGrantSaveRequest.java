@@ -7,13 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantMenuGrantSaveRequest
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户菜单授权写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
- * @status : create
+ * 管理端商户菜单授权写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
  */
 @Data
 public class AdminMerchantMenuGrantSaveRequest implements Serializable {

@@ -6,18 +6,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantDocumentApplicationService
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : 管理端商户合规资料应用服务，隔离 Web 层与对象存储领域服务并保持控制器轻量
- * @status : create
+ * 管理端商户合规资料应用服务，隔离 Web 层与对象存储领域服务并保持控制器轻量
  */
 @Service
 public class AdminMerchantDocumentApplicationService {
 
-    /** 商户资料领域服务；负责归属校验、文件安全校验和存储一致性，不允许为空。 */
+    /**
+     * 商户资料领域服务；负责归属校验、文件安全校验和存储一致性，不允许为空。
+     */
     private final MerchantDocumentService merchantDocumentService;
 
     /**

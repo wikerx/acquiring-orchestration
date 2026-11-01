@@ -9,17 +9,13 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FundDeductionSchemaContractTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 账户扣减数据库、权限和回滚保护契约测试。
- * @status : create
+ * 账户扣减数据库、权限和回滚保护契约测试。
  */
 class FundDeductionSchemaContractTests {
 
-    /** 迁移必须包含独立单据、资金幂等约束、七项权限及可回滚保护。 */
+    /**
+     * 迁移必须包含独立单据、资金幂等约束、七项权限及可回滚保护。
+     */
     @Test
     void shouldKeepDeductionMigrationCompleteAndReversible() throws IOException {
         String migration = Files.readString(Path.of(

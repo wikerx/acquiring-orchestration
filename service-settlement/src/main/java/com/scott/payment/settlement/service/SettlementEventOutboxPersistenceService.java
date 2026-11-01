@@ -12,24 +12,12 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementEventOutboxPersistenceService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 定义结算事件 Outbox 的短事务状态边界；认领、成功和失败分别提交，MQ 网络发送期间不持有数据库锁。
- * @status : create
+ * 定义结算事件 Outbox 的短事务状态边界；认领、成功和失败分别提交，MQ 网络发送期间不持有数据库锁。
  */
 @Service
 public class SettlementEventOutboxPersistenceService {
 
-    /**
-     * {@code MAX_RETRY_BACKOFF_MINUTES}常量，统一 {@code SettlementEventOutboxPersistenceService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_RETRY_BACKOFF_MINUTES = 30;
 
     private final SettlementEventOutboxMapper outboxMapper;

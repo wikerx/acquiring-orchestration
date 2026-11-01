@@ -12,17 +12,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReserveMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 保证金资金化数据访问接口；聚合行使用锁和 version CAS，动作表以来源唯一键提供 HOLD、RETURN、RELEASE、ADJUSTMENT 与 REVERSAL 的最终幂等。
- * @status : create
+ * 保证金资金化数据访问接口；聚合行使用锁和 version CAS，动作表以来源唯一键提供 HOLD、RETURN、RELEASE、ADJUSTMENT 与 REVERSAL 的最终幂等。
  */
 public interface SettlementReserveMapper {
 
-    /** HOLD 首次创建保证金聚合；唯一来源冲突后由服务层回读校验。 */
+    /**
+     * HOLD 首次创建保证金聚合；唯一来源冲突后由服务层回读校验。
+     */
     @Insert("""
             INSERT INTO merchant_reserve_item
             (reserve_no, account_id, merchant_id, source_transaction_id, source_business_no,
@@ -40,7 +36,9 @@ public interface SettlementReserveMapper {
             """)
     int insertItemIdempotent(@Param("row") MerchantReserveItemDO row);
 
-    /** 按原 HOLD 清分明细号锁定保证金聚合。 */
+    /**
+     * 按原 HOLD 清分明细号锁定保证金聚合。
+     */
     @Select("""
             SELECT *
             FROM merchant_reserve_item
@@ -53,7 +51,9 @@ public interface SettlementReserveMapper {
             @Param("merchantId") String merchantId,
             @Param("sourceReserveDetailNo") String sourceReserveDetailNo);
 
-    /** 冲正按原批动作逆序锁读，保证先撤销后发生的 RETURN/RELEASE。 */
+    /**
+     * 冲正按原批动作逆序锁读，保证先撤销后发生的 RETURN/RELEASE。
+     */
     @Select("""
             SELECT *
             FROM merchant_reserve_action
@@ -64,7 +64,9 @@ public interface SettlementReserveMapper {
     List<MerchantReserveActionDO> selectActionsByBatchForUpdate(
             @Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 按主键锁定保证金聚合供冲正动作更新。 */
+    /**
+     * 按主键锁定保证金聚合供冲正动作更新。
+     */
     @Select("""
             SELECT *
             FROM merchant_reserve_item
@@ -74,7 +76,9 @@ public interface SettlementReserveMapper {
             """)
     MerchantReserveItemDO selectItemByIdForUpdate(@Param("reserveItemId") Long reserveItemId);
 
-    /** 追加不可变保证金动作；重复结算消息不得二次改变聚合。 */
+    /**
+     * 追加不可变保证金动作；重复结算消息不得二次改变聚合。
+     */
     @Insert("""
             INSERT INTO merchant_reserve_action
             (reserve_action_no, reserve_item_id, reserve_no, settlement_batch_no, candidate_id,
@@ -89,7 +93,9 @@ public interface SettlementReserveMapper {
             """)
     int insertActionIdempotent(@Param("row") MerchantReserveActionDO row);
 
-    /** 回读动作身份，区分合法重放与幂等键碰撞。 */
+    /**
+     * 回读动作身份，区分合法重放与幂等键碰撞。
+     */
     @Select("""
             SELECT *
             FROM merchant_reserve_action
@@ -99,7 +105,9 @@ public interface SettlementReserveMapper {
             """)
     MerchantReserveActionDO selectActionForUpdate(@Param("reserveActionNo") String reserveActionNo);
 
-    /** RETURN 减少仍扣留责任，金额和版本条件防止并发超额返还。 */
+    /**
+     * RETURN 减少仍扣留责任，金额和版本条件防止并发超额返还。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET reserve_status = CASE
@@ -123,7 +131,9 @@ public interface SettlementReserveMapper {
                     @Param("expectedVersion") long expectedVersion,
                     @Param("now") LocalDateTime now);
 
-    /** 到期 RELEASE 减少仍扣留责任并记录释放批次。 */
+    /**
+     * 到期 RELEASE 减少仍扣留责任并记录释放批次。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET reserve_status = CASE
@@ -149,7 +159,9 @@ public interface SettlementReserveMapper {
                      @Param("expectedVersion") long expectedVersion,
                      @Param("now") LocalDateTime now);
 
-    /** 借方调整增加原标签币种保证金责任。 */
+    /**
+     * 借方调整增加原标签币种保证金责任。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET debit_adjustment_amount = debit_adjustment_amount + #{amount},
@@ -166,7 +178,9 @@ public interface SettlementReserveMapper {
                              @Param("expectedVersion") long expectedVersion,
                              @Param("now") LocalDateTime now);
 
-    /** 贷方调整减少责任，剩余责任不足时必须拒绝。 */
+    /**
+     * 贷方调整减少责任，剩余责任不足时必须拒绝。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET credit_adjustment_amount = credit_adjustment_amount + #{amount},
@@ -185,7 +199,9 @@ public interface SettlementReserveMapper {
                               @Param("expectedVersion") long expectedVersion,
                               @Param("now") LocalDateTime now);
 
-    /** 撤销 HOLD，只允许在该留存仍有足额未返还、未释放责任时执行。 */
+    /**
+     * 撤销 HOLD，只允许在该留存仍有足额未返还、未释放责任时执行。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET reserve_status = CASE
@@ -207,7 +223,9 @@ public interface SettlementReserveMapper {
                     @Param("expectedVersion") long expectedVersion,
                     @Param("now") LocalDateTime now);
 
-    /** 撤销 RETURN，恢复相同原币种保证金责任。 */
+    /**
+     * 撤销 RETURN，恢复相同原币种保证金责任。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET returned_amount = returned_amount - #{amount},
@@ -223,7 +241,9 @@ public interface SettlementReserveMapper {
                       @Param("expectedVersion") long expectedVersion,
                       @Param("now") LocalDateTime now);
 
-    /** 撤销 RELEASE，恢复相同原币种保证金责任。 */
+    /**
+     * 撤销 RELEASE，恢复相同原币种保证金责任。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET released_amount = released_amount - #{amount},
@@ -240,7 +260,9 @@ public interface SettlementReserveMapper {
                        @Param("expectedVersion") long expectedVersion,
                        @Param("now") LocalDateTime now);
 
-    /** 撤销借方调整；后续已消耗责任时不得回减到负责任。 */
+    /**
+     * 撤销借方调整；后续已消耗责任时不得回减到负责任。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET debit_adjustment_amount = debit_adjustment_amount - #{amount},
@@ -258,7 +280,9 @@ public interface SettlementReserveMapper {
                                @Param("expectedVersion") long expectedVersion,
                                @Param("now") LocalDateTime now);
 
-    /** 撤销贷方调整，恢复相同原标签币种责任。 */
+    /**
+     * 撤销贷方调整，恢复相同原标签币种责任。
+     */
     @Update("""
             UPDATE merchant_reserve_item
             SET credit_adjustment_amount = credit_adjustment_amount - #{amount},

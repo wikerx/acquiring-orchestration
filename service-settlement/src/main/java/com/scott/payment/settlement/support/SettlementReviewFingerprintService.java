@@ -20,13 +20,7 @@ import java.util.HexFormat;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewFingerprintService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 为预审候选选择、清分事实、统一汇率矩阵和财务结果生成稳定 SHA-256 指纹；金额使用 plain string，集合排序后再编码。
- * @status : create
+ * 为预审候选选择、清分事实、统一汇率矩阵和财务结果生成稳定 SHA-256 指纹；金额使用 plain string，集合排序后再编码。
  */
 @Component
 public final class SettlementReviewFingerprintService {
@@ -123,13 +117,17 @@ public final class SettlementReviewFingerprintService {
         return value.digest();
     }
 
-    /** 按候选主键稳定排序后写入规范化指纹，隔离数据库返回顺序差异。 */
+    /**
+     * 按候选主键稳定排序后写入规范化指纹，隔离数据库返回顺序差异。
+     */
     private void appendCandidates(Canonical value, List<SettlementCandidateDO> candidates) {
         candidates.stream().sorted(Comparator.comparing(SettlementCandidateDO::getId))
                 .forEach(row -> appendCandidate(value, row));
     }
 
-    /** 将影响候选身份、归属、目标币种和可结算日的字段完整写入指纹。 */
+    /**
+     * 将影响候选身份、归属、目标币种和可结算日的字段完整写入指纹。
+     */
     private void appendCandidate(Canonical value, SettlementCandidateDO row) {
         value.add(row.getId()).add(row.getCandidateNo()).add(row.getSourceType())
                 .add(row.getSourceBusinessId()).add(row.getSourceRevision())
@@ -194,7 +192,9 @@ public final class SettlementReviewFingerprintService {
                         .add(row.getTransactionDateTime()));
     }
 
-    /** 将逐笔结果的来源、方向、币种、直接汇率、舍入和最终金额写入审批指纹。 */
+    /**
+     * 将逐笔结果的来源、方向、币种、直接汇率、舍入和最终金额写入审批指纹。
+     */
     private void appendResult(Canonical value, SettlementResultItemDO row) {
         value.add(row.getCandidateId()).add(row.getResultLineNo()).add(row.getMerchantId())
                 .add(row.getSettlementAccountId()).add(row.getSourceDetailType()).add(row.getSourceDetailNo())
@@ -226,13 +226,7 @@ public final class SettlementReviewFingerprintService {
     }
 
     private static final class Canonical {
-        /**
-         * 值字段，保存 规范化 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+
         private final StringBuilder value = new StringBuilder();
 
         private Canonical(String version) {

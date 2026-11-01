@@ -6,23 +6,21 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundReasonEnumTests
- * @date : 2026-09-27 18:00
- * @email : scott_x@163.com
- * @description : 验证退款原因国际化、其他原因的空白与长度边界，以及旧版文本请求兼容。
- * @status : create
+ * 验证退款原因国际化、其他原因的空白与长度边界，以及旧版文本请求兼容。
  */
 class RefundReasonEnumTests {
-    /** 中英文原因均由编码生成，旧文案不能覆盖选择的真实原因。 */
+    /**
+     * 中英文原因均由编码生成，旧文案不能覆盖选择的真实原因。
+     */
     @Test void shouldFormatReasonInRequestLocale() {
         assertThat(RefundReasonEnum.resolveRequestReason("PARTIAL_RETURN", "  退回两件  ", "其他", Locale.CHINA))
                 .isEqualTo("部分商品退货 - 退回两件");
         assertThat(RefundReasonEnum.resolveRequestReason("PRICE_ADJUSTMENT", null, null, Locale.ENGLISH))
                 .isEqualTo("Discount or price adjustment");
     }
-    /** 其他、空白、超长及未知编码必须拒绝，普通原因说明可以留空。 */
+    /**
+     * 其他、空白、超长及未知编码必须拒绝，普通原因说明可以留空。
+     */
     @Test void shouldRejectInvalidReasonAndDetails() {
         for (String blank : new String[] {null, "", " \t\n", "\u3000", "\u00a0", "\ufeff"}) {
             assertThatThrownBy(() -> RefundReasonEnum.resolveRequestReason("OTHER", blank, "Other - spoofed", Locale.ENGLISH))
@@ -36,7 +34,9 @@ class RefundReasonEnumTests {
         assertThat(RefundReasonEnum.resolveRequestReason("PARTIAL_RETURN", " ", null, Locale.ENGLISH))
                 .isEqualTo("Partial return of goods");
     }
-    /** 旧版原因原样保留，但缺少原因或仅填写其他不能绕过校验。 */
+    /**
+     * 旧版原因原样保留，但缺少原因或仅填写其他不能绕过校验。
+     */
     @Test void shouldPreserveLegacyRequestsWithoutReinterpretingHistory() {
         assertThat(RefundReasonEnum.resolveRequestReason(null, null, "商品或服务已完成", Locale.ENGLISH))
                 .isEqualTo("商品或服务已完成");

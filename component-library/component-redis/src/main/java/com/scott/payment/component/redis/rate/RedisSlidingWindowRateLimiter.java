@@ -16,13 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisSlidingWindowRateLimiter
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : Servlet 服务共用的 Redis 精确滑动窗口限流器，Redis 异常时降级到有界本地窗口
- * @status : create
+ * Servlet 服务共用的 Redis 精确滑动窗口限流器，Redis 异常时降级到有界本地窗口
  */
 @Slf4j
 public class RedisSlidingWindowRateLimiter {
@@ -33,6 +27,14 @@ public class RedisSlidingWindowRateLimiter {
     private final RateLimitFailurePolicy failurePolicy;
     private final AtomicLong lastWarningMillis = new AtomicLong();
 
+    /**
+     * 创建 Servlet Redis 滑动窗口限流器及有界本地故障策略。
+     *
+     * @param redisTemplate Redis 字符串模板
+     * @param redisProperties 统一 Redis Key 配置
+     * @param localMaxIdentities 本地降级最大身份数
+     * @param failurePolicy Redis 故障时失败关闭或本地降级策略
+     */
     public RedisSlidingWindowRateLimiter(
             StringRedisTemplate redisTemplate,
             PaymentRedisProperties redisProperties,
@@ -74,6 +76,12 @@ public class RedisSlidingWindowRateLimiter {
         }
     }
 
+    /**
+     * 解析 Lua 返回的允许标识和重试秒数。
+     *
+     * @param result Redis Lua 两元素结果
+     * @return 统一滑动窗口判定结果
+     */
     static SlidingWindowRateLimitResult parse(List<?> result) {
         if (result == null || result.size() != 2) {
             throw new IllegalStateException("Sliding window rate limit returned an invalid result");
@@ -85,6 +93,14 @@ public class RedisSlidingWindowRateLimiter {
                 : SlidingWindowRateLimitResult.rejected(retry);
     }
 
+    /**
+     * 校验限流范围、身份、配额和窗口时长均可安全执行。
+     *
+     * @param scope 限流业务范围
+     * @param identity 限流身份原文
+     * @param limit 窗口内允许次数
+     * @param window 滑动窗口时长
+     */
     private void requireArguments(String scope, String identity, int limit, Duration window) {
         if (!StringUtils.hasText(scope) || !StringUtils.hasText(identity)
                 || limit <= 0 || window == null || window.isZero() || window.isNegative()) {
@@ -92,6 +108,12 @@ public class RedisSlidingWindowRateLimiter {
         }
     }
 
+    /**
+     * 将身份原文转换为 Redis Key 使用的不可逆 SHA-256 摘要。
+     *
+     * @param value 身份原文
+     * @return 64 位小写十六进制摘要
+     */
     private String digest(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -101,16 +123,25 @@ public class RedisSlidingWindowRateLimiter {
         }
     }
 
+    /**
+     * 将失败关闭时的窗口时长向上取整为至少一秒的重试等待值。
+     *
+     * @param window 滑动窗口时长
+     * @return Retry-After 秒数
+     */
     private long retryAfterSeconds(Duration window) {
         return Math.max(1L, (window.toMillis() + 999L) / 1000L);
     }
 
-    /** Redis 故障期间每分钟最多记录一次策略事件，避免限流流量放大异常日志。 */
+    /**
+     * Redis 故障期间每分钟最多记录一次策略事件，避免限流流量放大异常日志。
+     */
     private void warnFailure(String scope, RuntimeException exception) {
         long now = System.currentTimeMillis();
         long previous = lastWarningMillis.get();
         if (now - previous >= 60_000L && lastWarningMillis.compareAndSet(previous, now)) {
-            log.warn("event: REDIS_RATE_LIMIT_FAILURE scope: {} failurePolicy: {} exceptionType: {}",
+            log.warn("Redis 限流执行失败, event: REDIS_RATE_LIMIT_FAILURE, "
+                            + "scope: {}, failurePolicy: {}, exceptionType: {}",
                     scope, failurePolicy, exception.getClass().getSimpleName(), exception);
         }
     }

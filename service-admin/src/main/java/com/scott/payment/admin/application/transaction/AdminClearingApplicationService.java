@@ -44,13 +44,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminClearingApplicationService
- * @date : 2026-09-01 23:00
- * @email : scott_x@163.com
- * @description : Admin 清分查询与人工命令编排；查询使用管理侧数据源，命令在校验版本和请求范围后注入可信操作人并调用 clearing 服务。
- * @status : update
+ * Admin 清分查询与人工命令编排；查询使用管理侧数据源，命令在校验版本和请求范围后注入可信操作人并调用 clearing 服务。
  */
 @Service
 public class AdminClearingApplicationService {
@@ -58,20 +52,15 @@ public class AdminClearingApplicationService {
     private static final Set<String> ADJUSTMENT_DIRECTIONS = Set.of("DEBIT", "CREDIT");
     private static final Set<String> REVIEW_DECISIONS = Set.of("APPROVE", "REJECT");
     private static final Set<String> RECALCULABLE_STATUSES = Set.of("CLEARED", "NOT_REQUIRED");
-    /**
-     * {@code MAX_RECALCULATION_BATCH_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int MAX_RECALCULATION_BATCH_SIZE = 20;
 
     private final ClearingInternalClient client;
     private final AdminClearingQueryService queryService;
     private final AdminClearingFeeVersionQueryService feeVersionQueryService;
 
+    /**
+     * 创建管理端清分应用服务。
+     */
     public AdminClearingApplicationService(ClearingInternalClient client,
                                            AdminClearingQueryService queryService,
                                            AdminClearingFeeVersionQueryService feeVersionQueryService) {
@@ -210,7 +199,9 @@ public class AdminClearingApplicationService {
         return response;
     }
 
-    /** 校验批量数量、请求内唯一交易引用、期望版本和统一目标费用版本。 */
+    /**
+     * 校验批量数量、请求内唯一交易引用、期望版本和统一目标费用版本。
+     */
     private void validateBatchRequest(RecalculateBatchRequest request) {
         if (request == null || request.getRecords() == null || request.getRecords().size() < 2
                 || request.getRecords().size() > MAX_RECALCULATION_BATCH_SIZE
@@ -231,7 +222,9 @@ public class AdminClearingApplicationService {
         }
     }
 
-    /** 确保当前命中的交易属于同一商户、同一费用方案且与目标方案一致。 */
+    /**
+     * 确保当前命中的交易属于同一商户、同一费用方案且与目标方案一致。
+     */
     private void validateBatchScope(RecalculateBatchRequest request, List<Summary> currentRows) {
         if (currentRows == null || currentRows.isEmpty()) {
             return;
@@ -251,7 +244,9 @@ public class AdminClearingApplicationService {
         }
     }
 
-    /** 仅允许 CLEARED/NOT_REQUIRED 且 NOT_SETTLED 的当前版本重算，阻止终态和已结算事实被覆盖。 */
+    /**
+     * 仅允许 CLEARED/NOT_REQUIRED 且 NOT_SETTLED 的当前版本重算，阻止终态和已结算事实被覆盖。
+     */
     private boolean isCurrentAndRecalculable(RecalculateBatchItem item, Summary current) {
         return current != null
                 && RECALCULABLE_STATUSES.contains(current.getClearingStatus())
@@ -283,6 +278,9 @@ public class AdminClearingApplicationService {
         return command;
     }
 
+    /**
+     * 汇总清分批量处理结果。
+     */
     private RecalculateBatchItemResult batchResult(RecalculateBatchItem item, boolean success,
                                                    String result, String message) {
         RecalculateBatchItemResult response = new RecalculateBatchItemResult();
@@ -294,6 +292,9 @@ public class AdminClearingApplicationService {
         return response;
     }
 
+    /**
+     * 构建引用键。
+     */
     private String referenceKey(String transactionId, LocalDateTime transactionDateTime) {
         return (transactionId == null ? "" : transactionId.trim()) + "\u0000" + transactionDateTime;
     }
@@ -395,6 +396,9 @@ public class AdminClearingApplicationService {
         return client.reviewTierPeriodReplay(replayNo.trim(), command);
     }
 
+    /**
+     * 解析并校验清分管理动作。
+     */
     private InternalActionRequest action(String transactionId, ActionRequest request) {
         validateAction(transactionId, request);
         InternalActionRequest command = new InternalActionRequest();
@@ -405,6 +409,9 @@ public class AdminClearingApplicationService {
         return command;
     }
 
+    /**
+     * 校验清分管理动作是否属于允许集合。
+     */
     private void validateAction(String transactionId, ActionRequest request) {
         if (!StringUtils.hasText(transactionId) || request == null || request.getTransactionDateTime() == null
                 || request.getExpectedVersion() == null || request.getExpectedVersion() < 0
@@ -438,11 +445,16 @@ public class AdminClearingApplicationService {
         }
     }
 
+    /**
+     * 返回首个非空业务文本。
+     */
     private boolean validText(String value, int maxLength) {
         return StringUtils.hasText(value) && value.trim().length() <= maxLength;
     }
 
-    /** 从可信内部认证上下文解析 Admin 操作人；不存在可信身份时拒绝请求。 */
+    /**
+     * 从可信内部认证上下文解析 Admin 操作人；不存在可信身份时拒绝请求。
+     */
     private String currentOperator() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAccountId() == null) {

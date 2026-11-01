@@ -19,16 +19,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataCheckoutCardVaultSecurityTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : service-data 卡资料传输与静态信封加密测试。
- * @status : create
+ * service-data 卡资料传输与静态信封加密测试。
  */
 class DataCheckoutCardVaultSecurityTests {
 
+    /**
+     * 验证传输解密和静态加密可往返，且 PAN 索引使用 HMAC。
+     */
     @Test
     void shouldDecryptTransferAndRoundTripAtRestWithoutRawSha256Index() throws Exception {
         Fixture fixture = fixture();
@@ -51,6 +48,9 @@ class DataCheckoutCardVaultSecurityTests {
         assertThat(encrypted.panHmac()).isNotEqualTo(rawSha256).hasSize(64);
     }
 
+    /**
+     * 验证密文移动到另一交易后因 AAD 不匹配而拒绝解密。
+     */
     @Test
     void shouldRejectCiphertextMovedToAnotherTransaction() {
         Fixture fixture = fixture();
@@ -61,6 +61,29 @@ class DataCheckoutCardVaultSecurityTests {
                 .isInstanceOf(RuntimeException.class);
     }
 
+    /**
+     * 验证卡资料传输正文包含 CVV 字段时直接拒绝，禁止把安全码作为未知字段静默接受。
+     */
+    @Test
+    void shouldRejectTransferPayloadContainingSecurityCode() {
+        Fixture fixture = fixture();
+        Map<String, String> plaintext = Map.of(
+                "cardNo", "4111111111111111",
+                "expirationMonth", "12",
+                "expirationYear", "2030",
+                "cardholderName", "Test User",
+                "cardBrand", "VISA",
+                "securityCode", "123");
+        CheckoutCardVaultStoreMessage message = encryptedMessage(fixture, plaintext);
+
+        assertThatThrownBy(() -> fixture.transferService.decrypt(message))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("card vault transfer payload is invalid");
+    }
+
+    /**
+     * 构造卡资料密码学测试所需的密钥、服务和明文夹具。
+     */
     private Fixture fixture() {
         CheckoutCardEnvelopeCipher cipher = new CheckoutCardEnvelopeCipher();
         KeyPair keyPair = cipher.generateRsaKeyPair();
@@ -78,7 +101,27 @@ class DataCheckoutCardVaultSecurityTests {
                 new DataCardVaultCryptoService(properties));
     }
 
+    /**
+     * 构造绑定测试业务身份的卡资料传输信封消息。
+     */
     private CheckoutCardVaultStoreMessage encryptedMessage(Fixture fixture) {
+        Map<String, String> plaintext = Map.of(
+                "cardNo", "4111111111111111",
+                "expirationMonth", "12",
+                "expirationYear", "2030",
+                "cardholderName", "Test User",
+                "cardBrand", "VISA");
+        return encryptedMessage(fixture, plaintext);
+    }
+
+    /**
+     * 使用指定明文字段构造绑定测试业务身份的卡资料传输信封消息。
+     *
+     * @param fixture 密码学测试夹具
+     * @param plaintext 待加密卡资料字段
+     * @return 绑定完整 AAD 的传输消息
+     */
+    private CheckoutCardVaultStoreMessage encryptedMessage(Fixture fixture, Map<String, String> plaintext) {
         CheckoutCardVaultStoreMessage message = new CheckoutCardVaultStoreMessage();
         message.setMessageId("CVA1001");
         message.setMerchantId("M1001");
@@ -87,12 +130,6 @@ class DataCheckoutCardVaultSecurityTests {
         message.setCheckoutAttemptId("A1001");
         message.setAlgorithm(CheckoutCardEnvelopeCipher.ALGORITHM);
         message.setKeyId("vault-key-v1");
-        Map<String, String> plaintext = Map.of(
-                "cardNo", "4111111111111111",
-                "expirationMonth", "12",
-                "expirationYear", "2030",
-                "cardholderName", "Test User",
-                "cardBrand", "VISA");
         CheckoutCardEnvelopeCipher.EncryptedEnvelope envelope = fixture.cipher.encrypt(
                 JsonUtils.toJsonString(plaintext), fixture.keyPair.getPublic(), message.transferAad());
         message.setEncryptedKey(envelope.encryptedKey());
@@ -101,6 +138,9 @@ class DataCheckoutCardVaultSecurityTests {
         return message;
     }
 
+    /**
+     * 将字段信封组装为静态加密卡资料记录。
+     */
     private DataCheckoutCardVaultDO record(CheckoutCardVaultStoreMessage message,
                                            DataCardVaultCryptoService.EncryptedCardData encrypted) {
         DataCheckoutCardVaultDO record = new DataCheckoutCardVaultDO();
@@ -122,6 +162,9 @@ class DataCheckoutCardVaultSecurityTests {
         return record;
     }
 
+    /**
+     * 保存当前测试场景共用的依赖和业务对象。
+     */
     private record Fixture(CheckoutCardEnvelopeCipher cipher,
                            KeyPair keyPair,
                            DataCheckoutCardVaultTransferService transferService,

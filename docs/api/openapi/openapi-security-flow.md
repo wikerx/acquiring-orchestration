@@ -142,8 +142,8 @@ base64url(protectedHeader).base64url(encryptedKey).base64url(iv).base64url(ciphe
 
 ```json
 {
-  "code": "T200",
-  "message": "SUCCESS",
+  "code": "A0000",
+  "message": "Request processed successfully.",
   "data": "<compact encrypted response>"
 }
 ```
@@ -289,7 +289,7 @@ OpenApiHeaderInterceptor
 
 关键处理：
 
-1. JWT 缺失、签名错误、过期、`aud/iss/jti/merchantId` 不合法，统一返回 `F401`。
+1. JWT 缺失返回 `A2001`；格式、算法、签名、`aud/iss` 校验失败返回 `A2002`；`iat/exp` 时间条件无效返回 `A2003`；商户身份无效或受限分别返回 `A2004/A2005`；防重放拒绝返回 `A2006`。公开响应不暴露内部验签细项。
 2. Redis 可用时，`OpenApiJwtReplayProtectionService` 会把 `jti` 写入 `payment:openapi:jwt:jti:{merchantId}:{jti}`，重复命中视为重放请求。
 3. 请求体缺失、密文格式错误、RSA 解密失败、AES-GCM tag 校验失败，统一返回稳定错误码。
 4. DTO 字段不合法，由统一异常处理返回 `CommonResult` JSON。

@@ -6,13 +6,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionService
- * @date : 2026-05-31 21:02
- * @email : scott_x@163.com
- * @description : 收单支付交易服务，位于 service-payment 服务层，负责交易动作幂等、状态边界、风控、路由和渠道调用。
- * @status : create
+ * 收单支付交易服务，位于 service-payment 服务层，负责交易动作幂等、状态边界、风控、路由和渠道调用。
  */
 public interface PaymentTransactionService {
 

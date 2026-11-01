@@ -14,13 +14,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoDictionaryServiceImpl
- * @date : 2026-06-03 15:14
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI ISO 国家地区与币种查询服务实现
- * @status : create
+ * 商户 OpenAPI ISO 国家地区与币种查询服务实现
  */
 @Service
 public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryService {
@@ -78,6 +72,8 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
                 && requestDTO.getAlpha3() == null && requestDTO.getNumeric() == null)) {
             return isoDictionaryService.listCountries();
         }
+        // 筛选查询走固定代码 Hash；多个非空代码按 AND 校验，
+        // 避免扫描全量快照，也防止不同 ISO 代码指向不同国家时返回歧义结果。
         return isoDictionaryService.listCountriesByCodes(
                 requestDTO.getAlpha2(), requestDTO.getAlpha3(), requestDTO.getNumeric());
     }

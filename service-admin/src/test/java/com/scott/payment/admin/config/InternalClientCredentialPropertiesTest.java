@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 Admin 调用 Payment、Job 时固定服务身份并拒绝缺失或弱 HMAC 密钥。 */
+/**
+ * 验证 Admin 调用 Payment、Job 时固定服务身份并拒绝缺失或弱 HMAC 密钥。
+ */
 class InternalClientCredentialPropertiesTest {
 
     @Test

@@ -1,13 +1,7 @@
 package com.scott.payment.component.redis.lock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DistributedLockBusyException
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 分布式锁在限定等待时间内未获取成功。
- * @status : create
+ * 分布式锁在限定等待时间内未获取成功。
  */
 public class DistributedLockBusyException extends RuntimeException {
 

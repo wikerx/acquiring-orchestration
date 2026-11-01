@@ -3,56 +3,41 @@ package com.scott.payment.payment.domain.refund;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundRequestSourceEnum
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 退款来源枚举，位于 支付核心服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 退款请求来源枚举，用于确定申请人类型并保留可审计的入口信息。
  */
 @Getter
 public enum RefundRequestSourceEnum {
 
     /**
-     * OPENAPI 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 商户通过 OpenAPI 发起，申请人类型记录为 API 客户端。
      */
     OPENAPI("OPENAPI", "API_CLIENT"),
     /**
-     * ADMIN PORTAL 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 平台管理人员通过管理后台发起。
      */
     ADMIN_PORTAL("ADMIN_PORTAL", "ADMIN"),
     /**
-     * MERCHANT PORTAL 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 商户操作人通过商户后台发起。
      */
     MERCHANT_PORTAL("MERCHANT_PORTAL", "MERCHANT"),
     /**
-     * SYSTEM 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 支付系统根据受控规则自动发起。
      */
     SYSTEM("SYSTEM", "SYSTEM"),
     /**
-     * LEGACY UNKNOWN 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 历史数据或旧调用方没有可靠来源，保留未知而不伪造申请人类型。
      */
     LEGACY_UNKNOWN("LEGACY_UNKNOWN", null);
 
     private final String code;
     private final String applicantType;
 
+    /**
+     * 创建退款来源与对应申请人类型映射。
+     *
+     * @param code 持久化和接口使用的稳定来源编码
+     * @param applicantType 审批审计使用的申请人类型，历史未知来源允许为空
+     */
     RefundRequestSourceEnum(String code, String applicantType) {
         this.code = code;
         this.applicantType = applicantType;

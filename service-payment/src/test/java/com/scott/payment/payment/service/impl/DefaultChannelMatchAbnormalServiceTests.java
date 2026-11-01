@@ -29,20 +29,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultChannelMatchAbnormalServiceTests
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 勾兑异常服务测试，覆盖确定性去重键、脱敏建案、受控处置和正常状态机恢复后的案件关闭。
- * @status : create
+ * 勾兑异常服务测试，覆盖确定性去重键、脱敏建案、受控处置和正常状态机恢复后的案件关闭。
  */
 @Slf4j
 class DefaultChannelMatchAbnormalServiceTests {
 
     private static final LocalDateTime TRANSACTION_TIME = LocalDateTime.of(2026, 8, 6, 12, 0);
 
-    /** 自动升级只写案件，不从建案命令接受目标交易状态。 */
+    /**
+     * 自动升级只写案件，不从建案命令接受目标交易状态。
+     */
     @Test
     void shouldBuildDeterministicCaseForReviewRequiredTransaction() {
         log.info("用例：验证勾兑异常使用稳定去重键建案且不接受目标交易状态");
@@ -122,7 +118,9 @@ class DefaultChannelMatchAbnormalServiceTests {
         log.info("结果：同币种金额差额按主币种BigDecimal精确计算为0.16");
     }
 
-    /** 人工处置不能使用系统自动恢复类型，也不能携带任意交易终态。 */
+    /**
+     * 人工处置不能使用系统自动恢复类型，也不能携带任意交易终态。
+     */
     @Test
     void shouldRejectAutomaticResolutionTypeFromManualRequest() {
         log.info("用例：验证人工处置不能提交系统自动恢复类型");
@@ -144,7 +142,9 @@ class DefaultChannelMatchAbnormalServiceTests {
         log.info("结果：非法人工处置在更新案件前被拒绝");
     }
 
-    /** 渠道重查确认终态时只调用案件自动关闭，不由案件服务写交易状态。 */
+    /**
+     * 渠道重查确认终态时只调用案件自动关闭，不由案件服务写交易状态。
+     */
     @Test
     void shouldAutoResolveCaseAfterNormalChannelMatchCompletes() {
         log.info("用例：验证渠道重查匹配后仅通过正常状态机关闭活动案件");

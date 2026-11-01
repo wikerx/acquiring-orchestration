@@ -8,13 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationConfig
- * @date : 2026-07-30 23:05
- * @email : scott_x@163.com
- * @description : 风控数据库基线启动门禁及规则快照、固定频率窗口容量校验
- * @status : update
+ * 风控数据库基线启动门禁及规则快照、固定频率窗口容量校验
  */
 @Configuration
 @EnableConfigurationProperties(RiskEvaluationProperties.class)
@@ -30,25 +24,39 @@ public class RiskEvaluationConfig {
      */
     private static final int ABSOLUTE_MAX_FREQUENCY_THRESHOLD_COUNT = 100_000;
 
-    /** 单个规则快照允许的绝对最大记录数。 */
+    /**
+     * 单个规则快照允许的绝对最大记录数。
+     */
     private static final int ABSOLUTE_MAX_RULE_SNAPSHOT_ROWS = 100_000;
 
-    /** 单个序列化规则快照允许的绝对最大字符数，约 20 MiB。 */
+    /**
+     * 单个序列化规则快照允许的绝对最大字符数，约 20 MiB。
+     */
     private static final int ABSOLUTE_MAX_RULE_SNAPSHOT_CHARACTERS = 20 * 1024 * 1024;
 
-    /** 超容量快照旁路允许的绝对最大秒数，避免误配置长期跳过容量重新探测。 */
+    /**
+     * 超容量快照旁路允许的绝对最大秒数，避免误配置长期跳过容量重新探测。
+     */
     private static final int ABSOLUTE_MAX_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS = 300;
 
-    /** 只读风控线程池允许的最大固定线程数。 */
+    /**
+     * 只读风控线程池允许的最大固定线程数。
+     */
     private static final int ABSOLUTE_MAX_READ_ONLY_PARALLELISM = 16;
 
-    /** 只读风控线程池允许的最大等待队列容量。 */
+    /**
+     * 只读风控线程池允许的最大等待队列容量。
+     */
     private static final int ABSOLUTE_MAX_READ_ONLY_QUEUE_CAPACITY = 10_000;
 
-    /** 只读规则组允许的最小共享超时毫秒数。 */
+    /**
+     * 只读规则组允许的最小共享超时毫秒数。
+     */
     private static final long MIN_READ_ONLY_TIMEOUT_MILLIS = 100L;
 
-    /** 只读规则组允许的最大共享超时毫秒数。 */
+    /**
+     * 只读规则组允许的最大共享超时毫秒数。
+     */
     private static final long MAX_READ_ONLY_TIMEOUT_MILLIS = 30_000L;
 
     /**

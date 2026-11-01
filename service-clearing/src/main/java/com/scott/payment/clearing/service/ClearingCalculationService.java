@@ -4,13 +4,7 @@ import com.scott.payment.clearing.domain.model.ClearingCalculationModels.Clearin
 import com.scott.payment.clearing.domain.model.ClearingCalculationModels.ClearingCalculationResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingCalculationService
- * @date : 2026-08-26 09:32
- * @email : scott_x@163.com
- * @description : 费用与保证金纯计算编排边界，不访问数据库、Redis、RocketMQ、汇率或余额。
- * @status : create
+ * 费用与保证金纯计算编排边界，不访问数据库、Redis、RocketMQ、汇率或余额。
  */
 public interface ClearingCalculationService {
 

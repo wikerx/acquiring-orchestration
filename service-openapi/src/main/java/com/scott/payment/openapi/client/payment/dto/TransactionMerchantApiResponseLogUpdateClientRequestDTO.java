@@ -7,13 +7,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMerchantApiResponseLogUpdateClientRequestDTO
- * @date : 2026-07-16 16:45
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 响应日志回写客户端请求，位于 service-openapi 客户端 DTO 层，只携带密文掩码和摘要，不携带完整密文。
- * @status : create
+ * 商户 OpenAPI 响应日志回写客户端请求，位于 service-openapi 客户端 DTO 层，只携带密文掩码和摘要，不携带完整密文。
  */
 @Data
 public class TransactionMerchantApiResponseLogUpdateClientRequestDTO implements Serializable {

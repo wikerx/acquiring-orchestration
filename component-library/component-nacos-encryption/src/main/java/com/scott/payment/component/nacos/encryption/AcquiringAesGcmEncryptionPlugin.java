@@ -20,14 +20,8 @@ import java.util.Base64;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AcquiringAesGcmEncryptionPlugin
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : Nacos 配置加密 SPI 实现；每条 cipher-acqaesgcm 配置使用独立 AES-256-GCM 数据密钥和随机 IV，
+ * Nacos 配置加密 SPI 实现；每条 cipher-acqaesgcm 配置使用独立 AES-256-GCM 数据密钥和随机 IV，
  * 数据密钥再由部署环境的根密钥包装，避免配置正文与可直接解密它的明文数据密钥同时落库。
- * @status : create
  */
 public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginService {
 
@@ -35,44 +29,69 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         NacosConfigInfoEncryptedKeyCompatibility.installIfRequired();
     }
 
-    /** DataId 使用的算法标识，例如 cipher-acqaesgcm-service-payment-dev.yaml。 */
+    /**
+     * DataId 使用的算法标识，例如 cipher-acqaesgcm-service-payment-dev.yaml。
+     */
     public static final String ALGORITHM = "acqaesgcm";
 
-    /** 环境变量形式的配置加密主密钥名称。 */
+    /**
+     * 环境变量形式的配置加密主密钥名称。
+     */
     public static final String MASTER_KEY_ENV = "NACOS_ENCRYPTION_MASTER_KEY";
 
-    /** JVM 系统属性形式的配置加密主密钥名称。 */
+    /**
+     * JVM 系统属性形式的配置加密主密钥名称。
+     */
     public static final String MASTER_KEY_PROPERTY = "acquiring.nacos.encryption.master-key";
 
-    /** 环境变量形式的配置加密主密钥文件路径。 */
+    /**
+     * 环境变量形式的配置加密主密钥文件路径。
+     */
     public static final String MASTER_KEY_FILE_ENV = "NACOS_ENCRYPTION_MASTER_KEY_FILE";
 
-    /** JVM 系统属性形式的配置加密主密钥文件路径。 */
+    /**
+     * JVM 系统属性形式的配置加密主密钥文件路径。
+     */
     public static final String MASTER_KEY_FILE_PROPERTY = "acquiring.nacos.encryption.master-key-file";
 
+
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
+
     private static final String PAYLOAD_VERSION = "v1";
+
     private static final String SEPARATOR = ".";
+
     private static final int AES_KEY_BITS = 256;
+
     private static final int AES_KEY_BYTES = AES_KEY_BITS / 8;
+
     private static final int GCM_IV_BYTES = 12;
+
     private static final int GCM_TAG_BITS = 128;
+
     private static final int MAX_MASTER_KEY_FILE_BYTES = 16 * 1024;
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    /** 使用当前配置的数据密钥加密 Nacos 配置正文。 */
+    /**
+     * 使用当前配置的数据密钥加密 Nacos 配置正文。
+     */
     @Override
     public String encrypt(String secretKey, String content) {
         return encryptWithKey(decodeKey(secretKey, "data key"), requireContent(content));
     }
 
-    /** 使用当前配置的数据密钥解密 Nacos 配置正文。 */
+    /**
+     * 使用当前配置的数据密钥解密 Nacos 配置正文。
+     */
     @Override
     public String decrypt(String secretKey, String content) {
         return decryptWithKey(decodeKey(secretKey, "data key"), requireContent(content));
     }
 
-    /** 为单条 Nacos 配置生成随机 256 位数据密钥。 */
+    /**
+     * 为单条 Nacos 配置生成随机 256 位数据密钥。
+     */
     @Override
     public String generateSecretKey() {
         try {
@@ -85,24 +104,35 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
-    /** 返回 DataId 中使用的算法名称。 */
+    /**
+     * 返回 DataId 中使用的算法名称。
+     */
     @Override
     public String algorithmName() {
         return ALGORITHM;
     }
 
-    /** 使用环境级根密钥包装单条配置的数据密钥。 */
+    /**
+     * 使用环境级根密钥包装单条配置的数据密钥。
+     */
     @Override
     public String encryptSecretKey(String secretKey) {
         return encryptWithKey(resolveMasterKey(), requireContent(secretKey));
     }
 
-    /** 使用环境级根密钥解包单条配置的数据密钥。 */
+    /**
+     * 使用环境级根密钥解包单条配置的数据密钥。
+     */
     @Override
     public String decryptSecretKey(String secretKey) {
         return decryptWithKey(resolveMasterKey(), requireContent(secretKey));
     }
 
+    /**
+     * 按系统属性、环境变量、受控文件的优先级解析部署级 AES-256 根密钥。
+     *
+     * @return 32 字节根密钥
+     */
     private byte[] resolveMasterKey() {
         String configured = System.getProperty(MASTER_KEY_PROPERTY);
         if (configured == null || configured.trim().isEmpty()) {
@@ -143,7 +173,9 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
-    /** POSIX 环境拒绝组或其他用户可访问的根密钥文件；不支持 POSIX 权限的平台由部署层保证 ACL。 */
+    /**
+     * POSIX 环境拒绝组或其他用户可访问的根密钥文件；不支持 POSIX 权限的平台由部署层保证 ACL。
+     */
     private void validateMasterKeyFilePermissions(Path keyPath) throws IOException {
         try {
             Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(keyPath, LinkOption.NOFOLLOW_LINKS);
@@ -161,6 +193,12 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 从纯 Base64 或 dotenv 文件内容中提取唯一根密钥值。
+     *
+     * @param content 受控密钥文件正文
+     * @return 根密钥 Base64 文本
+     */
     private String masterKeyFromFileContent(String content) {
         if (content == null || content.isEmpty()) {
             throw new IllegalStateException("Nacos configuration master key file is empty");
@@ -191,6 +229,12 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         return resolved;
     }
 
+    /**
+     * 去除 dotenv 值首尾成对的单引号或双引号。
+     *
+     * @param value dotenv 值
+     * @return 去除成对引号后的文本
+     */
     private String removeMatchingQuotes(String value) {
         if (value.length() >= 2) {
             char first = value.charAt(0);
@@ -202,6 +246,13 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         return value;
     }
 
+    /**
+     * 解码并校验 AES 密钥恰好为 256 位。
+     *
+     * @param encodedKey Base64 密钥文本
+     * @param keyName 安全错误中使用的密钥槽位名
+     * @return 32 字节 AES 密钥
+     */
     private byte[] decodeKey(String encodedKey, String keyName) {
         if (encodedKey == null || encodedKey.trim().isEmpty()) {
             throw new IllegalStateException("Nacos configuration " + keyName + " is required");
@@ -217,6 +268,13 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 使用独立随机 IV 将配置正文加密为版本化 AES-GCM 载荷。
+     *
+     * @param key 256 位 AES 密钥
+     * @param content 待加密配置或数据密钥正文
+     * @return 版本、IV 和密文组成的载荷
+     */
     private String encryptWithKey(byte[] key, String content) {
         try {
             byte[] iv = new byte[GCM_IV_BYTES];
@@ -233,6 +291,13 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 校验版本和 IV 后解密 AES-GCM 载荷，认证失败时不返回任何明文。
+     *
+     * @param key 256 位 AES 密钥
+     * @param payload 版本化加密载荷
+     * @return 通过认证的明文
+     */
     private String decryptWithKey(byte[] key, String payload) {
         String[] parts = payload.split("\\.", -1);
         if (parts.length != 3 || !PAYLOAD_VERSION.equals(parts[0])) {
@@ -253,6 +318,12 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 校验加解密内容非 null，同时允许合法空字符串配置。
+     *
+     * @param content 待处理内容
+     * @return 原内容
+     */
     private String requireContent(String content) {
         if (content == null) {
             throw new IllegalStateException("Nacos configuration encryption content is required");

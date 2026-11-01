@@ -7,30 +7,35 @@ import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OriginalTransactionRejectionSupport
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Applies the stable merchant response for original-transaction route rejection.
- * @status : create
+ * 原交易不可用于后续动作时的稳定结果映射。
+ *
+ * <p>内部拒绝原因统一投影为商户受众可见结果，不泄露原交易所属渠道、MID 或路由快照校验细节。</p>
  */
 final class OriginalTransactionRejectionSupport {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private OriginalTransactionRejectionSupport() {
     }
 
+    /**
+     * 判断原交易是否明确失败。
+     */
     static boolean isOriginalTransactionRejected(ServiceException exception) {
         return exception != null
                 && ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED.getCode().equals(exception.getCode());
     }
 
+    /**
+     * 把原交易拒绝原因写入当前交易结果。
+     */
     static void apply(PaymentCreateResultDTO result) {
+        // 后续动作未调用渠道，使用平台拒绝码结束，不能伪造 PSP 拒绝响应。
         result.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
         result.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
         result.setFailReasonCode(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED.getCode());
         result.setFailReasonMessage(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED.getMessage());
-        result.setMerchantResponseCode(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED.getCode());
-        result.setMerchantResponseMessage(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED.getMessage());
+        PaymentOpenApiResultSupport.applyMerchantProjection(result);
     }
 }

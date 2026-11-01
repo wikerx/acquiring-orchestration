@@ -8,13 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingProjectionStatusEnumTest
- * @date : 2026-08-26 18:45
- * @email : scott_x@163.com
- * @description : 验证权威清分状态到动作查询投影的固定映射，以及生命周期失败优先的完整聚合规则。
- * @status : create
+ * 验证权威清分状态到动作查询投影的固定映射，以及生命周期失败优先的完整聚合规则。
  */
 class ClearingProjectionStatusEnumTest {
 

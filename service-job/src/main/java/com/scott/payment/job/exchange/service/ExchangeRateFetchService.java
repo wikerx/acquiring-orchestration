@@ -6,13 +6,7 @@ import com.scott.payment.job.dto.exchange.ExchangeRateFetchDTOs.ExchangeRateFetc
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateFetchService
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 汇率汇率fetch服务契约，位于 调度任务服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 汇率抓取服务契约，声明外部报价抓取、持久化和业务汇率生成入口。
  */
 public interface ExchangeRateFetchService {
 

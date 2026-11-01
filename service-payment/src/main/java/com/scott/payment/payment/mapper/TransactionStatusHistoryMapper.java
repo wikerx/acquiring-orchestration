@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionStatusHistoryMapper
- * @date : 2026-07-14 17:40
- * @email : scott_x@163.com
- * @description : 交易状态历史 Mapper，位于 service-payment 数据访问层，仅访问 transaction_status_history 逻辑表。
- * @status : create
+ * 交易状态历史 Mapper，位于 service-payment 数据访问层，仅访问 transaction_status_history 逻辑表。
  */
 public interface TransactionStatusHistoryMapper extends BaseMapper<TransactionStatusHistoryDO> {
 

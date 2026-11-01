@@ -33,13 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantStatusLifecycleServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证商户冻结和解冻的会话失效、管理员通知及商户语言选择副作用
- * @status : create
+ * 验证商户冻结和解冻的会话失效、管理员通知及商户语言选择副作用
  */
 class AdminMerchantStatusLifecycleServiceTests {
 

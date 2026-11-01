@@ -23,13 +23,7 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminExchangeRateServiceImplTest
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 管理端汇率领域服务单元测试，覆盖汇率精度、时间查询条件、排序和审计字段映射。
- * @status : create
+ * 管理端汇率领域服务单元测试，覆盖汇率精度、时间查询条件、排序和审计字段映射。
  */
 @Slf4j
 class AdminExchangeRateServiceImplTest {

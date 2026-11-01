@@ -39,13 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantProfileChangeServiceTest
- * @date : 2026-09-21 16:30
- * @email : scott_x@163.com
- * @description : 管理端商户资料变更审核服务测试，验证审批应用、并发保护和审核意见门禁
- * @status : create
+ * 管理端商户资料变更审核服务测试，验证审批应用、并发保护和审核意见门禁
  */
 @ExtendWith(MockitoExtension.class)
 class AdminMerchantProfileChangeServiceTest {
@@ -92,7 +86,9 @@ class AdminMerchantProfileChangeServiceTest {
         );
     }
 
-    /** 审核通过必须先完成申请状态 CAS，再原子应用商户主档、人员和资料。 */
+    /**
+     * 审核通过必须先完成申请状态 CAS，再原子应用商户主档、人员和资料。
+     */
     @Test
     void shouldApplySnapshotAfterApprovalStateCasSucceeds() throws Exception {
         MerchantProfileChangeRequestDO request = pendingRequest();
@@ -118,7 +114,9 @@ class AdminMerchantProfileChangeServiceTest {
         verify(reviewRecordMapper).insert(any(MerchantProfileReviewRecordDO.class));
     }
 
-    /** 提交后被管理端修改的字段不得被旧申请覆盖。 */
+    /**
+     * 提交后被管理端修改的字段不得被旧申请覆盖。
+     */
     @Test
     void shouldRejectApprovalWhenChangedFieldIsStale() throws Exception {
         MerchantProfileChangeRequestDO request = pendingRequest();
@@ -136,7 +134,9 @@ class AdminMerchantProfileChangeServiceTest {
         verify(reviewRecordMapper, never()).insert(any(MerchantProfileReviewRecordDO.class));
     }
 
-    /** 补件和驳回必须提供可回传给商户的审核意见。 */
+    /**
+     * 补件和驳回必须提供可回传给商户的审核意见。
+     */
     @Test
     void shouldRequireCommentForSupplementAndRejection() {
         when(requestMapper.selectOne(any())).thenReturn(pendingRequest());
@@ -153,7 +153,9 @@ class AdminMerchantProfileChangeServiceTest {
         verify(reviewRecordMapper, never()).insert(any(MerchantProfileReviewRecordDO.class));
     }
 
-    /** 状态 CAS 失败时必须在触碰正式商户资料前终止审批。 */
+    /**
+     * 状态 CAS 失败时必须在触碰正式商户资料前终止审批。
+     */
     @Test
     void shouldNotApplySnapshotWhenApprovalStateCasFails() throws Exception {
         MerchantProfileChangeRequestDO request = pendingRequest();
@@ -173,7 +175,9 @@ class AdminMerchantProfileChangeServiceTest {
         verify(reviewRecordMapper, never()).insert(any(MerchantProfileReviewRecordDO.class));
     }
 
-    /** 管理端详情必须只展示新证件号的脱敏值，不得返回明文。 */
+    /**
+     * 管理端详情必须只展示新证件号的脱敏值，不得返回明文。
+     */
     @Test
     void shouldMaskNewPersonIdNumberInDetail() throws Exception {
         MerchantProfileChangeRequestDO request = pendingRequest();

@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminClearingQueryService
- * @date : 2026-08-27 14:00
- * @email : scott_x@163.com
- * @description : Admin 清分只读查询边界；读取交易逻辑数据源，不承载清分状态变更和重算命令。
- * @status : create
+ * Admin 清分只读查询边界；读取交易逻辑数据源，不承载清分状态变更和重算命令。
  */
 public interface AdminClearingQueryService {
 

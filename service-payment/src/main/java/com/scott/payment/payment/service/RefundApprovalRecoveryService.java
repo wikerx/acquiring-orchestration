@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundApprovalRecoveryService
- * @date : 2026-08-06 15:20
- * @email : scott_x@163.com
- * @description : 退款审批恢复编排服务，批量发现到期审批和已批准未执行任务，并逐笔委托事务工作流处理。
- * @status : create
+ * 退款审批恢复编排服务，批量发现到期审批和已批准未执行任务，并逐笔委托事务工作流处理。
  */
 @Service
 public class RefundApprovalRecoveryService {
@@ -79,6 +73,9 @@ public class RefundApprovalRecoveryService {
         return recovered;
     }
 
+    /**
+     * 将批量上限约束到安全范围。
+     */
     private int safeLimit(int limit) {
         return Math.max(1, Math.min(limit, 1000));
     }

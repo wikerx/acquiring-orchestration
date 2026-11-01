@@ -43,18 +43,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EnabledEmailTemplateCacheContractTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 管理端和商户端共享已启用邮件模板缓存的读写及序列化契约测试
- * @status : create
+ * 管理端和商户端共享已启用邮件模板缓存的读写及序列化契约测试
  */
 @Slf4j
 class EnabledEmailTemplateCacheContractTests {
 
-    /** 初始化 MyBatis-Plus Lambda 查询所需邮件模板实体元数据。 */
+    /**
+     * 初始化 MyBatis-Plus Lambda 查询所需邮件模板实体元数据。
+     */
     @BeforeEach
     void setUpTableMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -62,7 +58,9 @@ class EnabledEmailTemplateCacheContractTests {
         TableInfoHelper.initTableInfo(assistant, EmailTemplateDO.class);
     }
 
-    /** 邮件模板缓存必须使用组合键并从主库可靠重建。 */
+    /**
+     * 邮件模板缓存必须使用组合键并从主库可靠重建。
+     */
     @Test
     void shouldRebuildEnabledTemplateCacheFromMaster() throws Exception {
         Method method = EnabledEmailTemplateCacheReader.class.getMethod(
@@ -81,7 +79,9 @@ class EnabledEmailTemplateCacheContractTests {
                 .containsEntry(PaymentCacheNames.EMAIL_TEMPLATE_ENABLED, Duration.ofMinutes(5));
     }
 
-    /** 模板变更门禁存在或状态未知时必须绕过缓存，防止旧模板再次回填。 */
+    /**
+     * 模板变更门禁存在或状态未知时必须绕过缓存，防止旧模板再次回填。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldBypassTemplateCacheWhileInvalidationIsPendingOrUnknown() {
@@ -106,7 +106,9 @@ class EnabledEmailTemplateCacheContractTests {
         log.info("邮件模板缓存变更门禁测试完成，结果: 两种场景均绕过旧缓存");
     }
 
-    /** 邮件模板缓存快照必须能通过受控 Redis 类型白名单往返序列化。 */
+    /**
+     * 邮件模板缓存快照必须能通过受控 Redis 类型白名单往返序列化。
+     */
     @Test
     void shouldRoundTripEnabledTemplateSnapshotThroughRedisSerializer() {
         EnabledEmailTemplateSnapshot source = new EnabledEmailTemplateSnapshot();
@@ -127,7 +129,9 @@ class EnabledEmailTemplateCacheContractTests {
         assertThat(restored).usingRecursiveComparison().isEqualTo(source);
     }
 
-    /** 管理端查看已启用模板详情时应预热发信快照缓存，便于直接核验缓存链路。 */
+    /**
+     * 管理端查看已启用模板详情时应预热发信快照缓存，便于直接核验缓存链路。
+     */
     @Test
     void shouldWarmEnabledTemplateCacheWhenReadingTemplateDetail() {
         Fixture fixture = fixture();
@@ -139,7 +143,9 @@ class EnabledEmailTemplateCacheContractTests {
         verify(fixture.enabledTemplateCacheReader()).findEnabled("LOGIN_NOTICE", "zh-CN");
     }
 
-    /** 模板新增、复制、启停和删除都必须登记各自的精确缓存失效键。 */
+    /**
+     * 模板新增、复制、启停和删除都必须登记各自的精确缓存失效键。
+     */
     @Test
     void shouldEvictExactKeysAfterTemplateCreateCopyStatusAndDelete() {
         Fixture fixture = fixture();
@@ -160,7 +166,9 @@ class EnabledEmailTemplateCacheContractTests {
                 .anyMatch(key -> key.startsWith("LOGIN_NOTICE_COPY_") && key.endsWith(":zh-CN"));
     }
 
-    /** 修改模板编码或语言时必须同时登记旧键和新键。 */
+    /**
+     * 修改模板编码或语言时必须同时登记旧键和新键。
+     */
     @Test
     void shouldEvictOldAndNewKeysAfterTemplateIdentityChange() {
         Fixture fixture = fixture();
@@ -175,7 +183,9 @@ class EnabledEmailTemplateCacheContractTests {
                 PaymentCacheNames.EMAIL_TEMPLATE_ENABLED, "SECURITY_NOTICE:en-US");
     }
 
-    /** 所有模板写入口必须固定使用主库和回滚事务。 */
+    /**
+     * 所有模板写入口必须固定使用主库和回滚事务。
+     */
     @Test
     void shouldRunAllTemplateMutationsInsideMasterTransactions() throws Exception {
         assertMutation("createTemplate", EmailTemplateSaveRequest.class);

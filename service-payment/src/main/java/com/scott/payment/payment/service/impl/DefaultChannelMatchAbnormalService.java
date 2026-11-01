@@ -26,35 +26,28 @@ import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormal
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.CaseReference;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.RequeryCommand;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.ResolveCommand;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultChannelMatchAbnormalService
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 勾兑异常服务默认实现，使用唯一去重键建案、版本 CAS 处置和真实分片时间重查，不提供人工交易终态修正。
- * @status : create
+ * 渠道勾兑异常案件服务。
+ *
+ * <p>异常案件按“异常类型 + 平台交易号”唯一去重，人工领取和处置均使用期望版本 CAS。人工操作只能
+ * 管理案件或触发真实渠道重查，不能直接指定支付交易终态，交易状态仍由统一渠道结果状态机推进。</p>
  */
 @Service
+@Slf4j
 public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalService {
 
     /**
-     * {@code MAX_BATCH_REQUERY}常量，统一 {@code DefaultChannelMatchAbnormalService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 单批主动重查上限，限制同步渠道查询对线程池和渠道限流配额的冲击。
      */
     private static final int MAX_BATCH_REQUERY = 100;
 
@@ -100,12 +93,17 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
                 || !StringUtils.hasText(command.getOperatorId())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        // 期望版本使领取和转派保持原子性，避免两个运营人员互相覆盖负责人。
         int updated = abnormalEventMapper.assign(eventId, command.getTransactionDateTime(),
                 command.getExpectedVersion(), command.getOperatorId(), command.getOperatorName(), LocalDateTime.now());
         if (updated != 1) {
             throw new ServiceException(ApiResultEnum.ABNORMAL_CASE_STATE_CONFLICT);
         }
-        return requireRecord(eventId, command.getTransactionDateTime());
+        AbnormalRecord assigned = requireRecord(eventId, command.getTransactionDateTime());
+        log.info("渠道勾兑异常案件已领取或转派, event: CHANNEL_MATCH_ABNORMAL_ASSIGNED, "
+                        + "eventId: {}, version: {}",
+                eventId, assigned.getVersion());
+        return assigned;
     }
 
     /**
@@ -133,13 +131,18 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         String targetStatus = resolution == ChannelMatchResolutionTypeEnum.IGNORED
                 ? ChannelMatchAbnormalStatusEnum.IGNORED.getCode()
                 : ChannelMatchAbnormalStatusEnum.RESOLVED.getCode();
+        // 人工处置只关闭或忽略案件，不接受任意交易目标状态，资金终态仍由渠道结果状态机负责。
         int updated = abnormalEventMapper.resolve(eventId, command.getTransactionDateTime(),
                 command.getExpectedVersion(), targetStatus, resolution.getCode(),
                 command.getReferenceId(), LocalDateTime.now());
         if (updated != 1) {
             throw new ServiceException(ApiResultEnum.ABNORMAL_CASE_STATE_CONFLICT);
         }
-        return requireRecord(eventId, command.getTransactionDateTime());
+        AbnormalRecord resolved = requireRecord(eventId, command.getTransactionDateTime());
+        log.info("渠道勾兑异常案件已处置, event: CHANNEL_MATCH_ABNORMAL_RESOLVED, "
+                        + "eventId: {}, resolutionType: {}, status: {}, version: {}",
+                eventId, resolution.getCode(), resolved.getEventStatus(), resolved.getVersion());
+        return resolved;
     }
 
     /**
@@ -160,11 +163,16 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
                 || isTerminal(current.getEventStatus())) {
             throw new ServiceException(ApiResultEnum.ABNORMAL_CASE_STATE_CONFLICT);
         }
+        // 重查只触发真实渠道 QUERY；只有统一勾兑链确认一致后才自动关闭案件。
         if (channelMatchService.matchOne(current.getTransactionId(), current.getTransactionDateTime()).getMatchedCount() > 0) {
             autoResolve(current.getTransactionId(), current.getTransactionDateTime(),
                     "MANUAL_REQUERY:" + eventId, LocalDateTime.now());
         }
-        return requireRecord(eventId, command.getTransactionDateTime());
+        AbnormalRecord reloaded = requireRecord(eventId, command.getTransactionDateTime());
+        log.info("渠道勾兑异常案件重查完成, event: CHANNEL_MATCH_ABNORMAL_REQUERY_COMPLETED, "
+                        + "eventId: {}, status: {}, version: {}",
+                eventId, reloaded.getEventStatus(), reloaded.getVersion());
+        return reloaded;
     }
 
     /**
@@ -193,8 +201,14 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
             } catch (RuntimeException exception) {
                 result.setFailedCount(result.getFailedCount() + 1);
                 result.getFailedEventIds().add(reference == null ? null : reference.getEventId());
+                log.warn("渠道勾兑异常案件批量重查单笔失败, event: CHANNEL_MATCH_ABNORMAL_BATCH_ITEM_FAILED, "
+                                + "eventId: {}, exceptionType: {}",
+                        reference == null ? null : reference.getEventId(), exception.getClass().getSimpleName());
             }
         }
+        log.info("渠道勾兑异常案件批量重查完成, event: CHANNEL_MATCH_ABNORMAL_BATCH_COMPLETED, "
+                        + "requestedCount: {}, acceptedCount: {}, failedCount: {}",
+                result.getRequestedCount(), result.getAcceptedCount(), result.getFailedCount());
         return result;
     }
 
@@ -267,6 +281,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         row.setTransactionDateTime(operationDO.getTransactionDateTime());
         row.setTransactionUtcTime(operationDO.getTransactionUtcTime());
         row.setTransactionTimeZone(operationDO.getTransactionTimeZone());
+        // 数据库唯一去重键使重复扫描只增加 occurrenceCount，不会创建多个活动案件。
         row.setDeduplicationKey(abnormalType + ":" + operationDO.getTransactionId());
         row.setMerchantId(operationDO.getMerchantId());
         row.setMerchantOrderNo(operationDO.getMerchantOrderNo());
@@ -305,8 +320,14 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         row.setCreateTime(now);
         row.setUpdateTime(now);
         abnormalEventMapper.upsertOccurrence(row);
+        log.warn("渠道勾兑异常已记录待复核案件, event: CHANNEL_MATCH_ABNORMAL_REVIEW_REQUIRED, "
+                        + "transactionId: {}, abnormalType: {}, channelMatchResult: {}",
+                operationDO.getTransactionId(), abnormalType, matchResult);
     }
 
+    /**
+     * 规范化币种。
+     */
     private String normalizeCurrency(String currency) {
         return StringUtils.hasText(currency) ? currency.trim().toUpperCase(Locale.ROOT) : null;
     }
@@ -330,10 +351,23 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         if (!StringUtils.hasText(transactionId) || transactionDateTime == null) {
             return 0;
         }
-        return abnormalEventMapper.resolveActiveByTransaction(transactionId, transactionDateTime,
+        int resolved = abnormalEventMapper.resolveActiveByTransaction(transactionId, transactionDateTime,
                 referenceId, resolvedTime == null ? LocalDateTime.now() : resolvedTime);
+        if (resolved > 0) {
+            log.info("渠道勾兑异常案件已自动关闭, event: CHANNEL_MATCH_ABNORMAL_AUTO_RESOLVED, "
+                            + "transactionId: {}, resolvedCount: {}",
+                    transactionId, resolved);
+        }
+        return resolved;
     }
 
+    /**
+     * 锁定并返回指定勾兑异常案件，缺少定位信息或记录不存在时明确失败。
+     *
+     * @param eventId 异常案件唯一标识
+     * @param transactionDateTime 原交易分片时间
+     * @return 当前异常案件及其版本信息
+     */
     private AbnormalRecord requireRecord(String eventId, LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(eventId) || transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -345,18 +379,33 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return record;
     }
 
+    /**
+     * 构建脱敏的渠道勾兑异常证据。
+     *
+     * @param operationDO 发生异常的交易动作事实
+     * @param abnormalType 异常类型
+     * @param matchResult 渠道勾兑结果
+     * @param sourceRecordId 触发异常的查询或回调记录标识
+     * @return 长度不超过数据库字段上限的证据 JSON
+     */
     private String buildEvidence(TransactionOperationDO operationDO,
                                  String abnormalType,
                                  String matchResult,
                                  String sourceRecordId) {
-        Map<String, Object> evidence = new LinkedHashMap<>();
-        evidence.put("abnormalType", abnormalType);
-        evidence.put("matchResult", matchResult);
-        evidence.put("sourceRecordId", sourceRecordId);
-        evidence.put("channelMatchCount", value(operationDO.getChannelMatchCount()) + 1L);
+        ChannelMatchEvidence evidence = new ChannelMatchEvidence(
+                abnormalType,
+                matchResult,
+                sourceRecordId,
+                value(operationDO.getChannelMatchCount()) + 1L);
         return safeLength(JsonUtils.toJsonString(evidence), 4000);
     }
 
+    /**
+     * 规范化勾兑异常级别，未知值按高优先级处理。
+     *
+     * @param level 待校验的异常级别
+     * @return 平台支持的异常级别编码
+     */
     private String normalizeLevel(String level) {
         for (ChannelMatchAbnormalLevelEnum value : ChannelMatchAbnormalLevelEnum.values()) {
             if (value.getCode().equals(level)) {
@@ -366,20 +415,53 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return ChannelMatchAbnormalLevelEnum.HIGH.getCode();
     }
 
+    /**
+     * 判断异常案件是否已经关闭。
+     *
+     * @param status 异常案件状态
+     * @return 已解决或已忽略时返回 {@code true}
+     */
     private boolean isTerminal(String status) {
         return ChannelMatchAbnormalStatusEnum.RESOLVED.getCode().equals(status)
                 || ChannelMatchAbnormalStatusEnum.IGNORED.getCode().equals(status);
     }
 
+    /**
+     * 将可空数据库计数转换为零起始的长整数。
+     *
+     * @param value 数据库返回的计数
+     * @return 非空计数值；空值返回零
+     */
     private long value(Number value) {
         return value == null ? 0L : value.longValue();
     }
 
+    /**
+     * 将文本截断到持久化字段允许的长度。
+     *
+     * @param value 待持久化文本
+     * @param maxLength 数据库字段允许的最大字符数
+     * @return 未超过上限的文本
+     */
     private String safeLength(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    /**
+     * 渠道勾兑异常的脱敏证据快照。
+     *
+     * @param abnormalType 异常类型
+     * @param matchResult 渠道勾兑结果
+     * @param sourceRecordId 触发异常的记录标识
+     * @param channelMatchCount 当前交易累计勾兑次数
+     */
+    private record ChannelMatchEvidence(String abnormalType,
+                                        String matchResult,
+                                        String sourceRecordId,
+                                        long channelMatchCount) {
     }
 
 }

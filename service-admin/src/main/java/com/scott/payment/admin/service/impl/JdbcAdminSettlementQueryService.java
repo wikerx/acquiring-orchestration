@@ -31,33 +31,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementQueryService
- * @date : 2026-08-27 14:10
- * @email : scott_x@163.com
- * @description : Admin 结算 JDBC 查询实现；在 transaction 普通读作用域完成标准分页和有界详情装配。
- * @status : create
+ * Admin 结算 JDBC 查询实现；在 transaction 普通读作用域完成标准分页和有界详情装配。
  */
 @Service
 public class JdbcAdminSettlementQueryService implements AdminSettlementQueryService {
 
-    /**
-     * 默认页大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int DEFAULT_PAGE_SIZE = 10;
-    /**
-     * {@code MAX_DATE_SPAN_DAYS}常量，统一 {@code JdbcAdminSettlementQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> BATCH_TYPES = Set.of(
             "REGULAR", "RESERVE_RELEASE", "REVERSAL", "ADJUSTMENT");
@@ -115,7 +94,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
     private final int maxResultRows;
 
-    /** 创建生产查询服务，并继承交易查询超时与结果预算。 */
+    /**
+     * 创建生产查询服务，并继承交易查询超时与结果预算。
+     */
     @Autowired
     public JdbcAdminSettlementQueryService(DataSource dataSource,
                                            TransactionLogicalReadExecutor transactionLogicalReadExecutor,
@@ -125,7 +106,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
                 transactionLogicalReadExecutor, shardingProperties);
     }
 
-    /** 创建可注入 JDBC 模板的查询服务，供聚焦测试验证 SQL 和路由。 */
+    /**
+     * 创建可注入 JDBC 模板的查询服务，供聚焦测试验证 SQL 和路由。
+     */
     public JdbcAdminSettlementQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                            TransactionLogicalReadExecutor transactionLogicalReadExecutor,
                                            TransactionShardingProperties shardingProperties) {
@@ -134,7 +117,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
     }
 
-    /** {@inheritDoc} 本实现只在 transaction 普通读作用域按业务日期和主键稳定倒序分页。 */
+    /**
+     * 在交易只读作用域内按业务日期和主键稳定倒序分页查询正式结算批次。
+     */
     @Override
     public PageResult<BatchSummary> search(BatchSearchRequest request,
                                            AdminMerchantDataScope dataScope) {
@@ -143,7 +128,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return transactionLogicalReadExecutor.read(() -> searchNormalized(query, scope));
     }
 
-    /** {@inheritDoc} 本实现按全局唯一批次号读取运营详情，不获取资金写锁。 */
+    /**
+     * 按全局唯一批次号读取运营详情，不获取资金写锁。
+     */
     @Override
     public BatchDetailResponse detail(String settlementBatchNo,
                                       AdminMerchantDataScope dataScope) {
@@ -152,7 +139,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return transactionLogicalReadExecutor.read(() -> detailNormalized(batchNo, scope, false));
     }
 
-    /** {@inheritDoc} 凭证快照额外加载批次维度汇总，普通详情仍保持有界。 */
+    /**
+     * 读取凭证所需的不可变批次快照，并额外加载批次维度汇总。
+     */
     @Override
     public BatchDetailResponse voucherDetail(String settlementBatchNo,
                                               AdminMerchantDataScope dataScope) {
@@ -161,7 +150,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return transactionLogicalReadExecutor.read(() -> detailNormalized(batchNo, scope, true));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询指定批次的结算结果汇总，查询前校验管理数据范围。
+     */
     @Override
     public PageResult<ResultSummaryLine> searchResultSummaries(String settlementBatchNo,
                                                                Integer pageNo,
@@ -173,7 +164,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return transactionLogicalReadExecutor.read(() -> resultSummaryPage(batchNo, page, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 校验当前管理数据范围是否允许访问指定结算批次。
+     */
     @Override
     public void requireBatchAccess(String settlementBatchNo, AdminMerchantDataScope dataScope) {
         String batchNo = requiredBatchNo(settlementBatchNo);
@@ -184,6 +177,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         });
     }
 
+    /**
+     * 使用已规范化条件和商户数据范围分页查询结算批次。
+     */
     private PageResult<BatchSummary> searchNormalized(BatchSearchRequest query,
                                                       AdminMerchantDataScope dataScope) {
         if (dataScope.empty()) {
@@ -214,6 +210,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return PageResult.of(total, pageNo, pageSize, records);
     }
 
+    /**
+     * 使用已规范化批次号和商户数据范围查询结算详情。
+     */
     private BatchDetailResponse detailNormalized(String settlementBatchNo,
                                                  AdminMerchantDataScope dataScope,
                                                  boolean includeResultSummaries) {
@@ -284,7 +283,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return response;
     }
 
-    /** 正式凭证只加载按支付维度聚合后的不可变汇总，不加载逐笔交易或组件明细。 */
+    /**
+     * 正式凭证只加载按支付维度聚合后的不可变汇总，不加载逐笔交易或组件明细。
+     */
     private List<ResultSummaryLine> resultSummaries(String settlementBatchNo,
                                                     AdminMerchantDataScope dataScope) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
@@ -390,6 +391,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         }
     }
 
+    /**
+     * 规范化输入值。
+     */
     private BatchSearchRequest normalize(BatchSearchRequest request) {
         if (request == null || request.getBeginBusinessDate() == null
                 || request.getEndBusinessDate() == null
@@ -420,6 +424,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return request;
     }
 
+    /**
+     * 校验并规范化分页参数。
+     */
     private PageWindow normalizePage(Integer pageNo, Integer pageSize) {
         int normalizedPageNo = pageNo == null ? 1 : pageNo;
         int normalizedPageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
@@ -429,6 +436,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return new PageWindow(normalizedPageNo, normalizedPageSize);
     }
 
+    /**
+     * 构建受控字段组成的查询条件 SQL。
+     */
     private String whereSql(BatchSearchRequest query, AdminMerchantDataScope dataScope) {
         StringBuilder sql = new StringBuilder("""
                 WHERE business_date BETWEEN :beginBusinessDate AND :endBusinessDate
@@ -454,6 +464,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return sql.toString();
     }
 
+    /**
+     * 构建命名 SQL 查询参数。
+     */
     private MapSqlParameterSource parameters(BatchSearchRequest query,
                                              AdminMerchantDataScope dataScope) {
         return new MapSqlParameterSource()
@@ -468,6 +481,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
                 .addValue("permittedMerchantIds", dataScope.merchantIds());
     }
 
+    /**
+     * 校验结算批次属于请求的业务域。
+     */
     private void validateBatchDomain(String batchDomain, String batchType) {
         if (batchDomain == null || batchType == null) {
             return;
@@ -480,18 +496,25 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         }
     }
 
-    /** @return 全商户时为空，否则返回使用参数化 merchantId 集合的数据范围谓词。 */
+    /**
+     * 构建使用默认商户号列名的数据范围 SQL。
+     */
     private String merchantScopeSql(AdminMerchantDataScope dataScope) {
         return merchantScopeSql(dataScope, "merchant_id");
     }
 
+    /**
+     * 构建管理端商户数据范围 SQL。
+     */
     private String merchantScopeSql(AdminMerchantDataScope dataScope, String merchantColumn) {
         return dataScope.allMerchants()
                 ? ""
                 : " AND " + merchantColumn + " IN (:permittedMerchantIds)\n";
     }
 
-    /** @return 非空可信数据范围；缺失上下文时按未授权拒绝。 */
+    /**
+     * @return 非空可信数据范围；缺失上下文时按未授权拒绝。
+     */
     private AdminMerchantDataScope requiredScope(AdminMerchantDataScope dataScope) {
         if (dataScope == null) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
@@ -499,6 +522,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return dataScope;
     }
 
+    /**
+     * 补充批量任务的管理端展示编号。
+     */
     private void populateDisplayBatchNo(BatchSummary batch) {
         LocalDate date = batch.getBusinessDate();
         Integer sequence = batch.getDailySequence();
@@ -508,6 +534,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         }
     }
 
+    /**
+     * 构建空的运行状态摘要。
+     */
     private OperationalState emptyOperationalState() {
         OperationalState state = new OperationalState();
         state.setProjectionTaskCount(0L);
@@ -519,6 +548,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return state;
     }
 
+    /**
+     * 读取并校验结算批次号。
+     */
     private String requiredBatchNo(String value) {
         String batchNo = trim(value);
         if (batchNo == null || !batchNo.matches("SB\\d{8}-\\d{8}")) {
@@ -527,6 +559,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return batchNo;
     }
 
+    /**
+     * 规范化受控枚举值，并拒绝白名单外的输入。
+     */
     private String normalizedEnum(String value, Set<String> values) {
         String normalized = trim(value);
         if (normalized == null) {
@@ -539,10 +574,16 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         return normalized;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 封装分页查询使用的业务日期窗口。
+     */
     private record PageWindow(int pageNo, int pageSize) {
     }
 }

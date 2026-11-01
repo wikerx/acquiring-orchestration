@@ -49,80 +49,46 @@ import java.util.function.LongSupplier;
 import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.CURRENT_SCHEMA_VERSION;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantFeeVersionSnapshotService
- * @date : 2026-08-25 22:45
- * @email : scott_x@163.com
- * @description : 动作费用冻结默认实现，主库读取 ACTIVE 指针、Redis/Slave/Master 读取明确版本，并以规范化 JSON SHA-256 防止历史配置漂移。
- * @status : create
+ * 支付动作费用版本的冻结服务。
+ *
+ * <p>当前 ACTIVE 指针始终从主库读取，确定版本后才允许按同一版本 ID 依次读取 Redis、从库和主库，
+ * 禁止因从库延迟改查“最新版本”。冻结快照使用规范化 JSON 与 SHA-256 固化计费、保证金和结算规则，
+ * 使后续退款、清分和审计可以复现交易发生时的费用口径。</p>
  */
 @Slf4j
 @Service
 public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVersionSnapshotService {
 
     /**
-     * {@code CACHE_DOMAIN}，表示远程服务主机、商户域名或渠道访问域名。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 费用缓存的 Redis 业务域。
      */
     private static final String CACHE_DOMAIN = "fee";
     /**
-     * {@code VERSION_CACHE_BUSINESS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 已发布不可变费用版本的缓存分区。
      */
     private static final String VERSION_CACHE_BUSINESS = "version";
     /**
-     * {@code VERSION_MISS_CACHE_BUSINESS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 数据库缺失版本的短期负缓存分区，防止异常配置持续击穿主库。
      */
     private static final String VERSION_MISS_CACHE_BUSINESS = "version-miss";
     /**
-     * {@code VERSION_CACHE_BASE_TTL}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 不可变版本缓存基础 TTL。数据库仍是最终事实来源。
      */
     private static final Duration VERSION_CACHE_BASE_TTL = Duration.ofDays(30);
     /**
-     * {@code VERSION_CACHE_MAX_JITTER_SECONDS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 最多增加一天随机抖动，避免大量版本缓存同时过期。
      */
     private static final long VERSION_CACHE_MAX_JITTER_SECONDS = Duration.ofDays(1).toSeconds();
     /**
-     * {@code VERSION_MISS_MIN_TTL_SECONDS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 缺失版本负缓存的最短有效期，单位秒。
      */
     private static final long VERSION_MISS_MIN_TTL_SECONDS = 30L;
     /**
-     * {@code VERSION_MISS_MAX_TTL_SECONDS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 缺失版本负缓存的最长有效期，单位秒。
      */
     private static final long VERSION_MISS_MAX_TTL_SECONDS = 60L;
     /**
-     * {@code MISS_MARKER}常量，统一 {@code DefaultMerchantFeeVersionSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 负缓存只表达“版本不存在”，不缓存异常正文。
      */
     private static final String MISS_MARKER = "1";
 
@@ -150,7 +116,9 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 () -> ThreadLocalRandom.current().nextLong(Long.MAX_VALUE));
     }
 
-    /** 包级测试构造器，允许固定 TTL 抖动源而不改变生产缓存协议。 */
+    /**
+     * 包级测试构造器，允许固定 TTL 抖动源而不改变生产缓存协议。
+     */
     DefaultMerchantFeeVersionSnapshotService(MerchantFeeVersionQueryService queryService,
                                              StringRedisTemplate redisTemplate,
                                              PaymentRedisKeyResolver keyResolver,
@@ -164,7 +132,12 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         this.randomLongSupplier = Objects.requireNonNull(randomLongSupplier, "random source is required");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按计价锁定时间冻结商户当前生效费用版本。
+     *
+     * <p>当前指针从主库读取，版本明细优先从从库读取并在复制延迟时回源主库；
+     * 最终生成不可变快照和稳定摘要，Redis 仅用于缓存该版本事实。</p>
+     */
     @Override
     public FrozenMerchantFeeVersionSnapshotDTO freezeActiveVersion(String merchantId,
                                                                    LocalDateTime pricingLockTime) {
@@ -173,6 +146,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                     "merchantId and pricingLockTime are required");
         }
         String normalizedMerchantId = merchantId.trim();
+        // ACTIVE 指针是本次交易选择费用版本的唯一入口，必须读取主库避免复制延迟选错版本。
         MerchantFeeVersionPointerDO pointer = queryService.findActivePointerFromMaster(normalizedMerchantId);
         requireValidPointer(pointer);
 
@@ -181,13 +155,14 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
             try {
                 return freeze(configuration, pricingLockTime.truncatedTo(ChronoUnit.MILLIS));
             } catch (IllegalArgumentException exception) {
-                log.warn("event: FEE_VERSION_CACHE_CONTENT_INVALID feePlanVersionId: {} exceptionType: {}",
+                log.warn("费用版本缓存业务内容无效, event: FEE_VERSION_CACHE_CONTENT_INVALID, feePlanVersionId: {}, exceptionType: {}",
                         pointer.getFeePlanVersionId(), exception.getClass().getSimpleName());
             }
         }
         if (hasMissingMarker(pointer.getFeePlanVersionId())) {
             throw unavailable();
         }
+        // 缓存未命中后仍只查询指针锁定的版本，不允许切换到其他 ACTIVE 或最新版本。
         configuration = loadImmutableVersion(pointer, normalizedMerchantId);
         validateConfigurationIdentity(configuration, pointer, normalizedMerchantId);
         try {
@@ -201,7 +176,9 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         }
     }
 
-    /** Redis 异常、格式损坏或摘要不一致均显式记录并回源数据库。 */
+    /**
+     * Redis 异常、格式损坏或摘要不一致均显式记录并回源数据库。
+     */
     private MerchantFeeVersionConfigurationDTO readCachedVersion(MerchantFeeVersionPointerDO pointer,
                                                                  String merchantId) {
         try {
@@ -211,22 +188,25 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
             }
             MerchantFeeVersionCacheEntryDTO entry = canonicalMapper.readValue(
                     value, MerchantFeeVersionCacheEntryDTO.class);
+            // 缓存摘要校验可识别内容损坏或历史版本被非预期改写，失败后必须回源数据库。
             if (entry.configuration() == null
                     || !constantTimeEquals(entry.payloadHash(), sha256(canonicalJson(entry.configuration())))) {
-                log.warn("event: FEE_VERSION_CACHE_HASH_MISMATCH feePlanVersionId: {}",
+                log.warn("费用版本缓存摘要不一致, event: FEE_VERSION_CACHE_HASH_MISMATCH, feePlanVersionId: {}",
                         pointer.getFeePlanVersionId());
                 return null;
             }
             validateConfigurationIdentity(entry.configuration(), pointer, merchantId);
             return entry.configuration();
         } catch (RuntimeException | JsonProcessingException exception) {
-            log.warn("event: FEE_VERSION_CACHE_READ_FAILED feePlanVersionId: {} exceptionType: {}",
+            log.warn("费用版本缓存读取失败, event: FEE_VERSION_CACHE_READ_FAILED, feePlanVersionId: {}, exceptionType: {}",
                     pointer.getFeePlanVersionId(), exception.getClass().getSimpleName());
             return null;
         }
     }
 
-    /** Slave 缺失、延迟或结构异常时按相同版本 ID 回源 Master，禁止改查当前最新版本。 */
+    /**
+     * Slave 缺失、延迟或结构异常时按相同版本 ID 回源 Master，禁止改查当前最新版本。
+     */
     private MerchantFeeVersionConfigurationDTO loadImmutableVersion(MerchantFeeVersionPointerDO pointer,
                                                                     String merchantId) {
         MerchantFeeVersionConfigurationDTO configuration = null;
@@ -237,7 +217,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 validateConfigurationIdentity(configuration, pointer, merchantId);
             }
         } catch (RuntimeException exception) {
-            log.warn("event: FEE_VERSION_SLAVE_FALLBACK feePlanVersionId: {} exceptionType: {}",
+            log.warn("费用版本从库读取降级, event: FEE_VERSION_SLAVE_FALLBACK, feePlanVersionId: {}, exceptionType: {}",
                     pointer.getFeePlanVersionId(), exception.getClass().getSimpleName());
             configuration = null;
         }
@@ -246,6 +226,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                     merchantId, pointer.getFeePlanId(), pointer.getFeePlanVersionId());
         }
         if (configuration == null) {
+            // 主从库均缺失属于配置完整性故障，写短期负缓存后 Fail Closed，禁止无费率继续交易。
             writeMissingMarker(pointer.getFeePlanVersionId());
             throw unavailable();
         }
@@ -253,7 +234,9 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         return configuration;
     }
 
-    /** 保存不可变版本配置，TTL 为 30 天加 0 至 24 小时随机秒。 */
+    /**
+     * 保存不可变版本配置，TTL 为 30 天加 0 至 24 小时随机秒。
+     */
     private void writeCachedVersion(MerchantFeeVersionConfigurationDTO configuration) {
         try {
             String payloadHash = sha256(canonicalJson(configuration));
@@ -264,35 +247,44 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                     canonicalJson(entry),
                     VERSION_CACHE_BASE_TTL.plusSeconds(boundedRandom(VERSION_CACHE_MAX_JITTER_SECONDS + 1)));
         } catch (RuntimeException exception) {
-            log.warn("event: FEE_VERSION_CACHE_WRITE_FAILED feePlanVersionId: {} exceptionType: {}",
+            log.warn("费用版本缓存写入失败, event: FEE_VERSION_CACHE_WRITE_FAILED, feePlanVersionId: {}, exceptionType: {}",
                     configuration.feePlanVersionId(), exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 判断费用版本缓存是否存在缺失标记。
+     */
     private boolean hasMissingMarker(Long feePlanVersionId) {
         try {
             return MISS_MARKER.equals(valueOperations().get(versionMissKey(feePlanVersionId)));
         } catch (RuntimeException exception) {
-            log.warn("event: FEE_VERSION_MISS_CACHE_READ_FAILED feePlanVersionId: {} exceptionType: {}",
+            log.warn("费用版本负缓存读取失败, event: FEE_VERSION_MISS_CACHE_READ_FAILED, feePlanVersionId: {}, exceptionType: {}",
                     feePlanVersionId, exception.getClass().getSimpleName());
             return false;
         }
     }
 
+    /**
+     * 写入费用版本缓存缺失标记。
+     */
     private void writeMissingMarker(Long feePlanVersionId) {
         try {
             long ttlSeconds = VERSION_MISS_MIN_TTL_SECONDS
                     + boundedRandom(VERSION_MISS_MAX_TTL_SECONDS - VERSION_MISS_MIN_TTL_SECONDS + 1);
             valueOperations().set(versionMissKey(feePlanVersionId), MISS_MARKER, Duration.ofSeconds(ttlSeconds));
         } catch (RuntimeException exception) {
-            log.warn("event: FEE_VERSION_MISS_CACHE_WRITE_FAILED feePlanVersionId: {} exceptionType: {}",
+            log.warn("费用版本负缓存写入失败, event: FEE_VERSION_MISS_CACHE_WRITE_FAILED, feePlanVersionId: {}, exceptionType: {}",
                     feePlanVersionId, exception.getClass().getSimpleName());
         }
     }
 
-    /** 使用现有费用币种口径生成动作级快照；不读取汇率，也不提前合并标签币种与 USD 组件。 */
+    /**
+     * 使用现有费用币种口径生成动作级快照；不读取汇率，也不提前合并标签币种与 USD 组件。
+     */
     private FrozenMerchantFeeVersionSnapshotDTO freeze(MerchantFeeVersionConfigurationDTO configuration,
                                                        LocalDateTime pricingLockTime) {
+        // 保证金基于标签金额，退款按比例释放；此处只冻结规则，不执行任何金额计算或汇率换算。
         ReservePolicySnapshot reserve = new ReservePolicySnapshot(
                 configuration.reserveRate(),
                 ReserveBasis.LABEL_AMOUNT,
@@ -303,6 +295,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 configuration.settlementDelayUnit(), configuration.initialSettlementDelayDays(),
                 configuration.regularSettlementDelayDays(), configuration.settlementFrequency(),
                 configuration.settlementFrequencyDay(), configuration.settlementFrequencyAnchorDate());
+        // 百分比费用使用标签币种金额，固定费/上下限保持 USD 组件，禁止在快照阶段提前合币种。
         FeeSnapshotHashMaterial material = new FeeSnapshotHashMaterial(
                 CURRENT_SCHEMA_VERSION,
                 configuration.merchantId(),
@@ -319,6 +312,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 RefundFeeReturnPolicy.NONE,
                 configuration.rules());
         String snapshotHash = sha256(canonicalHashJson(material));
+        // 哈希覆盖全部计费语义但不包含自身，生成后与相同材料一起写入不可变快照。
         FeeVersionSnapshot snapshot = new FeeVersionSnapshot(
                 material.schemaVersion(),
                 material.merchantId(),
@@ -338,7 +332,11 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         return new FrozenMerchantFeeVersionSnapshotDTO(snapshot, canonicalJson(snapshot));
     }
 
+    /**
+     * 读取并校验有效的费用版本指针。
+     */
     private void requireValidPointer(MerchantFeeVersionPointerDO pointer) {
+        // 无有效 ACTIVE 指针时不能猜测费用版本，支付创建必须 Fail Closed。
         if (pointer == null
                 || pointer.getFeePlanId() == null || pointer.getFeePlanId() < 1
                 || pointer.getFeePlanVersionId() == null || pointer.getFeePlanVersionId() < 1
@@ -347,9 +345,13 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         }
     }
 
+    /**
+     * 校验费用配置身份一致。
+     */
     private void validateConfigurationIdentity(MerchantFeeVersionConfigurationDTO configuration,
                                                MerchantFeeVersionPointerDO pointer,
                                                String merchantId) {
+        // 每一层数据源都必须与主库指针完全一致，防止串商户、串费率方案或读取过期版本。
         if (configuration == null
                 || !merchantId.equals(configuration.merchantId())
                 || !Objects.equals(pointer.getFeePlanId(), configuration.feePlanId())
@@ -360,24 +362,39 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         }
     }
 
+    /**
+     * 返回非空交易动作集合。
+     */
     private ValueOperations<String, String> valueOperations() {
         return redisTemplate.opsForValue();
     }
 
+    /**
+     * 构建费用版本缓存键。
+     */
     private String versionKey(Long feePlanVersionId) {
         return keyResolver.businessKey(CACHE_DOMAIN, VERSION_CACHE_BUSINESS,
                 String.valueOf(feePlanVersionId));
     }
 
+    /**
+     * 构建费用版本缓存缺失标记键。
+     */
     private String versionMissKey(Long feePlanVersionId) {
         return keyResolver.businessKey(CACHE_DOMAIN, VERSION_MISS_CACHE_BUSINESS,
                 String.valueOf(feePlanVersionId));
     }
 
+    /**
+     * 生成不超过上限的随机抖动值。
+     */
     private long boundedRandom(long bound) {
         return Math.floorMod(randomLongSupplier.getAsLong(), bound);
     }
 
+    /**
+     * 将对象序列化为字段顺序稳定的 JSON。
+     */
     private String canonicalJson(Object value) {
         try {
             return canonicalMapper.writeValueAsString(value);
@@ -387,7 +404,9 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         }
     }
 
-    /** v5 哈希忽略 BigDecimal 尾随零，避免 JSON 存储规范化改变同一数值的摘要。 */
+    /**
+     * v5 哈希忽略 BigDecimal 尾随零，避免 JSON 存储规范化改变同一数值的摘要。
+     */
     private String canonicalHashJson(Object value) {
         try {
             return hashMapper.writeValueAsString(value);
@@ -397,6 +416,9 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         }
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -408,10 +430,11 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
     }
 
     /**
-     * 使用常量时间摘要比较校验费用快照哈希，避免普通字符串比较泄露时序差异。
-     * @param expected 待比较的期望值和实际值；敏感摘要必须使用常量时间比较
-     * @param actual 待比较的期望值和实际值；敏感摘要必须使用常量时间比较
-     * @return 当前业务条件成立时返回 true，否则返回 false
+     * 使用常量时间比较校验费用版本摘要。
+     *
+     * @param expected 缓存中保存的摘要
+     * @param actual   根据缓存配置重新计算的摘要
+     * @return 两个摘要内容相同时返回 true
      */
     private boolean constantTimeEquals(String expected, String actual) {
         return expected != null && MessageDigest.isEqual(
@@ -419,6 +442,9 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 actual.getBytes(StandardCharsets.US_ASCII));
     }
 
+    /**
+     * 创建用于规范化序列化的对象映射器。
+     */
     @SuppressWarnings("deprecation")
     private ObjectMapper canonicalMapper(ObjectMapper source) {
         ObjectMapper copy = source.copy();
@@ -429,10 +455,17 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         return copy;
     }
 
+    /**
+     * 创建用于规范化摘要计算的对象映射器。
+     */
     private ObjectMapper normalizedHashMapper(ObjectMapper source) {
         ObjectMapper copy = source.copy();
         SimpleModule module = new SimpleModule();
+        // 哈希材料按数值语义去除 BigDecimal 尾随零，避免 2.3 与 2.30000000 产生不同快照摘要。
         module.addSerializer(BigDecimal.class, new JsonSerializer<>() {
+            /**
+             * 按稳定字段顺序序列化摘要材料。
+             */
             @Override
             public void serialize(BigDecimal value,
                                   JsonGenerator generator,
@@ -444,11 +477,17 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         return copy;
     }
 
+    /**
+     * 构建服务不可用结果。
+     */
     private ServiceException unavailable() {
         return new ServiceException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND.getCode(),
                 "Merchant active fee configuration is unavailable");
     }
 
+    /**
+     * 封装费用快照摘要计算材料。
+     */
     private record FeeSnapshotHashMaterial(
             int schemaVersion,
             String merchantId,

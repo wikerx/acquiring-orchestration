@@ -23,13 +23,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelService
- * @date : 2026-07-03 16:10
- * @email : scott_x@163.com
- * @description : admin渠道服务契约，位于 运营后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 管理端渠道服务契约，用于运营后台，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public interface AdminChannelService {
 
@@ -258,7 +252,7 @@ public interface AdminChannelService {
     void deleteLimit(Long id);
 
     /**
-     * 查询{@code pageMids}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 分页查询渠道 MID 配置。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -268,7 +262,7 @@ public interface AdminChannelService {
     PageResult<ChannelMidConfigResponse> pageMids(ChannelMidConfigQuery query);
 
     /**
-     * 查询{@code getMid}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 查询指定渠道 MID 配置详情。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -278,7 +272,7 @@ public interface AdminChannelService {
     ChannelMidConfigResponse getMid(Long id);
 
     /**
-     * 创建{@code createMid}，完成必要校验后写入或委托下游服务处理。
+     * 创建渠道 MID 配置并同步其能力范围。
      * <p>
      * 写操作；实现必须沿用 运营后台服务 既有权限、幂等键、唯一约束和事务边界。
      * </p>
@@ -319,7 +313,7 @@ public interface AdminChannelService {
     void deleteMid(Long id);
 
     /**
-     * 查询{@code pageMidBindings}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 分页查询商户渠道 MID 绑定关系。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -329,7 +323,7 @@ public interface AdminChannelService {
     PageResult<MerchantChannelMidBindingResponse> pageMidBindings(MerchantChannelMidBindingQuery query);
 
     /**
-     * 查询{@code getMidBinding}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 查询指定商户渠道 MID 绑定详情。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -339,7 +333,7 @@ public interface AdminChannelService {
     MerchantChannelMidBindingResponse getMidBinding(Long id);
 
     /**
-     * 创建{@code createMidBinding}，完成必要校验后写入或委托下游服务处理。
+     * 创建商户渠道 MID 绑定并校验业务类型和能力范围。
      * <p>
      * 写操作；实现必须沿用 运营后台服务 既有权限、幂等键、唯一约束和事务边界。
      * </p>

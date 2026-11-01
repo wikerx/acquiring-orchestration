@@ -13,13 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelRegistry
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道注册器，位于 payment-channel-core 注册层，用于按 channel_code 管理渠道客户端并阻止重复渠道编码。
- * @status : create
+ * 收单渠道注册器，位于 payment-channel-core 注册层，用于按 channel_code 管理渠道客户端并阻止重复渠道编码。
  */
 @Component
 public class PaymentChannelRegistry {
@@ -70,6 +64,12 @@ public class PaymentChannelRegistry {
         return clients;
     }
 
+    /**
+     * 将渠道编码规范化为注册表使用的大写形式。
+     *
+     * @param channelCode 原始渠道编码
+     * @return 规范化渠道编码
+     */
     private String normalize(String channelCode) {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
     }

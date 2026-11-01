@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataInternalClientConfig
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 内部补偿客户端配置，为 service-job 提供直连和服务发现两类有界超时 HTTP 客户端
- * @status : create
+ * service-data 内部补偿客户端配置，为 service-job 提供直连和服务发现两类有界超时 HTTP 客户端
  */
 @Configuration
 @EnableConfigurationProperties(DataInternalClientProperties.class)
@@ -35,7 +29,7 @@ public class DataInternalClientConfig {
     @Bean("jobDataInternalRestTemplate")
     public RestTemplate jobDataInternalRestTemplate(TraceIdRestTemplateCustomizer traceCustomizer,
                                                     DataInternalClientProperties properties) {
-        validateTimeouts(properties);
+        properties.validate();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setProxy(Proxy.NO_PROXY);
         requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
@@ -55,7 +49,7 @@ public class DataInternalClientConfig {
     public RestTemplate jobDataInternalLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
                                                                 TraceIdRestTemplateInterceptor traceInterceptor,
                                                                 DataInternalClientProperties properties) {
-        validateTimeouts(properties);
+        properties.validate();
         return restTemplateBuilder
                 .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
                 .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
@@ -63,11 +57,4 @@ public class DataInternalClientConfig {
                 .build();
     }
 
-    /** 拒绝无界或立即超时的内部客户端配置。 */
-    private void validateTimeouts(DataInternalClientProperties properties) {
-        properties.validate();
-        if (properties.getConnectTimeoutMillis() <= 0 || properties.getReadTimeoutMillis() <= 0) {
-            throw new IllegalArgumentException("job data-client timeouts must be greater than zero");
-        }
-    }
 }

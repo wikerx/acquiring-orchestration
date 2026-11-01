@@ -9,13 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataRiskAuditMapper
- * @date : 2026-08-01 14:50
- * @email : scott_x@163.com
- * @description : 风控评估主审计与脱敏命中明细数据访问入口，不参与实时风控规则计算
- * @status : create
+ * 风控评估主审计与脱敏命中明细数据访问入口，不参与实时风控规则计算。
  */
 public interface DataRiskAuditMapper {
 
@@ -35,17 +29,29 @@ public interface DataRiskAuditMapper {
     /**
      * 插入风控评估主审计记录。
      *
+     * @param riskRecordNo 风控评估流水号
+     * @param merchantId 商户号
+     * @param merchantOrderNo 商户订单号
+     * @param paymentOrderNo 平台支付订单号
+     * @param transactionAmount 商户交易金额
+     * @param transactionCurrency 商户交易币种
+     * @param riskLevel 评估风险等级
+     * @param decisionResult 风控决策结果
+     * @param decisionReasonCode 决策原因码
+     * @param decisionReason 已脱敏决策原因
+     * @param hitCount 命中规则数量
+     * @param evaluationTime 风控评估时间
      * @return 成功插入的记录数
      */
     @Insert("""
             INSERT INTO risk_evaluation_record (
                 risk_record_no, merchant_id, merchant_order_no, payment_order_no,
                 transaction_amount, transaction_currency, risk_level, decision_result,
-                decision_reason, hit_count, evaluation_time
+                decision_reason_code, decision_reason, hit_count, evaluation_time
             ) VALUES (
                 #{riskRecordNo}, #{merchantId}, #{merchantOrderNo}, #{paymentOrderNo},
                 #{transactionAmount}, #{transactionCurrency}, #{riskLevel}, #{decisionResult},
-                #{decisionReason}, #{hitCount}, #{evaluationTime}
+                #{decisionReasonCode}, #{decisionReason}, #{hitCount}, #{evaluationTime}
             )
             """)
     int insertEvaluationRecord(@Param("riskRecordNo") String riskRecordNo,
@@ -56,6 +62,7 @@ public interface DataRiskAuditMapper {
                                @Param("transactionCurrency") String transactionCurrency,
                                @Param("riskLevel") String riskLevel,
                                @Param("decisionResult") String decisionResult,
+                               @Param("decisionReasonCode") String decisionReasonCode,
                                @Param("decisionReason") String decisionReason,
                                @Param("hitCount") Integer hitCount,
                                @Param("evaluationTime") LocalDateTime evaluationTime);
@@ -72,13 +79,13 @@ public interface DataRiskAuditMapper {
             INSERT INTO risk_evaluation_hit_detail (
                 risk_record_no, module_type, function_code, function_name, rule_id,
                 hit_element, hit_value_masked, risk_level, decision_result,
-                decision_reason, decision_time, time_window_seconds, threshold_count,
+                reason_code, decision_reason, decision_time, time_window_seconds, threshold_count,
                 elements_json, current_count, stage_code, stage_name, stage_order,
                 match_result, decision_effect
             ) VALUES (
                 #{riskRecordNo}, #{hit.moduleType}, #{hit.functionCode}, #{hit.functionName}, #{hit.ruleId},
                 #{hit.hitElement}, #{hit.hitValueMasked}, #{hit.riskLevel}, #{hit.decisionAction},
-                #{hit.decisionReason}, #{decisionTime}, #{hit.timeWindowSeconds}, #{hit.thresholdCount},
+                #{hit.reasonCode}, #{hit.decisionReason}, #{decisionTime}, #{hit.timeWindowSeconds}, #{hit.thresholdCount},
                 #{hit.elementsJson}, #{hit.currentCount}, #{hit.stageCode}, #{hit.stageName}, #{hit.stageOrder},
                 #{hit.matchResult}, #{hit.decisionEffect}
             )

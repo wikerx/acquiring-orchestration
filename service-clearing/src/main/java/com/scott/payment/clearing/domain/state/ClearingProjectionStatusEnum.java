@@ -4,26 +4,32 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingProjectionStatusEnum
- * @date : 2026-08-26 18:30
- * @email : scott_x@163.com
- * @description : 定义动作查询投影和生命周期聚合状态；不替代 transaction_finance_state 的权威清分状态机。
- * @status : create
+ * 定义动作查询投影和生命周期聚合状态；不替代 transaction_finance_state 的权威清分状态机。
  */
 public enum ClearingProjectionStatusEnum {
-    /** 尚无清分触发记录。 */
+    /**
+     * 尚无清分触发记录。
+     */
     NOT_CLEARED,
-    /** 已触发但尚未形成清分终态。 */
+    /**
+     * 已触发但尚未形成清分终态。
+     */
     PENDING,
-    /** 生命周期中已完成动作与待处理动作并存。 */
+    /**
+     * 生命周期中已完成动作与待处理动作并存。
+     */
     PARTIALLY_CLEARED,
-    /** 生命周期或动作已经产生至少一项有效清分事实。 */
+    /**
+     * 生命周期或动作已经产生至少一项有效清分事实。
+     */
     CLEARED,
-    /** 动作失败或生命周期中存在失败动作。 */
+    /**
+     * 动作失败或生命周期中存在失败动作。
+     */
     FAILED,
-    /** 动作或生命周期内全部动作均无需清分。 */
+    /**
+     * 动作或生命周期内全部动作均无需清分。
+     */
     NOT_REQUIRED;
 
     /**
@@ -73,11 +79,18 @@ public enum ClearingProjectionStatusEnum {
         return statuses.stream().allMatch(status -> status == NOT_CLEARED) ? NOT_CLEARED : PENDING;
     }
 
-    /** @return 是否为动作清分完成投影 */
+    /**
+     * 判断当前动作投影是否已经完成清分处理。
+     *
+     * @return 是否为动作清分完成投影
+     */
     public boolean isCompleted() {
         return this == CLEARED || this == NOT_REQUIRED;
     }
 
+    /**
+     * 解析动作级投影状态，并拒绝仅生命周期汇总允许的部分清分状态。
+     */
     private static ClearingProjectionStatusEnum parseOperationStatus(String status) {
         if (status == null || status.isBlank()) {
             throw new IllegalArgumentException("operation clearing projection is blank");

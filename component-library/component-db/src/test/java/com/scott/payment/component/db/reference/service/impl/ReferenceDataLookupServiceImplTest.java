@@ -27,13 +27,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReferenceDataLookupServiceImplTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 公共基础数据检索服务行为测试。
- * @status : create
+ * 公共基础数据检索服务行为测试。
  */
 class ReferenceDataLookupServiceImplTest {
 

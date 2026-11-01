@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskPaymentEvaluateResultDTO
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单支付实时风控评估结果 DTO，位于 service-risk 内部接口 DTO 层，返回风控决策和原因码，不直接返回交易状态。
- * @status : create
+ * 收单支付实时风控评估结果 DTO，位于 service-risk 内部接口 DTO 层，返回风控决策和原因码，不直接返回交易状态。
  */
 @Data
 public class RiskPaymentEvaluateResultDTO implements Serializable {

@@ -6,13 +6,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogMessage
- * @date : 2026-06-20 01:29
- * @email : scott_x@163.com
- * @description : 管理类系统操作日志 MQ 消息体
- * @status : create
+ * 管理类系统操作日志 MQ 消息体
  *
  * <p>该消息体仅承载已经脱敏和截断后的审计字段，禁止放入明文卡号、CVV、JWT、
  * 私钥、API Key、完整异常堆栈等敏感信息。</p>
@@ -21,10 +15,14 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 public class OperationLogMessage extends BaseMqMessage {
 
-    /** 错误码最大字符数，与 sys_oper_log.error_code 的 VARCHAR(32) 契约一致。 */
+    /**
+     * 错误码最大字符数，与 sys_oper_log.error_code 的 VARCHAR(32) 契约一致。
+     */
     public static final int ERROR_CODE_MAX_LENGTH = 32;
 
-    /** 错误摘要最大字符数，与 sys_oper_log.error_msg 的 VARCHAR(1000) 契约一致。 */
+    /**
+     * 错误摘要最大字符数，与 sys_oper_log.error_msg 的 VARCHAR(1000) 契约一致。
+     */
     public static final int ERROR_MESSAGE_MAX_LENGTH = 1000;
 
     /**

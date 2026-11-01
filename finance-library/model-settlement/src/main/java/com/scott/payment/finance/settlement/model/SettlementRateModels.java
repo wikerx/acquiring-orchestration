@@ -10,43 +10,31 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRateModels
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 定义真实结算批次使用的不可变汇率报价、标准直接汇率和单目标币种汇率矩阵契约。
- * @status : create
+ * 定义真实结算批次使用的不可变汇率报价、标准直接汇率和单目标币种汇率矩阵契约。
  */
 public final class SettlementRateModels {
 
     /**
      * 结算锁定汇率的有效数字精度。
-     * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；不允许为空；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final int LOCKED_RATE_PRECISION = 24;
     /**
      * 结算锁定汇率保留的小数位数，至少满足结算汇率精度要求。
-     * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；不允许为空；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final int LOCKED_RATE_SCALE = 12;
 
+    /**
+     * 禁止实例化仅承载结算汇率契约的工具类。
+     */
     private SettlementRateModels() {
     }
 
-    /** 外部报价相对于标准“源币种到目标币种”的方向。 */
+    /**
+     * 外部报价相对于标准“源币种到目标币种”的方向。
+     */
     public enum QuoteDirection {
         /**
          * DIRECT 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         DIRECT,
         INVERSE
@@ -60,6 +48,9 @@ public final class SettlementRateModels {
      */
     public record CurrencyPair(String sourceCurrency, String targetCurrency) {
 
+        /**
+         * 规范化并校验源币种与目标币种代码。
+         */
         public CurrencyPair {
             sourceCurrency = normalizeCurrency(sourceCurrency, "source currency");
             targetCurrency = normalizeCurrency(targetCurrency, "target currency");
@@ -92,6 +83,9 @@ public final class SettlementRateModels {
                             String quoteId,
                             LocalDateTime effectiveTime) {
 
+        /**
+         * 校验外部报价的币种对、正汇率、方向、来源和生效时间。
+         */
         public RateQuote {
             Objects.requireNonNull(pair, "currency pair is required");
             requirePositive(quotedRate, "quoted rate");
@@ -123,6 +117,9 @@ public final class SettlementRateModels {
                              QuoteDirection sourceQuoteDirection,
                              LocalDateTime effectiveTime) {
 
+        /**
+         * 校验锁定直接汇率的列容量、币种精度和恒等汇率约束。
+         */
         public LockedRate {
             Objects.requireNonNull(pair, "currency pair is required");
             requireLockedRateCapacity(directRate);
@@ -148,6 +145,9 @@ public final class SettlementRateModels {
      */
     public record RateMatrix(List<LockedRate> rates, String targetCurrency) {
 
+        /**
+         * 构造单目标币种且币种对唯一的不可变锁定汇率矩阵。
+         */
         public RateMatrix {
             rates = List.copyOf(Objects.requireNonNull(rates, "locked rates are required"));
             if (rates.isEmpty()) {
@@ -198,6 +198,13 @@ public final class SettlementRateModels {
         }
     }
 
+    /**
+     * 将币种规范化为 ISO 4217 三位大写代码。
+     *
+     * @param value     原始币种
+     * @param fieldName 错误消息使用的字段名
+     * @return 规范化币种
+     */
     private static String normalizeCurrency(String value, String fieldName) {
         String normalized = requireText(value, fieldName).toUpperCase(Locale.ROOT);
         if (normalized.length() != 3) {
@@ -206,6 +213,13 @@ public final class SettlementRateModels {
         return normalized;
     }
 
+    /**
+     * 去除必填文本首尾空白并拒绝空值。
+     *
+     * @param value     原始文本
+     * @param fieldName 错误消息使用的字段名
+     * @return 规范化文本
+     */
     private static String requireText(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -213,10 +227,22 @@ public final class SettlementRateModels {
         return value.trim();
     }
 
+    /**
+     * 规范化可选文本，空白值统一转换为 {@code null}。
+     *
+     * @param value 原始文本
+     * @return 规范化文本或 {@code null}
+     */
     private static String normalizeOptionalText(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /**
+     * 校验报价或直接汇率严格大于零。
+     *
+     * @param value     待校验数值
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requirePositive(BigDecimal value, String fieldName) {
         if (value == null || value.signum() <= 0) {
             throw new IllegalArgumentException(fieldName + " must be positive");
@@ -239,6 +265,12 @@ public final class SettlementRateModels {
         }
     }
 
+    /**
+     * 校验币种 exponent 处于平台支持的零到八位范围。
+     *
+     * @param value     币种小数位
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireExponent(int value, String fieldName) {
         if (value < 0 || value > 8) {
             throw new IllegalArgumentException(fieldName + " must be between 0 and 8");

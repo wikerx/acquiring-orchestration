@@ -22,13 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementProjectionApplicationServiceTest
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证真实交易结算投影、FIFO Outbox 身份及失败后的独立退避记录
- * @status : create
+ * 验证真实交易结算投影、FIFO Outbox 身份及失败后的独立退避记录
  */
 class SettlementProjectionApplicationServiceTest {
 
@@ -41,7 +35,9 @@ class SettlementProjectionApplicationServiceTest {
         service = new SettlementProjectionApplicationService(mapper);
     }
 
-    /** 正常结算必须同步更新财务和动作投影，并按 operationId 生成 FIFO 事件。 */
+    /**
+     * 正常结算必须同步更新财务和动作投影，并按 operationId 生成 FIFO 事件。
+     */
     @Test
     void shouldProjectSettlementAndCreateFifoOutbox() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 12, 0);
@@ -76,7 +72,9 @@ class SettlementProjectionApplicationServiceTest {
         assertThat(captor.getValue().getMessageGroup()).isEqualTo(task.getOperationId());
     }
 
-    /** 失败动作产生的合法调用费仍需完成三层结算投影，交易终态本身保持 FAILED。 */
+    /**
+     * 失败动作产生的合法调用费仍需完成三层结算投影，交易终态本身保持 FAILED。
+     */
     @Test
     void shouldProjectFeeBearingFailedOperationSettlement() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 12, 3);
@@ -108,7 +106,9 @@ class SettlementProjectionApplicationServiceTest {
         assertThat(service.processNext(now)).isTrue();
     }
 
-    /** 冲正只能把原批次已结算状态推进到 REVERSED，并发布对应顺序事件。 */
+    /**
+     * 冲正只能把原批次已结算状态推进到 REVERSED，并发布对应顺序事件。
+     */
     @Test
     void shouldProjectPostedBatchReversal() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 12, 5);
@@ -143,7 +143,9 @@ class SettlementProjectionApplicationServiceTest {
         assertThat(captor.getValue().getTag()).isEqualTo(MqTag.TRANSACTION_SETTLEMENT_REVERSED);
     }
 
-    /** 冲正任务重放只接受三表金额、币种、汇率、日期和冲正批次完全一致。 */
+    /**
+     * 冲正任务重放只接受三表金额、币种、汇率、日期和冲正批次完全一致。
+     */
     @Test
     void shouldAcceptExactReversalReplayWithoutOverwritingSettlementFacts() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 12, 6);
@@ -173,7 +175,9 @@ class SettlementProjectionApplicationServiceTest {
         assertThat(service.processNext(now)).isTrue();
     }
 
-    /** 较旧动作完成结算时不得覆盖生命周期主单中已经存在的较新真实动作快照。 */
+    /**
+     * 较旧动作完成结算时不得覆盖生命周期主单中已经存在的较新真实动作快照。
+     */
     @Test
     void shouldKeepNewerLifecycleOrderSettlementSnapshot() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 12, 7);
@@ -200,7 +204,9 @@ class SettlementProjectionApplicationServiceTest {
         assertThat(service.processNext(now)).isTrue();
     }
 
-    /** 同一投影身份但任一冻结结算字段不一致时必须拒绝重放。 */
+    /**
+     * 同一投影身份但任一冻结结算字段不一致时必须拒绝重放。
+     */
     @Test
     void shouldRejectConflictingSettlementReplay() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 12, 8);
@@ -219,7 +225,9 @@ class SettlementProjectionApplicationServiceTest {
                 .hasRootCauseMessage("settlement finance projection identity is inconsistent");
     }
 
-    /** 事务内投影失败必须携带任务 CAS 身份，回滚后由独立事务记录失败和有界退避。 */
+    /**
+     * 事务内投影失败必须携带任务 CAS 身份，回滚后由独立事务记录失败和有界退避。
+     */
     @Test
     void shouldRecordProjectionFailureAfterProcessingTransactionRollsBack() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 12, 10);

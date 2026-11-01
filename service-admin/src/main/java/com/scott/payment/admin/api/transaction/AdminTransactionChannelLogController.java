@@ -1,6 +1,7 @@
 package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
@@ -12,18 +13,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionChannelLogController
- * @date : 2026-07-14 23:59
- * @email : scott_x@163.com
- * @description : 交易渠道日志查询接口，位于 service-admin 接口层，按 transaction_date_time 分表范围查询渠道请求响应脱敏日志。
- * @status : create
+ * 交易渠道日志查询接口，位于 service-admin 接口层，按 transaction_date_time 分表范围查询渠道请求响应脱敏日志。
  */
 @RestController
 @RequestMapping("/admin/transactions/channel-logs")
@@ -49,7 +42,8 @@ public class AdminTransactionChannelLogController {
     @PostMapping("/search")
     @RequiresPermission("transaction:channel-log:list")
     @OperationLog(moduleName = "交易渠道日志查询", businessType = OperationTypeConstants.QUERY, operation = "分页查询渠道日志")
-    public CommonResult<PageResult<Map<String, Object>>> search(@RequestBody(required = false) ChannelLogQuery query) {
+    public CommonResult<PageResult<ChannelInteractionLogResponse>> search(
+            @RequestBody(required = false) ChannelLogQuery query) {
         return success(transactionApplicationService.pageChannelLogs(query));
     }
 }

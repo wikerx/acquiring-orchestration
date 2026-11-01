@@ -7,6 +7,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.openapi.dto.body.OpenApiEncryptedRequestDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
 import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
@@ -23,13 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiTestSupport
- * @date : 2026-05-30 09:20
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 集成测试公共工具，统一构造开户、JWT、密文报文和安全日志摘要
- * @status : create
+ * 商户 OpenAPI 集成测试公共工具，统一构造开户、JWT、密文报文和安全日志摘要
  */
 public final class MerchantOpenApiTestSupport {
 
@@ -48,19 +43,27 @@ public final class MerchantOpenApiTestSupport {
      */
     public static final String AUTHORIZATION_HEADER = "authorization";
 
-    /** 测试上下文使用的固定 Gateway HMAC 密钥属性。 */
+    /**
+     * 测试上下文使用的固定 Gateway HMAC 密钥属性。
+     */
     public static final String GATEWAY_INGRESS_TEST_SECRET_PROPERTY =
             "acquiring.gateway-ingress.secret=test-gateway-ingress-secret-0123456789abcdef";
 
-    /** 集成测试中的 Gateway nonce 使用随机值，无需依赖外部 Redis。 */
+    /**
+     * 集成测试中的 Gateway nonce 使用随机值，无需依赖外部 Redis。
+     */
     public static final String GATEWAY_INGRESS_REPLAY_DISABLED_PROPERTY =
             "acquiring.gateway-ingress.replay-protection-required=false";
 
-    /** 集成测试强制覆盖正文绑定的 v2 签名协议。 */
+    /**
+     * 集成测试强制覆盖正文绑定的 v2 签名协议。
+     */
     public static final String GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY =
             "acquiring.gateway-ingress.accept-legacy-signature=false";
 
-    /** 集成测试不得连接开发从库构建 Card BIN 全量 Redis 区间索引。 */
+    /**
+     * 集成测试不得连接开发从库构建 Card BIN 全量 Redis 区间索引。
+     */
     public static final String CARD_BIN_INDEX_INITIALIZER_DISABLED_PROPERTY =
             "payment.card-bin.cache.index-initializer-enabled=false";
 
@@ -137,11 +140,30 @@ public final class MerchantOpenApiTestSupport {
             Assertions.assertThat(merchantId)
                     .as("SDK live merchant %s must not be cleaned by automated tests", SDK_LIVE_MERCHANT_ID)
                     .isNotEqualTo(SDK_LIVE_MERCHANT_ID);
+            jdbcTemplate.update("DELETE FROM merchant_ip_whitelist WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_info WHERE merchant_id = ?", merchantId);
         });
+    }
+
+    /**
+     * 为隔离集成测试商户配置有效白名单，并放行测试 Gateway 传入的固定客户端 IP。
+     *
+     * @param jdbcTemplate JDBC 模板，仅写入 Testcontainers 测试数据库
+     * @param merchantId   测试商户号
+     */
+    public static void configureMerchantIpWhitelist(JdbcTemplate jdbcTemplate, String merchantId) {
+        jdbcTemplate.update("""
+                INSERT INTO merchant_ip_whitelist
+                    (merchant_id, ip_type, ip_value, status, approval_status, submit_source, deleted)
+                VALUES (?, 'IPv4', ?, 1, 1, 'ADMIN', 0)
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    approval_status = VALUES(approval_status),
+                    submit_source = VALUES(submit_source)
+                """, merchantId, GATEWAY_CLIENT_IP);
     }
 
     /**
@@ -300,7 +322,9 @@ public final class MerchantOpenApiTestSupport {
      * @return HTTP 请求体 JSON
      */
     public static String wrapEncryptedData(String encryptedData) {
-        return JsonUtils.toJsonString(Map.of("data", encryptedData));
+        OpenApiEncryptedRequestDTO requestDTO = new OpenApiEncryptedRequestDTO();
+        requestDTO.setData(encryptedData);
+        return JsonUtils.toJsonString(requestDTO);
     }
 
     /**
@@ -310,11 +334,29 @@ public final class MerchantOpenApiTestSupport {
      * @param keyMaterialFactory 密钥材料工厂，用于计算短指纹
      * @return 安全摘要
      */
-    public static Map<String, Object> safeSecretSummary(String rawValue, OpenApiKeyMaterialFactory keyMaterialFactory) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("length", rawValue == null ? 0 : rawValue.length());
-        summary.put("fingerprint", rawValue == null ? null : keyMaterialFactory.fingerprint(rawValue));
-        return summary;
+    public static SecretDiagnosticSummary safeSecretSummary(
+            String rawValue,
+            OpenApiKeyMaterialFactory keyMaterialFactory) {
+        return new SecretDiagnosticSummary(
+                rawValue == null ? 0 : rawValue.length(),
+                rawValue == null ? null : keyMaterialFactory.fingerprint(rawValue)
+        );
+    }
+
+    /**
+     * 构造明文业务对象的安全元数据摘要，禁止把脱敏后的完整报文写入测试日志。
+     *
+     * @param value 明文业务 JSON 或对象文本
+     * @param keyMaterialFactory 密钥材料工厂，用于计算不可逆指纹
+     * @return 仅包含长度和不可逆指纹的载荷摘要
+     */
+    public static PayloadDiagnosticSummary safePayloadSummary(
+            String value,
+            OpenApiKeyMaterialFactory keyMaterialFactory) {
+        return new PayloadDiagnosticSummary(
+                value == null ? 0 : value.length(),
+                value == null ? null : keyMaterialFactory.fingerprint(value)
+        );
     }
 
     /**
@@ -325,17 +367,18 @@ public final class MerchantOpenApiTestSupport {
      * @param keyMaterialFactory 密钥材料工厂，用于计算短指纹
      * @return HTTP 调用安全摘要
      */
-    public static Map<String, Object> safeHttpCallSummary(String authorization,
-                                                          String httpRequestBody,
-                                                          OpenApiKeyMaterialFactory keyMaterialFactory) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("method", "POST");
-        summary.put("path", AUTHORIZATION_PATH);
-        summary.put("authorizationParts", authorization.split("\\.").length);
-        summary.put("authorizationFingerprint", keyMaterialFactory.fingerprint(authorization));
-        summary.put("bodyLength", httpRequestBody.length());
-        summary.put("bodyFingerprint", keyMaterialFactory.fingerprint(httpRequestBody));
-        return summary;
+    public static HttpCallDiagnosticSummary safeHttpCallSummary(
+            String authorization,
+            String httpRequestBody,
+            OpenApiKeyMaterialFactory keyMaterialFactory) {
+        return new HttpCallDiagnosticSummary(
+                "POST",
+                AUTHORIZATION_PATH,
+                authorization.split("\\.").length,
+                keyMaterialFactory.fingerprint(authorization),
+                httpRequestBody.length(),
+                keyMaterialFactory.fingerprint(httpRequestBody)
+        );
     }
 
     /**
@@ -353,6 +396,43 @@ public final class MerchantOpenApiTestSupport {
         ciphertextBuilder.setCharAt(tamperIndex, currentChar == 'A' ? 'B' : 'A');
         segments[3] = ciphertextBuilder.toString();
         return String.join(".", segments);
+    }
+
+    /**
+     * 承载 JWT、密钥或密文的安全日志摘要，不保存原始敏感文本。
+     *
+     * @param length 原始敏感文本字符数
+     * @param fingerprint 原始敏感文本不可逆指纹
+     */
+    public record SecretDiagnosticSummary(int length, String fingerprint) {
+    }
+
+    /**
+     * 承载明文业务载荷的安全日志摘要，不保存任何业务字段值。
+     *
+     * @param length 业务载荷字符数
+     * @param fingerprint 业务载荷不可逆指纹
+     */
+    public record PayloadDiagnosticSummary(int length, String fingerprint) {
+    }
+
+    /**
+     * 承载模拟商户 HTTP 调用的安全诊断字段，不保存 JWT 或密文原文。
+     *
+     * @param method HTTP 方法
+     * @param path OpenAPI 请求路径
+     * @param authorizationParts JWT compact 段数
+     * @param authorizationFingerprint JWT 不可逆指纹
+     * @param bodyLength HTTP 请求体字符数
+     * @param bodyFingerprint HTTP 请求体不可逆指纹
+     */
+    public record HttpCallDiagnosticSummary(
+            String method,
+            String path,
+            int authorizationParts,
+            String authorizationFingerprint,
+            int bodyLength,
+            String bodyFingerprint) {
     }
 
     /**

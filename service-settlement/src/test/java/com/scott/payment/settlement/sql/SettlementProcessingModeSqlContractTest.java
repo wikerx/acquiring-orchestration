@@ -9,13 +9,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementProcessingModeSqlContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户结算档案处理模式迁移、基础结构和只读后检合同。
- * @status : create
+ * 商户结算档案处理模式迁移、基础结构和只读后检合同。
  */
 class SettlementProcessingModeSqlContractTest {
 

@@ -21,13 +21,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantDictController
- * @date : 2026-07-20 00:00
- * @email : scott_x@163.com
- * @description : 商户后台只读字典接口，位于 service-merchant 接口层，为商户页面提供统一交易状态、交易类型、支付方式和时区选项。
- * @status : create
+ * 商户后台只读字典接口，位于 service-merchant 接口层，为商户页面提供统一交易状态、交易类型、支付方式和时区选项。
  */
 @RestController
 @RequestMapping("/merchant/system/dicts")
@@ -35,7 +29,9 @@ public class MerchantDictController {
 
     private final MerchantDictService dictService;
 
-    /** 登录后商户页面共用的币种展示字典。 */
+    /**
+     * 登录后商户页面共用的币种展示字典。
+     */
     private final IsoDictionaryService isoDictionaryService;
 
     /**
@@ -49,7 +45,9 @@ public class MerchantDictController {
         this.isoDictionaryService = isoDictionaryService;
     }
 
-    /** 登录后的商户页面可读取币种展示信息，不与交易字典权限绑定。 */
+    /**
+     * 登录后的商户页面可读取币种展示信息，不与交易字典权限绑定。
+     */
     @GetMapping("/currency-presentations")
     public CommonResult<List<IsoCurrencyPresentationInfo>> currencyPresentations() {
         return success(isoDictionaryService.listCurrencyPresentations());

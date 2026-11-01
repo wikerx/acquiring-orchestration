@@ -9,17 +9,13 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeAccountSchemaOptimizationContractTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 费用和资金账户结构收敛脚本契约测试，防止冗余字段、关键索引或资金约束被初始化脚本重新引入。
- * @status : create
+ * 费用和资金账户结构收敛脚本契约测试，防止冗余字段、关键索引或资金约束被初始化脚本重新引入。
  */
 class FeeAccountSchemaOptimizationContractTests {
 
-    /** 最终基础结构必须只保留单一事实字段，并声明风控试算快照及资金一致性约束。 */
+    /**
+     * 最终基础结构必须只保留单一事实字段，并声明风控试算快照及资金一致性约束。
+     */
     @Test
     void shouldKeepFoundationSchemaAlignedWithOptimizedModel() throws IOException {
         String foundation = Files.readString(Path.of(
@@ -35,7 +31,9 @@ class FeeAccountSchemaOptimizationContractTests {
                         "chk_fee_tier_range");
     }
 
-    /** 优化脚本必须先阻断不兼容存量数据，且提供三个删列字段的显式回滚定义。 */
+    /**
+     * 优化脚本必须先阻断不兼容存量数据，且提供三个删列字段的显式回滚定义。
+     */
     @Test
     void shouldKeepDestructiveMigrationGuardedAndReversible() throws IOException {
         String migration = Files.readString(Path.of(

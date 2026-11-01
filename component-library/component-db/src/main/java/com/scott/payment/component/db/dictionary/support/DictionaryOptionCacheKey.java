@@ -3,16 +3,13 @@ package com.scott.payment.component.db.dictionary.support;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DictionaryOptionCacheKey
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 公共字典下拉缓存业务键规范化工具。
- * @status : create
+ * 公共字典下拉缓存业务键规范化工具。
  */
 public final class DictionaryOptionCacheKey {
 
+    /**
+     * 禁止实例化字典缓存键工具类。
+     */
     private DictionaryOptionCacheKey() {
     }
 

@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** PCI 管理密码规则的边界测试。 */
+/**
+ * PCI 管理密码规则的边界测试。
+ */
 class PasswordPolicyTest {
 
     @Test

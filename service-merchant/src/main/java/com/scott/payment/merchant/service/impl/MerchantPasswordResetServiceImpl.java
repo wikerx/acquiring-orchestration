@@ -64,21 +64,20 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantPasswordResetServiceImpl
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 商户系统找回密码服务实现；以商户号和登录账号联合定位账号，并以虚拟请求防止账号枚举。
- * @status : create
+ * 商户系统找回密码服务实现；以商户号和登录账号联合定位账号，并以虚拟请求防止账号枚举。
  */
 @Service
 @Slf4j
 public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetService {
 
-    /** 固定不存在的账号主键，用于让虚拟请求执行与真实请求相同的账号查询。 */
+    /**
+     * 固定不存在的账号主键，用于让虚拟请求执行与真实请求相同的账号查询。
+     */
     private static final long VIRTUAL_ACCOUNT_ID = -1L;
 
+    /**
+     * 状态等待邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+     */
     private static final String STATE_PENDING_EMAIL = "PENDING_EMAIL";
     private static final String STATE_PENDING_MFA = "PENDING_MFA";
     private static final String STATE_READY = "READY";
@@ -94,7 +93,13 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
     private static final int ACTION_TOKEN_TTL_SECONDS = 5 * 60;
     private static final int MAX_EMAIL_VERIFY_ATTEMPTS = 50;
     private static final int MAX_MFA_VERIFY_ATTEMPTS = 5;
+    /**
+     * 单个账号每小时允许发起的密码重置请求上限。
+     */
     private static final int ACCOUNT_REQUESTS_PER_HOUR = 50;
+    /**
+     * 单个客户端 IP 每小时允许发起的密码重置请求上限。
+     */
     private static final int IP_REQUESTS_PER_HOUR = 200;
     private static final int RESEND_COOLDOWN_SECONDS = 6;
     private static final int MAX_USER_AGENT_LENGTH = 500;
@@ -113,6 +118,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
     private static final String RATE_SCOPE_MFA_VERIFY_IP = "merchantPasswordResetMfaVerifyIp";
     private static final String RATE_SCOPE_CONFIRM_IP = "merchantPasswordResetConfirmIp";
     private static final String FRONTEND_BASE_URL_KEY = "platform.merchant.frontend-base-url";
+    /**
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final SystemAuthService systemAuthService;
@@ -376,6 +384,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return response;
     }
 
+    /**
+     * 创建密码重置申请并保存验证状态与过期时间。
+     */
     private PasswordResetRequestResponse createResetRequest(SysAppDO app,
                                                             String merchantId,
                                                             SysAccountDO eligibleAccount,
@@ -417,6 +428,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return response;
     }
 
+    /**
+     * 按不暴露账号存在性的规则查找可执行密码重置的账号。
+     */
     private SysAccountDO findEligibleAccount(Long appId, String merchantId, String loginAccount) {
         SysMerchantUserDO merchantUser = merchantUserMapper.selectOne(Wrappers.<SysMerchantUserDO>lambdaQuery()
                 .eq(SysMerchantUserDO::getMerchantId, merchantId)
@@ -433,6 +447,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                 ? account : null;
     }
 
+    /**
+     * 判断账号状态是否允许执行当前安全流程。
+     */
     private boolean eligible(SysAccountDO account) {
         return account != null
                 && Objects.equals(account.getStatus(), AuthConstants.ENABLED)
@@ -443,6 +460,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                 && account.getEmailVerifiedAt() != null;
     }
 
+    /**
+     * 查询并校验商户应用配置存在。
+     */
     private SysAppDO requireMerchantApp() {
         SysAppDO app = appMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
@@ -455,6 +475,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return app;
     }
 
+    /**
+     * 按账号与客户端 IP 限制密码重置申请频率。
+     */
     private void enforceRequestRateLimit(Long appId,
                                          String merchantId,
                                          String accountFingerprint,
@@ -489,6 +512,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         }
     }
 
+    /**
+     * 使用分布式计数器执行限流，防止多实例绕过请求上限。
+     */
     private void enforceDistributedRateLimit(String scope, String identity, int limit, Duration window) {
         SlidingWindowRateLimitResult result = rateLimiter.tryAcquire(scope, identity, limit, window);
         if (!result.allowed()) {
@@ -497,10 +523,16 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         }
     }
 
+    /**
+     * 按验证阶段和客户端 IP 限制尝试频率。
+     */
     private void enforceStageIpRateLimit(String scope, String clientIp) {
         enforceDistributedRateLimit(scope, normalizeIp(clientIp), IP_REQUESTS_PER_HOUR, Duration.ofHours(1));
     }
 
+    /**
+     * 在事务提交后准备并发送验证邮件，避免回滚事务产生无效邮件。
+     */
     private void sendVerificationEmailAfterCommit(SysAccountDO account,
                                                   SysPasswordResetRequestDO row,
                                                   String emailCode) {
@@ -508,12 +540,15 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
             try {
                 sendVerificationEmail(account, row, emailCode);
             } catch (RuntimeException exception) {
-                log.warn("merchant password reset email preparation failed, accountId: {}, exceptionType: {}",
+                log.warn("商户重置密码验证邮件发送失败, event: MERCHANT_PASSWORD_RESET_VERIFICATION_EMAIL_FAILED, accountId: {}, exceptionType: {}",
                         account == null ? null : account.getId(), exception.getClass().getSimpleName());
             }
         });
     }
 
+    /**
+     * 准备并发送验证邮件；账号不存在时只生成抑制投递记录。
+     */
     private void sendVerificationEmail(SysAccountDO account,
                                        SysPasswordResetRequestDO row,
                                        String emailCode) {
@@ -545,6 +580,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         }
     }
 
+    /**
+     * 在密码重置事务提交后发送成功通知。
+     */
     private void sendSuccessEmailAfterCommit(SysAccountDO account,
                                              SysPasswordResetRequestDO row,
                                              LocalDateTime now) {
@@ -564,12 +602,15 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                         normalizeLocale(row.getLocale()), List.of(account.getEmail()), variables,
                         "PASSWORD_RESET", row.getRequestNo()));
             } catch (RuntimeException exception) {
-                log.warn("merchant password reset success email preparation failed, accountId: {}, exceptionType: {}",
+                log.warn("商户重置密码成功邮件发送失败, event: MERCHANT_PASSWORD_RESET_SUCCESS_EMAIL_FAILED, accountId: {}, exceptionType: {}",
                         account.getId(), exception.getClass().getSimpleName());
             }
         });
     }
 
+    /**
+     * 加锁读取密码重置申请，申请不存在时终止当前验证流程。
+     */
     private SysPasswordResetRequestDO requireLockedRequest(String requestId) {
         SysPasswordResetRequestDO row = resetRequestMapper.selectByRequestNoForUpdate(requestId);
         if (row == null) {
@@ -579,6 +620,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return row;
     }
 
+    /**
+     * 生成并加密一次性密码重置令牌，只持久化安全摘要。
+     */
     private PasswordResetVerifyResponse prepareResetToken(SysPasswordResetRequestDO row, LocalDateTime now) {
         String resetToken = LoginTokenUtils.generateToken();
         row.setResetTokenHash(LoginTokenUtils.hashToken(resetToken));
@@ -592,6 +636,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                 "Identity verified. Set a new password within five minutes.");
     }
 
+    /**
+     * 构建不泄露内部验证状态的商户响应。
+     */
     private PasswordResetVerifyResponse verifyResponse(String nextStep, String token,
                                                        int expireSeconds, String message) {
         PasswordResetVerifyResponse response = new PasswordResetVerifyResponse();
@@ -602,6 +649,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return response;
     }
 
+    /**
+     * 读取账号当前 MFA 配置。
+     */
     private SysAccountMfaDO loadMfa(Long appId, Long accountId) {
         return mfaMapper.selectOne(Wrappers.<SysAccountMfaDO>lambdaQuery()
                 .eq(SysAccountMfaDO::getAppId, appId)
@@ -610,12 +660,18 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 判断重定向目标是否属于允许的商户前端地址。
+     */
     private boolean validTarget(SysPasswordResetRequestDO row, SysAccountDO account) {
         return eligible(account)
                 && Objects.equals(account.getAppId(), row.getAppId())
                 && Objects.equals(account.getMerchantId(), row.getMerchantId());
     }
 
+    /**
+     * 在持久化状态仍开放但时间已过期时推进为过期状态。
+     */
     private void markExpiredIfNecessary(SysPasswordResetRequestDO row, LocalDateTime now) {
         if (!STATE_COMPLETED.equals(row.getState())
                 && !STATE_BLOCKED.equals(row.getState())
@@ -626,6 +682,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         }
     }
 
+    /**
+     * 构建密码重置验证邮件变量，不返回密码或令牌明文。
+     */
     private Map<String, Object> verificationEmailVariables(SysAccountDO account,
                                                            SysPasswordResetRequestDO row,
                                                            String emailCode) {
@@ -645,6 +704,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return variables;
     }
 
+    /**
+     * 构建商户密码重置页面地址，不在日志中记录令牌。
+     */
     private String passwordResetUrl(String requestNo) {
         String baseUrl = configService.enabledConfigValue(FRONTEND_BASE_URL_KEY)
                 .filter(StringUtils::hasText)
@@ -657,12 +719,18 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                 .toUriString();
     }
 
+    /**
+     * 在当前事务成功提交后执行延迟动作。
+     */
     private void afterCommit(Runnable task) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             task.run();
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -670,6 +738,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         });
     }
 
+    /**
+     * 生成满足长度和字符类别约束的一次性邮箱验证码。
+     */
     private String generateEmailCode() {
         char[] code = new char[EMAIL_CODE_LENGTH];
         code[0] = randomCharacter(EMAIL_CODE_DIGITS);
@@ -687,10 +758,16 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return new String(code);
     }
 
+    /**
+     * 从受控字符集中使用安全随机数选取一个字符。
+     */
     private char randomCharacter(String candidates) {
         return candidates.charAt(SECURE_RANDOM.nextInt(candidates.length()));
     }
 
+    /**
+     * 使用常量时间比较校验令牌摘要。
+     */
     private boolean tokenMatches(String rawToken, String expectedHash) {
         if (!StringUtils.hasText(rawToken) || !StringUtils.hasText(expectedHash)) {
             return false;
@@ -700,14 +777,23 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                 expectedHash.getBytes(StandardCharsets.US_ASCII));
     }
 
+    /**
+     * 判断安全请求是否已经超过有效期。
+     */
     private boolean expired(LocalDateTime expireAt, LocalDateTime now) {
         return expireAt == null || !expireAt.isAfter(now);
     }
 
+    /**
+     * 创建不暴露账号存在性和验证阶段的统一校验失败异常。
+     */
     private PasswordResetVerificationException verificationFailed() {
         return new PasswordResetVerificationException();
     }
 
+    /**
+     * 计算输入内容的 SHA-256 十六进制摘要。
+     */
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
@@ -722,6 +808,9 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         }
     }
 
+    /**
+     * 返回脱敏后可展示的登录账号。
+     */
     private String displayLoginAccount(SysAccountDO account) {
         String suffix = "_" + account.getMerchantId();
         return StringUtils.hasText(account.getLoginAccount()) && account.getLoginAccount().endsWith(suffix)
@@ -729,22 +818,37 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
                 : account.getLoginAccount();
     }
 
+    /**
+     * 规范化商户号并拒绝空值。
+     */
     private String normalizeMerchantId(String value) {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * 规范化登录账号用于唯一性查询。
+     */
     private String normalizeLoginAccount(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 规范化邮件语言，缺失或不支持时使用平台默认语言。
+     */
     private String normalizeLocale(String value) {
         return "en-US".equals(value) ? "en-US" : "zh-CN";
     }
 
+    /**
+     * 规范化客户端 IP，用于限流键和安全审计。
+     */
     private String normalizeIp(String value) {
         return StringUtils.hasText(value) ? truncate(value, 64) : "unknown";
     }
 
+    /**
+     * 按持久化字段长度安全截断文本。
+     */
     private String truncate(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -753,22 +857,36 @@ public class MerchantPasswordResetServiceImpl implements MerchantPasswordResetSe
         return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 
+    /**
+     * 读取结果集字段并将数据库空值保持为 Java 空值。
+     */
     private long value(Long count) {
         return count == null ? 0L : count;
     }
 
+    /**
+     * 将空值或负数归一化为零。
+     */
     private boolean positive(Long count) {
         return value(count) > 0L;
     }
 
+    /**
+     * 将空整数转换为指定默认值。
+     */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
 
-    /** 验证失败需要提交失败计数或终态，再向匿名调用方返回统一错误。 */
+    /**
+     * 验证失败需要提交失败计数或终态，再向匿名调用方返回统一错误。
+     */
     private static final class PasswordResetVerificationException extends ServiceException {
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 禁止实例化密码重置校验异常工具类。
+         */
         private PasswordResetVerificationException() {
             super(ApiResultEnum.UNAUTHORIZED.getCode(), "Verification failed or expired.");
         }

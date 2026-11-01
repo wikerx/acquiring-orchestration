@@ -1,6 +1,9 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.client.risk.RiskInternalClient;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientRequestDTO;
@@ -10,28 +13,23 @@ import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskPaymentRiskInvokeService
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : service-risk 风控调用实现，位于 service-payment 服务实现层，负责把支付创建上下文转换为风控请求并映射风控决策。
- * @status : create
+ * 支付创建阶段的远程风控适配服务。
+ *
+ * <p>该服务在渠道路由前把支付上下文转换为 service-risk 的内部契约，并将风控原始决策映射为
+ * 支付域可使用的结果。风控技术故障采用 Fail Closed，避免在无法确认风险结论时继续发起渠道交易；
+ * 技术故障与真实风控拒绝始终保持语义隔离。</p>
  */
 @Service
-@ConditionalOnProperty(prefix = "payment.risk-client", name = "remote-enabled", havingValue = "true")
 @Slf4j
 public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
 
-    /** service-risk 不可用时返回的稳定风险原因码。 */
-    private static final String RISK_SERVICE_UNAVAILABLE = "RISK_SERVICE_UNAVAILABLE";
-
-    /** service-risk 不可用时使用的安全失败说明。 */
+    /**
+     * service-risk 不可用时使用的安全失败说明。
+     */
     private static final String RISK_SERVICE_UNAVAILABLE_MESSAGE = "risk service is unavailable";
 
     /**
@@ -57,7 +55,8 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
     @Override
     public PaymentRiskDecisionDTO checkPreRoute(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
-        log.info("event: PAYMENT_RISK_REQUEST_START stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} payerIp: {} sourceUrl: {} requestFingerprint: {}",
+        // 只记录业务定位字段和不可逆摘要，原始 IP、持卡人资料及完整 URL 不得进入日志。
+        log.info("开始调用支付风控, event: PAYMENT_RISK_REQUEST_START, stage: RISK, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, ingressClientIpHash: {}, payerIpHash: {}, sourceUrlHash: {}, requestFingerprint: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -66,16 +65,19 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
                 commandDTO.getPaymentMethod(),
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
-                commandDTO.getPayerIp(),
-                maskUrl(commandDTO.getSourceUrl()),
+                digestIp(commandDTO.getIngressClientIp()),
+                digestIp(commandDTO.getPayerIp()),
+                digestSensitiveValue(commandDTO.getSourceUrl()),
                 commandDTO.getRequestFingerprint());
         PaymentRiskDecisionDTO decisionDTO;
         try {
             RiskPaymentEvaluateClientResponseDTO responseDTO =
                     riskInternalClient.evaluatePayment(buildRequest(commandDTO));
+            // 空响应无法证明交易已通过风控，必须按技术故障关闭交易入口，不能默认为 ALLOW。
             if (responseDTO == null) {
                 throw new IllegalStateException("service-risk returned empty response");
             }
+            // 支付域只消费标准决策；风控原因作为审计证据保留，不参与支付状态字符串判断。
             PaymentRiskDecisionEnum decisionEnum = PaymentRiskDecisionEnum.of(responseDTO.getDecision());
             decisionDTO = new PaymentRiskDecisionDTO();
             decisionDTO.setPassed(decisionEnum.isAllowProceed());
@@ -85,20 +87,24 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
             decisionDTO.setRiskMessage(responseDTO.getReasonMessage());
             decisionDTO.setMerchantLimitReserved(responseDTO.isMerchantLimitReserved());
         } catch (RuntimeException exception) {
-            decisionDTO = unavailableDecision();
-            log.error("event: PAYMENT_RISK_REQUEST_FAILED stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} exceptionType: {} durationMs: {}",
+            log.error("支付风控调用失败, event: PAYMENT_RISK_REQUEST_FAILED, stage: RISK, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, exceptionType: {}, rootCauseType: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     commandDTO.getTransactionId(),
                     commandDTO.getTransactionType(),
                     exception.getClass().getSimpleName(),
+                    rootCauseType(exception),
                     elapsedMillis(startNanos));
+            // 技术故障必须 Fail Closed，但不能伪装成真实风控拒绝并落终态记录。
+            throw new ServiceException(ApiResultEnum.NETWORK_BUSY.getCode(),
+                    RISK_SERVICE_UNAVAILABLE_MESSAGE, exception);
         }
+        // 将风控证据带入后续持久化，但调用方仍以标准 decision/passed 字段决定是否继续路由。
         commandDTO.setRiskRecordNo(decisionDTO.getRiskRecordNo());
         commandDTO.setRiskCode(decisionDTO.getRiskCode());
         commandDTO.setRiskMessage(decisionDTO.getRiskMessage());
-        log.info("event: PAYMENT_RISK_REQUEST_END stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} currency: {} amount: {} decision: {} passed: {} riskRecordNo: {} reasonCode: {} durationMs: {}",
+        log.info("支付风控调用完成, event: PAYMENT_RISK_REQUEST_END, stage: RISK, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, currency: {}, amount: {}, decision: {}, passed: {}, riskRecordNo: {}, reasonCode: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -131,31 +137,18 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
                 || !StringUtils.hasText(commandDTO.getTransactionId())) {
             return;
         }
+        // service-risk 以交易号保证撤销幂等；重复补偿不得重复释放商户累计限额。
         RiskMerchantLimitReservationClientRequestDTO requestDTO =
                 new RiskMerchantLimitReservationClientRequestDTO();
         requestDTO.setTransactionId(commandDTO.getTransactionId());
         requestDTO.setRiskRecordNo(decisionDTO.getRiskRecordNo());
         requestDTO.setReason(reason);
         riskInternalClient.cancelMerchantLimitReservation(requestDTO);
-        log.info("event: PAYMENT_RISK_RESERVATION_CANCELLED stage=RISK_COMPENSATION traceId: {} transactionId: {} riskRecordNo: {} reason: {}",
+        log.info("风控限额预占已撤销, event: PAYMENT_RISK_RESERVATION_CANCELLED, stage: RISK_COMPENSATION, traceId: {}, transactionId: {}, riskRecordNo: {}, reason: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getTransactionId(),
                 decisionDTO.getRiskRecordNo(),
                 reason);
-    }
-
-    /**
-     * 构造 service-risk 不可用时的 Fail Closed 决策。
-     *
-     * @return 不允许继续支付的 UNKNOWN 决策
-     */
-    private PaymentRiskDecisionDTO unavailableDecision() {
-        PaymentRiskDecisionDTO decisionDTO = new PaymentRiskDecisionDTO();
-        decisionDTO.setPassed(false);
-        decisionDTO.setDecision(PaymentRiskDecisionEnum.UNKNOWN.getCode());
-        decisionDTO.setRiskCode(RISK_SERVICE_UNAVAILABLE);
-        decisionDTO.setRiskMessage(RISK_SERVICE_UNAVAILABLE_MESSAGE);
-        return decisionDTO;
     }
 
     /**
@@ -169,22 +162,40 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
     }
 
     /**
-     * 脱敏商户来源页面 URL。
-     *
-     * @param url 商户来源页面地址
-     * @return 去除 query 值后的 URL
+     * 返回受控异常链中最深层的异常类型，避免日志输出数据库语句或敏感报文。
      */
-    private String maskUrl(String url) {
-        if (!StringUtils.hasText(url)) {
-            return null;
+    private String rootCauseType(Throwable throwable) {
+        Throwable rootCause = throwable;
+        int depth = 0;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause && depth++ < 16) {
+            rootCause = rootCause.getCause();
         }
-        int queryIndex = url.indexOf('?');
-        if (queryIndex < 0) {
-            return url;
-        }
-        return url.substring(0, queryIndex) + "?...";
+        return rootCause.getClass().getSimpleName();
     }
 
+    /**
+     * 将 IP 转换为不可逆摘要，兼顾同源关联与敏感数据保护。
+     *
+     * @param value 原始 IP
+     * @return IP 摘要；空输入返回 {@code null}
+     */
+    private String digestIp(String value) {
+        return digestSensitiveValue(value);
+    }
+
+    /**
+     * 将敏感文本转换为不可逆摘要，避免日志泄露 URL、IP 等完整内容。
+     *
+     * @param value 原始敏感文本
+     * @return 文本摘要；空输入返回 {@code null}
+     */
+    private String digestSensitiveValue(String value) {
+        return StringUtils.hasText(value) ? RedisKeyDigest.sha256(value.trim()) : null;
+    }
+
+    /**
+     * 构建 service-risk 内部请求，保持支付、付款人、收货人与卡信息的语义边界。
+     */
     private RiskPaymentEvaluateClientRequestDTO buildRequest(PaymentCreateCommandDTO commandDTO) {
         RiskPaymentEvaluateClientRequestDTO requestDTO = new RiskPaymentEvaluateClientRequestDTO();
         requestDTO.setMerchantId(commandDTO.getMerchantId());
@@ -194,6 +205,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setPaymentMethod(commandDTO.getPaymentMethod());
         requestDTO.setRequestId(commandDTO.getRequestId());
         requestDTO.setRequestSource(commandDTO.getRequestSource());
+        requestDTO.setIngressClientIp(commandDTO.getIngressClientIp());
         requestDTO.setAmount(commandDTO.getAmount());
         requestDTO.setCurrency(commandDTO.getCurrency());
         requestDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
@@ -201,6 +213,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setSourceUrl(commandDTO.getSourceUrl());
         requestDTO.setPayerIp(commandDTO.getPayerIp());
         requestDTO.setUserAgent(commandDTO.getUserAgent());
+        // 可选上下文按业务对象分组填充，避免空对象覆盖风控侧默认值。
         fillSubMerchantInfo(commandDTO, requestDTO);
         fillBillingInfo(commandDTO, requestDTO);
         fillPayerInfo(commandDTO, requestDTO);
@@ -211,6 +224,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return requestDTO;
     }
 
+    /**
+     * 填充平台型商户场景下的子商户身份与经营信息。
+     */
     private void fillSubMerchantInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.SubMerchantInfoDTO subMerchantInfoDTO = commandDTO.getSubMerchantInfo();
         if (subMerchantInfoDTO == null) {
@@ -224,6 +240,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setMerchantBillingAddress(subMerchantInfoDTO.getSubStreet());
     }
 
+    /**
+     * 填充账单持卡人信息；这些字段仅进入内部风控请求，不得写入日志。
+     */
     private void fillBillingInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingInfoDTO = commandDTO.getBillingCardHolderInfo();
         if (billingInfoDTO == null) {
@@ -239,7 +258,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setBillingCity(billingInfoDTO.getCity());
     }
 
-    /** Copy payer identity and address independently from cardholder billing data. */
+    /**
+     * 填充付款人身份，付款人与账单持卡人是两个独立业务主体。
+     */
     private void fillPayerInfo(PaymentCreateCommandDTO commandDTO,
                                RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.PayerInfoDTO payerInfo = commandDTO.getPayerInfo();
@@ -256,13 +277,18 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setPayerRegion(payerInfo.getState());
         requestDTO.setPayerCity(payerInfo.getCity());
         requestDTO.setPayerSessionId(payerInfo.getSessionId());
-        requestDTO.setPayerIp(payerInfo.getIpAddress());
+        // 顶层采集值优先；仅在缺失时使用付款人对象中的兼容字段。
+        if (!StringUtils.hasText(requestDTO.getPayerIp())) {
+            requestDTO.setPayerIp(payerInfo.getIpAddress());
+        }
         if (StringUtils.hasText(payerInfo.getUserAgent())) {
             requestDTO.setUserAgent(payerInfo.getUserAgent());
         }
     }
 
-    /** Copy shipping identity and address independently from optional legacy riskInfo. */
+    /**
+     * 填充收货人信息，显式 shippingInfo 优先于旧版 riskContext 兼容字段。
+     */
     private void fillShippingInfo(PaymentCreateCommandDTO commandDTO,
                                   RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo = commandDTO.getShippingInfo();
@@ -293,6 +319,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         }
         requestDTO.setCustomerId(riskContextDTO.getCustomerId());
         requestDTO.setDeviceFingerprint(riskContextDTO.getDeviceFingerprint());
+        // 新版收货对象不存在时才读取旧字段，防止同一语义出现两套冲突数据。
         if (commandDTO.getShippingInfo() == null) {
             requestDTO.setShippingAddress(riskContextDTO.getShippingAddress());
             requestDTO.setShippingZip(riskContextDTO.getShippingPostalCode());
@@ -314,6 +341,12 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return StringUtils.hasText(fullName) ? fullName : null;
     }
 
+    /**
+     * 填充卡风险特征。
+     *
+     * <p>完整卡号只通过内部服务契约传输，日志只能记录摘要；BIN 最多取 11 位以支持扩展 BIN 规则，
+     * 同时保留末四位用于风控记录关联。</p>
+     */
     private void fillCardInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         if (transactionInfoDTO != null) {
@@ -333,6 +366,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         }
     }
 
+    /**
+     * 填充 3DS 认证证据，供风控评估认证强度和责任转移。
+     */
     private void fillThreeDsInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.ThreeDsInfoDTO threeDsInfoDTO = commandDTO.getThreeDsInfo();
         if (threeDsInfoDTO == null) {

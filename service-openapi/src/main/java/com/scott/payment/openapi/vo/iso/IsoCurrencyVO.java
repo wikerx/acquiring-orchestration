@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCurrencyVO
- * @date : 2026-06-03 15:10
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 币种响应参数
- * @status : create
+ * 商户 OpenAPI 币种响应参数
  */
 @Data
 public class IsoCurrencyVO implements Serializable {

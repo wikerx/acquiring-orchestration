@@ -6,13 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisKeyDigest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Redis Key 动态维度摘要工具。
- * @status : create
+ * Redis Key 动态维度摘要工具。
  *
  *
  * <p>IP、Host、邮箱、卡号衍生值和长业务幂等键不得直接暴露在物理 Key 中，
@@ -20,6 +14,9 @@ import java.util.HexFormat;
  */
 public final class RedisKeyDigest {
 
+    /**
+     * 禁止实例化 Redis Key 动态维度摘要工具类。
+     */
     private RedisKeyDigest() {
     }
 

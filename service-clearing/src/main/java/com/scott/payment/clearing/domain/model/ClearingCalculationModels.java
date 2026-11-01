@@ -17,16 +17,13 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingCalculationModels
- * @date : 2026-08-26 09:32
- * @email : scott_x@163.com
- * @description : 定义清分服务内部纯计算编排契约，保持本金、费用组件和保证金事实分离且不包含结算汇率。
- * @status : create
+ * 定义清分服务内部纯计算编排契约，保持本金、费用组件和保证金事实分离且不包含结算汇率。
  */
 public final class ClearingCalculationModels {
 
+    /**
+     * 领域模型容器不允许实例化。
+     */
     private ClearingCalculationModels() {
     }
 
@@ -51,6 +48,9 @@ public final class ClearingCalculationModels {
                                              FeeRefundCommand feeRefundCommand,
                                              ReserveReturnCommand reserveReturnCommand) {
 
+        /**
+         * 校验计算所需动作与费用快照，并将可空集合复制为不可变集合。
+         */
         public ClearingCalculationCommand {
             Objects.requireNonNull(operation, "clearing operation facts are required");
             Objects.requireNonNull(feeSnapshot, "fee snapshot is required");
@@ -86,6 +86,9 @@ public final class ClearingCalculationModels {
                                             FeeRefundResult feeRefund,
                                             ReserveCalculationResult reserve) {
 
+        /**
+         * 规范费用结果集合，并校验本金金额与方向必须同时存在。
+         */
         public ClearingCalculationResult {
             fees = fees == null ? List.of() : List.copyOf(fees);
             if ((principal == null) != (principalDirection == null)) {
@@ -93,7 +96,11 @@ public final class ClearingCalculationModels {
             }
         }
 
-        /** @return 是否至少产生一条本金、非零费用组件、返费或保证金清分事实 */
+        /**
+         * 判断本次计算是否产生需要持久化的财务事实。
+         *
+         * @return 是否至少产生一条本金、非零费用组件、返费或保证金清分事实
+         */
         public boolean required() {
             return principal != null || fees.stream().anyMatch(fee -> !fee.result().components().isEmpty())
                     || feeRefund != null && !feeRefund.components().isEmpty() || reserve != null;

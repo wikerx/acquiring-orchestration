@@ -1,13 +1,7 @@
 package com.scott.payment.component.redis.idempotent;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IdempotentAcquireResult
- * @date : 2026-07-30 18:20
- * @email : scott_x@163.com
- * @description : 表达 MQ 辅助幂等层的获取结果，区分 Redis 命中重复与 Redis 不可用后的数据库兜底路径
- * @status : create
+ * 表达 MQ 辅助幂等层的获取结果，区分 Redis 命中重复与 Redis 不可用后的数据库兜底路径
  */
 public enum IdempotentAcquireResult {
 

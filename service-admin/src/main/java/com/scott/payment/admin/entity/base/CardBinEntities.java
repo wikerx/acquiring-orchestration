@@ -8,16 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinEntities
- * @date : 2026-07-04 00:00
- * @email : scott_x@163.com
- * @description : 卡 BIN 基础数据实体集合，位于 service-admin 数据实体层，承载卡 BIN 区间和旧库初始化批次的持久化边界。
- * @status : create
+ * 卡 BIN 基础数据实体集合，位于 service-admin 数据实体层，承载卡 BIN 区间和旧库初始化批次的持久化边界。
  */
 public final class CardBinEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private CardBinEntities() {
     }
 

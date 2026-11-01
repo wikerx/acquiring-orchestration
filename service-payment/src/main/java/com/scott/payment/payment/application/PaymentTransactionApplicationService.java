@@ -3,13 +3,10 @@ package com.scott.payment.payment.application;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
-import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
-import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchRequeryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
-import com.scott.payment.payment.service.TransactionCallbackService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.PaymentTransactionService;
@@ -22,13 +19,7 @@ import com.scott.payment.payment.service.dto.MerchantTransactionSnapshotDTO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionApplicationService
- * @date : 2026-07-14 12:30
- * @email : scott_x@163.com
- * @description : 支付交易应用服务，位于 支付核心服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 支付交易应用服务，位于 支付核心服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class PaymentTransactionApplicationService {
@@ -37,11 +28,6 @@ public class PaymentTransactionApplicationService {
      * 收单支付交易服务。
      */
     private final PaymentTransactionService paymentTransactionService;
-
-    /**
-     * 交易渠道回调服务。
-     */
-    private final TransactionCallbackService transactionCallbackService;
 
     /**
      * 渠道交易查询勾兑服务。
@@ -53,23 +39,30 @@ public class PaymentTransactionApplicationService {
      */
     private final TransactionRecordService transactionRecordService;
 
-    /** 交易固定表定位服务，用于补齐商户无需感知的分片路由字段。 */
+    /**
+     * 交易固定表定位服务，用于补齐商户无需感知的分片路由字段。
+     */
     private final TransactionLocatorService transactionLocatorService;
 
-    /** 商户可见交易快照服务，用于同步响应和查询统一回显首次请求资料。 */
+    /**
+     * 商户可见交易快照服务，用于同步响应和查询统一回显首次请求资料。
+     */
     private final MerchantTransactionSnapshotService merchantTransactionSnapshotService;
 
-    /** 平台生成的 3DS 与财务结果读取服务。 */
+    /**
+     * 平台生成的 3DS 与财务结果读取服务。
+     */
     private final MerchantTransactionResultDetailService merchantTransactionResultDetailService;
 
-    /** 订单级交易查询 Redis 读模型；Redis 故障时由实现自动回源数据库。 */
+    /**
+     * 订单级交易查询 Redis 读模型；Redis 故障时由实现自动回源数据库。
+     */
     private final TransactionQueryCacheService transactionQueryCacheService;
 
     /**
      * 创建收单交易应用服务。
      *
      * @param paymentTransactionService 收单支付交易服务
-     * @param transactionCallbackService 交易渠道回调服务
      * @param transactionChannelMatchService 渠道交易查询勾兑服务
      * @param transactionRecordService 交易事实记录服务
      * @param transactionLocatorService 交易固定表定位服务
@@ -78,7 +71,6 @@ public class PaymentTransactionApplicationService {
      * @param transactionQueryCacheService 订单级交易查询缓存服务
      */
     public PaymentTransactionApplicationService(PaymentTransactionService paymentTransactionService,
-                                                TransactionCallbackService transactionCallbackService,
                                                 TransactionChannelMatchService transactionChannelMatchService,
                                                 TransactionRecordService transactionRecordService,
                                                 TransactionLocatorService transactionLocatorService,
@@ -86,7 +78,6 @@ public class PaymentTransactionApplicationService {
                                                 MerchantTransactionResultDetailService merchantTransactionResultDetailService,
                                                 TransactionQueryCacheService transactionQueryCacheService) {
         this.paymentTransactionService = paymentTransactionService;
-        this.transactionCallbackService = transactionCallbackService;
         this.transactionChannelMatchService = transactionChannelMatchService;
         this.transactionRecordService = transactionRecordService;
         this.transactionLocatorService = transactionLocatorService;
@@ -199,7 +190,9 @@ public class PaymentTransactionApplicationService {
         return transactionQueryCacheService.getOrLoad(commandDTO, () -> loadQueryFromDatabase(commandDTO));
     }
 
-    /** 执行原有完整数据库聚合查询，供缓存 miss 和 Redis 降级路径复用。 */
+    /**
+     * 执行原有完整数据库聚合查询，供缓存 miss 和 Redis 降级路径复用。
+     */
     private PaymentQueryResultDTO loadQueryFromDatabase(PaymentCreateCommandDTO commandDTO) {
         transactionLocatorService.enrichQueryRoute(commandDTO);
         PaymentQueryResultDTO resultDTO = paymentTransactionService.query(commandDTO);
@@ -214,7 +207,9 @@ public class PaymentTransactionApplicationService {
         return resultDTO;
     }
 
-    /** 成功完成交易命令后同步推进订单查询缓存 generation；失败不反向影响交易结果。 */
+    /**
+     * 成功完成交易命令后同步推进订单查询缓存 generation；失败不反向影响交易结果。
+     */
     private PaymentCreateResultDTO invalidateQueryCache(PaymentCreateCommandDTO commandDTO,
                                                         PaymentCreateResultDTO resultDTO) {
         if (commandDTO != null) {
@@ -224,17 +219,26 @@ public class PaymentTransactionApplicationService {
         return resultDTO;
     }
 
+    /**
+     * 补充首次交易响应快照字段。
+     */
     private PaymentCreateResultDTO enrichInitialResult(PaymentCreateCommandDTO commandDTO,
                                                        PaymentCreateResultDTO resultDTO) {
         return enrichResult(resultDTO, loadSnapshot(commandDTO, resultDTO.getTransactionId()));
     }
 
+    /**
+     * 补充后续动作响应快照字段。
+     */
     private PaymentCreateResultDTO enrichFollowUpResult(PaymentCreateCommandDTO commandDTO,
                                                         PaymentCreateResultDTO resultDTO) {
         return enrichResult(resultDTO, loadSnapshot(
                 commandDTO, commandDTO.getTransactionInfo().getRootTransactionId()));
     }
 
+    /**
+     * 加载商户可见交易快照。
+     */
     private MerchantTransactionSnapshotDTO loadSnapshot(PaymentCreateCommandDTO commandDTO,
                                                          String rootTransactionId) {
         return merchantTransactionSnapshotService.loadSnapshots(
@@ -246,6 +250,9 @@ public class PaymentTransactionApplicationService {
                         : commandDTO.getTransactionInfo().getRootTransactionDateTime());
     }
 
+    /**
+     * 补充交易响应快照字段。
+     */
     private PaymentCreateResultDTO enrichResult(PaymentCreateResultDTO resultDTO,
                                                 MerchantTransactionSnapshotDTO snapshot) {
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(snapshot.getSubMerchantInfo()));
@@ -259,7 +266,9 @@ public class PaymentTransactionApplicationService {
         return resultDTO;
     }
 
-    /** 查询按精确筛选动作或动作列表最后一笔读取平台生成详情。 */
+    /**
+     * 查询按精确筛选动作或动作列表最后一笔读取平台生成详情。
+     */
     private void enrichQueryResultDetail(PaymentCreateCommandDTO commandDTO,
                                          PaymentQueryResultDTO resultDTO) {
         if (resultDTO == null || resultDTO.getTransactionInfo() == null
@@ -285,7 +294,9 @@ public class PaymentTransactionApplicationService {
         resultDTO.setFeeItems(toQueryFeeItems(detail.getFeeItems()));
     }
 
-    /** 将平台生成详情应用到创建或后续动作响应，不伪造缺失的结算事实。 */
+    /**
+     * 将平台生成详情应用到创建或后续动作响应，不伪造缺失的结算事实。
+     */
     private void applyResultDetail(PaymentCreateResultDTO resultDTO,
                                    MerchantTransactionResultDetailDTO detail) {
         if (detail == null) {
@@ -301,6 +312,9 @@ public class PaymentTransactionApplicationService {
         resultDTO.setFeeItems(toResultFeeItems(detail.getFeeItems()));
     }
 
+    /**
+     * 转换为响应中的 3DS 信息。
+     */
     private PaymentCreateResultDTO.ThreeDsInfoDTO toResultThreeDsInfo(
             MerchantTransactionResultDetailDTO.ThreeDsInfoDTO source) {
         if (source == null) {
@@ -315,11 +329,17 @@ public class PaymentTransactionApplicationService {
         return target;
     }
 
+    /**
+     * 转换为查询响应中的 3DS 信息。
+     */
     private PaymentCreateResultDTO.ThreeDsInfoDTO toQueryThreeDsInfo(
             MerchantTransactionResultDetailDTO.ThreeDsInfoDTO source) {
         return toResultThreeDsInfo(source);
     }
 
+    /**
+     * 转换为响应中的费用明细。
+     */
     private java.util.List<PaymentCreateResultDTO.FeeItemDTO> toResultFeeItems(
             java.util.List<MerchantTransactionResultDetailDTO.FeeItemDTO> source) {
         if (source == null || source.isEmpty()) {
@@ -335,12 +355,17 @@ public class PaymentTransactionApplicationService {
         }).toList();
     }
 
+    /**
+     * 转换为查询响应中的费用明细。
+     */
     private java.util.List<PaymentCreateResultDTO.FeeItemDTO> toQueryFeeItems(
             java.util.List<MerchantTransactionResultDetailDTO.FeeItemDTO> source) {
         return toResultFeeItems(source);
     }
 
-    /** 将冻结的内部子商户快照转换为当前动作的商户响应模型。 */
+    /**
+     * 将冻结的内部子商户快照转换为当前动作的商户响应模型。
+     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(
             PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
@@ -362,16 +387,6 @@ public class PaymentTransactionApplicationService {
         target.setIntesCode(source.getIntesCode());
         target.setChargeType(source.getChargeType());
         return target;
-    }
-
-    /**
-     * 记录渠道回调。
-     *
-     * @param commandDTO 渠道回调内部命令
-     * @return 渠道回调记录结果
-     */
-    public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
-        return transactionCallbackService.recordChannelCallback(commandDTO);
     }
 
     /**

@@ -5,13 +5,7 @@ import com.scott.payment.payout.api.internal.dto.PayoutCreateResultDTO;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutTransactionService
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : 代付交易服务契约，位于 代付服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 定义代付交易受理的领域服务边界。
  */
 public interface PayoutTransactionService {
 

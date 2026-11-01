@@ -37,48 +37,24 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalRestClient
- * @date : 2026-08-26 21:20
- * @email : scott_x@163.com
- * @description : Admin 结算 HMAC REST 客户端；签名覆盖方法、路径、查询、时间戳、nonce、caller 和请求体摘要。
- * @status : create
+ * Admin 结算 HMAC REST 客户端；签名覆盖方法、路径、查询、时间戳、nonce、caller 和请求体摘要。
  */
 @Service
 @Slf4j
 public class SettlementInternalRestClient implements SettlementInternalClient {
 
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
-    /**
-     * {@code BATCHES}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
     private static final String BATCHES = "/internal/settlement/v1/batches";
-    /**
-     * {@code REVIEWS}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
     private static final String REVIEWS = "/internal/settlement/v1/reviews";
-    /**
-     * {@code REVERSALS}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
     private static final String REVERSALS = "/internal/settlement/v1/reversal-orders";
 
     private final RestTemplate direct;
     private final RestTemplate loadBalanced;
     private final SettlementInternalClientProperties properties;
 
+    /**
+     * 创建结算服务内部 REST 客户端。
+     */
     public SettlementInternalRestClient(
             @Qualifier("adminSettlementInternalRestTemplate") RestTemplate direct,
             @Qualifier("adminSettlementInternalLoadBalancedRestTemplate") RestTemplate loadBalanced,
@@ -88,28 +64,36 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
         this.properties = properties;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用结算内部接口，在入账前取消指定正式结算批次。
+     */
     @Override
     public BatchCommandResponse cancel(String settlementBatchNo, InternalBatchCommandRequest request) {
         return post(BATCHES + "/" + settlementBatchNo + "/cancel", request,
                 new TypeReference<CommonResult<BatchCommandResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用结算内部接口，重试处于可恢复状态的正式结算批次。
+     */
     @Override
     public BatchCommandResponse retry(String settlementBatchNo, InternalBatchCommandRequest request) {
         return post(BATCHES + "/" + settlementBatchNo + "/retry", request,
                 new TypeReference<CommonResult<BatchCommandResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用结算内部接口，创建并提交结算预审单。
+     */
     @Override
     public ReviewCommandResponse submitReview(InternalReviewSubmitRequest request) {
         return post(REVIEWS, request,
                 new TypeReference<CommonResult<ReviewCommandResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用结算内部接口，审批、驳回或取消指定预审单。
+     */
     @Override
     public ReviewCommandResponse decideReview(String reviewOrderNo,
                                               InternalReviewDecisionRequest request) {
@@ -117,12 +101,18 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                 new TypeReference<CommonResult<ReviewCommandResponse>>() { });
     }
 
+    /**
+     * 创建手动交易结算预审的只读预览。
+     */
     @Override
     public ManualReviewTaskResponse previewManualReview(InternalManualReviewPreviewRequest request) {
         return post(REVIEWS + "/manual-transaction-tasks/preview", request,
                 new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
     }
 
+    /**
+     * 启动手动交易结算预审任务。
+     */
     @Override
     public ManualReviewTaskResponse startManualReview(String taskNo,
                                                       ManualReviewStartRequest request) {
@@ -130,12 +120,18 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                 new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
     }
 
+    /**
+     * 查询手动交易结算预审任务。
+     */
     @Override
     public ManualReviewTaskResponse getManualReviewTask(String taskNo) {
         return get(REVIEWS + "/manual-transaction-tasks/" + taskNo,
                 new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
     }
 
+    /**
+     * 创建手动保证金结算预审的只读预览。
+     */
     @Override
     public ManualReviewTaskResponse previewManualReserveReview(
             InternalManualReviewPreviewRequest request) {
@@ -143,6 +139,9 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                 new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
     }
 
+    /**
+     * 启动手动保证金结算预审任务。
+     */
     @Override
     public ManualReviewTaskResponse startManualReserveReview(
             String taskNo, ManualReviewStartRequest request) {
@@ -150,12 +149,18 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                 new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
     }
 
+    /**
+     * 查询手动保证金结算预审任务。
+     */
     @Override
     public ManualReviewTaskResponse getManualReserveReviewTask(String taskNo) {
         return get(REVIEWS + "/manual-reserve-tasks/" + taskNo,
                 new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
     }
 
+    /**
+     * 提交可恢复的结算预审异步决策任务。
+     */
     @Override
     public ReviewDecisionTaskResponse submitReviewDecisionTask(
             String reviewOrderNo,
@@ -164,12 +169,18 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                 new TypeReference<CommonResult<ReviewDecisionTaskResponse>>() { });
     }
 
+    /**
+     * 查询结算复核异步决策任务。
+     */
     @Override
     public ReviewDecisionTaskResponse getReviewDecisionTask(String taskNo) {
         return get(REVIEWS + "/decision-tasks/" + taskNo,
                 new TypeReference<CommonResult<ReviewDecisionTaskResponse>>() { });
     }
 
+    /**
+     * 恢复可重试的结算预审决策任务。
+     */
     @Override
     public ReviewDecisionTaskResponse resumeReviewDecisionTask(
             String taskNo, InternalReviewDecisionTaskResumeRequest request) {
@@ -177,14 +188,18 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                 new TypeReference<CommonResult<ReviewDecisionTaskResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用结算内部接口，为已入账批次提交冲正申请。
+     */
     @Override
     public ReversalCommandResponse submitReversal(InternalReversalSubmitRequest request) {
         return post(REVERSALS, request,
                 new TypeReference<CommonResult<ReversalCommandResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用结算内部接口，复核指定结算冲正申请。
+     */
     @Override
     public ReversalCommandResponse decideReversal(String reversalOrderNo,
                                                   InternalReversalDecisionRequest request) {
@@ -206,11 +221,16 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
         return exchange(URI.create(baseUrl() + path), HttpMethod.POST, request, type);
     }
 
+    /**
+     * 调用结算内部查询接口并解包响应。
+     */
     private <T> T get(String path, TypeReference<CommonResult<T>> type) {
         return exchange(URI.create(baseUrl() + path), HttpMethod.GET, null, type);
     }
 
-    /** 对内部请求签名并统一解包 CommonResult，远端异常不向浏览器暴露服务内部正文。 */
+    /**
+     * 对内部请求签名并统一解包 CommonResult，远端异常不向浏览器暴露服务内部正文。
+     */
     private <T> T exchange(URI uri, HttpMethod method, Object request,
                            TypeReference<CommonResult<T>> type) {
         try {
@@ -227,18 +247,18 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
             return result.getData();
         } catch (HttpStatusCodeException exception) {
             if (exception.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
-                log.warn("service-settlement internal authentication rejected, path: {}, status: {}",
-                        uri.getPath(), exception.getStatusCode().value());
+                log.warn("结算内部接口鉴权被拒绝, event: ADMIN_SETTLEMENT_INTERNAL_AUTH_REJECTED, method: {}, path: {}, status: {}",
+                        method.name(), uri.getPath(), exception.getStatusCode().value());
                 throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                         "service-settlement internal authentication failed");
             }
-            log.warn("service-settlement management call rejected, path: {}, status: {}",
-                    uri.getPath(), exception.getStatusCode().value());
+            log.warn("结算内部接口请求被拒绝, event: ADMIN_SETTLEMENT_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}",
+                    method.name(), uri.getPath(), exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-settlement management call rejected");
         } catch (RestClientException exception) {
-            log.warn("service-settlement management call failed, path: {}, exceptionType: {}",
-                    uri.getPath(), exception.getClass().getSimpleName());
+            log.warn("结算内部接口调用失败, event: ADMIN_SETTLEMENT_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
+                    method.name(), uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-settlement management call failed");
         }
@@ -271,6 +291,9 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
         return new HttpEntity<>(body, headers);
     }
 
+    /**
+     * 根据内部服务地址选择直连或负载均衡客户端。
+     */
     private RestTemplate choose(URI uri) {
         String host = uri.getHost();
         if (host == null) {
@@ -281,6 +304,9 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                 || IPV4.matcher(host).matches() || host.contains(".") ? direct : loadBalanced;
     }
 
+    /**
+     * 解析内部服务调用的基础地址。
+     */
     private String baseUrl() {
         String value = properties.getBaseUrl();
         if (value == null || value.isBlank()) {

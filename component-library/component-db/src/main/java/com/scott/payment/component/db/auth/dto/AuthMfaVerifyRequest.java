@@ -7,13 +7,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthMfaVerifyRequest
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : OTP 登录验证请求，位于 component-db 认证 DTO 层；使用短期登录票据和动态验证码换取真实登录会话。
- * @status : create
+ * OTP 登录验证请求，位于 component-db 认证 DTO 层；使用短期登录票据和动态验证码换取真实登录会话。
  */
 @Data
 public class AuthMfaVerifyRequest implements Serializable {

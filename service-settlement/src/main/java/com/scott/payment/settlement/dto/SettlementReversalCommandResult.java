@@ -3,13 +3,7 @@ package com.scott.payment.settlement.dto;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalCommandResult
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 返回冲正申请或复核后的稳定身份、原/反向批次关联及冻结净额；净额单位由 currency 的 ISO exponent 决定。
- * @status : create
+ * 返回冲正申请或复核后的稳定身份、原/反向批次关联及冻结净额；净额单位由 currency 的 ISO exponent 决定。
  * @param reversalOrderNo 冲正申请单号
  * @param reversalStatus 冲正当前或终态状态
  * @param originalBatchNo 被冲正原正式批次号

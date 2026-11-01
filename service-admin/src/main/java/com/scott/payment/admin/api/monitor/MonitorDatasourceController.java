@@ -18,22 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorDatasourceController
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 管理端数据源监控 HTTP 入口，负责权限、导出协议和统一响应，运行快照与指标采集分别委托应用服务和采样器。
- * @status : create
+ * 管理端数据源监控 HTTP 入口，负责权限、导出协议和统一响应，运行快照与指标采集分别委托应用服务和采样器。
  */
 @RestController
 @RequestMapping("/admin/monitor/datasource")
 public class MonitorDatasourceController {
 
-    /** 数据源运行快照和导出应用服务。 */
+    /**
+     * 数据源运行快照和导出应用服务。
+     */
     private final AdminMonitorDatasourceApplicationService adminMonitorDatasourceApplicationService;
 
-    /** Hikari 连接池和 MySQL performance_schema 指标采样器。 */
+    /**
+     * Hikari 连接池和 MySQL performance_schema 指标采样器。
+     */
     private final AdminDatasourceMonitorSampler datasourceMonitorSampler;
 
     /**

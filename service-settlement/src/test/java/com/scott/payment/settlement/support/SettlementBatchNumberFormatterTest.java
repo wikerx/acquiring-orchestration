@@ -8,13 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchNumberFormatterTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证结算批次存储号和页面展示号使用同一业务日期及八位数据库序号。
- * @status : create
+ * 验证结算批次存储号和页面展示号使用同一业务日期及八位数据库序号。
  */
 class SettlementBatchNumberFormatterTest {
 
