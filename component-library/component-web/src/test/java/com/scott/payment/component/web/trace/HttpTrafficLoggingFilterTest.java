@@ -21,13 +21,7 @@ import java.io.IOException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HttpTrafficLoggingFilterTest
- * @date : 2026-07-26 16:50
- * @email : scott_x@163.com
- * @description : HTTP 请求响应摘要日志过滤器测试，验证通用链路日志可见且不会泄露 OpenAPI 密文、认证头、卡号或安全码。
- * @status : create
+ * HTTP 请求响应摘要日志过滤器测试，验证通用链路日志可见且不会泄露 OpenAPI 密文、认证头、卡号或安全码。
  */
 class HttpTrafficLoggingFilterTest {
 

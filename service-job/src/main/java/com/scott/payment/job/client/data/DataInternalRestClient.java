@@ -26,40 +26,50 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataInternalRestClient
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 内部补偿 REST 客户端，负责服务发现选择、HMAC-SHA256 签名和 CommonResult 解包
- * @status : create
+ * service-data 内部补偿 REST 客户端，负责服务发现选择、HMAC-SHA256 签名和 CommonResult 解包
  */
 @Slf4j
 @Service
 public class DataInternalRestClient implements DataInternalClient {
 
-    /** IPv4 主机识别规则，用于选择直连客户端。 */
+    /**
+     * IPv4 主机识别规则，用于选择直连客户端。
+     */
     private static final Pattern IPV4_HOST_PATTERN = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
 
-    /** service-data 服务发现地址。 */
+    /**
+     * service-data 服务发现地址。
+     */
     private static final String SERVICE_DATA_BASE_URL = "http://service-data";
 
-    /** 商户通知到期补偿内部接口路径。 */
+    /**
+     * 商户通知到期补偿内部接口路径。
+     */
     private static final String NOTIFY_DUE_PATH = "/internal/data/merchant-notifications/notify-due";
 
-    /** 单笔商户通知精确补偿内部接口路径。 */
+    /**
+     * 单笔商户通知精确补偿内部接口路径。
+     */
     private static final String NOTIFY_TRANSACTION_PATH = "/internal/data/merchant-notifications/notify-transaction";
 
-    /** 商户通知 MQ 对账内部接口路径。 */
+    /**
+     * 商户通知 MQ 对账内部接口路径。
+     */
     private static final String RECONCILE_DUE_PATH = "/internal/data/merchant-notifications/reconcile-due";
 
-    /** 直连 HTTP 客户端。 */
+    /**
+     * 直连 HTTP 客户端。
+     */
     private final RestTemplate directRestTemplate;
 
-    /** Nacos 服务发现 HTTP 客户端。 */
+    /**
+     * Nacos 服务发现 HTTP 客户端。
+     */
     private final RestTemplate loadBalancedRestTemplate;
 
-    /** 内部调用签名配置。 */
+    /**
+     * 内部调用签名配置。
+     */
     private final DataInternalClientProperties properties;
 
     /**
@@ -79,7 +89,10 @@ public class DataInternalRestClient implements DataInternalClient {
     }
 
     /**
-     * {@inheritDoc}
+     * 调用 service-data 触发指定交易时间分表中的到期商户通知补偿。
+     *
+     * @param requestDTO 商户通知补偿范围和批次上限
+     * @return 可靠写入通知队列的事件数量
      */
     @Override
     public Integer notifyDueMerchantNotifications(DataMerchantNotificationNotifyDueClientRequestDTO requestDTO) {
@@ -87,21 +100,33 @@ public class DataInternalRestClient implements DataInternalClient {
         });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用 service-data 对账到期通知记录和可靠消息，补齐遗漏的投递事件。
+     *
+     * @param requestDTO 全量或季度范围的对账请求
+     * @return 本次可靠入队的事件数量
+     */
     @Override
     public Integer reconcileDueMerchantNotifications(DataMerchantNotificationReconcileClientRequestDTO requestDTO) {
         return post(RECONCILE_DUE_PATH, requestDTO, new TypeReference<CommonResult<Integer>>() {
         });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用 service-data 精确重试一笔商户通知，交易分片时间由任务显式传递。
+     *
+     * @param requestDTO 单笔通知身份和交易分片时间
+     * @return 已可靠接受补偿命令时返回 {@code true}
+     */
     @Override
     public Boolean notifyMerchantNotification(DataMerchantNotificationNotifyClientRequestDTO requestDTO) {
         return post(NOTIFY_TRANSACTION_PATH, requestDTO, new TypeReference<CommonResult<Boolean>>() {
         });
     }
 
-    /** 执行带内部签名的 service-data POST 并统一解包。 */
+    /**
+     * 执行带内部签名的 service-data POST 并统一解包。
+     */
     private <T> T post(String path, Object requestDTO, TypeReference<CommonResult<T>> responseType) {
         URI uri = URI.create(SERVICE_DATA_BASE_URL + path);
         try {

@@ -28,18 +28,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminChannelMatchAbnormalQueryServiceTests
- * @date : 2026-08-08 00:50
- * @email : scott_x@163.com
- * @description : 管理端勾兑异常本地查询测试，验证案件逻辑表筛选、统计口径和 ShardingSphere 普通读路由。
- * @status : create
+ * 管理端勾兑异常本地查询测试，验证案件逻辑表筛选、统计口径和 ShardingSphere 普通读路由。
  */
 @Slf4j
 class JdbcAdminChannelMatchAbnormalQueryServiceTests {
 
-    /** 案件分页和统计必须使用 transaction_abnormal_event 逻辑表及普通读作用域。 */
+    /**
+     * 案件分页和统计必须使用 transaction_abnormal_event 逻辑表及普通读作用域。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void searchShouldUseLogicalTableAndReplicaEligibleReadScope() throws Exception {
@@ -82,7 +78,9 @@ class JdbcAdminChannelMatchAbnormalQueryServiceTests {
         log.info("结果：案件分页和状态统计均在transaction普通读作用域执行");
     }
 
-    /** 非法出现次数必须在进入读作用域和访问数据库前失败。 */
+    /**
+     * 非法出现次数必须在进入读作用域和访问数据库前失败。
+     */
     @Test
     void searchShouldRejectInvalidOccurrenceCountBeforeDatabaseAccess() {
         log.info("用例：验证最小出现次数小于1时拒绝访问数据库");
@@ -104,7 +102,9 @@ class JdbcAdminChannelMatchAbnormalQueryServiceTests {
         log.info("结果：非法出现次数在数据库访问前被拒绝");
     }
 
-    /** 案件详情首查必须绑定案件号和毫秒级真实分片时间。 */
+    /**
+     * 案件详情首查必须绑定案件号和毫秒级真实分片时间。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldBindExactTransactionShardTime() {

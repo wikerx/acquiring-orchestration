@@ -43,13 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiDiagnosticExceptionAdvice
- * @date : 2026-07-26 17:35
- * @email : scott_x@163.com
- * @description : OpenAPI 异常诊断日志处理器，位于 service-openapi Web 支撑层，记录认证、解密、校验和下游调用失败时的请求响应摘要。
- * @status : create
+ * OpenAPI 异常诊断日志处理器，位于 service-openapi Web 支撑层，记录认证、解密、校验和下游调用失败时的请求响应摘要。
  */
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -61,7 +55,9 @@ public class OpenApiDiagnosticExceptionAdvice {
      */
     private final OpenApiDiagnosticLogSupport diagnosticLogSupport;
 
-    /** 非商户 OpenAPI 请求继续使用系统原有异常契约，避免浏览器、回调和内部接口被五位码迁移污染。 */
+    /**
+     * 非商户 OpenAPI 请求继续使用系统原有异常契约，避免浏览器、回调和内部接口被五位码迁移污染。
+     */
     private final GlobalExceptionHandler legacyExceptionHandler;
 
     /**
@@ -91,7 +87,9 @@ public class OpenApiDiagnosticExceptionAdvice {
         return handleBusinessException(exception, request);
     }
 
-    /** OpenAPI 限流响应返回 HTTP 429 和动态 Retry-After，响应体仍使用 V1.3 A4001。 */
+    /**
+     * OpenAPI 限流响应返回 HTTP 429 和动态 Retry-After，响应体仍使用 V1.3 A4001。
+     */
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<CommonResult<Void>> handleRateLimitExceeded(
             RateLimitExceededException exception, HttpServletRequest request) {
@@ -113,7 +111,9 @@ public class OpenApiDiagnosticExceptionAdvice {
         return handleBusinessException(exception, request);
     }
 
-    /** Bean Validation、类型转换和约束异常统一返回 A1001。 */
+    /**
+     * Bean Validation、类型转换和约束异常统一返回 A1001。
+     */
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class,
             ConstraintViolationException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<CommonResult<Void>> handleValidationException(
@@ -122,7 +122,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 OpenApiResultCode.PARAM_INVALID);
     }
 
-    /** 缺少查询参数或必要 Servlet 绑定值统一返回 A1002。 */
+    /**
+     * 缺少查询参数或必要 Servlet 绑定值统一返回 A1002。
+     */
     @ExceptionHandler({MissingServletRequestParameterException.class, ServletRequestBindingException.class})
     public ResponseEntity<CommonResult<Void>> handleMissingParameterException(
             Exception exception, HttpServletRequest request) {
@@ -130,7 +132,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 OpenApiResultCode.PARAM_MISSING);
     }
 
-    /** 外层 JSON 或 HTTP 请求结构无法解析时返回 A1005。 */
+    /**
+     * 外层 JSON 或 HTTP 请求结构无法解析时返回 A1005。
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<CommonResult<Void>> handleUnreadableRequest(
             HttpMessageNotReadableException exception, HttpServletRequest request) {
@@ -138,7 +142,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 OpenApiResultCode.BAD_REQUEST);
     }
 
-    /** HTTP 方法不受支持时返回 A1006，并保留当前版本既有 HTTP 状态。 */
+    /**
+     * HTTP 方法不受支持时返回 A1006，并保留当前版本既有 HTTP 状态。
+     */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<CommonResult<Void>> handleMethodNotAllowed(
             HttpRequestMethodNotSupportedException exception, HttpServletRequest request) {
@@ -146,7 +152,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 OpenApiResultCode.METHOD_NOT_ALLOWED);
     }
 
-    /** Content-Type 不受支持时返回 A1007，并保留当前版本既有 HTTP 状态。 */
+    /**
+     * Content-Type 不受支持时返回 A1007，并保留当前版本既有 HTTP 状态。
+     */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<CommonResult<Void>> handleUnsupportedMediaType(
             HttpMediaTypeNotSupportedException exception, HttpServletRequest request) {
@@ -154,7 +162,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 OpenApiResultCode.CONTENT_TYPE_NOT_SUPPORTED);
     }
 
-    /** 请求体超过服务端限制时返回 A1008，并保留当前版本既有 HTTP 状态。 */
+    /**
+     * 请求体超过服务端限制时返回 A1008，并保留当前版本既有 HTTP 状态。
+     */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<CommonResult<Void>> handleRequestTooLarge(
             MaxUploadSizeExceededException exception, HttpServletRequest request) {
@@ -162,7 +172,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 OpenApiResultCode.REQUEST_TOO_LARGE);
     }
 
-    /** OpenAPI 路由不存在时返回 A3002，并保留当前版本既有 HTTP 状态。 */
+    /**
+     * OpenAPI 路由不存在时返回 A3002，并保留当前版本既有 HTTP 状态。
+     */
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
     public ResponseEntity<CommonResult<Void>> handleNotFound(
             Exception exception, HttpServletRequest request) {
@@ -170,7 +182,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 OpenApiResultCode.API_NOT_FOUND);
     }
 
-    /** 未分类运行时异常在商户 OpenAPI 上失败关闭为 F2000，不暴露异常原文。 */
+    /**
+     * 未分类运行时异常在商户 OpenAPI 上失败关闭为 F2000，不暴露异常原文。
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<CommonResult<Void>> handleUnexpectedException(
             Exception exception, HttpServletRequest request) {
@@ -214,14 +228,18 @@ public class OpenApiDiagnosticExceptionAdvice {
         return ResponseEntity.ok(result);
     }
 
-    /** 记录异常响应的闭环诊断信息，公开响应已在调用方完成安全投影。 */
+    /**
+     * 记录异常响应的闭环诊断信息，公开响应已在调用方完成安全投影。
+     */
     private void recordFailure(Throwable exception,
                                HttpServletRequest request,
                                CommonResult<Void> result) {
         recordFailure(exception, request, result, null);
     }
 
-    /** 记录公开码和结构化来源证据，不记录异常原文、请求值或未过滤渠道报文。 */
+    /**
+     * 记录公开码和结构化来源证据，不记录异常原文、请求值或未过滤渠道报文。
+     */
     private void recordFailure(Throwable exception,
                                HttpServletRequest request,
                                CommonResult<Void> result,
@@ -230,7 +248,7 @@ public class OpenApiDiagnosticExceptionAdvice {
         request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
         String responseSummary = diagnosticLogSupport.responseEnvelopeSummary(result);
         request.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, responseSummary);
-        log.warn("OpenAPI请求异常终止, event: OPENAPI_REQUEST_ABORTED, stage: ERROR, traceId: {}, merchantId: {}, method: {}, path: {}, apiVersion: {}, interfaceType: {}, platformCode: {}, internalCode: {}, resultPhase: {}, resultOrigin: {}, requestSent: {}, outcomeUncertain: {}, resultEvidence: {}, exceptionType: {}, requestIp: {}, headerSummary: {}, cipherRequestSummary: {}, httpRequestDigest: {}, httpRequestLength: {}, httpRequestSummary: {}, plainRequestSummary: {}, plainResponseSummary: {}, durationMs: {}",
+        log.warn("OpenAPI请求异常终止, event: OPENAPI_REQUEST_ABORTED, stage: ERROR, traceId: {}, merchantId: {}, method: {}, path: {}, apiVersion: {}, interfaceType: {}, platformCode: {}, internalCode: {}, resultPhase: {}, resultOrigin: {}, requestSent: {}, outcomeUncertain: {}, resultEvidence: {}, exceptionType: {}, requestIpDigest: {}, headerSummary: {}, cipherRequestSummary: {}, httpRequestDigest: {}, httpRequestLength: {}, httpRequestSummary: {}, plainRequestSummary: {}, plainResponseSummary: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 merchantIdSafely(request),
                 request.getMethod(),
@@ -245,7 +263,7 @@ public class OpenApiDiagnosticExceptionAdvice {
                 projection == null ? null : projection.outcomeUncertain(),
                 projection == null ? null : projection.evidence(),
                 exception.getClass().getSimpleName(),
-                deniedRequestIp(exception),
+                diagnosticLogSupport.identifierDigest(deniedRequestIp(exception)),
                 diagnosticLogSupport.headerSummary(request),
                 request.getAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
@@ -256,7 +274,9 @@ public class OpenApiDiagnosticExceptionAdvice {
                 durationMs(request));
     }
 
-    /** 将 Spring MVC 框架异常按请求命名空间投影，新旧契约互不污染。 */
+    /**
+     * 将 Spring MVC 框架异常按请求命名空间投影，新旧契约互不污染。
+     */
     private ResponseEntity<CommonResult<Void>> handleFrameworkException(Exception exception,
                                                                         HttpServletRequest request,
                                                                         OpenApiResultCode openApiCode) {
@@ -307,7 +327,9 @@ public class OpenApiDiagnosticExceptionAdvice {
         return null;
     }
 
-    /** 只保留 Bean Validation 的属性节点，避免将控制器方法名等实现细节返回给商户。 */
+    /**
+     * 只保留 Bean Validation 的属性节点，避免将控制器方法名等实现细节返回给商户。
+     */
     private String constraintFieldPath(Path propertyPath) {
         if (propertyPath == null) {
             return null;
@@ -365,6 +387,12 @@ public class OpenApiDiagnosticExceptionAdvice {
         return null;
     }
 
+    /**
+     * 从白名单拒绝异常中读取规范化 IP，仅供诊断日志摘要计算。
+     *
+     * @param exception 当前请求异常
+     * @return 规范化 IP；非白名单异常时返回 {@code null}
+     */
     private String deniedRequestIp(Throwable exception) {
         if (exception instanceof MerchantIpWhitelistAccessDeniedException deniedException) {
             return deniedException.getRequestIp() == null ? "unknown" : deniedException.getRequestIp();

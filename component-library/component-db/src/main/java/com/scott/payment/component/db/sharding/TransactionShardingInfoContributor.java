@@ -9,20 +9,18 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingInfoContributor
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 在五个交易直连服务的 Actuator info 中暴露非敏感规则版本、checksum 前缀和固定 ShardingSphere 架构状态。
- * @status : create
+ * 在五个交易直连服务的 Actuator info 中暴露非敏感规则版本、checksum 前缀和固定 ShardingSphere 架构状态。
  */
 @Component
 public class TransactionShardingInfoContributor implements InfoContributor {
 
-    /** 当前实例绑定的版本化交易分片配置。 */
+    /**
+     * 当前实例绑定的版本化交易分片配置。
+     */
     private final TransactionShardingProperties properties;
-    /** 用于限定仅五个交易直连服务暴露治理信息。 */
+    /**
+     * 用于限定仅五个交易直连服务暴露治理信息。
+     */
     private final Environment environment;
 
     /**

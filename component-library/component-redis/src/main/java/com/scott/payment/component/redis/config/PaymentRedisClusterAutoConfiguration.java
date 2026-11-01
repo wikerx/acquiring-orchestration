@@ -27,13 +27,7 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisClusterAutoConfiguration
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 统一配置 Lettuce Master 读取策略和条件化 Redisson Cluster 客户端。
- * @status : create
+ * 统一配置 Lettuce Master 读取策略和条件化 Redisson Cluster 客户端。
  */
 @AutoConfiguration
 @ConditionalOnClass({RedissonClient.class, LettuceClientConfigurationBuilderCustomizer.class})

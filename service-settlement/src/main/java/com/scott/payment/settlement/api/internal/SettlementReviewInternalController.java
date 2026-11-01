@@ -36,13 +36,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewInternalController
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 仅供 service-admin 内部签名调用的人工结算预审命令入口；负责协议转换，不承载 Admin RBAC、数据范围或页面查询。
- * @status : create
+ * 仅供 service-admin 内部签名调用的人工结算预审命令入口；负责协议转换，不承载 Admin RBAC、数据范围或页面查询。
  */
 @RestController
 @RequestMapping("/internal/settlement/v1/reviews")
@@ -70,12 +64,22 @@ public class SettlementReviewInternalController {
         this.decisionTaskService = decisionTaskService;
     }
 
+    /**
+     * 规范化{@code previewManualTransaction}，返回调用链后续步骤可直接使用的业务值。
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 当前方法生成的 {@code CommonResult<ManualReviewTaskResponse>} 结果
+     */
     @PostMapping("/manual-transaction-tasks/preview")
     public CommonResult<ManualReviewTaskResponse> previewManualTransaction(
             @RequestBody ManualReviewPreviewRequest request) {
         return previewManual(request, "REGULAR");
     }
 
+    /**
+     * 规范化{@code previewManualReserve}，返回调用链后续步骤可直接使用的业务值。
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 当前方法生成的 {@code CommonResult<ManualReviewTaskResponse>} 结果
+     */
     @PostMapping("/manual-reserve-tasks/preview")
     public CommonResult<ManualReviewTaskResponse> previewManualReserve(
             @RequestBody ManualReviewPreviewRequest request) {
@@ -95,6 +99,13 @@ public class SettlementReviewInternalController {
         return success(manualResponse(result));
     }
 
+    /**
+     * 启动普通交易手动结算任务，并用预期版本阻止重复或并发启动。
+     *
+     * @param taskNo 待启动的手动结算任务号
+     * @param request 请求幂等键和调用方读取到的任务版本
+     * @return 启动后的任务进度
+     */
     @PostMapping("/manual-transaction-tasks/{taskNo}/start")
     public CommonResult<ManualReviewTaskResponse> startManualTransaction(
             @PathVariable("taskNo") String taskNo,
@@ -106,12 +117,25 @@ public class SettlementReviewInternalController {
                 new StartCommand(request.getRequestKey(), request.getExpectedVersion()), "REGULAR")));
     }
 
+    /**
+     * 查询普通交易手动结算任务的当前进度。
+     *
+     * @param taskNo 手动结算任务号
+     * @return 普通交易任务快照
+     */
     @GetMapping("/manual-transaction-tasks/{taskNo}")
     public CommonResult<ManualReviewTaskResponse> manualTransactionTask(
             @PathVariable("taskNo") String taskNo) {
         return success(manualResponse(manualReviews().get(taskNo, "REGULAR")));
     }
 
+    /**
+     * 启动保证金释放手动结算任务，并用预期版本阻止重复或并发启动。
+     *
+     * @param taskNo 待启动的保证金释放任务号
+     * @param request 请求幂等键和调用方读取到的任务版本
+     * @return 启动后的任务进度
+     */
     @PostMapping("/manual-reserve-tasks/{taskNo}/start")
     public CommonResult<ManualReviewTaskResponse> startManualReserve(
             @PathVariable("taskNo") String taskNo,
@@ -124,6 +148,12 @@ public class SettlementReviewInternalController {
                 "RESERVE_RELEASE")));
     }
 
+    /**
+     * 查询保证金释放手动结算任务的当前进度。
+     *
+     * @param taskNo 保证金释放任务号
+     * @return 保证金释放任务快照
+     */
     @GetMapping("/manual-reserve-tasks/{taskNo}")
     public CommonResult<ManualReviewTaskResponse> manualReserveTask(
             @PathVariable("taskNo") String taskNo) {
@@ -178,7 +208,9 @@ public class SettlementReviewInternalController {
         return success(response(result));
     }
 
-    /** 大批量手动预审单使用后台分段决策，接口立即返回可恢复任务。 */
+    /**
+     * 大批量手动预审单使用后台分段决策，接口立即返回可恢复任务。
+     */
     @PostMapping("/{reviewOrderNo}/decision-tasks")
     public CommonResult<ReviewDecisionTaskResponse> submitDecisionTask(
             @PathVariable("reviewOrderNo") String reviewOrderNo,
@@ -193,12 +225,25 @@ public class SettlementReviewInternalController {
                                 request.getClientIp(), request.getUserAgent(), request.getOperationTime())))));
     }
 
+    /**
+     * 查询大批量复核决策任务的当前进度和批次产出。
+     *
+     * @param taskNo 后台复核决策任务号
+     * @return 决策任务快照
+     */
     @GetMapping("/decision-tasks/{taskNo}")
     public CommonResult<ReviewDecisionTaskResponse> decisionTask(
             @PathVariable("taskNo") String taskNo) {
         return success(decisionResponse(decisionTasks().get(taskNo)));
     }
 
+    /**
+     * 恢复失败或超时的复核决策任务，复用原决策事实并从已持久化进度继续执行。
+     *
+     * @param taskNo 待恢复的后台复核决策任务号
+     * @param request 预期版本、恢复幂等键、原因和可信操作人审计信息
+     * @return 恢复后或幂等命中的决策任务快照
+     */
     @PostMapping("/decision-tasks/{taskNo}/resume")
     public CommonResult<ReviewDecisionTaskResponse> resumeDecisionTask(
             @PathVariable("taskNo") String taskNo,

@@ -28,13 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MccOptionCacheReader
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 公共 MCC 选项常驻缓存读取器，缓存缺失时从主库重建三级级联快照
- * @status : create
+ * 公共 MCC 选项常驻缓存读取器，缓存缺失时从主库重建三级级联快照
  */
 @Slf4j
 @Service
@@ -97,25 +91,39 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
      */
     private static final String LEVEL2_VALUE_PREFIX = "L2:";
 
-    /** MCC 一级分类只读 Mapper。 */
+    /**
+     * MCC 一级分类只读 Mapper。
+     */
     private final SharedMccLevel1Mapper level1Mapper;
 
-    /** MCC 二级分类只读 Mapper。 */
+    /**
+     * MCC 二级分类只读 Mapper。
+     */
     private final SharedMccLevel2Mapper level2Mapper;
 
-    /** MCC 编码只读 Mapper。 */
+    /**
+     * MCC 编码只读 Mapper。
+     */
     private final SharedMccCodeMapper codeMapper;
 
-    /** Redis 字符串模板；未启用 Redis 时允许为空并直接查询数据库。 */
+    /**
+     * Redis 字符串模板；未启用 Redis 时允许为空并直接查询数据库。
+     */
     private final StringRedisTemplate redisTemplate;
 
-    /** 统一 Redis 物理键解析器。 */
+    /**
+     * 统一 Redis 物理键解析器。
+     */
     private final PaymentRedisKeyResolver keyResolver;
 
-    /** 常驻缓存失效门禁。 */
+    /**
+     * 常驻缓存失效门禁。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
-    /** 事务提交后可靠失效协调器。 */
+    /**
+     * 事务提交后可靠失效协调器。
+     */
     private final ManagedCacheInvalidationCoordinator invalidationCoordinator;
 
     /**
@@ -184,7 +192,9 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         }
     }
 
-    /** 从 Redis 读取 MCC 树，异常时按缓存未命中处理。 */
+    /**
+     * 从 Redis 读取 MCC 树，异常时按缓存未命中处理。
+     */
     private List<MccOptionSnapshot> readCache(String cacheKey) {
         if (redisTemplate == null || !StringUtils.hasText(cacheKey)) {
             return List.of();
@@ -202,7 +212,9 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         }
     }
 
-    /** 将数据库权威快照写入无物理 TTL 的公共缓存。 */
+    /**
+     * 将数据库权威快照写入无物理 TTL 的公共缓存。
+     */
     private void writeCache(String cacheKey, List<MccOptionSnapshot> options) {
         if (redisTemplate == null || !StringUtils.hasText(cacheKey)) {
             return;
@@ -215,7 +227,9 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         }
     }
 
-    /** 缓存变更门禁处于 pending 时禁止读取和回填旧快照。 */
+    /**
+     * 缓存变更门禁处于 pending 时禁止读取和回填旧快照。
+     */
     private boolean isCacheAllowed() {
         if (invalidationGuard == null) {
             return true;
@@ -228,14 +242,18 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         }
     }
 
-    /** 生成 acquiring:{environment}:mcc:options:all 物理键。 */
+    /**
+     * 生成 acquiring:{environment}:mcc:options:all 物理键。
+     */
     private String cacheKey() {
         return keyResolver == null
                 ? null
                 : keyResolver.businessKey(CACHE_DOMAIN, CACHE_BUSINESS, CACHE_BUSINESS_KEY);
     }
 
-    /** 从主库加载启用记录并组装三级级联树。 */
+    /**
+     * 从主库加载启用记录并组装三级级联树。
+     */
     private List<MccOptionSnapshot> loadFromDatabase() {
         List<SharedMccLevel1DO> level1Rows = level1Mapper.selectList(
                 Wrappers.<SharedMccLevel1DO>lambdaQuery()
@@ -278,7 +296,9 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         return new ArrayList<>(level1Options.values());
     }
 
-    /** 创建一个 MCC 级联节点。 */
+    /**
+     * 创建一个 MCC 级联节点。
+     */
     private MccOptionSnapshot option(String value, String code, String nameCn, String nameEn) {
         MccOptionSnapshot option = new MccOptionSnapshot();
         option.setValue(value);
@@ -288,7 +308,9 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         return option;
     }
 
-    /** 创建兼容旧调用方的代码及中英文展示文本。 */
+    /**
+     * 创建兼容旧调用方的代码及中英文展示文本。
+     */
     private String label(String code, String nameCn, String nameEn) {
         StringBuilder value = new StringBuilder(code == null ? "" : code);
         if (StringUtils.hasText(nameCn)) {

@@ -3,13 +3,7 @@ package com.scott.payment.openapi.enums;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPaymentOperationEnum
- * @date : 2026-07-14 12:30
- * @email : scott_x@163.com
- * @description : openAPI支付动作枚举，位于 商户开放接口服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 商户支付动作与支付核心内部路由的固定映射。
  */
 @Getter
 public enum OpenApiPaymentOperationEnum {
@@ -69,6 +63,12 @@ public enum OpenApiPaymentOperationEnum {
      */
     private final String internalPath;
 
+    /**
+     * 绑定平台交易类型和支付核心内部路径。
+     *
+     * @param transactionType 平台交易类型编码
+     * @param internalPath 支付核心内部接口路径
+     */
     OpenApiPaymentOperationEnum(String transactionType, String internalPath) {
         this.transactionType = transactionType;
         this.internalPath = internalPath;

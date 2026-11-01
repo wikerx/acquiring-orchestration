@@ -11,13 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionOrderMapper
- * @date : 2026-07-14 17:40
- * @email : scott_x@163.com
- * @description : 交易生命周期主单 Mapper，位于 service-payment 数据访问层，仅访问 transaction_order 逻辑表并显式携带交易分片时间。
- * @status : create
+ * 交易生命周期主单 Mapper，位于 service-payment 数据访问层，仅访问 transaction_order 逻辑表并显式携带交易分片时间。
  */
 public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
 

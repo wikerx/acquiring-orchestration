@@ -43,23 +43,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTierPeriodReplayService
- * @date : 2026-08-26 19:45
- * @email : scott_x@163.com
- * @description : 编排阶梯期间重放申请、不可变费用版本闭包和逐项短事务；远程缓存或主从读取始终发生在资金事务外。
- * @status : create
+ * 编排阶梯期间重放申请、不可变费用版本闭包和逐项短事务；远程缓存或主从读取始终发生在资金事务外。
  */
 @Service
 public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
 
     /**
-     * {@code PERIOD_FORMATTER}常量，统一 {@code DefaultTierPeriodReplayService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 阶梯累计期间键使用的固定六位年份月份格式。
      */
     private static final DateTimeFormatter PERIOD_FORMATTER = DateTimeFormatter.ofPattern("uuuuMM");
 
@@ -72,6 +62,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
     private final ClearingCompletionService completionService;
     private final ClearingOperationalMetrics metrics;
 
+    /**
+     * 创建阶梯期间重放服务，并注入控制表、权威事实、快照、重算与指标依赖。
+     */
     public DefaultTierPeriodReplayService(ClearingTierPeriodReplayMapper replayMapper,
                                           TierPeriodReplayTransactionService transactionService,
                                           ClearingTransactionOperationMapper operationMapper,
@@ -90,7 +83,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         this.metrics = metrics;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 创建阶梯期间重放申请，并冻结期间、商户和请求幂等身份。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -106,7 +101,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return result(persisted);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按复核决定批准或拒绝重放申请，批准时解析受影响规则集合。
+     */
     @Override
     public ReplayResult review(ReviewCommand command) {
         validateReview(command);
@@ -134,7 +131,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return result;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按稳定顺序推进到期重放任务，单轮处理数量受调用上限约束。
+     */
     @Override
     public int runDue(int limit, Instant nowInstant) {
         if (limit < 1 || limit > 100 || nowInstant == null) {
@@ -169,6 +168,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return completed;
     }
 
+    /**
+     * 使用冻结费用版本重算一个已领取项目，成功提交后由事务服务推进重放游标。
+     */
     private void processItem(ClearingTierPeriodReplayDO replay,
                              ClearingTierPeriodReplayItemDO item,
                              LocalDateTime now) {
@@ -191,7 +193,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
                 item.getExpectedFinanceStateVersion(), item.getExpectedClearingRevision(), now);
     }
 
-    /** 执行前确认动作仍与冻结修订、版本、完成时间和未结算门禁一致。 */
+    /**
+     * 执行前确认动作仍与冻结修订、版本、完成时间和未结算门禁一致。
+     */
     private void validateItemFacts(ClearingTierPeriodReplayDO replay,
                                    ClearingTierPeriodReplayItemDO item,
                                    ClearingTransactionOperationDO operation,
@@ -207,7 +211,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         }
     }
 
-    /** 为单项重放构造确定性内部触发消息，不生成新的支付交易或终态。 */
+    /**
+     * 为单项重放构造确定性内部触发消息，不生成新的支付交易或终态。
+     */
     private PaymentTransactionEventMessage replayMessage(ClearingTierPeriodReplayDO replay,
                                                           ClearingTierPeriodReplayItemDO item,
                                                           ClearingTransactionOperationDO operation,
@@ -227,6 +233,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return message;
     }
 
+    /**
+     * 将数据库动作记录转换为期间重放使用的不可变权威事实。
+     */
     private ClearingOperationFacts toFacts(ClearingTransactionOperationDO row) {
         return new ClearingOperationFacts(row.getTransactionId(), row.getOperationId(),
                 row.getSourceTransactionId(), row.getMerchantId(), row.getMerchantOrderNo(),
@@ -237,7 +246,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
                 row.getVersion());
     }
 
-    /** 固化商户、不可变费用版本和月度半开窗口的重放控制行。 */
+    /**
+     * 固化商户、不可变费用版本和月度半开窗口的重放控制行。
+     */
     private ClearingTierPeriodReplayDO replayRow(SubmitCommand command,
                                                   YearMonth period,
                                                   LocalDateTime now) {
@@ -262,7 +273,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return row;
     }
 
-    /** 幂等请求键冲突后核对全部范围和提交审计，禁止扩大重放范围。 */
+    /**
+     * 幂等请求键冲突后核对全部范围和提交审计，禁止扩大重放范围。
+     */
     private void validateDuplicate(ClearingTierPeriodReplayDO actual,
                                    ClearingTierPeriodReplayDO expected) {
         if (actual == null || !Objects.equals(actual.getReplayNo(), expected.getReplayNo())
@@ -276,16 +289,24 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         }
     }
 
+    /**
+     * 将期间重放控制行转换为提交、复核和查询共用的幂等结果。
+     */
     private ReplayResult result(ClearingTierPeriodReplayDO row) {
         return new ReplayResult(row.getReplayNo(), row.getReplayStatus(), value(row.getItemCount()),
                 value(row.getCompletedCount()), row.getVersion() == null ? 0L : row.getVersion());
     }
 
+    /**
+     * 将尚未初始化的项目或完成计数转换为零。
+     */
     private int value(Integer value) {
         return value == null ? 0 : value;
     }
 
-    /** 提交只接受明确商户、不可变版本、阶梯规则和 yyyy-MM 期间。 */
+    /**
+     * 提交只接受明确商户、不可变版本、阶梯规则和 yyyy-MM 期间。
+     */
     private void validateSubmit(SubmitCommand command) {
         if (command == null || !validText(command.requestKey(), 128)
                 || !validText(command.merchantId(), 64) || command.feePlanId() < 1
@@ -297,7 +318,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         parsePeriod(command.periodKey());
     }
 
-    /** 复核命令要求申请版本、固定决定、可信复核人和审计时点。 */
+    /**
+     * 复核命令要求申请版本、固定决定、可信复核人和审计时点。
+     */
     private void validateReview(ReviewCommand command) {
         if (command == null || !validText(command.replayNo(), 64)
                 || command.expectedRequestVersion() < 0 || command.decision() == null
@@ -307,6 +330,9 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         }
     }
 
+    /**
+     * 将 yyyyMM 期间键解析为自然月，非法期间必须在创建控制行前拒绝。
+     */
     private YearMonth parsePeriod(String value) {
         try {
             return YearMonth.parse(value == null ? "" : value.trim(), PERIOD_FORMATTER);
@@ -315,14 +341,18 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         }
     }
 
+    /**
+     * 判断审计或身份文本是否非空且位于持久化长度限制内。
+     */
     private boolean validText(String value, int maxLength) {
         return StringUtils.hasText(value) && value.trim().length() <= maxLength;
     }
 
     /**
      * 根据稳定业务身份生成可重复计算的幂等标识。
-     * @param requestKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 当前方法生成或规范化后的文本值
+     *
+     * @param requestKey 调用方提供的期间重放幂等请求键
+     * @return 固定前缀加请求键 SHA-256 摘要前缀组成的重放编号
      */
     private String stableId(String requestKey) {
         try {

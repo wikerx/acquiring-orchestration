@@ -13,13 +13,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutSessionCreateRequestDTOTests
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : Hosted Checkout 会话创建请求回调和跳转 URL 格式校验测试。
- * @status : create
+ * Hosted Checkout 会话创建请求回调和跳转 URL 格式校验测试。
  */
 class HostedCheckoutSessionCreateRequestDTOTests {
 

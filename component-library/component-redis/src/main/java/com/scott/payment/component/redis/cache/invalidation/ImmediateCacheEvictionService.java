@@ -11,13 +11,7 @@ import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ImmediateCacheEvictionService
- * @date : 2026-07-30 21:35
- * @email : scott_x@163.com
- * @description : 安全缓存立即精确失效服务，由 Redis Cache 自动配置统一注册；绕过事务感知缓存装饰器，并在商户资料场景协同删除正缓存和独立 miss marker
- * @status : create
+ * 安全缓存立即精确失效服务，由 Redis Cache 自动配置统一注册；绕过事务感知缓存装饰器，并在商户资料场景协同删除正缓存和独立 miss marker
  */
 public class ImmediateCacheEvictionService implements CacheEvictionExecutor {
 

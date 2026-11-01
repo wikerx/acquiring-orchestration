@@ -9,13 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionAuthenticationInfoMapper
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 交易认证审计 Mapper。认证流程按 authentication_info_id 实现阶段级数据库幂等。
- * @status : create
+ * 交易认证审计 Mapper。认证流程按 authentication_info_id 实现阶段级数据库幂等。
  */
 public interface TransactionAuthenticationInfoMapper extends BaseMapper<TransactionAuthenticationInfoDO> {
 
@@ -85,7 +79,9 @@ public interface TransactionAuthenticationInfoMapper extends BaseMapper<Transact
             """)
     int upsertPhase(@Param("row") TransactionAuthenticationInfoDO row);
 
-    /** 按阶段幂等 ID 和精确分片时间查询认证摘要。 */
+    /**
+     * 按阶段幂等 ID 和精确分片时间查询认证摘要。
+     */
     @Select("""
             SELECT *
             FROM transaction_authentication_info
@@ -97,7 +93,9 @@ public interface TransactionAuthenticationInfoMapper extends BaseMapper<Transact
             @Param("authenticationInfoId") String authenticationInfoId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
-    /** 按平台交易号和真实分片时间读取最后一条 3DS 安全结果。 */
+    /**
+     * 按平台交易号和真实分片时间读取最后一条 3DS 安全结果。
+     */
     @Select("""
             SELECT *
             FROM transaction_authentication_info

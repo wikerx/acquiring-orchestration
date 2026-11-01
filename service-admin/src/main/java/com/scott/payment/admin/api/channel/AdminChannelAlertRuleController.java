@@ -30,13 +30,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelAlertRuleController
- * @date : 2026-07-17 00:00
- * @email : scott_x@163.com
- * @description : 渠道预警规则管理接口，位于 service-admin 接口层，仅提供后台规则配置能力。
- * @status : create
+ * 渠道预警规则管理接口，位于 service-admin 接口层，仅提供后台规则配置能力。
  */
 @RestController
 @RequestMapping("/admin/channel/alert-rules")

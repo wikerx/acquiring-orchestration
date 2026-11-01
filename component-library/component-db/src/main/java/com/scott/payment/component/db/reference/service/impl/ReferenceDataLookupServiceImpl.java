@@ -27,13 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReferenceDataLookupServiceImpl
- * @date : 2026-08-11 15:35
- * @email : scott_x@163.com
- * @description : 基础数据公共只读检索；IP 与 BIN 查询均走从库，并保护 IP 动态分表边界。
- * @status : create
+ * 基础数据公共只读检索；IP 与 BIN 查询均走从库，并保护 IP 动态分表边界。
  */
 @Service
 public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupService {
@@ -75,13 +69,19 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
             .flatMap(suffix -> List.of("ip_library_v4_data_" + suffix, "ip_library_v6_data_" + suffix).stream())
             .collect(Collectors.toUnmodifiableSet());
 
-    /** IP 分片及归属数据只读 Mapper，不允许为空。 */
+    /**
+     * IP 分片及归属数据只读 Mapper，不允许为空。
+     */
     private final IpLocationLookupMapper ipLocationLookupMapper;
 
-    /** 卡 BIN 最优匹配只读 Mapper，不允许为空。 */
+    /**
+     * 卡 BIN 最优匹配只读 Mapper，不允许为空。
+     */
     private final CardBinLookupMapper cardBinLookupMapper;
 
-    /** IP 分片本地不可变路由快照，避免每个冷 IP 先查询一次路由表。 */
+    /**
+     * IP 分片本地不可变路由快照，避免每个冷 IP 先查询一次路由表。
+     */
     private final IpShardRoutingSnapshot ipShardRoutingSnapshot;
 
     /**

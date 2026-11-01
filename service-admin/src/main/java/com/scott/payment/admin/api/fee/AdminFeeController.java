@@ -33,13 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFeeController
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 管理端费用配置接口，只接收参数、校验权限并委托应用服务。
- * @status : create
+ * 管理端费用配置接口，只接收参数、校验权限并委托应用服务。
  */
 @RestController
 @RequestMapping("/admin/fees")
@@ -47,12 +41,16 @@ public class AdminFeeController {
 
     private final AdminFeeApplicationService applicationService;
 
-    /** 构造费用配置接口。 */
+    /**
+     * 构造费用配置接口。
+     */
     public AdminFeeController(AdminFeeApplicationService applicationService) {
         this.applicationService = applicationService;
     }
 
-    /** 分页查询费用模板。 */
+    /**
+     * 分页查询费用模板。
+     */
     @PostMapping("/templates/search")
     @RequiresPermission("fee:template:list")
     public CommonResult<PageResult<FeePlanSummaryResponse>> pageTemplates(
@@ -60,7 +58,9 @@ public class AdminFeeController {
         return success(applicationService.pageTemplates(query));
     }
 
-    /** 按筛选条件导出费用模板。 */
+    /**
+     * 按筛选条件导出费用模板。
+     */
     @PostMapping("/templates/export")
     @RequiresPermission("fee:template:export")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.EXPORT, operation = "导出费用模板")
@@ -68,14 +68,18 @@ public class AdminFeeController {
         applicationService.exportTemplates(query, response);
     }
 
-    /** 查询模板详情和版本历史。 */
+    /**
+     * 查询模板详情和版本历史。
+     */
     @GetMapping("/templates/{id}")
     @RequiresPermission("fee:template:detail")
     public CommonResult<FeePlanDetailResponse> getTemplate(@PathVariable("id") Long id) {
         return success(applicationService.getTemplate(id));
     }
 
-    /** 新建费用模板并保存 v1 草稿。 */
+    /**
+     * 新建费用模板并保存 v1 草稿。
+     */
     @PostMapping("/templates")
     @RequiresPermission("fee:template:add")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.CREATE, operation = "新建费用模板草稿")
@@ -84,7 +88,9 @@ public class AdminFeeController {
         return success(applicationService.createTemplate(request));
     }
 
-    /** 基于当前配置创建模板新版本草稿。 */
+    /**
+     * 基于当前配置创建模板新版本草稿。
+     */
     @PostMapping("/templates/{id}/versions")
     @RequiresPermission("fee:template:edit")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "创建费用模板草稿")
@@ -94,7 +100,9 @@ public class AdminFeeController {
         return success(applicationService.createTemplateVersion(id, request));
     }
 
-    /** 原地更新尚未提交审核的模板草稿。 */
+    /**
+     * 原地更新尚未提交审核的模板草稿。
+     */
     @PutMapping("/templates/{planId}/versions/{versionId}")
     @RequiresPermission("fee:template:edit")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "编辑费用模板草稿")
@@ -105,7 +113,9 @@ public class AdminFeeController {
         return success(applicationService.updateTemplateDraft(planId, versionId, request));
     }
 
-    /** 提交模板草稿，提交后进入双人审核且不可继续编辑。 */
+    /**
+     * 提交模板草稿，提交后进入双人审核且不可继续编辑。
+     */
     @PutMapping("/versions/{id}/submit")
     @RequiresPermission("fee:template:submit")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "提交费用模板审核")
@@ -113,7 +123,9 @@ public class AdminFeeController {
         return success(applicationService.submitTemplateVersion(id));
     }
 
-    /** 原提交人撤回待审核模板并恢复为草稿。 */
+    /**
+     * 原提交人撤回待审核模板并恢复为草稿。
+     */
     @PutMapping("/versions/{id}/withdraw")
     @RequiresPermission("fee:template:withdraw")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "撤回费用模板审核")
@@ -121,7 +133,9 @@ public class AdminFeeController {
         return success(applicationService.withdrawTemplateVersion(id));
     }
 
-    /** 启用或禁用模板，只影响后续商户选择。 */
+    /**
+     * 启用或禁用模板，只影响后续商户选择。
+     */
     @PutMapping("/templates/{id}/status")
     @RequiresPermission("fee:template:status")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "更新费用模板状态")
@@ -132,7 +146,9 @@ public class AdminFeeController {
         return success(null);
     }
 
-    /** 归档模板，不删除历史和已有商户副本。 */
+    /**
+     * 归档模板，不删除历史和已有商户副本。
+     */
     @PutMapping("/templates/{id}/archive")
     @RequiresPermission("fee:template:archive")
     @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "归档费用模板")
@@ -141,7 +157,9 @@ public class AdminFeeController {
         return success(null);
     }
 
-    /** 分页查询商户费用配置状态。 */
+    /**
+     * 分页查询商户费用配置状态。
+     */
     @PostMapping("/merchants/search")
     @RequiresPermission("fee:merchant:list")
     public CommonResult<PageResult<FeePlanSummaryResponse>> pageMerchantFees(
@@ -149,7 +167,9 @@ public class AdminFeeController {
         return success(applicationService.pageMerchantFees(query));
     }
 
-    /** 按筛选条件导出商户费率。 */
+    /**
+     * 按筛选条件导出商户费率。
+     */
     @PostMapping("/merchants/export")
     @RequiresPermission("fee:merchant:export")
     @OperationLog(moduleName = "商户费率", businessType = OperationTypeConstants.EXPORT, operation = "导出商户费率")
@@ -157,14 +177,18 @@ public class AdminFeeController {
         applicationService.exportMerchantFees(query, response);
     }
 
-    /** 查询商户费用配置详情。 */
+    /**
+     * 查询商户费用配置详情。
+     */
     @GetMapping("/merchants/{merchantId}")
     @RequiresPermission("fee:merchant:detail")
     public CommonResult<FeePlanDetailResponse> getMerchantFee(@PathVariable("merchantId") String merchantId) {
         return success(applicationService.getMerchantFee(merchantId));
     }
 
-    /** 原样复制模板当前生效版本并提交审核。 */
+    /**
+     * 原样复制模板当前生效版本并提交审核。
+     */
     @PostMapping("/merchants/{merchantId}/template-versions")
     @RequiresPermission("fee:merchant:template:assign")
     @OperationLog(moduleName = "商户费率", businessType = OperationTypeConstants.UPDATE, operation = "商户选择费率模板")
@@ -174,7 +198,9 @@ public class AdminFeeController {
         return success(applicationService.assignMerchantTemplate(merchantId, request));
     }
 
-    /** 提交独立配置或基于模板调整后的商户费率版本。 */
+    /**
+     * 提交独立配置或基于模板调整后的商户费率版本。
+     */
     @PostMapping("/merchants/{merchantId}/custom-versions")
     @RequiresPermission("fee:merchant:configure")
     @OperationLog(moduleName = "商户费率", businessType = OperationTypeConstants.UPDATE, operation = "提交商户自定义费率版本")
@@ -184,7 +210,9 @@ public class AdminFeeController {
         return success(applicationService.createMerchantCustomVersion(merchantId, request));
     }
 
-    /** 分页查询待审核费用版本。 */
+    /**
+     * 分页查询待审核费用版本。
+     */
     @PostMapping("/reviews/search")
     @RequiresPermission("fee:review:list")
     public CommonResult<PageResult<FeeReviewResponse>> pageReviews(
@@ -192,7 +220,9 @@ public class AdminFeeController {
         return success(applicationService.pageReviews(query));
     }
 
-    /** 按筛选条件导出费率复核记录。 */
+    /**
+     * 按筛选条件导出费率复核记录。
+     */
     @PostMapping("/reviews/export")
     @RequiresPermission("fee:review:export")
     @OperationLog(moduleName = "费率审核", businessType = OperationTypeConstants.EXPORT, operation = "导出费率审核记录")
@@ -200,7 +230,9 @@ public class AdminFeeController {
         applicationService.exportReviews(query, response);
     }
 
-    /** 审核通过，保存成功时间即生效时间。 */
+    /**
+     * 审核通过，保存成功时间即生效时间。
+     */
     @PutMapping("/versions/{id}/approve")
     @RequiresPermission("fee:review:approve")
     @OperationLog(moduleName = "费率审核", businessType = OperationTypeConstants.UPDATE, operation = "审核通过费用版本")
@@ -210,7 +242,9 @@ public class AdminFeeController {
         return success(applicationService.approveVersion(id, request == null ? null : request.getReviewComment()));
     }
 
-    /** 审核拒绝并保留原因。 */
+    /**
+     * 审核拒绝并保留原因。
+     */
     @PutMapping("/versions/{id}/reject")
     @RequiresPermission("fee:review:reject")
     @OperationLog(moduleName = "费率审核", businessType = OperationTypeConstants.UPDATE, operation = "审核拒绝费用版本")
@@ -220,7 +254,9 @@ public class AdminFeeController {
         return success(applicationService.rejectVersion(id, request.getReviewComment()));
     }
 
-    /** 使用系统当前有效的标签币种到 USD 正向结算汇率进行费用试算。 */
+    /**
+     * 使用系统当前有效的标签币种到 USD 正向结算汇率进行费用试算。
+     */
     @PostMapping("/simulations")
     @RequiresPermission("fee:simulation:use")
     @OperationLog(moduleName = "费用试算", businessType = OperationTypeConstants.QUERY, operation = "执行费用试算")
@@ -228,7 +264,9 @@ public class AdminFeeController {
         return success(applicationService.simulate(request));
     }
 
-    /** 分页查询费用试算记录。 */
+    /**
+     * 分页查询费用试算记录。
+     */
     @PostMapping("/simulation-records/search")
     @RequiresPermission("fee:simulation:record:list")
     public CommonResult<PageResult<FeeSimulationRecordResponse>> pageSimulationRecords(
@@ -236,7 +274,9 @@ public class AdminFeeController {
         return success(applicationService.pageSimulationRecords(query));
     }
 
-    /** 按筛选条件导出费用试算记录。 */
+    /**
+     * 按筛选条件导出费用试算记录。
+     */
     @PostMapping("/simulation-records/export")
     @RequiresPermission("fee:simulation:record:export")
     @OperationLog(moduleName = "费用试算", businessType = OperationTypeConstants.EXPORT, operation = "导出费用试算记录")

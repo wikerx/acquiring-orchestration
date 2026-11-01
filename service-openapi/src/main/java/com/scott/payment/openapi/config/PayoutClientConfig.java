@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutClientConfig
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : 配置 service-openapi 调用 service-payout 的直连与服务发现客户端，统一校验超时边界并传播 traceId。
- * @status : create
+ * 配置 service-openapi 调用 service-payout 的直连与服务发现客户端，统一校验超时边界并传播 traceId。
  */
 @Configuration
 @EnableConfigurationProperties(PayoutClientProperties.class)

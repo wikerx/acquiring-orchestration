@@ -19,13 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelTitleWriteHandler
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 标题与导出元信息写入处理器
- * @status : create
+ * Excel 标题与导出元信息写入处理器
  *
  * <p>通过在真正写表头前预留两行元信息，统一输出报表标题、导出时间、导出人和查询条件，
  * 避免写入后再整体挪动数据行导致 EasyExcel 内容错位或空数据。</p>

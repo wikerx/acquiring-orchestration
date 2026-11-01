@@ -40,13 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementApplicationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Merchant 结算应用服务必须只使用可信登录上下文中的商户号。
- * @status : create
+ * Merchant 结算应用服务必须只使用可信登录上下文中的商户号。
  */
 class MerchantSettlementApplicationServiceTests {
 

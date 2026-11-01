@@ -20,13 +20,7 @@ import java.lang.reflect.Type;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestBodyAdvice
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Request Body Advice MVC 扩展组件，位于 商户开放接口服务，在请求体读取或响应写出阶段执行解密、加密、校验、摘要记录和上下文回填。
- * @status : create
+ * 在控制器调用前解密商户请求、执行 Bean Validation，并只记录密文和明文的安全摘要。
  */
 @Slf4j
 @RestControllerAdvice

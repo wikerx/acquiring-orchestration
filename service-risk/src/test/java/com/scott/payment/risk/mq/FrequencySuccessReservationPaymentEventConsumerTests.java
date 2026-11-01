@@ -18,17 +18,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FrequencySuccessReservationPaymentEventConsumerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 支付终态驱动频控成功名额确认和释放的消费者测试。
- * @status : create
+ * 支付终态驱动频控成功名额确认和释放的消费者测试。
  */
 class FrequencySuccessReservationPaymentEventConsumerTests {
 
-    /** 成功名额状态机必须顺序消费交易生命周期 FIFO Topic。 */
+    /**
+     * 成功名额状态机必须顺序消费交易生命周期 FIFO Topic。
+     */
     @Test
     void listenerContractShouldUsePaymentTransactionFifoTopicAndOrderlyMode() {
         RocketMQMessageListener listener = FrequencySuccessReservationPaymentEventConsumer.class
@@ -38,6 +34,9 @@ class FrequencySuccessReservationPaymentEventConsumerTests {
         assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.ORDERLY);
     }
 
+    /**
+     * 验证成功事件确认频控名额、失败事件释放名额且处理中事件不迁移状态。
+     */
     @Test
     void shouldConfirmSuccessReleaseFailureAndIgnorePending() {
         FrequencySuccessReservationService service = mock(FrequencySuccessReservationService.class);
@@ -58,7 +57,9 @@ class FrequencySuccessReservationPaymentEventConsumerTests {
         verifyNoMoreInteractions(service);
     }
 
-    /** 畸形支付事件必须抛出以触发 RocketMQ 重试，不能静默确认。 */
+    /**
+     * 畸形支付事件必须抛出以触发 RocketMQ 重试，不能静默确认。
+     */
     @Test
     void shouldRejectMalformedPaymentEvent() {
         FrequencySuccessReservationService service = mock(FrequencySuccessReservationService.class);
@@ -72,6 +73,9 @@ class FrequencySuccessReservationPaymentEventConsumerTests {
         verifyNoMoreInteractions(service);
     }
 
+    /**
+     * 构造包含交易标识、状态和业务时间的支付事件消息。
+     */
     private String payload(String status) {
         RiskPaymentTransactionEventMessage message = new RiskPaymentTransactionEventMessage();
         message.setMessageId("EV-" + status);

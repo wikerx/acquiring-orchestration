@@ -33,13 +33,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionOperationController
- * @date : 2026-07-14 23:59
- * @email : scott_x@163.com
- * @description : 交易动作管理接口，位于 service-admin 接口层，以授权、请款、退款、撤销等每笔平台交易动作维度查询交易数据。
- * @status : create
+ * 交易动作管理接口，位于 service-admin 接口层，以授权、请款、退款、撤销等每笔平台交易动作维度查询交易数据。
  */
 @RestController
 @RequestMapping("/admin/transactions/operations")

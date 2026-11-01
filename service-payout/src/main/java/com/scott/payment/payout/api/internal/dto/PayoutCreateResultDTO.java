@@ -1,17 +1,15 @@
 package com.scott.payment.payout.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutCreateResultDTO
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : 代付create响应模型，位于 代付服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 服务间创建代付交易的响应模型。
+ *
+ * <p>仅返回调用方需要的订单标识和平台状态，不暴露渠道或持久化模型。</p>
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PayoutCreateResultDTO {
 
     /**

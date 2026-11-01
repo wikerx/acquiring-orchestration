@@ -16,13 +16,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLookupCacheReader
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 跨服务共享的 IP 精确查询缓存，每个 IP 使用独立 String Key 和物理 TTL
- * @status : create
+ * 跨服务共享的 IP 精确查询缓存，每个 IP 使用独立 String Key 和物理 TTL
  */
 @Slf4j
 @Service

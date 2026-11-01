@@ -43,13 +43,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistServiceImpl
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : admin商户ipwhitelist服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理端商户 IP 白名单服务实现，用于运营后台，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhitelistService {
@@ -92,7 +86,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
      */
     private final ManagedCacheInvalidationCoordinator securityCacheInvalidationCoordinator;
 
-    /** 审批结果邮件通知服务。 */
+    /**
+     * 审批结果邮件通知服务。
+     */
     private final MerchantAccessApprovalNotificationService approvalNotificationService;
 
     /**
@@ -465,6 +461,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 按商户号归组查询结果。
+     */
     private Map<String, List<MerchantIpWhitelistDO>> groupByMerchant(List<MerchantIpWhitelistDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -479,6 +478,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return grouped;
     }
 
+    /**
+     * 对已授权商户号集合执行内存分页。
+     */
     private List<String> paginateMerchantIds(List<String> merchantIds, MerchantIpWhitelistQuery condition) {
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
@@ -488,6 +490,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return merchantIds.subList(fromIndex, toIndex);
     }
 
+    /**
+     * 根据保存请求构建新的商户 IP 白名单实体。
+     */
     private MerchantIpWhitelistDO buildWhitelist(String merchantId,
                                                  NormalizedIp ip,
                                                  int status,
@@ -513,6 +518,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return row;
     }
 
+    /**
+     * 查询未删除的商户 IP 白名单记录，不存在时返回业务错误。
+     */
     private MerchantIpWhitelistDO requireWhitelist(Long id) {
         if (id == null) {
             throw badRequest("白名单记录不存在");
@@ -526,6 +534,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return row;
     }
 
+    /**
+     * 校验并获取商户。
+     */
     private BaseMerchantInfoDO requireMerchant(String merchantId) {
         BaseMerchantInfoDO merchant = findMerchant(merchantId);
         if (merchant == null) {
@@ -534,6 +545,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return merchant;
     }
 
+    /**
+     * 查询商户。
+     */
     private BaseMerchantInfoDO findMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return null;
@@ -544,6 +558,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 按商户号批量加载未删除的商户主档。
+     */
     private Map<String, BaseMerchantInfoDO> loadMerchants(List<String> merchantIds) {
         List<String> ids = distinctMerchantIds(merchantIds);
         if (ids.isEmpty()) {
@@ -556,6 +573,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .collect(Collectors.toMap(BaseMerchantInfoDO::getMerchantId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 提取并去重商户号集合。
+     */
     private List<String> distinctMerchantIds(List<String> merchantIds) {
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
@@ -567,6 +587,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 规范化 IP 地址列表并去重。
+     */
     private List<NormalizedIp> normalizeIpList(List<String> ipValues) {
         if (ipValues == null || ipValues.isEmpty()) {
             throw badRequest("至少录入一个精确 IP");
@@ -585,6 +608,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return List.copyOf(normalized.values());
     }
 
+    /**
+     * 规范化部署节点 IP。
+     */
     private NormalizedIp normalizeIp(String value) {
         try {
             return IpAddressNormalizer.normalizeExact(value);
@@ -593,6 +619,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         }
     }
 
+    /**
+     * 将商户 IP 白名单持久化记录转换为管理端响应。
+     */
     private MerchantIpWhitelistResponse toResponse(MerchantIpWhitelistDO row,
                                                    BaseMerchantInfoDO merchant) {
         MerchantIpWhitelistResponse response = new MerchantIpWhitelistResponse();
@@ -621,6 +650,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return response;
     }
 
+    /**
+     * 将白名单实体和商户主档聚合为管理端响应。
+     */
     private MerchantIpWhitelistResponse toAggregatedResponse(List<MerchantIpWhitelistDO> rows,
                                                              BaseMerchantInfoDO merchant) {
         MerchantIpWhitelistDO latest = rows == null || rows.isEmpty() ? null : rows.get(0);
@@ -632,6 +664,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return response;
     }
 
+    /**
+     * 转换为明细。
+     */
     private MerchantIpWhitelistItem toItem(MerchantIpWhitelistDO row) {
         MerchantIpWhitelistItem item = new MerchantIpWhitelistItem();
         item.setId(row.getId());
@@ -649,29 +684,47 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return item;
     }
 
+    /**
+     * 规范化状态。
+     */
     private int normalizeStatus(Integer status) {
         return status != null && status == ENABLED ? ENABLED : DISABLED;
     }
 
+    /**
+     * 判断白名单记录是否已审核通过。
+     */
     private boolean isApproved(MerchantIpWhitelistDO row) {
         return row != null && row.getApprovalStatus() != null
                 && row.getApprovalStatus() == MerchantAccessApprovalStatus.APPROVED.code();
     }
 
+    /**
+     * 校验白名单已审核通过，未通过时禁止修改交易状态。
+     */
     private void requireApproved(MerchantIpWhitelistDO row) {
         if (!isApproved(row)) {
             throw badRequest("仅审核通过的记录允许修改交易状态");
         }
     }
 
+    /**
+     * 规范化并校验平台商户号。
+     */
     private String normalizeMerchantId(String merchantId) {
         return merchantId == null ? "" : merchantId.trim();
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -686,6 +739,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return "system";
     }
 
+    /**
+     * 构建参数校验失败异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

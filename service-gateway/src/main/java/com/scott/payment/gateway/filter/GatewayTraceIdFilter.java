@@ -16,13 +16,7 @@ import reactor.core.publisher.Mono;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayTraceIdFilter
- * @date : 2026-07-26 15:20
- * @email : scott_x@163.com
- * @description : 网关 traceId 全局过滤器，负责校验或生成 X-Trace-Id，并透传到下游服务和响应头。
- * @status : create
+ * 网关 traceId 全局过滤器，负责校验或生成 X-Trace-Id，并透传到下游服务和响应头。
  */
 @Slf4j
 @Component
@@ -50,6 +44,11 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
         String traceId = TraceContext.resolveOrCreate(exchange.getRequest().getHeaders().getFirst(TraceContext.TRACE_ID_HEADER));
         String requestId = GatewayRequestIdSupport.resolveForLogging(exchange.getRequest().getHeaders());
         TraceContext.setTraceId(traceId);
+        log.info("网关请求进入, event: GATEWAY_REQUEST_START, traceId: {}, requestId: {}, method: {}, path: {}",
+                traceId,
+                requestId,
+                exchange.getRequest().getMethod(),
+                exchange.getRequest().getURI().getRawPath());
         ServerHttpRequest request = exchange.getRequest().mutate()
                 .headers(headers -> headers.set(TraceContext.TRACE_ID_HEADER, traceId))
                 .build();
@@ -101,11 +100,25 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
         String targetService = targetService(exchange);
         String path = exchange.getRequest().getURI().getRawPath();
         if (error == null) {
-            log.info("event: GATEWAY_REQUEST_END traceId: {} requestId: {} path: {} routeId: {} targetService: {} status: {} durationMs: {}",
+            log.info("网关路由处理完成, event: GATEWAY_ROUTE_COMPLETE, traceId: {}, requestId: {}, path: {}, routeId: {}, targetService: {}, status: {}, routeSuccess: true, durationMs: {}",
+                    traceId, requestId, path, routeId, targetService, statusCode, durationMs);
+        } else {
+            log.warn("网关路由处理异常, event: GATEWAY_ROUTE_COMPLETE, traceId: {}, requestId: {}, path: {}, routeId: {}, targetService: {}, status: {}, routeSuccess: false, durationMs: {}, errorType: {}",
+                    traceId,
+                    requestId,
+                    path,
+                    routeId,
+                    targetService,
+                    statusCode,
+                    durationMs,
+                    error.getClass().getSimpleName());
+        }
+        if (error == null) {
+            log.info("网关请求处理完成, event: GATEWAY_REQUEST_END, traceId: {}, requestId: {}, path: {}, routeId: {}, targetService: {}, status: {}, durationMs: {}",
                     traceId, requestId, path, routeId, targetService, statusCode, durationMs);
             return;
         }
-        log.warn("event: GATEWAY_REQUEST_ERROR traceId: {} requestId: {} path: {} routeId: {} targetService: {} status: {} durationMs: {} errorType: {}",
+        log.warn("网关请求处理异常, event: GATEWAY_REQUEST_ERROR, traceId: {}, requestId: {}, path: {}, routeId: {}, targetService: {}, status: {}, durationMs: {}, errorType: {}",
                 traceId,
                 requestId,
                 path,

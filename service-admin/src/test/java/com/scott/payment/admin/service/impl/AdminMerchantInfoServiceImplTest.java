@@ -60,13 +60,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantInfoServiceImplTest
- * @date : 2026-06-27 20:02
- * @email : scott_x@163.com
- * @description : 管理后台商户资料服务测试，覆盖商户新增和编辑表单基础选项组装规则
- * @status : create
+ * 管理后台商户资料服务测试，覆盖商户新增和编辑表单基础选项组装规则
  */
 @ExtendWith(MockitoExtension.class)
 @Slf4j
@@ -103,11 +97,15 @@ class AdminMerchantInfoServiceImplTest {
     @Mock
     private IsoCurrencyMapper isoCurrencyMapper;
 
-    /** 公共 MCC 三级选项缓存读取器。 */
+    /**
+     * 公共 MCC 三级选项缓存读取器。
+     */
     @Mock
     private MccOptionCacheReader mccOptionCacheReader;
 
-    /** 公共 ISO 国家和币种缓存服务。 */
+    /**
+     * 公共 ISO 国家和币种缓存服务。
+     */
     @Mock
     private IsoDictionaryService isoDictionaryService;
     /**
@@ -122,31 +120,45 @@ class AdminMerchantInfoServiceImplTest {
     @Mock
     private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
-    /** 密钥元数据永久缓存可靠失效协调器。 */
+    /**
+     * 密钥元数据永久缓存可靠失效协调器。
+     */
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** 商户资金账户开户及结算币种一致性服务。 */
+    /**
+     * 商户资金账户开户及结算币种一致性服务。
+     */
     @Mock
     private AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
 
-    /** 商户详情登录状态查询组件。 */
+    /**
+     * 商户详情登录状态查询组件。
+     */
     @Mock
     private SysAccountMapper sysAccountMapper;
 
-    /** 商户详情资金账户查询组件。 */
+    /**
+     * 商户详情资金账户查询组件。
+     */
     @Mock
     private MerchantFundAccountMapper fundAccountMapper;
 
-    /** 商户详情当前费率查询组件。 */
+    /**
+     * 商户详情当前费率查询组件。
+     */
     @Mock
     private FeePlanMapper feePlanMapper;
 
-    /** 商户开户状态机与相关人员服务。 */
+    /**
+     * 商户开户状态机与相关人员服务。
+     */
     @Mock
     private MerchantOnboardingService merchantOnboardingService;
 
-    /** 六位商户号年度序列分配服务。 */
+    /**
+     * 六位商户号年度序列分配服务。
+     */
     @Mock
     private MerchantIdAllocationService merchantIdAllocationService;
 
@@ -264,7 +276,9 @@ class AdminMerchantInfoServiceImplTest {
         log.info("管理端新增商户缓存一致性完成，结果: 先登记可靠失效再写库与提交新缓存");
     }
 
-    /** 草稿创建只要求 R1 基础资料，联系人等后续阶段资料允许稍后补充。 */
+    /**
+     * 草稿创建只要求 R1 基础资料，联系人等后续阶段资料允许稍后补充。
+     */
     @Test
     void shouldCreateDraftWithoutContactDetails() {
         log.info("测试管理端最小草稿创建，关键输入: R1 基础资料完整、联系人资料为空");
@@ -289,7 +303,9 @@ class AdminMerchantInfoServiceImplTest {
         log.info("管理端最小草稿创建完成，结果: 联系人资料为空时仍保持冻结草稿状态");
     }
 
-    /** 管理端编辑商户应在主库写入前登记永久资料缓存失效。 */
+    /**
+     * 管理端编辑商户应在主库写入前登记永久资料缓存失效。
+     */
     @Test
     void shouldPrepareInvalidationBeforeUpdatingMerchantProfile() {
         log.info("测试管理端编辑商户缓存一致性，关键输入: merchantId=200045");
@@ -308,7 +324,9 @@ class AdminMerchantInfoServiceImplTest {
         log.info("管理端编辑商户缓存一致性完成，结果: 失效意图早于主表更新");
     }
 
-    /** 商户结算币种变化时，应在商户资料落库前同步资金账户币种。 */
+    /**
+     * 商户结算币种变化时，应在商户资料落库前同步资金账户币种。
+     */
     @Test
     void shouldSynchronizeFundAccountBeforeUpdatingSettlementCurrency() {
         log.info("测试商户结算币种同步，关键输入: merchantId=200045, USD->EUR");
@@ -327,7 +345,9 @@ class AdminMerchantInfoServiceImplTest {
         log.info("商户结算币种同步完成，结果: 资金账户先同步，商户资料后落库");
     }
 
-    /** 管理端停用商户应先阻止交易服务继续命中旧状态。 */
+    /**
+     * 管理端停用商户应先阻止交易服务继续命中旧状态。
+     */
     @Test
     void shouldPrepareInvalidationBeforeUpdatingMerchantStatus() {
         log.info("测试管理端商户状态缓存一致性，关键输入: status=2(冻结)");
@@ -362,7 +382,9 @@ class AdminMerchantInfoServiceImplTest {
                 .hasMessageContaining("状态");
     }
 
-    /** 草稿商户不得使用通用解冻接口绕过审核、配置与激活流程。 */
+    /**
+     * 草稿商户不得使用通用解冻接口绕过审核、配置与激活流程。
+     */
     @Test
     void shouldRejectUnfreezingMerchantBeforeActivation() {
         log.info("测试草稿商户解冻门禁，关键输入: merchantId=200045, activationStatus=NOT_READY");
@@ -377,7 +399,9 @@ class AdminMerchantInfoServiceImplTest {
         log.info("草稿商户解冻门禁完成，结果: 通用状态接口拒绝绕过激活流程");
     }
 
-    /** 删除商户应同时登记全部商户维度永久缓存失效。 */
+    /**
+     * 删除商户应同时登记全部商户维度永久缓存失效。
+     */
     @Test
     void shouldPrepareAllPersistentCacheInvalidationsBeforeDeletingMerchant() {
         log.info("测试管理端删除商户缓存一致性，关键输入: merchantId=200045");
@@ -418,7 +442,9 @@ class AdminMerchantInfoServiceImplTest {
         assertThat(jsonNode.get("id").asText()).isEqualTo("2076595876878270466");
     }
 
-    /** 历史商户没有登录账号、资金账户或费率时，详情必须明确返回未初始化状态。 */
+    /**
+     * 历史商户没有登录账号、资金账户或费率时，详情必须明确返回未初始化状态。
+     */
     @Test
     void shouldExposeUninitializedOperationalFoundationForHistoricalMerchant() {
         when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
@@ -432,7 +458,9 @@ class AdminMerchantInfoServiceImplTest {
         assertThat(result.getCurrentFeeVersionNo()).isNull();
     }
 
-    /** 已初始化商户详情应返回当前单结算币种账户和已生效费率版本。 */
+    /**
+     * 已初始化商户详情应返回当前单结算币种账户和已生效费率版本。
+     */
     @Test
     void shouldExposeFundAccountAndCurrentFeeVersionInMerchantDetail() {
         when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
@@ -513,7 +541,9 @@ class AdminMerchantInfoServiceImplTest {
         return row;
     }
 
-    /** 构造公共 MCC 缓存返回的三级选项树。 */
+    /**
+     * 构造公共 MCC 缓存返回的三级选项树。
+     */
     private MccOptionSnapshot mccOptionTree() {
         MccOptionSnapshot leaf = new MccOptionSnapshot();
         leaf.setValue("5411");
@@ -535,21 +565,27 @@ class AdminMerchantInfoServiceImplTest {
         return level1;
     }
 
-    /** 构造公共 ISO 国家缓存结果。 */
+    /**
+     * 构造公共 ISO 国家缓存结果。
+     */
     private IsoCountryInfo countryInfo() {
         return new IsoCountryInfo(
                 "US", "USA", "840", "United States", "United States", "美国",
                 "NA", "北美洲", null, "en", "English", "英语", "USD");
     }
 
-    /** 构造公共 ISO 币种缓存结果。 */
+    /**
+     * 构造公共 ISO 币种缓存结果。
+     */
     private IsoCurrencyInfo currencyInfo() {
         return new IsoCurrencyInfo(
                 "USD", "840", "US Dollar", "美元", 2, 100L,
                 new BigDecimal("0.01"), "$");
     }
 
-    /** 构造管理端新增或编辑商户的合法请求。 */
+    /**
+     * 构造管理端新增或编辑商户的合法请求。
+     */
     private AdminMerchantSaveRequest validRequest(String merchantId) {
         AdminMerchantSaveRequest request = new AdminMerchantSaveRequest();
         request.setMerchantId(merchantId);
@@ -566,7 +602,9 @@ class AdminMerchantInfoServiceImplTest {
         return request;
     }
 
-    /** 构造管理端写操作定位的未删除商户记录。 */
+    /**
+     * 构造管理端写操作定位的未删除商户记录。
+     */
     private BaseMerchantInfoDO existingMerchant() {
         BaseMerchantInfoDO row = new BaseMerchantInfoDO();
         row.setId(1L);

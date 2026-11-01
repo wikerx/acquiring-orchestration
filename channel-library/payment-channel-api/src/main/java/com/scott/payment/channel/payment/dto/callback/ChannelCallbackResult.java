@@ -9,13 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackResult
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道回调解析结果，位于 payment-channel-api DTO 层，仅表达渠道原始事件和映射后的渠道状态，不直接推进平台交易状态机。
- * @status : create
+ * 渠道回调解析结果，位于 payment-channel-api DTO 层，仅表达渠道原始事件和映射后的渠道状态，不直接推进平台交易状态机。
  */
 @Data
 public class ChannelCallbackResult implements Serializable {

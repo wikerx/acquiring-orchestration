@@ -10,13 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantIpWhitelistAccessService
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单访问控制服务，位于 service-openapi 安全层，在 JWT 验签后、防重放登记前执行精确 IP 校验。
- * @status : create
+ * 商户 OpenAPI IP 白名单访问控制服务，位于 service-openapi 安全层，在 JWT 验签后、防重放登记前执行精确 IP 校验。
  */
 @Service
 public class MerchantIpWhitelistAccessService {
@@ -71,6 +65,13 @@ public class MerchantIpWhitelistAccessService {
         return clientIp.ipValue();
     }
 
+    /**
+     * 构造只携带受控拒绝原因和规范化 IP 的白名单异常。
+     *
+     * @param reason 白名单拒绝原因
+     * @param requestIp 已规范化的请求 IP；缺失或非法时为空
+     * @return 可交给统一安全出口处理的异常
+     */
     private MerchantIpWhitelistAccessDeniedException denied(MerchantIpWhitelistDenyReason reason,
                                                              String requestIp) {
         return new MerchantIpWhitelistAccessDeniedException(reason, requestIp);
@@ -86,7 +87,9 @@ public class MerchantIpWhitelistAccessService {
         return TrustedClientIpResolver.resolve(request);
     }
 
-    /** 判断当前可信来源是否提供了 IP 候选值，仅用于区分缺失和非法的内部拒绝原因。 */
+    /**
+     * 判断当前可信来源是否提供了 IP 候选值，仅用于区分缺失和非法的内部拒绝原因。
+     */
     private boolean hasClientIpCandidate(HttpServletRequest request) {
         if (request == null) {
             return false;

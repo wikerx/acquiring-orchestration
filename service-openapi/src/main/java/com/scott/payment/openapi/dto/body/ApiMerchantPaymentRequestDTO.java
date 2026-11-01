@@ -22,13 +22,7 @@ import jakarta.validation.constraints.Size;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiMerchantPaymentRequestDTO
- * @date : 2026-05-28 16:48
- * @email : scott_x@163.com
- * @description : API商户支付请求模型，位于 商户开放接口服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
- * @status : create
+ * 商户支付类 OpenAPI 统一请求，覆盖支付、授权、请款、退款、撤销和查询的分组校验字段。
  */
 @Data
 @NoArgsConstructor
@@ -119,7 +113,9 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     @NotNull(message = "orderInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private OrderInfoDTO orderInfo;
 
-    /** 商户可选上送的商品或服务明细，仅首次交易保存为生命周期快照。 */
+    /**
+     * 商户可选上送的商品或服务明细，仅首次交易保存为生命周期快照。
+     */
     @Valid
     private List<GoodsInfoDTO> goodsInfo;
 
@@ -138,12 +134,16 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     @Valid
     private BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 付款人信息；首次交易必须提供对象和真实付款人公网 IP。 */
+    /**
+     * 付款人信息；首次交易必须提供对象和真实付款人公网 IP。
+     */
     @Valid
     @NotNull(message = "payerInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
     private PayerInfoDTO payerInfo;
 
-    /** 可选收货人及收货地址快照。 */
+    /**
+     * 可选收货人及收货地址快照。
+     */
     @Valid
     private ShippingInfoDTO shippingInfo;
 
@@ -228,7 +228,9 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String shippingCountry;
     }
 
-    /** 商品或服务明细，金额是商品行总金额而不是单价。 */
+    /**
+     * 商品或服务明细，金额是商品行总金额而不是单价。
+     */
     @Data
     @NoArgsConstructor
     public static class GoodsInfoDTO implements Serializable {
@@ -283,7 +285,9 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String currency;
     }
 
-    /** 付款人身份、联系方式、地址和浏览器上下文。 */
+    /**
+     * 付款人身份、联系方式、地址和浏览器上下文。
+     */
     @Data
     @NoArgsConstructor
     public static class PayerInfoDTO implements Serializable {
@@ -420,7 +424,9 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String userAgent;
     }
 
-    /** 可选收货人及收货地址。 */
+    /**
+     * 可选收货人及收货地址。
+     */
     @Data
     @NoArgsConstructor
     public static class ShippingInfoDTO implements Serializable {
@@ -511,13 +517,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : MerchantInfoDTO
-     * @date : 2026-05-28 16:48
-     * @email : scott_x@163.com
-     * @description : 开放支付请求的商户扩展信息，承载订单展示和渠道风控所需的商户属性。
-     * @status : create
+     * 开放支付请求的商户扩展信息，承载订单展示和渠道风控所需的商户属性。
      */
     @Data
     @NoArgsConstructor
@@ -543,13 +543,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : SubMerchantInfoDTO
-     * @date : 2026-05-28 16:48
-     * @email : scott_x@163.com
-     * @description : 开放支付请求的子商户信息，供平台型商户传递实际经营主体快照。
-     * @status : create
+     * 开放支付请求的子商户信息，供平台型商户传递实际经营主体快照。
      */
     @Data
     @NoArgsConstructor
@@ -680,13 +674,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : OrderInfoDTO
-     * @date : 2026-05-28 16:48
-     * @email : scott_x@163.com
-     * @description : 开放支付请求的订单信息，承载商品描述、回调地址、跳转地址和语言等交易上下文。
-     * @status : create
+     * 开放支付请求的订单信息，承载商品描述、回调地址、跳转地址和语言等交易上下文。
      */
     @Data
     @NoArgsConstructor
@@ -727,13 +715,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingCardHolderInfoDTO
-     * @date : 2026-05-28 16:48
-     * @email : scott_x@163.com
-     * @description : 开放支付请求的账单持卡人信息，属于可识别数据，转换和日志链路必须最小化及脱敏。
-     * @status : create
+     * 开放支付请求的账单持卡人信息，属于可识别数据，转换和日志链路必须最小化及脱敏。
      */
     @Data
     @NoArgsConstructor
@@ -819,13 +801,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CardInfoDTO
-     * @date : 2026-05-28 16:48
-     * @email : scott_x@163.com
-     * @description : 开放支付请求的银行卡认证信息；PAN 和安全码只允许在受控内存链路使用，禁止明文落库或日志输出。
-     * @status : create
+     * 开放支付请求的银行卡认证信息；PAN 和安全码只允许在受控内存链路使用，禁止明文落库或日志输出。
      */
     @Data
     @NoArgsConstructor
@@ -866,13 +842,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ThreeDsInfoDTO
-     * @date : 2026-05-28 16:48
-     * @email : scott_x@163.com
-     * @description : 商户支付请求中的 3DS 认证信息模型，位于 service-openapi 入站 DTO 层，字段按开放接口协议校验且不承担认证状态写入职责。
-     * @status : create
+     * 商户支付请求中的 3DS 认证信息模型，位于 service-openapi 入站 DTO 层，字段按开放接口协议校验且不承担认证状态写入职责。
      */
     @Data
     @NoArgsConstructor
@@ -909,13 +879,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : TransactionInfoDTO
-     * @date : 2026-05-28 16:48
-     * @email : scott_x@163.com
-     * @description : 开放支付请求的交易关联信息，承载来源交易、描述、网站、回调和页面跳转上下文。
-     * @status : create
+     * 开放支付请求的交易关联信息，承载来源交易、描述、网站、回调和页面跳转上下文。
      */
     @Data
     @NoArgsConstructor

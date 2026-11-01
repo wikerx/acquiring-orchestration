@@ -18,13 +18,7 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorCacheController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端 Redis 监控 HTTP 入口，负责权限和统一响应，仅允许查看运行指标、受控平台配置 Key 元数据和执行受审计的单 Key 删除。
- * @status : create
+ * 管理端 Redis 监控 HTTP 入口，负责权限和统一响应，仅允许查看运行指标、受控平台配置 Key 元数据和执行受审计的单 Key 删除。
  */
 @RestController
 @RequestMapping("/admin/monitor/cache")

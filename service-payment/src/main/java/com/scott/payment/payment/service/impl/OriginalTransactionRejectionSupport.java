@@ -13,14 +13,23 @@ import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
  */
 final class OriginalTransactionRejectionSupport {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private OriginalTransactionRejectionSupport() {
     }
 
+    /**
+     * 判断原交易是否明确失败。
+     */
     static boolean isOriginalTransactionRejected(ServiceException exception) {
         return exception != null
                 && ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED.getCode().equals(exception.getCode());
     }
 
+    /**
+     * 把原交易拒绝原因写入当前交易结果。
+     */
     static void apply(PaymentCreateResultDTO result) {
         // 后续动作未调用渠道，使用平台拒绝码结束，不能伪造 PSP 拒绝响应。
         result.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());

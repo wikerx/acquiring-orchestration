@@ -51,7 +51,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 管理账号激活与邮箱验证状态机的安全回归测试。 */
+/**
+ * 管理账号激活与邮箱验证状态机的安全回归测试。
+ */
 class AdminEmailVerificationServiceImplTest {
 
     private final SysAppMapper appMapper = mock(SysAppMapper.class);

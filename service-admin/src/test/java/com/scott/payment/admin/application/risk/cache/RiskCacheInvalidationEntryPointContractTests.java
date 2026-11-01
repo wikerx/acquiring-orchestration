@@ -10,13 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskCacheInvalidationEntryPointContractTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控缓存失效写入口接入契约测试。
- * @status : create
+ * 风控缓存失效写入口接入契约测试。
  */
 class RiskCacheInvalidationEntryPointContractTests {
 

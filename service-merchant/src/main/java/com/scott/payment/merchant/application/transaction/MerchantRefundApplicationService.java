@@ -28,13 +28,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRefundApplicationService
- * @date : 2026-08-06 16:10
- * @email : scott_x@163.com
- * @description : 商户退款应用服务，在 service-merchant 内强制认证商户查询边界、编排导出并生成统一商户可见处理说明。
- * @status : create
+ * 商户退款应用服务，在 service-merchant 内强制认证商户查询边界、编排导出并生成统一商户可见处理说明。
  */
 @Service
 public class MerchantRefundApplicationService {

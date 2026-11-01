@@ -7,13 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationOutcome
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控决策和命中明细。
- * @status : create
+ * 风控决策和命中明细。
  */
 @Data
 public class RiskEvaluationOutcome {

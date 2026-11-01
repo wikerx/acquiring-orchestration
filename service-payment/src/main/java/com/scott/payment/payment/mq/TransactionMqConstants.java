@@ -3,13 +3,7 @@ package com.scott.payment.payment.mq;
 import com.scott.payment.component.mq.constant.MqTag;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMqConstants
- * @date : 2026-07-14 21:45
- * @email : scott_x@163.com
- * @description : 收单交易 MQ 常量，位于 service-payment 消息层，集中声明交易事件消费者分组和消息标签。
- * @status : create
+ * 收单交易 MQ 常量，位于 service-payment 消息层，集中声明交易事件消费者分组和消息标签。
  */
 public final class TransactionMqConstants {
 
@@ -28,6 +22,9 @@ public final class TransactionMqConstants {
      */
     public static final String TRANSACTION_STATUS_CHANGED_TAG = MqTag.TRANSACTION_STATUS_CHANGED;
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private TransactionMqConstants() {
     }
 }

@@ -14,13 +14,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisObservabilityAutoConfiguration
- * @date : 2026-07-31 10:00
- * @email : scott_x@163.com
- * @description : Redis 治理指标自动配置，在 Micrometer 可用时注册业务指标门面并拒绝敏感或无界标签
- * @status : create
+ * Redis 治理指标自动配置，在 Micrometer 可用时注册业务指标门面并拒绝敏感或无界标签
  */
 @AutoConfiguration(after = MetricsAutoConfiguration.class)
 @ConditionalOnClass(MeterRegistry.class)

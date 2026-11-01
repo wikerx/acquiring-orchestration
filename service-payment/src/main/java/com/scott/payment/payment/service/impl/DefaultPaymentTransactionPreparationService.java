@@ -86,7 +86,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
-    /** 商户订单支付流守卫范围。 */
+    /**
+     * 商户订单支付流守卫范围。
+     */
     private static final String MERCHANT_ORDER_FLOW_SCOPE = "MERCHANT_ORDER_FLOW";
 
     /**
@@ -125,7 +127,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
 
     private final PaymentChannelRouteService paymentChannelRouteService;
 
-    /** 服务端卡品牌解析器；BIN 数据库优先，公开 IIN 规则兜底。 */
+    /**
+     * 服务端卡品牌解析器；BIN 数据库优先，公开 IIN 规则兜底。
+     */
     private final PaymentCheckoutCardCapabilityService cardCapabilityService;
 
     private final PaymentExchangeRateService paymentExchangeRateService;
@@ -134,7 +138,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
 
     private final TransactionEventOutboxService transactionEventOutboxService;
 
-    /** 无渠道短路已进入终态时，与交易事实同事务写入状态变更 Outbox。 */
+    /**
+     * 无渠道短路已进入终态时，与交易事实同事务写入状态变更 Outbox。
+     */
     private final TransactionLifecycleEventService lifecycleEventService;
 
     private final TransactionRecordService transactionRecordService;
@@ -172,7 +178,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 null);
     }
 
-    /** Spring 生产构造器，注入统一卡品牌解析能力。 */
+    /**
+     * Spring 生产构造器，注入统一卡品牌解析能力。
+     */
     @Autowired
     public DefaultPaymentTransactionPreparationService(IsoDictionaryService isoDictionaryService,
                                                        PaymentRiskInvokeService paymentRiskInvokeService,
@@ -435,7 +443,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return target;
     }
 
-    /** 已有渠道身份表示上游完成过路由，准备阶段必须恢复同一 MID。 */
+    /**
+     * 已有渠道身份表示上游完成过路由，准备阶段必须恢复同一 MID。
+     */
     private PaymentRouteResultDTO resolveInitialRoute(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.ChannelIdentityDTO identity = commandDTO.getChannelIdentity();
         if (identity == null) {
@@ -555,10 +565,16 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return sha256(canonical);
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String normalizeText(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 按币种精度规范化金额。
+     */
     private String normalizeAmount(BigDecimal amount) {
         if (amount == null) {
             return "";
@@ -566,6 +582,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return amount.stripTrailingZeros().toPlainString();
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String source) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -575,6 +594,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         }
     }
 
+    /**
+     * 构建首次支付交易的初始结果。
+     */
     private PaymentCreateResultDTO buildInitialResult(PaymentCreateCommandDTO commandDTO,
                                                       String operationId,
                                                       String transactionId,
@@ -590,6 +612,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return resultDTO;
     }
 
+    /**
+     * 构建渠道请求并补齐冻结路由身份。
+     */
     private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
                                                                   PaymentRouteResultDTO routeResultDTO,
                                                                   String operationId,
@@ -606,6 +631,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return prepared;
     }
 
+    /**
+     * 构建待提交的渠道调用结果。
+     */
     private PaymentChannelInvokeResultDTO buildPreparedInvokeResult(PaymentCreateCommandDTO commandDTO,
                                                                     PaymentRouteResultDTO routeResultDTO,
                                                                     String operationId,
@@ -638,6 +666,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return invokeResultDTO;
     }
 
+    /**
+     * 转换为已准备的渠道请求。
+     */
     private PaymentPreparedChannelRequestDTO toPreparedChannelRequest(PaymentChannelInvokeResultDTO invokeResultDTO) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
         prepared.setRequestId(invokeResultDTO.getRequestId());
@@ -646,6 +677,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return prepared;
     }
 
+    /**
+     * 解析请求 URL。
+     */
     private String resolveRequestUrl(PaymentRouteResultDTO routeResultDTO, ChannelPaymentRequest request) {
         if (routeResultDTO == null || routeResultDTO.getRequestUrl() == null || routeResultDTO.getRequestUrl().isBlank()) {
             return null;
@@ -715,7 +749,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         }
     }
 
-    /** 固化商户标签币种和标签金额；未显式传入时与原请求金额币种一致，后续换汇不得覆盖该口径。 */
+    /**
+     * 固化商户标签币种和标签金额；未显式传入时与原请求金额币种一致，后续换汇不得覆盖该口径。
+     */
     private void initializeLabelAmount(PaymentCreateCommandDTO commandDTO) {
         commandDTO.setCurrency(normalizeCurrency(commandDTO.getCurrency()));
         if (commandDTO.getLabelAmount() == null) {
@@ -776,6 +812,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return true;
     }
 
+    /**
+     * 应用无需换汇的金额计划。
+     */
     private void applyNoConversion(PaymentCreateCommandDTO commandDTO) {
         commandDTO.setTransactionCurrency(normalizeCurrency(commandDTO.getLabelCurrency()));
         commandDTO.setTransactionAmount(commandDTO.getLabelAmount());
@@ -828,7 +867,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         fillInitialTotals(resultDTO);
     }
 
-    /** 同时完成操作级和商户订单流两层幂等快照，确保重复请求复用同一交易结果。 */
+    /**
+     * 同时完成操作级和商户订单流两层幂等快照，确保重复请求复用同一交易结果。
+     */
     private void completeIdempotency(String idempotencyKey,
                                      String merchantOrderFlowKey,
                                      PaymentCreateCommandDTO commandDTO,
@@ -853,7 +894,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 JsonUtils.toJsonString(resultDTO));
     }
 
-    /** 将首次支付创建事件写入以 operationId 分组的交易 FIFO Outbox，与交易事实保持同事务。 */
+    /**
+     * 将首次支付创建事件写入以 operationId 分组的交易 FIFO Outbox，与交易事实保持同事务。
+     */
     private void saveTransactionCreatedEvent(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId(resultDTO.getTransactionId());
@@ -896,6 +939,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         transactionEventOutboxService.save(eventDO);
     }
 
+    /**
+     * 构建幂等重复请求的返回结果。
+     */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
@@ -919,6 +965,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return resultDTO;
     }
 
+    /**
+     * 补充商户可见响应字段。
+     */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
         PaymentOpenApiResultSupport.applyMerchantProjection(resultDTO);
     }
@@ -940,6 +989,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return "Payment failed. Please use the transaction ID to query details or contact support.";
     }
 
+    /**
+     * 填充首次交易金额汇总。
+     */
     private void fillInitialTotals(PaymentCreateResultDTO resultDTO) {
         if (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || resultDTO.getTransactionAmount() == null) {
@@ -956,6 +1008,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         }
     }
 
+    /**
+     * 解析平台标准支付品牌。
+     */
     private String resolvePaymentBrand(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getTransactionInfo() != null && StringUtils.hasText(commandDTO.getTransactionInfo().getCardBrand())) {
             return commandDTO.getTransactionInfo().getCardBrand();
@@ -967,6 +1022,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return PaymentCardBrandRuleMatcher.resolve(digits);
     }
 
+    /**
+     * 解析脱敏卡号中的 BIN。
+     */
     private String resolveCardBin(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getCardInfo() == null || !StringUtils.hasText(commandDTO.getCardInfo().getCardNo())) {
             return null;
@@ -978,6 +1036,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return cardNo.substring(0, 6) + "****" + cardNo.substring(cardNo.length() - 4);
     }
 
+    /**
+     * 转换为响应中的子商户信息。
+     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -1000,6 +1061,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return isEmptySubMerchantInfo(target) ? null : target;
     }
 
+    /**
+     * 判断子商户信息是否为空。
+     */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || java.util.stream.Stream.of(
                 value.getSubId(),
@@ -1018,7 +1082,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 value.getChargeType()).allMatch(item -> !StringUtils.hasText(item));
     }
 
-    /** 首次交易优先使用命令顶层回调地址，兼容读取交易信息中的旧版回调字段。 */
+    /**
+     * 首次交易优先使用命令顶层回调地址，兼容读取交易信息中的旧版回调字段。
+     */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
             return commandDTO.getCallbackUrl();
@@ -1029,6 +1095,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return null;
     }
 
+    /**
+     * 解析币种辅币位数。
+     */
     private int resolveCurrencyExponent(String currency) {
         IsoCurrencyInfo currencyInfo = isoDictionaryService.getCurrency(currency)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency can not be resolved"));
@@ -1038,7 +1107,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return currencyInfo.defaultFractionDigits();
     }
 
-    /** 按 ISO 4217 币种精度精确转换最小货币单位，超精度或 long 溢出直接失败。 */
+    /**
+     * 按 ISO 4217 币种精度精确转换最小货币单位，超精度或 long 溢出直接失败。
+     */
     private Long toMinorAmount(BigDecimal amount, String currency) {
         try {
             return isoDictionaryService.toMinorUnit(amount, currency);
@@ -1047,25 +1118,40 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         }
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return resultDTO != null
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus()));
     }
 
+    /**
+     * 返回无换汇场景的单位交易汇率。
+     */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
+    /**
+     * 规范化币种。
+     */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;

@@ -18,13 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisIdentityServiceImpl
- * @date : 2026-05-31 22:08
- * @email : scott_x@163.com
- * @description : Redis 分布式业务标识生成服务实现
- * @status : create
+ * Redis 分布式业务标识生成服务实现
  */
 @Service
 @ConditionalOnBean(StringRedisTemplate.class)

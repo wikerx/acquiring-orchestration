@@ -11,13 +11,7 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoDictionaryConverterTests
- * @date : 2026-09-30 00:00
- * @email : scott_x@163.com
- * @description : 验证 ISO 字典 MapStruct 响应映射的代码、金额精度及空值语义。
- * @status : create
+ * 验证 ISO 字典 MapStruct 响应映射的代码、金额精度及空值语义。
  */
 class OpenApiIsoDictionaryConverterTests {
 

@@ -16,7 +16,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class OpenApiTransactionResultProjectorTest {
 
-    /** 成功、处理中和普通等待状态必须映射到交易域标准码。 */
+    /**
+     * 成功、处理中和普通等待状态必须映射到交易域标准码。
+     */
     @Test
     void shouldProjectNormalTransactionStates() {
         assertThat(project("SUCCESS", "FINISHED", null, null, "T200").resultCode())
@@ -46,7 +48,9 @@ class OpenApiTransactionResultProjectorTest {
                 .isEqualTo("The channel result is not yet confirmed. Check the original order and avoid submitting it again.");
     }
 
-    /** 已确认终态必须覆盖遗留等待原因，避免历史 CHANNEL_RESULT_UNKNOWN 把成功结果降级为 F3000。 */
+    /**
+     * 已确认终态必须覆盖遗留等待原因，避免历史 CHANNEL_RESULT_UNKNOWN 把成功结果降级为 F3000。
+     */
     @Test
     void shouldPreferConfirmedTerminalStateOverStalePendingReason() {
         OpenApiTransactionProjection projection = OpenApiTransactionResultProjector.project(
@@ -62,7 +66,9 @@ class OpenApiTransactionResultProjectorTest {
         assertThat(projection.failureReasonMessage()).isNull();
     }
 
-    /** 只有渠道明确返回拒绝时才允许对外归类为 F1000。 */
+    /**
+     * 只有渠道明确返回拒绝时才允许对外归类为 F1000。
+     */
     @Test
     void shouldProjectConfirmedChannelDecline() {
         OpenApiTransactionProjection projection = project(
@@ -76,7 +82,9 @@ class OpenApiTransactionResultProjectorTest {
                 .isEqualTo("The transaction was declined by the issuer bank. Check the original order, then ask the payer to contact their bank or use another payment method when applicable.");
     }
 
-    /** 平台风控和状态机拒绝必须保留业务语义，不能伪装成渠道失败。 */
+    /**
+     * 平台风控和状态机拒绝必须保留业务语义，不能伪装成渠道失败。
+     */
     @Test
     void shouldProjectPlatformBusinessRejections() {
         OpenApiTransactionProjection risk = project(
@@ -90,7 +98,9 @@ class OpenApiTransactionResultProjectorTest {
         assertThat(stateConflict.failureReasonCode()).isEqualTo("ORIGINAL_ACTION_NOT_ALLOWED");
     }
 
-    /** FAILED 已是明确终态，不得再投影为表示结果未知的 F3000。 */
+    /**
+     * FAILED 已是明确终态，不得再投影为表示结果未知的 F3000。
+     */
     @Test
     void shouldRejectFailedAndUnconfirmedContradiction() {
         for (String failureReason : new String[]{
@@ -103,7 +113,9 @@ class OpenApiTransactionResultProjectorTest {
         }
     }
 
-    /** 请求明确未发出属于平台处理失败，不得谎报为渠道结果未确认。 */
+    /**
+     * 请求明确未发出属于平台处理失败，不得谎报为渠道结果未确认。
+     */
     @Test
     void shouldProjectRequestNotSentAsPlatformFailure() {
         OpenApiTransactionProjection projection = project(
@@ -113,7 +125,9 @@ class OpenApiTransactionResultProjectorTest {
         assertThat(projection.failureReasonCode()).isEqualTo("PLATFORM_PROCESSING_ERROR");
     }
 
-    /** 历史 F210 没有来源证据时只能归为通用交易失败，禁止机械映射成渠道拒绝。 */
+    /**
+     * 历史 F210 没有来源证据时只能归为通用交易失败，禁止机械映射成渠道拒绝。
+     */
     @Test
     void shouldNotInferChannelDeclineFromLegacyMerchantCode() {
         OpenApiTransactionProjection projection = project("FAILED", "FINISHED", null, null, "F210");
@@ -122,7 +136,9 @@ class OpenApiTransactionResultProjectorTest {
         assertThat(projection.failureReasonCode()).isEqualTo("TRANSACTION_FAILED");
     }
 
-    /** 无法识别的核心状态属于平台投影异常，公开响应不得猜测交易结果。 */
+    /**
+     * 无法识别的核心状态属于平台投影异常，公开响应不得猜测交易结果。
+     */
     @Test
     void shouldFailClosedForUnknownTransactionStatus() {
         OpenApiTransactionProjection projection = project("UNKNOWN", null, null, null, null);
@@ -131,7 +147,9 @@ class OpenApiTransactionResultProjectorTest {
         assertThat(projection.failureReasonCode()).isEqualTo("PLATFORM_PROCESSING_ERROR");
     }
 
-    /** 使用完整核心上下文调用投影器，保持各测试的状态断言聚焦。 */
+    /**
+     * 使用完整核心上下文调用投影器，保持各测试的状态断言聚焦。
+     */
     private OpenApiTransactionProjection project(String status,
                                                  String processStage,
                                                  String failureReason,

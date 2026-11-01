@@ -13,17 +13,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutCardVaultConsumerTests
- * @date : 2026-08-21 18:30
- * @email : scott_x@163.com
- * @description : 收银台卡资料 MQ 消费入口测试，确保密文毒消息不会被 Broker 静默确认
- * @status : create
+ * 收银台卡资料 MQ 消费入口测试，确保密文毒消息不会被 Broker 静默确认
  */
 class CheckoutCardVaultConsumerTests {
 
-    /** 带稳定消息身份的密文消息应进入解密和数据库幂等链路。 */
+    /**
+     * 带稳定消息身份的密文消息应进入解密和数据库幂等链路。
+     */
     @Test
     void shouldPersistValidEnvelope() {
         DataCheckoutCardVaultTransferService transferService = mock(DataCheckoutCardVaultTransferService.class);
@@ -43,7 +39,9 @@ class CheckoutCardVaultConsumerTests {
         verify(persistenceService).persist(message, plaintext);
     }
 
-    /** 缺少消息幂等身份必须触发 Broker 重试。 */
+    /**
+     * 缺少消息幂等身份必须触发 Broker 重试。
+     */
     @Test
     void shouldRejectMessageWithoutMessageId() {
         DataCheckoutCardVaultTransferService transferService = mock(DataCheckoutCardVaultTransferService.class);
@@ -59,7 +57,9 @@ class CheckoutCardVaultConsumerTests {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
-    /** 畸形 JSON 必须触发 Broker 重试且日志不得包含密文正文。 */
+    /**
+     * 畸形 JSON 必须触发 Broker 重试且日志不得包含密文正文。
+     */
     @Test
     void shouldRejectMalformedPayload() {
         DataCheckoutCardVaultTransferService transferService = mock(DataCheckoutCardVaultTransferService.class);

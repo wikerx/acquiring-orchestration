@@ -10,13 +10,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCreateVO
- * @date : 2026-05-28 10:23
- * @email : scott_x@163.com
- * @description : 支付create响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 商户支付类创建响应，展示订单、交易状态、金额、汇率和后续动作，不暴露内部持久化模型。
  */
 @Data
 public class PaymentCreateVO implements Serializable {
@@ -36,7 +30,9 @@ public class PaymentCreateVO implements Serializable {
      */
     private OrderInfoVO orderInfo;
 
-    /** 首次交易保存的商品或服务明细。 */
+    /**
+     * 首次交易保存的商品或服务明细。
+     */
     private List<GoodsInfoVO> goodsInfo;
 
     /**
@@ -44,13 +40,19 @@ public class PaymentCreateVO implements Serializable {
      */
     private BillingCardHolderInfoVO billingCardHolderInfo;
 
-    /** 首次交易保存的付款人信息。 */
+    /**
+     * 首次交易保存的付款人信息。
+     */
     private PayerInfoVO payerInfo;
 
-    /** 首次交易保存的收货人信息。 */
+    /**
+     * 首次交易保存的收货人信息。
+     */
     private ShippingInfoVO shippingInfo;
 
-    /** 当前动作可向商户返回的 3DS 安全字段子集。 */
+    /**
+     * 当前动作可向商户返回的 3DS 安全字段子集。
+     */
     private ThreeDsInfoVO threeDSInfo;
 
     /**
@@ -76,13 +78,7 @@ public class PaymentCreateVO implements Serializable {
     private String status;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : MerchantInfoVO
-     * @date : 2026-05-28 10:23
-     * @email : scott_x@163.com
-     * @description : 商户信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 当前交易归属的商户号和首次交易冻结的子商户快照。
      */
     @Data
     public static class MerchantInfoVO implements Serializable {
@@ -104,13 +100,7 @@ public class PaymentCreateVO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : SubMerchantInfoVO
-     * @date : 2026-05-28 10:23
-     * @email : scott_x@163.com
-     * @description : sub商户信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 平台型商户首次交易冻结的实际经营主体快照。
      */
     @Data
     public static class SubMerchantInfoVO implements Serializable {
@@ -192,13 +182,7 @@ public class PaymentCreateVO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingCardHolderInfoVO
-     * @date : 2026-05-28 10:23
-     * @email : scott_x@163.com
-     * @description : 账单持卡人信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 商户提交并由支付核心冻结的账单持卡人联系信息。
      */
     @Data
     public static class BillingCardHolderInfoVO implements Serializable {
@@ -255,13 +239,7 @@ public class PaymentCreateVO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : OrderInfoVO
-     * @date : 2026-05-28 10:23
-     * @email : scott_x@163.com
-     * @description : 订单信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 商户订单标签金额及其累计授权、请款、退款和撤销金额。
      */
     @Data
     public static class OrderInfoVO implements Serializable {
@@ -318,13 +296,7 @@ public class PaymentCreateVO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : TransactionInfoVO
-     * @date : 2026-05-28 10:23
-     * @email : scott_x@163.com
-     * @description : 交易信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 当前交易动作的公开状态、平台响应码、卡信息摘要和渠道参考号。
      */
     @Data
     public static class TransactionInfoVO implements Serializable {
@@ -344,7 +316,9 @@ public class PaymentCreateVO implements Serializable {
          */
         private String sourceTransactionId;
 
-        /** 后续动作源交易发生时间；首次交易不返回。 */
+        /**
+         * 后续动作源交易发生时间；首次交易不返回。
+         */
         private OffsetDateTime sourceTransactionDateTime;
 
         /**
@@ -379,7 +353,9 @@ public class PaymentCreateVO implements Serializable {
          */
         private OffsetDateTime transactionDateTime;
 
-        /** 生命周期根主单时间仅供内部兼容，商户响应不输出。 */
+        /**
+         * 生命周期根主单时间仅供内部兼容，商户响应不输出。
+         */
         @JSONField(serialize = false)
         private OffsetDateTime rootTransactionDateTime;
 
@@ -423,26 +399,38 @@ public class PaymentCreateVO implements Serializable {
          */
         private String merchantWebsite;
 
-        /** Hosted Checkout 结果页返回地址。 */
+        /**
+         * Hosted Checkout 结果页返回地址。
+         */
         private String redirectUrl;
 
-        /** Hosted Checkout 创建会话语言。 */
+        /**
+         * Hosted Checkout 创建会话语言。
+         */
         private String language;
 
-        /** OpenAPI 投影使用的受控失败原因码，仅保留 Java 兼容读取，不属于商户响应契约。 */
+        /**
+         * OpenAPI 投影使用的受控失败原因码，仅保留 Java 兼容读取，不属于商户响应契约。
+         */
         @JSONField(serialize = false)
         private String failReasonCode;
 
-        /** OpenAPI 投影使用的安全失败说明，仅保留 Java 兼容读取，不属于商户响应契约。 */
+        /**
+         * OpenAPI 投影使用的安全失败说明，仅保留 Java 兼容读取，不属于商户响应契约。
+         */
         @JSONField(serialize = false)
         private String failReasonMessage;
 
-        /** 内部挂起原因码，仅用于选择现有 code/message，不直接返回商户。 */
+        /**
+         * 内部挂起原因码，仅用于选择现有 code/message，不直接返回商户。
+         */
         @JSONField(serialize = false)
         private String pendingReasonCode;
     }
 
-    /** 商品或服务明细响应。 */
+    /**
+     * 商品或服务明细响应。
+     */
     @Data
     public static class GoodsInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -482,7 +470,9 @@ public class PaymentCreateVO implements Serializable {
         private String currency;
     }
 
-    /** 付款人信息响应。 */
+    /**
+     * 付款人信息响应。
+     */
     @Data
     public static class PayerInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -600,7 +590,9 @@ public class PaymentCreateVO implements Serializable {
         private String userAgent;
     }
 
-    /** 收货人信息响应。 */
+    /**
+     * 收货人信息响应。
+     */
     @Data
     public static class ShippingInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -678,7 +670,9 @@ public class PaymentCreateVO implements Serializable {
         private String postal;
     }
 
-    /** 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。 */
+    /**
+     * 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。
+     */
     @Data
     public static class ThreeDsInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -725,7 +719,9 @@ public class PaymentCreateVO implements Serializable {
         private Boolean liabilityShifted;
     }
 
-    /** 已形成的费用明细。 */
+    /**
+     * 已形成的费用明细。
+     */
     @Data
     public static class FeeItemVO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -766,13 +762,7 @@ public class PaymentCreateVO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingInfoVO
-     * @date : 2026-05-28 10:23
-     * @email : scott_x@163.com
-     * @description : 账单信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 标签金额、渠道交易金额、冻结汇率、结算金额和费用明细。
      */
     @Data
     public static class BillingInfoVO implements Serializable {
@@ -817,7 +807,9 @@ public class PaymentCreateVO implements Serializable {
          */
         private OffsetDateTime rateTime;
 
-        /** 已形成的结算换汇汇率。 */
+        /**
+         * 已形成的结算换汇汇率。
+         */
         private BigDecimal settlementRate;
 
         /**
@@ -830,10 +822,14 @@ public class PaymentCreateVO implements Serializable {
          */
         private String settlementCurrency;
 
-        /** 已形成的结算费用金额。 */
+        /**
+         * 已形成的结算费用金额。
+         */
         private BigDecimal settlementFeeAmount;
 
-        /** 已形成的费用明细。 */
+        /**
+         * 已形成的费用明细。
+         */
         private List<FeeItemVO> feeItems;
     }
 }

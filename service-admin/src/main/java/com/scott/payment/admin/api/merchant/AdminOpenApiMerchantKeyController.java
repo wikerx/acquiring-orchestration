@@ -40,13 +40,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminOpenApiMerchantKeyController
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : adminopenAPI商户密钥 HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 管理端商户 OpenAPI 密钥 HTTP 控制器，用于运营后台，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  */
 @RestController
 @RequestMapping("/admin/openapi/merchant-keys")
@@ -54,10 +48,6 @@ public class AdminOpenApiMerchantKeyController {
 
     /**
      * {@code OPENAPI_KEY_MODULE_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：构造器注入的应用服务或 HTTP 请求对象。
-     * </p>
      */
     private static final String OPENAPI_KEY_MODULE_NAME = "OpenAPI对接材料";
 

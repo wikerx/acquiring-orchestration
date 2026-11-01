@@ -50,13 +50,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRoleServiceImpl
- * @date : 2026-06-07 00:00
- * @email : scott_x@163.com
- * @description : 管理后台角色领域服务实现
- * @status : create
+ * 管理后台角色领域服务实现
  *
  * <p>负责后台角色维护、状态切换、菜单授权和权限授权等核心领域规则，
  * 不承担控制器协议适配和页面交互逻辑。</p>
@@ -74,42 +68,22 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     private static final long NOT_DELETED = 0L;
     /**
      * {@code ROLE_TYPE_CUSTOM}，用于区分 {@code AdminRoleServiceImpl} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ROLE_TYPE_CUSTOM = "CUSTOM";
     /**
      * 角色类型系统，用于区分 {@code AdminRoleServiceImpl} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
     /**
      * {@code DATA_SCOPE_ALL}常量，统一 {@code AdminRoleServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DATA_SCOPE_ALL = "ALL";
     /**
      * {@code DATA_SCOPE_SELF}常量，统一 {@code AdminRoleServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DATA_SCOPE_SELF = "SELF";
     /**
      * {@code DATA_SCOPE_CUSTOM}常量，统一 {@code AdminRoleServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DATA_SCOPE_CUSTOM = "CUSTOM";
 
@@ -416,6 +390,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    /**
+     * 构建角色当前授权树。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public SysRoleGrantTreeAuthDTO roleGrantTree(Long roleId) {
@@ -440,12 +417,18 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 构建角色可授权树模板。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public SysRoleGrantTreeAuthDTO roleGrantTreeTemplate() {
         return grantTreeTemplate(getAdminApp().getId());
     }
 
+    /**
+     * 构建角色已授权菜单与权限树。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -538,6 +521,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return role;
     }
 
+    /**
+     * 统计角色菜单授权数量。
+     */
     private Map<Long, Long> countRoleMenus(Long roleId) {
         return Map.of(roleId, sysRoleMenuMapper.selectCount(
                 Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -546,6 +532,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         ));
     }
 
+    /**
+     * 统计角色权限授权数量。
+     */
     private Map<Long, Long> countRolePermissions(Long roleId) {
         Long count = sysRolePermissionMapper.selectCount(
                 Wrappers.<SysRolePermissionDO>lambdaQuery()
@@ -554,6 +543,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return Map.of(roleId, count == null ? 0L : count);
     }
 
+    /**
+     * 解析有效状态。
+     */
     private Integer validStatus(Integer status) {
         if (status == AuthConstants.ENABLED || status == AuthConstants.DISABLED) {
             return status;
@@ -561,6 +553,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "status is invalid");
     }
 
+    /**
+     * 解析数据范围。
+     */
     private String resolveDataScope(String dataScope) {
         if (!StringUtils.hasText(dataScope)) {
             return DATA_SCOPE_SELF;
@@ -572,6 +567,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "data scope is invalid");
     }
 
+    /**
+     * 软删除角色菜单授权关系。
+     */
     private void softDeleteRoleMenus(Long appId, Long roleId) {
         sysRoleMenuMapper.selectList(
                 Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -584,6 +582,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    /**
+     * 软删除角色权限授权关系。
+     */
     private void softDeleteRolePermissions(Long appId, Long roleId) {
         sysRolePermissionMapper.selectList(
                 Wrappers.<SysRolePermissionDO>lambdaQuery()
@@ -596,6 +597,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    /**
+     * 规范化输入值。
+     */
     private String normalize(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -603,6 +607,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return value.trim();
     }
 
+    /**
+     * 统计角色菜单授权数量。
+     */
     private Map<Long, Long> countRoleMenus(Page<SysRoleDO> page) {
         if (page.getRecords().isEmpty()) {
             return Collections.emptyMap();
@@ -614,6 +621,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         ).stream().collect(Collectors.groupingBy(SysRoleMenuDO::getRoleId, Collectors.counting()));
     }
 
+    /**
+     * 统计角色权限授权数量。
+     */
     private Map<Long, Long> countRolePermissions(Page<SysRoleDO> page) {
         if (page.getRecords().isEmpty()) {
             return Collections.emptyMap();
@@ -625,6 +635,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         ).stream().collect(Collectors.groupingBy(SysRolePermissionDO::getRoleId, Collectors.counting()));
     }
 
+    /**
+     * 将角色实体转换为管理端角色响应。
+     */
     private SysRoleDTO toDTO(SysRoleDO role, Map<Long, Long> menuCountMap, Map<Long, Long> permissionCountMap) {
         SysRoleDTO dto = new SysRoleDTO();
         dto.setRoleId(role.getId());
@@ -642,6 +655,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 加载指定应用下可分配给角色的启用菜单。
+     */
     private List<SysMenuDO> loadGrantableMenus(Long appId) {
         return sysMenuMapper.selectList(
                 Wrappers.<SysMenuDO>lambdaQuery()
@@ -653,6 +669,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         );
     }
 
+    /**
+     * 加载指定应用下可分配给角色的启用权限。
+     */
     private List<SysPermissionDO> loadGrantablePermissions(Long appId) {
         return sysPermissionMapper.selectList(
                 Wrappers.<SysPermissionDO>lambdaQuery()
@@ -665,6 +684,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         );
     }
 
+    /**
+     * 构建可授权菜单与权限树模板。
+     */
     private SysRoleGrantTreeAuthDTO grantTreeTemplate(Long appId) {
         SysRoleGrantTreeAuthDTO dto = new SysRoleGrantTreeAuthDTO();
         dto.setMenus(buildMenuTree(loadGrantableMenus(appId)));
@@ -672,6 +694,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 构建菜单层级树。
+     */
     private List<SysMenuDTO> buildMenuTree(List<SysMenuDO> menus) {
         Map<Long, SysMenuDTO> menuMap = new LinkedHashMap<>();
         menus.forEach(menu -> menuMap.put(menu.getId(), toMenuDTO(menu)));
@@ -687,6 +712,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return roots;
     }
 
+    /**
+     * 转换为菜单授权数据对象。
+     */
     private SysMenuDTO toMenuDTO(SysMenuDO menu) {
         SysMenuDTO dto = new SysMenuDTO();
         dto.setMenuId(menu.getId());
@@ -707,6 +735,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 规范化主键集合，去除空值和重复项。
+     */
     private Set<Long> normalizeIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptySet();
@@ -714,6 +745,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return ids.stream().filter(id -> id != null && id > 0).collect(Collectors.toSet());
     }
 
+    /**
+     * 校验菜单主键集合均有效且可授权。
+     */
     private void validateMenuIds(Long appId, Set<Long> menuIds) {
         if (menuIds.isEmpty()) {
             return;
@@ -730,6 +764,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         }
     }
 
+    /**
+     * 校验权限主键集合均有效且可授权。
+     */
     private void validatePermissionIds(Long appId, Set<Long> permissionIds) {
         if (permissionIds.isEmpty()) {
             return;
@@ -746,6 +783,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         }
     }
 
+    /**
+     * 补充权限所属菜单及其祖先菜单主键。
+     */
     private Set<Long> expandMenuIdsForPermissions(Long appId, Set<Long> menuIds, Set<Long> permissionIds) {
         Set<Long> expanded = new java.util.LinkedHashSet<>(menuIds);
         if (permissionIds.isEmpty()) {
@@ -761,6 +801,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return expanded;
     }
 
+    /**
+     * 将菜单及其全部祖先节点加入授权目标集合。
+     */
     private void addMenuAndAncestors(Long menuId, Map<Long, SysMenuDO> menuMap, Set<Long> target) {
         Long currentId = menuId;
         Set<Long> visited = new java.util.HashSet<>();
@@ -771,6 +814,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         }
     }
 
+    /**
+     * 转换为权限授权数据对象。
+     */
     private SysPermissionDTO toPermissionDTO(SysPermissionDO permission) {
         SysPermissionDTO dto = new SysPermissionDTO();
         dto.setPermissionId(permission.getId());

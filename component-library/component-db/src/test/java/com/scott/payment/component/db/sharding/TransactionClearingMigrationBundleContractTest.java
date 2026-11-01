@@ -10,17 +10,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionClearingMigrationBundleContractTest
- * @date : 2026-08-25 23:40
- * @email : scott_x@163.com
- * @description : 校验清分第三阶段 SQL 拆分包的只读边界、兼容扩展范围、28 表拓扑和影子候选固定表完整性，不连接或修改数据库。
- * @status : create
+ * 校验清分第三阶段 SQL 拆分包的只读边界、兼容扩展范围、28 表拓扑和影子候选固定表完整性，不连接或修改数据库。
  */
 class TransactionClearingMigrationBundleContractTest {
 
-    /** 前检只允许 SELECT，不能混入结构或数据写操作。 */
+    /**
+     * 前检只允许 SELECT，不能混入结构或数据写操作。
+     */
     @Test
     void precheckShouldRemainReadOnly() throws IOException {
         String sql = executableSql(readSql("20260825_02_transaction_clearing_precheck_draft.sql"));
@@ -36,7 +32,9 @@ class TransactionClearingMigrationBundleContractTest {
                 "SETTLEMENT_BATCH", "MERCHANT_FUND_ACCOUNT", "MERCHANT_FUND_LEDGER");
     }
 
-    /** 兼容迁移必须同时覆盖模板、Q3 和 Q4，且在应用引用新列之前独立执行。 */
+    /**
+     * 兼容迁移必须同时覆盖模板、Q3 和 Q4，且在应用引用新列之前独立执行。
+     */
     @Test
     void compatibilityMigrationShouldCoverPublishedQuarterTables() throws IOException {
         String sql = readSql("20260825_03_transaction_clearing_compatibility_draft.sql");
@@ -55,7 +53,9 @@ class TransactionClearingMigrationBundleContractTest {
         assertThat(sql).contains("uk_merchant_snapshot_transaction", "delivery_mode", "fee_snapshot_hash");
     }
 
-    /** 拓扑迁移只创建本阶段所需清分表和影子候选，不提前落地真实结算资金表。 */
+    /**
+     * 拓扑迁移只创建本阶段所需清分表和影子候选，不提前落地真实结算资金表。
+     */
     @Test
     void topologyMigrationShouldContainExactlyClearingScope() throws IOException {
         String sql = readSql("20260825_04_transaction_clearing_topology_draft.sql");
@@ -96,7 +96,9 @@ class TransactionClearingMigrationBundleContractTest {
                 .contains("CONSTRAINT chk_settlement_candidate_state CHECK");
     }
 
-    /** 拆分拓扑必须与完整评审基线中的清分表定义完全一致，避免正式执行草案字段或约束漂移。 */
+    /**
+     * 拆分拓扑必须与完整评审基线中的清分表定义完全一致，避免正式执行草案字段或约束漂移。
+     */
     @Test
     void topologyMigrationShouldMatchReviewBaselineClearingDefinitions() throws IOException {
         String baseline = readSql("20260825_01_transaction_clearing_schema_draft.sql");
@@ -115,7 +117,9 @@ class TransactionClearingMigrationBundleContractTest {
         }
     }
 
-    /** 发布后核验必须覆盖缺表、结构、分片时间精度、字符集、号段和唯一索引。 */
+    /**
+     * 发布后核验必须覆盖缺表、结构、分片时间精度、字符集、号段和唯一索引。
+     */
     @Test
     void postcheckShouldCoverAllPublicationGates() throws IOException {
         String sql = readSql("20260825_05_transaction_clearing_postcheck_draft.sql");
@@ -154,7 +158,9 @@ class TransactionClearingMigrationBundleContractTest {
                 .doesNotContain("SET NAMES");
     }
 
-    /** 截取指定 CREATE TABLE 定义，避免其它清分表同名字段掩盖分片键漂移。 */
+    /**
+     * 截取指定 CREATE TABLE 定义，避免其它清分表同名字段掩盖分片键漂移。
+     */
     private String tableDefinition(String sql, String tableName) {
         int start = sql.indexOf("CREATE TABLE " + tableName + " (");
         if (start < 0) {
@@ -167,7 +173,9 @@ class TransactionClearingMigrationBundleContractTest {
         return sql.substring(start, end);
     }
 
-    /** 截取固定累计表至最后一张季度保证金状态表的完整清分拓扑定义。 */
+    /**
+     * 截取固定累计表至最后一张季度保证金状态表的完整清分拓扑定义。
+     */
     private String clearingTopology(String sql) {
         int start = sql.indexOf("CREATE TABLE fee_tier_accumulator (");
         int lastAlter = sql.indexOf("ALTER TABLE transaction_reserve_clearing_state_202604", start);
@@ -178,7 +186,9 @@ class TransactionClearingMigrationBundleContractTest {
         return sql.substring(start, end + 1).strip();
     }
 
-    /** 去除空行和 SQL 行注释，避免注释中的禁止词影响只读合同断言。 */
+    /**
+     * 去除空行和 SQL 行注释，避免注释中的禁止词影响只读合同断言。
+     */
     private String executableSql(String sql) {
         return sql.lines()
                 .map(String::trim)
@@ -187,7 +197,9 @@ class TransactionClearingMigrationBundleContractTest {
                 .toUpperCase();
     }
 
-    /** 读取仓库级 SQL 草案，兼容 IDE 和 Maven Reactor 工作目录。 */
+    /**
+     * 读取仓库级 SQL 草案，兼容 IDE 和 Maven Reactor 工作目录。
+     */
     private String readSql(String fileName) throws IOException {
         Path current = Path.of("").toAbsolutePath();
         while (current != null) {

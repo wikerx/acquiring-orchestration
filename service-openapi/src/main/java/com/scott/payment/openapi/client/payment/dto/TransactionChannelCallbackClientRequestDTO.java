@@ -9,13 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelCallbackClientRequestDTO
- * @date : 2026-07-14 22:56
- * @email : scott_x@163.com
- * @description : service-openapi 向 service-payment Inbox 提交已验证标准事件的内部请求 DTO；只携带报文长度和不可逆摘要，不跨服务传递回调原文。
- * @status : create
+ * service-openapi 向 service-payment Inbox 提交已验证标准事件的内部请求 DTO；只携带报文长度和不可逆摘要，不跨服务传递回调原文。
  */
 @Data
 public class TransactionChannelCallbackClientRequestDTO implements Serializable {
@@ -79,30 +73,72 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
      */
     private String channelEventType;
 
-    /** 验签所使用的渠道凭据标识，例如渠道 MID；不得保存密钥。 */
+    /**
+     * 验签所使用的渠道凭据标识，例如渠道 MID；不得保存密钥。
+     */
     private String channelCredentialHint;
 
-    /** 渠道稳定事件号，是 Inbox 数据库幂等键的必要组成部分。 */
+    /**
+     * 渠道稳定事件号，是 Inbox 数据库幂等键的必要组成部分。
+     */
     private String callbackEventId;
 
-    /** 渠道协议归一化后的回调业务类型。 */
+    /**
+     * 渠道协议归一化后的回调业务类型。
+     */
     private String callbackKind;
 
-    /** Provider raw status captured before platform state resolution. */
+    /**
+     * Provider raw status captured before platform state resolution.
+     */
     private String rawChannelStatus;
 
-    /** Provider-normalized channel trade status. */
+    /**
+     * Provider-normalized channel trade status.
+     */
     private String channelTradeStatus;
 
+    /**
+     * 金额，表示当前交易、费用、限额或统计口径下的金额值。
+     * <p>
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：必须与 currency 或同名币种字段一起解释。
+     * </p>
+     */
     private BigDecimal amount;
 
+    /**
+     * 币种，表示金额字段使用的币种。
+     * <p>
+     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+     * </p>
+     */
     private String currency;
 
+    /**
+     * 渠道响应编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private String channelResponseCode;
 
+    /**
+     * 渠道响应说明字段，保存 {@code TransactionChannelCallbackClientRequestDTO} 当前处理所需的业务取值。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private String channelResponseMessage;
 
-    /** 渠道协议解析出的非敏感扩展字段。 */
+    /**
+     * 渠道协议解析出的非敏感扩展字段。
+     */
     private Map<String, String> extension = new LinkedHashMap<>();
 
     /**
@@ -141,10 +177,14 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
      */
     private Map<String, String> requestHeaders;
 
-    /** 回调原始报文的精确字节数；支付核心不接收或保存可逆原文。 */
+    /**
+     * 回调原始报文的精确字节数；支付核心不接收或保存可逆原文。
+     */
     private Integer requestBodyLength;
 
-    /** 回调原始报文的 SHA-256 十六进制摘要。 */
+    /**
+     * 回调原始报文的 SHA-256 十六进制摘要。
+     */
     private String requestBodySha256;
 
     /**

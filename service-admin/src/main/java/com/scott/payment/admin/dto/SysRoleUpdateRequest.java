@@ -7,13 +7,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysRoleUpdateRequest
- * @date : 2026-06-07 00:00
- * @email : scott_x@163.com
- * @description : 管理后台角色编辑请求 DTO
- * @status : create
+ * 管理后台角色编辑请求 DTO
  *
  * <p>用于更新角色展示信息、数据范围、状态和排序等可变配置。</p>
  */

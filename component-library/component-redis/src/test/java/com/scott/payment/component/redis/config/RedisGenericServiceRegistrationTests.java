@@ -19,13 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisGenericServiceRegistrationTests
- * @date : 2026-07-30 18:45
- * @email : scott_x@163.com
- * @description : 验证通用 Redis 包装器默认只保留现有生产依赖的 String Bean，其余能力必须显式启用
- * @status : create
+ * 验证通用 Redis 包装器默认只保留现有生产依赖的 String Bean，其余能力必须显式启用
  */
 @Slf4j
 class RedisGenericServiceRegistrationTests {

@@ -22,13 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelAlertEventController
- * @date : 2026-07-17 00:00
- * @email : scott_x@163.com
- * @description : 渠道预警事件查询接口，位于 service-admin 接口层，用于后台查看和人工确认预警事件。
- * @status : create
+ * 渠道预警事件查询接口，位于 service-admin 接口层，用于后台查看和人工确认预警事件。
  */
 @RestController
 @RequestMapping("/admin/channel/alert-events")

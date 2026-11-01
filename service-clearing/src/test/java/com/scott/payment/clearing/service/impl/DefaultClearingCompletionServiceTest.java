@@ -6,6 +6,7 @@ import com.scott.payment.clearing.domain.model.ClearingCompletionModels.FinanceS
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.LocatorFacts;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.SourceContext;
 import com.scott.payment.clearing.domain.model.ClearingOperationFacts;
+import com.scott.payment.clearing.domain.model.SettlementCandidateDependencyPlan;
 import com.scott.payment.clearing.dto.ClearingClaimResult;
 import com.scott.payment.clearing.dto.ClearingFeeTierAccumulatorDelta;
 import com.scott.payment.clearing.entity.ClearingReserveDetailDO;
@@ -66,13 +67,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingCompletionServiceTest
- * @date : 2026-08-26 11:45
- * @email : scott_x@163.com
- * @description : 验证 Stage B 在同一事务语义下分开持久化交易费用和标签币种保证金，并以 CAS、数据库幂等和 Outbox 完成动作清分。
- * @status : create
+ * 验证 Stage B 在同一事务语义下分开持久化交易费用和标签币种保证金，并以 CAS、数据库幂等和 Outbox 完成动作清分。
  */
 @SuppressWarnings("unchecked")
 class DefaultClearingCompletionServiceTest {
@@ -88,10 +83,11 @@ class DefaultClearingCompletionServiceTest {
         ClearingTransactionIdempotencyMapper idempotencyMapper = mock(ClearingTransactionIdempotencyMapper.class);
         ClearingTransactionEventOutboxMapper outboxMapper = mock(ClearingTransactionEventOutboxMapper.class);
         GlobalIdGenerator idGenerator = mock(GlobalIdGenerator.class);
+        ClearingSettlementCandidateService candidateService = mock(ClearingSettlementCandidateService.class);
         DefaultClearingCompletionService service = new DefaultClearingCompletionService(
                 financeMapper, detailMapper, reserveMapper, tierMapper, contextMapper, projectionService,
                 idempotencyMapper, outboxMapper, new DefaultClearingCalculationService(), idGenerator,
-                mock(ClearingSettlementCandidateService.class),
+                candidateService,
                 mock(com.scott.payment.clearing.service.ClearingAnomalyService.class),
                 mock(ClearingOperationalMetrics.class),
                 mock(com.scott.payment.clearing.mapper.ClearingTierPeriodReplayMapper.class));
@@ -131,6 +127,14 @@ class DefaultClearingCompletionServiceTest {
         assertThat(summaryCaptor.getValue().labelCurrency()).isEqualTo("EUR");
         assertThat(summaryCaptor.getValue().merchantReceivableAmount()).isNull();
 
+        ArgumentCaptor<String> resultSnapshotCaptor = ArgumentCaptor.forClass(String.class);
+        verify(idempotencyMapper).insertSuccessfulConsumption(
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                any(), any(), anyString(), resultSnapshotCaptor.capture(),
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(now));
+        assertThat(resultSnapshotCaptor.getValue()).isEqualTo(
+                "{\"clearingRevision\":1,\"clearingStatus\":\"CLEARED\",\"financeStateId\":\"FS-1\"}");
+
         ArgumentCaptor<ClearingReserveDetailDO> reserveCaptor = ArgumentCaptor.forClass(ClearingReserveDetailDO.class);
         org.mockito.Mockito.verify(reserveMapper).insertDetail(reserveCaptor.capture());
         assertThat(reserveCaptor.getValue().getReserveActionType()).isEqualTo("HOLD");
@@ -158,10 +162,11 @@ class DefaultClearingCompletionServiceTest {
         ClearingTransactionIdempotencyMapper idempotencyMapper = mock(ClearingTransactionIdempotencyMapper.class);
         ClearingTransactionEventOutboxMapper outboxMapper = mock(ClearingTransactionEventOutboxMapper.class);
         GlobalIdGenerator idGenerator = mock(GlobalIdGenerator.class);
+        ClearingSettlementCandidateService candidateService = mock(ClearingSettlementCandidateService.class);
         DefaultClearingCompletionService service = new DefaultClearingCompletionService(
                 financeMapper, detailMapper, reserveMapper, tierMapper, contextMapper, projectionService,
                 idempotencyMapper, outboxMapper, new DefaultClearingCalculationService(), idGenerator,
-                mock(ClearingSettlementCandidateService.class),
+                candidateService,
                 mock(com.scott.payment.clearing.service.ClearingAnomalyService.class),
                 mock(ClearingOperationalMetrics.class),
                 mock(com.scott.payment.clearing.mapper.ClearingTierPeriodReplayMapper.class));
@@ -194,6 +199,15 @@ class DefaultClearingCompletionServiceTest {
         assertThat(summaryCaptor.getValue().labelCurrency()).isEqualTo("EUR");
         verify(reserveMapper, never()).insertDetail(any());
         verify(reserveMapper, never()).insertState(any());
+        ArgumentCaptor<SettlementCandidateDependencyPlan> dependencyCaptor =
+                ArgumentCaptor.forClass(SettlementCandidateDependencyPlan.class);
+        verify(candidateService).create(
+                org.mockito.ArgumentMatchers.eq("FS-1"), org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq(command.claim().operation()),
+                org.mockito.ArgumentMatchers.eq("USD"),
+                org.mockito.ArgumentMatchers.eq(command.settlementEligibleDate()),
+                dependencyCaptor.capture(), org.mockito.ArgumentMatchers.eq(now));
+        assertThat(dependencyCaptor.getValue().required()).isFalse();
         assertThat(result.clearingStatus()).isEqualTo("CLEARED");
         assertThat(result.reserveDetailCount()).isZero();
     }
@@ -363,8 +377,13 @@ class DefaultClearingCompletionServiceTest {
                 org.mockito.ArgumentMatchers.eq("TX-1"), org.mockito.ArgumentMatchers.eq(transactionTime),
                 org.mockito.ArgumentMatchers.eq(3), org.mockito.ArgumentMatchers.eq(1), any(),
                 org.mockito.ArgumentMatchers.eq(now));
-        verify(candidateService).replace("FS-1", 1, 2, command.claim().operation(),
-                "USD", command.settlementEligibleDate(), now);
+        verify(candidateService).replace(
+                org.mockito.ArgumentMatchers.eq("FS-1"), org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.eq(command.claim().operation()),
+                org.mockito.ArgumentMatchers.eq("USD"),
+                org.mockito.ArgumentMatchers.eq(command.settlementEligibleDate()),
+                org.mockito.ArgumentMatchers.any(SettlementCandidateDependencyPlan.class),
+                org.mockito.ArgumentMatchers.eq(now));
         verify(anomalyService).resolve("TX-1", transactionTime, "FS-1:2", now);
         verifyNoInteractions(idempotencyMapper, projectionService);
         assertThat(result.clearingRevision()).isEqualTo(2);
@@ -550,7 +569,12 @@ class DefaultClearingCompletionServiceTest {
         verify(tierMapper).applyDeltas("M-1", 11L, "202608", deltas,
                 "TX-1", 2, transactionTime, now);
         verify(candidateService).replaceReplayHeld(
-                "FS-1", 1, 2, command.claim().operation(), "USD", command.settlementEligibleDate(), now);
+                org.mockito.ArgumentMatchers.eq("FS-1"), org.mockito.ArgumentMatchers.eq(1),
+                org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.eq(command.claim().operation()),
+                org.mockito.ArgumentMatchers.eq("USD"),
+                org.mockito.ArgumentMatchers.eq(command.settlementEligibleDate()),
+                org.mockito.ArgumentMatchers.any(SettlementCandidateDependencyPlan.class),
+                org.mockito.ArgumentMatchers.eq(now));
         verify(replayMapper).markItemCompleted("TR-1", 1, 2L, 2, now);
         verify(replayMapper).advanceAfterItem(
                 "TR-1", 5L, 1, item.getClearingCompleteTime(), "TX-1", now);
@@ -711,7 +735,8 @@ class DefaultClearingCompletionServiceTest {
         LocatorFacts sourceLocator = new LocatorFacts(
                 "PAY-1", "OP-1", "PAY-1", "M-1", "ORDER-1", "PAYMENT", sourceTime, sourceTime);
         return new CompletionCommand(message, claim, "worker-2", refundSnapshot(), currentLocator,
-                "BANK_CARD", "VISA", Set.of(), new SourceContext(source, sourceLocator, sourceSnapshot()),
+                "BANK_CARD", "VISA", Set.of(),
+                new SourceContext(source, sourceLocator, sourceSnapshot(), "FS-PAY-1", 1),
                 refundTime.toLocalDate(), null);
     }
 

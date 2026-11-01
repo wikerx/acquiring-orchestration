@@ -13,23 +13,21 @@ import java.time.format.DateTimeFormatter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutClientTimeSerializationTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 OpenAPI 调用 Payout 时使用稳定的毫秒时间字符串契约。
- * @status : create
+ * 验证 OpenAPI 调用 Payout 时使用稳定的毫秒时间字符串契约。
  */
 class PayoutClientTimeSerializationTest {
 
     private static final LocalDateTime REQUEST_TIME =
             LocalDateTime.of(2026, 8, 3, 1, 24, 25, 962_000_000);
 
-    /** 使用秒级全局时间配置，验证 DTO 字段自身仍强制输出毫秒分片时间。 */
+    /**
+     * 使用秒级全局时间配置，验证 DTO 字段自身仍强制输出毫秒分片时间。
+     */
     private final ObjectMapper objectMapper = secondsConfiguredObjectMapper();
 
-    /** 验证代付内部请求不会受全局秒级序列化配置影响而丢失毫秒。 */
+    /**
+     * 验证代付内部请求不会受全局秒级序列化配置影响而丢失毫秒。
+     */
     @Test
     void payoutRequestShouldSerializeTransactionTimeAsMillisecondString() throws Exception {
         PayoutCreateClientRequestDTO request = new PayoutCreateClientRequestDTO();
@@ -41,7 +39,9 @@ class PayoutClientTimeSerializationTest {
                 .isEqualTo("2026-08-03 01:24:25.962");
     }
 
-    /** 构造刻意使用秒级 {@link LocalDateTime} 序列化器的测试对象。 */
+    /**
+     * 构造刻意使用秒级 {@link LocalDateTime} 序列化器的测试对象。
+     */
     private ObjectMapper secondsConfiguredObjectMapper() {
         JavaTimeModule javaTimeModule = new JavaTimeModule();
         javaTimeModule.addSerializer(LocalDateTime.class, new LocalDateTimeSerializer(

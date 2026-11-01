@@ -12,13 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMenuApplicationService
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台菜单管理应用服务
- * @status : create
+ * 管理后台菜单管理应用服务
  */
 @Service
 public class AdminMenuApplicationService {

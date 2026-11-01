@@ -10,13 +10,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingInfoContributorTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 验证五个直连服务仅暴露非敏感规则摘要，非直连服务不增加交易分片信息。
- * @status : create
+ * 验证五个直连服务仅暴露非敏感规则摘要，非直连服务不增加交易分片信息。
  */
 class TransactionShardingInfoContributorTest {
 

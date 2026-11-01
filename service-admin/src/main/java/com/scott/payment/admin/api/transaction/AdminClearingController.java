@@ -29,13 +29,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminClearingController
- * @date : 2026-09-01 22:50
- * @email : scott_x@163.com
- * @description : Admin 清分记录查询和人工处置入口；由权限注解与操作日志保护，业务编排和可信身份解析统一下沉应用层。
- * @status : update
+ * Admin 清分记录查询和人工处置入口；由权限注解与操作日志保护，业务编排和可信身份解析统一下沉应用层。
  */
 @RestController
 @RequestMapping("/admin/clearing/records")
@@ -43,6 +37,11 @@ public class AdminClearingController {
 
     private final AdminClearingApplicationService applicationService;
 
+    /**
+     * 创建清分记录管理控制器。
+     *
+     * @param applicationService 清分管理应用服务
+     */
     public AdminClearingController(AdminClearingApplicationService applicationService) {
         this.applicationService = applicationService;
     }

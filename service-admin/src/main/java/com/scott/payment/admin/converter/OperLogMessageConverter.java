@@ -6,13 +6,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperLogMessageConverter
- * @date : 2026-06-20 01:52
- * @email : scott_x@163.com
- * @description : 操作日志 MQ 消息转换器，位于 service-admin 转换层；负责将公共 MQ 操作日志消息转换为后台落库请求。
- * @status : create
+ * 操作日志 MQ 消息转换器，位于 service-admin 转换层；负责将公共 MQ 操作日志消息转换为后台落库请求。
  */
 @Mapper(componentModel = "spring")
 public interface OperLogMessageConverter {

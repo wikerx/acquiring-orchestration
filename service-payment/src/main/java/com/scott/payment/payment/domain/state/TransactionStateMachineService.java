@@ -5,13 +5,7 @@ import com.scott.payment.payment.entity.TransactionOrderDO;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionStateMachineService
- * @date : 2026-07-14 19:35
- * @email : scott_x@163.com
- * @description : 收单交易状态机服务，位于 service-payment 领域状态层，负责后续动作发起前的状态、终态和可用金额校验。
- * @status : create
+ * 收单交易状态机服务，位于 service-payment 领域状态层，负责后续动作发起前的状态、终态和可用金额校验。
  */
 public interface TransactionStateMachineService {
 

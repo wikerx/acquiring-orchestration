@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationLogMapper
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知日志 Mapper，通过 ShardingSphere 逻辑表写入脱敏尝试记录。
- * @status : create
+ * service-data 商户通知日志 Mapper，通过 ShardingSphere 逻辑表写入脱敏尝试记录。
  */
 public interface DataMerchantNotificationLogMapper {
 

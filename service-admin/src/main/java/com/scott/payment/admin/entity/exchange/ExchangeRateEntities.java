@@ -10,16 +10,13 @@ import java.time.LocalDateTime;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateEntities
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : Exchange Rate Entities 聚合类型，位于 运营后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * Exchange Rate Entities 聚合类型，用于运营后台，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class ExchangeRateEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private ExchangeRateEntities() {
     }
 
@@ -174,7 +171,9 @@ public final class ExchangeRateEntities {
          */
         private LocalDateTime updateTime;
 
-        /** 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。 */
+        /**
+         * 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。
+         */
 
         private Long deleted;
     }
@@ -225,35 +224,51 @@ public final class ExchangeRateEntities {
          */
         private String quoteCurrency;
 
-        /** 现钞买入价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。 */
+        /**
+         * 现钞买入价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。
+         */
 
         private BigDecimal cashBuyRate;
 
-        /** 现钞卖出价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。 */
+        /**
+         * 现钞卖出价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。
+         */
 
         private BigDecimal cashSellRate;
 
-        /** 现汇买入价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。 */
+        /**
+         * 现汇买入价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。
+         */
 
         private BigDecimal spotBuyRate;
 
-        /** 现汇卖出价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。 */
+        /**
+         * 现汇卖出价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。
+         */
 
         private BigDecimal spotSellRate;
 
-        /** 中间折算价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。 */
+        /**
+         * 中间折算价，统一为 1 原始币种兑换目标币种，必须使用 BigDecimal。
+         */
 
         private BigDecimal middleRate;
 
-        /** 汇率源发布时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 汇率源发布时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime publishTime;
 
-        /** 系统拉取或手工录入时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 系统拉取或手工录入时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime fetchTime;
 
-        /** 原始汇率生效时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 原始汇率生效时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime effectiveTime;
 
@@ -332,7 +347,9 @@ public final class ExchangeRateEntities {
          */
         private LocalDateTime updateTime;
 
-        /** 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。 */
+        /**
+         * 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。
+         */
 
         private Long deleted;
     }
@@ -419,11 +436,15 @@ public final class ExchangeRateEntities {
          */
         private String adjustMethod;
 
-        /** 调整值：BP 按基点解释，PERCENT 按百分比解释，必须使用 BigDecimal。 */
+        /**
+         * 调整值：BP 按基点解释，PERCENT 按百分比解释，必须使用 BigDecimal。
+         */
 
         private BigDecimal adjustValue;
 
-        /** 最终业务汇率保留的小数位。 */
+        /**
+         * 最终业务汇率保留的小数位。
+         */
 
         private Integer decimalScale;
 
@@ -445,11 +466,15 @@ public final class ExchangeRateEntities {
          */
         private Integer priority;
 
-        /** 规则生效开始时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 规则生效开始时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime effectiveStartTime;
 
-        /** 规则生效结束时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 规则生效结束时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime effectiveEndTime;
 
@@ -505,7 +530,9 @@ public final class ExchangeRateEntities {
          */
         private LocalDateTime updateTime;
 
-        /** 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。 */
+        /**
+         * 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。
+         */
 
         private Long deleted;
     }
@@ -583,11 +610,15 @@ public final class ExchangeRateEntities {
          */
         private Long ruleId;
 
-        /** 规则选取的原始报价字段值，必须使用 BigDecimal。 */
+        /**
+         * 规则选取的原始报价字段值，必须使用 BigDecimal。
+         */
 
         private BigDecimal originalRate;
 
-        /** 最终业务汇率，已应用调整和舍入规则，必须使用 BigDecimal。 */
+        /**
+         * 最终业务汇率，已应用调整和舍入规则，必须使用 BigDecimal。
+         */
 
         private BigDecimal finalRate;
 
@@ -600,11 +631,15 @@ public final class ExchangeRateEntities {
          */
         private String adjustDescription;
 
-        /** 业务汇率生效时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 业务汇率生效时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime effectiveTime;
 
-        /** 业务汇率失效时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 业务汇率失效时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime expireTime;
 
@@ -669,7 +704,9 @@ public final class ExchangeRateEntities {
          */
         private LocalDateTime updateTime;
 
-        /** 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。 */
+        /**
+         * 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。
+         */
 
         private Long deleted;
     }
@@ -747,7 +784,9 @@ public final class ExchangeRateEntities {
          */
         private String quoteCurrency;
 
-        /** 业务实际使用汇率，必须与交易、清分或结算结果一起固化。 */
+        /**
+         * 业务实际使用汇率，必须与交易、清分或结算结果一起固化。
+         */
 
         private BigDecimal usedRate;
 
@@ -787,7 +826,9 @@ public final class ExchangeRateEntities {
          */
         private String calculationDescription;
 
-        /** 汇率被业务链路实际应用的时间，数据库保留 DATETIME(3)。 */
+        /**
+         * 汇率被业务链路实际应用的时间，数据库保留 DATETIME(3)。
+         */
 
         private LocalDateTime appliedTime;
 
@@ -810,7 +851,9 @@ public final class ExchangeRateEntities {
          */
         private LocalDateTime createTime;
 
-        /** 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。 */
+        /**
+         * 软删除标识，0 表示未删除，非 0 使用主键值避免唯一索引冲突。
+         */
 
         private Long deleted;
     }

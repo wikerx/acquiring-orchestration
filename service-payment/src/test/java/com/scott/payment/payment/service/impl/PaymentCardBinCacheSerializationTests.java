@@ -12,13 +12,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCardBinCacheSerializationTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证卡 BIN 缓存条目通过平台注册序列化器往返后保持类型和业务字段一致
- * @status : create
+ * 验证卡 BIN 缓存条目通过平台注册序列化器往返后保持类型和业务字段一致
  */
 class PaymentCardBinCacheSerializationTests {
 

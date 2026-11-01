@@ -17,17 +17,13 @@ import java.util.Properties;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAutomaticOperationContractTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 防止自动结算被 yml 或 Nacos 业务开关静默关闭，并锁定服务启动即调度的运行边界。
- * @status : create
+ * 防止自动结算被 yml 或 Nacos 业务开关静默关闭，并锁定服务启动即调度的运行边界。
  */
 class SettlementAutomaticOperationContractTest {
 
-    /** 服务配置只允许内部鉴权 enabled，不得出现结算、影子比例或商户白名单业务开关。 */
+    /**
+     * 服务配置只允许内部鉴权 enabled，不得出现结算、影子比例或商户白名单业务开关。
+     */
     @Test
     void applicationConfigurationShouldNotContainBusinessSwitches() throws IOException {
         Path yamlPath = Path.of("src/main/resources/application.yml");
@@ -49,7 +45,9 @@ class SettlementAutomaticOperationContractTest {
                 "settlement.enabled", "shadow-mode", "allowlist", "rollout-percentage");
     }
 
-    /** 启动类必须直接启用调度；周期允许调优，但不得引入可静默关闭资金流程的业务开关。 */
+    /**
+     * 启动类必须直接启用调度；周期允许调优，但不得引入可静默关闭资金流程的业务开关。
+     */
     @Test
     void applicationShouldAutomaticallySchedulePreparationAndProcessing() throws NoSuchMethodException {
         assertThat(SettlementApplication.class.getAnnotation(EnableScheduling.class)).isNotNull();

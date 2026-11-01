@@ -36,13 +36,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskManagementApplicationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理端风控评估记录查询测试。
- * @status : create
+ * 管理端风控评估记录查询测试。
  */
 class AdminRiskManagementApplicationServiceTests {
 

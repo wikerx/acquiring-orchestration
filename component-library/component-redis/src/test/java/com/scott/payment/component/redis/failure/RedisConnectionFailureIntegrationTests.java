@@ -26,13 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisConnectionFailureIntegrationTests
- * @date : 2026-07-30 22:30
- * @email : scott_x@163.com
- * @description : 在显式启用时连接已确认无监听的端口，验证 MQ 降级和全局 ID 禁止本地降级
- * @status : create
+ * 在显式启用时连接已确认无监听的端口，验证 MQ 降级和全局 ID 禁止本地降级
  */
 @Slf4j
 @EnabledIfSystemProperty(named = "redis.failure.integration.enabled", matches = "true")

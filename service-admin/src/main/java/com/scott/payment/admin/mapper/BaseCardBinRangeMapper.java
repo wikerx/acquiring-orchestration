@@ -9,13 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BaseCardBinRangeMapper
- * @date : 2026-07-04 00:00
- * @email : scott_x@163.com
- * @description : 卡 BIN 区间 Mapper，位于 service-admin 数据访问层，负责基础卡 BIN 区间表的持久化访问。
- * @status : create
+ * 卡 BIN 区间 Mapper，位于 service-admin 数据访问层，负责基础卡 BIN 区间表的持久化访问。
  */
 public interface BaseCardBinRangeMapper extends BaseMapper<CardBinEntities.BaseCardBinRangeDO> {
 

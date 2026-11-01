@@ -1,13 +1,7 @@
 package com.scott.payment.component.core.cache;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCacheNames
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : 公共组件层 Spring Cache 名称注册常量，限定可跨服务共享的 Redis 业务读模型
- * @status : update
+ * 公共组件层 Spring Cache 名称注册常量，限定可跨服务共享的 Redis 业务读模型
  *
  * <p>Cache Name 会直接参与 Redis 物理 Key，统一保持
  * {@code acquiring:{environment}:{domain}:{dataset}:{businessKey}} 的短命名格式。

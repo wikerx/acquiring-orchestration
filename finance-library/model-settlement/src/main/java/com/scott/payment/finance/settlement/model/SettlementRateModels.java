@@ -10,13 +10,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRateModels
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 定义真实结算批次使用的不可变汇率报价、标准直接汇率和单目标币种汇率矩阵契约。
- * @status : create
+ * 定义真实结算批次使用的不可变汇率报价、标准直接汇率和单目标币种汇率矩阵契约。
  */
 public final class SettlementRateModels {
 
@@ -40,7 +34,9 @@ public final class SettlementRateModels {
     private SettlementRateModels() {
     }
 
-    /** 外部报价相对于标准“源币种到目标币种”的方向。 */
+    /**
+     * 外部报价相对于标准“源币种到目标币种”的方向。
+     */
     public enum QuoteDirection {
         /**
          * DIRECT 枚举值，表示当前枚举定义中的一个受控业务取值。

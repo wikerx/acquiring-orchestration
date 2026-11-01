@@ -12,17 +12,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTierPeriodReplayMapper
- * @date : 2026-08-26 19:30
- * @email : scott_x@163.com
- * @description : 阶梯期间重放控制和稳定动作项 Mapper；所有状态变更均带当前状态与版本 CAS。
- * @status : create
+ * 阶梯期间重放控制和稳定动作项 Mapper；所有状态变更均带当前状态与版本 CAS。
  */
 public interface ClearingTierPeriodReplayMapper {
 
-    /** 以 request_key 数据库唯一键吸收重复申请。 */
+    /**
+     * 以 request_key 数据库唯一键吸收重复申请。
+     */
     @Insert("""
             INSERT INTO clearing_tier_period_replay
             (replay_no, request_key, merchant_id, fee_plan_id, fee_plan_version_id,
@@ -64,7 +60,9 @@ public interface ClearingTierPeriodReplayMapper {
             """)
     ClearingTierPeriodReplayDO selectForUpdate(@Param("replayNo") String replayNo);
 
-    /** 事务外读取申请身份，用于加载不可变费用版本；复核事务仍会重新 FOR UPDATE。 */
+    /**
+     * 事务外读取申请身份，用于加载不可变费用版本；复核事务仍会重新 FOR UPDATE。
+     */
     @Select("""
             SELECT * FROM clearing_tier_period_replay
             WHERE replay_no = #{replayNo}
@@ -72,7 +70,9 @@ public interface ClearingTierPeriodReplayMapper {
             """)
     ClearingTierPeriodReplayDO selectByReplayNo(@Param("replayNo") String replayNo);
 
-    /** 先公开 PREPARING 门禁，再等待阶梯累计行锁，阻断新交易进入相同累计维度。 */
+    /**
+     * 先公开 PREPARING 门禁，再等待阶梯累计行锁，阻断新交易进入相同累计维度。
+     */
     @Update("""
             UPDATE clearing_tier_period_replay
             SET replay_status = 'PREPARING', review_operator = #{reviewOperator},
@@ -118,7 +118,9 @@ public interface ClearingTierPeriodReplayMapper {
             @Param("periodStart") LocalDateTime periodStart,
             @Param("periodEnd") LocalDateTime periodEnd);
 
-    /** 以同一精确分片时间范围一次统计活动保证金事实，避免按重放项逐笔查询。 */
+    /**
+     * 以同一精确分片时间范围一次统计活动保证金事实，避免按重放项逐笔查询。
+     */
     @Select("""
             SELECT COUNT(1)
             FROM transaction_finance_state fs
@@ -231,7 +233,9 @@ public interface ClearingTierPeriodReplayMapper {
                      @Param("reviewComment") String reviewComment,
                      @Param("now") LocalDateTime now);
 
-    /** 正常清分进入阶梯累计前检查相同累计闭包是否正处于准备、运行或人工处置。 */
+    /**
+     * 正常清分进入阶梯累计前检查相同累计闭包是否正处于准备、运行或人工处置。
+     */
     @Select("""
             SELECT COUNT(1) FROM clearing_tier_period_replay
             WHERE merchant_id = #{merchantId}
@@ -243,7 +247,9 @@ public interface ClearingTierPeriodReplayMapper {
                       @Param("feePlanVersionId") Long feePlanVersionId,
                       @Param("periodKey") String periodKey);
 
-    /** 扫描当前存在到期下一项的运行中重放；不在扫描事务内持有行锁。 */
+    /**
+     * 扫描当前存在到期下一项的运行中重放；不在扫描事务内持有行锁。
+     */
     @Select("""
             SELECT r.* FROM clearing_tier_period_replay r
             WHERE r.replay_status = 'RUNNING'
@@ -259,7 +265,9 @@ public interface ClearingTierPeriodReplayMapper {
     List<ClearingTierPeriodReplayDO> selectRunnable(@Param("now") LocalDateTime now,
                                                     @Param("limit") int limit);
 
-    /** 事务外读取稳定下一项，用于加载费用版本和动作上下文；最终提交仍会重新加锁校验。 */
+    /**
+     * 事务外读取稳定下一项，用于加载费用版本和动作上下文；最终提交仍会重新加锁校验。
+     */
     @Select("""
             SELECT i.* FROM clearing_tier_period_replay_item i
             JOIN clearing_tier_period_replay r ON r.replay_no = i.replay_no
@@ -272,7 +280,9 @@ public interface ClearingTierPeriodReplayMapper {
     ClearingTierPeriodReplayItemDO selectNextItem(@Param("replayNo") String replayNo,
                                                   @Param("now") LocalDateTime now);
 
-    /** 单项提交事务内锁定唯一下一序号，防止多实例并发跳序。 */
+    /**
+     * 单项提交事务内锁定唯一下一序号，防止多实例并发跳序。
+     */
     @Select("""
             SELECT i.* FROM clearing_tier_period_replay_item i
             JOIN clearing_tier_period_replay r ON r.replay_no = i.replay_no

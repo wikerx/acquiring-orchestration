@@ -37,13 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReviewApplicationServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Admin 预审命令先做商户范围校验，再注入登录账号和请求环境快照。
- * @status : create
+ * 验证 Admin 预审命令先做商户范围校验，再注入登录账号和请求环境快照。
  */
 class AdminSettlementReviewApplicationServiceTest {
 

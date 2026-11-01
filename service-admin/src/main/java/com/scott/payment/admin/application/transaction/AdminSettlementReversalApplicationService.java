@@ -26,13 +26,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReversalApplicationService
- * @date : 2026-09-01 23:00
- * @email : scott_x@163.com
- * @description : Admin 冲正单本地查询、数据范围和 Maker-Checker 命令编排；注入可信身份、角色、客户端信息和操作时间后调用 settlement 服务。
- * @status : update
+ * Admin 冲正单本地查询、数据范围和 Maker-Checker 命令编排；注入可信身份、角色、客户端信息和操作时间后调用 settlement 服务。
  */
 @Service
 public class AdminSettlementReversalApplicationService {
@@ -42,6 +36,9 @@ public class AdminSettlementReversalApplicationService {
     private final AdminSettlementReversalQueryService reversalQueryService;
     private final AdminMerchantDataScopeResolver dataScopeResolver;
 
+    /**
+     * 创建管理端结算冲正应用服务。
+     */
     public AdminSettlementReversalApplicationService(SettlementInternalClient client,
                                                      AdminSettlementQueryService batchQueryService,
                                                      AdminSettlementReversalQueryService reversalQueryService,
@@ -133,7 +130,9 @@ public class AdminSettlementReversalApplicationService {
         return client.decideReversal(reversalOrderNo.trim(), internal);
     }
 
-    /** 将可信 Admin 身份、角色快照、客户端地址和操作时间注入冲正申请。 */
+    /**
+     * 将可信 Admin 身份、角色快照、客户端地址和操作时间注入冲正申请。
+     */
     private void enrich(InternalReversalSubmitRequest command,
                         InternalAuthAccount account,
                         HttpServletRequest request) {
@@ -145,7 +144,9 @@ public class AdminSettlementReversalApplicationService {
         command.setOperationTime(LocalDateTime.now());
     }
 
-    /** 将可信 Admin 身份、角色快照、客户端地址和操作时间注入冲正决策。 */
+    /**
+     * 将可信 Admin 身份、角色快照、客户端地址和操作时间注入冲正决策。
+     */
     private void enrich(InternalReversalDecisionRequest command,
                         InternalAuthAccount account,
                         HttpServletRequest request) {
@@ -157,7 +158,9 @@ public class AdminSettlementReversalApplicationService {
         command.setOperationTime(LocalDateTime.now());
     }
 
-    /** 只接受具有 appId、accountId 且 appCode=ADMIN 的可信认证账户。 */
+    /**
+     * 只接受具有 appId、accountId 且 appCode=ADMIN 的可信认证账户。
+     */
     private InternalAuthAccount currentAdminAccount() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAppId() == null || account.getAccountId() == null
@@ -167,6 +170,9 @@ public class AdminSettlementReversalApplicationService {
         return account;
     }
 
+    /**
+     * 解析当前操作人的审计名称。
+     */
     private String operatorName(InternalAuthAccount account) {
         String value = StringUtils.hasText(account.getRealName()) ? account.getRealName().trim()
                 : StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount().trim() : null;
@@ -174,7 +180,9 @@ public class AdminSettlementReversalApplicationService {
         return value;
     }
 
-    /** 将已认证角色去重排序后固化为审计快照，避免集合顺序导致审计事实漂移。 */
+    /**
+     * 将已认证角色去重排序后固化为审计快照，避免集合顺序导致审计事实漂移。
+     */
     private String roleSnapshot(InternalAuthAccount account) {
         String value = account.getRoles() == null ? "" : account.getRoles().stream()
                 .filter(StringUtils::hasText).map(String::trim).distinct().sorted(Comparator.naturalOrder())
@@ -182,7 +190,9 @@ public class AdminSettlementReversalApplicationService {
         return value.isBlank() ? "UNASSIGNED" : value;
     }
 
-    /** 解析可信网关转发链首地址或直连地址，并限制审计字段长度。 */
+    /**
+     * 解析可信网关转发链首地址或直连地址，并限制审计字段长度。
+     */
     private String clientIp(HttpServletRequest request) {
         if (request == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         String value = com.scott.payment.admin.application.auth.AdminClientIpResolver.resolve(request);
@@ -190,6 +200,9 @@ public class AdminSettlementReversalApplicationService {
         return value;
     }
 
+    /**
+     * 提取并限制客户端 User-Agent 审计字段。
+     */
     private String userAgent(HttpServletRequest request) {
         String value = request == null ? null : request.getHeader("User-Agent");
         if (!StringUtils.hasText(value)) return "UNKNOWN";
@@ -197,18 +210,27 @@ public class AdminSettlementReversalApplicationService {
         return value.length() <= 500 ? value : value.substring(0, 500);
     }
 
+    /**
+     * 校验结算批次号是否符合平台编号格式。
+     */
     private void requireBatchNo(String value) {
         if (!StringUtils.hasText(value) || !value.trim().matches("SB\\d{8}-\\d{8}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 校验结算冲正单号是否符合平台编号格式。
+     */
     private void requireReversalNo(String value) {
         if (!StringUtils.hasText(value) || !value.trim().matches("SRO\\d{8}-\\d{8}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 返回首个非空业务文本。
+     */
     private boolean validText(String value, int maxLength) {
         return StringUtils.hasText(value) && value.trim().length() <= maxLength;
     }

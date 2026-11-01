@@ -16,12 +16,20 @@ import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
  */
 final class PaymentRiskDecisionSupport {
 
-    /** 对商户统一暴露的风控阻断说明，避免泄露内部规则、名单或评分细节。 */
+    /**
+     * 对商户统一暴露的风控阻断说明，避免泄露内部规则、名单或评分细节。
+     */
     static final String MERCHANT_RISK_BLOCKED_MESSAGE = "Risk blocked";
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private PaymentRiskDecisionSupport() {
     }
 
+    /**
+     * 把内部风控结果解析为支付域决策。
+     */
     static PaymentRiskDecisionEnum resolve(PaymentRiskDecisionDTO riskDecisionDTO) {
         if (riskDecisionDTO == null) {
             return PaymentRiskDecisionEnum.UNKNOWN;
@@ -34,6 +42,9 @@ final class PaymentRiskDecisionSupport {
         return decisionEnum;
     }
 
+    /**
+     * 填充被风控中止的支付结果。
+     */
     static void fillStoppedResult(PaymentCreateResultDTO resultDTO, PaymentRiskDecisionEnum riskDecisionEnum) {
         // 需要交互或人工审核的决策保持 PENDING，不得提前落成失败终态。
         if (PaymentRiskDecisionEnum.REQUIRE_3DS == riskDecisionEnum) {
@@ -56,10 +67,16 @@ final class PaymentRiskDecisionSupport {
         resultDTO.setMerchantResponseMessage(MERCHANT_RISK_BLOCKED_MESSAGE);
     }
 
+    /**
+     * 判断风控是否明确拒绝交易。
+     */
     static boolean isRiskRejected(String failReasonCode) {
         return PaymentFailureReasonEnum.RISK_REJECTED.getCode().equals(failReasonCode);
     }
 
+    /**
+     * 解析流程事件状态。
+     */
     static String flowEventStatus(PaymentRiskDecisionEnum riskDecisionEnum) {
         if (riskDecisionEnum != null && riskDecisionEnum.isAllowProceed()) {
             return PaymentTransactionStatusEnum.SUCCESS.getCode();

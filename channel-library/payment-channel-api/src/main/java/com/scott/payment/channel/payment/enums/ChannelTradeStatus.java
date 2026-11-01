@@ -3,13 +3,7 @@ package com.scott.payment.channel.payment.enums;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelTradeStatus
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道trade状态枚举，位于 渠道适配库，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 渠道trade状态枚举，位于 渠道适配库，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  */
 @Getter
 public enum ChannelTradeStatus {
@@ -22,13 +16,19 @@ public enum ChannelTradeStatus {
      */
     SUCCESS("SUCCESS"),
 
-    /** 渠道已完成授权；是否为平台终态由交易类型决定。 */
+    /**
+     * 渠道已完成授权；是否为平台终态由交易类型决定。
+     */
     AUTHORIZED("AUTHORIZED"),
 
-    /** 渠道已确认资金捕获，可由平台状态机推进对应交易。 */
+    /**
+     * 渠道已确认资金捕获，可由平台状态机推进对应交易。
+     */
     CAPTURED("CAPTURED"),
 
-    /** 渠道已确认退款完成；只允许退款动作据此进入成功终态。 */
+    /**
+     * 渠道已确认退款完成；只允许退款动作据此进入成功终态。
+     */
     REFUNDED("REFUNDED"),
 
     /**

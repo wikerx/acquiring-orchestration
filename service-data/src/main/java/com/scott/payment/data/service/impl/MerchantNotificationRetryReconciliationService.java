@@ -23,41 +23,53 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationRetryReconciliationService
- * @date : 2026-08-06 12:42
- * @email : scott_x@163.com
- * @description : 低频扫描全部已发布季度的到期通知，仅补发可靠 MQ 事件，不直接访问商户端点
- * @status : create
+ * 低频扫描全部已发布季度的到期通知，只补发可靠 MQ 事件，不直接访问商户端点。
+ *
+ * <p>该服务用于修复定时扫描或 Outbox 发布遗漏。真正的任务抢占、HTTP 投递和状态提交仍由
+ * 正常消费链路完成，避免补偿扫描形成第二套通知状态机。</p>
  */
 @Slf4j
 @Service
 public class MerchantNotificationRetryReconciliationService {
 
     /**
-     * 平台时区ID，用于定位 {@code MerchantNotificationRetryReconciliationService} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 平台交易分片和重试到期判断使用的固定时区。
      */
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
 
-    /** 通知任务 Mapper。 */
+    /**
+     * 通知任务 Mapper。
+     */
     private final DataMerchantNotificationMapper notificationMapper;
-    /** 主库可靠 Outbox 发布器，用于低频补偿事件。 */
+    /**
+     * 主库可靠 Outbox 发布器，用于低频补偿事件。
+     */
     private final ReliableMqPublisher reliableMqPublisher;
-    /** 已验证季度节点。 */
+    /**
+     * 已验证季度节点。
+     */
     private final TransactionShardingProperties shardingProperties;
-    /** 平台时钟。 */
+    /**
+     * 平台时钟。
+     */
     private final Clock clock;
-    /** PROCESSING 超时秒数。 */
+    /**
+     * PROCESSING 超时秒数。
+     */
     private final long processingTimeoutSeconds;
-    /** 每季度最大恢复候选数。 */
+    /**
+     * 每季度最大恢复候选数。
+     */
     private final int recoveryBatchLimit;
 
-    /** 创建生产环境对账服务。 */
+    /**
+     * 创建生产环境对账服务。
+     *
+     * @param notificationMapper 通知任务 Mapper
+     * @param reliableMqPublisher 可靠 MQ 发布器
+     * @param shardingProperties 已发布交易分片配置
+     * @param properties 商户通知恢复配置
+     */
     @Autowired
     public MerchantNotificationRetryReconciliationService(
             DataMerchantNotificationMapper notificationMapper,
@@ -70,6 +82,16 @@ public class MerchantNotificationRetryReconciliationService {
                 properties.getRecoveryBatchLimit());
     }
 
+    /**
+     * 创建可注入时钟和恢复边界的对账服务，供时间相关测试使用。
+     *
+     * @param notificationMapper 通知任务 Mapper
+     * @param reliableMqPublisher 可靠 MQ 发布器
+     * @param shardingProperties 已发布交易分片配置
+     * @param clock 平台时钟
+     * @param processingTimeoutSeconds PROCESSING 超时秒数
+     * @param recoveryBatchLimit 每季度最大恢复候选数
+     */
     MerchantNotificationRetryReconciliationService(
             DataMerchantNotificationMapper notificationMapper,
             ReliableMqPublisher reliableMqPublisher,
@@ -115,7 +137,7 @@ public class MerchantNotificationRetryReconciliationService {
                 queued++;
             }
         }
-        log.info("event: DATA_MERCHANT_NOTIFY_RECONCILE_END traceId: {} quarterCount: {} queuedCount: {} limitPerQuarter: {}",
+        log.info("商户通知对账批次完成, event: DATA_MERCHANT_NOTIFY_RECONCILE_END, traceId: {}, quarterCount: {}, queuedCount: {}, limitPerQuarter: {}",
                 TraceContext.getTraceId(), quarters.size(), queued, limitPerQuarter);
         return queued;
     }
@@ -141,13 +163,18 @@ public class MerchantNotificationRetryReconciliationService {
                 MqTopic.PAYMENT_EVENT,
                 MqTag.MERCHANT_NOTIFICATION_RETRY_DUE,
                 retryMessage(task, now));
-        log.info("event: DATA_MERCHANT_NOTIFY_RECONCILE_TRANSACTION_END traceId: {} transactionId: {} notifyId: {} expectedVersion: {} attemptNo: {}",
+        log.info("商户通知单笔对账事件已入队, event: DATA_MERCHANT_NOTIFY_RECONCILE_TRANSACTION_END, traceId: {}, transactionId: {}, notifyId: {}, expectedVersion: {}, attemptNo: {}",
                 TraceContext.getTraceId(), task.getTransactionId(), task.getNotifyId(), task.getVersion(),
                 task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1);
         return true;
     }
 
-    /** 逐条 CAS 恢复当前季度超时 PROCESSING 任务。 */
+    /**
+     * 逐条 CAS 恢复当前季度超时 PROCESSING 任务。
+     *
+     * @param quarter 目标季度起始时间
+     * @param now 当前平台时间
+     */
     private void recoverStale(LocalDateTime quarter, LocalDateTime now) {
         LocalDateTime staleBefore = now.minusSeconds(processingTimeoutSeconds);
         List<DataMerchantNotificationTaskDO> candidates = notificationMapper.selectStaleProcessing(
@@ -159,7 +186,13 @@ public class MerchantNotificationRetryReconciliationService {
         }
     }
 
-    /** 构造立即到期、由数据库版本最终判定是否执行的补偿事件。 */
+    /**
+     * 构造立即到期、由数据库版本最终判定是否执行的补偿事件。
+     *
+     * @param task 已到期通知任务快照
+     * @param now 补偿事件创建时间
+     * @return 不包含回调协议密文或安全材料的自动重试命令
+     */
     private MerchantNotificationRetryDueMessage retryMessage(DataMerchantNotificationTaskDO task,
                                                               LocalDateTime now) {
         MerchantNotificationRetryDueMessage message = new MerchantNotificationRetryDueMessage();
@@ -178,7 +211,13 @@ public class MerchantNotificationRetryReconciliationService {
         return message;
     }
 
-    /** 解析显式季度或全部已发布季度，未来节点不参与扫描。 */
+    /**
+     * 解析显式季度或全部已发布季度，未来节点不参与扫描。
+     *
+     * @param requestedTimes 调用方指定的交易分片时间；为空时读取全部已发布节点
+     * @param now 当前平台时间
+     * @return 去重并按时间倒序排列的季度起点
+     */
     private List<LocalDateTime> resolveQuarters(List<LocalDateTime> requestedTimes, LocalDateTime now) {
         LocalDateTime currentQuarter = quarterAnchor(now);
         if (requestedTimes != null && !requestedTimes.isEmpty()) {
@@ -196,7 +235,12 @@ public class MerchantNotificationRetryReconciliationService {
                 .toList();
     }
 
-    /** 将 yyyy0Q 节点转换为季度锚点。 */
+    /**
+     * 将 yyyy0Q 节点转换为季度锚点。
+     *
+     * @param suffix 交易分片物理节点后缀
+     * @return 对应季度第一天零点
+     */
     private LocalDateTime quarterAnchor(String suffix) {
         if (suffix == null || !suffix.matches("\\d{4}0[1-4]")) {
             throw new IllegalStateException("transaction sharding physical node suffix must use yyyyQQ");
@@ -206,7 +250,12 @@ public class MerchantNotificationRetryReconciliationService {
         return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
-    /** 将业务时间归一为季度锚点。 */
+    /**
+     * 将业务时间归一为季度锚点。
+     *
+     * @param value 任意季度内业务时间
+     * @return 对应季度第一天零点
+     */
     private LocalDateTime quarterAnchor(LocalDateTime value) {
         if (value == null) {
             throw new IllegalArgumentException("transaction date time can not be null");

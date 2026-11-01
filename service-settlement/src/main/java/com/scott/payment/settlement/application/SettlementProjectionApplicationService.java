@@ -32,9 +32,13 @@ public class SettlementProjectionApplicationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(
             SettlementProjectionApplicationService.class);
 
-    /** 投影事务失败时写入任务表的稳定失败码。 */
+    /**
+     * 投影事务失败时写入任务表的稳定失败码。
+     */
     private static final String FAILURE_CODE = "SETTLEMENT_PROJECTION_EXECUTION_FAILED";
-    /** 投影失败指数退避的最大分钟数。 */
+    /**
+     * 投影失败指数退避的最大分钟数。
+     */
     private static final int MAX_BACKOFF_MINUTES = 60;
 
     private final SettlementProjectionMapper projectionMapper;
@@ -108,7 +112,9 @@ public class SettlementProjectionApplicationService {
         return recorded;
     }
 
-    /** 从冻结任务和最小交易身份构造非敏感结算事件，消息组固定使用 operationId 保序。 */
+    /**
+     * 从冻结任务和最小交易身份构造非敏感结算事件，消息组固定使用 operationId 保序。
+     */
     private SettlementEventOutboxDO outbox(SettlementProjectionTaskDO task,
                                             SettlementOperationIdentityDO operation,
                                             LocalDateTime now) {
@@ -147,7 +153,9 @@ public class SettlementProjectionApplicationService {
         return row;
     }
 
-    /** 校验投影任务与交易动作的交易号、动作号、商户、币种和分片身份完全一致。 */
+    /**
+     * 校验投影任务与交易动作的交易号、动作号、商户、币种和分片身份完全一致。
+     */
     private void validateOperation(SettlementProjectionTaskDO task,
                                    SettlementOperationIdentityDO operation) {
         boolean valid = operation != null
@@ -168,7 +176,9 @@ public class SettlementProjectionApplicationService {
         }
     }
 
-    /** 在同一 transaction 主库事务按 SETTLE/REVERSE CAS 同步财务状态、动作单和生命周期主单。 */
+    /**
+     * 在同一 transaction 主库事务按 SETTLE/REVERSE CAS 同步财务状态、动作单和生命周期主单。
+     */
     private void projectState(SettlementProjectionTaskDO task,
                               SettlementOperationIdentityDO operation,
                               LocalDateTime now) {
@@ -252,7 +262,9 @@ public class SettlementProjectionApplicationService {
         }
     }
 
-    /** 读取批次冻结的交易币种到结算币种直接汇率，缺失或非正值时阻断投影。 */
+    /**
+     * 读取批次冻结的交易币种到结算币种直接汇率，缺失或非正值时阻断投影。
+     */
     private BigDecimal requireSettlementRate(String batchNo,
                                              String sourceCurrency,
                                              String targetCurrency) {

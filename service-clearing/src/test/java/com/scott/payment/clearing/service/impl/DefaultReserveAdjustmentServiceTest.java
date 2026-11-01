@@ -1,5 +1,7 @@
 package com.scott.payment.clearing.service.impl;
 
+import com.scott.payment.clearing.domain.model.SettlementCandidateDependencyPlan;
+import com.scott.payment.clearing.domain.state.SettlementCandidateDependencyType;
 import com.scott.payment.clearing.entity.ClearingMerchantSettlementProfileDO;
 import com.scott.payment.clearing.entity.ClearingReserveAdjustmentDO;
 import com.scott.payment.clearing.entity.ClearingReserveDetailDO;
@@ -35,13 +37,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultReserveAdjustmentServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证保证金调整申请、双人复核和独立结算事实的同事务边界。
- * @status : create
+ * 验证保证金调整申请、双人复核和独立结算事实的同事务边界。
  */
 class DefaultReserveAdjustmentServiceTest {
 
@@ -142,10 +138,19 @@ class DefaultReserveAdjustmentServiceTest {
         assertThat(detail.getReserveCurrency()).isEqualTo("EUR");
         assertThat(detail.getAdjustmentAmount()).isEqualByComparingTo("2.00");
         assertThat(detail.getRemainingAmount()).isEqualByComparingTo("10.00");
+        ArgumentCaptor<SettlementCandidateDependencyPlan> dependencyCaptor =
+                ArgumentCaptor.forClass(SettlementCandidateDependencyPlan.class);
         verify(candidateService).createAdjustment(
                 eq("RA-1"), eq(4), eq(result.transactionId()),
                 eq(LocalDateTime.of(2026, 8, 26, 18, 30)), eq("M-1"), eq("USD"),
-                eq(LocalDate.of(2026, 8, 26)), eq(LocalDateTime.of(2026, 8, 26, 10, 30)));
+                eq(LocalDate.of(2026, 8, 26)), dependencyCaptor.capture(),
+                eq(LocalDateTime.of(2026, 8, 26, 10, 30)));
+        SettlementCandidateDependencyPlan dependency = dependencyCaptor.getValue();
+        assertThat(dependency.sourceFinanceStateId()).isEqualTo("FS-1");
+        assertThat(dependency.sourceRevision()).isEqualTo(1);
+        assertThat(dependency.sourceTransactionId()).isEqualTo("PAY-1");
+        assertThat(dependency.dependencyTypes())
+                .containsExactly(SettlementCandidateDependencyType.RESERVE_HOLD_POSTED);
         verify(metrics).recordReserveAdjustment("APPROVED");
     }
 
@@ -219,6 +224,7 @@ class DefaultReserveAdjustmentServiceTest {
         ClearingReserveDetailDO row = new ClearingReserveDetailDO();
         row.setReserveClearingDetailNo("HOLD-1");
         row.setReserveActionType("HOLD");
+        row.setClearingRevision(1);
         row.setReserveCurrency("EUR");
         row.setReserveCurrencyExponent(2);
         row.setPaymentType("BANK_CARD");

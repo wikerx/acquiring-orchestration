@@ -13,13 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementBatchLeaseService
- * @date : 2026-08-26 22:30
- * @email : scott_x@163.com
- * @description : 使用批次行锁、租约截止时间和 version CAS 获取处理权，实例崩溃后仅允许在数据库租约过期后接管。
- * @status : create
+ * 使用批次行锁、租约截止时间和 version CAS 获取处理权，实例崩溃后仅允许在数据库租约过期后接管。
  */
 @Service
 public class DefaultSettlementBatchLeaseService implements SettlementBatchLeaseService {

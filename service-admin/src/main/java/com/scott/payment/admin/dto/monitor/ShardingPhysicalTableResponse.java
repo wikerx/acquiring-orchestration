@@ -7,13 +7,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingPhysicalTableResponse
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表物理表响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 分表物理表响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  */
 @Data
 public class ShardingPhysicalTableResponse {
@@ -158,13 +152,19 @@ public class ShardingPhysicalTableResponse {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long autoIncrementMax;
 
-    /** 当前实例加载的交易分片规则版本。 */
+    /**
+     * 当前实例加载的交易分片规则版本。
+     */
     private String ruleVersion;
 
-    /** 当前实例规则 checksum 前缀，不暴露配置秘密。 */
+    /**
+     * 当前实例规则 checksum 前缀，不暴露配置秘密。
+     */
     private String ruleChecksumPrefix;
 
-    /** 当前物理表季度是否已登记为 ShardingSphere 实际节点。 */
+    /**
+     * 当前物理表季度是否已登记为 ShardingSphere 实际节点。
+     */
     private Boolean nodeRegistered;
 
     /**

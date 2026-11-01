@@ -53,45 +53,242 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantEmailVerificationServiceImpl
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 商户账号激活和邮箱验证状态机；以租户绑定、行锁、哈希验证码和单次短期令牌阻止越权与重放。
- * @status : create
+ * 商户账号激活和邮箱验证状态机；以租户绑定、行锁、哈希验证码和单次短期令牌阻止越权与重放。
  */
 @Service
 public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerificationService {
 
+    /**
+     * 状态等待常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_PENDING = "PENDING";
+    /**
+     * {@code STATE_VERIFIED}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_VERIFIED = "VERIFIED";
+    /**
+     * {@code STATE_COMPLETED}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_COMPLETED = "COMPLETED";
+    /**
+     * {@code STATE_EXPIRED}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_EXPIRED = "EXPIRED";
+    /**
+     * {@code STATE_LOCKED}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_LOCKED = "LOCKED";
+    /**
+     * {@code STATE_SUPERSEDED}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_SUPERSEDED = "SUPERSEDED";
+    /**
+     * 状态拦截常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_BLOCKED = "BLOCKED";
+    /**
+     * {@code NEXT_SET_PASSWORD}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NEXT_SET_PASSWORD = "SET_PASSWORD";
+    /**
+     * {@code NEXT_COMPLETED}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NEXT_COMPLETED = "COMPLETED";
+    /**
+     * {@code EMAIL_CODE_TTL_SECONDS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int EMAIL_CODE_TTL_SECONDS = 30 * 60;
+    /**
+     * {@code ACTION_TOKEN_TTL_SECONDS}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int ACTION_TOKEN_TTL_SECONDS = 5 * 60;
+    /**
+     * {@code MAX_VERIFY_ATTEMPTS}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_VERIFY_ATTEMPTS = 50;
+    /**
+     * {@code ACCOUNT_REQUESTS_PER_HOUR}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * </p>
+     */
     private static final int ACCOUNT_REQUESTS_PER_HOUR = 50;
+    /**
+     * {@code IP_REQUESTS_PER_HOUR}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * </p>
+     */
     private static final int IP_REQUESTS_PER_HOUR = 200;
+    /**
+     * {@code RESEND_COOLDOWN_SECONDS}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int RESEND_COOLDOWN_SECONDS = 6;
+    /**
+     * {@code MAX_USER_AGENT_LENGTH}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_USER_AGENT_LENGTH = 500;
+    /**
+     * {@code RATE_SCOPE_COOLDOWN}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_COOLDOWN = "merchantEmailVerificationCooldown";
+    /**
+     * 汇率范围账号常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_ACCOUNT = "merchantEmailVerificationAccount";
+    /**
+     * {@code RATE_SCOPE_IP}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_IP = "merchantEmailVerificationIp";
+    /**
+     * {@code RATE_SCOPE_VERIFY_IP}常量，统一 {@code MerchantEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_VERIFY_IP = "merchantEmailVerificationVerifyIp";
+    /**
+     * {@code TEMPLATE_ACTIVATION}，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TEMPLATE_ACTIVATION = "MERCHANT_ACCOUNT_ACTIVATION";
+    /**
+     * {@code TEMPLATE_EMAIL_VERIFICATION}，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TEMPLATE_EMAIL_VERIFICATION = "MERCHANT_EMAIL_VERIFICATION";
+    /**
+     * {@code FRONTEND_BASE_URL_KEY}，表示回调、通知、来源站点或远程接口地址。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String FRONTEND_BASE_URL_KEY = "platform.merchant.frontend-base-url";
+    /**
+     * {@code CODE_DIGITS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_DIGITS = "23456789";
+    /**
+     * {@code CODE_LOWERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
+    /**
+     * {@code CODE_UPPERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    /**
+     * {@code CODE_CHARACTERS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_CHARACTERS = CODE_DIGITS + CODE_LOWERCASE + CODE_UPPERCASE;
+    /**
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    /**
+     * 邮件时间格式化器，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+     * <p>
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final DateTimeFormatter EMAIL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final SysAppMapper appMapper;
@@ -104,7 +301,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
     private final RedisSlidingWindowRateLimiter rateLimiter;
     private final AccountPasswordHistoryService passwordHistoryService;
 
-    /** 创建商户邮箱验证服务。 */
+    /**
+     * 创建商户邮箱验证服务。
+     */
     public MerchantEmailVerificationServiceImpl(SysAppMapper appMapper,
                                                 SysAccountMapper accountMapper,
                                                 SysUserMapper userMapper,
@@ -125,7 +324,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         this.passwordHistoryService = passwordHistoryService;
     }
 
-    /** 创建最新邮箱验证请求，并废止同账号尚未完成的旧请求。 */
+    /**
+     * 创建最新邮箱验证请求，并废止同账号尚未完成的旧请求。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -170,7 +371,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         sendVerificationEmailAfterCommit(account, row, code, targetEmail);
     }
 
-    /** 校验验证码；激活用途签发五分钟首次设密令牌，其余用途直接完成邮箱确认。 */
+    /**
+     * 校验验证码；激活用途签发五分钟首次设密令牌，其余用途直接完成邮箱确认。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = EmailVerificationException.class)
@@ -242,7 +445,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return response(NEXT_COMPLETED, null, 0, "Email verification completed.");
     }
 
-    /** 原子消费短期令牌，写入首次密码并激活账号。 */
+    /**
+     * 原子消费短期令牌，写入首次密码并激活账号。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = EmailVerificationException.class)
@@ -560,7 +765,9 @@ public class MerchantEmailVerificationServiceImpl implements MerchantEmailVerifi
         return new EmailVerificationException();
     }
 
-    /** 验证失败时保留计数或终态，同时统一对外错误。 */
+    /**
+     * 验证失败时保留计数或终态，同时统一对外错误。
+     */
     private static final class EmailVerificationException extends ServiceException {
         private static final long serialVersionUID = 1L;
 

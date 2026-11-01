@@ -7,13 +7,7 @@ import com.scott.payment.component.core.model.PageResult;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantUserService
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户用户服务契约，位于 运营后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 管理端商户用户服务契约，用于运营后台，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public interface AdminMerchantUserService {
 

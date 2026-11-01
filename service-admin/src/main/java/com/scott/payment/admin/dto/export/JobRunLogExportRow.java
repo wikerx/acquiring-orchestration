@@ -6,13 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogExportRow
- * @date : 2026-06-19 23:50
- * @email : scott_x@163.com
- * @description : 任务运行日志导出行对象
- * @status : create
+ * 任务运行日志导出行对象
  */
 @Data
 public class JobRunLogExportRow {

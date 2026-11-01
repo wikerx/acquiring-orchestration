@@ -15,7 +15,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class OpenApiResultDefinitionRegistryTest {
 
-    /** 48 个已发布返回码必须逐一登记规范要求的全部逻辑元数据。 */
+    /**
+     * 48 个已发布返回码必须逐一登记规范要求的全部逻辑元数据。
+     */
     @Test
     void shouldRegisterCompleteMetadataForEveryPublishedCode() {
         assertThat(OpenApiResultDefinitionRegistry.definitions()).hasSize(48);
@@ -67,7 +69,9 @@ class OpenApiResultDefinitionRegistryTest {
                 .hasSize(39);
     }
 
-    /** 渠道诊断参数只允许进入内部文案，同一码在商户和付款人出口必须使用各自安全模板。 */
+    /**
+     * 渠道诊断参数只允许进入内部文案，同一码在商户和付款人出口必须使用各自安全模板。
+     */
     @Test
     void shouldKeepInternalMerchantAndPayerMessagesSeparated() {
         OpenApiResultDefinition definition = OpenApiResultDefinitionRegistry.definition(
@@ -84,7 +88,9 @@ class OpenApiResultDefinitionRegistryTest {
                 .isNotEqualTo(definition.messages().get("payer.zh-CN"));
     }
 
-    /** F3000 必须登记未确认结果证据和查询策略，防止客户端据此自动重新发起资金动作。 */
+    /**
+     * F3000 必须登记未确认结果证据和查询策略，防止客户端据此自动重新发起资金动作。
+     */
     @Test
     void shouldGovernUnconfirmedChannelOutcomeConservatively() {
         OpenApiResultDefinition definition = OpenApiResultDefinitionRegistry.definition(
@@ -96,7 +102,9 @@ class OpenApiResultDefinitionRegistryTest {
         assertThat(definition.exclusions()).contains("不得");
     }
 
-    /** C、具体 T 原因码和 F 类可位于外层或内层，交易基础状态只能位于业务对象。 */
+    /**
+     * C、具体 T 原因码和 F 类可位于外层或内层，交易基础状态只能位于业务对象。
+     */
     @Test
     void shouldRegisterResponsePositionFromBusinessResponseBoundary() {
         assertThat(OpenApiResultDefinitionRegistry.definition(
@@ -114,7 +122,9 @@ class OpenApiResultDefinitionRegistryTest {
                 .doesNotContain("OPENAPI_V1_3_ENVELOPE");
     }
 
-    /** 所有使用 internalReason 的内部模板都必须显式登记参数权限。 */
+    /**
+     * 所有使用 internalReason 的内部模板都必须显式登记参数权限。
+     */
     @Test
     void shouldDeclareEveryInternalReasonTemplateParameter() {
         assertThat(OpenApiResultCode.values())

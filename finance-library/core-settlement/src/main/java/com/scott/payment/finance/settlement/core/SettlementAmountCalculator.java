@@ -15,13 +15,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAmountCalculator
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 使用同一批次不可变汇率矩阵折算原币种明细，保留行级未舍入值并只舍入最终目标净额一次。
- * @status : create
+ * 使用同一批次不可变汇率矩阵折算原币种明细，保留行级未舍入值并只舍入最终目标净额一次。
  */
 public final class SettlementAmountCalculator {
 

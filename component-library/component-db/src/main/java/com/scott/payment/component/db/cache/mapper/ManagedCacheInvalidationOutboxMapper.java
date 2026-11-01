@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ManagedCacheInvalidationOutboxMapper
- * @date : 2026-08-01 12:00
- * @email : scott_x@163.com
- * @description : 共享永久缓存失效 Outbox 数据访问接口，提供事务内写入、到期扫描和 CAS 状态迁移
- * @status : create
+ * 共享永久缓存失效 Outbox 数据访问接口，提供事务内写入、到期扫描和 CAS 状态迁移
  */
 public interface ManagedCacheInvalidationOutboxMapper {
 

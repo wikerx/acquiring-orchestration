@@ -12,13 +12,7 @@ import java.util.function.UnaryOperator;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SensitiveDataMaskUtils
- * @date : 2026-05-28 16:48
- * @email : scott_x@163.com
- * @description : Sensitive Data Mask Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
- * @status : create
+ * Sensitive Data Mask Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  */
 public final class SensitiveDataMaskUtils {
 
@@ -27,7 +21,9 @@ public final class SensitiveDataMaskUtils {
      */
     private static final String MASK_FAILED_PLACEHOLDER = "***MASK_FAILED***";
 
-    /** 嵌套 JSON 字符串递归上限，避免异常深度载荷消耗线程栈。 */
+    /**
+     * 嵌套 JSON 字符串递归上限，避免异常深度载荷消耗线程栈。
+     */
     private static final int MAX_JSON_MASK_DEPTH = 8;
 
     /**
@@ -110,7 +106,9 @@ public final class SensitiveDataMaskUtils {
             Pattern.CASE_INSENSITIVE
     );
 
-    /** 商户网站、通知和结果页 URL 可能携带路径或查询参数，普通日志中不保留原值。 */
+    /**
+     * 商户网站、通知和结果页 URL 可能携带路径或查询参数，普通日志中不保留原值。
+     */
     private static final Pattern MERCHANT_WEBSITE_FIELD_PATTERN = Pattern.compile(
             "(\"(?:merchantWebsite|callbackUrl|redirectUrl|checkoutUrl)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
@@ -148,7 +146,9 @@ public final class SensitiveDataMaskUtils {
         return maskFlatText(json);
     }
 
-    /** 对非 JSON 文本保留原正则脱敏能力，兼容 form-urlencoded 和日志片段。 */
+    /**
+     * 对非 JSON 文本保留原正则脱敏能力，兼容 form-urlencoded 和日志片段。
+     */
     private static String maskFlatText(String value) {
         String masked = SECRET_FIELD_PATTERN.matcher(value).replaceAll("$1***$3");
         masked = maskCardNo(masked);
@@ -163,7 +163,9 @@ public final class SensitiveDataMaskUtils {
         return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
     }
 
-    /** 递归处理对象、数组及 JSON 编码字符串中的敏感字段。 */
+    /**
+     * 递归处理对象、数组及 JSON 编码字符串中的敏感字段。
+     */
     private static void maskJsonValue(Object value, int depth) {
         if (value == null || depth >= MAX_JSON_MASK_DEPTH) {
             return;
@@ -203,7 +205,9 @@ public final class SensitiveDataMaskUtils {
         }
     }
 
-    /** 根据字段语义脱敏字符串；普通字符串若承载 JSON，则递归处理后重新编码。 */
+    /**
+     * 根据字段语义脱敏字符串；普通字符串若承载 JSON，则递归处理后重新编码。
+     */
     private static String maskJsonStringField(String fieldName, String value, int depth) {
         String key = fieldName == null ? "" : fieldName.toLowerCase(Locale.ROOT);
         if (isSecretField(key) || isReferenceField(key) || isSecurityCodeField(key)
@@ -233,7 +237,9 @@ public final class SensitiveDataMaskUtils {
         return value;
     }
 
-    /** 判断值是否仍需递归检查，超过深度限制时对这类值整体遮蔽。 */
+    /**
+     * 判断值是否仍需递归检查，超过深度限制时对这类值整体遮蔽。
+     */
     private static boolean isStructuredJson(Object value) {
         return value instanceof JSONObject || value instanceof JSONArray;
     }

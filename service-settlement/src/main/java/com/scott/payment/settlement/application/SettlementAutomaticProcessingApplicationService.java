@@ -38,11 +38,17 @@ public class SettlementAutomaticProcessingApplicationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(
             SettlementAutomaticProcessingApplicationService.class);
 
-    /** 单页激活上限，与数据库批量更新规模保持一致。 */
+    /**
+     * 单页激活上限，与数据库批量更新规模保持一致。
+     */
     private static final int ACTIVATION_PAGE_SIZE = 200;
-    /** 单轮激活页数上限，防止一次调度长期占用工作线程。 */
+    /**
+     * 单轮激活页数上限，防止一次调度长期占用工作线程。
+     */
     private static final int MAX_ACTIVATION_PAGES_PER_RUN = 10;
-    /** 批次处理租约，超时后允许其他实例重新领取。 */
+    /**
+     * 批次处理租约，超时后允许其他实例重新领取。
+     */
     private static final Duration PROCESSING_LEASE = Duration.ofMinutes(5);
 
     private final SettlementCandidateActivationService activationService;
@@ -56,7 +62,9 @@ public class SettlementAutomaticProcessingApplicationService {
     private final SettlementWorkerIdentity workerIdentity;
     private final Clock clock;
 
-    /** 创建使用 UTC 时钟的自动结算应用服务。 */
+    /**
+     * 创建使用 UTC 时钟的自动结算应用服务。
+     */
     @Autowired
     public SettlementAutomaticProcessingApplicationService(
             SettlementCandidateActivationService activationService,

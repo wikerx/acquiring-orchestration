@@ -24,13 +24,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisIdempotentIntegrationTests
- * @date : 2026-07-30 19:00
- * @email : scott_x@163.com
- * @description : 在显式启用时使用真实 Redis 验证 MQ 双桶去重、容量降级、失败释放和跨桶重复判断
- * @status : create
+ * 在显式启用时使用真实 Redis 验证 MQ 双桶去重、容量降级、失败释放和跨桶重复判断
  */
 @Slf4j
 @EnabledIfSystemProperty(named = "idempotent.redis.integration.enabled", matches = "true")

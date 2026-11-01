@@ -6,13 +6,7 @@ import com.scott.payment.risk.service.RiskEvaluationService;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationApplicationService
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 风控evaluation应用服务，位于 风控服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 风控evaluation应用服务，位于 风控服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class RiskEvaluationApplicationService {

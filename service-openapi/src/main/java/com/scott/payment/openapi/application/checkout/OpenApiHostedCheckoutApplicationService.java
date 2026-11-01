@@ -10,13 +10,7 @@ import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiHostedCheckoutApplicationService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 应用服务。
- * @status : create
+ * Hosted Checkout 应用服务。
  */
 @Service
 public class OpenApiHostedCheckoutApplicationService {

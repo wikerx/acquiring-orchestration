@@ -24,21 +24,36 @@ import java.util.concurrent.TimeoutException;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayOpenApiExceptionHandler
- * @date : 2026-10-26 00:00
- * @email : scott_x@163.com
- * @description : 将商户 OpenAPI 和付款人 Checkout API 在 Gateway 路由、连接及响应阶段的未处理异常投影为英文 F2000。
- * @status : create
+ * 将商户 OpenAPI 和付款人 Checkout API 在 Gateway 路由、连接及响应阶段的未处理异常投影为英文 F2000。
  */
 @Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class GatewayOpenApiExceptionHandler implements WebExceptionHandler {
 
+    /**
+     * {@code OPENAPI_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String OPENAPI_PATH_PREFIX = "/api/rest/";
+    /**
+     * {@code CHECKOUT_API_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CHECKOUT_API_PATH_PREFIX = "/checkout/api/";
+    /**
+     * {@code UNKNOWN}常量，统一 {@code GatewayOpenApiExceptionHandler} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String UNKNOWN = "unknown";
 
     private final GatewayOpenApiErrorWriter errorWriter;

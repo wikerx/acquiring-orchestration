@@ -8,7 +8,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证管理端与 OpenAPI 一样定期刷新公共 IP 路由版本。 */
+/**
+ * 验证管理端与 OpenAPI 一样定期刷新公共 IP 路由版本。
+ */
 class IpLookupRoutingRefreshSchedulerTests {
 
     @Test

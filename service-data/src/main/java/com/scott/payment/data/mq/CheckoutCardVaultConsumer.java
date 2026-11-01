@@ -16,13 +16,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutCardVaultConsumer
- * @date : 2026-08-08 18:00
- * @email : scott_x@163.com
- * @description : service-data 卡资料密文消费者，解密后使用数据库唯一约束吸收 RocketMQ 重复投递。
- * @status : create
+ * 消费 checkout 卡资料密文消息并在受控调用栈内完成解密和幂等落库。
+ *
+ * <p>消息正文、密文和任何卡资料都不得写入日志；数据库唯一约束是重复投递的最终保护。</p>
  */
 @Slf4j
 @Component
@@ -35,9 +31,13 @@ import org.springframework.util.StringUtils;
 )
 public class CheckoutCardVaultConsumer implements RocketMQListener<String> {
 
-    /** 传输信封解密服务。 */
+    /**
+     * 传输信封解密服务。
+     */
     private final DataCheckoutCardVaultTransferService transferService;
-    /** 卡资料库幂等写入服务。 */
+    /**
+     * 卡资料库幂等写入服务。
+     */
     private final CheckoutCardVaultPersistenceService persistenceService;
 
     /**
@@ -61,7 +61,7 @@ public class CheckoutCardVaultConsumer implements RocketMQListener<String> {
     public void onMessage(String payload) {
         CheckoutCardVaultStoreMessage message = parse(payload);
         if (message == null || !StringUtils.hasText(message.getMessageId())) {
-            log.error("event: DATA_CARD_VAULT_MESSAGE_INVALID payloadLength: {}",
+            log.error("卡资料密文消息缺少必填字段, event: DATA_CARD_VAULT_MESSAGE_INVALID, payloadLength: {}",
                     payload == null ? 0 : payload.length());
             throw new IllegalArgumentException("card vault message required fields are missing");
         }
@@ -69,7 +69,7 @@ public class CheckoutCardVaultConsumer implements RocketMQListener<String> {
         try {
             DataCheckoutCardVaultTransferService.CardVaultPlaintext plaintext = transferService.decrypt(message);
             boolean inserted = persistenceService.persist(message, plaintext);
-            log.info("event: DATA_CARD_VAULT_CONSUMED traceId: {} messageId: {} transactionId: {} checkoutAttemptId: {} inserted: {}",
+            log.info("卡资料密文消息消费完成, event: DATA_CARD_VAULT_CONSUMED, traceId: {}, messageId: {}, transactionId: {}, checkoutAttemptId: {}, inserted: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getTransactionId(),
                     message.getCheckoutAttemptId(), inserted);
         } finally {
@@ -77,6 +77,12 @@ public class CheckoutCardVaultConsumer implements RocketMQListener<String> {
         }
     }
 
+    /**
+     * 解析卡资料密文消息，失败日志只记录载荷长度和异常类型。
+     *
+     * @param payload RocketMQ JSON 消息体
+     * @return 卡资料密文消息
+     */
     private CheckoutCardVaultStoreMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
             throw new IllegalArgumentException("card vault payload is empty");
@@ -84,7 +90,7 @@ public class CheckoutCardVaultConsumer implements RocketMQListener<String> {
         try {
             return JsonUtils.parseObject(payload, CheckoutCardVaultStoreMessage.class);
         } catch (RuntimeException exception) {
-            log.error("event: DATA_CARD_VAULT_MESSAGE_PARSE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("卡资料密文消息解析失败, event: DATA_CARD_VAULT_MESSAGE_PARSE_FAILED, payloadLength: {}, exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
             throw new IllegalArgumentException("card vault payload is invalid", exception);
         }

@@ -5,13 +5,7 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentService
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单交易服务接口，位于 service-openapi 服务层，负责把独立交易 API 转换为 service-payment 内部调用。
- * @status : create
+ * 商户 OpenAPI 收单交易服务接口，位于 service-openapi 服务层，负责把独立交易 API 转换为 service-payment 内部调用。
  */
 public interface PaymentService {
 

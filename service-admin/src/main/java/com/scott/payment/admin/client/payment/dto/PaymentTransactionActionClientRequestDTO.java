@@ -8,13 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionActionClientRequestDTO
- * @date : 2026-07-14 23:59
- * @email : scott_x@163.com
- * @description : 管理后台调用 service-payment 发起交易后续动作的内部客户端请求，位于 service-admin 客户端层，仅承载退款、撤销等后台动作必要上下文。
- * @status : create
+ * 管理后台调用 service-payment 发起交易后续动作的内部客户端请求，位于 service-admin 客户端层，仅承载退款、撤销等后台动作必要上下文。
  */
 @Data
 public class PaymentTransactionActionClientRequestDTO implements Serializable {
@@ -72,16 +66,24 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
      */
     private String requestId;
 
-    /** 内部动作来源，管理后台固定为 ADMIN_PORTAL。 */
+    /**
+     * 内部动作来源，管理后台固定为 ADMIN_PORTAL。
+     */
     private String requestSource;
 
-    /** 当前认证后台账号 ID。 */
+    /**
+     * 当前认证后台账号 ID。
+     */
     private String applicantId;
 
-    /** 当前认证后台账号显示名快照。 */
+    /**
+     * 当前认证后台账号显示名快照。
+     */
     private String applicantName;
 
-    /** 后台填写的退款或撤销原因。 */
+    /**
+     * 后台填写的退款或撤销原因。
+     */
     private String requestReason;
 
     /**
@@ -90,13 +92,7 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     private TransactionInfoDTO transactionInfo;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : TransactionInfoDTO
-     * @date : 2026-07-14 23:59
-     * @email : scott_x@163.com
-     * @description : Admin 发起退款、撤销、请款等内部交易命令时传递的来源交易和操作说明上下文。
-     * @status : create
+     * Admin 发起退款、撤销、请款等内部交易命令时传递的来源交易和操作说明上下文。
      */
     @Data
     public static class TransactionInfoDTO implements Serializable {
@@ -108,11 +104,15 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
          */
         private String sourceTransactionId;
 
-        /** 源动作真实分片时间。 */
+        /**
+         * 源动作真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
 
-        /** 生命周期根主单真实分片时间。 */
+        /**
+         * 生命周期根主单真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 

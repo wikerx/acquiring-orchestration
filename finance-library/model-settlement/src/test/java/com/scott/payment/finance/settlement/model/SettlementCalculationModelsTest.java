@@ -13,13 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementCalculationModelsTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证结算计算模型对必填金额和可选 USD 限额采用显式且稳定的空值边界。
- * @status : create
+ * 验证结算计算模型对必填金额和可选 USD 限额采用显式且稳定的空值边界。
  */
 class SettlementCalculationModelsTest {
 

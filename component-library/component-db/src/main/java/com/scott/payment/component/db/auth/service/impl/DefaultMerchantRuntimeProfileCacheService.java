@@ -14,13 +14,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantRuntimeProfileCacheService
- * @date : 2026-07-30 21:25
- * @email : scott_x@163.com
- * @description : 商户运行时资料安全缓存门面，协调正缓存、短 TTL miss marker、失效门禁与主库回源，避免陈旧资料或 Redis 故障绕过商户校验
- * @status : create
+ * 商户运行时资料安全缓存门面，协调正缓存、短 TTL miss marker、失效门禁与主库回源，避免陈旧资料或 Redis 故障绕过商户校验
  */
 @Slf4j
 @Service

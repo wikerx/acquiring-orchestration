@@ -1,13 +1,7 @@
 package com.scott.payment.openapi.support;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestAttributes
- * @date : 2026-05-28 11:25
- * @email : scott_x@163.com
- * @description : 开放接口请求属性常量
- * @status : create
+ * 开放接口请求属性常量
  */
 public final class OpenApiRequestAttributes {
 
@@ -72,6 +66,9 @@ public final class OpenApiRequestAttributes {
      */
     public static final String EXCEPTION_TYPE = OpenApiRequestAttributes.class.getName() + ".EXCEPTION_TYPE";
 
+    /**
+     * 请求属性键集合不允许实例化。
+     */
     private OpenApiRequestAttributes() {
     }
 }

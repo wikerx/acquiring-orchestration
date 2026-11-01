@@ -10,13 +10,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewCreateCommand
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 表示人工结算预审提交；候选引用携带页面读取版本，候选集合必须同商户、账户、目标币种和来源类型且不超过一千条。
- * @status : create
+ * 表示人工结算预审提交；候选引用携带页面读取版本，候选集合必须同商户、账户、目标币种和来源类型且不超过一千条。
  * @param requestKey 预审创建请求数据库幂等键
  * @param reviewType REGULAR、RESERVE_RELEASE 或 ADJUSTMENT
  * @param businessDate 结算日历业务日期

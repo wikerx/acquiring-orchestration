@@ -16,13 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisGlobalIdGeneratorTests
- * @date : 2026-06-25 10:37
- * @email : scott_x@163.com
- * @description : 验证 Redis 全局 ID 的格式、重试、故障、状态 Key 与受控恢复时间下限
- * @status : create
+ * 验证 Redis 全局 ID 的格式、重试、故障、状态 Key 与受控恢复时间下限
  */
 @Slf4j
 class RedisGlobalIdGeneratorTests {

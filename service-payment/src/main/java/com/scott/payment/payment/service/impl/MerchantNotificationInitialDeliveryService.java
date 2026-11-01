@@ -31,25 +31,39 @@ import java.util.UUID;
 @Service
 public class MerchantNotificationInitialDeliveryService {
 
-    /** 首次商户 HTTP 回调相对任务就绪时间的延迟秒数。 */
+    /**
+     * 首次商户 HTTP 回调相对任务就绪时间的延迟秒数。
+     */
     static final long INITIAL_DELIVERY_DELAY_SECONDS = 5L;
 
-    /** 交易 Outbox 自身发送 RocketMQ 的最大基础设施重试次数。 */
+    /**
+     * 交易 Outbox 自身发送 RocketMQ 的最大基础设施重试次数。
+     */
     private static final int OUTBOX_MAX_RETRY_COUNT = 8;
 
-    /** 平台交易业务时间的统一解释时区。 */
+    /**
+     * 平台交易业务时间的统一解释时区。
+     */
     private static final String PLATFORM_ZONE_ID = "Asia/Shanghai";
 
-    /** 商户通知 Outbox 的稳定事件号前缀。 */
+    /**
+     * 商户通知 Outbox 的稳定事件号前缀。
+     */
     private static final String EVENT_NO_PREFIX = "MNR-";
 
-    /** 交易 Outbox 聚合类型。 */
+    /**
+     * 交易 Outbox 聚合类型。
+     */
     private static final String AGGREGATE_TYPE = "MERCHANT_NOTIFICATION";
 
-    /** 新建 Outbox 的待投递状态。 */
+    /**
+     * 新建 Outbox 的待投递状态。
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
 
-    /** 交易本地消息服务，负责在当前分片事务中持久化事件。 */
+    /**
+     * 交易本地消息服务，负责在当前分片事务中持久化事件。
+     */
     private final TransactionEventOutboxService eventOutboxService;
 
     /**
@@ -80,7 +94,9 @@ public class MerchantNotificationInitialDeliveryService {
         eventOutboxService.save(buildOutbox(notification, expectedVersion, readyTime));
     }
 
-    /** 构造首次到期消息和交易 Outbox，不复制任何商户 HTTP 协议字段。 */
+    /**
+     * 构造首次到期消息和交易 Outbox，不复制任何商户 HTTP 协议字段。
+     */
     private TransactionEventOutboxDO buildOutbox(TransactionMerchantNotificationDO notification,
                                                   int expectedVersion,
                                                   LocalDateTime readyTime) {
@@ -129,21 +145,27 @@ public class MerchantNotificationInitialDeliveryService {
         return event;
     }
 
-    /** 使用通知号和任务版本生成可重复计算的 Outbox 唯一事件号。 */
+    /**
+     * 使用通知号和任务版本生成可重复计算的 Outbox 唯一事件号。
+     */
     private String eventNo(String notifyId, int expectedVersion) {
         // 相同通知版本重复调度得到同一事件号，由 Outbox 唯一约束阻止重复首次投递。
         String source = notifyId + ":" + expectedVersion;
         return EVENT_NO_PREFIX + UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** 把平台时区下的交易时间转换为 UTC 审计时间。 */
+    /**
+     * 把平台时区下的交易时间转换为 UTC 审计时间。
+     */
     private LocalDateTime toUtc(LocalDateTime transactionDateTime) {
         return transactionDateTime.atZone(ZoneId.of(PLATFORM_ZONE_ID))
                 .withZoneSameInstant(ZoneOffset.UTC)
                 .toLocalDateTime();
     }
 
-    /** 校验精确分片路由、CAS 和消息业务键所需字段。 */
+    /**
+     * 校验精确分片路由、CAS 和消息业务键所需字段。
+     */
     private void validate(TransactionMerchantNotificationDO notification,
                           int expectedVersion,
                           LocalDateTime readyTime) {

@@ -19,7 +19,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证找回密码 HTTP 编排只使用网关覆盖写入的可信客户端 IP。 */
+/**
+ * 验证找回密码 HTTP 编排只使用网关覆盖写入的可信客户端 IP。
+ */
 @ExtendWith(MockitoExtension.class)
 class AdminPasswordResetApplicationServiceTest {
 

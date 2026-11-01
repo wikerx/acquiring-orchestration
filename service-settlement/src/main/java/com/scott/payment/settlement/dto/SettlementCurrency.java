@@ -3,13 +3,7 @@ package com.scott.payment.settlement.dto;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementCurrency
- * @date : 2026-08-26 22:40
- * @email : scott_x@163.com
- * @description : 批次事实中发现的 ISO 币种和 exponent 不可变组合，用于构造完整汇率矩阵并检测精度冲突。
- * @status : create
+ * 批次事实中发现的 ISO 币种和 exponent 不可变组合，用于构造完整汇率矩阵并检测精度冲突。
  * @param currency ISO 4217 三位大写币种
  * @param exponent ISO 小数位，范围 0 至 8
  */

@@ -15,13 +15,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisEnvironmentGuardAutoConfiguration
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : Redis 环境前缀启动门禁，阻止 test、uat、prod 复用其他环境的物理 Key 命名空间。
- * @status : create
+ * Redis 环境前缀启动门禁，阻止 test、uat、prod 复用其他环境的物理 Key 命名空间。
  */
 @AutoConfiguration(before = {RedisGlobalIdAutoConfiguration.class, PaymentRedisCacheAutoConfiguration.class})
 @EnableConfigurationProperties({

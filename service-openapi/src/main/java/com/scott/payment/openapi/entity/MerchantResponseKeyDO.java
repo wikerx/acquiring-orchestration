@@ -6,13 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantResponseKeyDO
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 商户响应加密公钥数据库实体
- * @status : create
+ * OpenAPI 商户响应加密公钥数据库实体
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

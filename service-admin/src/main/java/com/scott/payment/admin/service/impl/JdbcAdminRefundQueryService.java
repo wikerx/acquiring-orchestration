@@ -36,23 +36,23 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminRefundQueryService
- * @date : 2026-08-08 00:20
- * @email : scott_x@163.com
- * @description : 管理端退款 JDBC 查询实现，通过 transaction 逻辑数据源读取副本分片并在 service-admin 内完成分页、统计和详情装配。
- * @status : create
+ * 管理端退款 JDBC 查询实现，通过 transaction 逻辑数据源读取副本分片并在 service-admin 内完成分页、统计和详情装配。
  */
 @Service
 public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
 
-    /** 交易数据统一以 Asia/Shanghai 解释并路由季度分片。 */
+    /**
+     * 交易数据统一以 Asia/Shanghai 解释并路由季度分片。
+     */
     private static final String STORAGE_TIME_ZONE = TransactionShardingProperties.REQUIRED_ZONE_ID;
-    /** 商户通知任务逻辑表，由 ShardingSphere 按交易时间路由。 */
+    /**
+     * 商户通知任务逻辑表，由 ShardingSphere 按交易时间路由。
+     */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
 
-    /** 退款列表固定查询的逻辑表关联，表名不接受外部输入。 */
+    /**
+     * 退款列表固定查询的逻辑表关联，表名不接受外部输入。
+     */
     private static final String REFUND_FROM_SQL = """
             FROM transaction_operation o
             LEFT JOIN transaction_refund_approval a
@@ -63,7 +63,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
              AND p.transaction_date_time = o.transaction_date_time
             """;
 
-    /** 管理端退款记录投影，排除渠道原始报文和支付敏感信息。 */
+    /**
+     * 管理端退款记录投影，排除渠道原始报文和支付敏感信息。
+     */
     private static final String REFUND_COLUMNS = """
             o.transaction_id AS refund_transaction_id,
             o.operation_id, o.source_transaction_id, o.merchant_id, o.merchant_order_no,
@@ -85,15 +87,25 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
             a.execution_event_id, a.version AS approval_version
             """;
 
-    /** JDBC 查询模板，生产环境应用统一交易查询超时。 */
+    /**
+     * JDBC 查询模板，生产环境应用统一交易查询超时。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 交易逻辑数据源普通读执行器，由 ShardingSphere 决定副本节点。 */
+    /**
+     * 交易逻辑数据源普通读执行器，由 ShardingSphere 决定副本节点。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
-    /** 管理端现有交易详情查询服务，用于复用生命周期时间线。 */
+    /**
+     * 管理端现有交易详情查询服务，用于复用生命周期时间线。
+     */
     private final AdminTransactionQueryService transactionQueryService;
-    /** 单页允许返回的最大记录数。 */
+    /**
+     * 单页允许返回的最大记录数。
+     */
     private final int maxResultRows;
-    /** 当前已发布交易分片的最早起始时间。 */
+    /**
+     * 当前已发布交易分片的最早起始时间。
+     */
     private final LocalDateTime registeredNodeBegin;
 
     /**
@@ -162,7 +174,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                 () -> detailNormalized(transactionId, transactionDateTime));
     }
 
-    /** 在已归一化的存储时区范围内完成分页和三组统计查询。 */
+    /**
+     * 在已归一化的存储时区范围内完成分页和三组统计查询。
+     */
     private RefundSearchResponse searchNormalized(RefundQuery query) {
         String whereSql = whereSql(query);
         MapSqlParameterSource parameters = parameters(query);
@@ -193,7 +207,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         return response;
     }
 
-    /** 使用精确分片时间读取退款记录，并在存在根主单时复用管理端交易详情。 */
+    /**
+     * 使用精确分片时间读取退款记录，并在存在根主单时复用管理端交易详情。
+     */
     @SuppressWarnings("unchecked")
     private RefundDetailResponse detailNormalized(String transactionId,
                                                   LocalDateTime transactionDateTime) {
@@ -269,7 +285,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                 statusByTransactionId.get(record.getRefundTransactionId())));
     }
 
-    /** 读取列表统计和分币种金额，确保统计使用与分页完全相同的筛选条件。 */
+    /**
+     * 读取列表统计和分币种金额，确保统计使用与分页完全相同的筛选条件。
+     */
     private RefundSummary loadSummary(String whereSql, MapSqlParameterSource parameters) {
         RefundSummary summary = jdbcTemplate.queryForObject("""
                 SELECT COUNT(DISTINCT o.id) AS total_count,
@@ -336,7 +354,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         records.forEach(record -> enrichRootTransaction(record, roots.get(record.getOperationId())));
     }
 
-    /** 根据根主单补充分片时间，并兼容历史未落 refund_scope 的退款动作。 */
+    /**
+     * 根据根主单补充分片时间，并兼容历史未落 refund_scope 的退款动作。
+     */
     private void enrichRootTransaction(RefundRecord record, RootTransaction root) {
         record.setRootTransactionDateTime(root == null ? null : root.transactionDateTime());
         if (StringUtils.hasText(record.getRefundScope())) {
@@ -353,7 +373,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         }
     }
 
-    /** 归一化分页预算、时间范围、金额范围和查询时区。 */
+    /**
+     * 归一化分页预算、时间范围、金额范围和查询时区。
+     */
     private RefundQuery normalize(RefundQuery query) {
         RefundQuery safeQuery = query == null ? new RefundQuery() : query;
         safeQuery.setPageSize((int) Math.min(safeQuery.safePageSize(), maxResultRows));
@@ -388,7 +410,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         return safeQuery;
     }
 
-    /** 构建固定字段白名单下的筛选 SQL，外部输入只通过命名参数绑定。 */
+    /**
+     * 构建固定字段白名单下的筛选 SQL，外部输入只通过命名参数绑定。
+     */
     private String whereSql(RefundQuery query) {
         StringBuilder sql = new StringBuilder("""
                 WHERE o.deleted = 0
@@ -435,7 +459,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         return sql.toString();
     }
 
-    /** 构造退款查询全部命名参数，未启用的可空参数不会拼入 SQL。 */
+    /**
+     * 构造退款查询全部命名参数，未启用的可空参数不会拼入 SQL。
+     */
     private MapSqlParameterSource parameters(RefundQuery query) {
         return new MapSqlParameterSource()
                 .addValue("beginTime", query.getBeginTime())
@@ -464,12 +490,16 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                 .addValue("completeEndTime", query.getCompleteEndTime());
     }
 
-    /** 返回按下划线列名映射管理端退款 DTO 的行映射器。 */
+    /**
+     * 返回按下划线列名映射管理端退款 DTO 的行映射器。
+     */
     private RowMapper<RefundRecord> refundRecordMapper() {
         return BeanPropertyRowMapper.newInstance(RefundRecord.class);
     }
 
-    /** 返回退款状态统计行映射器，并把 SQL NULL 归一化为零。 */
+    /**
+     * 返回退款状态统计行映射器，并把 SQL NULL 归一化为零。
+     */
     private RowMapper<RefundSummary> refundSummaryMapper() {
         return (resultSet, rowNumber) -> {
             RefundSummary summary = new RefundSummary();
@@ -482,7 +512,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         };
     }
 
-    /** 返回退款分币种金额统计行映射器。 */
+    /**
+     * 返回退款分币种金额统计行映射器。
+     */
     private RowMapper<RefundCurrencySummary> refundCurrencySummaryMapper() {
         return (resultSet, rowNumber) -> {
             RefundCurrencySummary summary = new RefundCurrencySummary();
@@ -496,7 +528,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         };
     }
 
-    /** 解析页面查询时区，非法时区在访问数据库前拒绝。 */
+    /**
+     * 解析页面查询时区，非法时区在访问数据库前拒绝。
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : STORAGE_TIME_ZONE;
         try {
@@ -507,7 +541,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         }
     }
 
-    /** 兼容页面提交的 UTC+8、GMT+8 等短偏移格式。 */
+    /**
+     * 兼容页面提交的 UTC+8、GMT+8 等短偏移格式。
+     */
     private String normalizeZoneId(String zone) {
         String normalized = zone.trim();
         String upper = normalized.toUpperCase();
@@ -530,7 +566,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         return normalized;
     }
 
-    /** 将页面时区时间转换为交易库存储时区时间。 */
+    /**
+     * 将页面时区时间转换为交易库存储时区时间。
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime value,
                                               ZoneId sourceZone,
                                               ZoneId targetZone) {
@@ -538,7 +576,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                 : value.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
-    /** 从已发布季度节点解析查询允许访问的最早时间。 */
+    /**
+     * 从已发布季度节点解析查询允许访问的最早时间。
+     */
     private LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
         if (physicalNodes == null || physicalNodes.isEmpty()) {
             return LocalDate.now().withDayOfMonth(1).atStartOfDay();
@@ -550,39 +590,47 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                 .orElse(LocalDate.now().withDayOfMonth(1).atStartOfDay());
     }
 
-    /** 将 yyyy0Q 节点后缀转换为季度起始时间。 */
+    /**
+     * 将 yyyy0Q 节点后缀转换为季度起始时间。
+     */
     private LocalDateTime quarterBegin(String suffix) {
         int year = Integer.parseInt(suffix.substring(0, 4));
         int quarter = Integer.parseInt(suffix.substring(5, 6));
         return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
+    /**
+     * 追加受控文本字段的精确筛选条件。
+     */
     private void appendTextFilter(StringBuilder sql, String value, String fragment) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(fragment);
         }
     }
 
+    /**
+     * 判断退款查询时间范围是否非法。
+     */
     private boolean isInvalidRange(LocalDateTime beginTime, LocalDateTime endTime) {
         return beginTime != null && endTime != null && beginTime.isAfter(endTime);
     }
 
+    /**
+     * 原子完成一次性安全令牌并阻止重复使用。
+     */
     private LocalDateTime exclusiveEnd(LocalDateTime value) {
         return value.plusNanos(1_000_000L);
     }
 
+    /**
+     * 返回默认金额。
+     */
     private BigDecimal defaultAmount(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RootTransaction
-     * @date : 2026-08-08 00:20
-     * @email : scott_x@163.com
-     * @description : 生命周期根主单的真实分片时间和原始交易金额投影，用于退款详情路由及历史退款范围兼容。
-     * @status : create
+     * 生命周期根主单的真实分片时间和原始交易金额投影，用于退款详情路由及历史退款范围兼容。
      */
     private record RootTransaction(String operationId,
                                    LocalDateTime transactionDateTime,

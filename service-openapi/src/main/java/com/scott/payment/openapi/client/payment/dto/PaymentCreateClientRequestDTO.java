@@ -10,13 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCreateClientRequestDTO
- * @date : 2026-05-31 21:10
- * @email : scott_x@163.com
- * @description : OpenAPI 调用 service-payment 创建收单交易的内部请求参数，承载渠道调用、风控执行和生命周期关联所需上下文；卡号和安全码只允许内存传递，禁止日志、MQ 和落库明文保存。
- * @status : create
+ * OpenAPI 调用 service-payment 创建收单交易的内部请求参数，承载渠道调用、风控执行和生命周期关联所需上下文；卡号和安全码只允许内存传递，禁止日志、MQ 和落库明文保存。
  */
 @Data
 public class PaymentCreateClientRequestDTO implements Serializable {
@@ -56,7 +50,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      */
     private String requestId;
 
-    /** 支付核心内部使用的来源标识，不改变商户 OpenAPI 报文。 */
+    /**
+     * 支付核心内部使用的来源标识，不改变商户 OpenAPI 报文。
+     */
     private String requestSource;
 
     /**
@@ -65,10 +61,14 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      */
     private String ingressClientIp;
 
-    /** OpenAPI 申请主体稳定标识，当前使用已认证商户号。 */
+    /**
+     * OpenAPI 申请主体稳定标识，当前使用已认证商户号。
+     */
     private String applicantId;
 
-    /** 商户上送的退款原因摘要，仅在退款动作中使用。 */
+    /**
+     * 商户上送的退款原因摘要，仅在退款动作中使用。
+     */
     private String requestReason;
 
     /**
@@ -122,13 +122,19 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      */
     private BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 首次交易的商品或服务明细快照。 */
+    /**
+     * 首次交易的商品或服务明细快照。
+     */
     private List<GoodsInfoDTO> goodsInfo;
 
-    /** 商户上送的付款人身份、地址和浏览器上下文。 */
+    /**
+     * 商户上送的付款人身份、地址和浏览器上下文。
+     */
     private PayerInfoDTO payerInfo;
 
-    /** 商户可选上送的收货人及收货地址快照。 */
+    /**
+     * 商户可选上送的收货人及收货地址快照。
+     */
     private ShippingInfoDTO shippingInfo;
 
     /**
@@ -173,13 +179,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     private String userAgent;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : SubMerchantInfoDTO
-     * @date : 2026-05-31 21:10
-     * @email : scott_x@163.com
-     * @description : service-openapi 调用支付核心时传递的子商户快照，字段来自已校验的开放接口请求。
-     * @status : create
+     * service-openapi 调用支付核心时传递的子商户快照，字段来自已校验的开放接口请求。
      */
     @Data
     public static class SubMerchantInfoDTO implements Serializable {
@@ -314,13 +314,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingCardHolderInfoDTO
-     * @date : 2026-05-31 21:10
-     * @email : scott_x@163.com
-     * @description : service-openapi 调用支付核心时传递的账单持卡人信息，日志和异常链路必须脱敏。
-     * @status : create
+     * service-openapi 调用支付核心时传递的账单持卡人信息，日志和异常链路必须脱敏。
      */
     @Data
     public static class BillingCardHolderInfoDTO implements Serializable {
@@ -409,7 +403,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
         private String postal;
     }
 
-    /** 商品或服务行信息，amount 为该行总金额。 */
+    /**
+     * 商品或服务行信息，amount 为该行总金额。
+     */
     @Data
     public static class GoodsInfoDTO implements Serializable {
 
@@ -451,7 +447,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
         private String currency;
     }
 
-    /** 付款人信息，属于敏感业务快照，普通日志必须脱敏。 */
+    /**
+     * 付款人信息，属于敏感业务快照，普通日志必须脱敏。
+     */
     @Data
     public static class PayerInfoDTO implements Serializable {
 
@@ -571,7 +569,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
         private String userAgent;
     }
 
-    /** 收货人及收货地址信息，普通日志必须脱敏。 */
+    /**
+     * 收货人及收货地址信息，普通日志必须脱敏。
+     */
     @Data
     public static class ShippingInfoDTO implements Serializable {
 
@@ -652,13 +652,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CardInfoDTO
-     * @date : 2026-05-31 21:10
-     * @email : scott_x@163.com
-     * @description : service-openapi 调用支付核心时短暂传递的银行卡认证信息，禁止通过 MQ、日志或数据库保存 PAN/CVV 明文。
-     * @status : create
+     * service-openapi 调用支付核心时短暂传递的银行卡认证信息，禁止通过 MQ、日志或数据库保存 PAN/CVV 明文。
      */
     @Data
     public static class CardInfoDTO implements Serializable {
@@ -695,13 +689,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ThreeDsInfoDTO
-     * @date : 2026-05-31 21:10
-     * @email : scott_x@163.com
-     * @description : threeds信息传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
-     * @status : create
+     * 商户提交给支付核心的 3DS 认证偏好和既有认证结果。
      */
     @Data
     public static class ThreeDsInfoDTO implements Serializable {
@@ -742,13 +730,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : TransactionInfoDTO
-     * @date : 2026-05-31 21:10
-     * @email : scott_x@163.com
-     * @description : service-openapi 调用支付核心时传递的交易关联上下文，包含来源交易和商户通知/跳转信息。
-     * @status : create
+     * service-openapi 调用支付核心时传递的交易关联上下文，包含来源交易和商户通知/跳转信息。
      */
     @Data
     public static class TransactionInfoDTO implements Serializable {
@@ -778,7 +760,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
 
-        /** 生命周期根主单的 transaction_date_time，用于 service-payment 精确路由 transaction_order。 */
+        /**
+         * 生命周期根主单的 transaction_date_time，用于 service-payment 精确路由 transaction_order。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
@@ -801,7 +785,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
          */
         private String callbackUrl;
 
-        /** 商户发起支付的网站原始 URL，用于来源网址限定和响应回显。 */
+        /**
+         * 商户发起支付的网站原始 URL，用于来源网址限定和响应回显。
+         */
         private String merchantWebsite;
 
         /**
@@ -825,19 +811,29 @@ public class PaymentCreateClientRequestDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 商户体系内客户标识，用于客户维度名单和频率规则。 */
+        /**
+         * 商户体系内客户标识，用于客户维度名单和频率规则。
+         */
         private String customerId;
 
-        /** 商户提供的稳定设备指纹，不得包含原始设备采集报文。 */
+        /**
+         * 商户提供的稳定设备指纹，不得包含原始设备采集报文。
+         */
         private String deviceFingerprint;
 
-        /** 收货街道地址，属于个人信息，仅用于风控匹配。 */
+        /**
+         * 收货街道地址，属于个人信息，仅用于风控匹配。
+         */
         private String shippingAddress;
 
-        /** 收货邮编，用于地址风险规则。 */
+        /**
+         * 收货邮编，用于地址风险规则。
+         */
         private String shippingPostalCode;
 
-        /** ISO 3166-1 alpha-3 收货国家/地区代码。 */
+        /**
+         * ISO 3166-1 alpha-3 收货国家/地区代码。
+         */
         private String shippingCountry;
     }
 }

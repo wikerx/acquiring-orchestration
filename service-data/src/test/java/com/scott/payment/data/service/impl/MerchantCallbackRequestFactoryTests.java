@@ -25,16 +25,13 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantCallbackRequestFactoryTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证回调 Header、JWT、事件 ID 和密文正文形成同一个不可拆分的协议请求。
- * @status : create
+ * 验证回调 Header、JWT、事件 ID 和密文正文形成同一个不可拆分的协议请求。
  */
 class MerchantCallbackRequestFactoryTests {
 
+    /**
+     * 验证 v1 回调 JWT、协议头和加密正文可以被商户端校验解密。
+     */
     @Test
     void shouldBuildVerifiableEncryptedV1Request() {
         OpenApiPayloadCrypto crypto = new OpenApiPayloadCrypto();
@@ -75,6 +72,9 @@ class MerchantCallbackRequestFactoryTests {
         assertThat(request.auditBody()).doesNotContain(body.getString("data"));
     }
 
+    /**
+     * 验证自动重投始终使用通知号作为稳定回调事件号。
+     */
     @Test
     void shouldKeepAutomaticEventIdStableAcrossDeliveryAttempts() {
         OpenApiPayloadCrypto crypto = new OpenApiPayloadCrypto();
@@ -97,6 +97,9 @@ class MerchantCallbackRequestFactoryTests {
                 .isEqualTo("2");
     }
 
+    /**
+     * 构造不包含真实敏感数据的商户通知任务。
+     */
     private DataMerchantNotificationTaskDO task() {
         DataMerchantNotificationTaskDO task = new DataMerchantNotificationTaskDO();
         task.setMerchantId("M1001");
@@ -108,6 +111,9 @@ class MerchantCallbackRequestFactoryTests {
         return task;
     }
 
+    /**
+     * 计算测试期望使用的小写十六进制 SHA-256。
+     */
     private String sha256Hex(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

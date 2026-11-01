@@ -14,27 +14,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelDTOs
- * @date : 2026-07-03 16:10
- * @email : scott_x@163.com
- * @description : Channel DTOs 聚合类型，位于 运营后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * Channel DTOs 聚合类型，用于运营后台，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class ChannelDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private ChannelDTOs() {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelInfoQuery
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : Channel Info Query 查询条件模型，位于 运营后台服务，承载筛选字段、时间范围、分页参数和列表查询边界。
-     * @status : create
+     * Channel Info Query 查询条件模型，用于运营后台，承载筛选字段、时间范围、分页参数和列表查询边界。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -79,13 +70,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelInfoSaveRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道信息写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 渠道信息写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class ChannelInfoSaveRequest {
@@ -197,13 +182,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelInfoResponse
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道信息响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 渠道信息响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class ChannelInfoResponse {
@@ -356,13 +335,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelMetadataSchemaItem
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道元数据结构字段定义，描述配置项键名、类型、必填性、敏感性和校验规则。
-     * @status : create
+     * 渠道元数据结构字段定义，描述配置项键名、类型、必填性、敏感性和校验规则。
      */
     @Data
     public static class ChannelMetadataSchemaItem {
@@ -413,13 +386,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelMidConfigQuery
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道mid配置查询查询条件模型，位于 运营后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
-     * @status : create
+     * 渠道 MID 配置分页查询条件。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -447,13 +414,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelMidConfigSaveRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道mid配置写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 渠道 MID 配置保存请求，承载业务类型、能力范围和渠道接入参数。
      */
     @Data
     public static class ChannelMidConfigSaveRequest {
@@ -553,13 +514,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelMidConfigResponse
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道mid配置响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 渠道 MID 配置响应，展示业务范围、状态和脱敏后的接入参数。
      */
     @Data
     public static class ChannelMidConfigResponse {
@@ -646,7 +601,7 @@ public final class ChannelDTOs {
          */
         private String cardBrandScope;
         /**
-         * 交易类型，收单使用支付、授权、请款、退款等动作，代付使用代付或取消动作，用于选择渠道能力。
+         * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -781,13 +736,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : MerchantChannelMidBindingQuery
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : Merchant Channel MID Binding Query 查询条件模型，位于 运营后台服务，承载筛选字段、时间范围、分页参数和列表查询边界。
-     * @status : create
+     * Merchant Channel MID Binding Query 查询条件模型，用于运营后台，承载筛选字段、时间范围、分页参数和列表查询边界。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -842,13 +791,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : MerchantChannelMidBindingSaveRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 商户渠道midbinding写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 商户渠道 MID 绑定保存请求。
      */
     @Data
     public static class MerchantChannelMidBindingSaveRequest {
@@ -908,13 +851,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : MerchantChannelMidBindingResponse
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 商户渠道midbinding响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 商户渠道 MID 绑定响应，展示商户、渠道、业务类型和绑定状态。
      */
     @Data
     public static class MerchantChannelMidBindingResponse {
@@ -1043,13 +980,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CapabilityQuery
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : Capability Query 查询条件模型，位于 运营后台服务，承载筛选字段、时间范围、分页参数和列表查询边界。
-     * @status : create
+     * Capability Query 查询条件模型，用于运营后台，承载筛选字段、时间范围、分页参数和列表查询边界。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -1111,13 +1042,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CapabilitySaveRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道能力写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 渠道能力写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class CapabilitySaveRequest {
@@ -1179,7 +1104,9 @@ public final class ChannelDTOs {
          * </p>
          */
         private List<String> currencyCodes = new ArrayList<>();
-        /** 默认交易币种，必须且只能从允许币种中选择一个。 */
+        /**
+         * 默认交易币种，必须且只能从允许币种中选择一个。
+         */
         @NotBlank(message = "defaultTransactionCurrency is required")
         private String defaultTransactionCurrency;
         /**
@@ -1232,13 +1159,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CapabilitySupportRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道能力支持标识请求模型，位于 运营后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 渠道能力支持标识请求模型，用于运营后台，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
      */
     @Data
     public static class CapabilitySupportRequest {
@@ -1261,13 +1182,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CapabilityResponse
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道能力响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 渠道能力响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class CapabilityResponse {
@@ -1346,7 +1261,9 @@ public final class ChannelDTOs {
          * </p>
          */
         private List<String> currencyCodes = new ArrayList<>();
-        /** 默认交易币种，渠道不直接支持请求币种时用于交易换汇路由。 */
+        /**
+         * 默认交易币种，渠道不直接支持请求币种时用于交易换汇路由。
+         */
         private String defaultTransactionCurrency;
         /**
          * {@code cardBrands}集合，承载 {@code CapabilityResponse} 当前请求或响应中的多值数据。
@@ -1415,13 +1332,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : LimitQuery
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : Limit Query 查询条件模型，位于 运营后台服务，承载筛选字段、时间范围、分页参数和列表查询边界。
-     * @status : create
+     * Limit Query 查询条件模型，用于运营后台，承载筛选字段、时间范围、分页参数和列表查询边界。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -1480,13 +1391,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : LimitSaveRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 限额写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 限额写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class LimitSaveRequest {
@@ -1562,13 +1467,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : LimitBatchSaveRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : limit批次写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * limit批次写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class LimitBatchSaveRequest {
@@ -1585,13 +1484,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : LimitResponse
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 限额响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 限额响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class LimitResponse {
@@ -1724,13 +1617,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : StatusRequest
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : Status Request 状态变更请求模型，位于 运营后台服务，承载启停、冻结、审核或处理状态更新所需字段。
-     * @status : create
+     * Status Request 状态变更请求模型，用于运营后台，承载启停、冻结、审核或处理状态更新所需字段。
      */
     @Data
     public static class StatusRequest {
@@ -1747,13 +1634,7 @@ public final class ChannelDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ChannelOption
-     * @date : 2026-07-03 16:10
-     * @email : scott_x@163.com
-     * @description : 渠道管理页面通用选项 DTO，返回受控代码、名称和可选状态。
-     * @status : create
+     * 渠道管理页面通用选项 DTO，返回受控代码、名称和可选状态。
      */
     @Data
     public static class ChannelOption {

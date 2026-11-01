@@ -10,26 +10,28 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MfaSecretKeyPolicy
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : MFA 主密钥策略，位于认证数据支撑层；限制最低字节长度，拒绝公开默认值，并只允许隔离测试使用进程随机临时密钥。
- * @status : create
+ * MFA 主密钥策略，位于认证数据支撑层；限制最低字节长度，拒绝公开默认值，并只允许隔离测试使用进程随机临时密钥。
  */
 final class MfaSecretKeyPolicy {
 
-    /** MFA 主密钥最低 UTF-8 字节数；单位为字节，非敏感固定门槛。 */
+    /**
+     * MFA 主密钥最低 UTF-8 字节数；单位为字节，非敏感固定门槛。
+     */
     static final int MIN_SECRET_BYTES = 32;
 
-    /** 轮换窗口最多保留的历史解密密钥数，避免配置错误导致每次解密无界尝试。 */
+    /**
+     * 轮换窗口最多保留的历史解密密钥数，避免配置错误导致每次解密无界尝试。
+     */
     static final int MAX_PREVIOUS_SECRETS = 2;
 
-    /** 生成隔离测试进程临时主密钥所需的随机字节数。 */
+    /**
+     * 生成隔离测试进程临时主密钥所需的随机字节数。
+     */
     private static final int EPHEMERAL_SECRET_BYTES = 32;
 
-    /** 临时测试密钥的密码学安全随机源。 */
+    /**
+     * 临时测试密钥的密码学安全随机源。
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private MfaSecretKeyPolicy() {

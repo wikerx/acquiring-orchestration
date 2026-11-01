@@ -62,13 +62,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionRecordServiceTests
- * @date : 2026-07-14 18:10
- * @email : scott_x@163.com
- * @description : 交易事实记录服务单元测试，验证逻辑表写入携带 transaction_date_time，并保护金额、状态和通知语义。
- * @status : create
+ * 交易事实记录服务单元测试，验证逻辑表写入携带 transaction_date_time，并保护金额、状态和通知语义。
  */
 class DefaultTransactionRecordServiceTests {
 
@@ -1098,7 +1092,9 @@ class DefaultTransactionRecordServiceTests {
                 any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
-    /** 后续退款失败只终结退款动作，不覆盖原支付主单，但仍必须激活该退款动作的商户通知。 */
+    /**
+     * 后续退款失败只终结退款动作，不覆盖原支付主单，但仍必须激活该退款动作的商户通知。
+     */
     @Test
     void shouldNotifyFailedFollowUpCallbackWithoutOverwritingSourceOrder() {
         TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
@@ -1169,7 +1165,9 @@ class DefaultTransactionRecordServiceTests {
         assertThat(flowEventCaptor.getValue().getEventStatus()).isEqualTo("SUCCESS");
     }
 
-    /** 首次交易动作已 CAS 成功但主单 CAS 失败时必须抛错，使外层事务回滚动作终态。 */
+    /**
+     * 首次交易动作已 CAS 成功但主单 CAS 失败时必须抛错，使外层事务回滚动作终态。
+     */
     @Test
     void shouldFailClosedWhenInitialCallbackCannotUpdateLifecycleOrder() {
         TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
@@ -1339,7 +1337,9 @@ class DefaultTransactionRecordServiceTests {
                 "202607010030000000001", PaymentTransactionStatusEnum.SUCCESS.getCode());
     }
 
-    /** 后续动作终态只允许 CAS 成功方在当前事务内同步幂等状态。 */
+    /**
+     * 后续动作终态只允许 CAS 成功方在当前事务内同步幂等状态。
+     */
     @Test
     void shouldSynchronizeFollowUpIdempotencyOnlyForTerminalCasWinner() {
         TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
@@ -2064,7 +2064,9 @@ class DefaultTransactionRecordServiceTests {
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
     }
 
-    /** 渠道已生成并发出请求但网络异常时，应从请求扩展保存真实脱敏渠道报文。 */
+    /**
+     * 渠道已生成并发出请求但网络异常时，应从请求扩展保存真实脱敏渠道报文。
+     */
     @Test
     void shouldRecordGeneratedChannelPayloadFromRequestWhenResponseIsMissing() {
         PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
@@ -2088,7 +2090,9 @@ class DefaultTransactionRecordServiceTests {
         assertThat(interactionDO.getRequestBodyJsonMasked()).doesNotContain("\"channelCode\"");
     }
 
-    /** 渠道发送前校验失败时没有真实 HTTP 请求，后台不得把内部统一请求对象冒充渠道报文。 */
+    /**
+     * 渠道发送前校验失败时没有真实 HTTP 请求，后台不得把内部统一请求对象冒充渠道报文。
+     */
     @Test
     void shouldLeaveChannelPayloadEmptyWhenRequestWasNotGenerated() {
         PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
@@ -2102,7 +2106,9 @@ class DefaultTransactionRecordServiceTests {
         assertThat(interactionDO.getRequestBodyJsonMasked()).isNull();
     }
 
-    /** 执行首次交易事实写入并捕获渠道交互日志。 */
+    /**
+     * 执行首次交易事实写入并捕获渠道交互日志。
+     */
     private TransactionChannelInteractionLogDO recordInitialInteraction(PaymentChannelInvokeResultDTO invokeResultDTO) {
         TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
         Captured<TransactionChannelInteractionLogDO> interactionCapture = new Captured<>();

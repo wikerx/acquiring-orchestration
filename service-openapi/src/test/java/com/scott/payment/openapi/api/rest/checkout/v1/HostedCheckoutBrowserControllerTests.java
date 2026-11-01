@@ -14,16 +14,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutBrowserControllerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 浏览器桥接页测试，验证 3DS 返回数据不被误判为支付成功且敏感报文不回显。
- * @status : create
+ * Hosted Checkout 浏览器桥接页测试，验证 3DS 返回数据不被误判为支付成功且敏感报文不回显。
  */
 class HostedCheckoutBrowserControllerTests {
 
+    /**
+     * 验证 3DS bridge 只回传协议参数摘要，并保持既有字段大小写。
+     */
     @Test
     void shouldRenderThreeDsBridgeWithoutTreatingReturnAsSuccess() {
         OpenApiSystemConfigService systemConfigService = mock(OpenApiSystemConfigService.class);
@@ -36,6 +33,7 @@ class HostedCheckoutBrowserControllerTests {
         request.setParameter("checkoutAttemptId", "CA-001");
         request.setParameter("threeDsReturnToken", "return-token-value");
         request.setParameter("cres", "sensitive-cres-value");
+        request.setParameter("PaRes", "sensitive-pares-value");
         request.setParameter("threeDSSessionData", "session-secret-value");
 
         String html = controller.threeDsBridgePost(request);
@@ -46,7 +44,9 @@ class HostedCheckoutBrowserControllerTests {
         assertThat(html).doesNotContain("window.parent.postMessage");
         assertThat(html).doesNotContain("postMessage(payload, '*')");
         assertThat(html).doesNotContain("SUCCEEDED", "SUCCESSFUL", "Payment successful");
-        assertThat(html).doesNotContain("sensitive-cres-value", "session-secret-value");
+        assertThat(html).contains("\"PaRes\":").doesNotContain("\"paRes\":");
+        assertThat(html).doesNotContain(
+                "sensitive-cres-value", "sensitive-pares-value", "session-secret-value");
     }
 
     @Test

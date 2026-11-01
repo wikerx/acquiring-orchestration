@@ -4,13 +4,7 @@ import com.scott.payment.component.job.enums.JobExecuteModeEnum;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobHandlerOptionResponse
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务处理器选项响应 DTO
- * @status : create
+ * 管理后台任务处理器选项响应 DTO
  *
  * <p>用于任务配置页展示可选处理器清单及其执行模式、并发能力和手动触发能力。</p>
  */

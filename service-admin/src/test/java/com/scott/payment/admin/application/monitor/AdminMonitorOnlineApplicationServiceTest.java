@@ -23,13 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorOnlineApplicationServiceTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 在线用户分页过滤、账号关联和会话查询条件应用服务测试。
- * @status : create
+ * 在线用户分页过滤、账号关联和会话查询条件应用服务测试。
  */
 class AdminMonitorOnlineApplicationServiceTest {
 

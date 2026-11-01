@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogResponse
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务运行日志响应 DTO
- * @status : create
+ * 管理后台任务运行日志响应 DTO
  *
  * <p>用于任务运行日志列表与详情展示，承载一次执行的调度、重试、耗时和结果摘要信息。</p>
  */

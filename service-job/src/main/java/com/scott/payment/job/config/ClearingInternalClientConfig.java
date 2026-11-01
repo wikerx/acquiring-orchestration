@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalClientConfig
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 清分内部客户端直连和服务发现 RestTemplate 配置。
- * @status : create
+ * 清分内部客户端直连和服务发现 RestTemplate 配置。
  */
 @Configuration
 @EnableConfigurationProperties(ClearingInternalClientProperties.class)

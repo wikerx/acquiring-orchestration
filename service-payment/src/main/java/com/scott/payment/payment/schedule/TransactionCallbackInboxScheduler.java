@@ -14,13 +14,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionCallbackInboxScheduler
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 渠道回调 Inbox 调度器，位于 service-payment 调度层，按配置批量触发数据库可靠消费；部署迁移表后方可启用。
- * @status : create
+ * 渠道回调 Inbox 调度器，位于 service-payment 调度层，按配置批量触发数据库可靠消费；部署迁移表后方可启用。
  */
 @Component
 @Slf4j
@@ -34,7 +28,9 @@ public class TransactionCallbackInboxScheduler {
     private final int batchSize;
     private final Clock clock;
 
-    /** 创建 Inbox 调度器。 */
+    /**
+     * 创建 Inbox 调度器。
+     */
     @Autowired
     public TransactionCallbackInboxScheduler(
             TransactionCallbackInboxWorker worker,
@@ -43,7 +39,9 @@ public class TransactionCallbackInboxScheduler {
                 Clock.system(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID)));
     }
 
-    /** 测试可注入固定时钟，确保数据库到期时间比较使用统一业务时区。 */
+    /**
+     * 测试可注入固定时钟，确保数据库到期时间比较使用统一业务时区。
+     */
     TransactionCallbackInboxScheduler(TransactionCallbackInboxWorker worker,
                                       int batchSize,
                                       Clock clock) {
@@ -52,14 +50,16 @@ public class TransactionCallbackInboxScheduler {
         this.clock = clock;
     }
 
-    /** 扫描并处理一批到期回调。 */
+    /**
+     * 扫描并处理一批到期回调。
+     */
     @Scheduled(
             initialDelayString = "${payment.transaction.callback-inbox.initial-delay-ms:10000}",
             fixedDelayString = "${payment.transaction.callback-inbox.fixed-delay-ms:1000}")
     public void processDueCallbacks() {
         int processed = worker.processDue(LocalDateTime.now(clock), batchSize);
         if (processed > 0) {
-            log.info("event: PAYMENT_CALLBACK_INBOX_BATCH_PROCESSED processedCount: {} batchSize: {}",
+            log.info("渠道回调 Inbox 批次处理完成, event: PAYMENT_CALLBACK_INBOX_BATCH_PROCESSED, processedCount: {}, batchSize: {}",
                     processed, batchSize);
         }
     }

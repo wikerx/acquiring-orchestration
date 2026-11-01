@@ -35,13 +35,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionPersistenceMapperContractTests
- * @date : 2026-07-23 13:26
- * @email : scott_x@163.com
- * @description : 校验交易 Mapper 的关键查询、CAS 更新 SQL，以及当前 Nacos 分表配置的静态契约
- * @status : create
+ * 校验交易 Mapper 的关键查询、CAS 更新 SQL，以及当前 Nacos 分表配置的静态契约
  */
 class TransactionPersistenceMapperContractTests {
 

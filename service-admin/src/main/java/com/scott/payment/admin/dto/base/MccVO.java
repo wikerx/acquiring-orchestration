@@ -7,16 +7,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MccVO
- * @date : 2026-06-27 16:49
- * @email : scott_x@163.com
- * @description : mcc响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * MCC 管理响应模型集合，只向运营后台展示必要业务事实，不暴露持久化实体。
  */
 public final class MccVO {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private MccVO() {
     }
 
@@ -26,7 +23,7 @@ public final class MccVO {
     @Data
     public static class MccTreeNodeVO {
         /**
-         * 基础数据敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+         * 树节点稳定键，由节点类型和业务主键组成。
          */
         private String nodeKey;
         /**
@@ -46,7 +43,7 @@ public final class MccVO {
          */
         private Long id;
         /**
-         * 基础数据敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+         * 父节点稳定键；一级分类节点为空。
          */
         private String parentNodeKey;
         /**
@@ -604,6 +601,38 @@ public final class MccVO {
          * </p>
          */
         private long highRiskPolicyCount;
+    }
+
+    /**
+     * MCC 管理页面所需的全部稳定下拉选项集合。
+     */
+    @Data
+    public static class MccOptionsVO {
+
+        /**
+         * 一级 MCC 分类选项。
+         */
+        private List<MccOptionVO> level1 = List.of();
+
+        /**
+         * 二级 MCC 分类选项。
+         */
+        private List<MccOptionVO> level2 = List.of();
+
+        /**
+         * MCC 四位编码选项。
+         */
+        private List<MccOptionVO> mccCodes = List.of();
+
+        /**
+         * 卡组织数据字典选项。
+         */
+        private List<MccOptionVO> cardSchemes = List.of();
+
+        /**
+         * 已启用国家或地区选项。
+         */
+        private List<MccOptionVO> countries = List.of();
     }
 
     /**

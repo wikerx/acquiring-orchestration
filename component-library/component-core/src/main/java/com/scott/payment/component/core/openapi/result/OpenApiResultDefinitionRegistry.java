@@ -13,14 +13,43 @@ import java.util.Set;
  */
 public final class OpenApiResultDefinitionRegistry {
 
+    /**
+     * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String VERSION = "V1.3";
+    /**
+     * {@code OWNER}常量，统一 {@code OpenApiResultDefinitionRegistry} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String OWNER = "OpenAPI Governance";
+    /**
+     * {@code ENVELOPE}常量，统一 {@code OpenApiResultDefinitionRegistry} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：集合或键值映射；不允许为空；非敏感字段。
+     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
+     * </p>
+     */
     private static final Set<String> ENVELOPE = Set.of("OPENAPI_V1_3_ENVELOPE");
     private static final Set<String> TRANSACTION = Set.of(
             "OPENAPI_V1_3_TRANSACTION_INFO", "MERCHANT_NOTIFICATION", "HOSTED_CHECKOUT");
     private static final Set<String> ENVELOPE_OR_TRANSACTION = Set.of(
             "OPENAPI_V1_3_ENVELOPE", "OPENAPI_V1_3_TRANSACTION_INFO",
             "MERCHANT_NOTIFICATION", "HOSTED_CHECKOUT");
+    /**
+     * {@code DEFINITIONS}常量，统一 {@code OpenApiResultDefinitionRegistry} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Map<OpenApiResultCode, OpenApiResultDefinition> DEFINITIONS = buildDefinitions();
 
     private OpenApiResultDefinitionRegistry() {

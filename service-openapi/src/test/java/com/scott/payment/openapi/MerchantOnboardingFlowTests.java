@@ -25,13 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOnboardingFlowTests
- * @date : 2026-05-30 09:30
- * @email : scott_x@163.com
- * @description : 商户开户、密钥交付、密钥查询和密钥迭代记录集成测试
- * @status : create
+ * 商户开户、密钥交付、密钥查询和密钥迭代记录集成测试
  */
 @Slf4j
 @SpringBootTest(

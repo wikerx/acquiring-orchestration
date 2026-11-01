@@ -13,17 +13,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxRelaySchedulerTests
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 验证通用 Outbox 到期投递、超时恢复的职责隔离及数据库扫描开关
- * @status : create
+ * 验证通用 Outbox 到期投递、超时恢复的职责隔离及数据库扫描开关
  */
 class ReliableMqOutboxRelaySchedulerTests {
 
-    /** 到期扫描只能查询和投递到期事件，不得顺带执行超时恢复 UPDATE。 */
+    /**
+     * 到期扫描只能查询和投递到期事件，不得顺带执行超时恢复 UPDATE。
+     */
     @Test
     void shouldRelayDueEventsWithoutRecoveringStaleEvents() {
         ReliableMqOutboxRelayService relayService = mock(ReliableMqOutboxRelayService.class);
@@ -35,7 +31,9 @@ class ReliableMqOutboxRelaySchedulerTests {
         verify(relayService, never()).recoverStale();
     }
 
-    /** 超时恢复任务只能处理 PROCESSING 消息，不得重复执行到期消息 SELECT。 */
+    /**
+     * 超时恢复任务只能处理 PROCESSING 消息，不得重复执行到期消息 SELECT。
+     */
     @Test
     void shouldRecoverStaleEventsWithoutPollingDueEvents() {
         ReliableMqOutboxRelayService relayService = mock(ReliableMqOutboxRelayService.class);
@@ -47,7 +45,9 @@ class ReliableMqOutboxRelaySchedulerTests {
         verify(relayService, never()).relayDue();
     }
 
-    /** 全局或服务职责开关关闭时，所有补偿任务均不得访问数据库。 */
+    /**
+     * 全局或服务职责开关关闭时，所有补偿任务均不得访问数据库。
+     */
     @Test
     void shouldSkipAllDatabaseScansWhenServiceRelayIsDisabled() {
         ReliableMqOutboxRelayService relayService = mock(ReliableMqOutboxRelayService.class);
@@ -60,7 +60,9 @@ class ReliableMqOutboxRelaySchedulerTests {
         verifyNoInteractions(relayService);
     }
 
-    /** 调度配置必须分别暴露到期扫描和超时恢复周期，避免二者再次绑定为同一个高频任务。 */
+    /**
+     * 调度配置必须分别暴露到期扫描和超时恢复周期，避免二者再次绑定为同一个高频任务。
+     */
     @Test
     void shouldUseIndependentConfigurableSchedules() throws NoSuchMethodException {
         Method relayDue = ReliableMqOutboxRelayScheduler.class.getMethod("relayDue");

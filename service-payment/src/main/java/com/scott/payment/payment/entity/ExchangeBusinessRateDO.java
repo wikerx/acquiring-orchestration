@@ -9,13 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeBusinessRateDO
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : 业务汇率只读实体，位于 service-payment 数据访问层，用于交易 EDC 按 TRANSACTION_RATE 查询有效汇率快照。
- * @status : create
+ * 业务汇率只读实体，位于 service-payment 数据访问层，用于交易 EDC 按 TRANSACTION_RATE 查询有效汇率快照。
  */
 @Data
 @TableName("exchange_business_rate")

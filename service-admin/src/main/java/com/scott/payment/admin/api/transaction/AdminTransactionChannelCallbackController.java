@@ -2,6 +2,7 @@ package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackResponse;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -12,18 +13,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionChannelCallbackController
- * @date : 2026-07-14 23:59
- * @email : scott_x@163.com
- * @description : 渠道回调记录查询接口，位于 service-admin 接口层，查询渠道回调幂等处理、验签结果和状态映射结果。
- * @status : create
+ * 渠道回调记录查询接口，位于 service-admin 接口层，查询渠道回调幂等处理、验签结果和状态映射结果。
  */
 @RestController
 @RequestMapping("/admin/transactions/channel-callbacks")
@@ -49,7 +42,8 @@ public class AdminTransactionChannelCallbackController {
     @PostMapping("/search")
     @RequiresPermission("transaction:channel-callback:list")
     @OperationLog(moduleName = "渠道回调记录查询", businessType = OperationTypeConstants.QUERY, operation = "分页查询渠道回调记录")
-    public CommonResult<PageResult<Map<String, Object>>> search(@RequestBody(required = false) ChannelCallbackQuery query) {
+    public CommonResult<PageResult<ChannelCallbackResponse>> search(
+            @RequestBody(required = false) ChannelCallbackQuery query) {
         return success(transactionApplicationService.pageChannelCallbacks(query));
     }
 }

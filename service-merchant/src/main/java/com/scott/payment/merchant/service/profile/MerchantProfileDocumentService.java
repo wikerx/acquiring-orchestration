@@ -34,21 +34,45 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileDocumentService
- * @date : 2026-09-21 09:45
- * @email : scott_x@163.com
- * @description : 商户资料变更文件服务，确保对象存储正文、申请归属和元数据状态一致
- * @status : create
+ * 商户资料变更文件服务，确保对象存储正文、申请归属和元数据状态一致
  */
 @Slf4j
 @Service
 public class MerchantProfileDocumentService {
 
+    /**
+     * {@code NOT_DELETED}常量，统一 {@code MerchantProfileDocumentService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int NOT_DELETED = 0;
+    /**
+     * {@code DOCUMENT_BIZ_TYPE}，用于区分 {@code MerchantProfileDocumentService} 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String DOCUMENT_BIZ_TYPE = "MERCHANT_KYB";
+    /**
+     * 状态等待，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String STATUS_PENDING = "PENDING_REVIEW";
+    /**
+     * 默认最大文件大小字节数，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final long DEFAULT_MAX_FILE_SIZE_BYTES = 20L * 1024 * 1024;
 
     private final MerchantDocumentMapper documentMapper;
@@ -56,7 +80,9 @@ public class MerchantProfileDocumentService {
     private final ObjectProvider<ObjectStorageService> objectStorageProvider;
     private final ObjectStorageProperties storageProperties;
 
-    /** 创建商户资料变更文件服务。 */
+    /**
+     * 创建商户资料变更文件服务。
+     */
     public MerchantProfileDocumentService(
             MerchantDocumentMapper documentMapper,
             MerchantProfileChangeRequestService changeRequestService,
@@ -68,7 +94,9 @@ public class MerchantProfileDocumentService {
         this.storageProperties = storageProperties;
     }
 
-    /** 上传并绑定活动草稿或补件申请，文件在审核通过前不进入正式资料集合。 */
+    /**
+     * 上传并绑定活动草稿或补件申请，文件在审核通过前不进入正式资料集合。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public MerchantProfileChangeDTOs.Document upload(
@@ -111,7 +139,9 @@ public class MerchantProfileDocumentService {
         }
     }
 
-    /** 下载当前商户拥有的资料并校验 SHA-256 摘要。 */
+    /**
+     * 下载当前商户拥有的资料并校验 SHA-256 摘要。
+     */
     @DS(DataSourceName.MASTER)
     public DocumentDownload download(String merchantId, Long documentId) {
         MerchantDocumentDO document = requireDocument(merchantId, documentId);
@@ -124,7 +154,9 @@ public class MerchantProfileDocumentService {
         return new DocumentDownload(document.getOriginalFilename(), document.getContentType(), content);
     }
 
-    /** 删除活动草稿或补件申请中的待审资料，正式资料不允许由该接口删除。 */
+    /**
+     * 删除活动草稿或补件申请中的待审资料，正式资料不允许由该接口删除。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void delete(String merchantId, String requestNo, Long documentId) {
@@ -311,7 +343,9 @@ public class MerchantProfileDocumentService {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
-    /** 商户资料下载内容，仅供控制器组装受控二进制响应。 */
+    /**
+     * 商户资料下载内容，仅供控制器组装受控二进制响应。
+     */
     public record DocumentDownload(String filename, String contentType, byte[] content) {
     }
 

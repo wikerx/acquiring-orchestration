@@ -109,13 +109,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSystemServiceImpl
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : 商户系统服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 商户系统服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Slf4j
 @Service
@@ -217,9 +211,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 参数管理中维护的商户系统前端地址。
      */
     private static final String MERCHANT_FRONTEND_BASE_URL_KEY = "platform.merchant.frontend-base-url";
-    /** 商户账号正式邮箱尚未完成所有权验证。 */
+    /**
+     * 商户账号正式邮箱尚未完成所有权验证。
+     */
     private static final String EMAIL_VERIFICATION_PENDING = "PENDING";
-    /** 商户账号正式邮箱已经完成所有权验证。 */
+    /**
+     * 商户账号正式邮箱已经完成所有权验证。
+     */
     private static final String EMAIL_VERIFICATION_VERIFIED = "VERIFIED";
 
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
@@ -263,9 +261,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 商户系统只读参数服务，用于读取参数管理中的平台访问地址。
      */
     private final MerchantConfigService merchantConfigService;
-    /** 商户账号激活与邮箱验证服务。 */
+    /**
+     * 商户账号激活与邮箱验证服务。
+     */
     private final MerchantEmailVerificationService merchantEmailVerificationService;
-    /** 商户员工安全重置流程服务。 */
+    /**
+     * 商户员工安全重置流程服务。
+     */
     private final MerchantPasswordResetService merchantPasswordResetService;
 
     public MerchantSystemServiceImpl(BaseMerchantInfoMapper baseMerchantInfoMapper,
@@ -772,7 +774,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantUserMapper.updateById(merchantUser);
     }
 
-    /** 商户管理员只发起一次性重置邮件，不接收、不生成也不修改明文临时密码。 */
+    /**
+     * 商户管理员只发起一次性重置邮件，不接收、不生成也不修改明文临时密码。
+     */
     @Override
     public void resetAccountPassword(Long id, AccountResetPasswordRequest request,
                                      String clientIp, String userAgent) {
@@ -786,7 +790,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 request == null ? null : request.getLocale(), clientIp, userAgent);
     }
 
-    /** 为当前商户员工签发新的激活或邮箱验证请求，并对账号和客户端 IP 单独限流。 */
+    /**
+     * 为当前商户员工签发新的激活或邮箱验证请求，并对账号和客户端 IP 单独限流。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)

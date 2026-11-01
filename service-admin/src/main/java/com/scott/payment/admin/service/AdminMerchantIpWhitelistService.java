@@ -11,13 +11,7 @@ import com.scott.payment.component.core.model.PageResult;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistService
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单领域服务，位于 service-admin 服务层，负责精确 IP 配置、审核和启停。
- * @status : create
+ * 商户 OpenAPI IP 白名单领域服务，位于 service-admin 服务层，负责精确 IP 配置、审核和启停。
  */
 public interface AdminMerchantIpWhitelistService {
 

@@ -2,6 +2,8 @@ package com.scott.payment.admin.converter;
 
 import com.scott.payment.admin.dto.SysDeptDTO;
 import com.scott.payment.admin.dto.export.SysDeptExportRow;
+import com.scott.payment.admin.dto.system.DeptDTOs.Response;
+import com.scott.payment.admin.dto.system.DeptDTOs.SaveRequest;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -13,13 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DeptConverter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 部门对象转换器，位于 service-admin 转换层；负责部门实体、树形 DTO 和导出行之间的字段映射与树组装。
- * @status : create
+ * 部门对象转换器，位于 service-admin 转换层；负责部门实体、树形 DTO 和导出行之间的字段映射与树组装。
  */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface DeptConverter {
@@ -31,6 +27,22 @@ public interface DeptConverter {
      * @return 部门树节点
      */
     SysDeptDTO toDTO(SysDeptDO dept);
+
+    /**
+     * 将部门保存请求转换为持久化实体。
+     *
+     * @param request 保存请求
+     * @return 待持久化实体
+     */
+    SysDeptDO toEntity(SaveRequest request);
+
+    /**
+     * 将部门持久化实体转换为管理端详情响应。
+     *
+     * @param entity 持久化实体
+     * @return 管理端详情响应
+     */
+    Response toResponse(SysDeptDO entity);
 
     /**
      * 部门实体转导出行对象。

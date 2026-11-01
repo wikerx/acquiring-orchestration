@@ -12,17 +12,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTransactionContextMapper
- * @date : 2026-08-26 10:40
- * @email : scott_x@163.com
- * @description : 清分定位、支付维度和生命周期投影 Mapper；分表访问均使用真实 transaction_date_time 精确路由。
- * @status : create
+ * 清分定位、支付维度和生命周期投影 Mapper；分表访问均使用真实 transaction_date_time 精确路由。
  */
 public interface ClearingTransactionContextMapper {
 
-    /** 按商户和动作号读取非分表 locator。 */
+    /**
+     * 按商户和动作号读取非分表 locator。
+     */
     @Select("""
             SELECT id, transaction_id, operation_id, root_transaction_id, merchant_id,
                    merchant_order_no, transaction_type, transaction_date_time, root_transaction_date_time
@@ -34,7 +30,9 @@ public interface ClearingTransactionContextMapper {
     ClearingTransactionLocatorDO selectLocator(@Param("merchantId") String merchantId,
                                                 @Param("transactionId") String transactionId);
 
-    /** 读取生命周期中已建立定位记录的退款动作，供阶段B按每笔真实分片时间查询累计返还事实。 */
+    /**
+     * 读取生命周期中已建立定位记录的退款动作，供阶段B按每笔真实分片时间查询累计返还事实。
+     */
     @Select("""
             SELECT id, transaction_id, operation_id, root_transaction_id, merchant_id,
                    merchant_order_no, transaction_type, transaction_date_time, root_transaction_date_time
@@ -47,7 +45,9 @@ public interface ClearingTransactionContextMapper {
     List<ClearingTransactionLocatorDO> selectRefundLocators(@Param("merchantId") String merchantId,
                                                             @Param("operationId") String operationId);
 
-    /** 读取当前生命周期全部定位记录，供阶段 B 使用每笔真实分片时间重算主单清分投影。 */
+    /**
+     * 读取当前生命周期全部定位记录，供阶段 B 使用每笔真实分片时间重算主单清分投影。
+     */
     @Select("""
             SELECT id, transaction_id, operation_id, root_transaction_id, merchant_id,
                    merchant_order_no, transaction_type, transaction_date_time, root_transaction_date_time
@@ -59,7 +59,9 @@ public interface ClearingTransactionContextMapper {
     List<ClearingTransactionLocatorDO> selectOperationLocators(@Param("merchantId") String merchantId,
                                                                @Param("operationId") String operationId);
 
-    /** 按根交易号和根分片时间读取支付方式、品牌与3DS标识，不读取卡号或有效期。 */
+    /**
+     * 按根交易号和根分片时间读取支付方式、品牌与3DS标识，不读取卡号或有效期。
+     */
     @Select("""
             SELECT id, transaction_id, operation_id, payment_method, payment_brand,
                    three_ds_indicator, transaction_date_time
@@ -73,7 +75,9 @@ public interface ClearingTransactionContextMapper {
             @Param("transactionId") String transactionId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
-    /** 判断当前动作是否实际执行过内部风险检查。 */
+    /**
+     * 判断当前动作是否实际执行过内部风险检查。
+     */
     @Select("""
             SELECT CASE WHEN COUNT(1) > 0 THEN TRUE ELSE FALSE END
             FROM transaction_flow_event
@@ -84,7 +88,9 @@ public interface ClearingTransactionContextMapper {
     boolean existsInternalRiskCall(@Param("transactionId") String transactionId,
                                    @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
-    /** 在阶段B锁定根主单，仅用于读取累计退款事实和更新清分聚合投影。 */
+    /**
+     * 在阶段B锁定根主单，仅用于读取累计退款事实和更新清分聚合投影。
+     */
     @Select("""
             SELECT id, operation_id, merchant_id, transaction_currency, transaction_amount,
                    refunded_amount, clearing_status, transaction_date_time, version
@@ -98,7 +104,9 @@ public interface ClearingTransactionContextMapper {
     ClearingTransactionOrderDO selectOrderForUpdate(@Param("operationId") String operationId,
                                                      @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
-    /** 使用根分片时间和版本 CAS 更新生命周期清分聚合投影，禁止修改交易、结算或余额状态。 */
+    /**
+     * 使用根分片时间和版本 CAS 更新生命周期清分聚合投影，禁止修改交易、结算或余额状态。
+     */
     @Update("""
             UPDATE transaction_order
             SET clearing_status = #{clearingStatus},
@@ -116,7 +124,9 @@ public interface ClearingTransactionContextMapper {
                                       @Param("clearingStatus") String clearingStatus,
                                       @Param("completeTime") LocalDateTime completeTime);
 
-    /** 查询生命周期每个已定位动作的清分投影；每个 OR 条件都包含动作真实分片时间。 */
+    /**
+     * 查询生命周期每个已定位动作的清分投影；每个 OR 条件都包含动作真实分片时间。
+     */
     @Select("""
             <script>
             SELECT clearing_status

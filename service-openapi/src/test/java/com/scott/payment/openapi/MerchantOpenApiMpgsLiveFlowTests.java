@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
@@ -44,13 +43,7 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiMpgsLiveFlowTests
- * @date : 2026-07-16 16:20
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 到 MPGS 沙箱的真实联网验收测试，默认关闭；只在本地显式传入 openapi.live.enabled=true 时读取 200045 密钥、加密请求并调用本地 service-openapi。
- * @status : create
+ * 商户 OpenAPI 到 MPGS 沙箱的真实联网验收测试，默认关闭；只在本地显式传入 openapi.live.enabled=true 时读取 200045 密钥、加密请求并调用本地 service-openapi。
  */
 @Slf4j
 class MerchantOpenApiMpgsLiveFlowTests {
@@ -125,7 +118,9 @@ class MerchantOpenApiMpgsLiveFlowTests {
     private static final String SOURCE_ORIGIN = System.getProperty(
             "openapi.live.source-origin", "");
 
-    /** 默认 MPGS 沙箱卡来自审核过的 Mastercard Gateway 官方测试卡目录。 */
+    /**
+     * 默认 MPGS 沙箱卡来自审核过的 Mastercard Gateway 官方测试卡目录。
+     */
     private static final MpgsOfficialTestCards.TestCard DEFAULT_TEST_CARD = MpgsOfficialTestCards.defaultCard();
 
     /**
@@ -276,29 +271,30 @@ class MerchantOpenApiMpgsLiveFlowTests {
         PrivateKey merchantResponsePrivateKey = payloadCrypto.readPrivateKey(material.merchantResponsePrivateKeyPkcs8Base64());
         String batchPrefix = "C20PRE" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
 
-        LiveOperationResult preAuthorization = submitAndWait("/api/rest/payment/v1/pre-authorization",
+        LiveOperationResult preAuthResult = submitAndWait("/api/rest/payment/v1/pre-authorization",
                 cardPlainText(batchPrefix + "A1", batchPrefix + "A1PRE", "31", "pre authorization before completion", false),
                 material,
                 platformPublicKey);
         LiveOperationResult completion = submitAndWait("/api/rest/payment/v1/pre-auth-completion",
                 followUpPlainText(batchPrefix + "A1", batchPrefix + "A1COMP", "31", "pre authorization completion",
-                        preAuthorization.transactionId(), false),
+                        preAuthResult.transactionId(), false),
                 material,
                 platformPublicKey);
         OpenApiLiveResponse queryResponse = submitOnly("/api/rest/payment/v1/query",
                 followUpPlainText(batchPrefix + "A1", batchPrefix + "A1QUERY", "31", "query pre authorization",
-                        preAuthorization.transactionId(), false),
+                        preAuthResult.transactionId(), false),
                 material,
                 platformPublicKey);
         String queryPlainResponse = payloadCrypto.decrypt(queryResponse.encryptedData(), merchantResponsePrivateKey);
-        assertThat(queryPlainResponse).contains(preAuthorization.transactionId(), completion.transactionId(), batchPrefix + "A1");
+        assertThat(queryPlainResponse).contains(preAuthResult.transactionId(), completion.transactionId(), batchPrefix + "A1");
 
         log.info("OpenAPI预授权与查询MPGS验收完成, event: OPENAPI_MPGS_PREAUTH_QUERY_ACCEPTANCE_END, result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
-                "preAuthorization", preAuthorization,
+                "preAuthResult", preAuthResult,
                 "completion", completion,
                 "queryResponse", queryResponse.safeSummary(),
-                "queryPlainResponseMasked", SensitiveDataMaskUtils.maskJson(queryPlainResponse)
+                "queryPlainResponseSummary",
+                MerchantOpenApiTestSupport.safePayloadSummary(queryPlainResponse, keyMaterialFactory)
         )));
     }
 
@@ -552,7 +548,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
             throws IOException, InterruptedException {
         RequestIdentity identity = requestIdentity(plainRequestJson);
         String encryptedData = payloadCrypto.encrypt(plainRequestJson, platformPublicKey);
-        String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
+        String bearerToken = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
                 material.merchantKey(),
                 System.currentTimeMillis() / 1000L,
@@ -564,15 +560,15 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 "merchantId", MERCHANT_ID,
                 "orderNo", identity.orderNo(),
                 "orderId", identity.orderId(),
-                "plainMasked", SensitiveDataMaskUtils.maskJson(plainRequestJson),
-                "jwt", MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory),
+                "plainSummary", MerchantOpenApiTestSupport.safePayloadSummary(plainRequestJson, keyMaterialFactory),
+                "jwt", MerchantOpenApiTestSupport.safeSecretSummary(bearerToken, keyMaterialFactory),
                 "data", MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory)
         )));
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(OPENAPI_BASE_URL + path))
                 .timeout(HTTP_TIMEOUT)
                 .header("Content-Type", "application/json")
-                .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization);
+                .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, bearerToken);
         if (!GATEWAY_CLIENT_IP.isBlank()) {
             requestBuilder.header("X-Gateway-Client-Ip", GATEWAY_CLIENT_IP.trim());
         }
@@ -861,7 +857,9 @@ class MerchantOpenApiMpgsLiveFlowTests {
         return JsonUtils.toJsonString(payload);
     }
 
-    /** 构造撤销请求；金额和币种由原交易确定，当前契约禁止商户重复上送。 */
+    /**
+     * 构造撤销请求；金额和币种由原交易确定，当前契约禁止商户重复上送。
+     */
     private String voidPlainText(String orderNo,
                                  String orderId,
                                  String description,
@@ -916,7 +914,9 @@ class MerchantOpenApiMpgsLiveFlowTests {
         return payload;
     }
 
-    /** 构造 MPGS Hosted Checkout 浏览器验收会话请求，不包含任何卡数据。 */
+    /**
+     * 构造 MPGS Hosted Checkout 浏览器验收会话请求，不包含任何卡数据。
+     */
     private String hostedCheckoutPlainText(String orderNo, String amount) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("merchantInfo", merchantInfo());
@@ -942,7 +942,9 @@ class MerchantOpenApiMpgsLiveFlowTests {
         return JsonUtils.toJsonString(payload);
     }
 
-    /** 校验一次性收银台 URL 输出文件必须位于系统临时目录。 */
+    /**
+     * 校验一次性收银台 URL 输出文件必须位于系统临时目录。
+     */
     private Path checkoutUrlOutputFile() throws IOException {
         String configured = System.getProperty(CHECKOUT_URL_FILE_PROPERTY, "").trim();
         assertThat(configured).as(CHECKOUT_URL_FILE_PROPERTY).isNotBlank();

@@ -39,24 +39,38 @@ import java.net.URISyntaxException;
 @Slf4j
 public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDsService {
 
-    /** 平台网关 HTTPS Origin 配置，用于生成渠道 3DS 通知地址。 */
+    /**
+     * 平台网关 HTTPS Origin 配置，用于生成渠道 3DS 通知地址。
+     */
     private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
-    /** 3DS 通知统一进入平台渠道回调入口，禁止使用商户提供的通知地址。 */
+    /**
+     * 3DS 通知统一进入平台渠道回调入口，禁止使用商户提供的通知地址。
+     */
     private static final String THREE_DS_CALLBACK_PATH_PREFIX = "/channel/v1/callbacks/";
 
-    /** 统一渠道执行器，根据路由结果定位 3DS provider。 */
+    /**
+     * 统一渠道执行器，根据路由结果定位 3DS provider。
+     */
     private final PaymentChannelExecutor paymentChannelExecutor;
 
-    /** 支付渠道路由服务，用于选择并固化本次 3DS 使用的渠道和 MID。 */
+    /**
+     * 支付渠道路由服务，用于选择并固化本次 3DS 使用的渠道和 MID。
+     */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
-    /** service-risk 路由后 3DS 策略只读客户端。 */
+    /**
+     * service-risk 路由后 3DS 策略只读客户端。
+     */
     private final RiskInternalClient riskInternalClient;
 
-    /** 平台配置读取服务，仅用于构造平台自有的 provider Webhook 地址。 */
+    /**
+     * 平台配置读取服务，仅用于构造平台自有的 provider Webhook 地址。
+     */
     private final SystemConfigReadService systemConfigReadService;
 
-    /** 平台认证审计服务，每次渠道 3DS 阶段调用后只落安全摘要。 */
+    /**
+     * 平台认证审计服务，每次渠道 3DS 阶段调用后只落安全摘要。
+     */
     private final PaymentAuthenticationRecordService authenticationRecordService;
 
     /**
@@ -79,13 +93,23 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         this.authenticationRecordService = authenticationRecordService;
     }
 
-    /** 单元测试构造器，不启用 provider Webhook 地址和认证审计。 */
+    /**
+     * 单元测试构造器，不启用 provider Webhook 地址和认证审计。
+     */
     DefaultPaymentCheckoutThreeDsService(PaymentChannelExecutor paymentChannelExecutor,
                                          PaymentChannelRouteService paymentChannelRouteService,
                                          RiskInternalClient riskInternalClient) {
         this(paymentChannelExecutor, paymentChannelRouteService, riskInternalClient, null, null);
     }
 
+    /**
+     * 创建不启用认证审计的 3DS 服务，供兼容测试和过渡装配使用。
+     *
+     * @param paymentChannelExecutor 渠道统一执行器
+     * @param paymentChannelRouteService 收单路由服务
+     * @param riskInternalClient 风控 3DS 策略客户端
+     * @param systemConfigReadService 渠道 Webhook 地址配置读取服务
+     */
     DefaultPaymentCheckoutThreeDsService(PaymentChannelExecutor paymentChannelExecutor,
                                          PaymentChannelRouteService paymentChannelRouteService,
                                          RiskInternalClient riskInternalClient,
@@ -171,7 +195,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return result;
     }
 
-    /** 执行单个服务端阶段；仅初始调用允许在无需 Method 时紧接 AUTHENTICATE。 */
+    /**
+     * 执行单个服务端阶段；仅初始调用允许在无需 Method 时紧接 AUTHENTICATE。
+     */
     private PaymentCheckoutThreeDsResultDTO invoke(ChannelThreeDsAuthenticationRequest request,
                                                    PaymentRouteResultDTO routeResultDTO,
                                                    RiskThreeDsPolicyClientResponseDTO policy,
@@ -203,6 +229,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         }
     }
 
+    /**
+     * 记录渠道结果。
+     */
     private void recordChannelResult(ChannelThreeDsAuthenticationRequest request,
                                      ChannelThreeDsAuthenticationResponse response) {
         if (authenticationRecordService != null) {
@@ -238,7 +267,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         }
     }
 
-    /** 构造不含 PAN、CVV 或渠道凭据的 3DS 策略请求。 */
+    /**
+     * 构造不含 PAN、CVV 或渠道凭据的 3DS 策略请求。
+     */
     private RiskThreeDsPolicyClientRequestDTO policyRequest(PaymentCheckoutSessionDO sessionDO,
                                                             PaymentCheckoutAttemptDO attemptDO,
                                                             PaymentRouteResultDTO routeResultDTO) {
@@ -253,7 +284,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return request;
     }
 
-    /** 将路由身份和只读策略摘要附加到每一种 3DS 结果。 */
+    /**
+     * 将路由身份和只读策略摘要附加到每一种 3DS 结果。
+     */
     private PaymentCheckoutThreeDsResultDTO routeResult(PaymentCheckoutThreeDsResultDTO result,
                                                         PaymentRouteResultDTO route,
                                                         RiskThreeDsPolicyClientResponseDTO policy,
@@ -350,7 +383,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return request;
     }
 
-    /** 根据平台自有 HTTPS Origin 构造可选 provider 回调地址。 */
+    /**
+     * 根据平台自有 HTTPS Origin 构造可选 provider 回调地址。
+     */
     private String notificationUrl(String channelCode) {
         if (systemConfigReadService == null) {
             return null;

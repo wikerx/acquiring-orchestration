@@ -18,6 +18,9 @@ import java.util.Map;
  */
 public final class OpenApiErrorMapper {
 
+    /**
+     * 结果映射器只提供静态投影能力，不允许实例化。
+     */
     private OpenApiErrorMapper() {
     }
 

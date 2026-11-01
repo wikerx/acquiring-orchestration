@@ -73,13 +73,7 @@ import java.util.stream.Collectors;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserServiceImpl
- * @date : 2026-06-07 08:26
- * @email : scott_x@163.com
- * @description : admin用户服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理端用户服务实现，用于运营后台，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Slf4j
 @Service
@@ -93,11 +87,17 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 系统超级权限编码。
      */
     private static final String SUPER_PERMISSION = "*:*:*";
-    /** 用户角色授权权限编码，防止通过新增或编辑接口绕过独立授权接口。 */
+    /**
+     * 用户角色授权权限编码，防止通过新增或编辑接口绕过独立授权接口。
+     */
     private static final String ASSIGN_ROLE_PERMISSION = "system:user:assign-role";
-    /** 邮箱尚未通过所有权验证。 */
+    /**
+     * 邮箱尚未通过所有权验证。
+     */
     private static final String EMAIL_VERIFICATION_PENDING = "PENDING";
-    /** 邮箱已经通过所有权验证。 */
+    /**
+     * 邮箱已经通过所有权验证。
+     */
     private static final String EMAIL_VERIFICATION_VERIFIED = "VERIFIED";
 
     /**
@@ -156,9 +156,13 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 登录会话数据访问接口。
      */
     private final SysLoginSessionMapper sysLoginSessionMapper;
-    /** 账号激活和邮箱变更验证服务。 */
+    /**
+     * 账号激活和邮箱变更验证服务。
+     */
     private final AdminEmailVerificationService adminEmailVerificationService;
-    /** 一次性密码找回服务，管理员重置只负责签发邮件流程。 */
+    /**
+     * 一次性密码找回服务，管理员重置只负责签发邮件流程。
+     */
     private final AdminPasswordResetService adminPasswordResetService;
     /**
      * 创建后台用户服务实现，显式注入用户、组织、角色和会话相关数据访问接口。
@@ -524,7 +528,9 @@ public class AdminUserServiceImpl implements AdminUserService {
                 request.getAccountId(), locale, requestIp, userAgent);
     }
 
-    /** 为未验证邮箱签发最新验证请求，待激活账号始终沿用账号激活流程。 */
+    /**
+     * 为未验证邮箱签发最新验证请求，待激活账号始终沿用账号激活流程。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -664,7 +670,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         return app;
     }
 
-    /** 已完成存在性校验、等待在同一事务内逻辑删除的账号和用户。 */
+    /**
+     * 已完成存在性校验、等待在同一事务内逻辑删除的账号和用户。
+     */
     private record UserRemovalTarget(SysAccountDO account, SysUserDO user) {
     }
 
@@ -747,7 +755,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         return normalizedRoleIds;
     }
 
-    /** 服务层再次校验角色授权权限，防止通过新增或编辑接口绕过独立授权接口。 */
+    /**
+     * 服务层再次校验角色授权权限，防止通过新增或编辑接口绕过独立授权接口。
+     */
     private void assertRoleAssignmentPermission() {
         Set<String> operatorPermissions = currentOperatorPermissions();
         if (!operatorPermissions.contains(SUPER_PERMISSION)
@@ -1114,7 +1124,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         return normalizedEmail;
     }
 
-    /** 校验用户列表生命周期筛选值，避免未知状态被静默忽略。 */
+    /**
+     * 校验用户列表生命周期筛选值，避免未知状态被静默忽略。
+     */
     private void validateLifecycleQuery(SysUserAccountQueryRequest query) {
         if (StringUtils.hasText(query.getEmailVerificationStatus())
                 && !Set.of(EMAIL_VERIFICATION_PENDING, EMAIL_VERIFICATION_VERIFIED)
@@ -1129,19 +1141,25 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
     }
 
-    /** 邮箱比较忽略大小写，避免仅修改字母大小写就重复清除验证状态。 */
+    /**
+     * 邮箱比较忽略大小写，避免仅修改字母大小写就重复清除验证状态。
+     */
     private boolean sameEmail(String left, String right) {
         return left != null && right != null && left.equalsIgnoreCase(right);
     }
 
-    /** 待激活账号始终发送激活邮件；已激活账号保留调用场景指定的验证用途。 */
+    /**
+     * 待激活账号始终发送激活邮件；已激活账号保留调用场景指定的验证用途。
+     */
     private String verificationPurpose(SysAccountDO account, String activeAccountPurpose) {
         return AuthConstants.ACTIVATION_STATUS_PENDING.equals(account.getActivationStatus())
                 ? AdminEmailVerificationService.PURPOSE_ACCOUNT_ACTIVATION
                 : activeAccountPurpose;
     }
 
-    /** 兼容迁移前没有激活状态的历史账号，历史账号按已激活展示。 */
+    /**
+     * 兼容迁移前没有激活状态的历史账号，历史账号按已激活展示。
+     */
     private String activationStatus(SysAccountDO account) {
         return StringUtils.hasText(account.getActivationStatus())
                 ? account.getActivationStatus() : AuthConstants.ACTIVATION_STATUS_ACTIVE;
@@ -1414,6 +1432,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
     }
 
+    /**
+     * 转换为角色授权数据对象。
+     */
     private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {
         SysRoleDTO dto = new SysRoleDTO();
         dto.setRoleId(role.getId());

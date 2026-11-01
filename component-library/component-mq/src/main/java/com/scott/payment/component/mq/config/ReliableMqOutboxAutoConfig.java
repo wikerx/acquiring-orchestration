@@ -9,13 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxAutoConfig
- * @date : 2026-08-02 22:20
- * @email : scott_x@163.com
- * @description : 注册可靠 MQ Outbox 配置并启用低频补偿调度，不负责建表或初始化 RocketMQ 资源
- * @status : create
+ * 注册可靠 MQ Outbox 配置并启用低频补偿调度，不负责建表或初始化 RocketMQ 资源
  */
 @Configuration
 @EnableScheduling

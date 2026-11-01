@@ -6,13 +6,7 @@ import org.springframework.data.redis.cache.RedisCacheWriter;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisCacheTtlFunction
- * @date : 2026-07-29 19:16
- * @email : scott_x@163.com
- * @description : 为 Spring Cache Redis 写入统一生成基础 TTL 加有界随机抖动，降低集中失效风险
- * @status : create
+ * 为 Spring Cache Redis 写入统一生成基础 TTL 加有界随机抖动，降低集中失效风险
  */
 final class PaymentRedisCacheTtlFunction implements RedisCacheWriter.TtlFunction {
 

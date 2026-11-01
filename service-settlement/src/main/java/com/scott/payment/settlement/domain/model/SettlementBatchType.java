@@ -1,13 +1,7 @@
 package com.scott.payment.settlement.domain.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchType
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 结算批次业务类型；只有冲正引用原批次，保证金调整引用原 HOLD 清分事实。
- * @status : create
+ * 结算批次业务类型；只有冲正引用原批次，保证金调整引用原 HOLD 清分事实。
  */
 public enum SettlementBatchType {
     /**

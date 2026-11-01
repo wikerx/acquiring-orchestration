@@ -21,7 +21,9 @@ import org.springframework.stereotype.Component;
 public class SettlementAutomaticScheduler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SettlementAutomaticScheduler.class);
-    /** 单轮最多处理的批次数，避免空闲任务相互饥饿。 */
+    /**
+     * 单轮最多处理的批次数，避免空闲任务相互饥饿。
+     */
     private static final int MAX_BATCHES_PER_TICK = 10;
 
     private final SettlementAutomaticProcessingApplicationService applicationService;
@@ -50,7 +52,9 @@ public class SettlementAutomaticScheduler {
         this.reviewDecisionService = reviewDecisionService;
     }
 
-    /** 按配置的固定延迟有界激活候选并尝试创建成熟日批；该参数只调节轮询频率，不关闭自动结算。 */
+    /**
+     * 按配置的固定延迟有界激活候选并尝试创建成熟日批；该参数只调节轮询频率，不关闭自动结算。
+     */
     @Scheduled(initialDelay = 5_000L,
             fixedDelayString = "${settlement.automatic-scheduler.prepare-fixed-delay-ms:30000}")
     public void prepareBatches() {
@@ -62,7 +66,9 @@ public class SettlementAutomaticScheduler {
         }
     }
 
-    /** 按工作循环周期最多处理十个可租用批次，空队列立即结束本轮。 */
+    /**
+     * 按工作循环周期最多处理十个可租用批次，空队列立即结束本轮。
+     */
     @Scheduled(initialDelay = 10_000L,
             fixedDelayString = "${settlement.automatic-scheduler.worker-fixed-delay-ms:1000}")
     public void processBatches() {
@@ -79,7 +85,9 @@ public class SettlementAutomaticScheduler {
         }
     }
 
-    /** 按工作循环周期有界推进手动交易结算预审，单次数据库事务只处理一个固定分段。 */
+    /**
+     * 按工作循环周期有界推进手动交易结算预审，单次数据库事务只处理一个固定分段。
+     */
     @Scheduled(initialDelay = 11_000L,
             fixedDelayString = "${settlement.automatic-scheduler.worker-fixed-delay-ms:1000}")
     public void processManualReviews() {
@@ -96,7 +104,9 @@ public class SettlementAutomaticScheduler {
         }
     }
 
-    /** 按工作循环周期有界推进预审单审批、驳回或取消，每次只处理一个分段。 */
+    /**
+     * 按工作循环周期有界推进预审单审批、驳回或取消，每次只处理一个分段。
+     */
     @Scheduled(initialDelay = 11_500L,
             fixedDelayString = "${settlement.automatic-scheduler.worker-fixed-delay-ms:1000}")
     public void processReviewDecisions() {
@@ -116,7 +126,9 @@ public class SettlementAutomaticScheduler {
         }
     }
 
-    /** 按工作循环周期有界推进交易状态投影；主事务失败后以独立事务记录次数和指数退避。 */
+    /**
+     * 按工作循环周期有界推进交易状态投影；主事务失败后以独立事务记录次数和指数退避。
+     */
     @Scheduled(initialDelay = 12_000L,
             fixedDelayString = "${settlement.automatic-scheduler.worker-fixed-delay-ms:1000}")
     public void projectTransactions() {
@@ -136,7 +148,9 @@ public class SettlementAutomaticScheduler {
         }
     }
 
-    /** 按工作循环周期有界发布结算完成 FIFO Outbox，MQ 异常不阻塞批次资金处理。 */
+    /**
+     * 按工作循环周期有界发布结算完成 FIFO Outbox，MQ 异常不阻塞批次资金处理。
+     */
     @Scheduled(initialDelay = 15_000L,
             fixedDelayString = "${settlement.automatic-scheduler.worker-fixed-delay-ms:1000}")
     public void publishEvents() {
@@ -153,7 +167,9 @@ public class SettlementAutomaticScheduler {
         }
     }
 
-    /** 投影主事务已经回滚，此处只记录不含交易敏感正文的任务号和稳定失败码。 */
+    /**
+     * 投影主事务已经回滚，此处只记录不含交易敏感正文的任务号和稳定失败码。
+     */
     private void recordProjectionFailure(SettlementProjectionProcessingException exception) {
         try {
             boolean recorded = projectionService.recordFailure(exception, java.time.LocalDateTime.now());

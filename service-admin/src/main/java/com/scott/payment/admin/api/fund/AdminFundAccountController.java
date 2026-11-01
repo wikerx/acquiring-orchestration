@@ -34,13 +34,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFundAccountController
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 管理端资金账户、不可变余额流水、充值和扣减审批接口；在途与保证金只展示汇总余额。
- * @status : create
+ * 管理端资金账户、不可变余额流水、充值和扣减审批接口；在途与保证金只展示汇总余额。
  */
 @RestController
 @RequestMapping("/admin/fund-accounts")
@@ -303,7 +297,9 @@ public class AdminFundAccountController {
         applicationService.exportRecharges(query, response);
     }
 
-    /** 分页查询账户扣减申请及完整审批信息。 */
+    /**
+     * 分页查询账户扣减申请及完整审批信息。
+     */
     @PostMapping("/deductions/search")
     @RequiresPermission("fund:deduction:list")
     public CommonResult<PageResult<FundDeductionResponse>> pageDeductions(
@@ -311,14 +307,18 @@ public class AdminFundAccountController {
         return success(applicationService.pageDeductions(query));
     }
 
-    /** 查询指定账户扣减申请的完整审批快照。 */
+    /**
+     * 查询指定账户扣减申请的完整审批快照。
+     */
     @GetMapping("/deductions/{id}")
     @RequiresPermission("fund:deduction:detail")
     public CommonResult<FundDeductionResponse> getDeduction(@PathVariable("id") Long id) {
         return success(applicationService.getDeduction(id));
     }
 
-    /** 创建待审核账户扣减申请，客户端请求号用于幂等保护。 */
+    /**
+     * 创建待审核账户扣减申请，客户端请求号用于幂等保护。
+     */
     @PostMapping("/deductions")
     @RequiresPermission("fund:deduction:add")
     @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.CREATE, operation = "提交扣减申请")
@@ -327,7 +327,9 @@ public class AdminFundAccountController {
         return success(applicationService.createDeduction(request));
     }
 
-    /** 审核账户扣减申请并转为待复核。 */
+    /**
+     * 审核账户扣减申请并转为待复核。
+     */
     @PostMapping("/deductions/{id}/audit")
     @RequiresPermission("fund:deduction:audit")
     @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.UPDATE, operation = "审核扣减申请")
@@ -337,7 +339,9 @@ public class AdminFundAccountController {
         return success(applicationService.auditDeduction(id, request == null ? null : request.getComment()));
     }
 
-    /** 复核账户扣减申请，并在同一事务中锁定账户、减少可用余额和写入流水。 */
+    /**
+     * 复核账户扣减申请，并在同一事务中锁定账户、减少可用余额和写入流水。
+     */
     @PostMapping("/deductions/{id}/recheck")
     @RequiresPermission("fund:deduction:recheck")
     @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.UPDATE, operation = "复核扣减并入账")
@@ -347,7 +351,9 @@ public class AdminFundAccountController {
         return success(applicationService.recheckDeduction(id, request == null ? null : request.getComment()));
     }
 
-    /** 驳回待审核或待复核账户扣减申请，不产生余额变动。 */
+    /**
+     * 驳回待审核或待复核账户扣减申请，不产生余额变动。
+     */
     @PostMapping("/deductions/{id}/reject")
     @RequiresPermission("fund:deduction:reject")
     @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.UPDATE, operation = "驳回扣减申请")
@@ -357,7 +363,9 @@ public class AdminFundAccountController {
         return success(applicationService.rejectDeduction(id, request.getComment()));
     }
 
-    /** 按筛选条件导出全部账户扣减申请及审批信息。 */
+    /**
+     * 按筛选条件导出全部账户扣减申请及审批信息。
+     */
     @PostMapping("/deductions/export")
     @RequiresPermission("fund:deduction:export")
     @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.EXPORT, operation = "导出扣减申请")

@@ -12,13 +12,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionPaymentMethodInfoMapper
- * @date : 2026-07-15 14:31
- * @email : scott_x@163.com
- * @description : 交易支付工具摘要 Mapper，位于 service-payment 数据访问层，仅访问 transaction_payment_method_info 逻辑表。
- * @status : create
+ * 交易支付工具摘要 Mapper，位于 service-payment 数据访问层，仅访问 transaction_payment_method_info 逻辑表。
  */
 public interface TransactionPaymentMethodInfoMapper extends BaseMapper<TransactionPaymentMethodInfoDO> {
 
@@ -70,7 +64,9 @@ public interface TransactionPaymentMethodInfoMapper extends BaseMapper<Transacti
                                @Param("indicator") String indicator,
                                @Param("now") LocalDateTime now);
 
-    /** 按平台交易号和真实分片时间读取单笔支付工具安全摘要。 */
+    /**
+     * 按平台交易号和真实分片时间读取单笔支付工具安全摘要。
+     */
     @Select("""
             SELECT *
             FROM transaction_payment_method_info

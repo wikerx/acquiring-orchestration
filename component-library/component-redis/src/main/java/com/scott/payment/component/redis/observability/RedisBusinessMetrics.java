@@ -8,13 +8,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisBusinessMetrics
- * @date : 2026-07-31 10:00
- * @email : scott_x@163.com
- * @description : Redis 治理业务指标门面，使用封闭枚举维度记录关键操作、降级与 Lua 失败，禁止业务标识进入 Prometheus 标签
- * @status : create
+ * Redis 治理业务指标门面，使用封闭枚举维度记录关键操作、降级与 Lua 失败，禁止业务标识进入 Prometheus 标签
  */
 public class RedisBusinessMetrics {
 
@@ -182,27 +176,49 @@ public class RedisBusinessMetrics {
      * Redis 业务能力维度，枚举成员数量即标签最大基数。
      */
     public enum Feature {
-        /** Spring Cache 的读取、写入、清理及异常路径。 */
+        /**
+         * Spring Cache 的读取、写入、清理及异常路径。
+         */
         CACHE,
-        /** 缓存空值标记的命中、未命中和故障回源路径。 */
+        /**
+         * 缓存空值标记的命中、未命中和故障回源路径。
+         */
         CACHE_MISS_MARKER,
-        /** 安全缓存提交后失效及门禁校验路径。 */
+        /**
+         * 安全缓存提交后失效及门禁校验路径。
+         */
         CACHE_INVALIDATION,
-        /** 缓存 generation 的读取、发布和回滚路径。 */
+        /**
+         * 缓存 generation 的读取、发布和回滚路径。
+         */
         CACHE_GENERATION,
-        /** Redis 分布式锁的获取、竞争和释放路径。 */
+        /**
+         * Redis 分布式锁的获取、竞争和释放路径。
+         */
         LOCK,
-        /** 单 Key 业务幂等资格的获取路径。 */
+        /**
+         * 单 Key 业务幂等资格的获取路径。
+         */
         IDEMPOTENCY,
-        /** MQ 消费辅助去重的获取与数据库兜底路径。 */
+        /**
+         * MQ 消费辅助去重的获取与数据库兜底路径。
+         */
         MQ_DEDUP,
-        /** Redis 强依赖的全局编号生成路径。 */
+        /**
+         * Redis 强依赖的全局编号生成路径。
+         */
         GLOBAL_ID,
-        /** 风控频率限制 Lua 执行路径。 */
+        /**
+         * 风控频率限制 Lua 执行路径。
+         */
         RISK_FREQUENCY,
-        /** 风控累计限额预占与回滚路径。 */
+        /**
+         * 风控累计限额预占与回滚路径。
+         */
         RISK_CUMULATIVE_LIMIT,
-        /** 累计限额数据库基线的 shadow 比较路径。 */
+        /**
+         * 累计限额数据库基线的 shadow 比较路径。
+         */
         RISK_BASELINE_SHADOW
     }
 
@@ -210,23 +226,41 @@ public class RedisBusinessMetrics {
      * Redis 操作类型维度。
      */
     public enum Operation {
-        /** 读取缓存、状态或 generation。 */
+        /**
+         * 读取缓存、状态或 generation。
+         */
         READ,
-        /** 写入缓存、状态或 generation。 */
+        /**
+         * 写入缓存、状态或 generation。
+         */
         WRITE,
-        /** 精确失效单个业务缓存。 */
+        /**
+         * 精确失效单个业务缓存。
+         */
         EVICT,
-        /** 清理受控缓存范围。 */
+        /**
+         * 清理受控缓存范围。
+         */
         CLEAR,
-        /** 获取锁、幂等资格或发布门禁。 */
+        /**
+         * 获取锁、幂等资格或发布门禁。
+         */
         ACQUIRE,
-        /** 释放锁、幂等资格或发布门禁。 */
+        /**
+         * 释放锁、幂等资格或发布门禁。
+         */
         RELEASE,
-        /** 执行已登记的 Redis Lua 脚本。 */
+        /**
+         * 执行已登记的 Redis Lua 脚本。
+         */
         EXECUTE,
-        /** 比较 shadow 新旧路径结果。 */
+        /**
+         * 比较 shadow 新旧路径结果。
+         */
         COMPARE,
-        /** 评估缓存状态或风险规则。 */
+        /**
+         * 评估缓存状态或风险规则。
+         */
         EVALUATE
     }
 
@@ -234,27 +268,49 @@ public class RedisBusinessMetrics {
      * Redis 操作结果维度。
      */
     public enum Outcome {
-        /** 操作按预期完成。 */
+        /**
+         * 操作按预期完成。
+         */
         SUCCESS,
-        /** 缓存或去重状态命中。 */
+        /**
+         * 缓存或去重状态命中。
+         */
         HIT,
-        /** 缓存或去重状态未命中。 */
+        /**
+         * 缓存或去重状态未命中。
+         */
         MISS,
-        /** 幂等或 MQ 去重识别为重复请求。 */
+        /**
+         * 幂等或 MQ 去重识别为重复请求。
+         */
         DUPLICATE,
-        /** 锁或发布门禁已被其他持有者占用。 */
+        /**
+         * 锁或发布门禁已被其他持有者占用。
+         */
         CONTENDED,
-        /** generation 发布中，读路径必须绕过缓存。 */
+        /**
+         * generation 发布中，读路径必须绕过缓存。
+         */
         PENDING,
-        /** shadow 新旧结果一致。 */
+        /**
+         * shadow 新旧结果一致。
+         */
         MATCHED,
-        /** shadow 新旧结果不一致。 */
+        /**
+         * shadow 新旧结果不一致。
+         */
         MISMATCHED,
-        /** shadow 任一路径不可用，无法完成可信比较。 */
+        /**
+         * shadow 任一路径不可用，无法完成可信比较。
+         */
         UNAVAILABLE,
-        /** Redis 能力降级到数据库或既定兜底路径。 */
+        /**
+         * Redis 能力降级到数据库或既定兜底路径。
+         */
         FALLBACK,
-        /** Redis 操作失败且不能归为正常降级结果。 */
+        /**
+         * Redis 操作失败且不能归为正常降级结果。
+         */
         ERROR
     }
 
@@ -262,17 +318,29 @@ public class RedisBusinessMetrics {
      * Redis 降级原因维度。
      */
     public enum FallbackReason {
-        /** 可选 Redis 客户端未装配。 */
+        /**
+         * 可选 Redis 客户端未装配。
+         */
         CLIENT_MISSING,
-        /** Redis 连接建立或保持失败。 */
+        /**
+         * Redis 连接建立或保持失败。
+         */
         CONNECTION_FAILURE,
-        /** Redis 命令在预算内未完成。 */
+        /**
+         * Redis 命令在预算内未完成。
+         */
         TIMEOUT,
-        /** 有界集合、桶或窗口达到容量上限。 */
+        /**
+         * 有界集合、桶或窗口达到容量上限。
+         */
         CAPACITY_EXCEEDED,
-        /** Redis 或 Lua 返回未登记的结果。 */
+        /**
+         * Redis 或 Lua 返回未登记的结果。
+         */
         UNEXPECTED_RESULT,
-        /** 无法进一步分类的 Redis 操作失败。 */
+        /**
+         * 无法进一步分类的 Redis 操作失败。
+         */
         OPERATION_FAILURE
     }
 
@@ -280,23 +348,41 @@ public class RedisBusinessMetrics {
      * 已登记 Lua 脚本维度。
      */
     public enum Script {
-        /** 仅允许 token 持有者释放缓存门禁租约的脚本。 */
+        /**
+         * 仅允许 token 持有者释放缓存门禁租约的脚本。
+         */
         TOKEN_LEASE_RELEASE,
-        /** MQ 双时间桶去重资格获取脚本。 */
+        /**
+         * MQ 双时间桶去重资格获取脚本。
+         */
         MQ_DEDUP_ACQUIRE,
-        /** 基于 Redis TIME 生成全局编号序列的脚本。 */
+        /**
+         * 基于 Redis TIME 生成全局编号序列的脚本。
+         */
         GLOBAL_ID_SEQUENCE,
-        /** 原子读取或初始化当前缓存 generation 的脚本。 */
+        /**
+         * 原子读取或初始化当前缓存 generation 的脚本。
+         */
         CACHE_GENERATION_READ,
-        /** 获取 generation 发布门禁的脚本。 */
+        /**
+         * 获取 generation 发布门禁的脚本。
+         */
         CACHE_GENERATION_BEGIN,
-        /** 切换 generation 并释放发布门禁的脚本。 */
+        /**
+         * 切换 generation 并释放发布门禁的脚本。
+         */
         CACHE_GENERATION_COMMIT,
-        /** 风控兼容固定窗口频率计数脚本。 */
+        /**
+         * 风控兼容固定窗口频率计数脚本。
+         */
         RISK_FREQUENCY_FIXED,
-        /** 风控累计限额预占脚本。 */
+        /**
+         * 风控累计限额预占脚本。
+         */
         RISK_CUMULATIVE_RESERVE,
-        /** 风控累计限额预占回滚脚本。 */
+        /**
+         * 风控累计限额预占回滚脚本。
+         */
         RISK_CUMULATIVE_ROLLBACK
     }
 
@@ -304,15 +390,25 @@ public class RedisBusinessMetrics {
      * Lua 失败类型维度。
      */
     public enum Failure {
-        /** Redis 连接不可用。 */
+        /**
+         * Redis 连接不可用。
+         */
         CONNECTION,
-        /** Lua 执行超过调用预算。 */
+        /**
+         * Lua 执行超过调用预算。
+         */
         TIMEOUT,
-        /** Lua 返回空值或未登记的结果码。 */
+        /**
+         * Lua 返回空值或未登记的结果码。
+         */
         INVALID_RESULT,
-        /** Lua 保护的有界结构达到容量限制。 */
+        /**
+         * Lua 保护的有界结构达到容量限制。
+         */
         CAPACITY,
-        /** 其他脚本执行、类型或服务端错误。 */
+        /**
+         * 其他脚本执行、类型或服务端错误。
+         */
         EXECUTION
     }
 }

@@ -13,17 +13,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingReserveMapper
- * @date : 2026-08-26 10:45
- * @email : scott_x@163.com
- * @description : 独立保证金明细与状态 Mapper；原支付状态读取必须携带原支付分片时间并在退款阶段加行锁。
- * @status : create
+ * 独立保证金明细与状态 Mapper；原支付状态读取必须携带原支付分片时间并在退款阶段加行锁。
  */
 public interface ClearingReserveMapper {
 
-    /** 按当前动作真实分片时间读取当前有效修订保证金明细。 */
+    /**
+     * 按当前动作真实分片时间读取当前有效修订保证金明细。
+     */
     @Select("""
             SELECT *
             FROM transaction_reserve_clearing_detail
@@ -38,7 +34,9 @@ public interface ClearingReserveMapper {
             @Param("transactionDateTime") LocalDateTime transactionDateTime,
             @Param("clearingRevision") int clearingRevision);
 
-    /** 写入当前动作的一条 HOLD、RETURN、RELEASE 或 ADJUSTMENT 保证金事实。 */
+    /**
+     * 写入当前动作的一条 HOLD、RETURN、RELEASE 或 ADJUSTMENT 保证金事实。
+     */
     @Insert("""
             INSERT INTO transaction_reserve_clearing_detail
             (reserve_clearing_detail_no, finance_state_id, transaction_id, operation_id,
@@ -68,7 +66,9 @@ public interface ClearingReserveMapper {
             """)
     int insertDetail(@Param("row") ClearingReserveDetailDO row);
 
-    /** 新支付计提保证金时创建原支付保证金状态。 */
+    /**
+     * 新支付计提保证金时创建原支付保证金状态。
+     */
     @Insert("""
             INSERT INTO transaction_reserve_clearing_state
             (reserve_state_id, original_transaction_id, operation_id, original_finance_state_id,
@@ -92,7 +92,9 @@ public interface ClearingReserveMapper {
             """)
     int insertState(@Param("row") ClearingReserveStateDO row);
 
-    /** 按原支付号和原支付真实分片时间锁定保证金状态。 */
+    /**
+     * 按原支付号和原支付真实分片时间锁定保证金状态。
+     */
     @Select("""
             SELECT *
             FROM transaction_reserve_clearing_state
@@ -105,7 +107,9 @@ public interface ClearingReserveMapper {
             @Param("originalTransactionId") String originalTransactionId,
             @Param("originalTransactionDateTime") LocalDateTime originalTransactionDateTime);
 
-    /** 按原HOLD业务号和原支付分片时间读取不可变保证金配置与支付维度快照。 */
+    /**
+     * 按原HOLD业务号和原支付分片时间读取不可变保证金配置与支付维度快照。
+     */
     @Select("""
             SELECT *
             FROM transaction_reserve_clearing_detail
@@ -119,7 +123,9 @@ public interface ClearingReserveMapper {
             @Param("holdDetailNo") String holdDetailNo,
             @Param("originalTransactionDateTime") LocalDateTime originalTransactionDateTime);
 
-    /** 查询单季度内已到期且仍有余额的保证金状态，扫描结果不替代释放事务内行锁。 */
+    /**
+     * 查询单季度内已到期且仍有余额的保证金状态，扫描结果不替代释放事务内行锁。
+     */
     @Select("""
             SELECT reserve_state_id, original_transaction_id, transaction_date_time
             FROM transaction_reserve_clearing_state
@@ -138,7 +144,9 @@ public interface ClearingReserveMapper {
             @Param("businessDate") LocalDate businessDate,
             @Param("limit") int limit);
 
-    /** 使用原支付分片键和版本 CAS 累加本次退款返还金额。 */
+    /**
+     * 使用原支付分片键和版本 CAS 累加本次退款返还金额。
+     */
     @Update("""
             UPDATE transaction_reserve_clearing_state
             SET returned_amount = returned_amount + #{returnAmount},
@@ -170,7 +178,9 @@ public interface ClearingReserveMapper {
                     @Param("returnTransactionDateTime") LocalDateTime returnTransactionDateTime,
                     @Param("now") LocalDateTime now);
 
-    /** 使用原支付分片键、OPEN状态和版本CAS一次性释放当前全部剩余保证金。 */
+    /**
+     * 使用原支付分片键、OPEN状态和版本CAS一次性释放当前全部剩余保证金。
+     */
     @Update("""
             UPDATE transaction_reserve_clearing_state
             SET released_amount = released_amount + #{releaseAmount},
@@ -196,7 +206,9 @@ public interface ClearingReserveMapper {
                      @Param("now") LocalDateTime now,
                      @Param("releaseDate") LocalDate releaseDate);
 
-    /** 经复核后按标签币种方向 CAS 调整剩余负债和累计调整金额。 */
+    /**
+     * 经复核后按标签币种方向 CAS 调整剩余负债和累计调整金额。
+     */
     @Update("""
             UPDATE transaction_reserve_clearing_state
             SET debit_adjustment_amount = debit_adjustment_amount

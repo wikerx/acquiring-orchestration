@@ -84,7 +84,9 @@ public class DefaultRefundChannelResultTransactionService implements RefundChann
         return statusChanged;
     }
 
-    /** 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。 */
+    /**
+     * 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。
+     */
     private void saveStatusChanged(RefundPreparationResultDTO preparationResultDTO,
                                    PaymentCreateResultDTO resultDTO) {
         lifecycleEventService.saveStatusChanged(
@@ -97,7 +99,9 @@ public class DefaultRefundChannelResultTransactionService implements RefundChann
                 preparationResultDTO.getCommandDTO().getTransactionDateTime());
     }
 
-    /** 判断渠道映射结果是否已经进入不可逆成功或失败终态。 */
+    /**
+     * 判断渠道映射结果是否已经进入不可逆成功或失败终态。
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());

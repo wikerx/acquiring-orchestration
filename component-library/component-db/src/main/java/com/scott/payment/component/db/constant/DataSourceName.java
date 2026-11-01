@@ -1,13 +1,7 @@
 package com.scott.payment.component.db.constant;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataSourceName
- * @date : 2026-05-29 00:00
- * @email : scott_x@163.com
- * @description : 动态数据源名称常量
- * @status : create
+ * 动态数据源名称常量
  */
 public final class DataSourceName {
 

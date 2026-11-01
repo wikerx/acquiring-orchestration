@@ -18,13 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiJwtReplayProtectionService
- * @date : 2026-06-02 11:14
- * @email : scott_x@163.com
- * @description : openAPIJWT防重放保护服务契约，位于 商户开放接口服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 以商户号和 JWT jti 建立一次性使用门禁；生产环境 Redis 不可用时按配置失败关闭。
  */
 @Slf4j
 @Component
@@ -68,7 +62,7 @@ public class OpenApiJwtReplayProtectionService {
      * @param redisProperties             Redis Key 配置
      */
     public OpenApiJwtReplayProtectionService(ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-                                             @Value("${openapi.security.replay.required:false}") boolean replayRequired,
+                                             @Value("${openapi.security.replay.required:true}") boolean replayRequired,
                                              PaymentRedisProperties redisProperties) {
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         this.replayRequired = replayRequired;
@@ -113,9 +107,9 @@ public class OpenApiJwtReplayProtectionService {
             return;
         }
         if (Boolean.FALSE.equals(firstRequest)) {
-            log.warn("OpenAPI JWT检测到重复请求, event: OPENAPI_REPLAY_REJECTED, merchantId: {}, jtiDigestLength: {}",
+            log.warn("OpenAPI JWT检测到重复请求, event: OPENAPI_REPLAY_REJECTED, merchantId: {}, jtiDigest: {}",
                     merchantId,
-                    jwtId.length());
+                    RedisKeyDigest.sha256(jwtId).substring(0, 16));
             throw new ApiException(OpenApiResultCode.SECURITY_REPLAY_REJECTED);
         }
     }

@@ -8,13 +8,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelInvokeResultDTO
- * @date : 2026-07-14 19:20
- * @email : scott_x@163.com
- * @description : 收单渠道调用结果 DTO，位于 service-payment 服务 DTO 层，承载渠道请求、同步响应、异常和耗时，供交易审计日志落库使用。
- * @status : create
+ * 收单渠道调用结果 DTO，位于 service-payment 服务 DTO 层，承载渠道请求、同步响应、异常和耗时，供交易审计日志落库使用。
  */
 @Data
 public class PaymentChannelInvokeResultDTO implements Serializable {

@@ -35,13 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalOrderApplicationServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 独立冲正单必须先申请，再由不同账号复核后才能调用资金冲正。
- * @status : create
+ * 独立冲正单必须先申请，再由不同账号复核后才能调用资金冲正。
  */
 class SettlementReversalOrderApplicationServiceTest {
 

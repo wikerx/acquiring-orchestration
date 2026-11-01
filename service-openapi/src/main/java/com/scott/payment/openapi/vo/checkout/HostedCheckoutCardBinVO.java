@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutCardBinVO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 付款页卡 BIN 品牌识别结果。
- * @status : create
+ * 付款页卡 BIN 品牌识别结果。
  */
 @Data
 public class HostedCheckoutCardBinVO implements Serializable {

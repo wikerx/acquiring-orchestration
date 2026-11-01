@@ -20,13 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqProducerTest
- * @date : 未确认
- * @email : scott_x@163.com
- * @description : Rocket MQ Producer Test 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
- * @status : create
+ * Rocket MQ Producer Test 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
  */
 class RocketMqProducerTest {
 
@@ -77,7 +71,9 @@ class RocketMqProducerTest {
         assertThat(rocketMessage.getHeaders().get("messageId")).isEqualTo("message-001");
     }
 
-    /** 未来投递时间必须使用 RocketMQ 5.x 绝对定时消息能力。 */
+    /**
+     * 未来投递时间必须使用 RocketMQ 5.x 绝对定时消息能力。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldSendMessageAtAbsoluteDeliveryTime() {
@@ -134,7 +130,9 @@ class RocketMqProducerTest {
                 eq("payment-event:updated"), org.mockito.ArgumentMatchers.any(Message.class), eq("TXN-001"));
     }
 
-    /** Outbox 冻结 JSON 的字段顺序和格式必须保持不变，顺序键只参与队列选择。 */
+    /**
+     * Outbox 冻结 JSON 的字段顺序和格式必须保持不变，顺序键只参与队列选择。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldSendFrozenJsonOrderlyWithoutReserialization() {
@@ -162,7 +160,9 @@ class RocketMqProducerTest {
         assertThat(captor.getValue().getHeaders().get("messageId")).isEqualTo("message-ordered-001");
     }
 
-    /** Outbox 冻结 JSON 定时消息必须使用 Broker 绝对投递时间且不得重写载荷。 */
+    /**
+     * Outbox 冻结 JSON 定时消息必须使用 Broker 绝对投递时间且不得重写载荷。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldSendFrozenJsonAtAbsoluteDeliveryTime() {

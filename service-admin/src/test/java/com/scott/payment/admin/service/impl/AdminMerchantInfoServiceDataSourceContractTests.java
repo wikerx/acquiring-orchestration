@@ -13,13 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantInfoServiceDataSourceContractTests
- * @date : 2026-08-01 13:00
- * @email : scott_x@163.com
- * @description : 验证管理端商户普通查询路由只读库，缓存重建及事实变更固定路由主库
- * @status : create
+ * 验证管理端商户普通查询路由只读库，缓存重建及事实变更固定路由主库
  */
 class AdminMerchantInfoServiceDataSourceContractTests {
 
@@ -37,7 +31,9 @@ class AdminMerchantInfoServiceDataSourceContractTests {
         ));
     }
 
-    /** 商户表单选项缓存重建必须使用主库，避免主从延迟把已失效旧值重新写入缓存。 */
+    /**
+     * 商户表单选项缓存重建必须使用主库，避免主从延迟把已失效旧值重新写入缓存。
+     */
     @Test
     void shouldRebuildMerchantFormOptionsFromMaster() throws NoSuchMethodException {
         assertDataSource(DataSourceName.MASTER, List.of(method("getFormOptions")));

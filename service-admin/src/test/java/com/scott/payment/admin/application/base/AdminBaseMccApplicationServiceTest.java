@@ -34,13 +34,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseMccApplicationServiceTest
- * @date : 2026-06-27 16:49
- * @email : scott_x@163.com
- * @description : admin基础mcc应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * admin基础mcc应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminBaseMccApplicationServiceTest {
@@ -68,7 +62,9 @@ class AdminBaseMccApplicationServiceTest {
     @Mock
     private ExcelLocaleResolver excelLocaleResolver;
 
-    /** MCC 公共选项缓存失效器。 */
+    /**
+     * MCC 公共选项缓存失效器。
+     */
     @Mock
     private MccOptionCacheInvalidator mccOptionCacheInvalidator;
 

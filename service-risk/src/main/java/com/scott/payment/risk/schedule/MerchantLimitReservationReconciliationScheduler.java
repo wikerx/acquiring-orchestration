@@ -11,13 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantLimitReservationReconciliationScheduler
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户累计限额预占超时扫描调度器。
- * @status : create
+ * 商户累计限额预占超时扫描调度器。
  */
 @Slf4j
 @Component
@@ -64,7 +58,7 @@ public class MerchantLimitReservationReconciliationScheduler {
         MerchantLimitReservationReconciliationSummary summary =
                 reconciliationService.reconcile(LocalDateTime.now(), batchSize);
         if (summary.reserved() + summary.confirmed() + summary.cancelled() + summary.retained() > 0) {
-            log.info("event: RISK_MERCHANT_LIMIT_RECONCILE_BATCH reserved: {} confirmed: {} cancelled: {} retained: {}",
+            log.info("商户累计限额对账批次完成, event: RISK_MERCHANT_LIMIT_RECONCILE_BATCH, reserved: {}, confirmed: {}, cancelled: {}, retained: {}",
                     summary.reserved(),
                     summary.confirmed(),
                     summary.cancelled(),

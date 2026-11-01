@@ -9,24 +9,24 @@ import com.scott.payment.data.service.impl.MerchantNotificationRetryReconciliati
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationApplicationService
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知应用编排，校验内部补偿命令并限制单次扫描规模
- * @status : create
+ * service-data 商户通知应用编排，校验内部补偿命令并限制单次扫描规模
  */
 @Service
 public class MerchantNotificationApplicationService {
 
-    /** 未显式指定时的单分表补偿批量。 */
+    /**
+     * 未显式指定时的单分表补偿批量。
+     */
     private static final int DEFAULT_LIMIT = 5;
 
-    /** 单次内部补偿允许处理的最大任务数。 */
+    /**
+     * 单次内部补偿允许处理的最大任务数。
+     */
     private static final int MAX_LIMIT = 5;
 
-    /** 到期任务低频 MQ 对账服务。 */
+    /**
+     * 到期任务低频 MQ 对账服务。
+     */
     private final MerchantNotificationRetryReconciliationService reconciliationService;
 
     /**
@@ -83,7 +83,12 @@ public class MerchantNotificationApplicationService {
                 commandDTO == null ? null : commandDTO.getTransactionDateTimes());
     }
 
-    /** 校验并限制单次补偿批量。 */
+    /**
+     * 校验并限制单次补偿批量。
+     *
+     * @param limit 调用方请求的单季度批量；为空时使用默认值
+     * @return 1 至 500 之间的有效批量
+     */
     private int normalizeLimit(Integer limit) {
         if (limit == null) {
             return DEFAULT_LIMIT;

@@ -11,13 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiAccessPolicyCacheReader
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 访问策略读取器，为 facade 提供可代理的缓存与直读入口。
- * @status : create
+ * 商户 OpenAPI 访问策略读取器，为 facade 提供可代理的缓存与直读入口。
  */
 @Service
 public class MerchantOpenApiAccessPolicyCacheReader {
@@ -59,18 +53,22 @@ public class MerchantOpenApiAccessPolicyCacheReader {
     }
 
     /**
-     * 绕过方法级缓存读取当前数据源中的最新业务值。
-     * <p>
-     * 只读操作；实现必须沿用 商户开放接口服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 绕过方法级缓存，从主库读取商户当前生效的 IP 白名单策略。
+     *
+     * @param merchantId 已规范化的商户号
+     * @return 包含当前启用 IP 集合的访问策略；无记录时返回空集合策略
      */
     @DS(DataSourceName.MASTER)
     public MerchantOpenApiAccessPolicy findFresh(String merchantId) {
         return load(merchantId);
     }
 
+    /**
+     * 查询已审批、已启用且未删除的商户 IP 白名单记录。
+     *
+     * @param merchantId 已规范化的商户号
+     * @return 去除空白后的允许 IP 集合
+     */
     private MerchantOpenApiAccessPolicy load(String merchantId) {
         MerchantOpenApiAccessPolicy policy = new MerchantOpenApiAccessPolicy();
         whitelistMapper.selectList(

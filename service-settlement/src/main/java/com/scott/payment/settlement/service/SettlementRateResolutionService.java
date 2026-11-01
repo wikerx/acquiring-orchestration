@@ -7,13 +7,7 @@ import java.time.LocalDateTime;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRateResolutionService
- * @date : 2026-08-26 22:40
- * @email : scott_x@163.com
- * @description : 批次统一汇率解析边界，批量选择直接、反向或系统恒等报价并返回可持久化不可变矩阵。
- * @status : create
+ * 批次统一汇率解析边界，批量选择直接、反向或系统恒等报价并返回可持久化不可变矩阵。
  */
 public interface SettlementRateResolutionService {
 

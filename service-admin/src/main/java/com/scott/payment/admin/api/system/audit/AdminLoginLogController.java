@@ -16,13 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminLoginLogController
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台登录日志控制器
- * @status : create
+ * 管理后台登录日志控制器
  *
  * <p>仅负责接收查询条件并调用
  * {@link AdminLoginLogApplicationService} 返回分页结果。</p>

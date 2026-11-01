@@ -122,7 +122,11 @@ public class TransactionTerminalClearingConsumer
         return message;
     }
 
-    /** @return 本次数据库处理租约的唯一执行者标识。 */
+    /**
+     * 为本次消息生成唯一处理租约持有者标识。
+     *
+     * @return 本次数据库处理租约的唯一执行者标识。
+     */
     private String processingOwner() {
         return "service-clearing:" + idGenerator.nextId();
     }

@@ -3,14 +3,8 @@ package com.scott.payment.component.nacos.encryption;
 import com.alibaba.nacos.plugin.datasource.model.MapperResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NacosConfigInfoMapperSqlSupport
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : Nacos Config Server 专用 MapperResult 改写适配器；隔离 datasource 服务端类型，避免普通业务
+ * Nacos Config Server 专用 MapperResult 改写适配器；隔离 datasource 服务端类型，避免普通业务
  * 客户端加载 AES-GCM SPI 时依赖 Nacos 服务端数据源包。
- * @status : create
  */
 final class NacosConfigInfoMapperSqlSupport {
 

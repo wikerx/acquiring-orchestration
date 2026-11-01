@@ -9,17 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataCardVaultShardingActivationGuardTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证卡资料消费开关与交易分片拓扑必须同步启用。
- * @status : create
+ * 验证卡资料消费开关与交易分片拓扑必须同步启用。
  */
 class DataCardVaultShardingActivationGuardTests {
 
-    /** 缺少卡资料表的兼容基线不能承载卡资料消费。 */
+    /**
+     * 缺少卡资料表的兼容基线不能承载卡资料消费。
+     */
     @Test
     void shouldRejectCardVaultActivationOnPreviousTopology() {
         TransactionShardingProperties sharding = sharding(TransactionShardingProperties.previousLogicTables());
@@ -28,7 +24,9 @@ class DataCardVaultShardingActivationGuardTests {
                 () -> new DataCardVaultShardingActivationGuard(sharding).afterPropertiesSet());
     }
 
-    /** 包含卡资料表和收货快照表的 25 表完整目标拓扑允许消费服务激活。 */
+    /**
+     * 包含卡资料表和收货快照表的 25 表完整目标拓扑允许消费服务激活。
+     */
     @Test
     void shouldAllowCardVaultActivationOnTargetTopology() {
         TransactionShardingProperties sharding = sharding(TransactionShardingProperties.defaultLogicTables());
@@ -36,6 +34,9 @@ class DataCardVaultShardingActivationGuardTests {
         assertDoesNotThrow(() -> new DataCardVaultShardingActivationGuard(sharding).afterPropertiesSet());
     }
 
+    /**
+     * 构造包含已发布季度节点的交易分片配置。
+     */
     private TransactionShardingProperties sharding(List<String> logicTables) {
         TransactionShardingProperties properties = new TransactionShardingProperties();
         properties.setLogicTables(logicTables);

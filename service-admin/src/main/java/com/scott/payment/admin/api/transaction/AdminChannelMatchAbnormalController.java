@@ -29,13 +29,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelMatchAbnormalController
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 管理端勾兑异常接口，提供查询和受控案件处置；不注册 repair 或人工确认交易成功接口。
- * @status : create
+ * 管理端勾兑异常接口，提供查询和受控案件处置；不注册 repair 或人工确认交易成功接口。
  */
 @RestController
 @RequestMapping("/admin/transactions/channel-match-abnormalities")
@@ -43,12 +37,16 @@ public class AdminChannelMatchAbnormalController {
 
     private final AdminChannelMatchAbnormalApplicationService applicationService;
 
-    /** @param applicationService Admin 勾兑异常应用服务 */
+    /**
+     * @param applicationService Admin 勾兑异常应用服务
+     */
     public AdminChannelMatchAbnormalController(AdminChannelMatchAbnormalApplicationService applicationService) {
         this.applicationService = applicationService;
     }
 
-    /** 查询案件分页和统计。 */
+    /**
+     * 查询案件分页和统计。
+     */
     @PostMapping("/search")
     @RequiresPermission("transaction:match-abnormal:list")
     @OperationLog(moduleName = "勾兑异常交易", businessType = OperationTypeConstants.QUERY, operation = "查询勾兑异常")
@@ -56,7 +54,9 @@ public class AdminChannelMatchAbnormalController {
         return success(applicationService.search(query));
     }
 
-    /** 查询案件聚合详情。 */
+    /**
+     * 查询案件聚合详情。
+     */
     @GetMapping("/{eventId}")
     @RequiresPermission("transaction:match-abnormal:detail")
     @OperationLog(moduleName = "勾兑异常交易", businessType = OperationTypeConstants.QUERY, operation = "查询异常详情")
@@ -67,7 +67,9 @@ public class AdminChannelMatchAbnormalController {
         return success(applicationService.detail(eventId, transactionDateTime));
     }
 
-    /** 导出脱敏案件列表。 */
+    /**
+     * 导出脱敏案件列表。
+     */
     @PostMapping("/export")
     @RequiresPermission("transaction:match-abnormal:export")
     @OperationLog(moduleName = "勾兑异常交易", businessType = OperationTypeConstants.EXPORT, operation = "导出勾兑异常")
@@ -75,7 +77,9 @@ public class AdminChannelMatchAbnormalController {
         applicationService.export(query, response);
     }
 
-    /** 领取或转派案件。 */
+    /**
+     * 领取或转派案件。
+     */
     @PostMapping("/{eventId}/claim")
     @RequiresPermission("transaction:match-abnormal:assign")
     @OperationLog(moduleName = "勾兑异常交易", businessType = OperationTypeConstants.UPDATE, operation = "领取或转派异常")
@@ -84,7 +88,9 @@ public class AdminChannelMatchAbnormalController {
         return success(applicationService.assign(eventId, request));
     }
 
-    /** 单笔重新勾兑。 */
+    /**
+     * 单笔重新勾兑。
+     */
     @PostMapping("/{eventId}/requery")
     @RequiresPermission("transaction:match-abnormal:requery")
     @OperationLog(moduleName = "勾兑异常交易", businessType = OperationTypeConstants.UPDATE, operation = "重新勾兑")
@@ -93,7 +99,9 @@ public class AdminChannelMatchAbnormalController {
         return success(applicationService.requery(eventId, command));
     }
 
-    /** 批量重新勾兑。 */
+    /**
+     * 批量重新勾兑。
+     */
     @PostMapping("/batch-requery")
     @RequiresPermission("transaction:match-abnormal:batch-requery")
     @OperationLog(moduleName = "勾兑异常交易", businessType = OperationTypeConstants.UPDATE, operation = "批量重新勾兑")
@@ -101,7 +109,9 @@ public class AdminChannelMatchAbnormalController {
         return success(applicationService.batchRequery(command));
     }
 
-    /** 确认无需修改或忽略案件。 */
+    /**
+     * 确认无需修改或忽略案件。
+     */
     @PostMapping("/{eventId}/resolve")
     @RequiresPermission("transaction:match-abnormal:resolve")
     @OperationLog(moduleName = "勾兑异常交易", businessType = OperationTypeConstants.UPDATE, operation = "处置勾兑异常")

@@ -17,17 +17,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantLimitReservationPaymentEventConsumerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 支付状态事件消费者测试，验证成功确认、失败取消和处理中状态保留预占。
- * @status : create
+ * 支付状态事件消费者测试，验证成功确认、失败取消和处理中状态保留预占。
  */
 class MerchantLimitReservationPaymentEventConsumerTests {
 
-    /** 限额预占状态机必须顺序消费交易生命周期 FIFO Topic。 */
+    /**
+     * 限额预占状态机必须顺序消费交易生命周期 FIFO Topic。
+     */
     @Test
     void listenerContractShouldUsePaymentTransactionFifoTopicAndOrderlyMode() {
         RocketMQMessageListener listener = MerchantLimitReservationPaymentEventConsumer.class
@@ -37,6 +33,9 @@ class MerchantLimitReservationPaymentEventConsumerTests {
         assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.ORDERLY);
     }
 
+    /**
+     * 验证成功和失败终态迁移累计预占，而处理中事件继续保留预占。
+     */
     @Test
     void shouldApplySuccessAndFailureButRetainPendingReservation() {
         MerchantLimitReservationLifecycleCoordinator coordinator =
@@ -64,7 +63,9 @@ class MerchantLimitReservationPaymentEventConsumerTests {
                 org.mockito.ArgumentMatchers.contains("PENDING"));
     }
 
-    /** 畸形支付事件必须抛出以触发 RocketMQ 重试，不能静默确认。 */
+    /**
+     * 畸形支付事件必须抛出以触发 RocketMQ 重试，不能静默确认。
+     */
     @Test
     void shouldRejectMalformedPaymentEvent() {
         MerchantLimitReservationLifecycleCoordinator coordinator =
@@ -82,6 +83,9 @@ class MerchantLimitReservationPaymentEventConsumerTests {
                 org.mockito.ArgumentMatchers.anyString());
     }
 
+    /**
+     * 构造包含交易标识、状态和业务时间的支付事件消息。
+     */
     private String payload(String status) {
         RiskPaymentTransactionEventMessage message =
                 new RiskPaymentTransactionEventMessage();

@@ -15,13 +15,7 @@ import java.time.Instant;
 import java.util.Collection;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantJwtVerifier
- * @date : 2026-05-28 11:42
- * @email : scott_x@163.com
- * @description : 商户 JWT HS256 验签器，负责校验开放接口 token 的头部、签名、aud/iss、有效期和 merchantId 声明。
- * @status : create
+ * 商户 JWT HS256 验签器，负责校验开放接口 token 的头部、签名、aud/iss、有效期和 merchantId 声明。
  */
 public class MerchantJwtVerifier {
 

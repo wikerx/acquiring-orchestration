@@ -31,13 +31,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRefundApplicationService
- * @date : 2026-08-06 16:00
- * @email : scott_x@163.com
- * @description : 管理端退款应用服务，本地编排只读查询和导出，并仅将审批命令及可信操作人身份提交给 service-payment。
- * @status : create
+ * 管理端退款应用服务，本地编排只读查询和导出，并仅将审批命令及可信操作人身份提交给 service-payment。
  */
 @Service
 public class AdminRefundApplicationService {
@@ -165,6 +159,9 @@ public class AdminRefundApplicationService {
         return paymentInternalClient.rejectRefund(approvalId, clientRequest(request));
     }
 
+    /**
+     * 构建内部客户端调用请求。
+     */
     private ApprovalClientRequest clientRequest(ApprovalDecisionRequest request) {
         if (request == null
                 || !StringUtils.hasText(request.getDecisionRequestId())
@@ -185,6 +182,9 @@ public class AdminRefundApplicationService {
         return clientRequest;
     }
 
+    /**
+     * 将退款查询结果导出为 Excel。
+     */
     private void exportExcel(RefundQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         String titleKey = "excel.refund.adminTitle";
@@ -205,6 +205,9 @@ public class AdminRefundApplicationService {
                         .build(), response);
     }
 
+    /**
+     * 加载一页退款管理导出数据。
+     */
     private List<RefundManagementExportRow> loadExportPage(RefundQuery query, int pageNo) {
         query.setPageNo(pageNo);
         query.setPageSize(EXPORT_PAGE_SIZE);
@@ -215,6 +218,9 @@ public class AdminRefundApplicationService {
         return searchResponse.getPage().getRecords().stream().map(this::toExportRow).toList();
     }
 
+    /**
+     * 转换为导出行数据。
+     */
     private RefundManagementExportRow toExportRow(RefundRecord source) {
         RefundManagementExportRow row = new RefundManagementExportRow();
         row.setRefundTransactionId(source.getRefundTransactionId());
@@ -236,11 +242,17 @@ public class AdminRefundApplicationService {
         return row;
     }
 
+    /**
+     * 查询摘要。
+     */
     private String querySummary(RefundQuery query) {
         return "beginTime=" + query.getBeginTime() + ", endTime=" + query.getEndTime()
                 + ", merchantId=" + query.getMerchantId() + ", status=" + query.getTransactionStatus();
     }
 
+    /**
+     * 从可信认证上下文构建管理端操作人身份。
+     */
     private String currentAdminIdentity(String operator) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account != null && account.getAccountId() != null) {

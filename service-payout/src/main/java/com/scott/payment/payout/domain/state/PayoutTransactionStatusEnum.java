@@ -3,13 +3,9 @@ package com.scott.payment.payout.domain.state;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutTransactionStatusEnum
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 代付交易状态枚举，位于 代付服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 定义当前代付受理骨架允许返回的平台状态。
+ *
+ * <p>完整生命周期落地后应由独立状态机扩展状态及合法迁移，渠道原始状态不能直接覆盖平台状态。</p>
  */
 @Getter
 public enum PayoutTransactionStatusEnum {
@@ -20,11 +16,7 @@ public enum PayoutTransactionStatusEnum {
     RECEIVED("RECEIVED");
 
     /**
-     * 编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 对外和内部协议使用的稳定状态编码。
      */
     private final String code;
 

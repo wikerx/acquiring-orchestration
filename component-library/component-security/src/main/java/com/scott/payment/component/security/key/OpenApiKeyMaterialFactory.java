@@ -10,13 +10,7 @@ import java.util.Objects;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiKeyMaterialFactory
- * @date : 2026-05-29 22:38
- * @email : scott_x@163.com
- * @description : openAPI密钥材料工厂协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * openAPI密钥材料工厂协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  */
 public class OpenApiKeyMaterialFactory {
 

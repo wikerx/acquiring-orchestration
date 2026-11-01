@@ -16,13 +16,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultFeeVersionQueryServiceTest
- * @date : 2026-08-26 16:30
- * @email : scott_x@163.com
- * @description : 验证清分只读费用版本聚合对不可变版本损坏进行稳定分类，同时保留数据库技术异常的重试语义。
- * @status : create
+ * 验证清分只读费用版本聚合对不可变版本损坏进行稳定分类，同时保留数据库技术异常的重试语义。
  */
 class DefaultFeeVersionQueryServiceTest {
 

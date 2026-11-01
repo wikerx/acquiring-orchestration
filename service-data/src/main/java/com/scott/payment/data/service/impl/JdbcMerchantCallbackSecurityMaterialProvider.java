@@ -26,13 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantCallbackSecurityMaterialProvider
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : 依据 Redis 非敏感密钥 revision 从主库加载回调密钥，并仅在当前 JVM 内做有界短时缓存
- * @status : create
+ * 依据 Redis 中的非敏感 revision 从主库加载商户回调密钥，并在当前 JVM 内做有界短时缓存。
  *
  * <p>JWT Secret 和响应公钥正文禁止写入 Redis。每次回调先读取共享 revision，版本变化、TTL 到期
  * 或容量淘汰时按记录 ID 从主库重新加载，保证本地材料与已生效密钥版本一致。</p>
@@ -41,37 +35,45 @@ import java.util.function.LongSupplier;
 public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCallbackSecurityMaterialProvider {
 
     /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 数据库启用标识。
      */
     private static final int ENABLED = 1;
     /**
-     * {@code NOT_DELETED}常量，统一 {@code JdbcMerchantCallbackSecurityMaterialProvider} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 数据库未删除标识。
      */
     private static final int NOT_DELETED = 0;
 
-    /** 共享非敏感密钥版本缓存。 */
+    /**
+     * 共享非敏感密钥版本缓存。
+     */
     private final MerchantKeyMetadataCacheService metadataCacheService;
-    /** 商户 JWT 密钥数据访问器，仅在本地缓存未命中时查询主库。 */
+    /**
+     * 商户 JWT 密钥数据访问器，仅在本地缓存未命中时查询主库。
+     */
     private final BaseMerchantJwtKeyMapper jwtKeyMapper;
-    /** 商户响应公钥数据访问器，仅在本地缓存未命中时查询主库。 */
+    /**
+     * 商户响应公钥数据访问器，仅在本地缓存未命中时查询主库。
+     */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
-    /** 商户通知和本地敏感材料缓存边界配置。 */
+    /**
+     * 商户通知和本地敏感材料缓存边界配置。
+     */
     private final DataMerchantNotificationProperties properties;
-    /** 单调时钟，防止系统时间回拨延长敏感材料驻留。 */
+    /**
+     * 单调时钟，防止系统时间回拨延长敏感材料驻留。
+     */
     private final LongSupplier nanoTime;
-    /** 商户号和 revision 维度的本地敏感材料。 */
+    /**
+     * 商户号和 revision 维度的本地敏感材料。
+     */
     private final ConcurrentHashMap<CacheKey, CacheEntry> entries = new ConcurrentHashMap<>();
-    /** 最近访问顺序，用于容量淘汰。 */
+    /**
+     * 最近访问顺序，用于容量淘汰。
+     */
     private final AtomicLong accessSequence = new AtomicLong();
-    /** 只保护本地过期清理和容量淘汰，不包裹数据库查询。 */
+    /**
+     * 只保护本地过期清理和容量淘汰，不包裹数据库查询。
+     */
     private final Object evictionMonitor = new Object();
 
     /**
@@ -90,7 +92,15 @@ public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCal
         this(metadataCacheService, jwtKeyMapper, responseKeyMapper, properties, System::nanoTime);
     }
 
-    /** 创建可控制单调时钟的实例，供 TTL 边界测试使用。 */
+    /**
+     * 创建可控制单调时钟的实例，供 TTL 边界测试使用。
+     *
+     * @param metadataCacheService 非敏感密钥版本缓存
+     * @param jwtKeyMapper 商户 JWT 密钥数据访问器
+     * @param responseKeyMapper 商户响应公钥数据访问器
+     * @param properties 商户通知和缓存边界配置
+     * @param nanoTime 单调时钟提供器
+     */
     JdbcMerchantCallbackSecurityMaterialProvider(MerchantKeyMetadataCacheService metadataCacheService,
                                                   BaseMerchantJwtKeyMapper jwtKeyMapper,
                                                   BaseMerchantResponseKeyMapper responseKeyMapper,
@@ -136,7 +146,13 @@ public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCal
         return entry.material();
     }
 
-    /** 按 revision 中的记录 ID 从主库读取当前有效密钥正文。 */
+    /**
+     * 按 revision 中的记录 ID 从主库读取当前有效密钥正文。
+     *
+     * @param merchantId 商户号
+     * @param metadata 已缓存的非敏感密钥版本元数据
+     * @return 当前有效的 JWT 密钥和响应公钥
+     */
     private MerchantCallbackSecurityMaterial loadFromMaster(String merchantId, MerchantKeyMetadata metadata) {
         LocalDateTime now = LocalDateTime.now();
         BaseMerchantJwtKeyDO jwtKey = jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>query()
@@ -165,13 +181,21 @@ public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCal
                 jwtKey.getMerchantKey(), responseKey.getPublicKeyX509Base64());
     }
 
-    /** 新 revision 生效后清除同商户旧版本，避免旧密钥继续驻留。 */
+    /**
+     * 新 revision 生效后清除同商户旧版本，避免旧密钥继续驻留。
+     *
+     * @param currentKey 当前商户和 revision
+     */
     private void removeOlderMerchantRevisions(CacheKey currentKey) {
         entries.keySet().removeIf(key -> key.merchantId().equals(currentKey.merchantId())
                 && !key.equals(currentKey));
     }
 
-    /** 清理过期条目并按最近访问顺序收敛到配置容量。 */
+    /**
+     * 清理过期条目并按最近访问顺序收敛到配置容量。
+     *
+     * @param now 当前单调时钟值
+     */
     private void trimToCapacity(long now) {
         synchronized (evictionMonitor) {
             entries.entrySet().removeIf(entry -> entry.getValue().expiresAtNanos() <= now);
@@ -183,53 +207,70 @@ public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCal
         }
     }
 
-    /** 使用单调时钟计算不溢出的本地缓存到期点。 */
+    /**
+     * 使用单调时钟计算不溢出的本地缓存到期点。
+     *
+     * @param now 当前单调时钟值
+     * @return 缓存到期单调时钟值
+     */
     private long expiresAt(long now) {
         long ttlNanos = properties.getSecurityMaterialCacheTtl().toNanos();
         return Long.MAX_VALUE - now < ttlNanos ? Long.MAX_VALUE : now + ttlNanos;
     }
 
-    /** 获取当前缓存条目数，供容量边界测试使用。 */
+    /**
+     * 获取当前缓存条目数，供容量边界测试使用。
+     *
+     * @return 当前 JVM 敏感材料缓存条目数
+     */
     int entryCount() {
         return entries.size();
     }
 
+    /**
+     * 创建不包含密钥标识或数据库细节的统一配置缺失异常。
+     *
+     * @return 商户回调安全材料缺失异常
+     */
     private ServiceException materialNotConfigured() {
         return new ServiceException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND.getCode(),
                 "merchant callback security material is not configured");
     }
 
+    /**
+     * 本地敏感材料缓存键，revision 变化会形成独立条目。
+     *
+     * @param merchantId 商户号
+     * @param revision 非敏感密钥版本摘要
+     */
     private record CacheKey(String merchantId, String revision) {
     }
 
-    /** 带到期点和访问顺序的 JVM 敏感材料缓存条目。 */
+    /**
+     * 带到期点和访问顺序的 JVM 敏感材料缓存条目。
+     */
     private static final class CacheEntry {
 
         /**
-         * 材料字段，保存 {@code CacheEntry} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
+         * 仅驻留当前 JVM 的 JWT 密钥和响应公钥。
          */
         private final MerchantCallbackSecurityMaterial material;
         /**
-         * 缓存条目的单调时钟过期点，仅用于进程内过期判断，不可解释为墙上时间。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
+         * 缓存条目的单调时钟到期点，不可解释为业务时间。
          */
         private final long expiresAtNanos;
         /**
-         * 缓存条目最近访问顺序，用于容量淘汰，不参与商户安全材料版本判断。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
+         * 缓存条目最近访问顺序，仅用于容量淘汰。
          */
         private volatile long lastAccessOrder;
 
+        /**
+         * 创建一个具有固定到期点的本地敏感材料缓存条目。
+         *
+         * @param material 商户回调安全材料
+         * @param expiresAtNanos 单调时钟到期点
+         * @param lastAccessOrder 最近访问顺序
+         */
         private CacheEntry(MerchantCallbackSecurityMaterial material,
                            long expiresAtNanos,
                            long lastAccessOrder) {
@@ -238,18 +279,38 @@ public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCal
             this.lastAccessOrder = lastAccessOrder;
         }
 
+        /**
+         * 返回仅供当前回调请求使用的安全材料。
+         *
+         * @return 商户回调安全材料
+         */
         private MerchantCallbackSecurityMaterial material() {
             return material;
         }
 
+        /**
+         * 返回单调时钟到期点。
+         *
+         * @return 到期纳秒值
+         */
         private long expiresAtNanos() {
             return expiresAtNanos;
         }
 
+        /**
+         * 返回容量淘汰使用的最近访问顺序。
+         *
+         * @return 最近访问序号
+         */
         private long lastAccessOrder() {
             return lastAccessOrder;
         }
 
+        /**
+         * 更新最近访问顺序，不延长固定 TTL。
+         *
+         * @param accessOrder 新访问序号
+         */
         private void touch(long accessOrder) {
             this.lastAccessOrder = accessOrder;
         }

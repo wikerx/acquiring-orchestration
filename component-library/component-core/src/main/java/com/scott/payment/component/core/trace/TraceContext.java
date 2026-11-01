@@ -6,13 +6,7 @@ import java.security.SecureRandom;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TraceContext
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 线程级链路追踪上下文，用于在网关、OpenAPI、支付服务和日志切面之间传递 traceId。
- * @status : create
+ * 线程级链路追踪上下文，用于在网关、OpenAPI、支付服务和日志切面之间传递 traceId。
  */
 public final class TraceContext {
 

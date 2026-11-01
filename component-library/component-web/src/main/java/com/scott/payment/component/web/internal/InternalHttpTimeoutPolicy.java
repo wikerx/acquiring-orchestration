@@ -1,23 +1,23 @@
 package com.scott.payment.component.web.internal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalHttpTimeoutPolicy
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : 微服务同步 HTTP 超时策略，位于共享 Web 基础层；统一默认值并阻止零、负数或超过平台上限的配置进入客户端。
- * @status : create
+ * 微服务同步 HTTP 超时策略，位于共享 Web 基础层；统一默认值并阻止零、负数或超过平台上限的配置进入客户端。
  */
 public final class InternalHttpTimeoutPolicy {
 
-    /** 默认建连超时；单位毫秒，非敏感且必须为正数。 */
+    /**
+     * 默认建连超时；单位毫秒，非敏感且必须为正数。
+     */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 3_000;
 
-    /** 默认读取超时；单位毫秒，非敏感且必须为正数。 */
+    /**
+     * 默认读取超时；单位毫秒，非敏感且必须为正数。
+     */
     public static final int DEFAULT_READ_TIMEOUT_MILLIS = 30_000;
 
-    /** 单次同步内部 HTTP 调用硬上限；单位毫秒，非敏感且必须为正数。 */
+    /**
+     * 单次同步内部 HTTP 调用硬上限；单位毫秒，非敏感且必须为正数。
+     */
     public static final int MAX_TIMEOUT_MILLIS = 60_000;
 
     private InternalHttpTimeoutPolicy() {

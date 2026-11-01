@@ -1,13 +1,7 @@
 package com.scott.payment.settlement.domain.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalStatus
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 定义独立结算冲正申请的 Maker-Checker 状态；APPROVED 和 REJECTED 均为不可逆终态。
- * @status : create
+ * 定义独立结算冲正申请的 Maker-Checker 状态；APPROVED 和 REJECTED 均为不可逆终态。
  */
 public enum SettlementReversalStatus {
     /**

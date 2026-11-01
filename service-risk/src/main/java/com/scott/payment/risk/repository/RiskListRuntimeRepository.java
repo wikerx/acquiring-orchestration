@@ -13,13 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskListRuntimeRepository
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控运行时名单和规则查询仓储。
- * @status : create
+ * 风控运行时名单和规则查询仓储。
  */
 public interface RiskListRuntimeRepository {
 
@@ -77,23 +71,19 @@ public interface RiskListRuntimeRepository {
 
     /**
      * 查询当前商户可用的来源主机白名单规则，命中时返回受控放行结论。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
-     * @return 查询得到的业务对象、分页结果或空结果
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值
+     * @return 来源主机在有效白名单内时返回 PASS 明细；未命中或未配置时返回空
      */
     Optional<RiskListMatch> findSourceUrlRule(String merchantId, RiskRuntimeLookupValue lookupValue);
 
     /**
      * 判断来源主机是否未命中商户白名单，并返回对应风控处置规则。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
-     * @return 查询得到的业务对象、分页结果或空结果
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值；主机缺失时仍需判断已配置白名单
+     * @return 已配置有效白名单但当前主机未命中时返回 REJECT 明细；未配置或已命中时返回空
      */
     Optional<RiskListMatch> findSourceUrlRestrictionMiss(String merchantId, RiskRuntimeLookupValue lookupValue);
 
@@ -240,12 +230,10 @@ public interface RiskListRuntimeRepository {
     boolean hasActiveFrequencyRule(String merchantId);
 
     /**
-     * 查询{@code findIssuerCountryByCardBin}；筛选条件、分页上限和数据范围由方法参数共同限定。
-     * <p>
-     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
-     * </p>
-     * @param cardBinLookup 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 按规范化卡 BIN 数值解析发卡国家或地区。
+     *
+     * @param cardBinLookup 仅包含 BIN 展示片段和固定长度数值的查询值
+     * @return ISO alpha-3 国家或地区代码；无有效区间时返回空
      */
     Optional<String> findIssuerCountryByCardBin(RiskRuntimeLookupValue cardBinLookup);
 

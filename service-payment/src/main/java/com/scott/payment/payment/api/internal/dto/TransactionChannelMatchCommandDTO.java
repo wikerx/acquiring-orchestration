@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelMatchCommandDTO
- * @date : 2026-07-19 22:20
- * @email : scott_x@163.com
- * @description : 渠道交易查询勾兑命令，位于 service-payment 内部接口 DTO 层，用于定时任务按交易时间分表触发渠道状态确认；该命令只扫描已落库待勾兑动作，不重新受理交易。
- * @status : create
+ * 渠道交易查询勾兑命令，位于 service-payment 内部接口 DTO 层，用于定时任务按交易时间分表触发渠道状态确认；该命令只扫描已落库待勾兑动作，不重新受理交易。
  */
 @Data
 public class TransactionChannelMatchCommandDTO implements Serializable {

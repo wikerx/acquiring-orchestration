@@ -2,6 +2,10 @@ package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
@@ -43,17 +47,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminTransactionQueryServiceTest
- * @date : 2026-07-21 20:20
- * @email : scott_x@163.com
- * @description : 管理后台交易 JDBC 查询服务单元测试，验证交易详情聚合日志查询按表结构生成 SQL，避免无软删字段日志表拼接 deleted 条件。
- * @status : create
+ * 管理后台交易 JDBC 查询服务单元测试，验证交易详情聚合日志查询按表结构生成 SQL，避免无软删字段日志表拼接 deleted 条件。
  */
 class JdbcAdminTransactionQueryServiceTest {
 
-    /** F 类描述故障来源而非交易终态，后台筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。 */
+    /**
+     * F 类描述故障来源而非交易终态，后台筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。
+     */
     @Test
     void merchantResponseCodeFilterShouldNotInferStatusFromFailureOriginCode() {
         JdbcAdminTransactionQueryService service = buildService(mock(NamedParameterJdbcTemplate.class));
@@ -123,7 +123,9 @@ class JdbcAdminTransactionQueryServiceTest {
                 order, List.of(operation), List.of(), List.of())).isEmpty();
     }
 
-    /** 3DS 展示应优先读取支付方式快照，并用 Hosted Checkout 尝试补齐历史记录。 */
+    /**
+     * 3DS 展示应优先读取支付方式快照，并用 Hosted Checkout 尝试补齐历史记录。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void threeDsEnrichmentShouldUseSnapshotAndCheckoutFallbackInBatches() {
@@ -193,7 +195,9 @@ class JdbcAdminTransactionQueryServiceTest {
         verify(jdbcTemplate, never()).queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class));
     }
 
-    /** ShardingSphere 模式必须通过 transaction 逻辑数据源执行固定逻辑表 SQL。 */
+    /**
+     * ShardingSphere 模式必须通过 transaction 逻辑数据源执行固定逻辑表 SQL。
+     */
     @Test
     void pageOrdersShouldUseTransactionLogicalTableWithoutPhysicalResolution() throws NoSuchMethodException {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
@@ -241,7 +245,9 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(query.getPageSize()).isEqualTo(7);
     }
 
-    /** 支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。 */
+    /**
+     * 支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationSummaryShouldAggregateLabelAmountsWithLabelCurrencyExponent() throws Exception {
@@ -399,7 +405,9 @@ class JdbcAdminTransactionQueryServiceTest {
         return resultSet;
     }
 
-    /** 详情首查必须使用列表返回的毫秒分片时间精确定位动作单。 */
+    /**
+     * 详情首查必须使用列表返回的毫秒分片时间精确定位动作单。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldBindExactShardingTimeInFirstQuery() {
@@ -424,7 +432,9 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(paramsCaptor.getValue().hasValue("transactionDateTimeEnd")).isFalse();
     }
 
-    /** 交易详情应按当前交易号和精确分片时间返回已有的账单、付款人和收货信息。 */
+    /**
+     * 交易详情应按当前交易号和精确分片时间返回已有的账单、付款人和收货信息。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldReturnPersistedPartyInformationFromExactShard() throws Exception {
@@ -528,7 +538,9 @@ class JdbcAdminTransactionQueryServiceTest {
         });
     }
 
-    /** 当前交易没有附属快照时，详情字段应保持为空且不伪造占位对象。 */
+    /**
+     * 当前交易没有附属快照时，详情字段应保持为空且不伪造占位对象。
+     */
     @Test
     void partyInformationQueriesShouldReturnNullWhenSnapshotsDoNotExist() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
@@ -549,7 +561,9 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(shippingInfo).isNull();
     }
 
-    /** 人工重发资格查询必须同时限定真实分片时间、交易终态和通知可重发状态。 */
+    /**
+     * 人工重发资格查询必须同时限定真实分片时间、交易终态和通知可重发状态。
+     */
     @Test
     void callbackRetryEligibilityShouldUseExactShardAndTerminalStatus() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
@@ -579,23 +593,27 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionTime);
     }
 
-    /** 商户回调详情必须按通知号和页面传入的真实分片时间查询任务及每次投递日志。 */
+    /**
+     * 商户回调详情必须按通知号和页面传入的真实分片时间查询任务及每次投递日志。
+     */
     @Test
     void merchantNotificationDetailShouldUseExactShardAndReturnAttemptLogs() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 4, 18, 29, 44, 988_000_000);
-        Map<String, Object> notification = new LinkedHashMap<>();
-        notification.put("notifyId", "notification-a");
+        MerchantNotificationResponse notification = new MerchantNotificationResponse();
+        notification.setNotifyId("notification-a");
         LocalDateTime firstResponseTime = transactionTime.plusSeconds(2);
         LocalDateTime secondResponseTime = transactionTime.plusSeconds(4);
-        Map<String, Object> firstAttempt = new LinkedHashMap<>();
-        firstAttempt.put("attemptNo", 1);
-        firstAttempt.put("create_time", firstResponseTime);
-        Map<String, Object> secondAttempt = new LinkedHashMap<>();
-        secondAttempt.put("attemptNo", 2);
-        secondAttempt.put("create_time", secondResponseTime);
-        secondAttempt.put("response_body_json_masked", "succeed");
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
+        MerchantNotificationDeliveryLogResponse firstAttempt = new MerchantNotificationDeliveryLogResponse();
+        firstAttempt.setAttemptNo(1);
+        firstAttempt.setHttpMethod("POST");
+        firstAttempt.setResponseTime(firstResponseTime);
+        MerchantNotificationDeliveryLogResponse secondAttempt = new MerchantNotificationDeliveryLogResponse();
+        secondAttempt.setAttemptNo(2);
+        secondAttempt.setHttpMethod("POST");
+        secondAttempt.setResponseTime(secondResponseTime);
+        secondAttempt.setResponseBodyJsonMasked("succeed");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0, String.class)
                         .contains("transaction_merchant_notification_log")
                         ? List.of(firstAttempt, secondAttempt)
@@ -603,22 +621,25 @@ class JdbcAdminTransactionQueryServiceTest {
         JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
                 jdbcTemplate, mock(AdminRiskTimelineQueryService.class));
 
-        Map<String, Object> detail = service.merchantNotificationDetail("notification-a", transactionTime);
+        MerchantNotificationDetailResponse detail =
+                service.merchantNotificationDetail("notification-a", transactionTime);
 
-        assertThat(detail.get("notification")).isEqualTo(notification);
-        assertThat((List<Map<String, Object>>) detail.get("deliveryLogs"))
-                .extracting(row -> row.get("attemptNo"), row -> row.get("httpMethod"), row -> row.get("responseTime"))
+        assertThat(detail.getNotification()).isEqualTo(notification);
+        assertThat(detail.getDeliveryLogs())
+                .extracting(
+                        MerchantNotificationDeliveryLogResponse::getAttemptNo,
+                        MerchantNotificationDeliveryLogResponse::getHttpMethod,
+                        MerchantNotificationDeliveryLogResponse::getResponseTime)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(1, "POST", firstResponseTime),
                         org.assertj.core.groups.Tuple.tuple(2, "POST", secondResponseTime));
-        assertThat((List<Map<String, Object>>) detail.get("deliveryLogs"))
+        assertThat(detail.getDeliveryLogs())
                 .last()
-                .satisfies(row -> assertThat(row)
-                        .containsEntry("responseBodyJsonMasked", "succeed"));
+                .satisfies(row -> assertThat(row.getResponseBodyJsonMasked()).isEqualTo("succeed"));
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(jdbcTemplate, org.mockito.Mockito.times(2))
-                .queryForList(sqlCaptor.capture(), paramsCaptor.capture());
+                .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
         assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> {
             assertThat(sql).contains("notify_id = :notifyId");
             assertThat(sql).contains("transaction_date_time = :transactionDateTime");
@@ -632,7 +653,9 @@ class JdbcAdminTransactionQueryServiceTest {
         });
     }
 
-    /** 详情附属日志触及未登记季度时必须明确失败，禁止伪装为空日志列表。 */
+    /**
+     * 详情附属日志触及未登记季度时必须明确失败，禁止伪装为空日志列表。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void detailShouldPropagateMissingQuarterFromOptionalInteractionLog() {
@@ -740,7 +763,9 @@ class JdbcAdminTransactionQueryServiceTest {
                 });
     }
 
-    /** 操作单列表必须按当前页交易号和分片时间批量返回商户通知任务的最新状态。 */
+    /**
+     * 操作单列表必须按当前页交易号和分片时间批量返回商户通知任务的最新状态。
+     */
     @ParameterizedTest
     @ValueSource(strings = {"SUCCESS", "FAILED", "CLOSED"})
     @SuppressWarnings("unchecked")
@@ -804,7 +829,9 @@ class JdbcAdminTransactionQueryServiceTest {
                 .isEqualTo(List.of("transaction-a"));
     }
 
-    /** 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。 */
+    /**
+     * 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationMapperShouldUsePersistedHostedCheckoutSource() throws Exception {
@@ -821,7 +848,9 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(row.getAccessType()).isEqualTo("HOSTED_CHECKOUT");
     }
 
-    /** 管理端可查看受控渠道摘要，但商户与付款人预览必须使用各自的安全文案。 */
+    /**
+     * 管理端可查看受控渠道摘要，但商户与付款人预览必须使用各自的安全文案。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationMapperShouldSeparateInternalMerchantAndPayerMessages() throws Exception {
@@ -943,7 +972,38 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(rows.get(0)).containsEntry("responseTime", responseTime);
     }
 
-    /** 管理端通知详情只能返回脱敏 URL，完整通知配置快照不得进入查询结果或 JSON 响应。 */
+    /**
+     * 商户通知列表必须使用显式安全投影，禁止返回完整回调地址和明文通知载荷。
+     */
+    @Test
+    void merchantNotificationPageShouldExcludeSensitiveDeliveryFields() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(1L);
+        MerchantNotificationResponse notification = new MerchantNotificationResponse();
+        notification.setNotifyId("notify-a");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of(notification));
+        MerchantNotificationQuery query = new MerchantNotificationQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 7, 21, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 7, 22, 0, 0));
+
+        assertThat(service.pageMerchantNotifications(query).getRecords())
+                .containsExactly(notification);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getValue())
+                .contains("target_url_masked", "payload_json_masked")
+                .doesNotContain("callback_url", " payload_json,")
+                .doesNotContain("notify_config_snapshot_json", "SELECT *");
+    }
+
+    /**
+     * 管理端通知详情只能返回脱敏 URL，完整通知配置快照不得进入查询结果或 JSON 响应。
+     */
     @Test
     void merchantNotificationDetailShouldExcludeSensitiveConfigSnapshot() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);

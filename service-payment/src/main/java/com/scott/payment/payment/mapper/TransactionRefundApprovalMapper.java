@@ -11,13 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionRefundApprovalMapper
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 退款审批普通表 Mapper，仅负责审批工作队列查询、插入和带版本条件的状态更新。
- * @status : create
+ * 退款审批普通表 Mapper，仅负责审批工作队列查询、插入和带版本条件的状态更新。
  */
 public interface TransactionRefundApprovalMapper extends BaseMapper<TransactionRefundApprovalDO> {
 

@@ -9,13 +9,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskInternalAuthWebMvcConfig
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 风控内部服务鉴权配置，为 service-risk 的 /internal/** 接口注册 HMAC 签名校验。
- * @status : create
+ * 风控内部服务鉴权配置，为 service-risk 的 /internal/** 接口注册 HMAC 签名校验。
  */
 @Configuration
 @EnableConfigurationProperties(InternalServiceAuthProperties.class)
@@ -26,7 +20,9 @@ public class RiskInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     private final InternalServiceAuthProperties internalServiceAuthProperties;
 
-    /** Redis nonce 防重放守卫。 */
+    /**
+     * Redis nonce 防重放守卫。
+     */
     private final InternalRequestReplayGuard replayGuard;
 
     /**

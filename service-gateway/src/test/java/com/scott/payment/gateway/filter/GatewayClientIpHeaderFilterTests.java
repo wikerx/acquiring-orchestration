@@ -14,7 +14,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 Gateway 只接受可信直接上游提供的转发链，并从右向左剥离可信代理。 */
+/**
+ * 验证 Gateway 只接受可信直接上游提供的转发链，并从右向左剥离可信代理。
+ */
 class GatewayClientIpHeaderFilterTests {
 
     @Test

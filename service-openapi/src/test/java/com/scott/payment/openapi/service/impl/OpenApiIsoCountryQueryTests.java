@@ -35,13 +35,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoCountryQueryTests
- * @date : 2026-09-30 00:00
- * @email : scott_x@163.com
- * @description : 验证国家查询的三代码契约与查询路由，隔离外部密钥、Redis 和数据库。
- * @status : create
+ * 验证国家查询的三代码契约与查询路由，隔离外部密钥、Redis 和数据库。
  */
 @Slf4j
 class OpenApiIsoCountryQueryTests {

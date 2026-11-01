@@ -27,13 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserMfaServiceImplTest
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 后台用户 MFA 管理服务测试，覆盖 OTP 安全审计日志面向管理端的操作人展示兜底规则。
- * @status : create
+ * 后台用户 MFA 管理服务测试，覆盖 OTP 安全审计日志面向管理端的操作人展示兜底规则。
  */
 class AdminUserMfaServiceImplTest {
 

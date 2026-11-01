@@ -3,13 +3,7 @@ package com.scott.payment.component.core.cache;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CacheMissMarkerStore
- * @date : 2026-07-30 21:20
- * @email : scott_x@163.com
- * @description : 缓存空结果标记存储契约，用三态查询结果区分业务未命中与 Redis 读取故障，避免把基础设施异常误判为数据不存在
- * @status : create
+ * 缓存空结果标记存储契约，用三态查询结果区分业务未命中与 Redis 读取故障，避免把基础设施异常误判为数据不存在
  */
 public interface CacheMissMarkerStore {
 

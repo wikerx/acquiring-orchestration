@@ -5,13 +5,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingIdRuleResponse
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表ID规则响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 分表ID规则响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  */
 @Data
 public class ShardingIdRuleResponse {

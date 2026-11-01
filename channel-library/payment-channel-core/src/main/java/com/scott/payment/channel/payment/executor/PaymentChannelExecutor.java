@@ -19,13 +19,7 @@ import com.scott.payment.channel.payment.registry.PaymentChannelRegistry;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelExecutor
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道执行器，位于 payment-channel-core 执行层，用于按交易类型分发到对应渠道能力，禁止 service-payment 直接依赖具体渠道实现。
- * @status : create
+ * 收单渠道执行器，位于 payment-channel-core 执行层，用于按交易类型分发到对应渠道能力，禁止 service-payment 直接依赖具体渠道实现。
  */
 @Component
 public class PaymentChannelExecutor {

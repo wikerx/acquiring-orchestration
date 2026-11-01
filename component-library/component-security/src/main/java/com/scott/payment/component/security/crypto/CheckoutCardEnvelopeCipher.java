@@ -24,13 +24,7 @@ import java.util.Arrays;
 import java.util.Base64;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutCardEnvelopeCipher
- * @date : 2026-08-08 15:30
- * @email : scott_x@163.com
- * @description : 收银台卡数据混合加密组件，使用 RSA-OAEP-256 包裹 AES-256 密钥，并用 AES-GCM AAD 绑定会话、尝试和 nonce。
- * @status : create
+ * 收银台卡数据混合加密组件，使用 RSA-OAEP-256 包裹 AES-256 密钥，并用 AES-GCM AAD 绑定会话、尝试和 nonce。
  */
 public final class CheckoutCardEnvelopeCipher {
 
@@ -99,7 +93,9 @@ public final class CheckoutCardEnvelopeCipher {
      */
     private final SecureRandom secureRandom = new SecureRandom();
 
-    /** 使用浏览器协议相同的算法生成密文，供协议测试和受控服务端调用复用。 */
+    /**
+     * 使用浏览器协议相同的算法生成密文，供协议测试和受控服务端调用复用。
+     */
     public EncryptedEnvelope encrypt(String plainText, PublicKey publicKey, String aad) {
         byte[] contentKey = randomBytes(AES_KEY_BYTES);
         byte[] iv = randomBytes(GCM_IV_BYTES);
@@ -119,7 +115,9 @@ public final class CheckoutCardEnvelopeCipher {
         }
     }
 
-    /** 解密并验证 GCM AAD；任一字段、密钥或绑定标识被篡改都统一拒绝。 */
+    /**
+     * 解密并验证 GCM AAD；任一字段、密钥或绑定标识被篡改都统一拒绝。
+     */
     public String decrypt(String encryptedKeyValue,
                           String ivValue,
                           String ciphertextValue,
@@ -151,7 +149,9 @@ public final class CheckoutCardEnvelopeCipher {
         }
     }
 
-    /** 读取 X.509 DER Base64 或 PEM RSA 公钥。 */
+    /**
+     * 读取 X.509 DER Base64 或 PEM RSA 公钥。
+     */
     public PublicKey readPublicKey(String value) {
         try {
             byte[] encoded = Base64.getDecoder().decode(OpenApiPemUtils.normalizePem(value));
@@ -162,7 +162,9 @@ public final class CheckoutCardEnvelopeCipher {
         }
     }
 
-    /** 读取 PKCS#8 DER Base64 或 PEM RSA 私钥。 */
+    /**
+     * 读取 PKCS#8 DER Base64 或 PEM RSA 私钥。
+     */
     public PrivateKey readPrivateKey(String value) {
         try {
             byte[] encoded = Base64.getDecoder().decode(OpenApiPemUtils.normalizePem(value));
@@ -173,7 +175,9 @@ public final class CheckoutCardEnvelopeCipher {
         }
     }
 
-    /** 仅为本地开发和单元测试生成临时 RSA 密钥对。 */
+    /**
+     * 仅为本地开发和单元测试生成临时 RSA 密钥对。
+     */
     public KeyPair generateRsaKeyPair() {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
@@ -224,7 +228,9 @@ public final class CheckoutCardEnvelopeCipher {
         return new ServiceException(ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode(), "card data envelope is invalid");
     }
 
-    /** Base64Url 编码的 RSA 包裹密钥、GCM IV 和包含认证标签的密文。 */
+    /**
+     * Base64Url 编码的 RSA 包裹密钥、GCM IV 和包含认证标签的密文。
+     */
     public record EncryptedEnvelope(String encryptedKey, String iv, String ciphertext) {
     }
 }

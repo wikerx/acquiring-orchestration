@@ -4,13 +4,7 @@ import com.scott.payment.job.client.clearing.dto.ClearingCompensationClientDTOs.
 import com.scott.payment.job.client.clearing.dto.ClearingCompensationClientDTOs.Response;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalClient
- * @date : 2026-09-01 22:30
- * @email : scott_x@163.com
- * @description : service-job 调用清分补偿扫描的内部边界；Job 只负责触发和汇总，不直接读写清分、交易或资金表。
- * @status : update
+ * service-job 调用清分补偿扫描的内部边界；Job 只负责触发和汇总，不直接读写清分、交易或资金表。
  */
 public interface ClearingInternalClient {
 

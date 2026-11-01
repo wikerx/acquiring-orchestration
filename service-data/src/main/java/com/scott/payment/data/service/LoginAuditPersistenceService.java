@@ -12,21 +12,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LoginAuditPersistenceService
- * @date : 2026-08-02 22:30
- * @email : scott_x@163.com
- * @description : 登录审计消费事务边界，以数据库唯一键和登录日志插入形成原子幂等
- * @status : create
+ * 登录审计消费事务边界，以数据库唯一键和登录日志插入形成原子幂等。
  */
 @Service
 public class LoginAuditPersistenceService {
 
-    /** 登录审计 Mapper。 */
+    /**
+     * 登录审计 Mapper。
+     */
     private final DataLoginAuditMapper mapper;
 
-    /** 创建登录审计持久化服务。 */
+    /**
+     * 创建登录审计持久化服务。
+     *
+     * @param mapper 登录审计和消费记录 Mapper
+     */
     public LoginAuditPersistenceService(DataLoginAuditMapper mapper) {
         this.mapper = mapper;
     }

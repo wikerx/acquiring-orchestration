@@ -31,13 +31,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReportingController
- * @date : 2026-09-01 22:50
- * @email : scott_x@163.com
- * @description : Admin 结算预审单、逐笔结果、保证金动作和净额入账的本地查询及导出入口；统一执行数据范围与导出审计。
- * @status : update
+ * Admin 结算预审单、逐笔结果、保证金动作和净额入账的本地查询及导出入口；统一执行数据范围与导出审计。
  */
 @RestController
 @RequestMapping("/admin/settlement")
@@ -45,6 +39,11 @@ public class AdminSettlementReportingController {
 
     private final AdminSettlementReportingApplicationService applicationService;
 
+    /**
+     * 创建结算结果、入账与对账查询控制器。
+     *
+     * @param applicationService 结算报表与凭证应用服务
+     */
     public AdminSettlementReportingController(AdminSettlementReportingApplicationService applicationService) {
         this.applicationService = applicationService;
     }
@@ -78,7 +77,9 @@ public class AdminSettlementReportingController {
         return success(applicationService.searchResultItems(request));
     }
 
-    /** 分页查询正式批次内一笔交易的本金、费用、调整等不可变结算组件。 */
+    /**
+     * 分页查询正式批次内一笔交易的本金、费用、调整等不可变结算组件。
+     */
     @GetMapping("/result-items/batches/{settlementBatchNo}/transactions/{transactionId}")
     @RequiresPermission("settlement:result-item:list")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,

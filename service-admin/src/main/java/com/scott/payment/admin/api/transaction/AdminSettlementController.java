@@ -26,13 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementController
- * @date : 2026-08-26 21:20
- * @email : scott_x@163.com
- * @description : Admin 结算批次查询和入账前取消权限接口；Controller 不承载资金规则。
- * @status : create
+ * Admin 结算批次查询和入账前取消权限接口；Controller 不承载资金规则。
  */
 @RestController
 @RequestMapping("/admin/settlement/batches")
@@ -41,6 +35,12 @@ public class AdminSettlementController {
     private final AdminSettlementApplicationService applicationService;
     private final AdminSettlementReportingApplicationService reportingApplicationService;
 
+    /**
+     * 创建正式结算批次管理控制器。
+     *
+     * @param applicationService 结算批次应用服务
+     * @param reportingApplicationService 结算结果与凭证查询应用服务
+     */
     public AdminSettlementController(AdminSettlementApplicationService applicationService,
                                      AdminSettlementReportingApplicationService reportingApplicationService) {
         this.applicationService = applicationService;
@@ -61,7 +61,9 @@ public class AdminSettlementController {
         return success(applicationService.search(request));
     }
 
-    /** 在交易结算工作台分页查询 REGULAR 正式批次。 */
+    /**
+     * 在交易结算工作台分页查询 REGULAR 正式批次。
+     */
     @PostMapping("/transaction/search")
     @RequiresPermission("settlement:transaction-batch:list")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
@@ -71,7 +73,9 @@ public class AdminSettlementController {
         return success(applicationService.searchTransactionBatches(request));
     }
 
-    /** 在保证金结算工作台分页查询释放和调整正式批次。 */
+    /**
+     * 在保证金结算工作台分页查询释放和调整正式批次。
+     */
     @PostMapping("/reserve/search")
     @RequiresPermission("settlement:reserve-batch:list")
     @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.QUERY,
@@ -96,7 +100,9 @@ public class AdminSettlementController {
         return success(applicationService.detail(settlementBatchNo));
     }
 
-    /** 独立授权读取正式结算凭证的完整不可变汇总快照。 */
+    /**
+     * 独立授权读取正式结算凭证的完整不可变汇总快照。
+     */
     @GetMapping("/{settlementBatchNo}/voucher")
     @RequiresPermission("settlement:batch:voucher-download")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.EXPORT,
@@ -106,7 +112,9 @@ public class AdminSettlementController {
         return success(applicationService.voucher(settlementBatchNo));
     }
 
-    /** 分页读取正式批次结算汇总，避免详情一次加载全部聚合行。 */
+    /**
+     * 分页读取正式批次结算汇总，避免详情一次加载全部聚合行。
+     */
     @GetMapping("/{settlementBatchNo}/summaries")
     @RequiresPermission("settlement:batch:summary:list")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
@@ -119,7 +127,9 @@ public class AdminSettlementController {
                 settlementBatchNo, pageNo, pageSize));
     }
 
-    /** 导出正式批次全部结算汇总。 */
+    /**
+     * 导出正式批次全部结算汇总。
+     */
     @PostMapping("/{settlementBatchNo}/summaries/export")
     @RequiresPermission("settlement:batch:summary:export")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.EXPORT,
@@ -148,7 +158,9 @@ public class AdminSettlementController {
         return success(applicationService.cancel(settlementBatchNo, request, servletRequest));
     }
 
-    /** 恢复仅因汇率锁定重试耗尽进入人工复核的正式批次。 */
+    /**
+     * 恢复仅因汇率锁定重试耗尽进入人工复核的正式批次。
+     */
     @PostMapping("/{settlementBatchNo}/retry")
     @RequiresPermission("settlement:batch:retry")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,

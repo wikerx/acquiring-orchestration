@@ -27,22 +27,34 @@ import java.time.ZoneOffset;
 @Service
 public class DefaultTransactionLifecycleEventService implements TransactionLifecycleEventService {
 
-    /** 交易生命周期事件号前缀。 */
+    /**
+     * 交易生命周期事件号前缀。
+     */
     private static final String EVENT_NO_PREFIX = "EV";
 
-    /** Outbox 聚合类型，表示支付交易聚合。 */
+    /**
+     * Outbox 聚合类型，表示支付交易聚合。
+     */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
 
-    /** 新建 Outbox 事件待投递状态。 */
+    /**
+     * 新建 Outbox 事件待投递状态。
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
 
-    /** 无时区交易业务时间的默认解释时区。 */
+    /**
+     * 无时区交易业务时间的默认解释时区。
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
-    /** 交易终态事件允许的最大投递重试次数。 */
+    /**
+     * 交易终态事件允许的最大投递重试次数。
+     */
     private static final int DEFAULT_MAX_RETRY_COUNT = 200;
 
-    /** 与交易状态同事务写入的 Outbox 持久化服务。 */
+    /**
+     * 与交易状态同事务写入的 Outbox 持久化服务。
+     */
     private final TransactionEventOutboxService eventOutboxService;
 
     /**

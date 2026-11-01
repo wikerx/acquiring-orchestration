@@ -16,16 +16,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionDTOs
- * @date : 2026-07-14 23:56
- * @email : scott_x@163.com
- * @description : 管理后台交易查询 DTO 集合，位于 service-admin 接口传输层，承接交易主单、动作单、渠道日志、渠道回调和商户通知查询数据。
- * @status : create
+ * 管理后台交易查询 DTO 集合，位于 service-admin 接口传输层，承接交易主单、动作单、渠道日志、渠道回调和商户通知查询数据。
  */
 public final class AdminTransactionDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private AdminTransactionDTOs() {
     }
 
@@ -396,10 +393,14 @@ public final class AdminTransactionDTOs {
          */
         private String reason;
 
-        /** 退款原因稳定编码；新版控制台提交，旧版文本请求可为空。 */
+        /**
+         * 退款原因稳定编码；新版控制台提交，旧版文本请求可为空。
+         */
         private String reasonCode;
 
-        /** 补充退款说明，最多 200 字；OTHER 必填，其他原因选填。 */
+        /**
+         * 补充退款说明，最多 200 字；OTHER 必填，其他原因选填。
+         */
         private String refundDescription;
 
         /**
@@ -408,7 +409,9 @@ public final class AdminTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 被操作交易所属生命周期根主单的真实分片时间。 */
+        /**
+         * 被操作交易所属生命周期根主单的真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
     }
@@ -437,16 +440,24 @@ public final class AdminTransactionDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** 本次定位并尝试勾兑的交易数量，单笔接口固定为 1。 */
+        /**
+         * 本次定位并尝试勾兑的交易数量，单笔接口固定为 1。
+         */
         private int scannedCount;
 
-        /** 渠道终态与平台状态一致，或非终态交易成功推进的数量。 */
+        /**
+         * 渠道终态与平台状态一致，或非终态交易成功推进的数量。
+         */
         private int matchedCount;
 
-        /** 渠道结果仍不明确或 CAS 未命中的数量。 */
+        /**
+         * 渠道结果仍不明确或 CAS 未命中的数量。
+         */
         private int pendingCount;
 
-        /** 查询异常、身份缺失或渠道与平台结果不一致的数量。 */
+        /**
+         * 查询异常、身份缺失或渠道与平台结果不一致的数量。
+         */
         private int failedCount;
     }
 
@@ -702,7 +713,9 @@ public final class AdminTransactionDTOs {
          */
         private BigDecimal transactionRate;
 
-        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        /**
+         * 是否按 3DS 交易处理：0 否，1 是。
+         */
         private Integer threeDsEnabled;
 
         /**
@@ -725,13 +738,19 @@ public final class AdminTransactionDTOs {
          */
         private String merchantResponseMessage;
 
-        /** OpenAPI V1.3 统一交易结果码，与商户和付款人展示使用同一标准定义。 */
+        /**
+         * OpenAPI V1.3 统一交易结果码，与商户和付款人展示使用同一标准定义。
+         */
         private String openApiResultCode;
 
-        /** 内部诊断文案；仅由管理端受控接口返回，不得下发到商户或收银台。 */
+        /**
+         * 内部诊断文案；仅由管理端受控接口返回，不得下发到商户或收银台。
+         */
         private String internalResultMessage;
 
-        /** 付款人安全文案预览，用于核验收银台展示，不包含渠道原文或内部异常。 */
+        /**
+         * 付款人安全文案预览，用于核验收银台展示，不包含渠道原文或内部异常。
+         */
         private String payerResultMessage;
 
         /**
@@ -784,25 +803,39 @@ public final class AdminTransactionDTOs {
          */
         private BigDecimal availableRefundAmount;
 
-        /** 最近真实动作的最终结算币种；未结算时为空。 */
+        /**
+         * 最近真实动作的最终结算币种；未结算时为空。
+         */
         private String settlementCurrency;
 
-        /** 最近真实动作的最终有符号结算金额，单位由 settlementCurrency 决定。 */
+        /**
+         * 最近真实动作的最终有符号结算金额，单位由 settlementCurrency 决定。
+         */
         private BigDecimal settlementAmount;
 
-        /** 最近真实动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。 */
+        /**
+         * 最近真实动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。
+         */
         private BigDecimal settlementRate;
 
-        /** 最近真实动作的结算业务日期；未结算时为空。 */
+        /**
+         * 最近真实动作的结算业务日期；未结算时为空。
+         */
         private LocalDate settlementDate;
 
-        /** 最近一次结算或冲正批次号。 */
+        /**
+         * 最近一次结算或冲正批次号。
+         */
         private String settlementBatchNo;
 
-        /** 当前主单结算快照对应的真实动作交易号。 */
+        /**
+         * 当前主单结算快照对应的真实动作交易号。
+         */
         private String settlementTransactionId;
 
-        /** 当前主单结算快照对应的真实动作分片时间。 */
+        /**
+         * 当前主单结算快照对应的真实动作分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime settlementTransactionDateTime;
 
@@ -874,7 +907,9 @@ public final class AdminTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 生命周期根主单的真实分片时间，动作详情必须与 transactionDateTime 一并传入。 */
+        /**
+         * 生命周期根主单的真实分片时间，动作详情必须与 transactionDateTime 一并传入。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
@@ -1043,7 +1078,9 @@ public final class AdminTransactionDTOs {
          */
         private BigDecimal transactionRate;
 
-        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        /**
+         * 是否按 3DS 交易处理：0 否，1 是。
+         */
         private Integer threeDsEnabled;
 
         /**
@@ -1066,13 +1103,19 @@ public final class AdminTransactionDTOs {
          */
         private String merchantResponseMessage;
 
-        /** OpenAPI V1.3 统一交易结果码，与商户和付款人展示使用同一标准定义。 */
+        /**
+         * OpenAPI V1.3 统一交易结果码，与商户和付款人展示使用同一标准定义。
+         */
         private String openApiResultCode;
 
-        /** 内部诊断文案；可包含受控渠道摘要，但不得包含完整渠道报文或异常栈。 */
+        /**
+         * 内部诊断文案；可包含受控渠道摘要，但不得包含完整渠道报文或异常栈。
+         */
         private String internalResultMessage;
 
-        /** 付款人安全文案预览，用于核验收银台展示边界。 */
+        /**
+         * 付款人安全文案预览，用于核验收银台展示边界。
+         */
         private String payerResultMessage;
 
         /**
@@ -1215,19 +1258,29 @@ public final class AdminTransactionDTOs {
          */
         private String acquirerReferenceNo;
 
-        /** 当前动作最终结算币种；未结算时为空。 */
+        /**
+         * 当前动作最终结算币种；未结算时为空。
+         */
         private String settlementCurrency;
 
-        /** 当前动作最终有符号结算金额，单位由 settlementCurrency 决定。 */
+        /**
+         * 当前动作最终有符号结算金额，单位由 settlementCurrency 决定。
+         */
         private BigDecimal settlementAmount;
 
-        /** 当前动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。 */
+        /**
+         * 当前动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。
+         */
         private BigDecimal settlementRate;
 
-        /** 当前动作最终结算业务日期；未结算时为空。 */
+        /**
+         * 当前动作最终结算业务日期；未结算时为空。
+         */
         private LocalDate settlementDate;
 
-        /** 当前动作最近一次结算或冲正批次号。 */
+        /**
+         * 当前动作最近一次结算或冲正批次号。
+         */
         private String settlementBatchNo;
 
         /**
@@ -1280,7 +1333,9 @@ public final class AdminTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 生命周期根主单的真实分片时间。 */
+        /**
+         * 生命周期根主单的真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
@@ -1302,10 +1357,14 @@ public final class AdminTransactionDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** 当前页生命周期主单；统计信息按完整查询条件计算。 */
+        /**
+         * 当前页生命周期主单；统计信息按完整查询条件计算。
+         */
         private PageResult<TransactionOrderResponse> page;
 
-        /** 当前查询条件命中的全部生命周期主单统计。 */
+        /**
+         * 当前查询条件命中的全部生命周期主单统计。
+         */
         private TransactionOrderSummaryResponse summary;
     }
 
@@ -1317,31 +1376,49 @@ public final class AdminTransactionDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** 当前查询条件命中的生命周期主单总数。 */
+        /**
+         * 当前查询条件命中的生命周期主单总数。
+         */
         private long totalCount;
 
-        /** 当前权威状态为成功的生命周期主单数。 */
+        /**
+         * 当前权威状态为成功的生命周期主单数。
+         */
         private long successCount;
 
-        /** 当前权威状态为失败的生命周期主单数。 */
+        /**
+         * 当前权威状态为失败的生命周期主单数。
+         */
         private long failedCount;
 
-        /** 当前权威状态为待处理或处理中的生命周期主单数。 */
+        /**
+         * 当前权威状态为待处理或处理中的生命周期主单数。
+         */
         private long processingCount;
 
-        /** 累计请款成功金额大于零的生命周期主单数。 */
+        /**
+         * 累计请款成功金额大于零的生命周期主单数。
+         */
         private long capturedCount;
 
-        /** 全部命中生命周期主单按交易币种汇总的交易金额。 */
+        /**
+         * 全部命中生命周期主单按交易币种汇总的交易金额。
+         */
         private List<TransactionAmountSummaryResponse> amountSummaries = Collections.emptyList();
 
-        /** 成功生命周期主单按交易币种汇总的交易金额。 */
+        /**
+         * 成功生命周期主单按交易币种汇总的交易金额。
+         */
         private List<TransactionAmountSummaryResponse> successAmountSummaries = Collections.emptyList();
 
-        /** 累计请款金额大于零的生命周期主单按交易币种汇总的实际请款金额。 */
+        /**
+         * 累计请款金额大于零的生命周期主单按交易币种汇总的实际请款金额。
+         */
         private List<TransactionAmountSummaryResponse> capturedAmountSummaries = Collections.emptyList();
 
-        /** 失败生命周期主单按交易币种汇总的交易金额。 */
+        /**
+         * 失败生命周期主单按交易币种汇总的交易金额。
+         */
         private List<TransactionAmountSummaryResponse> failedAmountSummaries = Collections.emptyList();
     }
 
@@ -1461,61 +1538,718 @@ public final class AdminTransactionDTOs {
         private List<TransactionAmountSummaryResponse> amountSummaries = Collections.emptyList();
     }
 
-    /** 交易账单或收货联系人信息，仅包含管理端允许展示的商户业务字段。 */
+    /**
+     * 交易账单或收货联系人信息，仅包含管理端允许展示的商户业务字段。
+     */
     @Data
     public static class TransactionContactInfoResponse implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 名。 */
+        /**
+         * 名。
+         */
         private String firstName;
 
-        /** 姓。 */
+        /**
+         * 姓。
+         */
         private String lastName;
 
-        /** 联系电话明文。 */
+        /**
+         * 联系电话明文。
+         */
         private String phone;
 
-        /** 联系邮箱明文。 */
+        /**
+         * 联系邮箱明文。
+         */
         private String email;
 
-        /** ISO 3166-1 alpha-3 国家或地区代码。 */
+        /**
+         * ISO 3166-1 alpha-3 国家或地区代码。
+         */
         private String country;
 
-        /** 州、省或地区。 */
+        /**
+         * 州、省或地区。
+         */
         private String state;
 
-        /** 城市。 */
+        /**
+         * 城市。
+         */
         private String city;
 
-        /** 街道地址。 */
+        /**
+         * 街道地址。
+         */
         private String street;
 
-        /** 邮政编码。 */
+        /**
+         * 邮政编码。
+         */
         private String postal;
     }
 
-    /** 付款人信息，包含风控排查所需的付款人、网络和浏览器上下文。 */
+    /**
+     * 付款人信息，包含风控排查所需的付款人、网络和浏览器上下文。
+     */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class TransactionPayerInfoResponse extends TransactionContactInfoResponse {
 
         private static final long serialVersionUID = 1L;
 
-        /** 商户侧付款人或客户标识。 */
+        /**
+         * 商户侧付款人或客户标识。
+         */
         private String payerId;
 
-        /** 付款人客户端 IP 明文。 */
+        /**
+         * 付款人客户端 IP 明文。
+         */
         private String ipAddress;
 
-        /** 商户付款会话标识。 */
+        /**
+         * 商户付款会话标识。
+         */
         private String sessionId;
 
-        /** 商户上送的浏览器结构化信息。 */
+        /**
+         * 商户上送的浏览器结构化信息。
+         */
         private Map<String, Object> browserInfo;
 
-        /** 付款人客户端 User-Agent。 */
+        /**
+         * 付款人客户端 User-Agent。
+         */
         private String userAgent;
+    }
+
+    /**
+     * 管理后台渠道请求、响应和异常交互日志。
+     */
+    @Data
+    public static class ChannelInteractionLogResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 渠道交互日志业务号。
+         */
+        private String interactionLogId;
+
+        /**
+         * 平台渠道请求号。
+         */
+        private String requestId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 渠道编码。
+         */
+        private String channelCode;
+
+        /**
+         * 交互类型，例如 REQUEST、RESPONSE 或 EXCEPTION。
+         */
+        private String interactionType;
+
+        /**
+         * HTTP 请求方法。
+         */
+        private String httpMethod;
+
+        /**
+         * 已脱敏的渠道请求地址。
+         */
+        private String requestUrlMasked;
+
+        /**
+         * 渠道 HTTP 响应状态码。
+         */
+        private Integer httpStatus;
+
+        /**
+         * 已脱敏的请求头 JSON。
+         */
+        private String requestHeaderJsonMasked;
+
+        /**
+         * 已脱敏的请求体 JSON。
+         */
+        private String requestBodyJsonMasked;
+
+        /**
+         * 已脱敏的响应头 JSON。
+         */
+        private String responseHeaderJsonMasked;
+
+        /**
+         * 已脱敏的响应体 JSON。
+         */
+        private String responseBodyJsonMasked;
+
+        /**
+         * 请求异常类型。
+         */
+        private String exceptionType;
+
+        /**
+         * 请求异常摘要。
+         */
+        private String exceptionMessage;
+
+        /**
+         * 渠道交互耗时，单位为毫秒。
+         */
+        private Integer durationMillis;
+
+        /**
+         * 调用链追踪号。
+         */
+        private String traceId;
+
+        /**
+         * 渠道交互发生时间。
+         */
+        private LocalDateTime interactionTime;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 日志创建时间。
+         */
+        private LocalDateTime createTime;
+
+        /**
+         * 交易类型。
+         */
+        private String transactionType;
+
+        /**
+         * 渠道请求状态。
+         */
+        private String requestStatus;
+
+        /**
+         * 网关处理结果。
+         */
+        private String gatewayResult;
+
+        /**
+         * 网关返回码。
+         */
+        private String gatewayCode;
+
+        /**
+         * 收单机构返回码。
+         */
+        private String acquirerCode;
+
+        /**
+         * 收单机构返回描述。
+         */
+        private String acquirerMessage;
+
+        /**
+         * 渠道原始交易状态。
+         */
+        private String channelTradeStatus;
+
+        /**
+         * 渠道订单号。
+         */
+        private String channelOrderNo;
+
+        /**
+         * 渠道交易号。
+         */
+        private String channelTransactionId;
+
+        /**
+         * 平台处理结果码。
+         */
+        private String platformResultCode;
+
+        /**
+         * 平台失败原因。
+         */
+        private String platformFailReason;
+
+        /**
+         * 管理端统一展示的渠道返回码。
+         */
+        private String channelResponseCode;
+
+        /**
+         * 管理端统一展示的渠道返回描述。
+         */
+        private String channelResponseMessage;
+    }
+
+    /**
+     * 管理后台渠道回调处理记录。
+     */
+    @Data
+    public static class ChannelCallbackResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 渠道回调业务号。
+         */
+        private String callbackId;
+
+        /**
+         * 渠道回调原文日志号。
+         */
+        private String callbackLogId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 渠道编码。
+         */
+        private String channelCode;
+
+        /**
+         * 渠道订单号。
+         */
+        private String channelOrderNo;
+
+        /**
+         * 渠道交易号。
+         */
+        private String channelTransactionId;
+
+        /**
+         * 平台识别的回调类型。
+         */
+        private String callbackType;
+
+        /**
+         * 渠道原始事件类型。
+         */
+        private String channelEventType;
+
+        /**
+         * 回调处理状态。
+         */
+        private String callbackStatus;
+
+        /**
+         * 回调幂等键。
+         */
+        private String idempotencyKey;
+
+        /**
+         * 渠道签名是否校验通过。
+         */
+        private Boolean signatureValid;
+
+        /**
+         * 渠道来源 IP 是否通过白名单校验。
+         */
+        private Boolean ipAllowed;
+
+        /**
+         * 从渠道报文解析的平台交易状态。
+         */
+        private String parsedTransactionStatus;
+
+        /**
+         * 状态推进前的平台交易状态。
+         */
+        private String previousTransactionStatus;
+
+        /**
+         * 状态推进目标值。
+         */
+        private String targetTransactionStatus;
+
+        /**
+         * 回调业务处理结果。
+         */
+        private String processResult;
+
+        /**
+         * 回调处理失败原因。
+         */
+        private String failReason;
+
+        /**
+         * 回调接收时间。
+         */
+        private LocalDateTime callbackReceivedTime;
+
+        /**
+         * 回调处理完成时间。
+         */
+        private LocalDateTime processedTime;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 乐观锁版本号。
+         */
+        private Integer version;
+
+        /**
+         * 软删除标识。
+         */
+        private Boolean deleted;
+
+        /**
+         * 记录创建时间。
+         */
+        private LocalDateTime createTime;
+
+        /**
+         * 记录更新时间。
+         */
+        private LocalDateTime updateTime;
+    }
+
+    /**
+     * 管理后台商户通知任务。
+     */
+    @Data
+    public static class MerchantNotificationResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 商户通知任务号。
+         */
+        private String notifyId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 平台商户号。
+         */
+        private String merchantId;
+
+        /**
+         * 商户订单号。
+         */
+        private String merchantOrderNo;
+
+        /**
+         * 通知业务类型。
+         */
+        private String notifyType;
+
+        /**
+         * 触发通知的交易事件类型。
+         */
+        private String eventType;
+
+        /**
+         * 通知任务状态。
+         */
+        private String notifyStatus;
+
+        /**
+         * 商户通知配置版本。
+         */
+        private String notifyConfigVersion;
+
+        /**
+         * 商户回调地址哈希。
+         */
+        private String targetUrlHash;
+
+        /**
+         * 已脱敏的商户回调地址。
+         */
+        private String targetUrlMasked;
+
+        /**
+         * 已脱敏的通知业务载荷。
+         */
+        private String payloadJsonMasked;
+
+        /**
+         * 商户通知签名方式。
+         */
+        private String signType;
+
+        /**
+         * 最近一次通知尝试序号。
+         */
+        private Integer lastAttemptNo;
+
+        /**
+         * 自动通知最大尝试次数。
+         */
+        private Integer maxRetryCount;
+
+        /**
+         * 下一次自动重试时间。
+         */
+        private LocalDateTime nextRetryTime;
+
+        /**
+         * 通知成功时间。
+         */
+        private LocalDateTime successTime;
+
+        /**
+         * 最近一次失败原因。
+         */
+        private String failReason;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 乐观锁版本号。
+         */
+        private Integer version;
+
+        /**
+         * 软删除标识。
+         */
+        private Boolean deleted;
+
+        /**
+         * 任务创建时间。
+         */
+        private LocalDateTime createTime;
+
+        /**
+         * 任务更新时间。
+         */
+        private LocalDateTime updateTime;
+    }
+
+    /**
+     * 管理后台商户通知单次投递日志。
+     */
+    @Data
+    public static class MerchantNotificationDeliveryLogResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 商户通知投递日志号。
+         */
+        private String notifyLogId;
+
+        /**
+         * 商户通知任务号。
+         */
+        private String notifyId;
+
+        /**
+         * 人工重发事件号；自动投递时为空。
+         */
+        private String callbackEventId;
+
+        /**
+         * 投递模式，例如 AUTO 或 MANUAL。
+         */
+        private String deliveryMode;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 平台商户号。
+         */
+        private String merchantId;
+
+        /**
+         * 通知尝试序号。
+         */
+        private Integer attemptNo;
+
+        /**
+         * 商户回调地址哈希。
+         */
+        private String targetUrlHash;
+
+        /**
+         * 商户 HTTP 响应状态码。
+         */
+        private Integer httpStatus;
+
+        /**
+         * 已脱敏的通知请求头 JSON。
+         */
+        private String requestHeaderJsonMasked;
+
+        /**
+         * 已脱敏的通知请求体 JSON。
+         */
+        private String requestBodyJsonMasked;
+
+        /**
+         * 已脱敏的商户响应体 JSON。
+         */
+        private String responseBodyJsonMasked;
+
+        /**
+         * 本次投递是否成功。
+         */
+        private Boolean success;
+
+        /**
+         * 本次投递错误摘要。
+         */
+        private String errorMessage;
+
+        /**
+         * 通知发起时间。
+         */
+        private LocalDateTime notifyTime;
+
+        /**
+         * 通知耗时，单位为毫秒。
+         */
+        private Integer durationMillis;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 投递日志创建时间。
+         */
+        private LocalDateTime createTime;
+
+        /**
+         * 商户通知固定使用的 HTTP 方法。
+         */
+        private String httpMethod;
+
+        /**
+         * HTTP 响应完成时间；投递日志在响应完成后写入，因此与创建时间一致。
+         */
+        private LocalDateTime responseTime;
+    }
+
+    /**
+     * 商户通知任务及其投递尝试详情。
+     */
+    @Data
+    public static class MerchantNotificationDetailResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 商户通知任务。
+         */
+        private MerchantNotificationResponse notification;
+
+        /**
+         * 按尝试序号升序排列的投递日志。
+         */
+        private List<MerchantNotificationDeliveryLogResponse> deliveryLogs = Collections.emptyList();
     }
 
     /**
@@ -1535,13 +2269,19 @@ public final class AdminTransactionDTOs {
          */
         private TransactionOrderResponse order;
 
-        /** 持卡人账单信息；当前交易未保存时为空。 */
+        /**
+         * 持卡人账单信息；当前交易未保存时为空。
+         */
         private TransactionContactInfoResponse billingCardHolderInfo;
 
-        /** 付款人信息；当前交易未保存时为空。 */
+        /**
+         * 付款人信息；当前交易未保存时为空。
+         */
         private TransactionPayerInfoResponse payerInfo;
 
-        /** 收货信息；当前交易未保存时为空。 */
+        /**
+         * 收货信息；当前交易未保存时为空。
+         */
         private TransactionContactInfoResponse shippingInfo;
 
         /**

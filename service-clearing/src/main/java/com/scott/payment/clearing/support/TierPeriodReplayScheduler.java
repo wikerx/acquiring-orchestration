@@ -17,22 +17,32 @@ import java.time.Clock;
 @Component
 public class TierPeriodReplayScheduler {
 
-    /** 单轮最多推进的重放任务数，控制锁竞争和故障影响范围。 */
+    /**
+     * 单轮最多推进的重放任务数，控制锁竞争和故障影响范围。
+     */
     private static final int SCAN_LIMIT = 20;
     private final TierPeriodReplayService replayService;
     private final Clock clock;
 
+    /**
+     * 创建期间重放调度器，生产环境统一使用 UTC 系统时钟。
+     */
     @Autowired
     public TierPeriodReplayScheduler(TierPeriodReplayService replayService) {
         this(replayService, Clock.systemUTC());
     }
 
+    /**
+     * 创建可注入时钟的期间重放调度器，供测试稳定验证到期任务领取。
+     */
     TierPeriodReplayScheduler(TierPeriodReplayService replayService, Clock clock) {
         this.replayService = replayService;
         this.clock = clock;
     }
 
-    /** 按配置节奏推进到期重放；周期参数只控制扫描压力，业务失败仍由控制表和下个周期恢复。 */
+    /**
+     * 按配置节奏推进到期重放；周期参数只控制扫描压力，业务失败仍由控制表和下个周期恢复。
+     */
     @Scheduled(
             initialDelayString = "${clearing.tier-period-replay.initial-delay-ms:5000}",
             fixedDelayString = "${clearing.tier-period-replay.fixed-delay-ms:5000}")

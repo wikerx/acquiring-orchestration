@@ -29,13 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestHeaderExtractorTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : OpenAPI 请求头安全提取测试。
- * @status : create
+ * OpenAPI 请求头安全提取测试。
  */
 class OpenApiRequestHeaderExtractorTests {
 
@@ -147,6 +141,9 @@ class OpenApiRequestHeaderExtractorTests {
         order.verify(replayProtectionService).checkAndMark("200045", "jwt-id", 2000L);
     }
 
+    /**
+     * 验证白名单拒绝日志只记录规范化客户端 IP 的稳定摘要，不泄露原始地址。
+     */
     @Test
     void shouldLogNormalizedRequestIpWhenWhitelistRejectsRequest() {
         MerchantJwtVerifier jwtVerifier = mock(MerchantJwtVerifier.class);
@@ -184,7 +181,8 @@ class OpenApiRequestHeaderExtractorTests {
                     .extracting(ILoggingEvent::getFormattedMessage)
                     .anySatisfy(message -> assertThat(message)
                             .contains("event: OPENAPI_SECURITY_CHECK_END")
-                            .contains("requestIp: 203.0.113.10"));
+                            .contains("requestIpDigest: 631f08140b24b727")
+                            .doesNotContain("requestIp: 203.0.113.10"));
         } finally {
             logger.detachAppender(appender);
             appender.stop();

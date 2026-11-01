@@ -9,13 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchMapper
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 结算批次 Mapper，提供创建幂等锁读和候选计数 CAS，不承载汇率计算或资金规则。
- * @status : create
+ * 结算批次 Mapper，提供创建幂等锁读和候选计数 CAS，不承载汇率计算或资金规则。
  */
 public interface SettlementBatchMapper {
 
@@ -34,7 +28,9 @@ public interface SettlementBatchMapper {
             """)
     SettlementBatchDO selectNextProcessableForUpdate(@Param("now") java.time.LocalDateTime now);
 
-    /** 使用处理状态、租约空闲条件和原 version CAS 获取有限期租约。 */
+    /**
+     * 使用处理状态、租约空闲条件和原 version CAS 获取有限期租约。
+     */
     @Update("""
             UPDATE settlement_batch
             SET processing_owner = #{owner},
@@ -54,7 +50,9 @@ public interface SettlementBatchMapper {
                                @Param("deadline") java.time.LocalDateTime deadline,
                                @Param("expectedVersion") long expectedVersion);
 
-    /** 当前所有者只能在租约未过期时续租，防止失去所有权的旧实例复活覆盖。 */
+    /**
+     * 当前所有者只能在租约未过期时续租，防止失去所有权的旧实例复活覆盖。
+     */
     @Update("""
             UPDATE settlement_batch
             SET processing_deadline = #{deadline},
@@ -70,7 +68,9 @@ public interface SettlementBatchMapper {
                              @Param("now") java.time.LocalDateTime now,
                              @Param("deadline") java.time.LocalDateTime deadline);
 
-    /** 按批次号、请求键和业务日序号唯一约束幂等写入，随后必须回读并校验完整身份。 */
+    /**
+     * 按批次号、请求键和业务日序号唯一约束幂等写入，随后必须回读并校验完整身份。
+     */
     @Insert("""
             INSERT INTO settlement_batch
             (settlement_batch_no, create_request_key, business_date, business_time_zone,
@@ -90,7 +90,9 @@ public interface SettlementBatchMapper {
             """)
     int insertIdempotent(@Param("row") SettlementBatchDO row);
 
-    /** 锁定并读取 create_request_key 的既有幂等结果。 */
+    /**
+     * 锁定并读取 create_request_key 的既有幂等结果。
+     */
     @Select("""
             SELECT *
             FROM settlement_batch
@@ -100,7 +102,9 @@ public interface SettlementBatchMapper {
             """)
     SettlementBatchDO selectByCreateRequestKeyForUpdate(@Param("createRequestKey") String createRequestKey);
 
-    /** 按批次号锁定批次，作为候选认领固定首锁。 */
+    /**
+     * 按批次号锁定批次，作为候选认领固定首锁。
+     */
     @Select("""
             SELECT *
             FROM settlement_batch
@@ -110,7 +114,9 @@ public interface SettlementBatchMapper {
             """)
     SettlementBatchDO selectByBatchNoForUpdate(@Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 锁定已存在的原批次冲正，支持人工命令幂等重放。 */
+    /**
+     * 锁定已存在的原批次冲正，支持人工命令幂等重放。
+     */
     @Select("""
             SELECT *
             FROM settlement_batch
@@ -123,7 +129,9 @@ public interface SettlementBatchMapper {
     SettlementBatchDO selectReversalByOriginalForUpdate(
             @Param("originalBatchNo") String originalBatchNo);
 
-    /** 在候选消费前将人工预审与可信 Maker-Checker 快照冻结到正式批次。 */
+    /**
+     * 在候选消费前将人工预审与可信 Maker-Checker 快照冻结到正式批次。
+     */
     @Update("""
             UPDATE settlement_batch
             SET review_order_no = #{row.reviewOrderNo},
@@ -157,7 +165,9 @@ public interface SettlementBatchMapper {
     int bindApprovedReview(@Param("row") SettlementBatchDO row,
                            @Param("expectedVersion") long expectedVersion);
 
-    /** 大预审单分段批准时先冻结审计但保持 CLAIMING，整单完成前禁止调度入账。 */
+    /**
+     * 大预审单分段批准时先冻结审计但保持 CLAIMING，整单完成前禁止调度入账。
+     */
     @Update("""
             UPDATE settlement_batch
             SET review_order_no = #{row.reviewOrderNo}, create_mode = 'MANUAL_REVIEW',
@@ -180,7 +190,9 @@ public interface SettlementBatchMapper {
     int bindAsyncApprovedReview(@Param("row") SettlementBatchDO row,
                                 @Param("expectedVersion") long expectedVersion);
 
-    /** 整张预审单进入 APPROVED 后才一次激活全部分段批次。 */
+    /**
+     * 整张预审单进入 APPROVED 后才一次激活全部分段批次。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CLAIMED', version = version + 1, update_time = #{now}
@@ -190,6 +202,11 @@ public interface SettlementBatchMapper {
     int activateAsyncApprovedReviewBatches(@Param("reviewOrderNo") String reviewOrderNo,
                                            @Param("now") java.time.LocalDateTime now);
 
+    /**
+     * 统计{@code countAsyncApprovedReviewBatches}，返回分页、扫描或报表汇总所需的数量结果。
+     * @param reviewOrderNo 结算预审单号或冲正单号，用于定位唯一业务单据
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Select("""
             SELECT COUNT(1) FROM settlement_batch
             WHERE review_order_no = #{reviewOrderNo} AND create_mode = 'MANUAL_REVIEW'
@@ -197,7 +214,9 @@ public interface SettlementBatchMapper {
             """)
     int countAsyncApprovedReviewBatches(@Param("reviewOrderNo") String reviewOrderNo);
 
-    /** 候选与审计关系写入后，使用批次状态和版本 CAS 增加计数并进入 CLAIMING。 */
+    /**
+     * 候选与审计关系写入后，使用批次状态和版本 CAS 增加计数并进入 CLAIMING。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CLAIMING',
@@ -214,7 +233,9 @@ public interface SettlementBatchMapper {
                                 @Param("projectableDelta") int projectableDelta,
                                 @Param("expectedVersion") long expectedVersion);
 
-    /** 自动批量认领后按实际页大小增加候选数，状态与 version 共同防止跨实例覆盖。 */
+    /**
+     * 自动批量认领后按实际页大小增加候选数，状态与 version 共同防止跨实例覆盖。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CLAIMING',
@@ -233,7 +254,9 @@ public interface SettlementBatchMapper {
                                   @Param("projectableDelta") int projectableDelta,
                                   @Param("expectedVersion") long expectedVersion);
 
-    /** 候选扫描出现空页后封闭非空批次，后续汇率处理只接受 CLAIMED。 */
+    /**
+     * 候选扫描出现空页后封闭非空批次，后续汇率处理只接受 CLAIMED。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CLAIMED',
@@ -250,7 +273,9 @@ public interface SettlementBatchMapper {
                          @Param("expectedVersion") long expectedVersion,
                          @Param("sealedTime") java.time.LocalDateTime sealedTime);
 
-    /** 完整汇率矩阵回读验证后，以租约、当前状态和 version CAS 进入 RATE_LOCKED。 */
+    /**
+     * 完整汇率矩阵回读验证后，以租约、当前状态和 version CAS 进入 RATE_LOCKED。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'RATE_LOCKED',
@@ -271,7 +296,9 @@ public interface SettlementBatchMapper {
                        @Param("expectedVersion") long expectedVersion,
                        @Param("lockedTime") java.time.LocalDateTime lockedTime);
 
-    /** 结果事务开始时以租约和 version CAS 进入 CALCULATING。 */
+    /**
+     * 结果事务开始时以租约和 version CAS 进入 CALCULATING。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CALCULATING',
@@ -288,7 +315,9 @@ public interface SettlementBatchMapper {
                          @Param("expectedVersion") long expectedVersion,
                          @Param("now") java.time.LocalDateTime now);
 
-    /** 结果和汇总回读一致后结束计算租约并进入 CALCULATED，后续由独立资金事务竞争 POSTING。 */
+    /**
+     * 结果和汇总回读一致后结束计算租约并进入 CALCULATED，后续由独立资金事务竞争 POSTING。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CALCULATED',
@@ -311,7 +340,9 @@ public interface SettlementBatchMapper {
                        @Param("expectedVersion") long expectedVersion,
                        @Param("calculatedTime") java.time.LocalDateTime calculatedTime);
 
-    /** 资金事务开始前以租约和 version CAS 进入 POSTING。 */
+    /**
+     * 资金事务开始前以租约和 version CAS 进入 POSTING。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'POSTING',
@@ -329,7 +360,9 @@ public interface SettlementBatchMapper {
                      @Param("expectedVersion") long expectedVersion,
                      @Param("now") java.time.LocalDateTime now);
 
-    /** 资金、保证金、候选及投影任务全部落库后结束租约并提交 POSTED。 */
+    /**
+     * 资金、保证金、候选及投影任务全部落库后结束租约并提交 POSTED。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'POSTED',
@@ -352,7 +385,9 @@ public interface SettlementBatchMapper {
                    @Param("expectedVersion") long expectedVersion,
                    @Param("postedTime") java.time.LocalDateTime postedTime);
 
-    /** 入账前取消批次；有活跃处理租约时由服务层拒绝。 */
+    /**
+     * 入账前取消批次；有活跃处理租约时由服务层拒绝。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CANCELLED',
@@ -370,7 +405,9 @@ public interface SettlementBatchMapper {
                             @Param("expectedVersion") long expectedVersion,
                             @Param("now") java.time.LocalDateTime now);
 
-    /** 按请求键读取既有取消结果；唯一键负责跨批次拒绝复用。 */
+    /**
+     * 按请求键读取既有取消结果；唯一键负责跨批次拒绝复用。
+     */
     @Select("""
             SELECT *
             FROM settlement_batch_cancellation_audit
@@ -380,7 +417,9 @@ public interface SettlementBatchMapper {
     SettlementBatchCancellationAuditDO selectCancellationAuditByRequestKey(
             @Param("requestKey") String requestKey);
 
-    /** 批次行锁获取后回读取消审计，串行化同一批次的并发重放。 */
+    /**
+     * 批次行锁获取后回读取消审计，串行化同一批次的并发重放。
+     */
     @Select("""
             SELECT *
             FROM settlement_batch_cancellation_audit
@@ -391,7 +430,9 @@ public interface SettlementBatchMapper {
     SettlementBatchCancellationAuditDO selectCancellationAuditByBatchNo(
             @Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 取消状态、候选释放和审计快照必须在同一本地事务提交。 */
+    /**
+     * 取消状态、候选释放和审计快照必须在同一本地事务提交。
+     */
     @Insert("""
             INSERT INTO settlement_batch_cancellation_audit
             (settlement_batch_no, request_key, expected_version, merchant_id, batch_status_before,
@@ -407,7 +448,9 @@ public interface SettlementBatchMapper {
             """)
     int insertCancellationAudit(@Param("row") SettlementBatchCancellationAuditDO row);
 
-    /** 仅将汇率锁定重试耗尽的人工复核批次恢复为可被异步处理器扫描的状态。 */
+    /**
+     * 仅将汇率锁定重试耗尽的人工复核批次恢复为可被异步处理器扫描的状态。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'FAILED_RETRYABLE',
@@ -429,7 +472,9 @@ public interface SettlementBatchMapper {
                                   @Param("expectedVersion") long expectedVersion,
                                   @Param("now") java.time.LocalDateTime now);
 
-    /** 无锁快速读取既有恢复结果；请求键唯一约束负责最终幂等。 */
+    /**
+     * 无锁快速读取既有恢复结果；请求键唯一约束负责最终幂等。
+     */
     @Select("""
             SELECT *
             FROM settlement_batch_recovery_audit
@@ -439,7 +484,9 @@ public interface SettlementBatchMapper {
     SettlementBatchRecoveryAuditDO selectRecoveryAuditByRequestKey(
             @Param("requestKey") String requestKey);
 
-    /** 批次行锁获取后使用当前读回查同一请求，覆盖并发请求等待期间提交的恢复审计。 */
+    /**
+     * 批次行锁获取后使用当前读回查同一请求，覆盖并发请求等待期间提交的恢复审计。
+     */
     @Select("""
             SELECT *
             FROM settlement_batch_recovery_audit
@@ -450,7 +497,9 @@ public interface SettlementBatchMapper {
     SettlementBatchRecoveryAuditDO selectRecoveryAuditByRequestKeyForUpdate(
             @Param("requestKey") String requestKey);
 
-    /** 批次、候选和关系恢复成功后追加不可变人工恢复审计。 */
+    /**
+     * 批次、候选和关系恢复成功后追加不可变人工恢复审计。
+     */
     @Insert("""
             INSERT INTO settlement_batch_recovery_audit
             (settlement_batch_no, request_key, expected_version, merchant_id, recovery_action,
@@ -468,7 +517,9 @@ public interface SettlementBatchMapper {
             """)
     int insertRecoveryAudit(@Param("row") SettlementBatchRecoveryAuditDO row);
 
-    /** 原批次由 POSTED 进入 REVERSING，禁止并发创建多条冲正链。 */
+    /**
+     * 原批次由 POSTED 进入 REVERSING，禁止并发创建多条冲正链。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'REVERSING',
@@ -482,7 +533,9 @@ public interface SettlementBatchMapper {
                       @Param("expectedVersion") long expectedVersion,
                       @Param("now") java.time.LocalDateTime now);
 
-    /** 新冲正批次直接进入本地资金事务的 POSTING 状态并冻结原候选数。 */
+    /**
+     * 新冲正批次直接进入本地资金事务的 POSTING 状态并冻结原候选数。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'POSTING',
@@ -500,7 +553,9 @@ public interface SettlementBatchMapper {
                                @Param("expectedVersion") long expectedVersion,
                                @Param("now") java.time.LocalDateTime now);
 
-    /** 冲正资金和审计落库后同时完成新批并关闭原批冲正状态。 */
+    /**
+     * 冲正资金和审计落库后同时完成新批并关闭原批冲正状态。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'POSTED',
@@ -516,7 +571,9 @@ public interface SettlementBatchMapper {
                            @Param("expectedVersion") long expectedVersion,
                            @Param("now") java.time.LocalDateTime now);
 
-    /** 原批次只允许从 REVERSING 进入 REVERSED。 */
+    /**
+     * 原批次只允许从 REVERSING 进入 REVERSED。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'REVERSED',
@@ -530,7 +587,9 @@ public interface SettlementBatchMapper {
                      @Param("expectedVersion") long expectedVersion,
                      @Param("now") java.time.LocalDateTime now);
 
-    /** 可重试失败释放所有者并把 processing_deadline 改作下次数据库扫描时间。 */
+    /**
+     * 可重试失败释放所有者并把 processing_deadline 改作下次数据库扫描时间。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'FAILED_RETRYABLE',
@@ -559,7 +618,9 @@ public interface SettlementBatchMapper {
                                @Param("now") java.time.LocalDateTime now,
                                @Param("nextRetryTime") java.time.LocalDateTime nextRetryTime);
 
-    /** 稳定数据冲突或重试耗尽后释放租约并进入人工复核。 */
+    /**
+     * 稳定数据冲突或重试耗尽后释放租约并进入人工复核。
+     */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'MANUAL_REVIEW',

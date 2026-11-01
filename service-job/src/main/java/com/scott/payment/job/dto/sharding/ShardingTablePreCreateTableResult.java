@@ -3,13 +3,7 @@ package com.scott.payment.job.dto.sharding;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateTableResult
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreate表协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 分表表precreate表协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
  */
 @Data
 public class ShardingTablePreCreateTableResult {
@@ -44,13 +38,19 @@ public class ShardingTablePreCreateTableResult {
      */
     private String schemaCheckStatus;
 
-    /** 分片时间字段 DATETIME(3) 检查状态。 */
+    /**
+     * 分片时间字段 DATETIME(3) 检查状态。
+     */
     private String shardingTimeCheckStatus;
 
-    /** utf8mb4 字符集检查状态。 */
+    /**
+     * utf8mb4 字符集检查状态。
+     */
     private String charsetCheckStatus;
 
-    /** AUTO_INCREMENT 是否落在当前季度安全号段。 */
+    /**
+     * AUTO_INCREMENT 是否落在当前季度安全号段。
+     */
     private String autoIncrementCheckStatus;
 
     /**

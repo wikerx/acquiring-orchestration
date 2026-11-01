@@ -7,13 +7,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ProcessorNodeIdentityTests
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 支付处理节点身份解析测试，覆盖默认关闭、显式环境变量和非法 Pod IP。
- * @status : create
+ * 支付处理节点身份解析测试，覆盖默认关闭、显式环境变量和非法 Pod IP。
  */
 class ProcessorNodeIdentityTests {
 

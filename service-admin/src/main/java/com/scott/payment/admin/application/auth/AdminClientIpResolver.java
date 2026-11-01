@@ -8,10 +8,15 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 public final class AdminClientIpResolver {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private AdminClientIpResolver() {
     }
 
-    /** 解析经过 Gateway HMAC 认证的客户端 IP，直连时只使用 TCP 对端地址。 */
+    /**
+     * 解析经过 Gateway HMAC 认证的客户端 IP，直连时只使用 TCP 对端地址。
+     */
     public static String resolve(HttpServletRequest request) {
         return TrustedClientIpResolver.resolveOrUnknown(request);
     }

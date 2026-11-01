@@ -26,19 +26,15 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileController
- * @date : 2026-08-01 12:00
- * @email : scott_x@163.com
- * @description : 商户门户主体资料接口，只从认证上下文定位商户并委托应用服务查询或更新同一份商户事实数据
- * @status : create
+ * 商户门户主体资料接口，只从认证上下文定位商户并委托应用服务查询或更新同一份商户事实数据
  */
 @RestController
 @RequestMapping("/merchant/info")
 public class MerchantProfileController {
 
-    /** 商户主体资料应用服务。 */
+    /**
+     * 商户主体资料应用服务。
+     */
     private final MerchantProfileApplicationService applicationService;
 
     /**
@@ -85,14 +81,18 @@ public class MerchantProfileController {
         return success(applicationService.updateProfile(currentMerchantId(), request));
     }
 
-    /** 查询商户资料维护工作区，包含正式资料、活动申请、历史和合规资料。 */
+    /**
+     * 查询商户资料维护工作区，包含正式资料、活动申请、历史和合规资料。
+     */
     @GetMapping("/workspace")
     @RequiresPermission("merchant:info:view")
     public CommonResult<MerchantProfileChangeDTOs.Workspace> getWorkspace() {
         return success(applicationService.getWorkspace(currentMerchantId()));
     }
 
-    /** 保存需审核字段的资料变更草稿，禁止直接覆盖正式主档。 */
+    /**
+     * 保存需审核字段的资料变更草稿，禁止直接覆盖正式主档。
+     */
     @PostMapping("/change-requests/draft")
     @RequiresPermission("merchant:info:edit")
     @OperationLog(
@@ -108,7 +108,9 @@ public class MerchantProfileController {
         return success(applicationService.saveDraft(currentMerchantId(), request));
     }
 
-    /** 查询当前商户自己的指定资料变更申请。 */
+    /**
+     * 查询当前商户自己的指定资料变更申请。
+     */
     @GetMapping("/change-requests/{requestNo}")
     @RequiresPermission("merchant:info:view")
     public CommonResult<MerchantProfileChangeDTOs.ChangeRequest> getChangeRequest(
@@ -116,7 +118,9 @@ public class MerchantProfileController {
         return success(applicationService.getChangeRequest(currentMerchantId(), requestNo));
     }
 
-    /** 提交草稿或补件申请进入管理端审核。 */
+    /**
+     * 提交草稿或补件申请进入管理端审核。
+     */
     @PostMapping("/change-requests/{requestNo}/submit")
     @RequiresPermission("merchant:info:edit")
     @OperationLog(
@@ -134,7 +138,9 @@ public class MerchantProfileController {
                 currentMerchantId(), requestNo, request == null ? null : request.getComment()));
     }
 
-    /** 撤回尚未完成审核的资料变更申请并释放活动申请占位。 */
+    /**
+     * 撤回尚未完成审核的资料变更申请并释放活动申请占位。
+     */
     @PostMapping("/change-requests/{requestNo}/withdraw")
     @RequiresPermission("merchant:info:edit")
     @OperationLog(

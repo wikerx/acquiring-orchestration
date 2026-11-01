@@ -4,13 +4,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionPreparationService
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 首次交易本地准备服务，位于 service-payment 服务层，负责在渠道调用前提交交易事实、幂等结果、路由结果和渠道请求 INIT。
- * @status : create
+ * 首次交易本地准备服务，位于 service-payment 服务层，负责在渠道调用前提交交易事实、幂等结果、路由结果和渠道请求 INIT。
  */
 public interface PaymentTransactionPreparationService {
 

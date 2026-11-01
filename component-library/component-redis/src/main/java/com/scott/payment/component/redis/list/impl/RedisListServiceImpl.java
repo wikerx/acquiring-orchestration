@@ -12,13 +12,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisListServiceImpl
- * @date : 2026-05-31 21:56
- * @email : scott_x@163.com
- * @description : 提供受配置门禁控制的通用 List 能力；默认不注册，且不得替代项目既有 RocketMQ 可靠消息
- * @status : create
+ * 提供受配置门禁控制的通用 List 能力；默认不注册，且不得替代项目既有 RocketMQ 可靠消息
  */
 @Service
 @ConditionalOnProperty(prefix = "payment.redis.generic", name = "list-enabled", havingValue = "true")

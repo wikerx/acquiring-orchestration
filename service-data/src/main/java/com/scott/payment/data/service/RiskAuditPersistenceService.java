@@ -13,18 +13,14 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskAuditPersistenceService
- * @date : 2026-08-01 14:50
- * @email : scott_x@163.com
- * @description : 风控评估审计事务写入服务，以 risk_record_no 唯一键提供 MQ 最终幂等
- * @status : create
+ * 风控评估审计事务写入服务，以 risk_record_no 唯一键提供 MQ 最终幂等
  */
 @Service
 public class RiskAuditPersistenceService {
 
-    /** 风控审计数据访问入口。 */
+    /**
+     * 风控审计数据访问入口。
+     */
     private final DataRiskAuditMapper riskAuditMapper;
 
     /**
@@ -39,8 +35,8 @@ public class RiskAuditPersistenceService {
     /**
      * 在同一主库事务内写入评估主记录和全部有效明细。
      *
-     * <p>主记录唯一键冲突表示同一评估此前已经完整提交，直接结束消费；其他异常必须回滚主记录和明细，
-     * 并由上层释放 Redis 辅助占用后触发 RocketMQ 重投。</p>
+     * <p>主记录唯一键冲突后必须按 riskRecordNo 回查，确认同一评估此前已经完整提交才结束消费；
+     * 其他约束冲突和数据库异常必须回滚主记录及明细，并由上层释放 Redis 辅助占用后触发 RocketMQ 重投。</p>
      *
      * @param message 已脱敏风控审计消息
      */
@@ -65,8 +61,11 @@ public class RiskAuditPersistenceService {
                     evaluationTime
             );
         } catch (DuplicateKeyException exception) {
-            // 主记录唯一键命中表示相同 riskRecordNo 已完整提交，禁止重复写入命中明细。
-            return;
+            // 防止其他唯一键冲突被误认成相同评估；只有 riskRecordNo 已存在才按幂等完成处理。
+            if (existsByRiskRecordNo(message.getRiskRecordNo())) {
+                return;
+            }
+            throw exception;
         }
         if (message.getHits() == null) {
             return;

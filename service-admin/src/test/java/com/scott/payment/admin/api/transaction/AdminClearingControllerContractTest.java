@@ -8,13 +8,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminClearingControllerContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证管理端清分查询和人工命令分别绑定独立最小权限的控制器契约
- * @status : create
+ * 验证管理端清分查询和人工命令分别绑定独立最小权限的控制器契约
  */
 class AdminClearingControllerContractTest {
 

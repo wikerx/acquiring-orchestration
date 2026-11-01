@@ -7,13 +7,7 @@ import org.mapstruct.Mapping;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : UserExportConverter
- * @date : 2026-06-20 01:15
- * @email : scott_x@163.com
- * @description : User Export Converter 转换组件，位于 运营后台服务，在接口模型、领域对象、数据库记录或消息载荷之间复制并规范化字段。
- * @status : create
+ * 管理端用户导出模型转换器。
  */
 @Mapper(componentModel = "spring")
 public interface UserExportConverter {

@@ -9,13 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchFacts
- * @date : 2026-08-26 23:10
- * @email : scott_x@163.com
- * @description : 单批次完整不可变输入，聚合候选、交易清分、保证金清分及汇率矩阵所需币种集合。
- * @status : create
+ * 单批次完整不可变输入，聚合候选、交易清分、保证金清分及汇率矩阵所需币种集合。
  * @param candidates 本批已认领候选
  * @param transactionDetails 交易本金和费用清分事实
  * @param reserveDetails 独立保证金清分事实

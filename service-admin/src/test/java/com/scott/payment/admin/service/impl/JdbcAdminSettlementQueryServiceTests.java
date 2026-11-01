@@ -31,13 +31,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementQueryServiceTests
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证 Admin 结算本地查询的标准分页、稳定排序、数据范围和普通读路由
- * @status : create
+ * 验证 Admin 结算本地查询的标准分页、稳定排序、数据范围和普通读路由
  */
 class JdbcAdminSettlementQueryServiceTests {
 

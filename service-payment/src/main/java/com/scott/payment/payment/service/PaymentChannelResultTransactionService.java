@@ -7,13 +7,7 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelResultTransactionService
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 渠道同步结果事务服务，位于 service-payment 服务层，负责在独立本地事务中持久化渠道结果并通过 CAS 推进平台交易状态。
- * @status : create
+ * 渠道同步结果事务服务，位于 service-payment 服务层，负责在独立本地事务中持久化渠道结果并通过 CAS 推进平台交易状态。
  */
 public interface PaymentChannelResultTransactionService {
 
@@ -52,7 +46,9 @@ public interface PaymentChannelResultTransactionService {
                                            PaymentRiskDecisionEnum riskDecisionEnum,
                                            int currencyExponent);
 
-    /** 在独立事务中写入本笔交易的 3DS 使用标识。 */
+    /**
+     * 在独立事务中写入本笔交易的 3DS 使用标识。
+     */
     void markThreeDsIndicator(String transactionId,
                               java.time.LocalDateTime transactionDateTime,
                               String indicator);

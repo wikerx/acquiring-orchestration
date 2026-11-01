@@ -40,59 +40,85 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorCacheApplicationService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台 Redis 缓存监控应用服务，仅允许查看和清理非敏感平台配置缓存的 Key 元数据。
- * @status : create
+ * 管理后台 Redis 缓存监控应用服务，仅允许查看和清理非敏感平台配置缓存的 Key 元数据。
  */
 @Slf4j
 @Service
 public class AdminMonitorCacheApplicationService {
 
-    /** 单次 Redis SCAN 请求建议返回的 Key 数量，不代表结果硬上限。 */
+    /**
+     * 单次 Redis SCAN 请求建议返回的 Key 数量，不代表结果硬上限。
+     */
     private static final int SCAN_COUNT = 100;
 
-    /** 单次管理端查询最多检查的 Key 数，防止误用通配符拖垮 Redis。 */
+    /**
+     * 单次管理端查询最多检查的 Key 数，防止误用通配符拖垮 Redis。
+     */
     private static final int MAX_SCAN_KEYS = 1000;
 
-    /** 管理端 Key 元数据查询允许的最大分页大小。 */
+    /**
+     * 管理端 Key 元数据查询允许的最大分页大小。
+     */
     private static final int MAX_PAGE_SIZE = 100;
 
-    /** Redis 图表最多保留七天、每分钟一条的进程内采样。 */
+    /**
+     * Redis 图表最多保留七天、每分钟一条的进程内采样。
+     */
     static final int MAX_METRIC_SAMPLES = 7 * 24 * 60;
 
-    /** 接口刷新和定时任务共享一分钟最小采样间隔。 */
+    /**
+     * 接口刷新和定时任务共享一分钟最小采样间隔。
+     */
     private static final long MIN_SAMPLE_INTERVAL_NANOS = Duration.ofMinutes(1).toNanos();
 
-    /** 仅用于读取 Redis 运行信息、Key 元数据和删除受控缓存 Key 的模板。 */
+    /**
+     * 仅用于读取 Redis 运行信息、Key 元数据和删除受控缓存 Key 的模板。
+     */
     private final StringRedisTemplate stringRedisTemplate;
 
-    /** 提供平台缓存 Key 前缀和允许管理的缓存名称。 */
+    /**
+     * 提供平台缓存 Key 前缀和允许管理的缓存名称。
+     */
     private final PaymentCacheProperties cacheProperties;
 
-    /** Redis 内存指标进程内历史，元素按采样时间升序保存。 */
+    /**
+     * Redis 内存指标进程内历史，元素按采样时间升序保存。
+     */
     private final Deque<TimeBucket> memorySamples = new ArrayDeque<>(MAX_METRIC_SAMPLES);
-    /** Redis 吞吐指标进程内历史，元素按采样时间升序保存。 */
+    /**
+     * Redis 吞吐指标进程内历史，元素按采样时间升序保存。
+     */
     private final Deque<TimeBucket> opsSamples = new ArrayDeque<>(MAX_METRIC_SAMPLES);
-    /** Redis 命中率进程内历史，元素按采样时间升序保存。 */
+    /**
+     * Redis 命中率进程内历史，元素按采样时间升序保存。
+     */
     private final Deque<TimeBucket> hitRateSamples = new ArrayDeque<>(MAX_METRIC_SAMPLES);
 
-    /** 最近一次有界扫描得到的 Key 类型分布；未采样时为空集合。 */
+    /**
+     * 最近一次有界扫描得到的 Key 类型分布；未采样时为空集合。
+     */
     private List<CategoryMetric> keyTypeDistribution = List.of();
-    /** Redis INFO 历史采样能力状态，不包含连接凭据。 */
+    /**
+     * Redis INFO 历史采样能力状态，不包含连接凭据。
+     */
     private ProviderCapability historyCapability = capability(
             "REDIS_HISTORY_METRICS", "UNAVAILABLE", "No Redis metric sample is available yet");
-    /** Redis Key 类型扫描能力状态，不包含 Key 对应的 Value。 */
+    /**
+     * Redis Key 类型扫描能力状态，不包含 Key 对应的 Value。
+     */
     private ProviderCapability keyTypeCapability = capability(
             "REDIS_KEY_TYPE_METRICS", "UNAVAILABLE", "No Redis key type sample is available yet");
-    /** 上一次累计命中数，用于计算当前采样区间命中率；首个样本时为空。 */
+    /**
+     * 上一次累计命中数，用于计算当前采样区间命中率；首个样本时为空。
+     */
     private Long previousHits;
-    /** 上一次累计未命中数，用于计算当前采样区间命中率；首个样本时为空。 */
+    /**
+     * 上一次累计未命中数，用于计算当前采样区间命中率；首个样本时为空。
+     */
     private Long previousMisses;
-    /** 最近一次采样尝试的单调时钟值，单位纳秒。 */
+    /**
+     * 最近一次采样尝试的单调时钟值，单位纳秒。
+     */
     private long lastSampleAttemptNanos = Long.MIN_VALUE;
 
     /**
@@ -107,13 +133,17 @@ public class AdminMonitorCacheApplicationService {
         this.cacheProperties = cacheProperties;
     }
 
-    /** 在 Spring Bean 初始化完成后尝试采集首个 Redis 指标点。 */
+    /**
+     * 在 Spring Bean 初始化完成后尝试采集首个 Redis 指标点。
+     */
     @PostConstruct
     public void initializeMetrics() {
         sampleMetrics();
     }
 
-    /** 每分钟采集一次 Redis 内存、吞吐、命中率和有界 Key 类型分布。 */
+    /**
+     * 每分钟采集一次 Redis 内存、吞吐、命中率和有界 Key 类型分布。
+     */
     @Scheduled(fixedRate = 60_000L)
     public synchronized void sampleMetrics() {
         long nowNanos = System.nanoTime();
@@ -174,7 +204,9 @@ public class AdminMonitorCacheApplicationService {
         return response;
     }
 
-    /** 读取一次 Redis 指标快照；Cluster 模式只聚合可用 Master。 */
+    /**
+     * 读取一次 Redis 指标快照；Cluster 模式只聚合可用 Master。
+     */
     private RedisMetricsSnapshot readMetricsSnapshot(RedisConnection connection) {
         RedisInfoResult info = readInfo(connection);
         RuntimeMetrics runtime = aggregateRuntimeMetrics(info.nodeInfo());
@@ -185,7 +217,9 @@ public class AdminMonitorCacheApplicationService {
         return new RedisMetricsSnapshot(runtime, keyTypes, runtimeReason);
     }
 
-    /** 聚合 Redis INFO 中可相加的 Master 指标。 */
+    /**
+     * 聚合 Redis INFO 中可相加的 Master 指标。
+     */
     private RuntimeMetrics aggregateRuntimeMetrics(Map<String, Map<String, String>> nodeInfo) {
         Long usedBytes = sumInfo(nodeInfo, "used_memory", false);
         Long maxBytes = sumInfo(nodeInfo, "maxmemory", true);
@@ -198,7 +232,9 @@ public class AdminMonitorCacheApplicationService {
         return new RuntimeMetrics(usedBytes, maxBytes, opsPerSecond, hits, misses);
     }
 
-    /** 对全部 Master 做有界 SCAN，并且只读取 TYPE，不读取缓存值。 */
+    /**
+     * 对全部 Master 做有界 SCAN，并且只读取 TYPE，不读取缓存值。
+     */
     private KeyTypeMetrics scanKeyTypes(RedisConnection connection) {
         ScanOptions options = ScanOptions.scanOptions().match("*").count(SCAN_COUNT).build();
         List<byte[]> keys = new ArrayList<>(MAX_SCAN_KEYS);
@@ -206,7 +242,7 @@ public class AdminMonitorCacheApplicationService {
         if (connection instanceof RedisClusterConnection clusterConnection) {
             truncated = scanClusterKeys(clusterConnection, options, keys);
         } else {
-            try (Cursor<byte[]> cursor = connection.scan(options)) {
+            try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
                 truncated = collectPhysicalKeys(cursor, keys);
             }
         }
@@ -350,6 +386,9 @@ public class AdminMonitorCacheApplicationService {
         return present ? total : null;
     }
 
+    /**
+     * 将监控计数规范化为非负长整数。
+     */
     private Long nonNegativeLong(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -362,10 +401,16 @@ public class AdminMonitorCacheApplicationService {
         }
     }
 
+    /**
+     * 将监控指标安全转换为高精度数值。
+     */
     private BigDecimal decimal(Long value) {
         return value == null ? null : BigDecimal.valueOf(value);
     }
 
+    /**
+     * 按阈值计算监控指标所属区间。
+     */
     private TimeBucket bucket(LocalDateTime timestamp, Map<String, BigDecimal> values) {
         TimeBucket bucket = new TimeBucket();
         bucket.setTimestamp(timestamp);
@@ -373,6 +418,12 @@ public class AdminMonitorCacheApplicationService {
         return bucket;
     }
 
+    /**
+     * 追加监控样本并按固定容量淘汰最早数据。
+     *
+     * @param samples 按采样时间升序保存的样本队列
+     * @param sample 最新监控样本
+     */
     private void addBounded(Deque<TimeBucket> samples, TimeBucket sample) {
         samples.addLast(sample);
         while (samples.size() > MAX_METRIC_SAMPLES) {
@@ -380,6 +431,9 @@ public class AdminMonitorCacheApplicationService {
         }
     }
 
+    /**
+     * 解析缓存监控指标分类。
+     */
     private CategoryMetric category(String key, long value) {
         CategoryMetric metric = new CategoryMetric();
         metric.setKey(key);
@@ -388,6 +442,9 @@ public class AdminMonitorCacheApplicationService {
         return metric;
     }
 
+    /**
+     * 解析缓存监控能力标识。
+     */
     private static ProviderCapability capability(String provider, String status, String reason) {
         ProviderCapability capability = new ProviderCapability();
         capability.setProvider(provider);
@@ -529,7 +586,7 @@ public class AdminMonitorCacheApplicationService {
                 .build();
         List<String> scannedKeys = new ArrayList<>(Math.min(SCAN_COUNT, MAX_SCAN_KEYS));
         if (!(connection instanceof RedisClusterConnection clusterConnection)) {
-            try (Cursor<byte[]> cursor = connection.scan(options)) {
+            try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
                 return collectScannedKeys(cursor, scannedKeys);
             }
         }
@@ -614,7 +671,8 @@ public class AdminMonitorCacheApplicationService {
                 nodeInfo.put(nodeName, toMap(clusterConnection.serverCommands().info(masterNode)));
             } catch (RuntimeException exception) {
                 failedNodes.add(nodeName);
-                log.warn("event: ADMIN_REDIS_CLUSTER_INFO_FAILED node: {}", nodeName, exception);
+                log.warn("event: ADMIN_REDIS_CLUSTER_INFO_FAILED nodeDigest: {} exceptionType: {}",
+                        RedisKeyDigest.sha256(nodeName), exception.getClass().getSimpleName());
             }
         }
         return new RedisInfoResult("cluster", nodeInfo, failedNodes);

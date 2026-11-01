@@ -17,13 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionRecordService
- * @date : 2026-07-14 17:45
- * @email : scott_x@163.com
- * @description : 交易事实记录服务，位于 service-payment 服务层，负责冻结 transaction_date_time 并通过交易逻辑表持久化主单、动作单和状态历史。
- * @status : create
+ * 交易事实记录服务，位于 service-payment 服务层，负责冻结 transaction_date_time 并通过交易逻辑表持久化主单、动作单和状态历史。
  */
 public interface TransactionRecordService {
 
@@ -134,7 +128,9 @@ public interface TransactionRecordService {
         return findOrder(transactionDateTime, operationId);
     }
 
-    /** 按动作分片键读取可向商户返回的支付工具脱敏摘要。 */
+    /**
+     * 按动作分片键读取可向商户返回的支付工具脱敏摘要。
+     */
     default TransactionPaymentMethodInfoDO findPaymentMethodInfo(
             String transactionId,
             LocalDateTime transactionDateTime) {

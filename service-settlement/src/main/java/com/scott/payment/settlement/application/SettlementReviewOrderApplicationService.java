@@ -65,13 +65,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewOrderApplicationService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 编排人工/系统结算预审与 Maker-Checker 决策；冻结候选、统一汇率、清分事实和结果指纹，批准前复算并原子转入正式批次。
- * @status : create
+ * 编排人工/系统结算预审与 Maker-Checker 决策；冻结候选、统一汇率、清分事实和结果指纹，批准前复算并原子转入正式批次。
  */
 @Service
 public class SettlementReviewOrderApplicationService {
@@ -194,7 +188,9 @@ public class SettlementReviewOrderApplicationService {
         return submit(command, "AUTO_REVIEW");
     }
 
-    /** 在单个 transaction 主库事务内分配预审号、锁定候选并冻结事实/汇率/结果快照。 */
+    /**
+     * 在单个 transaction 主库事务内分配预审号、锁定候选并冻结事实/汇率/结果快照。
+     */
     private SettlementReviewCommandResult submit(SettlementReviewCreateCommand command, String createMode) {
         Objects.requireNonNull(command, "settlement review command is required");
         sequenceMapper.insertIfAbsent(command.businessDate());
@@ -306,7 +302,9 @@ public class SettlementReviewOrderApplicationService {
         };
     }
 
-    /** 复算四类指纹后，将预审锁原子转换为正式批次关系和冻结汇率，并进入 APPROVED 终态。 */
+    /**
+     * 复算四类指纹后，将预审锁原子转换为正式批次关系和冻结汇率，并进入 APPROVED 终态。
+     */
     private SettlementReviewCommandResult approve(SettlementReviewOrderDO order,
                                                   SettlementReviewDecisionCommand command,
                                                   List<SettlementReviewCandidateDO> relations,
@@ -371,7 +369,9 @@ public class SettlementReviewOrderApplicationService {
         return result(order);
     }
 
-    /** 拒绝或取消预审时原子释放全部候选锁和关系，并以期望版本写入不可逆终态。 */
+    /**
+     * 拒绝或取消预审时原子释放全部候选锁和关系，并以期望版本写入不可逆终态。
+     */
     private SettlementReviewCommandResult terminate(SettlementReviewOrderDO order,
                                                     SettlementReviewDecisionCommand command,
                                                     List<SettlementReviewCandidateDO> relations,
@@ -392,7 +392,9 @@ public class SettlementReviewOrderApplicationService {
         return result(order);
     }
 
-    /** 校验候选均为 READY、版本匹配且同商户/档案/币种/来源，并锁定有效 NORMAL 账户档案。 */
+    /**
+     * 校验候选均为 READY、版本匹配且同商户/档案/币种/来源，并锁定有效 NORMAL 账户档案。
+     */
     private MerchantSettlementProfileDO validateSelection(SettlementReviewCreateCommand command,
                                                           List<SettlementCandidateDO> candidates) {
         Map<Long, Long> expectedVersions = new HashMap<>();
@@ -426,7 +428,9 @@ public class SettlementReviewOrderApplicationService {
         return profile;
     }
 
-    /** 按候选 ID 稳定锁序回读，核对预审关系、候选版本和独占所有权未被改变。 */
+    /**
+     * 按候选 ID 稳定锁序回读，核对预审关系、候选版本和独占所有权未被改变。
+     */
     private List<SettlementCandidateDO> lockAndValidateReviewCandidates(
             SettlementReviewOrderDO order, List<SettlementReviewCandidateDO> relations) {
         if (relations.size() != order.getCandidateCount()
@@ -453,7 +457,9 @@ public class SettlementReviewOrderApplicationService {
         return candidates;
     }
 
-    /** 创建待复核主表快照，并单独统计可生成真实交易投影的 CLEARING_REVISION 候选数。 */
+    /**
+     * 创建待复核主表快照，并单独统计可生成真实交易投影的 CLEARING_REVISION 候选数。
+     */
     private SettlementReviewOrderDO newOrder(SettlementReviewCreateCommand command,
                                              String createMode,
                                              String reviewOrderNo,
@@ -495,7 +501,9 @@ public class SettlementReviewOrderApplicationService {
         return row;
     }
 
-    /** 将预审冻结维度映射为不落库批次对象，供同一结算计算内核预览。 */
+    /**
+     * 将预审冻结维度映射为不落库批次对象，供同一结算计算内核预览。
+     */
     private SettlementBatchDO previewBatch(SettlementReviewOrderDO order) {
         SettlementBatchDO row = new SettlementBatchDO();
         row.setSettlementBatchNo(order.getReviewOrderNo());
@@ -510,7 +518,9 @@ public class SettlementReviewOrderApplicationService {
         return row;
     }
 
-    /** 按来源币种稳定排序，将归一汇率和可信锁定主体冻结为预审汇率行。 */
+    /**
+     * 按来源币种稳定排序，将归一汇率和可信锁定主体冻结为预审汇率行。
+     */
     private List<SettlementReviewRateDO> reviewRates(String orderNo,
                                                     RateMatrix matrix,
                                                     SettlementOperatorSnapshot operator,
@@ -537,7 +547,9 @@ public class SettlementReviewOrderApplicationService {
                 }).toList();
     }
 
-    /** 将数据库预审汇率行还原为不可变矩阵；审批阶段强制要求持久化汇率行 ID。 */
+    /**
+     * 将数据库预审汇率行还原为不可变矩阵；审批阶段强制要求持久化汇率行 ID。
+     */
     private SettlementLockedRateMatrix toLockedRates(List<SettlementReviewRateDO> rows,
                                                      boolean requirePersistentIds) {
         if (rows.isEmpty()) {
@@ -561,7 +573,9 @@ public class SettlementReviewOrderApplicationService {
         return new SettlementLockedRateMatrix(RateMatrix.of(rates), ids);
     }
 
-    /** 为每个锁定候选保存业务身份、锁后版本和精确清分来源指纹。 */
+    /**
+     * 为每个锁定候选保存业务身份、锁后版本和精确清分来源指纹。
+     */
     private List<SettlementReviewCandidateDO> reviewCandidates(String orderNo,
                                                               List<SettlementCandidateDO> candidates,
                                                               SettlementBatchFacts facts,
@@ -590,7 +604,9 @@ public class SettlementReviewOrderApplicationService {
         return rows;
     }
 
-    /** 复制预览汇总为审批展示快照，保持支付、结果、方向及币种分组维度不变。 */
+    /**
+     * 复制预览汇总为审批展示快照，保持支付、结果、方向及币种分组维度不变。
+     */
     private List<SettlementReviewSummaryDO> reviewSummaries(
             String orderNo, List<SettlementResultSummaryDO> summaries, LocalDateTime now) {
         return summaries.stream().map(summary -> {
@@ -613,7 +629,9 @@ public class SettlementReviewOrderApplicationService {
         }).toList();
     }
 
-    /** 将 Maker、Checker、意见和预审结果指纹冻结到批准后的正式批次。 */
+    /**
+     * 将 Maker、Checker、意见和预审结果指纹冻结到批准后的正式批次。
+     */
     private void bindReviewAudit(SettlementBatchDO batch,
                                  SettlementReviewOrderDO order,
                                  SettlementReviewDecisionCommand command,
@@ -640,7 +658,9 @@ public class SettlementReviewOrderApplicationService {
         batch.setCheckerTime(checker.operationTime());
     }
 
-    /** 将预审冻结汇率复制为正式批次 LOCKED 汇率，保留 reviewRateId 审计关联。 */
+    /**
+     * 将预审冻结汇率复制为正式批次 LOCKED 汇率，保留 reviewRateId 审计关联。
+     */
     private List<SettlementBatchRateDO> batchRates(String batchNo,
                                                   List<SettlementReviewRateDO> rates,
                                                   LocalDateTime now) {
@@ -666,7 +686,9 @@ public class SettlementReviewOrderApplicationService {
         }).toList();
     }
 
-    /** 将已消费预审候选转换为正式批次不可删除关系，保持来源身份不变。 */
+    /**
+     * 将已消费预审候选转换为正式批次不可删除关系，保持来源身份不变。
+     */
     private List<SettlementBatchCandidateDO> batchRelations(
             String batchNo, List<SettlementCandidateDO> candidates, LocalDateTime now) {
         return candidates.stream().map(candidate -> {
@@ -686,7 +708,9 @@ public class SettlementReviewOrderApplicationService {
         }).toList();
     }
 
-    /** 将可信 Checker 决策主体、请求键和客户端环境写入预审终态快照。 */
+    /**
+     * 将可信 Checker 决策主体、请求键和客户端环境写入预审终态快照。
+     */
     private void applyDecision(SettlementReviewOrderDO order,
                                SettlementReviewDecisionCommand command,
                                LocalDateTime now) {
@@ -702,7 +726,9 @@ public class SettlementReviewOrderApplicationService {
         order.setDecisionTime(operator.operationTime());
     }
 
-    /** 要求预审仍处于 PENDING_APPROVAL 且 version 等于页面期望值。 */
+    /**
+     * 要求预审仍处于 PENDING_APPROVAL 且 version 等于页面期望值。
+     */
     private void requirePendingDecision(SettlementReviewOrderDO order,
                                         SettlementReviewDecisionCommand command) {
         if (order == null || !SettlementReviewStatus.PENDING_APPROVAL.name().equals(order.getReviewStatus())
@@ -711,7 +737,9 @@ public class SettlementReviewOrderApplicationService {
         }
     }
 
-    /** 强制 Maker 与 Checker 使用不同管理账户，系统自动预审同样不得自审。 */
+    /**
+     * 强制 Maker 与 Checker 使用不同管理账户，系统自动预审同样不得自审。
+     */
     private void validateMakerChecker(SettlementReviewOrderDO order,
                                       SettlementReviewDecisionCommand command) {
         long operatorId = command.operator().accountId();
@@ -726,7 +754,9 @@ public class SettlementReviewOrderApplicationService {
         }
     }
 
-    /** 审批时重新核对档案、商户、目标币种和 NORMAL 资金账户仍然有效。 */
+    /**
+     * 审批时重新核对档案、商户、目标币种和 NORMAL 资金账户仍然有效。
+     */
     private void validateProfile(SettlementReviewOrderDO order, MerchantSettlementProfileDO profile) {
         if (profile == null || !Objects.equals(profile.getId(), order.getSettlementProfileId())
                 || !Objects.equals(profile.getMerchantId(), order.getMerchantId())
@@ -737,7 +767,9 @@ public class SettlementReviewOrderApplicationService {
         }
     }
 
-    /** 校验预审类型与候选来源严格对应，避免 REGULAR/保证金候选混批。 */
+    /**
+     * 校验预审类型与候选来源严格对应，避免 REGULAR/保证金候选混批。
+     */
     private boolean sourceMatches(String reviewType, String sourceType) {
         return switch (reviewType) {
             case "REGULAR" -> "CLEARING_REVISION".equals(sourceType);
@@ -747,7 +779,9 @@ public class SettlementReviewOrderApplicationService {
         };
     }
 
-    /** 要求日序列行包含当前值和 CAS 版本。 */
+    /**
+     * 要求日序列行包含当前值和 CAS 版本。
+     */
     private void requireSequence(SettlementReviewDailySequenceDO sequence) {
         if (sequence == null || sequence.getCurrentSequence() == null || sequence.getVersion() == null
                 || sequence.getCurrentSequence() < 0 || sequence.getCurrentSequence() > MAX_DAILY_SEQUENCE) {
@@ -755,7 +789,9 @@ public class SettlementReviewOrderApplicationService {
         }
     }
 
-    /** 对创建请求键重放核对选择指纹、模式、日期和 Maker，拒绝幂等键碰撞。 */
+    /**
+     * 对创建请求键重放核对选择指纹、模式、日期和 Maker，拒绝幂等键碰撞。
+     */
     private void verifyCreateIdentity(SettlementReviewOrderDO actual,
                                       SettlementReviewCreateCommand command,
                                       String createMode) {
@@ -772,7 +808,9 @@ public class SettlementReviewOrderApplicationService {
         }
     }
 
-    /** 新增后回读并核对关键不可变指纹和金额，防止唯一冲突被误当成合法重放。 */
+    /**
+     * 新增后回读并核对关键不可变指纹和金额，防止唯一冲突被误当成合法重放。
+     */
     private void verifyStoredOrder(SettlementReviewOrderDO actual, SettlementReviewOrderDO expected) {
         if (actual == null || !Objects.equals(actual.getReviewOrderNo(), expected.getReviewOrderNo())
                 || !Objects.equals(actual.getSelectionFingerprint(), expected.getSelectionFingerprint())
@@ -784,7 +822,9 @@ public class SettlementReviewOrderApplicationService {
         }
     }
 
-    /** 对决策请求键重放核对预审单号、动作、Checker 和意见，拒绝跨命令复用。 */
+    /**
+     * 对决策请求键重放核对预审单号、动作、Checker 和意见，拒绝跨命令复用。
+     */
     private void verifyDecisionReplay(SettlementReviewOrderDO actual,
                                       String reviewOrderNo,
                                       SettlementReviewDecisionCommand command) {
@@ -799,14 +839,18 @@ public class SettlementReviewOrderApplicationService {
         }
     }
 
-    /** 映射预审主表为稳定命令结果，不暴露角色、IP 或 User-Agent 审计字段。 */
+    /**
+     * 映射预审主表为稳定命令结果，不暴露角色、IP 或 User-Agent 审计字段。
+     */
     private SettlementReviewCommandResult result(SettlementReviewOrderDO row) {
         return new SettlementReviewCommandResult(row.getReviewOrderNo(), row.getReviewStatus(),
                 row.getSettlementBatchNo(), row.getCandidateCount(), row.getTargetCurrency(),
                 row.getTargetCurrencyExponent(), row.getNetDirection(), row.getNetAmount(), row.getVersion());
     }
 
-    /** 由预审单和候选主键生成稳定关系号，保证事务重放结果一致。 */
+    /**
+     * 由预审单和候选主键生成稳定关系号，保证事务重放结果一致。
+     */
     private String stableId(String prefix, String ownerNo, Long candidateId) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

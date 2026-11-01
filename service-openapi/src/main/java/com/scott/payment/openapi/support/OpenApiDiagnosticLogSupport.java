@@ -1,9 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.openapi.dto.body.OpenApiEncryptedRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.component.web.gateway.TrustedClientIpResolver;
@@ -18,17 +16,12 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiDiagnosticLogSupport
- * @date : 2026-07-26 17:25
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 诊断日志支撑组件，位于 service-openapi 支撑层，统一生成请求头、请求密文、明文参数、响应明文和响应密文的脱敏摘要。
- * @status : create
+ * 商户 OpenAPI 诊断日志支撑组件，统一生成请求头、密文和解密后对象的安全元数据摘要。
+ *
+ * <p>解密后的请求和响应只记录类型、序列化长度及不可逆摘要，不记录业务字段内容。</p>
  */
 @Component
 public class OpenApiDiagnosticLogSupport {
@@ -39,11 +32,6 @@ public class OpenApiDiagnosticLogSupport {
     private static final int MAX_SUMMARY_LENGTH = 1600;
 
     /**
-     * 请求头摘要最大字符数，避免长 User-Agent 或代理头撑大单行日志。
-     */
-    private static final int MAX_HEADER_VALUE_LENGTH = 160;
-
-    /**
      * Compact 密文期望段数，格式为 protectedHeader.encryptedKey.iv.cipherText.tag。
      */
     private static final int COMPACT_PART_COUNT = 5;
@@ -52,8 +40,8 @@ public class OpenApiDiagnosticLogSupport {
      * 生成 OpenAPI 请求头诊断摘要。
      * <p>
      * Authorization 只保留存在性、Bearer 前缀、长度和 SHA-256 短摘要；不会输出 JWT 原文。
-     * IP 类请求头只记录不可逆短摘要，其它与商户排障相关的头只记录受控字段，避免泄漏来源地址、
-     * Cookie 或内部签名头。
+     * IP、来源页面、User-Agent 和调用方请求标识只记录不可逆短摘要；其它字段仅保留媒体类型、
+     * 内容长度和非敏感请求头名称，避免泄漏来源地址、Cookie 或内部签名头。
      * </p>
      * @param request 当前 HTTP 请求
      * @return 请求头诊断摘要 JSON
@@ -62,19 +50,19 @@ public class OpenApiDiagnosticLogSupport {
         if (request == null) {
             return "{}";
         }
-        Map<String, Object> summary = new LinkedHashMap<>();
-        putIfPresent(summary, "traceId", TraceContext.getTraceId());
-        putIfPresent(summary, "xTraceId", request.getHeader(TraceContext.TRACE_ID_HEADER));
-        putIfPresent(summary, "xRequestId", request.getHeader("X-Request-Id"));
-        putIfPresent(summary, "trustedClientIpDigest",
-                identifierDigest(TrustedClientIpResolver.resolve(request)));
-        putIfPresent(summary, "origin", request.getHeader("Origin"));
-        putIfPresent(summary, "referer", request.getHeader("Referer"));
-        putIfPresent(summary, "userAgent", limit(request.getHeader("User-Agent"), MAX_HEADER_VALUE_LENGTH));
-        putIfPresent(summary, "contentType", request.getContentType());
-        putIfPresent(summary, "contentLength", request.getContentLengthLong());
-        summary.put("authorization", authorizationSummary(request.getHeader("authorization")));
-        summary.put("headerNames", headerNames(request));
+        HeaderDiagnosticSummary summary = new HeaderDiagnosticSummary(
+                TraceContext.getTraceId(),
+                identifierDigest(request.getHeader(TraceContext.TRACE_ID_HEADER)),
+                identifierDigest(request.getHeader("X-Request-Id")),
+                identifierDigest(TrustedClientIpResolver.resolve(request)),
+                identifierDigest(request.getHeader("Origin")),
+                identifierDigest(request.getHeader("Referer")),
+                identifierDigest(request.getHeader("User-Agent")),
+                request.getContentType(),
+                request.getContentLengthLong(),
+                authorizationSummary(request.getHeader("authorization")),
+                headerNames(request)
+        );
         return truncate(JsonUtils.toJsonString(summary));
     }
 
@@ -90,13 +78,14 @@ public class OpenApiDiagnosticLogSupport {
         if (headerDTO == null) {
             return null;
         }
-        Map<String, Object> summary = new LinkedHashMap<>();
-        putIfPresent(summary, "merchantId", headerDTO.getMerchantId());
-        putIfPresent(summary, "jtiDigest", digest16(headerDTO.getJwtId()));
-        summary.put("issuedAt", headerDTO.getIssuedAt());
-        summary.put("issuedAtIso", epochSecondIso(headerDTO.getIssuedAt()));
-        summary.put("expiresAt", headerDTO.getExpiresAt());
-        summary.put("expiresAtIso", epochSecondIso(headerDTO.getExpiresAt()));
+        JwtDiagnosticSummary summary = new JwtDiagnosticSummary(
+                headerDTO.getMerchantId(),
+                digest16(headerDTO.getJwtId()),
+                headerDTO.getIssuedAt(),
+                epochSecondIso(headerDTO.getIssuedAt()),
+                headerDTO.getExpiresAt(),
+                epochSecondIso(headerDTO.getExpiresAt())
+        );
         return JsonUtils.toJsonString(summary);
     }
 
@@ -109,47 +98,47 @@ public class OpenApiDiagnosticLogSupport {
      * @return 密文诊断摘要 JSON
      */
     public String cipherRequestSummary(String requestBody) {
-        Map<String, Object> summary = new LinkedHashMap<>();
         if (!StringUtils.hasText(requestBody)) {
-            summary.put("bodyPresent", false);
-            return JsonUtils.toJsonString(summary);
+            return JsonUtils.toJsonString(CipherRequestDiagnosticSummary.empty());
         }
         String trimmed = requestBody.trim();
         String cipherText = extractCipherTextSafely(trimmed);
-        summary.put("bodyPresent", true);
-        summary.put("bodyLength", trimmed.length());
-        summary.put("bodyDigest", digest16(trimmed));
-        summary.put("bodyJson", trimmed.startsWith("{"));
-        summary.put("dataPresent", StringUtils.hasText(cipherText));
-        if (StringUtils.hasText(cipherText)) {
-            summary.put("dataLength", cipherText.length());
-            summary.put("dataDigest", digest16(cipherText));
-            summary.put("dataMasked", maskCipher(cipherText));
-            summary.put("compactPartCount", compactPartCount(cipherText));
-            summary.put("compactPartCountValid", compactPartCount(cipherText) == COMPACT_PART_COUNT);
-        }
+        boolean dataPresent = StringUtils.hasText(cipherText);
+        int partCount = dataPresent ? compactPartCount(cipherText) : 0;
+        CipherRequestDiagnosticSummary summary = new CipherRequestDiagnosticSummary(
+                true,
+                trimmed.length(),
+                digest16(trimmed),
+                trimmed.startsWith("{"),
+                dataPresent,
+                dataPresent ? cipherText.length() : null,
+                dataPresent ? digest16(cipherText) : null,
+                dataPresent ? maskCipher(cipherText) : null,
+                dataPresent ? partCount : null,
+                dataPresent ? partCount == COMPACT_PART_COUNT : null
+        );
         return JsonUtils.toJsonString(summary);
     }
 
     /**
-     * 生成解密后的业务明文参数摘要。
+     * 生成解密后请求对象的安全元数据摘要。
      * <p>
-     * 该摘要会输出商户排障所需业务字段，但卡号、CVV、CAVV、手机号、邮箱、token 和密钥统一脱敏。
+     * 摘要不包含任何业务字段值，只用于关联同一对象在解密、校验和内部调用阶段的处理记录。
      * </p>
      * @param data 解密后的业务 DTO
-     * @return 脱敏后的明文参数摘要
+     * @return 不包含业务字段值的请求元数据摘要
      */
     public String plainRequestSummary(Object data) {
         return objectSummary(data);
     }
 
     /**
-     * 生成响应明文 data 摘要。
+     * 生成加密前响应对象的安全元数据摘要。
      * <p>
-     * 响应加密前调用，输出平台业务响应的脱敏业务字段，便于商户反馈时和密文响应摘要配对。
+     * 响应加密前调用，只记录对象类型、序列化长度和不可逆摘要，便于和密文响应摘要配对。
      * </p>
      * @param data 响应 data 对象
-     * @return 脱敏响应明文摘要
+     * @return 不包含业务字段值的响应元数据摘要
      */
     public String plainResponseSummary(Object data) {
         return objectSummary(data);
@@ -164,16 +153,16 @@ public class OpenApiDiagnosticLogSupport {
      * @return 响应密文诊断摘要 JSON
      */
     public String cipherResponseSummary(String encryptedData) {
-        Map<String, Object> summary = new LinkedHashMap<>();
         if (!StringUtils.hasText(encryptedData)) {
-            summary.put("dataPresent", false);
-            return JsonUtils.toJsonString(summary);
+            return JsonUtils.toJsonString(CipherResponseDiagnosticSummary.empty());
         }
-        summary.put("dataPresent", true);
-        summary.put("dataLength", encryptedData.length());
-        summary.put("dataDigest", digest16(encryptedData));
-        summary.put("dataMasked", maskCipher(encryptedData));
-        summary.put("compactPartCount", compactPartCount(encryptedData));
+        CipherResponseDiagnosticSummary summary = new CipherResponseDiagnosticSummary(
+                true,
+                encryptedData.length(),
+                digest16(encryptedData),
+                maskCipher(encryptedData),
+                compactPartCount(encryptedData)
+        );
         return JsonUtils.toJsonString(summary);
     }
 
@@ -204,18 +193,25 @@ public class OpenApiDiagnosticLogSupport {
     }
 
     /**
-     * 生成对象诊断摘要。
+     * 生成解密后对象的诊断元数据。
      * <p>
-     * 对响应或业务对象先执行 JSON 序列化，再统一脱敏和截断，避免日志输出完整银行卡、手机号、邮箱或大报文。
+     * JSON 只在内存中用于计算长度和 SHA-256 摘要，返回值不包含任何请求或响应字段，避免脱敏规则遗漏时
+     * 将银行卡、账户、身份信息或其它商户业务数据写入服务端日志。
      * </p>
      * @param value 待记录的业务对象
-     * @return 脱敏后的 JSON 摘要，输入为空时返回 null
+     * @return 对象类型、JSON 长度和不可逆摘要，输入为空时返回 null
      */
     private String objectSummary(Object value) {
         if (value == null) {
             return null;
         }
-        return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(value)));
+        String json = JsonUtils.toJsonString(value);
+        PayloadDiagnosticSummary summary = new PayloadDiagnosticSummary(
+                value.getClass().getSimpleName(),
+                json.length(),
+                digest16(json)
+        );
+        return JsonUtils.toJsonString(summary);
     }
 
     /**
@@ -226,19 +222,19 @@ public class OpenApiDiagnosticLogSupport {
      * @param authorization Authorization 请求头原文
      * @return 可安全打印的鉴权头摘要
      */
-    private Map<String, Object> authorizationSummary(String authorization) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("present", StringUtils.hasText(authorization));
+    private AuthorizationDiagnosticSummary authorizationSummary(String authorization) {
         if (!StringUtils.hasText(authorization)) {
-            return summary;
+            return AuthorizationDiagnosticSummary.absent();
         }
         String trimmed = authorization.trim();
-        summary.put("length", trimmed.length());
-        summary.put("digest", digest16(trimmed));
-        summary.put("bearerPrefix", trimmed.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()));
         int partCount = trimmed.replaceFirst("(?i)^Bearer\\s+", "").split("\\.").length;
-        summary.put("jwtPartCount", partCount);
-        return summary;
+        return new AuthorizationDiagnosticSummary(
+                true,
+                trimmed.length(),
+                digest16(trimmed),
+                trimmed.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()),
+                partCount
+        );
     }
 
     /**
@@ -249,7 +245,7 @@ public class OpenApiDiagnosticLogSupport {
      * @param request 当前 HTTP 请求
      * @return 已排序的非敏感请求头名称列表
      */
-    private Object headerNames(HttpServletRequest request) {
+    private List<String> headerNames(HttpServletRequest request) {
         Enumeration<String> names = request.getHeaderNames();
         if (names == null) {
             return Collections.emptyList();
@@ -277,7 +273,7 @@ public class OpenApiDiagnosticLogSupport {
     /**
      * 从商户加密请求体中安全提取 data 密文。
      * <p>
-     * 支持标准加密包和兼容 Map 结构；解析失败时返回 null，不抛出异常影响正常安全链路。
+     * 只解析稳定的加密请求信封；解析失败时返回 null，不抛出异常影响正常安全链路。
      * </p>
      * @param requestBody 商户原始请求体
      * @return data 密文或原始非 JSON 请求摘要输入
@@ -291,10 +287,7 @@ public class OpenApiDiagnosticLogSupport {
             if (requestDTO != null && StringUtils.hasText(requestDTO.getData())) {
                 return requestDTO.getData().trim();
             }
-            Map<String, Object> body = JsonUtils.parseObject(requestBody, new TypeReference<>() {
-            });
-            Object data = body == null ? null : body.get("data");
-            return data == null ? null : String.valueOf(data).trim();
+            return null;
         } catch (RuntimeException exception) {
             return null;
         }
@@ -370,45 +363,11 @@ public class OpenApiDiagnosticLogSupport {
     }
 
     /**
-     * 向日志字段集合写入非空值。
-     * <p>
-     * 空字符串和 null 不写入，避免摘要 JSON 中出现大量无效字段干扰问题定位。
-     * </p>
-     * @param target 日志字段集合
-     * @param key 字段名称
-     * @param value 字段值
-     */
-    private void putIfPresent(Map<String, Object> target, String key, Object value) {
-        if (value instanceof String text && !StringUtils.hasText(text)) {
-            return;
-        }
-        if (value != null) {
-            target.put(key, value);
-        }
-    }
-
-    /**
-     * 按指定长度截断日志文本。
-     * <p>
-     * 用于限制商户 header、声明字段等诊断值的日志体积，避免单条日志过大影响排查检索。
-     * </p>
-     * @param value 原始文本
-     * @param maxLength 最大保留字符数
-     * @return 截断后的文本
-     */
-    private String limit(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength) + "...";
-    }
-
-    /**
      * 按统一摘要长度截断日志文本。
      * <p>
-     * 主要用于明文参数和响应摘要，配合脱敏逻辑防止大 JSON 报文直接撑爆业务日志。
+     * 主要用于请求头和错误信封等结构化元数据，防止异常输入生成过大的单行日志。
      * </p>
-     * @param value 已脱敏的日志文本
+     * @param value 不包含业务报文内容的日志文本
      * @return 限长后的日志文本
      */
     private String truncate(String value) {
@@ -416,5 +375,152 @@ public class OpenApiDiagnosticLogSupport {
             return value;
         }
         return value.substring(0, MAX_SUMMARY_LENGTH) + "...";
+    }
+
+    /**
+     * 承载请求头诊断字段的固定结构，字段值均为公开元数据或不可逆摘要。
+     *
+     * @param traceId 当前服务链路标识
+     * @param xTraceIdDigest 调用方链路标识摘要
+     * @param xRequestIdDigest 调用方请求标识摘要
+     * @param trustedClientIpDigest 可信客户端 IP 摘要
+     * @param originDigest Origin 请求头摘要
+     * @param refererDigest Referer 请求头摘要
+     * @param userAgentDigest User-Agent 请求头摘要
+     * @param contentType 请求媒体类型
+     * @param contentLength 请求体字节数
+     * @param authorization Authorization 安全摘要
+     * @param headerNames 非敏感请求头名称
+     */
+    private record HeaderDiagnosticSummary(
+            String traceId,
+            String xTraceIdDigest,
+            String xRequestIdDigest,
+            String trustedClientIpDigest,
+            String originDigest,
+            String refererDigest,
+            String userAgentDigest,
+            String contentType,
+            long contentLength,
+            AuthorizationDiagnosticSummary authorization,
+            List<String> headerNames) {
+    }
+
+    /**
+     * 承载已验签 JWT 声明的安全诊断字段，不保存 token 原文。
+     *
+     * @param merchantId 商户号
+     * @param jtiDigest JWT 唯一标识摘要
+     * @param issuedAt 签发秒级时间戳
+     * @param issuedAtIso 签发 ISO 时间
+     * @param expiresAt 过期秒级时间戳
+     * @param expiresAtIso 过期 ISO 时间
+     */
+    private record JwtDiagnosticSummary(
+            String merchantId,
+            String jtiDigest,
+            long issuedAt,
+            String issuedAtIso,
+            long expiresAt,
+            String expiresAtIso) {
+    }
+
+    /**
+     * 承载商户密文请求信封的格式诊断字段，不保存完整密文。
+     *
+     * @param bodyPresent 请求体是否存在
+     * @param bodyLength 请求体字符数
+     * @param bodyDigest 请求体摘要
+     * @param bodyJson 请求体是否为 JSON 外形
+     * @param dataPresent data 密文字段是否存在
+     * @param dataLength data 密文字符数
+     * @param dataDigest data 密文摘要
+     * @param dataMasked data 密文首尾掩码
+     * @param compactPartCount compact 密文段数
+     * @param compactPartCountValid compact 密文段数是否符合协议
+     */
+    private record CipherRequestDiagnosticSummary(
+            boolean bodyPresent,
+            Integer bodyLength,
+            String bodyDigest,
+            Boolean bodyJson,
+            Boolean dataPresent,
+            Integer dataLength,
+            String dataDigest,
+            String dataMasked,
+            Integer compactPartCount,
+            Boolean compactPartCountValid) {
+
+        /**
+         * 创建空请求体的诊断摘要。
+         *
+         * @return 仅标记请求体不存在的摘要
+         */
+        private static CipherRequestDiagnosticSummary empty() {
+            return new CipherRequestDiagnosticSummary(
+                    false, null, null, null, null, null, null, null, null, null);
+        }
+    }
+
+    /**
+     * 承载响应密文的格式诊断字段，不保存完整密文。
+     *
+     * @param dataPresent 响应密文是否存在
+     * @param dataLength 响应密文字符数
+     * @param dataDigest 响应密文摘要
+     * @param dataMasked 响应密文首尾掩码
+     * @param compactPartCount compact 密文段数
+     */
+    private record CipherResponseDiagnosticSummary(
+            boolean dataPresent,
+            Integer dataLength,
+            String dataDigest,
+            String dataMasked,
+            Integer compactPartCount) {
+
+        /**
+         * 创建空响应密文的诊断摘要。
+         *
+         * @return 仅标记响应密文不存在的摘要
+         */
+        private static CipherResponseDiagnosticSummary empty() {
+            return new CipherResponseDiagnosticSummary(false, null, null, null, null);
+        }
+    }
+
+    /**
+     * 承载解密后对象的不可逆元数据，不保存任何业务字段值。
+     *
+     * @param payloadType 对象类型
+     * @param jsonLength 序列化字符数
+     * @param jsonDigest 序列化内容摘要
+     */
+    private record PayloadDiagnosticSummary(String payloadType, int jsonLength, String jsonDigest) {
+    }
+
+    /**
+     * 承载 Authorization 请求头的格式诊断字段，不保存 JWT 原文。
+     *
+     * @param present 请求头是否存在
+     * @param length 请求头字符数
+     * @param digest 请求头摘要
+     * @param bearerPrefix 是否使用 Bearer 前缀
+     * @param jwtPartCount JWT compact 段数
+     */
+    private record AuthorizationDiagnosticSummary(
+            boolean present,
+            Integer length,
+            String digest,
+            Boolean bearerPrefix,
+            Integer jwtPartCount) {
+
+        /**
+         * 创建未提供 Authorization 请求头的诊断摘要。
+         *
+         * @return 仅标记请求头不存在的摘要
+         */
+        private static AuthorizationDiagnosticSummary absent() {
+            return new AuthorizationDiagnosticSummary(false, null, null, null, null);
+        }
     }
 }

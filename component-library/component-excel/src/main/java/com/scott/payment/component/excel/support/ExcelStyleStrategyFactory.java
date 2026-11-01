@@ -10,13 +10,7 @@ import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelStyleStrategyFactory
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 统一样式策略工厂
- * @status : create
+ * Excel 统一样式策略工厂
  *
  * <p>统一定义标题、表头和内容区样式，避免每个导出接口单独拼装样式导致风格分裂。</p>
  */

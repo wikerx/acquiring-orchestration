@@ -15,13 +15,7 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MfaSecretCrypto
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : MFA 密钥加密支撑类，位于 component-db 认证支撑层；使用 AES-GCM 保存 TOTP 密钥，避免数据库出现 OTP 明文。
- * @status : create
+ * MFA 密钥加密支撑类，位于 component-db 认证支撑层；使用 AES-GCM 保存 TOTP 密钥，避免数据库出现 OTP 明文。
  */
 public final class MfaSecretCrypto {
 

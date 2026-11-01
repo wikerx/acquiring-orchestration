@@ -10,13 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OutboundHttpUrlPolicyTests
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : 出站 HTTP URL 安全策略测试，覆盖环境差异、DNS 多地址和非公网地址阻断。
- * @status : create
+ * 出站 HTTP URL 安全策略测试，覆盖环境差异、DNS 多地址和非公网地址阻断。
  */
 class OutboundHttpUrlPolicyTests {
 

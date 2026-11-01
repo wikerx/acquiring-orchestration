@@ -34,17 +34,101 @@ import static com.scott.payment.channel.payment.scottchannela.converter.PaymentO
  **/
 public class PaymentRequestConverter {
 
+    /**
+     * {@code PAYIN_DIRECT_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String PAYIN_DIRECT_PATH = "/payins/direct";
+    /**
+     * {@code PAYIN_QUERY_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String PAYIN_QUERY_PATH = "/payins/query";
+    /**
+     * {@code REFUND_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String REFUND_PATH = "/payins/refunds";
+    /**
+     * {@code REFUND_QUERY_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String REFUND_QUERY_PATH = "/payins/refunds/query";
+    /**
+     * {@code AUTHORIZATION_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String AUTHORIZATION_PATH = "/card/authorizations";
+    /**
+     * {@code PRE_AUTHORIZATION_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String PRE_AUTHORIZATION_PATH = "/card/preauthorizations";
+    /**
+     * {@code CAPTURE_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String CAPTURE_PATH = "/card/authorizations/captures";
+    /**
+     * {@code PRE_AUTH_COMPLETION_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String PRE_AUTH_COMPLETION_PATH = "/card/preauthorizations/completions";
+    /**
+     * {@code INCREMENTAL_AUTHORIZATION_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String INCREMENTAL_AUTHORIZATION_PATH = "/card/authorizations/increments";
+    /**
+     * {@code VOID_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String VOID_PATH = "/card/authorizations/voids";
+    /**
+     * {@code AUTHORIZATION_QUERY_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final String AUTHORIZATION_QUERY_PATH = "/card/authorizations/query";
+    /**
+     * 请求时间格式化器常量，统一 {@code PaymentRequestConverter} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * </p>
+     */
     private static final DateTimeFormatter REQUEST_TIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     /**

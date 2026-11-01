@@ -13,13 +13,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HmacSha256Signer
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 通用 HMAC-SHA256 签名工具，不作为 OpenAPI JWT 验签入口使用
- * @status : create
+ * 通用 HMAC-SHA256 签名工具，不作为 OpenAPI JWT 验签入口使用
  */
 public class HmacSha256Signer {
 

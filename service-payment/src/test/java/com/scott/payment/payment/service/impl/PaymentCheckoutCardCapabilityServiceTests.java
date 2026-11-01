@@ -20,18 +20,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutCardCapabilityServiceTests
- * @date : 2026-08-08 15:05
- * @email : scott_x@163.com
- * @description : 验证收银台支付方式只暴露商户 MID 实际能力，并由 BIN 基础表优先判定卡品牌。
- * @status : create
+ * 验证收银台支付方式只暴露商户 MID 实际能力，并由 BIN 基础表优先判定卡品牌。
  */
 @Slf4j
 class PaymentCheckoutCardCapabilityServiceTests {
 
-    /** MID 仅支持 Visa 和 Mastercard 时，收银台不得展示商户请求中的其他品牌。 */
+    /**
+     * MID 仅支持 Visa 和 Mastercard 时，收银台不得展示商户请求中的其他品牌。
+     */
     @Test
     void shouldIntersectRequestedBrandsWithActiveMidScope() {
         MerchantRouteProfileCacheService routeProfileCacheService = mock(MerchantRouteProfileCacheService.class);
@@ -51,7 +47,9 @@ class PaymentCheckoutCardCapabilityServiceTests {
         });
     }
 
-    /** BIN 基础表命中必须优先于公开前缀兜底，避免页面和服务端品牌结论不一致。 */
+    /**
+     * BIN 基础表命中必须优先于公开前缀兜底，避免页面和服务端品牌结论不一致。
+     */
     @Test
     void shouldPreferDatabaseBinBrandOverPrefixFallback() {
         MerchantRouteProfileCacheService routeProfileCacheService = mock(MerchantRouteProfileCacheService.class);
@@ -66,7 +64,9 @@ class PaymentCheckoutCardCapabilityServiceTests {
         assertThat(brand).isEqualTo("MASTERCARD");
     }
 
-    /** BIN 基础表未命中时，使用平台卡品牌标准和公开 IIN 范围识别卡品牌。 */
+    /**
+     * BIN 基础表未命中时，使用平台卡品牌标准和公开 IIN 范围识别卡品牌。
+     */
     @Test
     void shouldResolvePlatformCardBrandsFromCardNumberPrefixWhenDatabaseMisses() {
         CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
@@ -85,7 +85,9 @@ class PaymentCheckoutCardCapabilityServiceTests {
         assertThat(service.resolveCardBrand("6759649826438453")).isEqualTo("MAESTRO");
     }
 
-    /** BIN 数据源异常时必须降级使用平台规则，避免收银台品牌识别被基础数据故障阻断。 */
+    /**
+     * BIN 数据源异常时必须降级使用平台规则，避免收银台品牌识别被基础数据故障阻断。
+     */
     @Test
     void shouldFallbackToPlatformCardBrandRuleWhenDatabaseLookupFails() {
         log.info("验证 BIN 数据源异常时降级使用平台卡品牌规则");
@@ -101,7 +103,9 @@ class PaymentCheckoutCardCapabilityServiceTests {
         log.info("BIN 数据源异常降级验证完成，结果为平台 Mastercard 品牌");
     }
 
-    /** 商户不传 cardBrand 时，服务端必须在风控和路由前补齐卡品牌和 ISO Alpha-3 发卡国家。 */
+    /**
+     * 商户不传 cardBrand 时，服务端必须在风控和路由前补齐卡品牌和 ISO Alpha-3 发卡国家。
+     */
     @Test
     void shouldEnrichInternalTransactionCardBrandFromCardNumber() {
         CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
@@ -122,7 +126,9 @@ class PaymentCheckoutCardCapabilityServiceTests {
         assertThat(commandDTO.getTransactionInfo().getIssuerCountry()).isEqualTo("ARE");
     }
 
-    /** BIN 数据缺少有效 Alpha-3 时不得降级保存两位代码，避免分析维度混用国家代码标准。 */
+    /**
+     * BIN 数据缺少有效 Alpha-3 时不得降级保存两位代码，避免分析维度混用国家代码标准。
+     */
     @Test
     void shouldNotFallbackToAlpha2IssuerCountry() {
         CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
@@ -142,7 +148,9 @@ class PaymentCheckoutCardCapabilityServiceTests {
         assertThat(commandDTO.getTransactionInfo().getIssuerCountry()).isNull();
     }
 
-    /** 构造商户请求允许的银行卡品牌集合。 */
+    /**
+     * 构造商户请求允许的银行卡品牌集合。
+     */
     private PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO requestedMethod() {
         PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO method =
                 new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
@@ -159,7 +167,9 @@ class PaymentCheckoutCardCapabilityServiceTests {
                 result, null);
     }
 
-    /** 构造启用且具备银行卡支付能力的商户 MID 路由快照。 */
+    /**
+     * 构造启用且具备银行卡支付能力的商户 MID 路由快照。
+     */
     private MerchantRouteProfile profile(String cardBrandScope) {
         MerchantRouteProfile profile = new MerchantRouteProfile();
         profile.setMerchantId("200045");

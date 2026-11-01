@@ -6,13 +6,7 @@ import com.scott.payment.admin.dto.SysOperLogRecordRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminOperLogService
- * @date : 2026-06-19 21:53
- * @email : scott_x@163.com
- * @description : 管理后台操作日志领域服务
- * @status : create
+ * 管理后台操作日志领域服务
  *
  * <p>负责后台操作日志写入与审计查询等领域能力，统一收敛日志落库规则与查询过滤规则。</p>
  */

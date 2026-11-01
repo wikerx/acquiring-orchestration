@@ -11,13 +11,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemConfigCacheReader
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : 系统参数缓存代理读取器，隔离 Cacheable 入口与强制主库回源入口
- * @status : create
+ * 系统参数缓存代理读取器，隔离 Cacheable 入口与强制主库回源入口
  */
 @Service
 public class SystemConfigCacheReader {

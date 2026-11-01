@@ -29,13 +29,7 @@ import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAuthApplicationService
- * @date : 2026-06-19 19:12
- * @email : scott_x@163.com
- * @description : 商户auth应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户auth应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class MerchantAuthApplicationService {

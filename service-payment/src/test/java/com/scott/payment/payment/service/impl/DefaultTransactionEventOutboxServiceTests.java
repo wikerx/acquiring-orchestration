@@ -18,13 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionEventOutboxServiceTests
- * @date : 2026-08-02 02:40
- * @email : scott_x@163.com
- * @description : 验证 Outbox 在 SHARDINGSPHERE 模式下只访问逻辑表，并按季度范围扫描及按分片时间执行 CAS。
- * @status : create
+ * 验证 Outbox 在 SHARDINGSPHERE 模式下只访问逻辑表，并按季度范围扫描及按分片时间执行 CAS。
  */
 class DefaultTransactionEventOutboxServiceTests {
 
@@ -78,7 +72,9 @@ class DefaultTransactionEventOutboxServiceTests {
         verify(mapper).insertLogical(eventDO);
     }
 
-    /** 生命周期事件只能进入 FIFO Topic，历史 AUTO 模式在落库前规范为 ORDERLY。 */
+    /**
+     * 生命周期事件只能进入 FIFO Topic，历史 AUTO 模式在落库前规范为 ORDERLY。
+     */
     @Test
     void lifecycleEventShouldRequireFifoTopicAndNormalizeAutoToOrderly() {
         TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
@@ -96,7 +92,9 @@ class DefaultTransactionEventOutboxServiceTests {
         verify(mapper).insertLogical(eventDO);
     }
 
-    /** 生命周期事件写入普通 Topic 必须失败，避免 RocketMQ 5.x 消息类型混用。 */
+    /**
+     * 生命周期事件写入普通 Topic 必须失败，避免 RocketMQ 5.x 消息类型混用。
+     */
     @Test
     void lifecycleEventShouldRejectNormalTopic() {
         TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);

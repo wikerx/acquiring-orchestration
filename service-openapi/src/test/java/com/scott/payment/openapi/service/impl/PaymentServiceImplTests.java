@@ -1,5 +1,8 @@
 package com.scott.payment.openapi.service.impl;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
@@ -28,6 +31,7 @@ import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
+import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -38,6 +42,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -46,13 +51,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentServiceImplTests
- * @date : 2026-07-14 21:10
- * @email : scott_x@163.com
- * @description : OpenAPI 收单支付服务测试，验证独立交易入口能正确组装内部请求，并避免对外暴露按枚举分发的粗粒度接口。
- * @status : create
+ * OpenAPI 收单支付服务测试，验证独立交易入口能正确组装内部请求，并避免对外暴露按枚举分发的粗粒度接口。
  */
 class PaymentServiceImplTests {
 
@@ -101,6 +100,47 @@ class PaymentServiceImplTests {
         assertThat(captured.getRiskContext().getShippingAddress()).isEqualTo("2 Shipping St");
         assertThat(captured.getRiskContext().getShippingPostalCode()).isEqualTo("10003");
         assertThat(captured.getRiskContext().getShippingCountry()).isEqualTo("USA");
+    }
+
+    /**
+     * 验证交易日志保留定位上下文和对象元数据，同时不输出解密后的卡资料、个人信息或来源 URL 原值。
+     */
+    @Test
+    void shouldNotExposeDecryptedPaymentFieldsInApplicationLogs() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
+        ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
+        bindRequestContext();
+
+        Logger logger = (Logger) LoggerFactory.getLogger(PaymentServiceImpl.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            paymentService.createAuthorization("cipher-sensitive-marker", requestDTO);
+
+            String messages = appender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .collect(Collectors.joining("\n"));
+            assertThat(messages)
+                    .contains("operation: AUTHORIZATION")
+                    .contains("merchantId: 200001")
+                    .contains("merchantOrderNo: M202607120001")
+                    .contains("payloadType")
+                    .contains("jsonLength")
+                    .contains("jsonDigest")
+                    .doesNotContain("5387380678556554")
+                    .doesNotContain("securityCode\":\"123")
+                    .doesNotContain("user@example.com")
+                    .doesNotContain("1 Main St")
+                    .doesNotContain("2 Shipping St")
+                    .doesNotContain("cart=ABC123")
+                    .doesNotContain("Mozilla/5.0")
+                    .doesNotContain("cipher-sensitive-marker");
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     @Test
@@ -457,7 +497,9 @@ class PaymentServiceImplTests {
         );
     }
 
-    /** 测试夹具显式声明 test 环境，避免依赖未知环境的生产级失败关闭默认值。 */
+    /**
+     * 测试夹具显式声明 test 环境，避免依赖未知环境的生产级失败关闭默认值。
+     */
     private com.scott.payment.openapi.support.HostedCheckoutUrlPolicy testUrlPolicy() {
         org.springframework.mock.env.MockEnvironment environment =
                 new org.springframework.mock.env.MockEnvironment();
@@ -675,55 +717,73 @@ class PaymentServiceImplTests {
 
         private String nextFailReasonMessage;
 
-        /** 捕获授权内部请求，并生成与授权动作匹配的可配置测试响应。 */
+        /**
+         * 捕获授权内部请求，并生成与授权动作匹配的可配置测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.AUTHORIZATION);
         }
 
-        /** 捕获一步支付内部请求，并生成与支付动作匹配的可配置测试响应。 */
+        /**
+         * 捕获一步支付内部请求，并生成与支付动作匹配的可配置测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PAYMENT);
         }
 
-        /** 捕获预授权内部请求，并生成与预授权动作匹配的测试响应。 */
+        /**
+         * 捕获预授权内部请求，并生成与预授权动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTHORIZATION);
         }
 
-        /** 捕获增量授权内部请求，并保留原交易关联字段供断言。 */
+        /**
+         * 捕获增量授权内部请求，并保留原交易关联字段供断言。
+         */
         @Override
         public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION);
         }
 
-        /** 捕获请款内部请求，并生成与请款动作匹配的测试响应。 */
+        /**
+         * 捕获请款内部请求，并生成与请款动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
         }
 
-        /** 捕获预授权完成内部请求，并生成对应测试响应。 */
+        /**
+         * 捕获预授权完成内部请求，并生成对应测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
         }
 
-        /** 捕获退款内部请求，并生成与退款动作匹配的测试响应。 */
+        /**
+         * 捕获退款内部请求，并生成与退款动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.REFUND);
         }
 
-        /** 捕获撤销内部请求，并生成与撤销动作匹配的测试响应。 */
+        /**
+         * 捕获撤销内部请求，并生成与撤销动作匹配的测试响应。
+         */
         @Override
         public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.VOID);
         }
 
-        /** 捕获查询条件，并将统一交易响应转换成含单条动作明细的查询结果。 */
+        /**
+         * 捕获查询条件，并将统一交易响应转换成含单条动作明细的查询结果。
+         */
         @Override
         public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
             PaymentCreateClientResponseDTO createResponseDTO = captureRequest(requestDTO, OpenApiPaymentOperationEnum.QUERY);
@@ -766,7 +826,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定的渠道回调受理结果，供非回调测试满足客户端契约。 */
+        /**
+         * 返回固定的渠道回调受理结果，供非回调测试满足客户端契约。
+         */
         @Override
         public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
                 TransactionChannelCallbackClientRequestDTO requestDTO) {
@@ -778,13 +840,17 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 模拟商户响应日志成功命中并完成回写。 */
+        /**
+         * 模拟商户响应日志成功命中并完成回写。
+         */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             return true;
         }
 
-        /** 根据请求过期时间返回固定的新建会话结果。 */
+        /**
+         * 根据请求过期时间返回固定的新建会话结果。
+         */
         @Override
         public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
@@ -798,7 +864,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定可支付会话，用于验证 OpenAPI 会话响应映射。 */
+        /**
+         * 返回固定可支付会话，用于验证 OpenAPI 会话响应映射。
+         */
         @Override
         public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
@@ -808,7 +876,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定处理中结果，用于验证付款尝试提交响应映射。 */
+        /**
+         * 返回固定处理中结果，用于验证付款尝试提交响应映射。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
                 PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
@@ -819,7 +889,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定 PROCESSING 状态，用于验证 OpenAPI 轮询结果映射。 */
+        /**
+         * 返回固定 PROCESSING 状态，用于验证 OpenAPI 轮询结果映射。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
                 PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
@@ -830,7 +902,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定 PROCESSING 状态，用于验证 3DS 返回后不会提前宣告支付成功。 */
+        /**
+         * 返回固定 PROCESSING 状态，用于验证 3DS 返回后不会提前宣告支付成功。
+         */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
@@ -841,7 +915,9 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
-        /** 返回固定支持结果，供共享客户端契约编译；普通支付测试不会调用该分支。 */
+        /**
+         * 返回固定支持结果，供共享客户端契约编译；普通支付测试不会调用该分支。
+         */
         @Override
         public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
                 PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {

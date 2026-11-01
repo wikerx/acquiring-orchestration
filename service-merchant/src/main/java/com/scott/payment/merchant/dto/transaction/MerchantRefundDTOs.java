@@ -12,20 +12,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRefundDTOs
- * @date : 2026-08-06 16:10
- * @email : scott_x@163.com
- * @description : 商户端退款查询模型，只保留当前商户可见的退款事实和统一状态说明，排除渠道及内部审批信息。
- * @status : create
+ * 商户端退款查询模型，只保留当前商户可见的退款事实和统一状态说明，排除渠道及内部审批信息。
  */
 public final class MerchantRefundDTOs {
 
     private MerchantRefundDTOs() {
     }
 
-    /** 商户退款查询条件；merchantId 仅由服务端认证上下文写入。 */
+    /**
+     * 商户退款查询条件；merchantId 仅由服务端认证上下文写入。
+     */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class RefundQuery extends PageRequest {
@@ -193,7 +189,9 @@ public final class MerchantRefundDTOs {
         private String queryTimeZone;
     }
 
-    /** 商户可见退款记录。 */
+    /**
+     * 商户可见退款记录。
+     */
     @Data
     public static class RefundRecord implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -425,7 +423,9 @@ public final class MerchantRefundDTOs {
         private String merchantVisibleMessage;
     }
 
-    /** 分币种退款金额统计。 */
+    /**
+     * 分币种退款金额统计。
+     */
     @Data
     public static class RefundCurrencySummary implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -476,7 +476,9 @@ public final class MerchantRefundDTOs {
         private BigDecimal pendingAmount = BigDecimal.ZERO;
     }
 
-    /** 商户退款状态和金额统计。 */
+    /**
+     * 商户退款状态和金额统计。
+     */
     @Data
     public static class RefundSummary implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -531,7 +533,9 @@ public final class MerchantRefundDTOs {
         private List<RefundCurrencySummary> currencyAmounts = new ArrayList<>();
     }
 
-    /** 商户退款分页和统计。 */
+    /**
+     * 商户退款分页和统计。
+     */
     @Data
     public static class RefundSearchResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -554,7 +558,9 @@ public final class MerchantRefundDTOs {
         private RefundSummary summary;
     }
 
-    /** 商户退款详情，仅返回商户可见记录。 */
+    /**
+     * 商户退款详情，仅返回商户可见记录。
+     */
     @Data
     public static class RefundDetailResponse implements Serializable {
         private static final long serialVersionUID = 1L;

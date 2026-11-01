@@ -25,13 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementClearingFactServiceTest
- * @date : 2026-08-26 23:55
- * @email : scott_x@163.com
- * @description : 验证结算以三字段 locator 批量加载清分事实、保留支付维度，并为 USD 限额补齐汇率币种。
- * @status : create
+ * 验证结算以三字段 locator 批量加载清分事实、保留支付维度，并为 USD 限额补齐汇率币种。
  */
 class DefaultSettlementClearingFactServiceTest {
 
@@ -44,7 +38,9 @@ class DefaultSettlementClearingFactServiceTest {
         service = new DefaultSettlementClearingFactService(mapper);
     }
 
-    /** 单个候选只执行两次批量明细查询，USD 上限即使没有固定组件也必须进入矩阵。 */
+    /**
+     * 单个候选只执行两次批量明细查询，USD 上限即使没有固定组件也必须进入矩阵。
+     */
     @Test
     void shouldLoadExactRevisionFactsAndCollectEveryRateCurrency() {
         SettlementBatchDO batch = batch(1);
@@ -71,7 +67,9 @@ class DefaultSettlementClearingFactServiceTest {
                 "TX-1", LocalDateTime.of(2026, 8, 26, 9, 0), 2));
     }
 
-    /** 批次候选数量与关系事实不一致时必须整批阻断。 */
+    /**
+     * 批次候选数量与关系事实不一致时必须整批阻断。
+     */
     @Test
     void shouldRejectMissingCandidateRelations() {
         SettlementBatchDO batch = batch(2);
@@ -83,7 +81,9 @@ class DefaultSettlementClearingFactServiceTest {
                 .hasMessageContaining("candidate relation count");
     }
 
-    /** 独立保证金释放候选只能读取 RELEASE 明细，不能依赖原交易清分修订。 */
+    /**
+     * 独立保证金释放候选只能读取 RELEASE 明细，不能依赖原交易清分修订。
+     */
     @Test
     void shouldLoadReserveReleaseCandidateAsIndependentReserveFact() {
         SettlementBatchDO batch = batch(1);
@@ -110,7 +110,9 @@ class DefaultSettlementClearingFactServiceTest {
                 .containsExactly("RELEASE", new BigDecimal("8.00"));
     }
 
-    /** 调整来源如果伪装为交易费用事实必须整批拒绝。 */
+    /**
+     * 调整来源如果伪装为交易费用事实必须整批拒绝。
+     */
     @Test
     void shouldRejectTransactionDetailForAdjustmentSource() {
         SettlementBatchDO batch = batch(1);

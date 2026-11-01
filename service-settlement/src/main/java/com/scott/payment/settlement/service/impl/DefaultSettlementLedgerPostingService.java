@@ -53,9 +53,13 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
     private static final Logger LOGGER = LoggerFactory.getLogger(
             DefaultSettlementLedgerPostingService.class);
 
-    /** 金额聚合零值。 */
+    /**
+     * 金额聚合零值。
+     */
     private static final BigDecimal ZERO = BigDecimal.ZERO;
-    /** 自动结算资金事实的系统操作主体。 */
+    /**
+     * 自动结算资金事实的系统操作主体。
+     */
     private static final String SYSTEM_OPERATOR = "service-settlement";
 
     private final SettlementBatchMapper batchMapper;
@@ -161,7 +165,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return batch.getCandidateCount();
     }
 
-    /** 汇总 FINANCIAL_COMPONENT 的目标币种有符号金额，得到唯一非负净额和 CREDIT/DEBIT 方向。 */
+    /**
+     * 汇总 FINANCIAL_COMPONENT 的目标币种有符号金额，得到唯一非负净额和 CREDIT/DEBIT 方向。
+     */
     private NetAmount net(SettlementBatchDO batch, List<SettlementResultItemDO> items) {
         BigDecimal signed = ZERO;
         for (SettlementResultItemDO item : items) {
@@ -182,7 +188,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return new NetAmount(direction, amount, signed);
     }
 
-    /** 追加批次唯一 NET_POSTING 结果行，并通过回读身份校验区分合法重放与唯一键碰撞。 */
+    /**
+     * 追加批次唯一 NET_POSTING 结果行，并通过回读身份校验区分合法重放与唯一键碰撞。
+     */
     private void insertNetResult(SettlementBatchDO batch, NetAmount net, LocalDateTime now) {
         Long identityRateId = resultMapper.selectIdentityRateId(
                 batch.getSettlementBatchNo(), batch.getTargetCurrency());
@@ -222,7 +230,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 固定先锁 NORMAL 账户，追加批次唯一资金流水，再用旧余额和版本双条件 CAS 更新可用余额。 */
+    /**
+     * 固定先锁 NORMAL 账户，追加批次唯一资金流水，再用旧余额和版本双条件 CAS 更新可用余额。
+     */
     private void postFundLedger(SettlementBatchDO batch, NetAmount net, LocalDateTime now) {
         MerchantFundAccountDO account = fundMapper.selectAccountForUpdate(batch.getSettlementAccountId());
         validateAccount(account, batch);
@@ -249,7 +259,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 构造包含账户序号、余额前后值及完整人工/系统审计的不可变净入账流水。 */
+    /**
+     * 构造包含账户序号、余额前后值及完整人工/系统审计的不可变净入账流水。
+     */
     private MerchantFundLedgerDO ledger(SettlementBatchDO batch,
                                         NetAmount net,
                                         BigDecimal before,
@@ -294,7 +306,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return row;
     }
 
-    /** 按候选和清分行稳定顺序资金化保证金，动作唯一键决定聚合是否需要首次更新。 */
+    /**
+     * 按候选和清分行稳定顺序资金化保证金，动作唯一键决定聚合是否需要首次更新。
+     */
     private void materializeReserve(SettlementBatchDO batch,
                                     SettlementBatchFacts facts,
                                     LocalDateTime now) {
@@ -318,7 +332,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 将 HOLD、RETURN、RELEASE 或 ADJUSTMENT 清分事实应用到原标签币种聚合，拒绝未知动作。 */
+    /**
+     * 将 HOLD、RETURN、RELEASE 或 ADJUSTMENT 清分事实应用到原标签币种聚合，拒绝未知动作。
+     */
     private void applyReserveDetail(SettlementBatchDO batch,
                                     Long candidateId,
                                     SettlementReserveClearingDetailDO detail,
@@ -378,7 +394,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 按 CREDIT/DEBIT 调整方向更新保证金责任，贷方调整不得超过当前剩余责任。 */
+    /**
+     * 按 CREDIT/DEBIT 调整方向更新保证金责任，贷方调整不得超过当前剩余责任。
+     */
     private int applyAdjustment(MerchantReserveItemDO stored,
                                 SettlementReserveClearingDetailDO detail,
                                 BigDecimal amount,
@@ -393,7 +411,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         };
     }
 
-    /** 构造保证金聚合首次 HOLD 行；保留原交易和标签币种，不写结算目标币种金额。 */
+    /**
+     * 构造保证金聚合首次 HOLD 行；保留原交易和标签币种，不写结算目标币种金额。
+     */
     private MerchantReserveItemDO reserveItem(SettlementBatchDO batch,
                                               SettlementReserveClearingDetailDO detail,
                                               BigDecimal amount,
@@ -419,7 +439,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return row;
     }
 
-    /** @return true 表示本次首次插入并需要改变聚合，false 表示已验证的合法重放。 */
+    /**
+     * @return true 表示本次首次插入并需要改变聚合，false 表示已验证的合法重放。
+     */
     private boolean insertReserveAction(SettlementBatchDO batch,
                                         Long candidateId,
                                         SettlementReserveClearingDetailDO detail,
@@ -459,7 +481,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return false;
     }
 
-    /** 仅为真实 CLEARING_REVISION 候选创建 SETTLE 任务，RESERVE_RELEASE 和纯 ADJUSTMENT 不生成伪交易。 */
+    /**
+     * 仅为真实 CLEARING_REVISION 候选创建 SETTLE 任务，RESERVE_RELEASE 和纯 ADJUSTMENT 不生成伪交易。
+     */
     private List<SettlementProjectionTaskDO> projectionTasks(SettlementBatchDO batch,
                                                              SettlementBatchFacts facts,
                                                              List<SettlementResultItemDO> items,
@@ -516,7 +540,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return tasks;
     }
 
-    /** 从清分保证金行提取唯一非负动作金额，并校验动作类型与对应金额列一致。 */
+    /**
+     * 从清分保证金行提取唯一非负动作金额，并校验动作类型与对应金额列一致。
+     */
     private BigDecimal reserveAmount(SettlementReserveClearingDetailDO row) {
         BigDecimal amount = switch (row.getReserveActionType()) {
             case "HOLD" -> row.getRetainedAmount();
@@ -528,7 +554,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return amount == null ? ZERO : amount;
     }
 
-    /** 校验租约、批次状态、候选/事实数量、净结果和投影计数均与锁读批次一致。 */
+    /**
+     * 校验租约、批次状态、候选/事实数量、净结果和投影计数均与锁读批次一致。
+     */
     private void validateBatch(SettlementBatchDO batch,
                                SettlementBatchFacts facts,
                                String owner,
@@ -564,7 +592,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 资金入账只接受批次商户、目标币种均匹配且状态为 NORMAL 的账户。 */
+    /**
+     * 资金入账只接受批次商户、目标币种均匹配且状态为 NORMAL 的账户。
+     */
     private void validateAccount(MerchantFundAccountDO account, SettlementBatchDO batch) {
         if (account == null || account.getAvailableBalance() == null || account.getAccountVersion() == null
                 || !Objects.equals(account.getId(), batch.getSettlementAccountId())
@@ -576,7 +606,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 对流水幂等键重放核对账户、商户、批次、币种、方向、金额和余额前后值。 */
+    /**
+     * 对流水幂等键重放核对账户、商户、批次、币种、方向、金额和余额前后值。
+     */
     private void validateExistingLedger(MerchantFundLedgerDO ledger,
                                         SettlementBatchDO batch,
                                         NetAmount net) {
@@ -601,7 +633,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 核对重放资金流水中的人工 Maker-Checker 或系统操作审计与批次冻结快照一致。 */
+    /**
+     * 核对重放资金流水中的人工 Maker-Checker 或系统操作审计与批次冻结快照一致。
+     */
     private boolean auditMatches(MerchantFundLedgerDO ledger,
                                  SettlementBatchDO batch,
                                  boolean manual) {
@@ -631,7 +665,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
                 && ledger.getRequestId() == null;
     }
 
-    /** 对保证金来源唯一键重放核对商户、账户、原交易和原标签币种，拒绝身份碰撞。 */
+    /**
+     * 对保证金来源唯一键重放核对商户、账户、原交易和原标签币种，拒绝身份碰撞。
+     */
     private void validateReserveIdentity(MerchantReserveItemDO actual, MerchantReserveItemDO expected) {
         boolean matches = actual != null && actual.getId() != null
                 && Objects.equals(actual.getReserveNo(), expected.getReserveNo())
@@ -647,7 +683,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
-    /** 规范化并限制租约所有者长度，防止空主体参与资金状态 CAS。 */
+    /**
+     * 规范化并限制租约所有者长度，防止空主体参与资金状态 CAS。
+     */
     private String requireOwner(String owner) {
         if (owner == null || owner.isBlank()) {
             throw new IllegalArgumentException("settlement posting owner is required");
@@ -655,12 +693,16 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return owner.trim();
     }
 
-    /** 生成正式批次唯一净入账资金流水幂等键。 */
+    /**
+     * 生成正式批次唯一净入账资金流水幂等键。
+     */
     private String ledgerIdempotencyKey(String batchNo) {
         return "SETTLEMENT:" + batchNo;
     }
 
-    /** 以稳定业务身份生成固定长度 SHA-256 派生号，保证任务重放结果一致。 */
+    /**
+     * 以稳定业务身份生成固定长度 SHA-256 派生号，保证任务重放结果一致。
+     */
     private String stableId(String prefix, String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

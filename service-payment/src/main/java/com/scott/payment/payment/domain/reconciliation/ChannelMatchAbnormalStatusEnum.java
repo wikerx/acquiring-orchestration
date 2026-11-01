@@ -3,49 +3,37 @@ package com.scott.payment.payment.domain.reconciliation;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelMatchAbnormalStatusEnum
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 渠道勾兑异常案件状态枚举，约束案件领取、复查和关闭的可审计流转。
- * @status : create
+ * 渠道勾兑异常案件状态枚举，约束案件领取、复查和关闭的可审计流转。
  */
 @Getter
 public enum ChannelMatchAbnormalStatusEnum {
 
     /**
-     * OPEN 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 异常案件已创建，尚未被人工领取处理。
      */
     OPEN("OPEN", false),
     /**
-     * PROCESSING 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 异常案件已被领取，等待复查结论。
      */
     PROCESSING("PROCESSING", false),
     /**
-     * RESOLVED 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 异常已按允许的处置类型完成复核，属于不可逆终态。
      */
     RESOLVED("RESOLVED", true),
     /**
-     * IGNORED 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 异常经人工判断无需处理并关闭，属于不可逆终态。
      */
     IGNORED("IGNORED", true);
 
     private final String code;
     private final boolean terminal;
 
+    /**
+     * 创建勾兑异常案件状态并标记其是否为终态。
+     *
+     * @param code 持久化和接口使用的稳定状态编码
+     * @param terminal 是否禁止案件继续迁移
+     */
     ChannelMatchAbnormalStatusEnum(String code, boolean terminal) {
         this.code = code;
         this.terminal = terminal;

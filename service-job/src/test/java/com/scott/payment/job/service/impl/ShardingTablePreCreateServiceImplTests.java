@@ -30,13 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateServiceImplTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 交易季度物理表预建和候选节点发布门禁测试。
- * @status : create
+ * 交易季度物理表预建和候选节点发布门禁测试。
  */
 class ShardingTablePreCreateServiceImplTests {
 
@@ -105,7 +99,9 @@ class ShardingTablePreCreateServiceImplTests {
         verify(fixture.ddlService, never()).createPhysicalTableIfAbsent(any(), any(), any());
     }
 
-    /** 旧 25 表发布基线只能生成完整 28 表候选，旧节点必须在本轮按 28 表重新核验。 */
+    /**
+     * 旧 25 表发布基线只能生成完整 28 表候选，旧节点必须在本轮按 28 表重新核验。
+     */
     @Test
     void legacyTopologyShouldProduceFormalCandidateOnlyAfterAllNodesAreRevalidated() {
         Fixture fixture = fixture();

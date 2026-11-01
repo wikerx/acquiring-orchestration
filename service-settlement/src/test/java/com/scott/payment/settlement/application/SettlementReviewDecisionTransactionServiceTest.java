@@ -37,7 +37,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证失败的分段复核任务只能在进度一致时原地恢复，并保持请求幂等。 */
+/**
+ * 验证失败的分段复核任务只能在进度一致时原地恢复，并保持请求幂等。
+ */
 class SettlementReviewDecisionTransactionServiceTest {
 
     private static final String TASK_NO = "DT" + "a".repeat(32);

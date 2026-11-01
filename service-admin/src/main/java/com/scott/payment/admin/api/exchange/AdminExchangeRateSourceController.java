@@ -26,13 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminExchangeRateSourceController
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : admin汇率汇率来源 HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 管理端汇率源 HTTP 控制器，用于运营后台，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  */
 @RestController
 @RequestMapping("/admin/exchange")
@@ -40,6 +34,11 @@ public class AdminExchangeRateSourceController {
 
     private final AdminExchangeRateApplicationService applicationService;
 
+    /**
+     * 创建汇率数据源配置管理控制器。
+     *
+     * @param applicationService 汇率管理应用服务
+     */
     public AdminExchangeRateSourceController(AdminExchangeRateApplicationService applicationService) {
         this.applicationService = applicationService;
     }

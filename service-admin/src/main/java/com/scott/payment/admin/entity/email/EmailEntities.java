@@ -8,16 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EmailEntities
- * @date : 2026-07-04 16:11
- * @email : scott_x@163.com
- * @description : Email Entities 聚合类型，位于 运营后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * Email Entities 聚合类型，用于运营后台，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class EmailEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private EmailEntities() {
     }
 
@@ -629,9 +626,13 @@ public final class EmailEntities {
          * </p>
          */
         private String contentSnapshot;
-        /** 加密保存的实际投递正文，仅在消费者发送成功前保留。 */
+        /**
+         * 加密保存的实际投递正文，仅在消费者发送成功前保留。
+         */
         private String deliveryContentCipher;
-        /** 实际投递正文类型，取值为 HTML 或 TEXT。 */
+        /**
+         * 实际投递正文类型，取值为 HTML 或 TEXT。
+         */
         private String contentType;
         /**
          * 持久化的变量快照，用于还原当前记录的业务事实。

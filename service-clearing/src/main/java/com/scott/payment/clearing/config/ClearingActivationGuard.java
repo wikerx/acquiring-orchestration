@@ -7,13 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingActivationGuard
- * @date : 2026-08-26 08:15
- * @email : scott_x@163.com
- * @description : 清分启动期失败关闭门禁；服务自动运行前强制校验内部 HMAC、正式交易拓扑和非默认密钥。
- * @status : create
+ * 清分启动期失败关闭门禁；服务自动运行前强制校验内部 HMAC、正式交易拓扑和非默认密钥。
  */
 @Component
 public class ClearingActivationGuard implements SmartInitializingSingleton {
@@ -21,11 +15,7 @@ public class ClearingActivationGuard implements SmartInitializingSingleton {
     private static final String CLEARING_INTERNAL_PROBE_PATH =
             "/internal/clearing/v1/transactions/search";
     /**
-     * {@code PATH_MATCHER}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 用于验证内部认证白名单不会绕过清分探测路径。
      */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
@@ -48,14 +38,18 @@ public class ClearingActivationGuard implements SmartInitializingSingleton {
         this.authProperties = authProperties;
     }
 
-    /** 启动完成前校验内部认证和正式拓扑，失败时直接阻止应用提供内部接口或消费消息。 */
+    /**
+     * 启动完成前校验内部认证和正式拓扑，失败时直接阻止应用提供内部接口或消费消息。
+     */
     @Override
     public void afterSingletonsInstantiated() {
         validateInternalSecurity();
         clearingProperties.validateRuntime(shardingProperties.getLogicTables().size());
     }
 
-    /** 禁止清分内部接口关闭签名、命中认证白名单或继续使用开发共享密钥。 */
+    /**
+     * 禁止清分内部接口关闭签名、命中认证白名单或继续使用开发共享密钥。
+     */
     private void validateInternalSecurity() {
         if (!authProperties.isEnabled()) {
             throw new IllegalStateException("clearing internal service authentication must be enabled");

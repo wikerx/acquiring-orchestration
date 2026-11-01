@@ -8,13 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionResultDetailDTO
- * @date : 2026-08-14 13:45
- * @email : scott_x@163.com
- * @description : 商户响应所需的平台生成详情，只包含 3DS 安全子集和已落库财务结果。
- * @status : create
+ * 商户响应所需的平台生成详情，只包含 3DS 安全子集和已落库财务结果。
  */
 @Data
 public class MerchantTransactionResultDetailDTO implements Serializable {
@@ -23,10 +17,6 @@ public class MerchantTransactionResultDetailDTO implements Serializable {
 
     /**
      * {@code threeDsInfo}，表示 3DS 认证状态、版本或结果标识，用于渠道授权和风控判断。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
      */
     private ThreeDsInfoDTO threeDsInfo;
     /**
@@ -66,15 +56,12 @@ public class MerchantTransactionResultDetailDTO implements Serializable {
     private BigDecimal settlementFeeAmount;
     /**
      * {@code feeItems}集合，承载 {@code MerchantTransactionResultDetailDTO} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
      */
     private List<FeeItemDTO> feeItems = new ArrayList<>();
 
-    /** 允许商户接收的 3DS 安全结果，不含 CAVV 和协议原文。 */
+    /**
+     * 允许商户接收的 3DS 安全结果，不含 CAVV 和协议原文。
+     */
     @Data
     public static class ThreeDsInfoDTO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -88,10 +75,6 @@ public class MerchantTransactionResultDetailDTO implements Serializable {
         private String eci;
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String dsTransactionId;
         /**
@@ -121,7 +104,9 @@ public class MerchantTransactionResultDetailDTO implements Serializable {
         private Boolean liabilityShifted;
     }
 
-    /** 已形成的费用明细。 */
+    /**
+     * 已形成的费用明细。
+     */
     @Data
     public static class FeeItemDTO implements Serializable {
         private static final long serialVersionUID = 1L;

@@ -8,57 +8,65 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutSessionVO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 付款人浏览器查询收银台展示响应。
- * @status : create
+ * 付款人浏览器查询收银台展示响应。
  */
 @Data
 public class HostedCheckoutSessionVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** Hosted Checkout 会话号，不包含访问令牌。 */
+    /**
+     * Hosted Checkout 会话号，不包含访问令牌。
+     */
     private String checkoutSessionId;
 
-    /** 付款页状态，用于前端选择展示、过期或结果页面。 */
+    /**
+     * 付款页状态，用于前端选择展示、过期或结果页面。
+     */
     private String pageState;
 
-    /** 付款页可公开展示的商户资料。 */
+    /**
+     * 付款页可公开展示的商户资料。
+     */
     private MerchantVO merchant;
 
-    /** 付款页订单金额与商品快照。 */
+    /**
+     * 付款页订单金额与商品快照。
+     */
     private OrderVO order;
 
-    /** 当前会话允许选择的支付方式。 */
+    /**
+     * 当前会话允许选择的支付方式。
+     */
     private List<PaymentMethodVO> paymentMethods;
 
-    /** 会话有效期、重试次数和轮询配置。 */
+    /**
+     * 会话有效期、重试次数和轮询配置。
+     */
     private CheckoutVO checkout;
 
-    /** 商户上送的付款人预填信息。 */
+    /**
+     * 商户上送的付款人预填信息。
+     */
     private PayerInfoVO payerInfo;
 
-    /** 商户上送的账单预填信息。 */
+    /**
+     * 商户上送的账单预填信息。
+     */
     private BillingInfoVO billingInfo;
 
-    /** 最近一次支付尝试结果。 */
+    /**
+     * 最近一次支付尝试结果。
+     */
     private HostedCheckoutPaymentResultVO paymentResult;
 
-    /** 卡数据加密公钥元数据和一次性 nonce，仅可支付状态返回。 */
+    /**
+     * 卡数据加密公钥元数据和一次性 nonce，仅可支付状态返回。
+     */
     private CardEncryptionVO cardEncryption;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CardEncryptionVO
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 卡encryption响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 浏览器加密卡数据所需的算法、公钥、密钥编号和随机数。
      */
     @Data
     public static class CardEncryptionVO implements Serializable {
@@ -98,13 +106,7 @@ public class HostedCheckoutSessionVO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PayerInfoVO
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : payer信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 首次交易冻结后可供收银台展示的付款人信息。
      */
     @Data
     public static class PayerInfoVO implements Serializable {
@@ -192,13 +194,7 @@ public class HostedCheckoutSessionVO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingInfoVO
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 账单信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 首次交易冻结后可供收银台展示的账单联系信息。
      */
     @Data
     public static class BillingInfoVO implements Serializable {
@@ -285,10 +281,14 @@ public class HostedCheckoutSessionVO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 商户展示名称，不包含商户密钥或内部状态。 */
+        /**
+         * 商户展示名称，不包含商户密钥或内部状态。
+         */
         private String displayName;
 
-        /** 商户 Logo 的受控公开地址。 */
+        /**
+         * 商户 Logo 的受控公开地址。
+         */
         private String logoUrl;
     }
 
@@ -300,25 +300,39 @@ public class HostedCheckoutSessionVO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 商户订单号。 */
+        /**
+         * 商户订单号。
+         */
         private String orderNo;
 
-        /** 订单主题。 */
+        /**
+         * 订单主题。
+         */
         private String subject;
 
-        /** 订单说明。 */
+        /**
+         * 订单说明。
+         */
         private String description;
 
-        /** 订单金额，单位为 {@link #currency} 主币种单位。 */
+        /**
+         * 订单金额，单位为 {@link #currency} 主币种单位。
+         */
         private BigDecimal amount;
 
-        /** ISO 4217 三位币种代码。 */
+        /**
+         * ISO 4217 三位币种代码。
+         */
         private String currency;
 
-        /** 币种小数位数，用于前端格式化，不用于金额重新计算。 */
+        /**
+         * 币种小数位数，用于前端格式化，不用于金额重新计算。
+         */
         private Integer currencyExponent;
 
-        /** 商品明细 JSON 快照，不包含卡号、CVV 或密钥。 */
+        /**
+         * 商品明细 JSON 快照，不包含卡号、CVV 或密钥。
+         */
         private String itemsJson;
     }
 
@@ -330,16 +344,24 @@ public class HostedCheckoutSessionVO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 平台支付方式编码。 */
+        /**
+         * 平台支付方式编码。
+         */
         private String paymentMethod;
 
-        /** 路由已限定的渠道编码；允许为空。 */
+        /**
+         * 路由已限定的渠道编码；允许为空。
+         */
         private String channelCode;
 
-        /** 可选卡品牌或支付品牌。 */
+        /**
+         * 可选卡品牌或支付品牌。
+         */
         private List<String> brands;
 
-        /** 当前支付方式的 3DS 执行模式。 */
+        /**
+         * 当前支付方式的 3DS 执行模式。
+         */
         private String threeDsMode;
     }
 
@@ -351,16 +373,24 @@ public class HostedCheckoutSessionVO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 带时区偏移的会话过期时间。 */
+        /**
+         * 带时区偏移的会话过期时间。
+         */
         private OffsetDateTime expireTime;
 
-        /** 带时区偏移的支付服务响应时间，用于校准浏览器倒计时。 */
+        /**
+         * 带时区偏移的支付服务响应时间，用于校准浏览器倒计时。
+         */
         private OffsetDateTime serverTime;
 
-        /** 当前会话是否允许支付失败后重试。 */
+        /**
+         * 当前会话是否允许支付失败后重试。
+         */
         private Boolean retryAllowed;
 
-        /** 状态轮询建议间隔，单位秒。 */
+        /**
+         * 状态轮询建议间隔，单位秒。
+         */
         private Integer pollingIntervalSeconds;
     }
 }

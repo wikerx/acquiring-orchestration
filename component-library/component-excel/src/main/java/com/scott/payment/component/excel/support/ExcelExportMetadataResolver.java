@@ -8,13 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelExportMetadataResolver
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 导出元数据解析器
- * @status : create
+ * Excel 导出元数据解析器
  *
  * <p>统一解析导出对象上的列注解，确保各业务导出使用相同的列定义机制。</p>
  */

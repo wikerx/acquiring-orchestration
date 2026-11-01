@@ -17,13 +17,7 @@ import java.util.List;
 import static com.scott.payment.openapi.result.OpenApiResponseFactory.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoCurrencyController
- * @date : 2026-06-12 11:47
- * @email : scott_x@163.com
- * @description : openAPIISO币种 HTTP 控制器，位于 商户开放接口服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 商户 ISO 币种字典查询控制器，返回平台当前支持的币种和精度信息。
  */
 @ApiVersion(apiVersion = 1)
 @RestController

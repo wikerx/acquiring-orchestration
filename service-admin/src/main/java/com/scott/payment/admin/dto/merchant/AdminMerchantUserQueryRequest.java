@@ -7,13 +7,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantUserQueryRequest
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户用户查询条件模型，位于 运营后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
- * @status : create
+ * 管理端商户用户查询条件模型，用于运营后台，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

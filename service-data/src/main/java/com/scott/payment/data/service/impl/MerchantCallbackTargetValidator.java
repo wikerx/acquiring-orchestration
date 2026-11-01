@@ -8,31 +8,42 @@ import org.springframework.stereotype.Component;
 import java.net.InetAddress;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantCallbackTargetValidator
- * @date : 2026-08-04 15:16
- * @email : scott_x@163.com
- * @description : service-data 商户回调出站目标校验器，在实际投递前按环境复核协议、DNS 全地址和公网边界。
- * @status : create
+ * 校验商户回调的出站协议、DNS 全地址和公网边界。
+ *
+ * <p>预发送校验阻止明显非法 URL，连接池 DNS Resolver 再校验实际用于建连的地址，
+ * 从而覆盖校验与连接之间的 DNS 重绑定窗口。</p>
  */
 @Component
 public class MerchantCallbackTargetValidator {
 
+    /**
+     * 根据运行环境确定公网 HTTPS 或开发放宽策略的共享 URL 规则。
+     */
     private final OutboundHttpUrlPolicy outboundPolicy;
 
-    /** 创建失败关闭的严格模式校验器，避免非 Spring 装配绕过生产网络边界。 */
+    /**
+     * 创建失败关闭的严格模式校验器，避免非 Spring 装配绕过生产网络边界。
+     */
     public MerchantCallbackTargetValidator() {
         this(new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
     }
 
-    /** 按 Spring active profiles 创建校验器；未知环境默认严格拒绝。 */
+    /**
+     * 按 Spring active profiles 创建校验器；未知环境默认严格拒绝。
+     *
+     * @param environment Spring 运行环境
+     */
     @Autowired
     public MerchantCallbackTargetValidator(Environment environment) {
         this(new OutboundHttpUrlPolicy(
                 OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles())));
     }
 
+    /**
+     * 创建使用指定 URL 策略的校验器，供地址解析安全测试使用。
+     *
+     * @param outboundPolicy 出站 URL 策略
+     */
     MerchantCallbackTargetValidator(OutboundHttpUrlPolicy outboundPolicy) {
         this.outboundPolicy = outboundPolicy;
     }

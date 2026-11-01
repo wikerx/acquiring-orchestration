@@ -7,13 +7,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthMfaBindConfirmRequest
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : OTP 绑定确认请求，位于 component-db 认证 DTO 层；使用短期登录票据和验证器验证码完成首次绑定。
- * @status : create
+ * OTP 绑定确认请求，位于 component-db 认证 DTO 层；使用短期登录票据和验证器验证码完成首次绑定。
  */
 @Data
 public class AuthMfaBindConfirmRequest implements Serializable {

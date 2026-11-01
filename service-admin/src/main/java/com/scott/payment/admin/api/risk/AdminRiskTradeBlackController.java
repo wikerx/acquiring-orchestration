@@ -21,13 +21,7 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskTradeBlackController
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 系统交易加黑接口，位于 service-admin 接口层，仅维护管理端交易加黑记录和解除操作。
- * @status : create
+ * 系统交易加黑接口，位于 service-admin 接口层，仅维护管理端交易加黑记录和解除操作。
  */
 @RestController
 @RequestMapping("/admin/risk/trade-black")

@@ -21,13 +21,7 @@ import java.util.UUID;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqProducer
- * @date : 2026-05-31 21:52
- * @email : scott_x@163.com
- * @description : Rocket MQ Producer 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
- * @status : create
+ * Rocket MQ Producer 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
  */
 @Slf4j
 @Service
@@ -244,7 +238,9 @@ public class RocketMqProducer implements MqProducer {
         requireSendOk(sendResult, destination, messageId);
     }
 
-    /** 校验冻结 JSON 投递所需的稳定路由、消息号和载荷。 */
+    /**
+     * 校验冻结 JSON 投递所需的稳定路由、消息号和载荷。
+     */
     private void validateSerializedMessage(String topic, String messageId, String payloadJson) {
         if (!StringUtils.hasText(topic) || !StringUtils.hasText(messageId)
                 || !StringUtils.hasText(payloadJson)) {
@@ -252,7 +248,9 @@ public class RocketMqProducer implements MqProducer {
         }
     }
 
-    /** 获取当前 RocketMQ 模板；未就绪时保留 Outbox 待重试事实。 */
+    /**
+     * 获取当前 RocketMQ 模板；未就绪时保留 Outbox 待重试事实。
+     */
     private RocketMQTemplate requireRocketMqTemplate() {
         RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
         if (rocketMQTemplate == null) {
@@ -261,12 +259,16 @@ public class RocketMqProducer implements MqProducer {
         return rocketMQTemplate;
     }
 
-    /** 生成 RocketMQ Spring 使用的 {@code topic[:tag]} 目标地址。 */
+    /**
+     * 生成 RocketMQ Spring 使用的 {@code topic[:tag]} 目标地址。
+     */
     private String destination(String topic, String tag) {
         return StringUtils.hasText(tag) ? topic + ":" + tag : topic;
     }
 
-    /** 构建不改写 payload 的冻结 JSON 消息，并补齐可追踪 Header。 */
+    /**
+     * 构建不改写 payload 的冻结 JSON 消息，并补齐可追踪 Header。
+     */
     private Message<String> buildSerializedMessage(String messageId,
                                                    String traceId,
                                                    int retryCount,

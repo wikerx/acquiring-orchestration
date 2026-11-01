@@ -26,17 +26,13 @@ import java.lang.reflect.Method;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiDiagnosticExceptionAdviceTests
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI IP 准入拒绝响应和诊断日志契约测试。
- * @status : create
+ * OpenAPI IP 准入拒绝响应和诊断日志契约测试。
  */
 class OpenApiDiagnosticExceptionAdviceTests {
 
-    /** 商户 OpenAPI 限流必须同时返回 A4001、HTTP 429 和动态 Retry-After。 */
+    /**
+     * 商户 OpenAPI 限流必须同时返回 A4001、HTTP 429 和动态 Retry-After。
+     */
     @Test
     void shouldReturnStandardRateLimitResponse() {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -54,7 +50,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
                 "Too many requests. Wait as instructed before retrying.");
     }
 
-    /** 方法错误切换为五位业务码时仍保留本版本原有 HTTP 200 契约。 */
+    /**
+     * 方法错误切换为五位业务码时仍保留本版本原有 HTTP 200 契约。
+     */
     @Test
     void shouldMapMethodNotAllowedBeforeControllerInvocation() {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -69,7 +67,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
         assertThat(response.getBody().getCode()).isEqualTo("A1006");
     }
 
-    /** Hosted Checkout JSON 接口使用付款人文案，不能返回内部或商户诊断说明。 */
+    /**
+     * Hosted Checkout JSON 接口使用付款人文案，不能返回内部或商户诊断说明。
+     */
     @Test
     void shouldUsePayerContractForHostedCheckoutJsonApi() {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -87,7 +87,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
                 .isEqualTo("This operation is unavailable. Contact the merchant.");
     }
 
-    /** Hosted Checkout JSON 缺参异常使用 PAYER 版 A1002，不向付款人暴露字段路径。 */
+    /**
+     * Hosted Checkout JSON 缺参异常使用 PAYER 版 A1002，不向付款人暴露字段路径。
+     */
     @Test
     void shouldUsePayerMessageForHostedCheckoutMissingParameter() {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -105,7 +107,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
         assertThat(response.getBody().getMessage()).doesNotContain("sessionId");
     }
 
-    /** 商户 OpenAPI 缺参响应应指出受控字段名，且不能拼接请求值或异常原文。 */
+    /**
+     * 商户 OpenAPI 缺参响应应指出受控字段名，且不能拼接请求值或异常原文。
+     */
     @Test
     void shouldExposeSafeMissingFieldToMerchant() {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -121,7 +125,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
                 .isEqualTo("Required request parameter is missing: orderInfo.orderId.");
     }
 
-    /** Bean Validation 只公开 BindingResult 的字段路径，不公开 rejectedValue 或校验异常原文。 */
+    /**
+     * Bean Validation 只公开 BindingResult 的字段路径，不公开 rejectedValue 或校验异常原文。
+     */
     @Test
     void shouldExposeSafeValidationFieldWithoutRejectedValue() throws Exception {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -145,7 +151,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
                 .doesNotContain("sensitive-rejected-value", "internal detail");
     }
 
-    /** 类型转换异常仅公开受控字段路径，不回显原始参数值或底层转换异常。 */
+    /**
+     * 类型转换异常仅公开受控字段路径，不回显原始参数值或底层转换异常。
+     */
     @Test
     void shouldExposeSafeTypeMismatchFieldWithoutRejectedValue() throws Exception {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -166,7 +174,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
                 .doesNotContain("sensitive-request-value", "internal conversion detail");
     }
 
-    /** 3DS HTML bridge 和渠道回调保持既有协议，不能被 Checkout 的 PAYER 规则误覆盖。 */
+    /**
+     * 3DS HTML bridge 和渠道回调保持既有协议，不能被 Checkout 的 PAYER 规则误覆盖。
+     */
     @Test
     void shouldPreserveLegacyContractForBridgeAndChannelCallback() {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -186,6 +196,9 @@ class OpenApiDiagnosticExceptionAdviceTests {
         assertThat(callbackResponse.getBody().getMessage()).isEqualTo("Forbidden");
     }
 
+    /**
+     * 验证异常终止日志只记录客户端 IP 摘要，并保留稳定错误上下文供排查。
+     */
     @Test
     void shouldKeepErrorEnvelopeAndLogNormalizedRequestIp() {
         OpenApiDiagnosticExceptionAdvice advice = newAdvice();
@@ -212,7 +225,8 @@ class OpenApiDiagnosticExceptionAdviceTests {
                     .extracting(ILoggingEvent::getFormattedMessage)
                     .anySatisfy(message -> assertThat(message)
                             .contains("event: OPENAPI_REQUEST_ABORTED")
-                            .contains("requestIp: 203.0.113.10"));
+                            .contains("requestIpDigest: 631f08140b24b727")
+                            .doesNotContain("requestIp: 203.0.113.10"));
         } finally {
             logger.detachAppender(appender);
             appender.stop();

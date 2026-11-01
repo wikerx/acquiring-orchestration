@@ -16,13 +16,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinLookupMapperSqlTest
- * @date : 2026-09-30
- * @email : scott_x@163.com
- * @description : 在 MySQL 兼容的内存库执行 BIN Mapper SQL，验证十一位区间、启用状态和最大主键语义。
- * @status : create
+ * 在 MySQL 兼容的内存库执行 BIN Mapper SQL，验证十一位区间、启用状态和最大主键语义。
  */
 class CardBinLookupMapperSqlTest {
 
@@ -119,7 +113,9 @@ class CardBinLookupMapperSqlTest {
         }
     }
 
-    /** 同精度且更新时间相同时，必须固定选择 ID 最大的增量记录。 */
+    /**
+     * 同精度且更新时间相同时，必须固定选择 ID 最大的增量记录。
+     */
     @Test
     void shouldPreferLargestIdWhenPrecisionAndUpdateTimeAreEqual() {
         JdbcDataSource dataSource = new JdbcDataSource();

@@ -8,13 +8,7 @@ import java.util.List;
 import com.scott.payment.settlement.entity.SettlementCandidateDO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementClearingFactService
- * @date : 2026-08-26 23:10
- * @email : scott_x@163.com
- * @description : 批量加载并校验一个结算批次的全部清分事实，不读取费用配置、Redis 或结算余额。
- * @status : create
+ * 批量加载并校验一个结算批次的全部清分事实，不读取费用配置、Redis 或结算余额。
  */
 public interface SettlementClearingFactService {
 
@@ -26,10 +20,14 @@ public interface SettlementClearingFactService {
      */
     SettlementBatchFacts load(SettlementBatchDO batch);
 
-    /** 加载并校验一个预审单独占候选的完整清分事实。 */
+    /**
+     * 加载并校验一个预审单独占候选的完整清分事实。
+     */
     SettlementBatchFacts loadReview(SettlementReviewOrderDO reviewOrder);
 
-    /** 提交事务中在关系表写入前校验已经 CAS 锁定的候选事实。 */
+    /**
+     * 提交事务中在关系表写入前校验已经 CAS 锁定的候选事实。
+     */
     SettlementBatchFacts loadReviewSelection(SettlementReviewOrderDO reviewOrder,
                                              List<SettlementCandidateDO> candidates);
 }

@@ -3,13 +3,7 @@ package com.scott.payment.openapi.service;
 import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutService
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 开放接口代付服务接口
- * @status : create
+ * 开放接口代付服务接口
  */
 public interface PayoutService {
 

@@ -14,13 +14,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisBusinessMetricsTests
- * @date : 2026-07-31 10:10
- * @email : scott_x@163.com
- * @description : 验证 Redis 业务指标的计数、耗时、枚举标签和敏感标签拒绝门禁
- * @status : create
+ * 验证 Redis 业务指标的计数、耗时、枚举标签和敏感标签拒绝门禁
  */
 class RedisBusinessMetricsTests {
 

@@ -7,13 +7,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MenuConverter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 后台菜单对象转换器，位于 service-admin 转换层；负责菜单实体到后台菜单 DTO 的字段映射。
- * @status : create
+ * 后台菜单对象转换器，位于 service-admin 转换层；负责菜单实体到后台菜单 DTO 的字段映射。
  */
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface MenuConverter {

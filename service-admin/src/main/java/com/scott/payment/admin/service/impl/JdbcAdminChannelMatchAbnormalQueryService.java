@@ -31,22 +31,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminChannelMatchAbnormalQueryService
- * @date : 2026-08-08 00:30
- * @email : scott_x@163.com
- * @description : 管理端勾兑异常 JDBC 查询实现，通过 transaction 逻辑数据源读取副本分片并在 service-admin 内完成案件分页、统计和详情装配。
- * @status : create
+ * 管理端勾兑异常 JDBC 查询实现，通过 transaction 逻辑数据源读取副本分片并在 service-admin 内完成案件分页、统计和详情装配。
  */
 @Service
 public class JdbcAdminChannelMatchAbnormalQueryService
         implements AdminChannelMatchAbnormalQueryService {
 
-    /** 交易数据统一以 Asia/Shanghai 解释并路由季度分片。 */
+    /**
+     * 交易数据统一以 Asia/Shanghai 解释并路由季度分片。
+     */
     private static final String STORAGE_TIME_ZONE = TransactionShardingProperties.REQUIRED_ZONE_ID;
 
-    /** 案件列表与详情固定投影，不接受外部字段名或表名。 */
+    /**
+     * 案件列表与详情固定投影，不接受外部字段名或表名。
+     */
     private static final String ABNORMAL_COLUMNS = """
             abnormal_event_id, transaction_id, operation_id, abnormal_type, abnormal_level,
             event_status, source_record_type, source_record_id, abnormal_description,
@@ -61,15 +59,25 @@ public class JdbcAdminChannelMatchAbnormalQueryService
             version, create_time, update_time
             """;
 
-    /** JDBC 查询模板，生产环境应用统一交易查询超时。 */
+    /**
+     * JDBC 查询模板，生产环境应用统一交易查询超时。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 交易逻辑数据源普通读执行器，由 ShardingSphere 决定副本节点。 */
+    /**
+     * 交易逻辑数据源普通读执行器，由 ShardingSphere 决定副本节点。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
-    /** 管理端现有交易详情查询服务，用于复用生命周期时间线。 */
+    /**
+     * 管理端现有交易详情查询服务，用于复用生命周期时间线。
+     */
     private final AdminTransactionQueryService transactionQueryService;
-    /** 单页允许返回的最大记录数。 */
+    /**
+     * 单页允许返回的最大记录数。
+     */
     private final int maxResultRows;
-    /** 当前已发布交易分片的最早起始时间。 */
+    /**
+     * 当前已发布交易分片的最早起始时间。
+     */
     private final LocalDateTime registeredNodeBegin;
 
     /**
@@ -140,7 +148,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
                 () -> detailNormalized(eventId, transactionDateTime));
     }
 
-    /** 在已归一化的存储时区范围内执行案件分页和统计查询。 */
+    /**
+     * 在已归一化的存储时区范围内执行案件分页和统计查询。
+     */
     private AbnormalSearchResponse searchNormalized(AbnormalQuery query) {
         String whereSql = whereSql(query);
         MapSqlParameterSource parameters = parameters(query);
@@ -169,7 +179,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         return response;
     }
 
-    /** 使用案件号和精确分片时间查询详情，并复用现有管理端交易时间线。 */
+    /**
+     * 使用案件号和精确分片时间查询详情，并复用现有管理端交易时间线。
+     */
     @SuppressWarnings("unchecked")
     private AbnormalDetailResponse detailNormalized(String eventId,
                                                     LocalDateTime transactionDateTime) {
@@ -201,7 +213,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         return response;
     }
 
-    /** 读取当前筛选条件下的案件状态和高风险活动案件数量。 */
+    /**
+     * 读取当前筛选条件下的案件状态和高风险活动案件数量。
+     */
     private AbnormalSummary loadSummary(String whereSql,
                                         MapSqlParameterSource parameters) {
         AbnormalSummary summary = jdbcTemplate.queryForObject("""
@@ -218,7 +232,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         return summary == null ? new AbnormalSummary() : summary;
     }
 
-    /** 归一化分页预算、案件时间范围和查询时区。 */
+    /**
+     * 归一化分页预算、案件时间范围和查询时区。
+     */
     private AbnormalQuery normalize(AbnormalQuery query) {
         AbnormalQuery safeQuery = query == null ? new AbnormalQuery() : query;
         safeQuery.setPageSize((int) Math.min(safeQuery.safePageSize(), maxResultRows));
@@ -243,7 +259,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         return safeQuery;
     }
 
-    /** 构建固定字段白名单下的案件筛选 SQL。 */
+    /**
+     * 构建固定字段白名单下的案件筛选 SQL。
+     */
     private String whereSql(AbnormalQuery query) {
         StringBuilder sql = new StringBuilder("""
                 WHERE deleted = 0
@@ -269,7 +287,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         return sql.toString();
     }
 
-    /** 构造案件查询全部命名参数，未启用的可空参数不会拼入 SQL。 */
+    /**
+     * 构造案件查询全部命名参数，未启用的可空参数不会拼入 SQL。
+     */
     private MapSqlParameterSource parameters(AbnormalQuery query) {
         return new MapSqlParameterSource()
                 .addValue("beginTime", query.getBeginTime())
@@ -290,12 +310,16 @@ public class JdbcAdminChannelMatchAbnormalQueryService
                 .addValue("minimumOccurrenceCount", query.getMinimumOccurrenceCount());
     }
 
-    /** 返回按下划线列名映射案件 DTO 的行映射器。 */
+    /**
+     * 返回按下划线列名映射案件 DTO 的行映射器。
+     */
     private RowMapper<AbnormalRecord> abnormalRecordMapper() {
         return BeanPropertyRowMapper.newInstance(AbnormalRecord.class);
     }
 
-    /** 返回案件状态统计行映射器，并把 SQL NULL 归一化为零。 */
+    /**
+     * 返回案件状态统计行映射器，并把 SQL NULL 归一化为零。
+     */
     private RowMapper<AbnormalSummary> abnormalSummaryMapper() {
         return (resultSet, rowNumber) -> {
             AbnormalSummary summary = new AbnormalSummary();
@@ -309,7 +333,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         };
     }
 
-    /** 解析页面查询时区，非法时区在访问数据库前拒绝。 */
+    /**
+     * 解析页面查询时区，非法时区在访问数据库前拒绝。
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : STORAGE_TIME_ZONE;
         try {
@@ -320,7 +346,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         }
     }
 
-    /** 兼容页面提交的 UTC+8、GMT+8 等短偏移格式。 */
+    /**
+     * 兼容页面提交的 UTC+8、GMT+8 等短偏移格式。
+     */
     private String normalizeZoneId(String zone) {
         String normalized = zone.trim();
         String upper = normalized.toUpperCase();
@@ -343,7 +371,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         return normalized;
     }
 
-    /** 将页面时区时间转换为交易库存储时区时间。 */
+    /**
+     * 将页面时区时间转换为交易库存储时区时间。
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime value,
                                               ZoneId sourceZone,
                                               ZoneId targetZone) {
@@ -351,7 +381,9 @@ public class JdbcAdminChannelMatchAbnormalQueryService
                 : value.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
-    /** 从已发布季度节点解析查询允许访问的最早时间。 */
+    /**
+     * 从已发布季度节点解析查询允许访问的最早时间。
+     */
     private LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
         if (physicalNodes == null || physicalNodes.isEmpty()) {
             return LocalDate.now().withDayOfMonth(1).atStartOfDay();
@@ -363,19 +395,27 @@ public class JdbcAdminChannelMatchAbnormalQueryService
                 .orElse(LocalDate.now().withDayOfMonth(1).atStartOfDay());
     }
 
-    /** 将 yyyy0Q 节点后缀转换为季度起始时间。 */
+    /**
+     * 将 yyyy0Q 节点后缀转换为季度起始时间。
+     */
     private LocalDateTime quarterBegin(String suffix) {
         int year = Integer.parseInt(suffix.substring(0, 4));
         int quarter = Integer.parseInt(suffix.substring(5, 6));
         return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
+    /**
+     * 追加受控文本字段的精确筛选条件。
+     */
     private void appendTextFilter(StringBuilder sql, String value, String fragment) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(fragment);
         }
     }
 
+    /**
+     * 原子完成一次性安全令牌并阻止重复使用。
+     */
     private LocalDateTime exclusiveEnd(LocalDateTime value) {
         return value.plusNanos(1_000_000L);
     }

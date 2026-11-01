@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskSchemaReadinessMapper
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 风控数据库契约只读 Mapper，在主库查询 information_schema，不读取业务表数据或执行 DDL。
- * @status : create
+ * 风控数据库契约只读 Mapper，在主库查询 information_schema，不读取业务表数据或执行 DDL。
  */
 public interface RiskSchemaReadinessMapper {
 

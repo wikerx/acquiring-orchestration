@@ -7,13 +7,7 @@ import com.scott.payment.component.job.executor.JobHandlerDescriptor;
 import com.scott.payment.component.job.model.JobExecuteResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AbstractJobHandler
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 历史任务处理器兼容抽象基类
- * @status : create
+ * 历史任务处理器兼容抽象基类
  */
 public abstract class AbstractJobHandler implements JobHandler {
 

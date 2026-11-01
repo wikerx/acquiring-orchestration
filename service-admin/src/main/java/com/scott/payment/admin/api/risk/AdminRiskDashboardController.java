@@ -18,13 +18,7 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskDashboardController
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 收单风控工作台接口，位于 service-admin 接口层，仅聚合管理端统计和配置变更日志。
- * @status : create
+ * 收单风控工作台接口，位于 service-admin 接口层，仅聚合管理端统计和配置变更日志。
  */
 @RestController
 @RequestMapping("/admin/risk")

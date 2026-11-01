@@ -42,13 +42,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorDatasourceApplicationService
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 管理端数据源监控应用服务，编排动态数据源运行快照、Hikari 指标、分表配置和外部控制台访问摘要，并负责脱敏导出。
- * @status : create
+ * 管理端数据源监控应用服务，编排动态数据源运行快照、Hikari 指标、分表配置和外部控制台访问摘要，并负责脱敏导出。
  */
 @Service
 public class AdminMonitorDatasourceApplicationService {
@@ -93,19 +87,29 @@ public class AdminMonitorDatasourceApplicationService {
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
-    /** 标准 JDBC Wrapper 连接池解析器。 */
+    /**
+     * 标准 JDBC Wrapper 连接池解析器。
+     */
     private final DataSourcePoolInspector dataSourcePoolInspector;
 
-    /** 外部 Druid 控制台入口解析器，不主动访问目标控制台。 */
+    /**
+     * 外部 Druid 控制台入口解析器，不主动访问目标控制台。
+     */
     private final DataSourceConsoleAccessProvider dataSourceConsoleAccessProvider;
 
-    /** 分表季度范围与当前季度解析器。 */
+    /**
+     * 分表季度范围与当前季度解析器。
+     */
     private final ShardingQuarterResolver shardingQuarterResolver = new ShardingQuarterResolver();
 
-    /** 分表物理表名解析器。 */
+    /**
+     * 分表物理表名解析器。
+     */
     private final ShardingPhysicalTableNameResolver shardingPhysicalTableNameResolver = new ShardingPhysicalTableNameResolver();
 
-    /** 分表 AUTO_INCREMENT 安全区间计算器。 */
+    /**
+     * 分表 AUTO_INCREMENT 安全区间计算器。
+     */
     private final ShardingAutoIncrementValueCalculator shardingAutoIncrementValueCalculator = new ShardingAutoIncrementValueCalculator();
 
     /**

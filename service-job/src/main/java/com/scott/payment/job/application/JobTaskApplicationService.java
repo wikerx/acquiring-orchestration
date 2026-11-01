@@ -16,13 +16,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskApplicationService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心任务管理应用服务
- * @status : create
+ * 调度中心任务管理应用服务
  */
 @Service
 public class JobTaskApplicationService {

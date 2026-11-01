@@ -13,13 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRateNormalizerTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证 DIRECT、INVERSE 和同币种报价统一固化为一单位源币种对应目标币种的批次直接汇率。
- * @status : create
+ * 验证 DIRECT、INVERSE 和同币种报价统一固化为一单位源币种对应目标币种的批次直接汇率。
  */
 class SettlementRateNormalizerTest {
 

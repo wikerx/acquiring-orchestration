@@ -8,19 +8,15 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EnabledEmailTemplateCacheCondition
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 已启用邮件模板缓存门禁条件，在模板变更窗口内阻止旧快照命中或重新回填
- * @status : create
+ * 已启用邮件模板缓存门禁条件，在模板变更窗口内阻止旧快照命中或重新回填
  */
 @Slf4j
 @Component
 public class EnabledEmailTemplateCacheCondition {
 
-    /** 缓存失效门禁；未启用 Redis 的最小运行环境中允许为空。 */
+    /**
+     * 缓存失效门禁；未启用 Redis 的最小运行环境中允许为空。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
     /**

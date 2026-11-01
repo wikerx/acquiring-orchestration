@@ -1,13 +1,7 @@
 package com.scott.payment.component.db.reference.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLookupResult
- * @date : 2026-08-11 15:35
- * @email : scott_x@163.com
- * @description : 公共 IP 归属检索结果，区分合法输入未命中与平台配置或数据访问异常
- * @status : create
+ * 公共 IP 归属检索结果，区分合法输入未命中与平台配置或数据访问异常
  *
  * @param matched         是否命中归属区间，不允许为空
  * @param ipAddress       规范化后的精确 IP，可识别字段，日志中不得完整输出

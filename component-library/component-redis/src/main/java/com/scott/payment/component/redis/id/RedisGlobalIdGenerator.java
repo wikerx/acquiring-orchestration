@@ -21,13 +21,7 @@ import java.util.regex.Pattern;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisGlobalIdGenerator
- * @date : 2026-06-25 10:37
- * @email : scott_x@163.com
- * @description : 基于 Redis TIME 与单 Hash Lua 生成 22 位全局 ID，Redis 故障或状态配置异常时禁止本地降级
- * @status : create
+ * 基于 Redis TIME 与单 Hash Lua 生成 22 位全局 ID，Redis 故障或状态配置异常时禁止本地降级
  */
 public class RedisGlobalIdGenerator implements GlobalIdGenerator {
 

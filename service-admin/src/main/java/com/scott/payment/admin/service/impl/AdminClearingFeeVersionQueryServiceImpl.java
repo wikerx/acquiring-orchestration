@@ -19,13 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminClearingFeeVersionQueryServiceImpl
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 从管理库副本读取清分重算所需的最小费用版本描述。
- * @status : create
+ * 从管理库副本读取清分重算所需的最小费用版本描述。
  */
 @Service
 public class AdminClearingFeeVersionQueryServiceImpl implements AdminClearingFeeVersionQueryService {
@@ -43,6 +37,9 @@ public class AdminClearingFeeVersionQueryServiceImpl implements AdminClearingFee
     private final FeePlanMapper planMapper;
     private final FeePlanVersionMapper versionMapper;
 
+    /**
+     * 创建管理端清分费用版本查询服务。
+     */
     public AdminClearingFeeVersionQueryServiceImpl(FeePlanMapper planMapper,
                                                    FeePlanVersionMapper versionMapper) {
         this.planMapper = planMapper;
@@ -94,6 +91,9 @@ public class AdminClearingFeeVersionQueryServiceImpl implements AdminClearingFee
         return response;
     }
 
+    /**
+     * 将清分费用版本实体转换为下拉选项。
+     */
     private RecalculationVersionOption toOption(FeePlanVersionDO version) {
         RecalculationVersionOption option = new RecalculationVersionOption();
         option.setVersionId(version.getId());

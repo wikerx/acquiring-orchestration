@@ -14,13 +14,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDT
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 内部服务。
- * @status : create
+ * Hosted Checkout 内部服务。
  */
 public interface PaymentCheckoutService {
 
@@ -64,9 +58,13 @@ public interface PaymentCheckoutService {
      */
     PaymentCheckoutPaymentResultDTO handleThreeDsReturn(PaymentCheckoutThreeDsReturnCommandDTO commandDTO);
 
-    /** 扫描并关闭超过付款期限、尚未进入渠道处理的收银台订单。 */
+    /**
+     * 扫描并关闭超过付款期限、尚未进入渠道处理的收银台订单。
+     */
     int expireDue(LocalDateTime now, int limit);
 
-    /** 按会话 MID 能力解析并校验卡 BIN 品牌。 */
+    /**
+     * 按会话 MID 能力解析并校验卡 BIN 品牌。
+     */
     PaymentCheckoutCardBinResultDTO resolveCardBin(PaymentCheckoutCardBinCommandDTO commandDTO);
 }

@@ -3,13 +3,7 @@ package com.scott.payment.openapi.enums;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRiskLevelEnum
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 商户风险等级枚举，数据库使用数字码存储，避免固定状态字段使用字符串造成索引和比较成本浪费
- * @status : create
+ * 商户风险等级枚举，数据库使用数字码存储，避免固定状态字段使用字符串造成索引和比较成本浪费
  */
 
 @Getter

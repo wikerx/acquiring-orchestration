@@ -15,7 +15,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证支付与 OpenAPI 共用的 Card BIN 启动初始化门禁。 */
+/**
+ * 验证支付与 OpenAPI 共用的 Card BIN 启动初始化门禁。
+ */
 class CardBinRangeIndexInitializerTests {
 
     @Test

@@ -26,13 +26,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminJobSchedulerApplicationService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务调度应用编排服务
- * @status : create
+ * 管理后台任务调度应用编排服务
  */
 @Service
 public class AdminJobSchedulerApplicationService {

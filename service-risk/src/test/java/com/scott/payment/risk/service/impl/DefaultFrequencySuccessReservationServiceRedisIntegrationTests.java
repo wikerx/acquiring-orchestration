@@ -21,23 +21,24 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultFrequencySuccessReservationServiceRedisIntegrationTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 真实 Redis 下频控成功名额脚本的原子性和终态幂等集成测试。
- * @status : create
+ * 真实 Redis 下频控成功名额脚本的原子性和终态幂等集成测试。
  */
 @EnabledIfSystemProperty(named = "risk.redis.standalone.integration.enabled", matches = "true")
 class DefaultFrequencySuccessReservationServiceRedisIntegrationTests {
 
-    /** 隔离 Redis 集成测试使用的连接工厂。 */
+    /**
+     * 隔离 Redis 集成测试使用的连接工厂。
+     */
     private static LettuceConnectionFactory connectionFactory;
 
-    /** 使用真实 Lua 脚本执行预留、确认和释放的被测服务。 */
+    /**
+     * 使用真实 Lua 脚本执行预留、确认和释放的被测服务。
+     */
     private static DefaultFrequencySuccessReservationService service;
 
+    /**
+     * 连接环境指定的单节点 Redis，并初始化频控服务测试依赖。
+     */
     @BeforeAll
     static void setUpRedis() {
         int port = Integer.parseInt(System.getProperty("risk.redis.standalone.port"));
@@ -52,6 +53,9 @@ class DefaultFrequencySuccessReservationServiceRedisIntegrationTests {
         service = new DefaultFrequencySuccessReservationService(redisTemplate, properties);
     }
 
+    /**
+     * 关闭单节点 Redis 连接并释放测试资源。
+     */
     @AfterAll
     static void closeRedis() {
         if (connectionFactory != null) {
@@ -59,6 +63,9 @@ class DefaultFrequencySuccessReservationServiceRedisIntegrationTests {
         }
     }
 
+    /**
+     * 验证频控名额可预占、释放和确认，且成功终态不可被迟到失败覆盖。
+     */
     @Test
     void shouldReserveReleaseConfirmAndProtectTerminalState() {
         String merchantId = "merchant-" + UUID.randomUUID();
@@ -85,6 +92,9 @@ class DefaultFrequencySuccessReservationServiceRedisIntegrationTests {
                 .isEqualTo(FrequencySuccessReservationResult.Outcome.LIMIT_EXCEEDED);
     }
 
+    /**
+     * 验证并发竞争下成功名额预占数不会超过规则上限。
+     */
     @Test
     void shouldNeverReserveMoreThanSuccessLimitUnderConcurrency() throws Exception {
         String merchantId = "merchant-concurrent-" + UUID.randomUUID();
@@ -113,6 +123,9 @@ class DefaultFrequencySuccessReservationServiceRedisIntegrationTests {
         }
     }
 
+    /**
+     * 验证后置维度满额时释放此前已取得的多维频控名额。
+     */
     @Test
     void shouldReleasePartialMultiDimensionReservationAfterLaterDimensionIsFull() {
         String merchantId = "merchant-partial-" + UUID.randomUUID();

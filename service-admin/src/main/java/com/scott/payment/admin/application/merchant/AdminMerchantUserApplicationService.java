@@ -8,19 +8,16 @@ import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantUserApplicationService
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户用户应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端商户用户应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminMerchantUserApplicationService {
 
     private final AdminMerchantUserService adminMerchantUserService;
 
+    /**
+     * 创建管理端商户用户应用服务。
+     */
     public AdminMerchantUserApplicationService(AdminMerchantUserService adminMerchantUserService) {
         this.adminMerchantUserService = adminMerchantUserService;
     }

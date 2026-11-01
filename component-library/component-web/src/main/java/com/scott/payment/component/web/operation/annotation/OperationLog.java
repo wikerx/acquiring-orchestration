@@ -9,13 +9,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLog
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统操作日志自动采集注解
- * @status : create
+ * 管理类系统操作日志自动采集注解
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

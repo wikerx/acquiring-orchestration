@@ -13,16 +13,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistDTOs
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单管理 DTO 集合，位于 service-admin 接口传输层，仅承载精确 IP 配置和审核状态。
- * @status : create
+ * 商户 OpenAPI IP 白名单管理 DTO 集合，位于 service-admin 接口传输层，仅承载精确 IP 配置和审核状态。
  */
 public final class AdminMerchantIpWhitelistDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private AdminMerchantIpWhitelistDTOs() {
     }
 

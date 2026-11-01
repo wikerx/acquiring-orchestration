@@ -9,13 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationMapper
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知任务 Mapper，只负责从主库抢占任务以及按乐观锁推进通知执行状态
- * @status : create
+ * service-data 商户通知任务 Mapper，只负责从交易主库抢占任务并按乐观锁推进通知状态。
  */
 public interface DataMerchantNotificationMapper {
 
@@ -78,7 +72,17 @@ public interface DataMerchantNotificationMapper {
             @Param("transactionDateTime") LocalDateTime transactionDateTime,
             @Param("now") LocalDateTime now);
 
-    /** 查询与自动重试消息版本完全一致且已到期的通知任务。 */
+    /**
+     * 查询与自动重试消息版本完全一致且已到期的通知任务。
+     *
+     * @param transactionId 平台交易 ID
+     * @param notifyId 通知任务唯一标识
+     * @param transactionDateTime 原始交易分片时间
+     * @param expectedVersion 创建重试事件时冻结的任务版本
+     * @param attemptNo 重试事件要求执行的尝试序号
+     * @param now 当前平台时间
+     * @return 版本、状态和尝试序号均匹配的任务；不满足时返回 null
+     */
     @Select("""
             SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
                    callback_url, payload_json, target_url_hash, target_url_masked,
@@ -193,7 +197,11 @@ public interface DataMerchantNotificationMapper {
     /**
      * 使用分片时间、版本和允许状态抢占后台人工重发；人工操作不恢复已经结束的自动计划。
      *
+     * @param id 通知任务主键
+     * @param transactionDateTime 原始交易分片时间
+     * @param expectedVersion 读取任务时的乐观锁版本
      * @param callbackEventId 人工 MQ 事件号
+     * @param now 抢占时间
      * @return 1 表示抢占成功，0 表示任务状态或版本已经变化
      */
     @Update("""
@@ -314,6 +322,11 @@ public interface DataMerchantNotificationMapper {
     /**
      * 使用候选读取时的主键、分片时间和版本号回收一条超时任务。
      *
+     * @param id 通知任务主键
+     * @param transactionDateTime 原始交易分片时间
+     * @param expectedVersion 候选读取时的任务版本
+     * @param staleBefore PROCESSING 更新时间上界
+     * @param now 本次恢复时间
      * @return 1 表示恢复成功，0 表示任务已被其他实例推进
      */
     @Update("""

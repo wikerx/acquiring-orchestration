@@ -14,13 +14,7 @@ import java.util.ArrayList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminHolidayCalendarCacheSerializationTests
- * @date : 2026-08-18 20:20
- * @email : scott_x@163.com
- * @description : 验证节假日日历月视图满足统一 Redis 精确类型白名单和往返序列化约束。
- * @status : create
+ * 验证节假日日历月视图满足统一 Redis 精确类型白名单和往返序列化约束。
  */
 @Slf4j
 class AdminHolidayCalendarCacheSerializationTests {

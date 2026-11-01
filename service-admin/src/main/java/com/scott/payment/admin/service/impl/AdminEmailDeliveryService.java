@@ -21,36 +21,48 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailDeliveryService
- * @date : 2026-08-02 23:40
- * @email : scott_x@163.com
- * @description : 通过数据库 CAS 驱动 Admin 邮件投递、失败退避和超时恢复，MQ 消息只携带记录定位键
- * @status : create
+ * 通过数据库 CAS 驱动 Admin 邮件投递、失败退避和超时恢复，MQ 消息只携带记录定位键
  */
 @Service
 public class AdminEmailDeliveryService {
 
-    /** Admin 邮件记录固定应用边界。 */
+    /**
+     * Admin 邮件记录固定应用边界。
+     */
     private static final String APP_CODE = "ADMIN";
-    /** SMTP 或内容解密失败的稳定业务错误码。 */
+    /**
+     * SMTP 或内容解密失败的稳定业务错误码。
+     */
     private static final String SEND_FAILED_CODE = "EMAIL_SEND_FAILED";
 
-    /** 邮件发送记录 CAS Mapper。 */
+    /**
+     * 邮件发送记录 CAS Mapper。
+     */
     private final EmailSendRecordMapper recordMapper;
-    /** 冻结 SMTP 配置的邮件账户 Mapper。 */
+    /**
+     * 冻结 SMTP 配置的邮件账户 Mapper。
+     */
     private final EmailAccountMapper accountMapper;
-    /** 不承担重试决策的 SMTP 适配器。 */
+    /**
+     * 不承担重试决策的 SMTP 适配器。
+     */
     private final AdminSmtpEmailSender smtpEmailSender;
-    /** 投递正文解密组件。 */
+    /**
+     * 投递正文解密组件。
+     */
     private final EmailPayloadCrypto payloadCrypto;
-    /** 退避、超时和批量扫描配置。 */
+    /**
+     * 退避、超时和批量扫描配置。
+     */
     private final EmailDeliveryProperties properties;
-    /** 与邮件记录同事务写入的可靠 Outbox 发布器。 */
+    /**
+     * 与邮件记录同事务写入的可靠 Outbox 发布器。
+     */
     private final ReliableMqPublisher reliableMqPublisher;
 
-    /** 创建 Admin 邮件投递状态机服务。 */
+    /**
+     * 创建 Admin 邮件投递状态机服务。
+     */
     public AdminEmailDeliveryService(EmailSendRecordMapper recordMapper,
                                      EmailAccountMapper accountMapper,
                                      AdminSmtpEmailSender smtpEmailSender,
@@ -65,12 +77,16 @@ public class AdminEmailDeliveryService {
         this.reliableMqPublisher = reliableMqPublisher;
     }
 
-    /** 在当前业务事务中写入不含敏感内容的邮件投递 Outbox。 */
+    /**
+     * 在当前业务事务中写入不含敏感内容的邮件投递 Outbox。
+     */
     public void enqueue(EmailSendRecordDO record) {
         reliableMqPublisher.publish(MqTopic.EMAIL_DELIVERY, MqTag.ADMIN_EMAIL_DELIVERY, toMessage(record));
     }
 
-    /** 恢复超时记录并将到期重试与新 Outbox 放在同一事务提交。 */
+    /**
+     * 恢复超时记录并将到期重试与新 Outbox 放在同一事务提交。
+     */
     @Transactional(rollbackFor = Exception.class)
     public int recoverAndRequeue() {
         LocalDateTime now = LocalDateTime.now();
@@ -89,7 +105,9 @@ public class AdminEmailDeliveryService {
         return requeued;
     }
 
-    /** 消费一条定位消息；重复消息由记录当前状态吸收。 */
+    /**
+     * 消费一条定位消息；重复消息由记录当前状态吸收。
+     */
     public boolean deliver(EmailDeliveryMessage message) {
         if (!isValid(message)) {
             return true;
@@ -129,7 +147,9 @@ public class AdminEmailDeliveryService {
                 end, elapsedMillis(start, end)) == 1;
     }
 
-    /** 仅接受带完整定位键的 Admin 消息，拒绝跨应用消费。 */
+    /**
+     * 仅接受带完整定位键的 Admin 消息，拒绝跨应用消费。
+     */
     private boolean isValid(EmailDeliveryMessage message) {
         return message != null
                 && message.getRecordId() != null
@@ -137,7 +157,9 @@ public class AdminEmailDeliveryService {
                 && APP_CODE.equalsIgnoreCase(message.getAppCode());
     }
 
-    /** 将邮件记录转换为不含正文、地址和 SMTP 凭据的定位消息。 */
+    /**
+     * 将邮件记录转换为不含正文、地址和 SMTP 凭据的定位消息。
+     */
     private EmailDeliveryMessage toMessage(EmailSendRecordDO record) {
         EmailDeliveryMessage message = new EmailDeliveryMessage();
         message.setRecordId(record.getId());
@@ -148,7 +170,9 @@ public class AdminEmailDeliveryService {
         return message;
     }
 
-    /** 计算非负 SMTP 执行耗时。 */
+    /**
+     * 计算非负 SMTP 执行耗时。
+     */
     private long elapsedMillis(LocalDateTime start, LocalDateTime end) {
         return Math.max(Duration.between(start, end).toMillis(), 0L);
     }

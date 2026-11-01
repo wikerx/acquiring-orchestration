@@ -11,13 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalClientPropertiesTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Admin 结算内部客户端启动时拒绝不可信地址、身份和超时配置。
- * @status : create
+ * 验证 Admin 结算内部客户端启动时拒绝不可信地址、身份和超时配置。
  */
 class SettlementInternalClientPropertiesTest {
 

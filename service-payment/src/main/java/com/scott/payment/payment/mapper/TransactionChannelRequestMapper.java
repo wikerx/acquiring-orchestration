@@ -11,13 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelRequestMapper
- * @date : 2026-07-14 19:40
- * @email : scott_x@163.com
- * @description : 交易渠道请求 Mapper，位于 service-payment 数据访问层，仅访问 transaction_channel_request 逻辑表，季度路由由 ShardingSphere 负责。
- * @status : create
+ * 交易渠道请求 Mapper，位于 service-payment 数据访问层，仅访问 transaction_channel_request 逻辑表，季度路由由 ShardingSphere 负责。
  */
 public interface TransactionChannelRequestMapper extends BaseMapper<TransactionChannelRequestDO> {
 
@@ -90,7 +84,9 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
                                @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                @Param("now") LocalDateTime now);
 
-    /** 认证前失败只允许从 INIT 抢占，不能覆盖可能已到达 PSP 的 SENT 请求。 */
+    /**
+     * 认证前失败只允许从 INIT 抢占，不能覆盖可能已到达 PSP 的 SENT 请求。
+     */
     @Update("""
             UPDATE transaction_channel_request
             SET request_status = 'FAILED',

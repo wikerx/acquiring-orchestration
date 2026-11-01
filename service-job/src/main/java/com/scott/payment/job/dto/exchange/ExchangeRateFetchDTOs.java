@@ -8,13 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateFetchDTOs
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : Exchange Rate Fetch DTOs 聚合类型，位于 调度任务服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * Exchange Rate Fetch DTOs 聚合类型，位于 调度任务服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class ExchangeRateFetchDTOs {
 
@@ -51,15 +45,21 @@ public final class ExchangeRateFetchDTOs {
     @Data
     public static class RawRateItem {
 
-        /** 外部汇率源返回的币种名称，例如中行页面中的“美元”。 */
+        /**
+         * 外部汇率源返回的币种名称，例如中行页面中的“美元”。
+         */
 
         private String sourceCurrencyName;
 
-        /** 平台 ISO 4217 原始币种代码，由汇率源币种映射表补齐。 */
+        /**
+         * 平台 ISO 4217 原始币种代码，由汇率源币种映射表补齐。
+         */
 
         private String baseCurrency;
 
-        /** 平台 ISO 4217 目标币种代码，中行来源固定为 CNY。 */
+        /**
+         * 平台 ISO 4217 目标币种代码，中行来源固定为 CNY。
+         */
 
         private String quoteCurrency;
 

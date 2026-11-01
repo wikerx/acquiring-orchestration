@@ -40,20 +40,12 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutServiceImpl
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 开放接口默认实现。
- * @status : create
+ * Hosted Checkout 开放接口默认实现。
  */
 @Slf4j
 @Service
@@ -79,7 +71,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      */
     private static final String HEADER_USER_AGENT = "User-Agent";
 
-    /** 浏览器声明可接收内容类型的请求头，MPGS PAYER_BROWSER 认证要求提供。 */
+    /**
+     * 浏览器声明可接收内容类型的请求头，MPGS PAYER_BROWSER 认证要求提供。
+     */
     private static final String HEADER_ACCEPT = "Accept";
 
     /**
@@ -102,7 +96,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      */
     private final HostedCheckoutProperties properties;
 
-    /** Hosted Checkout 商户 URL 与平台前端地址安全策略。 */
+    /**
+     * Hosted Checkout 商户 URL 与平台前端地址安全策略。
+     */
     private final HostedCheckoutUrlPolicy urlPolicy;
 
     /**
@@ -283,7 +279,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return toPaymentResultVO(response);
     }
 
-    /** 卡 BIN 查询只传递前缀和令牌摘要，不接收或记录完整 PAN。 */
+    /**
+     * 卡 BIN 查询只传递前缀和令牌摘要，不接收或记录完整 PAN。
+     */
     @Override
     public HostedCheckoutCardBinVO resolveCardBin(HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
         PaymentCheckoutClientDTOs.CardBinRequest clientRequest = new PaymentCheckoutClientDTOs.CardBinRequest();
@@ -349,12 +347,16 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return target;
     }
 
-    /** 将允许明文展示的收银台预填对象固化为 JSON。 */
+    /**
+     * 将允许明文展示的收银台预填对象固化为 JSON。
+     */
     private String toJson(Object source) {
         return source == null ? null : JsonUtils.toJsonString(source);
     }
 
-    /** 原样转换浏览器卡数据密文信封，OpenAPI 不持有对应私钥。 */
+    /**
+     * 原样转换浏览器卡数据密文信封，OpenAPI 不持有对应私钥。
+     */
     private PaymentCheckoutClientDTOs.CardDataEnvelope toClientCardDataEnvelope(
             HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO source) {
         if (source == null) {
@@ -410,12 +412,16 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return vo;
     }
 
-    /** 通过 JSON 结构转换只回显外部 VO 明确定义的字段。 */
+    /**
+     * 通过 JSON 结构转换只回显外部 VO 明确定义的字段。
+     */
     private <T> T copySnapshot(Object source, Class<T> targetType) {
         return source == null ? null : JsonUtils.parseObject(JsonUtils.toJsonString(source), targetType);
     }
 
-    /** 转换可选快照集合；未提供时保持 null 以满足条件返回契约。 */
+    /**
+     * 转换可选快照集合；未提供时保持 null 以满足条件返回契约。
+     */
     private <T> List<T> copySnapshotList(List<?> source, Class<T> targetType) {
         return source == null ? null : source.stream()
                 .map(item -> copySnapshot(item, targetType))
@@ -443,12 +449,10 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     }
 
     /**
-     * 构造{@code toCardEncryptionVO}对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
+     * 将支付核心返回的卡数据加密参数转换为付款人页面所需视图。
+     *
+     * @param source 支付核心返回的算法、密钥编号、公钥和随机数
+     * @return 收银台卡数据加密参数；来源为空时返回 {@code null}
      */
     private HostedCheckoutSessionVO.CardEncryptionVO toCardEncryptionVO(
             PaymentCheckoutClientDTOs.CardEncryption source) {
@@ -463,6 +467,12 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return target;
     }
 
+    /**
+     * 将首次交易冻结的付款人快照转换为收银台展示对象。
+     *
+     * @param source 支付核心付款人快照
+     * @return 收银台付款人展示信息；来源为空时返回 {@code null}
+     */
     private HostedCheckoutSessionVO.PayerInfoVO toPayerInfoVO(PaymentCheckoutClientDTOs.PayerInfo source) {
         if (source == null) {
             return null;
@@ -481,6 +491,12 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return target;
     }
 
+    /**
+     * 将首次交易冻结的账单信息快照转换为收银台展示对象。
+     *
+     * @param source 支付核心账单信息快照
+     * @return 收银台账单展示信息；来源为空时返回 {@code null}
+     */
     private HostedCheckoutSessionVO.BillingInfoVO toBillingInfoVO(PaymentCheckoutClientDTOs.BillingInfo source) {
         if (source == null) {
             return null;
@@ -637,7 +653,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return target;
     }
 
-    /** 转换终态浏览器 Form POST 动作，不把 redirectUrl 当作服务端通知地址。 */
+    /**
+     * 转换终态浏览器 Form POST 动作，不把 redirectUrl 当作服务端通知地址。
+     */
     private HostedCheckoutPaymentResultVO.ActionVO toActionVO(PaymentCheckoutClientDTOs.Action source) {
         if (source == null) {
             return null;
@@ -673,7 +691,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         }
     }
 
-    /** payerInfo.ipAddress 必须是单个规范 IPv4/IPv6 字面量，禁止接受代理链或附加文本。 */
+    /**
+     * payerInfo.ipAddress 必须是单个规范 IPv4/IPv6 字面量，禁止接受代理链或附加文本。
+     */
     private void validatePayerIpAddress(HostedCheckoutSessionCreateRequestDTO requestDTO) {
         String payerIp = requestDTO.getPayerInfo() == null ? null : requestDTO.getPayerInfo().getIpAddress();
         if (!StringUtils.hasText(payerIp)) {
@@ -692,7 +712,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         }
     }
 
-    /** 商户通知和浏览器结果页地址必须满足当前环境的 HTTPS 策略。 */
+    /**
+     * 商户通知和浏览器结果页地址必须满足当前环境的 HTTPS 策略。
+     */
     private void validateTransactionUrls(HostedCheckoutSessionCreateRequestDTO requestDTO) {
         HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO transactionInfo = requestDTO.getTransactionInfo();
         if (transactionInfo == null) {
@@ -702,7 +724,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         urlPolicy.validateMerchantUrl(transactionInfo.getRedirectUrl(), "transactionInfo.redirectUrl");
     }
 
-    /** 校验金额只保留最多两位有效小数，并继续服从币种自身辅币位规则。 */
+    /**
+     * 校验金额只保留最多两位有效小数，并继续服从币种自身辅币位规则。
+     */
     private void validateCreateRequestAmounts(HostedCheckoutSessionCreateRequestDTO requestDTO) {
         HostedCheckoutSessionCreateRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
         validateAmount(orderInfo.getAmount(), orderInfo.getCurrency(), "orderInfo.amount");
@@ -724,7 +748,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         }
     }
 
-    /** 拒绝非正金额、第三位非零小数和超过 ISO 币种辅币位的金额。 */
+    /**
+     * 拒绝非正金额、第三位非零小数和超过 ISO 币种辅币位的金额。
+     */
     private void validateAmount(java.math.BigDecimal amount, String currency, String field) {
         if (amount == null) {
             return;
@@ -878,7 +904,12 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setUserAgentHash(sha256Hex(request == null ? null : request.getHeader(HEADER_USER_AGENT)));
     }
 
-    /** Normalize the payer IP before it enters the transient 3DS provider call chain. */
+    /**
+     * 在付款方 IP 进入临时 3DS 渠道调用链前完成规范化。
+     *
+     * @param request 当前 HTTP 请求
+     * @return 规范化后的精确 IP 地址
+     */
     private String normalizedClientIp(HttpServletRequest request) {
         String clientIp = resolveClientIp(request);
         if (!StringUtils.hasText(clientIp)) {
@@ -895,33 +926,43 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
 
     /**
      * 生成脱敏后的 browserInfo JSON，供 MPGS 3DS 请求和审计快照使用。
+     *
+     * @param context 浏览器采集的 3DS 上下文
+     * @return 固定字段结构的浏览器信息 JSON
      */
     private String browserInfoJson(HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
         HttpServletRequest request = currentRequest();
-        Map<String, Object> browserInfo = new LinkedHashMap<>();
-        browserInfo.put("userAgent", request == null ? null : request.getHeader(HEADER_USER_AGENT));
-        browserInfo.put("acceptHeaders", request == null ? null : request.getHeader(HEADER_ACCEPT));
-        if (context != null) {
-            browserInfo.put("challengeWindowSize", context.getChallengeWindowSize());
-            browserInfo.put("colorDepth", context.getColorDepth());
-            browserInfo.put("javaEnabled", context.getJavaEnabled());
-            browserInfo.put("javaScriptEnabled", context.getJavaScriptEnabled());
-            browserInfo.put("language", context.getLanguage());
-            browserInfo.put("screenHeight", context.getScreenHeight());
-            browserInfo.put("screenWidth", context.getScreenWidth());
-            browserInfo.put("timezoneOffset", context.getTimezoneOffset());
-        }
+        BrowserInfoSnapshot browserInfo = new BrowserInfoSnapshot(
+                request == null ? null : request.getHeader(HEADER_USER_AGENT),
+                request == null ? null : request.getHeader(HEADER_ACCEPT),
+                context == null ? null : context.getChallengeWindowSize(),
+                context == null ? null : context.getColorDepth(),
+                context == null ? null : context.getJavaEnabled(),
+                context == null ? null : context.getJavaScriptEnabled(),
+                context == null ? null : context.getLanguage(),
+                context == null ? null : context.getScreenHeight(),
+                context == null ? null : context.getScreenWidth(),
+                context == null ? null : context.getTimezoneOffset()
+        );
         return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(browserInfo));
     }
 
     /**
      * 生成脱敏后的设备信息 JSON，避免保存完整浏览器指纹。
+     *
+     * @param context 浏览器采集的设备上下文
+     * @return 经统一脱敏规则处理的设备信息 JSON
      */
     private String deviceInfoJson(HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
         return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(context));
     }
 
-    /** 生成支付提交幂等指纹，只使用信封元数据，不解密或派生卡号信息。 */
+    /**
+     * 生成支付提交幂等指纹，只使用信封元数据，不解密或派生卡号信息。
+     *
+     * @param requestDTO 收银台支付提交请求
+     * @return 可重复计算的幂等请求指纹
+     */
     private String requestFingerprintWithoutRawCard(HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest requestDTO) {
         HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO envelope = requestDTO.getCardDataEnvelope();
         return sha256Hex(requestDTO.getCheckoutSessionId() + ":" + requestDTO.getAttemptRequestId() + ":"
@@ -931,22 +972,28 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
 
     /**
      * 生成创建会话来源摘要，只记录 hash 和接口上下文，不记录完整浏览器指纹。
+     *
+     * @return 收银台创建请求来源摘要 JSON
      */
     private String requestSourceSummary() {
         HttpServletRequest request = currentRequest();
-        java.util.Map<String, Object> summary = new java.util.LinkedHashMap<>();
-        summary.put("path", request == null ? null : request.getRequestURI());
-        summary.put("clientIpHash", sha256Hex(resolveClientIp(request)));
-        summary.put("originHash", sha256Hex(request == null ? null : request.getHeader(HEADER_ORIGIN)));
-        summary.put("refererHash", sha256Hex(request == null ? null : request.getHeader(HEADER_REFERER)));
-        summary.put("apiVersion", requestAttribute(OpenApiRequestAttributes.API_VERSION));
-        summary.put("interfaceType", requestAttribute(OpenApiRequestAttributes.INTERFACE_TYPE));
+        CheckoutRequestSourceSummary summary = new CheckoutRequestSourceSummary(
+                request == null ? null : request.getRequestURI(),
+                sha256Hex(resolveClientIp(request)),
+                sha256Hex(request == null ? null : request.getHeader(HEADER_ORIGIN)),
+                sha256Hex(request == null ? null : request.getHeader(HEADER_REFERER)),
+                requestAttribute(OpenApiRequestAttributes.API_VERSION),
+                requestAttribute(OpenApiRequestAttributes.INTERFACE_TYPE)
+        );
         return JsonUtils.toJsonString(summary);
     }
 
     /**
      * 解析客户端 IP。只有网关入口验签成功后才信任签名覆盖的客户端 IP 头；
      * 非网关测试或内部调用仅使用连接对端地址，绝不信任可由调用方伪造的转发头。
+     *
+     * @param request 当前 HTTP 请求
+     * @return 可信客户端 IP；请求不存在时返回 null
      */
     private String resolveClientIp(HttpServletRequest request) {
         return com.scott.payment.component.web.gateway.TrustedClientIpResolver.resolve(request);
@@ -954,14 +1001,20 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
 
     /**
      * 读取 OpenAPI 安全过滤器写入的请求属性，用于审计来源摘要。
+     *
+     * @param attributeName 请求属性名称
+     * @return 请求属性值；上下文不存在时返回 null
      */
-    private Object requestAttribute(String attributeName) {
+    private String requestAttribute(String attributeName) {
         HttpServletRequest request = currentRequest();
-        return request == null ? null : request.getAttribute(attributeName);
+        Object attribute = request == null ? null : request.getAttribute(attributeName);
+        return attribute == null ? null : String.valueOf(attribute);
     }
 
     /**
      * 获取当前 HTTP 请求；异步或测试上下文不存在请求时允许返回 null。
+     *
+     * @return 当前 HTTP 请求；无请求上下文时返回 null
      */
     private HttpServletRequest currentRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -970,6 +1023,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
 
     /**
      * 生成审计摘要，空值不落摘要，避免无意义 hash 干扰排查。
+     *
+     * @param value 待摘要文本
+     * @return SHA-256 十六进制摘要；输入为空时返回 null
      */
     private String sha256Hex(String value) {
         if (!StringUtils.hasText(value)) {
@@ -985,8 +1041,57 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
 
     /**
      * 计算接口处理耗时，用于 OpenAPI 创建收银台链路日志。
+     *
+     * @param startNanos 接口处理开始纳秒时间
+     * @return 已耗时毫秒数
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
+    }
+
+    /**
+     * 承载 3DS 渠道需要的固定浏览器快照字段，避免用动态 Map 隐藏协议结构。
+     *
+     * @param userAgent 浏览器 User-Agent
+     * @param acceptHeaders 浏览器 Accept 请求头
+     * @param challengeWindowSize 3DS 挑战窗口规格
+     * @param colorDepth 屏幕颜色深度
+     * @param javaEnabled 是否启用 Java
+     * @param javaScriptEnabled 是否启用 JavaScript
+     * @param language 浏览器语言
+     * @param screenHeight 屏幕高度
+     * @param screenWidth 屏幕宽度
+     * @param timezoneOffset 浏览器时区偏移
+     */
+    private record BrowserInfoSnapshot(
+            String userAgent,
+            String acceptHeaders,
+            String challengeWindowSize,
+            Integer colorDepth,
+            Boolean javaEnabled,
+            Boolean javaScriptEnabled,
+            String language,
+            Integer screenHeight,
+            Integer screenWidth,
+            String timezoneOffset) {
+    }
+
+    /**
+     * 承载收银台创建请求来源的不可逆诊断字段。
+     *
+     * @param path OpenAPI 请求路径
+     * @param clientIpHash 客户端 IP 摘要
+     * @param originHash Origin 请求头摘要
+     * @param refererHash Referer 请求头摘要
+     * @param apiVersion OpenAPI 版本
+     * @param interfaceType 接口类型
+     */
+    private record CheckoutRequestSourceSummary(
+            String path,
+            String clientIpHash,
+            String originHash,
+            String refererHash,
+            String apiVersion,
+            String interfaceType) {
     }
 }

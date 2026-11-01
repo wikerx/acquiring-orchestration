@@ -15,16 +15,32 @@ import java.util.regex.Pattern;
  */
 public final class OpenApiResultMessageCatalog {
 
-    /** 模板占位符，仅允许 lowerCamelCase ASCII 字段名。 */
+    /**
+     * 模板占位符，仅允许 lowerCamelCase ASCII 字段名。
+     */
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([A-Za-z][A-Za-z0-9]*)}");
-    /** 对外参数字段路径白名单，禁止通过字段名注入标记或控制字符。 */
+    /**
+     * 对外参数字段路径白名单，禁止通过字段名注入标记或控制字符。
+     */
     private static final Pattern FIELD_PATH = Pattern.compile("[A-Za-z][A-Za-z0-9_.\\[\\]-]{0,127}");
-    /** 诊断值中的连续长数字可能是未脱敏 PAN，不允许进入管理端文案。 */
+    /**
+     * 诊断值中的连续长数字可能是未脱敏 PAN，不允许进入管理端文案。
+     */
     private static final Pattern PAN_LIKE_DIGITS = Pattern.compile("(?<!\\d)\\d{12,19}(?!\\d)");
-    /** 诊断值中带赋值符号的认证或卡敏感字段必须拒绝。 */
+    /**
+     * 诊断值中带赋值符号的认证或卡敏感字段必须拒绝。
+     */
     private static final Pattern SENSITIVE_ASSIGNMENT = Pattern.compile(
             "(?i)(?:pan|card\\s*number|cardnumber|cvv|cvc|authorization|bearer|api\\s*key|apikey|"
                     + "private\\s*key|secret|token)\\s*[:=]");
+    /**
+     * {@code MESSAGES}常量，统一 {@code OpenApiResultMessageCatalog} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
+     * </p>
+     */
     private static final Map<OpenApiResultCode, MessageSet> MESSAGES = buildMessages();
 
     private OpenApiResultMessageCatalog() {
@@ -405,7 +421,9 @@ public final class OpenApiResultMessageCatalog {
         return template;
     }
 
-    /** 单个公开码在三类受众和两种语言下的受控模板集合。 */
+    /**
+     * 单个公开码在三类受众和两种语言下的受控模板集合。
+     */
     private record MessageSet(String internalZh,
                               String merchantZh,
                               String payerZh,

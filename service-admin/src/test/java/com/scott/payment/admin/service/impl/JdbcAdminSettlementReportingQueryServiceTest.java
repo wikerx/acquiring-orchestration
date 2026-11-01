@@ -29,13 +29,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementReportingQueryServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证逐笔交易结算、保证金结算和入账查询的稳定分页及商户数据范围。
- * @status : create
+ * 验证逐笔交易结算、保证金结算和入账查询的稳定分页及商户数据范围。
  */
 class JdbcAdminSettlementReportingQueryServiceTest {
 

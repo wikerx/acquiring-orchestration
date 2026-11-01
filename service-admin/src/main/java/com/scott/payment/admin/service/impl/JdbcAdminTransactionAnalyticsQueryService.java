@@ -46,58 +46,92 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminTransactionAnalyticsQueryService
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 管理端交易分析 JDBC 实现，在 transaction 逻辑数据源按首笔交易、终态成功率和币种隔离口径执行最多 31 天的只读聚合。
- * @status : create
+ * 管理端交易分析 JDBC 实现，在 transaction 逻辑数据源按首笔交易、终态成功率和币种隔离口径执行最多 31 天的只读聚合。
  */
 @Service
 public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransactionAnalyticsQueryService {
 
-    /** 交易操作逻辑表名，仅用于受控静态 SQL 拼装。 */
+    /**
+     * 交易操作逻辑表名，仅用于受控静态 SQL 拼装。
+     */
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
-    /** 支付工具摘要逻辑表名，仅用于受控静态 SQL 拼装。 */
+    /**
+     * 支付工具摘要逻辑表名，仅用于受控静态 SQL 拼装。
+     */
     private static final String TRANSACTION_PAYMENT_METHOD_TABLE = "transaction_payment_method_info";
-    /** 渠道请求逻辑表名，仅用于受控静态SQL拼装。 */
+    /**
+     * 渠道请求逻辑表名，仅用于受控静态SQL拼装。
+     */
     private static final String TRANSACTION_CHANNEL_REQUEST_TABLE = "transaction_channel_request";
-    /** 3DS认证逻辑表名，仅用于受控静态SQL拼装。 */
+    /**
+     * 3DS认证逻辑表名，仅用于受控静态SQL拼装。
+     */
     private static final String TRANSACTION_AUTHENTICATION_TABLE = "transaction_authentication_info";
-    /** 单次统计允许扫描的最大自然日跨度。 */
+    /**
+     * 单次统计允许扫描的最大自然日跨度。
+     */
     private static final int MAX_QUERY_DAYS = 31;
-    /** 管理端单次查询允许选择的最大商户数量。 */
+    /**
+     * 管理端单次查询允许选择的最大商户数量。
+     */
     private static final int MAX_MERCHANT_FILTERS = 50;
-    /** 商户表现接口允许返回的最大排行数量。 */
+    /**
+     * 商户表现接口允许返回的最大排行数量。
+     */
     private static final int MERCHANT_RESULT_LIMIT = 50;
-    /** 首笔收单操作在交易操作表中的固定序号。 */
+    /**
+     * 首笔收单操作在交易操作表中的固定序号。
+     */
     private static final int FIRST_OPERATION_SEQUENCE = 1;
-    /** 进入终态成功率分子的成功状态编码。 */
+    /**
+     * 进入终态成功率分子的成功状态编码。
+     */
     private static final String STATUS_SUCCESS = "SUCCESS";
-    /** 进入终态成功率分母的失败状态编码。 */
+    /**
+     * 进入终态成功率分母的失败状态编码。
+     */
     private static final String STATUS_FAILED = "FAILED";
-    /** 不进入终态成功率分母的待处理状态编码。 */
+    /**
+     * 不进入终态成功率分母的待处理状态编码。
+     */
     private static final String STATUS_PENDING = "PENDING";
-    /** 不进入终态成功率分母的处理中状态编码。 */
+    /**
+     * 不进入终态成功率分母的处理中状态编码。
+     */
     private static final String STATUS_PROCESSING = "PROCESSING";
-    /** 银行卡交易的统一支付方式编码。 */
+    /**
+     * 银行卡交易的统一支付方式编码。
+     */
     private static final String PAYMENT_METHOD_BANK_CARD = "BANK_CARD";
-    /** 3DS认证类型编码。 */
+    /**
+     * 3DS认证类型编码。
+     */
     private static final String AUTHENTICATION_TYPE_THREE_DS = "3DS";
-    /** 渠道请求终态集合；INIT和SENT不进入成功率分母。 */
+    /**
+     * 渠道请求终态集合；INIT和SENT不进入成功率分母。
+     */
     private static final List<String> CHANNEL_TERMINAL_STATUSES = List.of("SUCCESS", "FAILED", "TIMEOUT");
-    /** 页面未指定时使用的查询时区，也是交易表时间解释时区。 */
+    /**
+     * 页面未指定时使用的查询时区，也是交易表时间解释时区。
+     */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
-    /** MySQL 统计 Asia/Shanghai 自然日时使用的固定偏移。 */
+    /**
+     * MySQL 统计 Asia/Shanghai 自然日时使用的固定偏移。
+     */
     private static final String STORAGE_SQL_TIME_ZONE = "+08:00";
-    /** 允许进入首笔交易分析的收单交易类型集合。 */
+    /**
+     * 允许进入首笔交易分析的收单交易类型集合。
+     */
     private static final Set<String> SUPPORTED_TRANSACTION_TYPES = Set.of(
             "PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION");
 
-    /** 查询专用 JDBC 模板，使用交易查询统一语句超时。 */
+    /**
+     * 查询专用 JDBC 模板，使用交易查询统一语句超时。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 在 transaction 逻辑数据源执行允许读写分离的只读聚合。 */
+    /**
+     * 在 transaction 逻辑数据源执行允许读写分离的只读聚合。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
 
     /**
@@ -197,7 +231,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return transactionLogicalReadExecutor.read(() -> threeDsNormalized(safeQuery));
     }
 
-    /** 在同一逻辑数据源上下文完成总览的全部聚合，避免跨数据源读取产生口径差异。 */
+    /**
+     * 在同一逻辑数据源上下文完成总览的全部聚合，避免跨数据源读取产生口径差异。
+     */
     private OverviewResponse overviewNormalized(AnalyticsQuery query) {
         OverviewResponse response = querySummary(query);
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
@@ -209,7 +245,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return response;
     }
 
-    /** 按总笔数截取商户排行，并仅为入榜商户查询分币种成功金额。 */
+    /**
+     * 按总笔数截取商户排行，并仅为入榜商户查询分币种成功金额。
+     */
     private MerchantPerformanceResponse merchantPerformanceNormalized(AnalyticsQuery query) {
         MerchantPerformanceResponse response = new MerchantPerformanceResponse();
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
@@ -229,7 +267,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return response;
     }
 
-    /** 组合失败汇总、自然日趋势、原因分类和渠道分布。 */
+    /**
+     * 组合失败汇总、自然日趋势、原因分类和渠道分布。
+     */
     private FailureResponse failuresNormalized(AnalyticsQuery query) {
         OverviewResponse summary = querySummary(query);
         FailureResponse response = new FailureResponse();
@@ -250,7 +290,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return response;
     }
 
-    /** 组合请求级渠道指标，并合并最终交易口径，禁止混用两个成功率分母。 */
+    /**
+     * 组合请求级渠道指标，并合并最终交易口径，禁止混用两个成功率分母。
+     */
     private ChannelPerformanceResponse channelPerformanceNormalized(AnalyticsQuery query) {
         ChannelPerformanceResponse response = queryChannelSummary(query);
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
@@ -262,7 +304,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return response;
     }
 
-    /** 组合按交易去重的3DS指标，认证成功和交易成功分别计算。 */
+    /**
+     * 组合按交易去重的3DS指标，认证成功和交易成功分别计算。
+     */
     private ThreeDsResponse threeDsNormalized(AnalyticsQuery query) {
         ThreeDsResponse response = queryThreeDsSummary(query);
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
@@ -289,7 +333,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return response;
     }
 
-    /** 查询核心计数指标，PENDING 和 PROCESSING 不进入终态成功率分母。 */
+    /**
+     * 查询核心计数指标，PENDING 和 PROCESSING 不进入终态成功率分母。
+     */
     private OverviewResponse querySummary(AnalyticsQuery query) {
         String sql = """
                 SELECT COUNT(1) AS total_count,
@@ -312,7 +358,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询成功金额，SQL 按币种和精度分组，禁止跨币种相加。 */
+    /**
+     * 查询成功金额，SQL 按币种和精度分组，禁止跨币种相加。
+     */
     private List<AmountMetric> querySuccessAmounts(AnalyticsQuery query) {
         String sql = """
                 SELECT COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
@@ -335,7 +383,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询每日计数趋势；金额不进入趋势主轴，避免多币种形成伪总额。 */
+    /**
+     * 查询每日计数趋势；金额不进入趋势主轴，避免多币种形成伪总额。
+     */
     private List<TrendMetric> queryTrend(AnalyticsQuery query) {
         String sql = """
                 SELECT DATE_FORMAT(CONVERT_TZ(o.transaction_date_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d') AS stat_date,
@@ -362,7 +412,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 根据受控维度选择统计 SQL，调用方不能传入表名、列名或任意表达式。 */
+    /**
+     * 根据受控维度选择统计 SQL，调用方不能传入表名、列名或任意表达式。
+     */
     private List<DimensionMetric> queryDimension(AnalyticsQuery query, String dimension) {
         String select;
         String metadataSelect = "";
@@ -414,7 +466,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询筛选范围内产生交易的商户总数。 */
+    /**
+     * 查询筛选范围内产生交易的商户总数。
+     */
     private long queryMerchantCount(AnalyticsQuery query) {
         String sql = "SELECT COUNT(DISTINCT o.merchant_id) FROM %s o WHERE %s"
                 .formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
@@ -422,7 +476,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return value == null ? 0L : value;
     }
 
-    /** 查询最多 50 个商户的计数和终态成功率。 */
+    /**
+     * 查询最多 50 个商户的计数和终态成功率。
+     */
     private List<MerchantMetric> queryMerchantMetrics(AnalyticsQuery query) {
         String sql = """
                 SELECT o.merchant_id,
@@ -448,7 +504,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询入榜商户的分币种成功金额，返回值的键为商户号。 */
+    /**
+     * 查询入榜商户的分币种成功金额，返回值的键为商户号。
+     */
     private List<Map.Entry<String, AmountMetric>> queryMerchantAmounts(AnalyticsQuery query,
                                                                        List<String> merchantIds) {
         String sql = """
@@ -475,7 +533,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询出现失败交易的商户数量。 */
+    /**
+     * 查询出现失败交易的商户数量。
+     */
     private long queryAffectedMerchantCount(AnalyticsQuery query) {
         String sql = "SELECT COUNT(DISTINCT o.merchant_id) FROM %s o WHERE %s AND o.transaction_status = :failedStatus"
                 .formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
@@ -483,7 +543,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return value == null ? 0L : value;
     }
 
-    /** 查询失败交易自然日趋势，只返回失败笔数并由公共方法补齐无数据日期。 */
+    /**
+     * 查询失败交易自然日趋势，只返回失败笔数并由公共方法补齐无数据日期。
+     */
     private List<TrendMetric> queryFailureTrend(AnalyticsQuery query) {
         String sql = """
                 SELECT DATE_FORMAT(CONVERT_TZ(o.transaction_date_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d') AS stat_date,
@@ -503,7 +565,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询全部失败原因码后在Java中完成稳定分类，避免遗漏低频原因对类别总量的贡献。 */
+    /**
+     * 查询全部失败原因码后在Java中完成稳定分类，避免遗漏低频原因对类别总量的贡献。
+     */
     private List<FailureReasonMetric> queryFailureReasons(AnalyticsQuery query) {
         String sql = """
                 SELECT COALESCE(NULLIF(o.fail_reason_code, ''), 'UNKNOWN') AS reason_code,
@@ -525,7 +589,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 按稳定失败原因码归类，未知或历史编码统一进入OTHER且不丢失数量。 */
+    /**
+     * 按稳定失败原因码归类，未知或历史编码统一进入OTHER且不丢失数量。
+     */
     private String failureCategory(String reasonCode) {
         return switch (reasonCode == null ? "" : reasonCode) {
             case "RISK_REJECTED" -> "RISK";
@@ -537,7 +603,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         };
     }
 
-    /** 汇总全部失败原因类别，并为原因排行补充失败总量占比。 */
+    /**
+     * 汇总全部失败原因类别，并为原因排行补充失败总量占比。
+     */
     private List<CountMetric> failureCategories(List<FailureReasonMetric> reasons, long failedCount) {
         Map<String, Long> counts = new LinkedHashMap<>();
         reasons.forEach(reason -> {
@@ -550,7 +618,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 .toList();
     }
 
-    /** 查询失败交易渠道分布，路由前失败统一记为NO_CHANNEL。 */
+    /**
+     * 查询失败交易渠道分布，路由前失败统一记为NO_CHANNEL。
+     */
     private List<CountMetric> queryFailureChannels(AnalyticsQuery query, long failedCount) {
         String sql = """
                 SELECT COALESCE(NULLIF(o.channel_code, ''), 'NO_CHANNEL') AS dimension_key,
@@ -566,7 +636,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 countMetric(rs.getString("dimension_key"), rs.getLong("total_count"), failedCount));
     }
 
-    /** 查询非勾兑业务渠道请求汇总，未完成请求不进入请求成功率分母。 */
+    /**
+     * 查询非勾兑业务渠道请求汇总，未完成请求不进入请求成功率分母。
+     */
     private ChannelPerformanceResponse queryChannelSummary(AnalyticsQuery query) {
         String sql = """
                 SELECT COUNT(1) AS total_request_count,
@@ -598,7 +670,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询各渠道请求量、成功率和耗时。 */
+    /**
+     * 查询各渠道请求量、成功率和耗时。
+     */
     private List<ChannelMetric> queryChannelMetrics(AnalyticsQuery query) {
         String sql = """
                 SELECT COALESCE(NULLIF(r.channel_code, ''), 'UNKNOWN') AS channel_code,
@@ -635,7 +709,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 为渠道请求表现补充首笔交易最终状态，两个口径独立计算并在DTO中分别命名。 */
+    /**
+     * 为渠道请求表现补充首笔交易最终状态，两个口径独立计算并在DTO中分别命名。
+     */
     private void mergeChannelTransactionMetrics(AnalyticsQuery query, List<ChannelMetric> channels) {
         Map<String, ChannelMetric> indexed = new LinkedHashMap<>();
         channels.forEach(metric -> indexed.put(metric.getChannelCode(), metric));
@@ -669,7 +745,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 .thenComparing(ChannelMetric::getChannelCode));
     }
 
-    /** 查询渠道请求自然日趋势，超时与其他失败拆开以避免图表重复计数。 */
+    /**
+     * 查询渠道请求自然日趋势，超时与其他失败拆开以避免图表重复计数。
+     */
     private List<ChannelTrendMetric> queryChannelTrend(AnalyticsQuery query) {
         String sql = """
                 SELECT DATE_FORMAT(CONVERT_TZ(r.request_start_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d') AS stat_date,
@@ -700,7 +778,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询渠道响应码分布，优先使用收单码，其次网关码和平台结果码。 */
+    /**
+     * 查询渠道响应码分布，优先使用收单码，其次网关码和平台结果码。
+     */
     private List<CountMetric> queryChannelResponseCodes(AnalyticsQuery query, long completedCount) {
         String sql = """
                 SELECT COALESCE(NULLIF(r.acquirer_code, ''), NULLIF(r.gateway_code, ''),
@@ -720,14 +800,18 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 countMetric(rs.getString("dimension_key"), rs.getLong("total_count"), completedCount));
     }
 
-    /** 构造渠道请求分析条件，显式携带两个逻辑表的分片时间谓词。 */
+    /**
+     * 构造渠道请求分析条件，显式携带两个逻辑表的分片时间谓词。
+     */
     private String channelWhere(AnalyticsQuery query) {
         return "r.deleted = 0 AND r.channel_match_flag = 0"
                 + " AND r.transaction_date_time >= :beginTime AND r.transaction_date_time < :endTime"
                 + " AND " + baseWhere(query);
     }
 
-    /** 查询筛选范围内首笔银行卡交易数，作为3DS覆盖率分母。 */
+    /**
+     * 查询筛选范围内首笔银行卡交易数，作为3DS覆盖率分母。
+     */
     private long queryEligibleCardTransactionCount(AnalyticsQuery query) {
         String sql = """
                 SELECT COUNT(1)
@@ -744,7 +828,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return value == null ? 0L : value;
     }
 
-    /** 查询按交易去重后的3DS汇总，认证状态优先级为成功、失败、处理中。 */
+    /**
+     * 查询按交易去重后的3DS汇总，认证状态优先级为成功、失败、处理中。
+     */
     private ThreeDsResponse queryThreeDsSummary(AnalyticsQuery query) {
         String sql = """
                 SELECT COUNT(1) AS authentication_transaction_count,
@@ -779,7 +865,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询按交易去重的3DS自然日趋势。 */
+    /**
+     * 查询按交易去重的3DS自然日趋势。
+     */
     private List<ThreeDsTrendMetric> queryThreeDsTrend(AnalyticsQuery query) {
         String sql = """
                 SELECT d.stat_date,
@@ -804,7 +892,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
-    /** 查询受控3DS维度分布，调用方不能传入任意列或表达式。 */
+    /**
+     * 查询受控3DS维度分布，调用方不能传入任意列或表达式。
+     */
     private List<CountMetric> queryThreeDsDimension(AnalyticsQuery query, String dimension, long totalCount) {
         String column = switch (dimension) {
             case "authentication_status" -> "d.authentication_status";
@@ -869,7 +959,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 """.formatted(TRANSACTION_AUTHENTICATION_TABLE, TRANSACTION_OPERATION_TABLE, baseWhere(query));
     }
 
-    /** 补齐渠道趋势日期，避免切换筛选条件时横轴跳动。 */
+    /**
+     * 补齐渠道趋势日期，避免切换筛选条件时横轴跳动。
+     */
     private List<ChannelTrendMetric> fillChannelTrendDates(AnalyticsQuery query, List<ChannelTrendMetric> rows) {
         Map<String, ChannelTrendMetric> indexed = new LinkedHashMap<>();
         rows.forEach(row -> indexed.put(row.getDate(), row));
@@ -885,7 +977,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return result;
     }
 
-    /** 补齐3DS趋势日期，空日期保持全部指标为零。 */
+    /**
+     * 补齐3DS趋势日期，空日期保持全部指标为零。
+     */
     private List<ThreeDsTrendMetric> fillThreeDsTrendDates(AnalyticsQuery query, List<ThreeDsTrendMetric> rows) {
         Map<String, ThreeDsTrendMetric> indexed = new LinkedHashMap<>();
         rows.forEach(row -> indexed.put(row.getDate(), row));
@@ -901,7 +995,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return result;
     }
 
-    /** 生成页面查询时区下连续自然日，用于全部趋势图统一补零。 */
+    /**
+     * 生成页面查询时区下连续自然日，用于全部趋势图统一补零。
+     */
     private List<LocalDate> analyticsDates(AnalyticsQuery query) {
         ZoneId queryZone = resolveQueryZone(query.getQueryTimeZone());
         ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
@@ -917,7 +1013,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return dates;
     }
 
-    /** 创建数量占比指标，所有百分比使用BigDecimal计算。 */
+    /**
+     * 创建数量占比指标，所有百分比使用BigDecimal计算。
+     */
     private CountMetric countMetric(String key, long count, long total) {
         CountMetric metric = new CountMetric();
         metric.setKey(StringUtils.hasText(key) ? key : "UNKNOWN");
@@ -926,13 +1024,17 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return metric;
     }
 
-    /** 将渠道平均耗时保留两位小数，缺失值按零展示。 */
+    /**
+     * 将渠道平均耗时保留两位小数，缺失值按零展示。
+     */
     private BigDecimal scaleDuration(BigDecimal duration) {
         return duration == null ? BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY)
                 : duration.setScale(2, RoundingMode.HALF_UP);
     }
 
-    /** 构造首笔交易统一过滤条件；支付方式和发卡国家通过摘要表存在性过滤。 */
+    /**
+     * 构造首笔交易统一过滤条件；支付方式和发卡国家通过摘要表存在性过滤。
+     */
     private String baseWhere(AnalyticsQuery query) {
         StringBuilder where = new StringBuilder("""
                 o.deleted = 0
@@ -958,14 +1060,18 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return where.toString();
     }
 
-    /** 构造支付工具摘要表连接条件，交易 ID 与分片时间必须同时匹配。 */
+    /**
+     * 构造支付工具摘要表连接条件，交易 ID 与分片时间必须同时匹配。
+     */
     private String paymentMethodJoin() {
         return "LEFT JOIN " + TRANSACTION_PAYMENT_METHOD_TABLE + " p"
                 + " ON p.transaction_id = o.transaction_id"
                 + " AND p.transaction_date_time = o.transaction_date_time";
     }
 
-    /** 构造命名参数，状态和类型均集中在本服务常量中，避免散落魔法值。 */
+    /**
+     * 构造命名参数，状态和类型均集中在本服务常量中，避免散落魔法值。
+     */
     private MapSqlParameterSource params(AnalyticsQuery query) {
         List<String> transactionTypes = StringUtils.hasText(query.getTransactionType())
                 ? List.of(query.getTransactionType()) : new ArrayList<>(SUPPORTED_TRANSACTION_TYPES);
@@ -991,7 +1097,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 .addValue("threeDsAuthenticationType", AUTHENTICATION_TYPE_THREE_DS);
     }
 
-    /** 归一化查询时间和枚举编码，并在访问数据库前拒绝超过 31 天的扫描。 */
+    /**
+     * 归一化查询时间和枚举编码，并在访问数据库前拒绝超过 31 天的扫描。
+     */
     private AnalyticsQuery normalize(AnalyticsQuery source) {
         AnalyticsQuery query = source == null ? new AnalyticsQuery() : source;
         ZoneId queryZone = resolveQueryZone(query.getQueryTimeZone());
@@ -1018,7 +1126,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return query;
     }
 
-    /** 将稀疏数据库趋势补齐为连续自然日序列，保证折线图时间轴稳定。 */
+    /**
+     * 将稀疏数据库趋势补齐为连续自然日序列，保证折线图时间轴稳定。
+     */
     private List<TrendMetric> fillTrendDates(AnalyticsQuery query, List<TrendMetric> rows) {
         Map<String, TrendMetric> indexed = new LinkedHashMap<>();
         rows.forEach(row -> indexed.put(row.getDate(), row));
@@ -1042,7 +1152,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return result;
     }
 
-    /** 按终态交易计算百分比，结果保留两位小数且不使用浮点数。 */
+    /**
+     * 按终态交易计算百分比，结果保留两位小数且不使用浮点数。
+     */
     private BigDecimal successRate(long successCount, long failedCount) {
         long terminalCount = successCount + failedCount;
         if (terminalCount == 0L) {
@@ -1053,7 +1165,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 .divide(BigDecimal.valueOf(terminalCount), 2, RoundingMode.HALF_UP);
     }
 
-    /** 计算任意非负计数的百分比，分母为零时返回0.00。 */
+    /**
+     * 计算任意非负计数的百分比，分母为零时返回0.00。
+     */
     private BigDecimal percentage(long numerator, long denominator) {
         if (denominator <= 0L) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY);
@@ -1063,7 +1177,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 .divide(BigDecimal.valueOf(denominator), 2, RoundingMode.HALF_UP);
     }
 
-    /** 合并新旧商户筛选字段并去重，避免超大 IN 条件放大分片扫描。 */
+    /**
+     * 合并新旧商户筛选字段并去重，避免超大 IN 条件放大分片扫描。
+     */
     private List<String> normalizeMerchantIds(List<String> merchantIds, String legacyMerchantId) {
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
         if (merchantIds != null) {
@@ -1079,7 +1195,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return new ArrayList<>(normalized);
     }
 
-    /** 解析页面查询时区，非法时区在访问数据库前返回参数错误。 */
+    /**
+     * 解析页面查询时区，非法时区在访问数据库前返回参数错误。
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : DEFAULT_QUERY_TIME_ZONE;
         try {
@@ -1089,7 +1207,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         }
     }
 
-    /** 兼容字典中的 UTC+8、GMT-5 等简写格式。 */
+    /**
+     * 兼容字典中的 UTC+8、GMT-5 等简写格式。
+     */
     private String normalizeZoneId(String zone) {
         String normalized = zone == null ? DEFAULT_QUERY_TIME_ZONE : zone.trim();
         String upper = normalized.toUpperCase(Locale.ROOT);
@@ -1108,12 +1228,16 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return normalized;
     }
 
-    /** 将页面本地时间转换到交易表的 Asia/Shanghai 存储时区。 */
+    /**
+     * 将页面本地时间转换到交易表的 Asia/Shanghai 存储时区。
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         return sourceTime.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
-    /** 为 MySQL 自然日聚合选择时区参数，常用固定时区不依赖系统时区表。 */
+    /**
+     * 为 MySQL 自然日聚合选择时区参数，常用固定时区不依赖系统时区表。
+     */
     private String sqlTimeZone(ZoneId queryZone, LocalDateTime storageReferenceTime) {
         if (DEFAULT_QUERY_TIME_ZONE.equals(queryZone.getId())) {
             return STORAGE_SQL_TIME_ZONE;
@@ -1126,25 +1250,33 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return queryZone.getId();
     }
 
-    /** 仅在筛选值非空时追加预定义 SQL 片段，片段不接受页面输入。 */
+    /**
+     * 仅在筛选值非空时追加预定义 SQL 片段，片段不接受页面输入。
+     */
     private void appendTextFilter(StringBuilder sql, String value, String clause) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(clause);
         }
     }
 
-    /** 去除查询文本首尾空白，并将空文本归一化为 null。 */
+    /**
+     * 去除查询文本首尾空白，并将空文本归一化为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    /** 将枚举类查询文本归一化为大写编码，空文本保持 null。 */
+    /**
+     * 将枚举类查询文本归一化为大写编码，空文本保持 null。
+     */
     private String upperToNull(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
-    /** 将 JDBC 可空数值转换为币种精度，数据库 null 不设置默认精度。 */
+    /**
+     * 将 JDBC 可空数值转换为币种精度，数据库 null 不设置默认精度。
+     */
     private Integer nullableInteger(Object value) {
         return value instanceof Number number ? number.intValue() : null;
     }

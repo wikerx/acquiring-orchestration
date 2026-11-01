@@ -30,13 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminConfigServiceImpl
- * @date : 2026-06-19 21:54
- * @email : scott_x@163.com
- * @description : 管理后台系统参数配置领域服务实现
- * @status : create
+ * 管理后台系统参数配置领域服务实现
  *
  * <p>负责系统参数配置的持久化规则、唯一键校验与软删除处理，不承担接口协议适配或权限控制逻辑。</p>
  */
@@ -48,7 +42,9 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      */
     private static final long NOT_DELETED = 0L;
 
-    /** 默认启用状态。 */
+    /**
+     * 默认启用状态。
+     */
     private static final int ENABLED = 1;
 
     /**
@@ -69,7 +65,9 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** 跨服务统一系统参数读取服务。 */
+    /**
+     * 跨服务统一系统参数读取服务。
+     */
     private final SystemConfigReadService systemConfigReadService;
 
     /**

@@ -6,13 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantIpWhitelistExportRow
- * @date : 2026-07-18
- * @email : scott_x@163.com
- * @description : 商户 IP 白名单导出行对象，位于 service-admin 导出传输层，按商户维度导出精确 IP 集合。
- * @status : create
+ * 商户 IP 白名单导出行对象，位于 service-admin 导出传输层，按商户维度导出精确 IP 集合。
  */
 @Data
 public class MerchantIpWhitelistExportRow {

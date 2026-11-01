@@ -15,13 +15,7 @@ import com.scott.payment.component.core.model.PageResult;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerInternalClient
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台调用调度中心的内部客户端接口
- * @status : create
+ * 管理后台调用调度中心的内部客户端接口
  */
 public interface JobSchedulerInternalClient {
 

@@ -10,13 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorWorkbenchSchemaContractTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 系统监控菜单层级、权限和告警处理表结构 SQL 契约测试。
- * @status : create
+ * 系统监控菜单层级、权限和告警处理表结构 SQL 契约测试。
  */
 class AdminMonitorWorkbenchSchemaContractTest {
 

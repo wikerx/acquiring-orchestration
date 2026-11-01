@@ -11,13 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingQuarterResolver
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sharding Quarter Resolver 解析组件，位于 公共组件库，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
- * @status : create
+ * Sharding Quarter Resolver 解析组件，位于 公共组件库，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
  */
 @Component
 public class ShardingQuarterResolver {

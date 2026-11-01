@@ -8,13 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOperationLogConsumer
- * @date : 2026-08-01 14:40
- * @email : scott_x@163.com
- * @description : service-data 的 Merchant 操作日志 Topic 适配器，只负责把消息交给共享消费编排
- * @status : create
+ * service-data 的 Merchant 操作日志 Topic 适配器，只负责把消息交给共享消费编排。
  */
 @Component
 @ConditionalOnProperty(prefix = "acquiring.operation-log.mq", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -25,7 +19,9 @@ import org.springframework.stereotype.Component;
 )
 public class MerchantOperationLogConsumer implements RocketMQListener<String> {
 
-    /** 操作日志共享消费编排。 */
+    /**
+     * 操作日志共享消费编排。
+     */
     private final OperationLogConsumerService consumerService;
 
     /**

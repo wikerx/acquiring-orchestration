@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantReserveItemMapper
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 保证金留存与释放明细查询访问。
- * @status : create
+ * 保证金留存与释放明细查询访问。
  */
 public interface MerchantReserveItemMapper extends BaseMapper<MerchantReserveItemDO> {
 

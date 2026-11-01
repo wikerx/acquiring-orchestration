@@ -1,7 +1,6 @@
 package com.scott.payment.openapi;
 
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
@@ -29,13 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiEndToEndTests
- * @date : 2026-05-30 09:37
- * @email : scott_x@163.com
- * @description : 验证商户 OpenAPI 安全链路、异常边界，以及支付核心不可用时禁止本地模拟交易的失败关闭行为。
- * @status : create
+ * 验证商户 OpenAPI 安全链路、异常边界，以及支付核心不可用时禁止本地模拟交易的失败关闭行为。
  */
 @Slf4j
 @AutoConfigureMockMvc
@@ -127,7 +120,8 @@ class MerchantOpenApiEndToEndTests extends OpenApiIsolatedMysqlIntegrationTest {
         provisionMerchant();
         MerchantSecurityMaterialDTO clientMaterial = merchantSecurityService.getMerchantClientSecurityMaterial(MERCHANT_ID);
         String plainRequestJson = MerchantOpenApiTestSupport.authorizationPlainText(MERCHANT_ID, SUCCESS_TRADE_NO);
-        log.info("商户生成请求明文JSON-脱敏内容：{}", SensitiveDataMaskUtils.maskJson(plainRequestJson));
+        log.info("商户生成请求明文JSON-载荷摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(plainRequestJson, keyMaterialFactory));
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64())
@@ -241,10 +235,11 @@ class MerchantOpenApiEndToEndTests extends OpenApiIsolatedMysqlIntegrationTest {
             requestBuilder.header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization);
         }
         mockMvc.perform(requestBuilder.with(MerchantOpenApiTestSupport.gatewayIngress()))
-                .andDo(result -> log.info("异常分支-{}，HTTP状态：{}，响应体：{}",
+                .andDo(result -> log.info("异常分支-{}，HTTP状态：{}，响应体摘要：{}",
                         caseName,
                         result.getResponse().getStatus(),
-                        result.getResponse().getContentAsString()))
+                        MerchantOpenApiTestSupport.safePayloadSummary(
+                                result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(expectedCode.getCode()));
     }

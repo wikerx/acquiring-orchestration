@@ -9,13 +9,7 @@ import org.springframework.util.StringUtils;
 import java.net.URI;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalClientProperties
- * @date : 2026-09-01 22:30
- * @email : scott_x@163.com
- * @description : service-job 调用清分补偿内部接口的地址、有界超时和 HMAC 身份配置；不作为自动清分业务开关。
- * @status : update
+ * service-job 调用清分补偿内部接口的地址、有界超时和 HMAC 身份配置；不作为自动清分业务开关。
  */
 @Data
 @ConfigurationProperties(prefix = "job.clearing-client")
@@ -28,18 +22,30 @@ public class ClearingInternalClientProperties {
      * </p>
      */
     private static final String REQUIRED_CALLER = "service-job";
-    /** service-clearing 的 HTTP(S) 服务根地址，不允许携带凭据、查询或片段。 */
+    /**
+     * service-clearing 的 HTTP(S) 服务根地址，不允许携带凭据、查询或片段。
+     */
     private String baseUrl = "http://service-clearing";
-    /** 建连超时，单位毫秒，必须大于零。 */
+    /**
+     * 建连超时，单位毫秒，必须大于零。
+     */
     private int connectTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_CONNECT_TIMEOUT_MILLIS;
-    /** 单页补偿扫描读取超时，单位毫秒，必须大于零。 */
+    /**
+     * 单页补偿扫描读取超时，单位毫秒，必须大于零。
+     */
     private int readTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_READ_TIMEOUT_MILLIS;
-    /** 内部调用身份，固定为 service-job。 */
+    /**
+     * 内部调用身份，固定为 service-job。
+     */
     private String internalCaller = "service-job";
-    /** HMAC 密钥，敏感字段，不允许为空或使用开发默认值。 */
+    /**
+     * HMAC 密钥，敏感字段，不允许为空或使用开发默认值。
+     */
     private String internalSecret;
 
-    /** 启动前校验清分服务根地址、调用身份、HMAC 密钥和有界超时。 */
+    /**
+     * 启动前校验清分服务根地址、调用身份、HMAC 密钥和有界超时。
+     */
     public void validate() {
         validateBaseUrl();
         InternalServiceClientCredentialValidator.validate(
@@ -48,7 +54,9 @@ public class ClearingInternalClientProperties {
                 "job clearing-client", connectTimeoutMillis, readTimeoutMillis);
     }
 
-    /** 只允许无凭据、无查询和无片段的 HTTP(S) 服务根地址。 */
+    /**
+     * 只允许无凭据、无查询和无片段的 HTTP(S) 服务根地址。
+     */
     private void validateBaseUrl() {
         try {
             URI uri = URI.create(baseUrl == null ? "" : baseUrl.trim());

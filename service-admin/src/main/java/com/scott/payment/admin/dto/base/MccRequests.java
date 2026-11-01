@@ -9,16 +9,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MccRequests
- * @date : 2026-06-27 16:49
- * @email : scott_x@163.com
- * @description : mccrequests协作组件，位于 运营后台服务，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * MCC 管理请求模型集合，用于运营后台，封装该业务的本地校验、转换或运行时协作入口。
  */
 public final class MccRequests {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private MccRequests() {
     }
 
@@ -28,7 +25,7 @@ public final class MccRequests {
     @Data
     public static class MccTreeQueryRequest {
         /**
-         * 基础数据敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+         * 树查询关键词，可匹配分类编码、MCC 编码或中英文名称。
          */
         private String keyword;
         /**

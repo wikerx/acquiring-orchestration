@@ -46,13 +46,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFinanceServiceImpl
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户费率与资金账户只读实现，每条 SQL 同时限定认证商户号和账户归属。
- * @status : create
+ * 商户费率与资金账户只读实现，每条 SQL 同时限定认证商户号和账户归属。
  */
 @Service
 public class MerchantFinanceServiceImpl implements MerchantFinanceService {
@@ -117,7 +111,13 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         this.pendingBalanceQueryService = pendingBalanceQueryService;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询商户当前启用的费用计划版本，并组装规则、阶梯和保证金配置。
+     * 结果按商户号缓存；没有启用计划或活动版本时返回空。
+     *
+     * @param merchantId 认证商户号
+     * @return 当前生效费用配置；未配置时返回 {@code null}
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Cacheable(cacheNames = PaymentCacheNames.MERCHANT_ACTIVE_FEE,
@@ -159,14 +159,26 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         return response;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询商户资金账户，并基于交易副本补充在途资金和未结算保证金余额。
+     *
+     * @param merchantId 认证商户号
+     * @return 当前商户单结算币种账户和余额快照
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public FundAccountResponse getFundAccount(String merchantId) {
         return toAccount(requireAccount(merchantId));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询当前商户的不可变余额流水，所有筛选均绑定该商户资金账户。
+     * 不支持的余额类型返回空页，避免误查其他账户域数据。
+     *
+     * @param merchantId 认证商户号
+     * @param request 流水筛选、时间范围和分页条件
+     * @return 当前商户余额流水分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundLedgerResponse> pageLedgers(String merchantId, DetailQuery request) {
@@ -235,7 +247,9 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    /** 将一组同源原子规则转换为商户可见的多选逻辑规则。 */
+    /**
+     * 将一组同源原子规则转换为商户可见的多选逻辑规则。
+     */
     private FeeRuleResponse toLogicalRule(List<FeeRuleDO> rules,
                                           Map<Long, List<FeeRuleTierDO>> tiersByRule) {
         FeeRuleDO first = rules.get(0);
@@ -250,14 +264,18 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         return response;
     }
 
-    /** 按数据库稳定顺序提取规则维度并去重。 */
+    /**
+     * 按数据库稳定顺序提取规则维度并去重。
+     */
     private List<String> distinctRuleValues(List<FeeRuleDO> rules, Function<FeeRuleDO, String> extractor) {
         LinkedHashSet<String> values = rules.stream().map(extractor).filter(StringUtils::hasText)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         return new ArrayList<>(values);
     }
 
-    /** 将费用规则持久化模型转换为商户可见响应，不暴露内部模板来源。 */
+    /**
+     * 将费用规则持久化模型转换为商户可见响应，不暴露内部模板来源。
+     */
     private FeeRuleResponse toRule(FeeRuleDO row, List<FeeRuleTierDO> tiers) {
         FeeRuleResponse response = new FeeRuleResponse();
         response.setId(row.getId()); response.setFeeCategory(row.getFeeCategory()); response.setRuleName(row.getRuleName());
@@ -273,11 +291,15 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         return response;
     }
 
-    /** 逻辑规则分组键；历史规则使用原子规则主键保持独立。 */
+    /**
+     * 逻辑规则分组键；历史规则使用原子规则主键保持独立。
+     */
     private record RuleGroupingKey(String ruleGroupCode, Long legacyRuleId) {
     }
 
-    /** 将规则阶梯转换为商户可见响应。 */
+    /**
+     * 将规则阶梯转换为商户可见响应。
+     */
     private FeeTierResponse toTier(FeeRuleTierDO row) {
         FeeTierResponse response = new FeeTierResponse();
         response.setId(row.getId()); response.setLowerBound(row.getLowerBound()); response.setUpperBound(row.getUpperBound());
@@ -318,13 +340,17 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
                 .map(this::toCurrencyBalance).toList();
     }
 
-    /** 按原标签币种分别汇总尚未完成保证金结算入账的余额。 */
+    /**
+     * 按原标签币种分别汇总尚未完成保证金结算入账的余额。
+     */
     private List<CurrencyBalanceResponse> reserveBalances(String merchantId) {
         return pendingBalanceQueryService.sumUnsettledReserveBalances(merchantId).stream()
                 .map(this::toCurrencyBalance).toList();
     }
 
-    /** 将在途余额聚合投影转换为币种余额响应。 */
+    /**
+     * 将在途余额聚合投影转换为币种余额响应。
+     */
     private CurrencyBalanceResponse toCurrencyBalance(PendingBalanceAggregate aggregate) {
         CurrencyBalanceResponse response = new CurrencyBalanceResponse();
         response.setCurrency(aggregate.getCurrency());
@@ -332,7 +358,9 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         return response;
     }
 
-    /** 将未结算保证金聚合投影转换为币种余额响应。 */
+    /**
+     * 将未结算保证金聚合投影转换为币种余额响应。
+     */
     private CurrencyBalanceResponse toCurrencyBalance(ReserveBalanceAggregate aggregate) {
         CurrencyBalanceResponse response = new CurrencyBalanceResponse();
         response.setCurrency(aggregate.getCurrency());
@@ -340,7 +368,9 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         return response;
     }
 
-    /** 将不可变余额流水转换为商户核对响应。 */
+    /**
+     * 将不可变余额流水转换为商户核对响应。
+     */
     private FundLedgerResponse toLedger(FundLedgerDO row) {
         FundLedgerResponse response = new FundLedgerResponse();
         response.setId(row.getId()); response.setLedgerNo(row.getLedgerNo()); response.setBalanceType("AVAILABLE");
@@ -372,7 +402,9 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         return account;
     }
 
-    /** 将历史负余额状态归一为正常人工状态，负余额限制由可用余额实时派生。 */
+    /**
+     * 将历史负余额状态归一为正常人工状态，负余额限制由可用余额实时派生。
+     */
     private String normalizeManualStatus(String status) {
         return "NEGATIVE_BALANCE".equals(status) ? NORMAL : status;
     }
@@ -405,12 +437,16 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         }
     }
 
-    /** 兼容历史余额类型查询参数；当前流水只记录可用余额变动。 */
+    /**
+     * 兼容历史余额类型查询参数；当前流水只记录可用余额变动。
+     */
     private boolean requestsUnsupportedBalanceType(String balanceType) {
         return StringUtils.hasText(balanceType) && !"AVAILABLE".equals(upper(balanceType));
     }
 
-    /** 将枚举型查询条件转换为大写标准值，空值保持为空。 */
+    /**
+     * 将枚举型查询条件转换为大写标准值，空值保持为空。
+     */
     private String upper(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }

@@ -21,13 +21,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSecurityInterceptEventApplicationService
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : admin安全interceptevent应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端安全拦截事件应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminSecurityInterceptEventApplicationService {
@@ -126,6 +120,9 @@ public class AdminSecurityInterceptEventApplicationService {
         );
     }
 
+    /**
+     * 转换为导出行数据。
+     */
     private SecurityInterceptEventExportRow toExportRow(SecurityInterceptEventResponse source, Locale locale) {
         SecurityInterceptEventExportRow row = new SecurityInterceptEventExportRow();
         row.setEventNo(blankToPlaceholder(source.getEventNo()));
@@ -147,6 +144,9 @@ public class AdminSecurityInterceptEventApplicationService {
         return row;
     }
 
+    /**
+     * 构建查询摘要。
+     */
     private String buildQuerySummary(SecurityInterceptEventQuery query, Locale locale) {
         SecurityInterceptEventQuery condition = query == null ? new SecurityInterceptEventQuery() : query;
         List<String> conditions = new ArrayList<>();
@@ -167,6 +167,9 @@ public class AdminSecurityInterceptEventApplicationService {
         return String.join(locale.getLanguage().equals(Locale.CHINESE.getLanguage()) ? "，" : ", ", conditions);
     }
 
+    /**
+     * 将非空查询条件追加到导出审计摘要。
+     */
     private void addCondition(List<String> conditions, String labelKey, Object value, Locale locale) {
         if (value == null) {
             return;
@@ -178,10 +181,16 @@ public class AdminSecurityInterceptEventApplicationService {
         conditions.add(excelI18nMessageResolver.resolve(labelKey, locale) + "=" + text.trim());
     }
 
+    /**
+     * 将可空处置状态解析为展示文本。
+     */
     private String resolveNullableProcessStatusText(Integer status, Locale locale) {
         return status == null ? null : resolveProcessStatusText(status, locale);
     }
 
+    /**
+     * 将处置状态解析为展示文本。
+     */
     private String resolveProcessStatusText(Integer status, Locale locale) {
         String key = switch (status == null ? 0 : status) {
             case 1 -> "excel.securityIntercept.processed";
@@ -191,6 +200,9 @@ public class AdminSecurityInterceptEventApplicationService {
         return excelI18nMessageResolver.resolve(key, locale);
     }
 
+    /**
+     * 将空白展示值转换为统一占位文本。
+     */
     private String blankToPlaceholder(String value) {
         return StringUtils.hasText(value) ? value : "-";
     }

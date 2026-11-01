@@ -14,13 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReportingQueryService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Admin 结算结果和净额入账流水的本地只读查询边界。
- * @status : create
+ * Admin 结算结果和净额入账流水的本地只读查询边界。
  */
 public interface AdminSettlementReportingQueryService {
 
@@ -36,7 +30,9 @@ public interface AdminSettlementReportingQueryService {
     PageResult<TransactionSettlementSummary> searchResultItems(ResultItemSearchRequest request,
                                                                AdminMerchantDataScope dataScope);
 
-    /** 分页读取正式批次内一笔交易的不可变结算财务组件。 */
+    /**
+     * 分页读取正式批次内一笔交易的不可变结算财务组件。
+     */
     PageResult<ResultItemSummary> searchResultItemComponents(String settlementBatchNo,
                                                              String transactionId,
                                                              Integer pageNo,

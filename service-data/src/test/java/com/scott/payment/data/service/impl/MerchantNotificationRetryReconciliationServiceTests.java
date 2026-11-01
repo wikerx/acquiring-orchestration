@@ -26,16 +26,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationRetryReconciliationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证低频 Job 对账会覆盖全部已发布季度，并且只补发 MQ 事件。
- * @status : create
+ * 验证低频 Job 对账会覆盖全部已发布季度，并且只补发 MQ 事件。
  */
 class MerchantNotificationRetryReconciliationServiceTests {
 
+    /**
+     * 验证对账扫描跨已发布季度补发 MQ 事件且不直接调用商户。
+     */
     @Test
     void shouldRequeueDueTasksAcrossPublishedQuartersWithoutCallingMerchant() {
         DataMerchantNotificationMapper mapper = mock(DataMerchantNotificationMapper.class);
@@ -76,7 +73,9 @@ class MerchantNotificationRetryReconciliationServiceTests {
                 eq(LocalDateTime.of(2026, 10, 1, 0, 0)), any(), any(), anyInt());
     }
 
-    /** 单笔内部补偿也只能发布精确 CAS 消息，不能直接访问商户端点。 */
+    /**
+     * 单笔内部补偿也只能发布精确 CAS 消息，不能直接访问商户端点。
+     */
     @Test
     void shouldRequeueExactDueTaskThroughMq() {
         DataMerchantNotificationMapper mapper = mock(DataMerchantNotificationMapper.class);
@@ -106,6 +105,9 @@ class MerchantNotificationRetryReconciliationServiceTests {
         assertThat(captor.getValue().getDeliverAt()).isEqualTo(nextRetryTime);
     }
 
+    /**
+     * 构造不包含真实敏感数据的商户通知任务。
+     */
     private DataMerchantNotificationTaskDO task(String notifyId,
                                                 String transactionId,
                                                 LocalDateTime transactionDateTime) {

@@ -10,13 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTimeoutScanner
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务超时扫描器
- * @status : create
+ * 任务超时扫描器
  */
 @Component
 public class JobTimeoutScanner {

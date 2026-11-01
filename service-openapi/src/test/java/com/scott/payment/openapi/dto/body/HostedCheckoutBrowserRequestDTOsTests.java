@@ -13,20 +13,18 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutBrowserRequestDTOsTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 浏览器请求 DTO 校验测试。
- * @status : create
+ * Hosted Checkout 浏览器请求 DTO 校验测试。
  */
 class HostedCheckoutBrowserRequestDTOsTests {
 
-    /** 测试类共享的 Bean Validation 工厂，在全部用例结束后统一关闭。 */
+    /**
+     * 测试类共享的 Bean Validation 工厂，在全部用例结束后统一关闭。
+     */
     private static ValidatorFactory validatorFactory;
 
-    /** 用于验证浏览器请求 DTO 字段约束的 Validator。 */
+    /**
+     * 用于验证浏览器请求 DTO 字段约束的 Validator。
+     */
     private static Validator validator;
 
     @BeforeAll

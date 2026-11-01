@@ -15,13 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionDTOs
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户后台交易查询 DTO 集合，位于 service-merchant 接口传输层，仅承载当前登录商户可见的交易查询、详情、统计和后续动作数据。
- * @status : create
+ * 商户后台交易查询 DTO 集合，位于 service-merchant 接口传输层，仅承载当前登录商户可见的交易查询、详情、统计和后续动作数据。
  */
 public final class MerchantTransactionDTOs {
 
@@ -141,10 +135,14 @@ public final class MerchantTransactionDTOs {
          */
         private String reason;
 
-        /** 退款原因稳定编码；新版控制台提交，旧版文本请求可为空。 */
+        /**
+         * 退款原因稳定编码；新版控制台提交，旧版文本请求可为空。
+         */
         private String reasonCode;
 
-        /** 补充退款说明，最多 200 字；OTHER 必填，其他原因选填。 */
+        /**
+         * 补充退款说明，最多 200 字；OTHER 必填，其他原因选填。
+         */
         private String refundDescription;
 
         /**
@@ -153,7 +151,9 @@ public final class MerchantTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 被操作交易所属生命周期根主单的真实分片时间。 */
+        /**
+         * 被操作交易所属生命周期根主单的真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
     }
@@ -529,13 +529,19 @@ public final class MerchantTransactionDTOs {
          */
         private BigDecimal transactionRate;
 
-        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        /**
+         * 是否按 3DS 交易处理：0 否，1 是。
+         */
         private Integer threeDsEnabled;
 
-        /** 是否实际启用 DCC：0 未启用，1 启用。 */
+        /**
+         * 是否实际启用 DCC：0 未启用，1 启用。
+         */
         private Integer dccEnabled;
 
-        /** 是否实际启用 EDC：0 未启用，1 启用。 */
+        /**
+         * 是否实际启用 EDC：0 未启用，1 启用。
+         */
         private Integer edcEnabled;
 
         /**
@@ -606,25 +612,39 @@ public final class MerchantTransactionDTOs {
          */
         private BigDecimal availableRefundAmount;
 
-        /** 最近真实动作的最终结算币种；未结算时为空。 */
+        /**
+         * 最近真实动作的最终结算币种；未结算时为空。
+         */
         private String settlementCurrency;
 
-        /** 最近真实动作的最终有符号结算金额，单位由 settlementCurrency 决定。 */
+        /**
+         * 最近真实动作的最终有符号结算金额，单位由 settlementCurrency 决定。
+         */
         private BigDecimal settlementAmount;
 
-        /** 最近真实动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。 */
+        /**
+         * 最近真实动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。
+         */
         private BigDecimal settlementRate;
 
-        /** 最近真实动作的结算业务日期；未结算时为空。 */
+        /**
+         * 最近真实动作的结算业务日期；未结算时为空。
+         */
         private LocalDate settlementDate;
 
-        /** 最近一次结算或冲正批次号。 */
+        /**
+         * 最近一次结算或冲正批次号。
+         */
         private String settlementBatchNo;
 
-        /** 当前主单结算快照对应的真实动作交易号。 */
+        /**
+         * 当前主单结算快照对应的真实动作交易号。
+         */
         private String settlementTransactionId;
 
-        /** 当前主单结算快照对应的真实动作分片时间。 */
+        /**
+         * 当前主单结算快照对应的真实动作分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime settlementTransactionDateTime;
 
@@ -686,7 +706,9 @@ public final class MerchantTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 生命周期根主单的真实分片时间，动作详情必须与 transactionDateTime 一并传入。 */
+        /**
+         * 生命周期根主单的真实分片时间，动作详情必须与 transactionDateTime 一并传入。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
@@ -864,13 +886,19 @@ public final class MerchantTransactionDTOs {
          */
         private BigDecimal transactionRate;
 
-        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        /**
+         * 是否按 3DS 交易处理：0 否，1 是。
+         */
         private Integer threeDsEnabled;
 
-        /** 是否实际启用 DCC：0 未启用，1 启用。 */
+        /**
+         * 是否实际启用 DCC：0 未启用，1 启用。
+         */
         private Integer dccEnabled;
 
-        /** 是否实际启用 EDC：0 未启用，1 启用。 */
+        /**
+         * 是否实际启用 EDC：0 未启用，1 启用。
+         */
         private Integer edcEnabled;
 
         /**
@@ -1042,19 +1070,29 @@ public final class MerchantTransactionDTOs {
          */
         private String acquirerReferenceNo;
 
-        /** 当前动作最终结算币种；未结算时为空。 */
+        /**
+         * 当前动作最终结算币种；未结算时为空。
+         */
         private String settlementCurrency;
 
-        /** 当前动作最终有符号结算金额，单位由 settlementCurrency 决定。 */
+        /**
+         * 当前动作最终有符号结算金额，单位由 settlementCurrency 决定。
+         */
         private BigDecimal settlementAmount;
 
-        /** 当前动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。 */
+        /**
+         * 当前动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。
+         */
         private BigDecimal settlementRate;
 
-        /** 当前动作最终结算业务日期；未结算时为空。 */
+        /**
+         * 当前动作最终结算业务日期；未结算时为空。
+         */
         private LocalDate settlementDate;
 
-        /** 当前动作最近一次结算或冲正批次号。 */
+        /**
+         * 当前动作最近一次结算或冲正批次号。
+         */
         private String settlementBatchNo;
 
         /**
@@ -1097,7 +1135,9 @@ public final class MerchantTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 生命周期根主单的真实分片时间。 */
+        /**
+         * 生命周期根主单的真实分片时间。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 

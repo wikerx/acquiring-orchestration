@@ -23,13 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskWhiteController
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 白名单管理接口，位于 service-admin 接口层，仅维护管理端白名单配置。
- * @status : create
+ * 白名单管理接口，位于 service-admin 接口层，仅维护管理端白名单配置。
  */
 @RestController
 @RequestMapping("/admin/risk")
@@ -37,10 +31,6 @@ public class AdminRiskWhiteController {
 
     /**
      * {@code MODULE_TYPE}，用于区分 {@code AdminRiskWhiteController} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：构造器注入的应用服务或 HTTP 请求对象。
-     * </p>
      */
     private static final String MODULE_TYPE = "WHITE";
 

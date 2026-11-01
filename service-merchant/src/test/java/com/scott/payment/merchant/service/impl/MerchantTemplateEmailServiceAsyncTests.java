@@ -27,13 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTemplateEmailServiceAsyncTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Merchant 模板邮件只保存加密记录并进入可靠队列。
- * @status : create
+ * 验证 Merchant 模板邮件只保存加密记录并进入可靠队列。
  */
 class MerchantTemplateEmailServiceAsyncTests {
 

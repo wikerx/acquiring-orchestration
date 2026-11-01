@@ -4,13 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoStandardData
- * @date : 2026-06-03 16:20
- * @email : scott_x@163.com
- * @description : ISO 3166 国家地区与 ISO 4217 币种基础字典，数据由标准库生成后内置
- * @status : create
+ * ISO 3166 国家地区与 ISO 4217 币种基础字典，数据由标准库生成后内置
  */
 final class IsoStandardData {
 

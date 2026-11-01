@@ -9,13 +9,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutInternalAuthWebMvcConfig
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 代付内部服务鉴权配置，为 service-payout 的 /internal/** 接口注册 HMAC 签名校验。
- * @status : create
+ * 为代付内部接口注册 HMAC 签名与 nonce 防重放校验。
  */
 @Configuration
 @EnableConfigurationProperties(InternalServiceAuthProperties.class)
@@ -26,7 +20,9 @@ public class PayoutInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     private final InternalServiceAuthProperties internalServiceAuthProperties;
 
-    /** Redis nonce 防重放守卫。 */
+    /**
+     * Redis nonce 防重放守卫。
+     */
     private final InternalRequestReplayGuard replayGuard;
 
     /**

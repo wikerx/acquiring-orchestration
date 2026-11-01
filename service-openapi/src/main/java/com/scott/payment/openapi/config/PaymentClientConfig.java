@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentClientConfig
- * @date : 2026-05-31 21:52
- * @email : scott_x@163.com
- * @description : 配置 service-openapi 调用 service-payment 的直连与服务发现客户端，统一校验超时边界并传播 traceId。
- * @status : create
+ * 配置 service-openapi 调用 service-payment 的直连与服务发现客户端，统一校验超时边界并传播 traceId。
  */
 @Configuration
 @EnableConfigurationProperties({PaymentClientProperties.class, HostedCheckoutProperties.class})

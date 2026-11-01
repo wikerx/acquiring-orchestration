@@ -10,13 +10,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLocationLookupMapper
- * @date : 2026-08-11 15:35
- * @email : scott_x@163.com
- * @description : IP 归属只读 Mapper，先选择唯一已就绪分片，再在受控物理表中执行区间命中查询
- * @status : create
+ * IP 归属只读 Mapper，先选择唯一已就绪分片，再在受控物理表中执行区间命中查询
  */
 @Mapper
 public interface IpLocationLookupMapper extends BaseMapper<IpLibraryShardDO> {

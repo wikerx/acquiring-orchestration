@@ -13,13 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutChannelRegistryTests
- * @date : 2026-08-12 00:00
- * @email : scott_x@163.com
- * @description : 代付 Provider 注册器测试，覆盖规范化定位、重复编码和缺失实现保护。
- * @status : create
+ * 代付 Provider 注册器测试，覆盖规范化定位、重复编码和缺失实现保护。
  */
 class PayoutChannelRegistryTests {
 

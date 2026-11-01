@@ -9,13 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCreateResultDTO
- * @date : 2026-05-31 21:01
- * @email : scott_x@163.com
- * @description : service-payment 创建收单交易的内部响应参数，返回交易受理后的商户可见结果摘要和内部生命周期关联 ID；operationId 仅内部链路使用，不暴露给商户。
- * @status : create
+ * service-payment 创建收单交易的内部响应参数，返回交易受理后的商户可见结果摘要和内部生命周期关联 ID；operationId 仅内部链路使用，不暴露给商户。
  */
 @Data
 public class PaymentCreateResultDTO implements Serializable {
@@ -61,16 +55,24 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String merchantId;
 
-    /** 首次交易保存的商品或服务明细；未上送时为空列表。 */
+    /**
+     * 首次交易保存的商品或服务明细；未上送时为空列表。
+     */
     private List<PaymentCreateCommandDTO.GoodsInfoDTO> goodsInfo;
 
-    /** 首次交易保存的持卡人账单信息；未上送时为空。 */
+    /**
+     * 首次交易保存的持卡人账单信息；未上送时为空。
+     */
     private PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 首次交易保存的付款人信息，返回商户前由支付核心从密文快照恢复。 */
+    /**
+     * 首次交易保存的付款人信息，返回商户前由支付核心从密文快照恢复。
+     */
     private PaymentCreateCommandDTO.PayerInfoDTO payerInfo;
 
-    /** 首次交易保存的收货人信息；未上送时为空。 */
+    /**
+     * 首次交易保存的收货人信息；未上送时为空。
+     */
     private PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo;
 
     /**
@@ -208,16 +210,24 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String settlementCurrency;
 
-    /** 已形成的结算换汇汇率；没有真实财务记录时为空。 */
+    /**
+     * 已形成的结算换汇汇率；没有真实财务记录时为空。
+     */
     private BigDecimal settlementRate;
 
-    /** 已形成的结算费用金额；没有真实财务记录时为空。 */
+    /**
+     * 已形成的结算费用金额；没有真实财务记录时为空。
+     */
     private BigDecimal settlementFeeAmount;
 
-    /** 已形成的费用明细；没有真实财务记录时为空列表。 */
+    /**
+     * 已形成的费用明细；没有真实财务记录时为空列表。
+     */
     private List<FeeItemDTO> feeItems;
 
-    /** 当前动作可向商户返回的 3DS 安全字段子集。 */
+    /**
+     * 当前动作可向商户返回的 3DS 安全字段子集。
+     */
     private ThreeDsInfoDTO threeDSInfo;
 
     /**
@@ -307,13 +317,19 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String merchantWebsite;
 
-    /** Hosted Checkout 交易结果页返回地址；按生命周期恢复。 */
+    /**
+     * Hosted Checkout 交易结果页返回地址；按生命周期恢复。
+     */
     private String redirectUrl;
 
-    /** Hosted Checkout 创建会话时选择的语言；按生命周期恢复。 */
+    /**
+     * Hosted Checkout 创建会话时选择的语言；按生命周期恢复。
+     */
     private String language;
 
-    /** 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。 */
+    /**
+     * 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。
+     */
     @Data
     public static class ThreeDsInfoDTO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -327,10 +343,6 @@ public class PaymentCreateResultDTO implements Serializable {
         private String eci;
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String dsTransactionId;
         /**
@@ -360,7 +372,9 @@ public class PaymentCreateResultDTO implements Serializable {
         private Boolean liabilityShifted;
     }
 
-    /** 已形成的费用明细。 */
+    /**
+     * 已形成的费用明细。
+     */
     @Data
     public static class FeeItemDTO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -401,13 +415,7 @@ public class PaymentCreateResultDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : SubMerchantInfoDTO
-     * @date : 2026-05-31 21:01
-     * @email : scott_x@163.com
-     * @description : 支付结果中的子商户冻结快照，保证查询和通知不受后续商户资料变更影响。
-     * @status : create
+     * 支付结果中的子商户冻结快照，保证查询和通知不受后续商户资料变更影响。
      */
     @Data
     public static class SubMerchantInfoDTO implements Serializable {
@@ -479,19 +487,11 @@ public class PaymentCreateResultDTO implements Serializable {
 
         /**
          * {@code subEmail}，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String subEmail;
 
         /**
          * {@code subPhone}，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String subPhone;
 

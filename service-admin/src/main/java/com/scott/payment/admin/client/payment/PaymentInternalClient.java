@@ -15,35 +15,43 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Req
 import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.ResolveCommand;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalClient
- * @date : 2026-07-14 23:57
- * @email : scott_x@163.com
- * @description : service-payment 内部命令客户端契约，只承载需要支付核心修改交易、退款审批或异常案件状态的操作。
- * @status : create
+ * service-payment 内部命令客户端契约，只承载需要支付核心修改交易、退款审批或异常案件状态的操作。
  */
 public interface PaymentInternalClient {
 
-    /** 审批通过退款。 */
+    /**
+     * 审批通过退款。
+     */
     ApprovalResult approveRefund(String approvalId, ApprovalClientRequest request);
 
-    /** 拒绝退款审批。 */
+    /**
+     * 拒绝退款审批。
+     */
     ApprovalResult rejectRefund(String approvalId, ApprovalClientRequest request);
 
-    /** 领取或转派勾兑异常案件。 */
+    /**
+     * 领取或转派勾兑异常案件。
+     */
     AbnormalRecord assignChannelMatchAbnormality(String eventId, AssignClientCommand command);
 
-    /** 单笔重新勾兑。 */
+    /**
+     * 单笔重新勾兑。
+     */
     AbnormalRecord requeryChannelMatchAbnormality(String eventId, RequeryCommand command);
 
-    /** 批量重新勾兑。 */
+    /**
+     * 批量重新勾兑。
+     */
     BatchRequeryResult batchRequeryChannelMatchAbnormalities(BatchRequeryCommand command);
 
-    /** 使用交易真实分片时间主动重查并勾兑单笔交易。 */
+    /**
+     * 使用交易真实分片时间主动重查并勾兑单笔交易。
+     */
     ChannelMatchRequeryResponse requeryChannelMatch(String transactionId, ChannelMatchRequeryRequest request);
 
-    /** 关闭或忽略勾兑异常案件。 */
+    /**
+     * 关闭或忽略勾兑异常案件。
+     */
     AbnormalRecord resolveChannelMatchAbnormality(String eventId, ResolveCommand command);
 
     /**

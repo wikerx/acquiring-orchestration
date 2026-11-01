@@ -23,13 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeComponentCalculator
- * @date : 2026-08-25 19:20
- * @email : scott_x@163.com
- * @description : 按冻结的商户配置生成费用组件；百分比使用标签币种，固定费和上下限使用 USD，且不读取或推导汇率。
- * @status : create
+ * 按冻结的商户配置生成费用组件；百分比使用标签币种，固定费和上下限使用 USD，且不读取或推导汇率。
  */
 public class FeeComponentCalculator {
 
@@ -118,7 +112,9 @@ public class FeeComponentCalculator {
                 appliedLimit, finalFee, minimum, maximum);
     }
 
-    /** 将标准规则或现有整笔适用阶梯规则解析为本次计价条款。 */
+    /**
+     * 将标准规则或现有整笔适用阶梯规则解析为本次计价条款。
+     */
     private PricingResolution resolvePricing(FeeCalculationCommand command) {
         FeeRuleSnapshot rule = command.rule();
         if (rule.feeMode() == FeeMode.STANDARD) {

@@ -40,13 +40,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReportingApplicationService
- * @date : 2026-09-01 23:00
- * @email : scott_x@163.com
- * @description : Admin 结算预审、逐笔结果、保证金动作和资金流水的本地查询与分页导出编排；每页重新应用当前账号数据范围。
- * @status : update
+ * Admin 结算预审、逐笔结果、保证金动作和资金流水的本地查询与分页导出编排；每页重新应用当前账号数据范围。
  */
 @Service
 public class AdminSettlementReportingApplicationService {
@@ -77,6 +71,9 @@ public class AdminSettlementReportingApplicationService {
     private final ExcelI18nMessageResolver messageResolver;
     private final ExcelLocaleResolver localeResolver;
 
+    /**
+     * 创建管理端结算报表应用服务。
+     */
     @Autowired
     public AdminSettlementReportingApplicationService(AdminSettlementReviewQueryService reviewQueryService,
                                                       AdminSettlementReportingQueryService reportingQueryService,
@@ -94,7 +91,9 @@ public class AdminSettlementReportingApplicationService {
         this.localeResolver = localeResolver;
     }
 
-    /** 保留旧构造器，供现有聚焦测试按原依赖范围实例化。 */
+    /**
+     * 保留旧构造器，供现有聚焦测试按原依赖范围实例化。
+     */
     public AdminSettlementReportingApplicationService(AdminSettlementReviewQueryService reviewQueryService,
                                                       AdminSettlementReportingQueryService reportingQueryService,
                                                       AdminMerchantDataScopeResolver dataScopeResolver,
@@ -105,7 +104,9 @@ public class AdminSettlementReportingApplicationService {
                 excelExportService, messageResolver, localeResolver);
     }
 
-    /** 查询当前 Admin 数据范围内指定正式批次的结算汇总分页。 */
+    /**
+     * 查询当前 Admin 数据范围内指定正式批次的结算汇总分页。
+     */
     public PageResult<ResultSummaryLine> searchBatchResultSummaries(String settlementBatchNo,
                                                                     Integer pageNo,
                                                                     Integer pageSize) {
@@ -125,7 +126,9 @@ public class AdminSettlementReportingApplicationService {
         return reportingQueryService.searchResultItems(request, dataScopeResolver.resolve(account));
     }
 
-    /** 分页查询正式批次内一笔交易的结算财务组件。 */
+    /**
+     * 分页查询正式批次内一笔交易的结算财务组件。
+     */
     public PageResult<ResultItemSummary> searchResultItemComponents(String settlementBatchNo,
                                                                      String transactionId,
                                                                      Integer pageNo,
@@ -136,7 +139,9 @@ public class AdminSettlementReportingApplicationService {
                 dataScopeResolver.resolve(account));
     }
 
-    /** 按真实交易身份查询当前 Admin 数据范围内的对账状态快照。 */
+    /**
+     * 按真实交易身份查询当前 Admin 数据范围内的对账状态快照。
+     */
     public List<ReconciliationRecord> findReconciliationRecordsByTransaction(
             String transactionId, LocalDateTime transactionDateTime) {
         InternalAuthAccount account = currentAdminAccount();
@@ -277,7 +282,9 @@ public class AdminSettlementReportingApplicationService {
                 }, reserveQuerySummary(query), response);
     }
 
-    /** 按固定页大小导出指定正式批次的全部结算汇总。 */
+    /**
+     * 按固定页大小导出指定正式批次的全部结算汇总。
+     */
     public void exportBatchResultSummaries(String settlementBatchNo, HttpServletResponse response) {
         String batchNo = StringUtils.hasText(settlementBatchNo) ? settlementBatchNo.trim() : settlementBatchNo;
         Locale locale = localeResolver.resolveCurrentLocale();
@@ -288,7 +295,9 @@ public class AdminSettlementReportingApplicationService {
                 "settlementBatchNo=" + batchNo, response);
     }
 
-    /** 使用统一 Excel 组件按固定页大小导出，分页加载器负责逐页执行 Admin 数据范围过滤。 */
+    /**
+     * 使用统一 Excel 组件按固定页大小导出，分页加载器负责逐页执行 Admin 数据范围过滤。
+     */
     private <T> void exportPaged(String titleKey,
                                  Class<T> rowClass,
                                  java.util.function.IntFunction<List<T>> pageLoader,
@@ -312,6 +321,9 @@ public class AdminSettlementReportingApplicationService {
                 .build(), response);
     }
 
+    /**
+     * 转换为复核记录导出行数据。
+     */
     private SettlementReviewExportRow toReviewExportRow(ReviewSummary source, Locale locale) {
         SettlementReviewExportRow row = new SettlementReviewExportRow();
         row.setReviewOrderNo(source.getReviewOrderNo());
@@ -333,6 +345,9 @@ public class AdminSettlementReportingApplicationService {
         return row;
     }
 
+    /**
+     * 转换为结算批次摘要导出行数据。
+     */
     private SettlementBatchSummaryExportRow toBatchSummaryExportRow(ResultSummaryLine source,
                                                                      Locale locale) {
         SettlementBatchSummaryExportRow row = new SettlementBatchSummaryExportRow();
@@ -350,6 +365,9 @@ public class AdminSettlementReportingApplicationService {
         return row;
     }
 
+    /**
+     * 按业务日期解析结算批次查询服务。
+     */
     private AdminSettlementQueryService requiredBatchQueryService() {
         if (batchQueryService == null) {
             throw new IllegalStateException("Admin settlement batch query service is unavailable");
@@ -357,6 +375,9 @@ public class AdminSettlementReportingApplicationService {
         return batchQueryService;
     }
 
+    /**
+     * 转换为结算结果导出行数据。
+     */
     private SettlementTransactionExportRow toResultExportRow(TransactionSettlementSummary source, Locale locale) {
         SettlementTransactionExportRow row = new SettlementTransactionExportRow();
         row.setSettlementBatchNo(source.getSettlementBatchNo());
@@ -379,6 +400,9 @@ public class AdminSettlementReportingApplicationService {
         return row;
     }
 
+    /**
+     * 转换为结算入账导出行数据。
+     */
     private SettlementPostingExportRow toPostingExportRow(PostingSummary source, Locale locale) {
         SettlementPostingExportRow row = new SettlementPostingExportRow();
         row.setLedgerNo(source.getLedgerNo());
@@ -403,6 +427,9 @@ public class AdminSettlementReportingApplicationService {
         return row;
     }
 
+    /**
+     * 转换为保证金结算导出行数据。
+     */
     private SettlementReserveItemExportRow toReserveExportRow(ReserveItemSummary source, Locale locale) {
         SettlementReserveItemExportRow row = new SettlementReserveItemExportRow();
         row.setSettlementBatchNo(source.getSettlementBatchNo());
@@ -422,6 +449,9 @@ public class AdminSettlementReportingApplicationService {
         return row;
     }
 
+    /**
+     * 解析结算业务编码的展示标签。
+     */
     private String settlementLabel(String category, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -432,31 +462,45 @@ public class AdminSettlementReportingApplicationService {
         return key.equals(resolved) ? normalized : resolved;
     }
 
+    /**
+     * 构建结算预审查询审计摘要。
+     */
     private String reviewQuerySummary(ReviewSearchRequest query) {
         return "beginBusinessDate=" + query.getBeginBusinessDate() + ", endBusinessDate="
                 + query.getEndBusinessDate() + ", merchantId=" + query.getMerchantId()
                 + ", reviewType=" + query.getReviewType() + ", reviewStatus=" + query.getReviewStatus();
     }
 
+    /**
+     * 构建结算结果查询审计摘要。
+     */
     private String resultQuerySummary(ResultItemSearchRequest query) {
         return "beginBusinessDate=" + query.getBeginBusinessDate() + ", endBusinessDate="
                 + query.getEndBusinessDate() + ", batchNo=" + query.getSettlementBatchNo()
                 + ", merchantId=" + query.getMerchantId() + ", resultItemType=" + query.getResultItemType();
     }
 
+    /**
+     * 构建结算入账查询审计摘要。
+     */
     private String postingQuerySummary(PostingSearchRequest query) {
         return "beginPostedTime=" + query.getBeginPostedTime() + ", endPostedTime="
                 + query.getEndPostedTime() + ", batchNo=" + query.getSettlementBatchNo()
                 + ", merchantId=" + query.getMerchantId() + ", operationMode=" + query.getOperationMode();
     }
 
+    /**
+     * 构建保证金结算查询审计摘要。
+     */
     private String reserveQuerySummary(ReserveItemSearchRequest query) {
         return "beginBusinessDate=" + query.getBeginBusinessDate() + ", endBusinessDate="
                 + query.getEndBusinessDate() + ", batchNo=" + query.getSettlementBatchNo()
                 + ", merchantId=" + query.getMerchantId() + ", actionType=" + query.getActionType();
     }
 
-    /** 从可信内部认证上下文解析 Admin 账户，不允许客户端传入操作人。 */
+    /**
+     * 从可信内部认证上下文解析 Admin 账户，不允许客户端传入操作人。
+     */
     private InternalAuthAccount currentAdminAccount() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAccountId() == null || !"ADMIN".equalsIgnoreCase(account.getAppCode())) {
@@ -465,6 +509,9 @@ public class AdminSettlementReportingApplicationService {
         return account;
     }
 
+    /**
+     * 解析当前操作人的审计名称。
+     */
     private String operatorName(InternalAuthAccount account) {
         String value = StringUtils.hasText(account.getRealName())
                 ? account.getRealName().trim() : account.getLoginAccount();

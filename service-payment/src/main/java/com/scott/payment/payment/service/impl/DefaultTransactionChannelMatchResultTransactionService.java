@@ -114,7 +114,9 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 operationDO.getTransactionDateTime(), operationDO.getOperationId());
     }
 
-    /** 保存平台终态交易的渠道查询摘要，不进入交易状态机。 */
+    /**
+     * 保存平台终态交易的渠道查询摘要，不进入交易状态机。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -169,7 +171,9 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 "PENDING", matchResult, matchTime, nextMatchTime, failReason);
     }
 
-    /** 保存 PENDING、MISMATCHED 或 FAILED 勾兑摘要。 */
+    /**
+     * 保存 PENDING、MISMATCHED 或 FAILED 勾兑摘要。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -210,13 +214,18 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 failReason);
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(TransactionOperationDO operationDO) {
         return operationDO != null
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus()));
     }
 
-    /** 将查询返回的真实渠道身份和参考字段合并到本次状态 CAS 输入。 */
+    /**
+     * 将查询返回的真实渠道身份和参考字段合并到本次状态 CAS 输入。
+     */
     private void applyQueryReferences(TransactionOperationDO operationDO,
                                       PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (operationDO == null || invokeResultDTO == null || invokeResultDTO.getChannelResponse() == null) {
@@ -232,6 +241,9 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 response.getAcquirerReferenceNo(), operationDO.getAcquirerReferenceNo()));
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String first, String second) {
         return StringUtils.hasText(first) ? first : second;
     }

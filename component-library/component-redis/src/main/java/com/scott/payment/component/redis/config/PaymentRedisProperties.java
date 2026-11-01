@@ -10,13 +10,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisProperties
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 支付系统 Redis 物理 Key 配置。
- * @status : create
+ * 支付系统 Redis 物理 Key 配置。
  *
  *
  * <p>所有直接访问 Redis 的业务 Key 都必须经过本配置拼接系统和环境前缀，

@@ -10,13 +10,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserAccountCreateRequest
- * @date : 2026-06-06 10:36
- * @email : scott_x@163.com
- * @description : sys用户账号写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
- * @status : create
+ * sys用户账号写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
  */
 @Data
 public class SysUserAccountCreateRequest implements Serializable {

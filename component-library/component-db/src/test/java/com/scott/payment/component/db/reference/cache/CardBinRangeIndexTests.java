@@ -33,7 +33,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证 Card BIN 分片索引的代际隔离、最优匹配、批量发布和资源边界。 */
+/**
+ * 验证 Card BIN 分片索引的代际隔离、最优匹配、批量发布和资源边界。
+ */
 class CardBinRangeIndexTests {
 
     @Test

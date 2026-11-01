@@ -33,10 +33,8 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * 渠道勾兑异常案件服务。
@@ -48,7 +46,9 @@ import java.util.Map;
 @Slf4j
 public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalService {
 
-    /** 单批主动重查上限，限制同步渠道查询对线程池和渠道限流配额的冲击。 */
+    /**
+     * 单批主动重查上限，限制同步渠道查询对线程池和渠道限流配额的冲击。
+     */
     private static final int MAX_BATCH_REQUERY = 100;
 
     private final TransactionAbnormalEventMapper abnormalEventMapper;
@@ -325,6 +325,9 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
                 operationDO.getTransactionId(), abnormalType, matchResult);
     }
 
+    /**
+     * 规范化币种。
+     */
     private String normalizeCurrency(String currency) {
         return StringUtils.hasText(currency) ? currency.trim().toUpperCase(Locale.ROOT) : null;
     }
@@ -358,6 +361,13 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return resolved;
     }
 
+    /**
+     * 锁定并返回指定勾兑异常案件，缺少定位信息或记录不存在时明确失败。
+     *
+     * @param eventId 异常案件唯一标识
+     * @param transactionDateTime 原交易分片时间
+     * @return 当前异常案件及其版本信息
+     */
     private AbnormalRecord requireRecord(String eventId, LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(eventId) || transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -369,18 +379,33 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return record;
     }
 
+    /**
+     * 构建脱敏的渠道勾兑异常证据。
+     *
+     * @param operationDO 发生异常的交易动作事实
+     * @param abnormalType 异常类型
+     * @param matchResult 渠道勾兑结果
+     * @param sourceRecordId 触发异常的查询或回调记录标识
+     * @return 长度不超过数据库字段上限的证据 JSON
+     */
     private String buildEvidence(TransactionOperationDO operationDO,
                                  String abnormalType,
                                  String matchResult,
                                  String sourceRecordId) {
-        Map<String, Object> evidence = new LinkedHashMap<>();
-        evidence.put("abnormalType", abnormalType);
-        evidence.put("matchResult", matchResult);
-        evidence.put("sourceRecordId", sourceRecordId);
-        evidence.put("channelMatchCount", value(operationDO.getChannelMatchCount()) + 1L);
+        ChannelMatchEvidence evidence = new ChannelMatchEvidence(
+                abnormalType,
+                matchResult,
+                sourceRecordId,
+                value(operationDO.getChannelMatchCount()) + 1L);
         return safeLength(JsonUtils.toJsonString(evidence), 4000);
     }
 
+    /**
+     * 规范化勾兑异常级别，未知值按高优先级处理。
+     *
+     * @param level 待校验的异常级别
+     * @return 平台支持的异常级别编码
+     */
     private String normalizeLevel(String level) {
         for (ChannelMatchAbnormalLevelEnum value : ChannelMatchAbnormalLevelEnum.values()) {
             if (value.getCode().equals(level)) {
@@ -390,20 +415,53 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return ChannelMatchAbnormalLevelEnum.HIGH.getCode();
     }
 
+    /**
+     * 判断异常案件是否已经关闭。
+     *
+     * @param status 异常案件状态
+     * @return 已解决或已忽略时返回 {@code true}
+     */
     private boolean isTerminal(String status) {
         return ChannelMatchAbnormalStatusEnum.RESOLVED.getCode().equals(status)
                 || ChannelMatchAbnormalStatusEnum.IGNORED.getCode().equals(status);
     }
 
+    /**
+     * 将可空数据库计数转换为零起始的长整数。
+     *
+     * @param value 数据库返回的计数
+     * @return 非空计数值；空值返回零
+     */
     private long value(Number value) {
         return value == null ? 0L : value.longValue();
     }
 
+    /**
+     * 将文本截断到持久化字段允许的长度。
+     *
+     * @param value 待持久化文本
+     * @param maxLength 数据库字段允许的最大字符数
+     * @return 未超过上限的文本
+     */
     private String safeLength(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    /**
+     * 渠道勾兑异常的脱敏证据快照。
+     *
+     * @param abnormalType 异常类型
+     * @param matchResult 渠道勾兑结果
+     * @param sourceRecordId 触发异常的记录标识
+     * @param channelMatchCount 当前交易累计勾兑次数
+     */
+    private record ChannelMatchEvidence(String abnormalType,
+                                        String matchResult,
+                                        String sourceRecordId,
+                                        long channelMatchCount) {
     }
 
 }

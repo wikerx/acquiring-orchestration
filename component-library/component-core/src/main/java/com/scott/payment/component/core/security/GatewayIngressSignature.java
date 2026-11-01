@@ -11,27 +11,33 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayIngressSignature
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 收银台 Gateway 入口 HMAC-SHA256 协议，统一网关签名和下游验签使用的规范化文本。
- * @status : create
+ * 收银台 Gateway 入口 HMAC-SHA256 协议，统一网关签名和下游验签使用的规范化文本。
  */
 public final class GatewayIngressSignature {
 
-    /** 唯一可信的收银台公网入口调用方。 */
+    /**
+     * 唯一可信的收银台公网入口调用方。
+     */
     public static final String CALLER_SERVICE_GATEWAY = "service-gateway";
-    /** Gateway 写入并由下游固定比对的调用方请求头。 */
+    /**
+     * Gateway 写入并由下游固定比对的调用方请求头。
+     */
     public static final String HEADER_CALLER = "X-Checkout-Gateway-Caller";
-    /** Gateway 签名时使用的毫秒时间戳请求头。 */
+    /**
+     * Gateway 签名时使用的毫秒时间戳请求头。
+     */
     public static final String HEADER_TIMESTAMP = "X-Checkout-Gateway-Timestamp";
-    /** Gateway 为每个转发请求生成的随机串请求头。 */
+    /**
+     * Gateway 为每个转发请求生成的随机串请求头。
+     */
     public static final String HEADER_NONCE = "X-Checkout-Gateway-Nonce";
-    /** 下游以常量时间比较的 HMAC-SHA256 签名请求头。 */
+    /**
+     * 下游以常量时间比较的 HMAC-SHA256 签名请求头。
+     */
     public static final String HEADER_SIGNATURE = "X-Checkout-Gateway-Signature";
-    /** 共享密钥最低字符数，实际部署建议使用 32 字节以上随机值。 */
+    /**
+     * 共享密钥最低字符数，实际部署建议使用 32 字节以上随机值。
+     */
     public static final int MINIMUM_SECRET_LENGTH = 32;
 
     /**
@@ -51,13 +57,19 @@ public final class GatewayIngressSignature {
      */
     private static final String LINE_SEPARATOR = "\n";
 
-    /** Gateway 写入的原始请求体 SHA-256。 */
+    /**
+     * Gateway 写入的原始请求体 SHA-256。
+     */
     public static final String HEADER_BODY_SHA256 = "X-Gateway-Body-SHA256";
 
-    /** Gateway 写入并由入口签名绑定的可信客户端 IP。 */
+    /**
+     * Gateway 写入并由入口签名绑定的可信客户端 IP。
+     */
     public static final String HEADER_CLIENT_IP = "X-Gateway-Client-Ip";
 
-    /** 空请求体的 SHA-256。 */
+    /**
+     * 空请求体的 SHA-256。
+     */
     public static final String EMPTY_BODY_SHA256 = payloadSha256(new byte[0]);
 
     private GatewayIngressSignature() {
@@ -117,7 +129,9 @@ public final class GatewayIngressSignature {
         return hmacSha256(canonicalText, secret);
     }
 
-    /** 计算原始请求体的小写十六进制 SHA-256。 */
+    /**
+     * 计算原始请求体的小写十六进制 SHA-256。
+     */
     public static String payloadSha256(byte[] body) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -182,7 +196,9 @@ public final class GatewayIngressSignature {
                 || path.equals("/checkout/health"));
     }
 
-    /** 判断请求路径是否属于管理后台或商户后台公网入口。 */
+    /**
+     * 判断请求路径是否属于管理后台或商户后台公网入口。
+     */
     public static boolean isProtectedPortalPath(String path) {
         return path != null && (path.equals("/admin")
                 || path.startsWith("/admin/")
@@ -190,7 +206,9 @@ public final class GatewayIngressSignature {
                 || path.startsWith("/merchant/"));
     }
 
-    /** 判断 Gateway 是否必须清理外部签名头并为下游重新签名。 */
+    /**
+     * 判断 Gateway 是否必须清理外部签名头并为下游重新签名。
+     */
     public static boolean isProtectedGatewayPath(String path) {
         return isProtectedCheckoutPath(path) || isProtectedPortalPath(path);
     }

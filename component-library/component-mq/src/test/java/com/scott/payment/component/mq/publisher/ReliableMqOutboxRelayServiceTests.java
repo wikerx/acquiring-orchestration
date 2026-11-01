@@ -20,18 +20,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxRelayServiceTests
- * @date : 2026-08-02 22:25
- * @email : scott_x@163.com
- * @description : Outbox Relay CAS、原始快照投递和失败重试状态测试
- * @status : create
+ * Outbox Relay CAS、原始快照投递和失败重试状态测试
  */
 @Slf4j
 class ReliableMqOutboxRelayServiceTests {
 
-    /** CAS 抢占成功后应发送冻结 JSON，并以抢占后的版本标记 SENT。 */
+    /**
+     * CAS 抢占成功后应发送冻结 JSON，并以抢占后的版本标记 SENT。
+     */
     @Test
     void shouldClaimSendAndMarkSent() {
         log.info("测试Outbox正常投递，关键输入: INIT、version=0");
@@ -52,7 +48,9 @@ class ReliableMqOutboxRelayServiceTests {
         log.info("Outbox正常投递测试完成，结果: SENT CAS成功");
     }
 
-    /** MQ 异常不得标记成功，应进入 RETRY_WAIT 且只保存异常类型。 */
+    /**
+     * MQ 异常不得标记成功，应进入 RETRY_WAIT 且只保存异常类型。
+     */
     @Test
     void shouldScheduleRetryWhenMqDeliveryFails() {
         log.info("测试Outbox失败重试，关键输入: MQ发送异常、未耗尽重试");
@@ -77,7 +75,9 @@ class ReliableMqOutboxRelayServiceTests {
         log.info("Outbox失败重试测试完成，结果: RETRY_WAIT且未保存异常详情");
     }
 
-    /** 事件号即使可查到，也不能由其他生产服务的 Relay 投递。 */
+    /**
+     * 事件号即使可查到，也不能由其他生产服务的 Relay 投递。
+     */
     @Test
     void shouldRejectEventOwnedByAnotherProducerService() {
         ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
@@ -94,7 +94,9 @@ class ReliableMqOutboxRelayServiceTests {
         verifyNoInteractions(producer);
     }
 
-    /** 创建待投递测试消息。 */
+    /**
+     * 创建待投递测试消息。
+     */
     private ReliableMqOutboxDO event() {
         ReliableMqOutboxDO event = new ReliableMqOutboxDO();
         event.setId(1L);

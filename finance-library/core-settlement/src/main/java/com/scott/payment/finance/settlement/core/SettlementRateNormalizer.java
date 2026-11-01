@@ -12,17 +12,13 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRateNormalizer
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 将直接、反向和同币种报价固化为 12 位小数的批次直接汇率，确保计算值与数据库锁定值一致。
- * @status : create
+ * 将直接、反向和同币种报价固化为 12 位小数的批次直接汇率，确保计算值与数据库锁定值一致。
  */
 public final class SettlementRateNormalizer {
 
-    /** 结算批次汇率固定持久化精度。 */
+    /**
+     * 结算批次汇率固定持久化精度。
+     */
     public static final int RATE_SCALE = 12;
 
     /**

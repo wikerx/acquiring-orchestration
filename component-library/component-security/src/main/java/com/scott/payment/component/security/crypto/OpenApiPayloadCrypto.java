@@ -33,13 +33,7 @@ import java.util.function.Function;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPayloadCrypto
- * @date : 2026-05-29 22:06
- * @email : scott_x@163.com
- * @description : openAPI报文加解密协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * openAPI报文加解密协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  */
 public class OpenApiPayloadCrypto {
 

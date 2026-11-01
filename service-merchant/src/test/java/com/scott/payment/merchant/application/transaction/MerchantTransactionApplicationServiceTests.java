@@ -35,27 +35,26 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionApplicationServiceTests
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证商户交易命令身份隔离以及同步导出资源预算和分页边界
- * @status : create
+ * 验证商户交易命令身份隔离以及同步导出资源预算和分页边界
  */
 class MerchantTransactionApplicationServiceTests {
 
-    /** 测试中代表当前认证商户的固定标识。 */
+    /**
+     * 测试中代表当前认证商户的固定标识。
+     */
     private static final String MERCHANT_ID = "merchant-a";
-    /** 测试中代表后续动作目标交易的固定标识。 */
+    /**
+     * 测试中代表后续动作目标交易的固定标识。
+     */
     private static final String TRANSACTION_ID = "transaction-a";
     private static final LocalDateTime TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 7, 14, 12, 30, 45);
     private static final LocalDateTime ROOT_TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 4, 10, 9, 15, 30);
 
-    /** 商户后台授权动作必须调用 CAPTURE，不得误标为预授权完成。 */
-    /** 弹窗额度必须扣除处理中退款，失败和已成功动作不得重复扣减。 */
+    /**
+     * 验证退款弹窗额度会扣除处理中退款，并始终使用商户标签币种展示。
+     */
     @Test
     void refundContextShouldExcludePendingRefundsAndUseLabelCurrency() {
         MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
@@ -82,7 +81,9 @@ class MerchantTransactionApplicationServiceTests {
         verifyNoInteractions(payment);
     }
 
-    /** 可退金额为零时不制造最小额度；日元与三位辅币按 ISO 精度显示。 */
+    /**
+     * 可退金额为零时不制造最小额度；日元与三位辅币按 ISO 精度显示。
+     */
     @Test
     void refundContextShouldHandleZeroBalanceAndCurrencyPrecision() {
         MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
@@ -103,7 +104,9 @@ class MerchantTransactionApplicationServiceTests {
         assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).availableRefundAmount()).isZero();
     }
 
-    /** 两端入口都必须拦截 OTHER 的空白说明，且不得调用支付核心。 */
+    /**
+     * 两端入口都必须拦截 OTHER 的空白说明，且不得调用支付核心。
+     */
     @Test
     void refundShouldRejectOtherWithoutDetailsBeforeCallingPayment() {
         MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
@@ -119,7 +122,9 @@ class MerchantTransactionApplicationServiceTests {
         verifyNoInteractions(payment);
     }
 
-    /** 带编码的部分退款原因和说明必须传入现有支付核心审计字段。 */
+    /**
+     * 带编码的部分退款原因和说明必须传入现有支付核心审计字段。
+     */
     @Test
     void refundShouldForwardStructuredReasonAndPreserveRequestId() {
         MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
@@ -142,7 +147,9 @@ class MerchantTransactionApplicationServiceTests {
                 assertThat(command.getMerchantOrderId()).isEqualTo("refund-request-001"));
     }
 
-    /** 退款额度查询不能泄露其他商户交易信息。 */
+    /**
+     * 退款额度查询不能泄露其他商户交易信息。
+     */
     @Test
     void refundContextShouldRejectAnotherMerchant() {
         MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
@@ -186,7 +193,9 @@ class MerchantTransactionApplicationServiceTests {
         assertThat(captor.getValue().getMerchantOrderId()).startsWith("MCHCP");
     }
 
-    /** 商户后台预授权动作必须调用 PRE_AUTH_COMPLETION 独立支付核心命令。 */
+    /**
+     * 商户后台预授权动作必须调用 PRE_AUTH_COMPLETION 独立支付核心命令。
+     */
     @Test
     void preAuthCompletionShouldCallDedicatedCommand() {
         MerchantTransactionQueryService queryService = mock(MerchantTransactionQueryService.class);

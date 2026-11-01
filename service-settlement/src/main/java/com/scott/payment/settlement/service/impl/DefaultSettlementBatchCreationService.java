@@ -20,13 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementBatchCreationService
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 默认批次创建服务，串行锁定业务日序列并以 create_request_key 和数据库唯一键兜底幂等。
- * @status : create
+ * 默认批次创建服务，串行锁定业务日序列并以 create_request_key 和数据库唯一键兜底幂等。
  */
 @Service
 public class DefaultSettlementBatchCreationService implements SettlementBatchCreationService {

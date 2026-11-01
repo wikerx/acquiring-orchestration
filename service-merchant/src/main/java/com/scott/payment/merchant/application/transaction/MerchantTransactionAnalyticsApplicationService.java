@@ -7,18 +7,14 @@ import com.scott.payment.merchant.service.MerchantTransactionAnalyticsQueryServi
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionAnalyticsApplicationService
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 商户端交易分析应用服务，将认证商户边界传递给只读统计服务并隔离接口层与数据访问实现。
- * @status : create
+ * 商户端交易分析应用服务，将认证商户边界传递给只读统计服务并隔离接口层与数据访问实现。
  */
 @Service
 public class MerchantTransactionAnalyticsApplicationService {
 
-    /** 商户端交易分析只读查询依赖，不允许为空。 */
+    /**
+     * 商户端交易分析只读查询依赖，不允许为空。
+     */
     private final MerchantTransactionAnalyticsQueryService analyticsQueryService;
 
     /**

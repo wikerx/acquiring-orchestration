@@ -3,13 +3,7 @@ package com.scott.payment.component.job.executor;
 import com.scott.payment.component.job.model.JobExecuteResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobHandler
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心统一任务处理器协议
- * @status : create
+ * 调度中心统一任务处理器协议
  */
 public interface JobHandler {
 

@@ -27,6 +27,9 @@ public final class FrozenRateFollowUpAmountCalculator {
      */
     private static final BigDecimal UNIT_RATE = new BigDecimal("1.00000000");
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private FrozenRateFollowUpAmountCalculator() {
     }
 
@@ -117,6 +120,9 @@ public final class FrozenRateFollowUpAmountCalculator {
         return sourceMoney.toPlan(labelCurrency, requestAmount, transactionAmount);
     }
 
+    /**
+     * 从原交易冻结事实构建金额换算上下文。
+     */
     private static SourceMoney sourceMoney(TransactionOrderDO sourceOrderDO, int labelCurrencyExponent) {
         if (sourceOrderDO == null || !StringUtils.hasText(sourceOrderDO.getTransactionCurrency())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
@@ -148,6 +154,9 @@ public final class FrozenRateFollowUpAmountCalculator {
                 sourceOrderDO.getEdcEnabled());
     }
 
+    /**
+     * 解析交易汇率。
+     */
     private static BigDecimal resolveTransactionRate(TransactionOrderDO sourceOrderDO,
                                                      String labelCurrency,
                                                      String transactionCurrency) {
@@ -162,6 +171,9 @@ public final class FrozenRateFollowUpAmountCalculator {
                 "source transaction rate is missing");
     }
 
+    /**
+     * 校验后续动作币种与原交易标签币种一致。
+     */
     private static String validateRequestCurrency(String requestCurrency,
                                                   String sourceLabelCurrency,
                                                   boolean optional) {
@@ -180,6 +192,9 @@ public final class FrozenRateFollowUpAmountCalculator {
         return normalizedRequestCurrency;
     }
 
+    /**
+     * 校验正值金额。
+     */
     private static void validatePositiveAmount(BigDecimal requestAmount) {
         if (requestAmount == null || requestAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
@@ -187,6 +202,9 @@ public final class FrozenRateFollowUpAmountCalculator {
         }
     }
 
+    /**
+     * 解析动作标签金额。
+     */
     private static BigDecimal resolveOperationLabelAmount(TransactionOperationDO operationDO,
                                                           SourceMoney sourceMoney,
                                                           int labelCurrencyExponent) {
@@ -206,6 +224,9 @@ public final class FrozenRateFollowUpAmountCalculator {
                 sourceMoney.transactionRate(), labelCurrencyExponent, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 计算原交易剩余可请款金额。
+     */
     private static BigDecimal availableCaptureAmount(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO.getAvailableCaptureAmount() != null) {
             return sourceOrderDO.getAvailableCaptureAmount();
@@ -217,6 +238,9 @@ public final class FrozenRateFollowUpAmountCalculator {
         return authorizedAmount.subtract(capturedAmount);
     }
 
+    /**
+     * 按冻结交易汇率换算后续动作金额。
+     */
     private static BigDecimal convert(BigDecimal labelAmount,
                                       BigDecimal transactionRate,
                                       int transactionCurrencyExponent) {
@@ -224,6 +248,9 @@ public final class FrozenRateFollowUpAmountCalculator {
                 .setScale(transactionCurrencyExponent, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 校验换算后的交易金额不超过可用余额。
+     */
     private static void validateTransactionAmount(BigDecimal transactionAmount,
                                                   BigDecimal availableTransactionAmount,
                                                   boolean finalRemainingCapture) {
@@ -241,10 +268,16 @@ public final class FrozenRateFollowUpAmountCalculator {
         }
     }
 
+    /**
+     * 将空动作集合转换为空列表。
+     */
     private static List<TransactionOperationDO> safeOperations(List<TransactionOperationDO> operations) {
         return operations == null ? List.of() : operations;
     }
 
+    /**
+     * 规范化币种。
+     */
     private static String normalizeCurrency(String currency) {
         return currency.trim().toUpperCase(Locale.ROOT);
     }
@@ -273,6 +306,9 @@ public final class FrozenRateFollowUpAmountCalculator {
                              Integer edcEnabled) {
     }
 
+    /**
+     * 封装原交易冻结金额及汇率上下文。
+     */
     private record SourceMoney(String labelCurrency,
                                BigDecimal labelAmount,
                                String transactionCurrency,
@@ -282,6 +318,9 @@ public final class FrozenRateFollowUpAmountCalculator {
                                Integer dccEnabled,
                                Integer edcEnabled) {
 
+        /**
+         * 构建后续动作金额计划。
+         */
         private AmountPlan toPlan(String requestLabelCurrency,
                                   BigDecimal requestLabelAmount,
                                   BigDecimal requestTransactionAmount) {

@@ -9,17 +9,13 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationLegacyShardMigrationContractTests
- * @date : 2026-08-21 11:20
- * @email : scott_x@163.com
- * @description : 校验分片启用前遗留商户通知及其投递日志可原子迁移到已发布季度，并保留可回滚的数据身份。
- * @status : create
+ * 校验分片启用前遗留商户通知及其投递日志可原子迁移到已发布季度，并保留可回滚的数据身份。
  */
 class MerchantNotificationLegacyShardMigrationContractTests {
 
-    /** 迁移必须按季度无损复制完整记录，并在同一事务内清理模板表源数据。 */
+    /**
+     * 迁移必须按季度无损复制完整记录，并在同一事务内清理模板表源数据。
+     */
     @Test
     void migrationShouldMoveLegacyRowsIntoPublishedQuarterTablesAtomically() throws IOException {
         String migration = readSql("merchant-notification-legacy-shard-migration.sql");
@@ -43,7 +39,9 @@ class MerchantNotificationLegacyShardMigrationContractTests {
                 .doesNotContain("${");
     }
 
-    /** 回滚必须只识别季度号段启用前的小 ID，并同步恢复关联投递日志。 */
+    /**
+     * 回滚必须只识别季度号段启用前的小 ID，并同步恢复关联投递日志。
+     */
     @Test
     void rollbackShouldRestoreOnlyLegacyIdentityRowsAndTheirLogs() throws IOException {
         String rollback = readSql("merchant-notification-legacy-shard-rollback.sql");
@@ -63,7 +61,9 @@ class MerchantNotificationLegacyShardMigrationContractTests {
                 .doesNotContain("${");
     }
 
-    /** 读取 service-admin SQL 资源。 */
+    /**
+     * 读取 service-admin SQL 资源。
+     */
     private String readSql(String fileName) throws IOException {
         return Files.readString(Path.of("src/main/resources/sql", fileName));
     }

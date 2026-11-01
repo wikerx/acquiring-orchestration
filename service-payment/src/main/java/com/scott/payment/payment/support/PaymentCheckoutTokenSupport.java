@@ -12,13 +12,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutTokenSupport
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout token 与摘要支撑。
- * @status : create
+ * Hosted Checkout token 与摘要支撑。
  */
 public final class PaymentCheckoutTokenSupport {
 
@@ -37,6 +31,9 @@ public final class PaymentCheckoutTokenSupport {
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private PaymentCheckoutTokenSupport() {
     }
 

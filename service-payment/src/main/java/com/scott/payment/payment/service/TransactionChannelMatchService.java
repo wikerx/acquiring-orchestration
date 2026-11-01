@@ -6,13 +6,7 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultD
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelMatchService
- * @date : 2026-07-19 22:20
- * @email : scott_x@163.com
- * @description : 渠道交易查询勾兑服务，位于 service-payment 服务层，用于定时任务查询渠道状态并通过状态机推进最终结果。
- * @status : create
+ * 渠道交易查询勾兑服务，位于 service-payment 服务层，用于定时任务查询渠道状态并通过状态机推进最终结果。
  */
 public interface TransactionChannelMatchService {
 

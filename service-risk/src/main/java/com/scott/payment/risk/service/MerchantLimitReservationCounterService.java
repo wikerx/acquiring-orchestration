@@ -4,13 +4,7 @@ import com.scott.payment.risk.domain.RedisReservationMarkerState;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantLimitReservationCounterService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户累计限额 Redis 投影生命周期服务。
- * @status : create
+ * 商户累计限额 Redis 投影生命周期服务。
  */
 public interface MerchantLimitReservationCounterService {
 

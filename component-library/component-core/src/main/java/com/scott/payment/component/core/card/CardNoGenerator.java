@@ -19,25 +19,103 @@ import java.util.random.RandomGenerator;
 @Slf4j
 public final class CardNoGenerator {
 
-    /** ISO/IEC 7812 卡号常用长度边界；生成器不接受边界外的自定义长度。 */
+    /**
+     * ISO/IEC 7812 卡号常用长度边界；生成器不接受边界外的自定义长度。
+     */
     private static final int MIN_CARD_NUMBER_LENGTH = 12;
+    /**
+     * {@code MAX_CARD_NUMBER_LENGTH}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_CARD_NUMBER_LENGTH = 19;
-    /** Luhn 算法按十进制校验，随机补位也只生成十进制数字。 */
+    /**
+     * Luhn 算法按十进制校验，随机补位也只生成十进制数字。
+     */
     private static final int LUHN_MODULUS = 10;
+    /**
+     * {@code DIGIT_BOUND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int DIGIT_BOUND = 10;
 
-    /** 品牌名称只用于不含卡号的安全日志，不参与卡品牌识别或渠道路由。 */
+    /**
+     * 品牌名称只用于不含卡号的安全日志，不参与卡品牌识别或渠道路由。
+     */
     private static final String CUSTOM_CARD_BRAND = "CUSTOM";
+    /**
+     * {@code MASTERCARD_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String MASTERCARD_CARD_BRAND = "Mastercard";
+    /**
+     * {@code VISA_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String VISA_CARD_BRAND = "Visa";
+    /**
+     * {@code AMEX_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String AMEX_CARD_BRAND = "American Express";
+    /**
+     * {@code DISCOVER_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String DISCOVER_CARD_BRAND = "Discover";
+    /**
+     * {@code DINERS_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String DINERS_CARD_BRAND = "Diners Club";
+    /**
+     * {@code JCB_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String JCB_CARD_BRAND = "JCB";
+    /**
+     * {@code ENROUTE_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ENROUTE_CARD_BRAND = "EnRoute";
+    /**
+     * {@code VOYAGER_CARD_BRAND}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String VOYAGER_CARD_BRAND = "Voyager";
 
-    /** 测试数据使用安全随机源，避免并发生成时依赖可预测的全局序列。 */
+    /**
+     * 测试数据使用安全随机源，避免并发生成时依赖可预测的全局序列。
+     */
     private static final RandomGenerator RANDOM = new SecureRandom();
 
     /**
@@ -54,6 +132,13 @@ public final class CardNoGenerator {
     private static final String[] DINERS_PREFIXES = {"300", "301", "302", "303", "304", "305", "36", "38", "39"};
     private static final String[] JCB_PREFIXES = {"3528", "3530", "3540", "3550", "3560", "3570", "3580", "3589"};
     private static final String[] ENROUTE_PREFIXES = {"2014", "2149"};
+    /**
+     * {@code VOYAGER_PREFIXES}常量，统一 {@code CardNoGenerator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String[] VOYAGER_PREFIXES = {"8699"};
 
     private CardNoGenerator() {
@@ -299,7 +384,9 @@ public final class CardNoGenerator {
         return prefixCopy;
     }
 
-    /** 校验目标长度是否处于生成器支持的 12 至 19 位范围。 */
+    /**
+     * 校验目标长度是否处于生成器支持的 12 至 19 位范围。
+     */
     private static void validateCardLength(int length) {
         if (length < MIN_CARD_NUMBER_LENGTH || length > MAX_CARD_NUMBER_LENGTH) {
             throw new IllegalArgumentException("length must be between 12 and 19");
@@ -346,7 +433,9 @@ public final class CardNoGenerator {
         return normalized.toString();
     }
 
-    /** 判断字符序列是否只包含 ASCII 数字，拒绝视觉相似的全角或其他 Unicode 数字。 */
+    /**
+     * 判断字符序列是否只包含 ASCII 数字，拒绝视觉相似的全角或其他 Unicode 数字。
+     */
     private static boolean isAsciiDigits(CharSequence value) {
         for (int index = 0; index < value.length(); index++) {
             char current = value.charAt(index);

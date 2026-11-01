@@ -20,13 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundExecutionService
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 退款执行消息状态机，使用数据库 CAS 吸收重复消费，并将任何已有发送事实转为主动 QUERY。
- * @status : create
+ * 退款执行消息状态机，使用数据库 CAS 吸收重复消费，并将任何已有发送事实转为主动 QUERY。
  */
 @Service
 public class RefundExecutionService {
@@ -121,22 +115,34 @@ public class RefundExecutionService {
         return RefundExecutionOutcomeEnum.EXECUTED;
     }
 
+    /**
+     * 查询既有渠道请求记录。
+     */
     private RefundExecutionOutcomeEnum queryExistingRequest(TransactionOperationDO operation) {
         channelMatchService.matchOne(operation.getTransactionId(), operation.getTransactionDateTime());
         return RefundExecutionOutcomeEnum.QUERY_TRIGGERED;
     }
 
+    /**
+     * 判断渠道请求是否仍在处理中。
+     */
     private boolean isChannelInFlight(TransactionOperationDO operation) {
         return PaymentTransactionStatusEnum.PROCESSING.getCode().equals(operation.getTransactionStatus())
                 && (PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode().equals(operation.getProcessStage())
                 || PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode().equals(operation.getProcessStage()));
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(TransactionOperationDO operation) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operation.getTransactionStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(operation.getTransactionStatus());
     }
 
+    /**
+     * 校验退款执行消息的业务身份和事件类型。
+     */
     private void validate(RefundExecutionMessage message) {
         if (message == null
                 || !StringUtils.hasText(message.getMessageId())

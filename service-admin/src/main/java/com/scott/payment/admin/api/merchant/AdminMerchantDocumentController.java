@@ -25,19 +25,15 @@ import java.nio.charset.StandardCharsets;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantDocumentController
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : 管理后台商户合规资料接口，负责权限校验、Multipart 参数接收和受控下载响应组装
- * @status : create
+ * 管理后台商户合规资料接口，负责权限校验、Multipart 参数接收和受控下载响应组装
  */
 @RestController
 @RequestMapping("/admin/merchants/{merchantId}/documents")
 public class AdminMerchantDocumentController {
 
-    /** 商户资料上传、下载与删除用例编排服务；不允许为空，非敏感 Bean 引用。 */
+    /**
+     * 商户资料上传、下载与删除用例编排服务；不允许为空，非敏感 Bean 引用。
+     */
     private final AdminMerchantDocumentApplicationService applicationService;
 
     /**

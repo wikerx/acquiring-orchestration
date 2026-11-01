@@ -11,13 +11,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiKeyGenerationPureJavaTests
- * @date : 2026-06-02 15:10
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 密钥生成纯 Java 测试，验证 merchantId 维度生成 JWT 密钥、平台请求体 RSA 密钥和商户响应 RSA 密钥。
- * @status : create
+ * 商户 OpenAPI 密钥生成纯 Java 测试，验证 merchantId 维度生成 JWT 密钥、平台请求体 RSA 密钥和商户响应 RSA 密钥。
  */
 @Slf4j
 class MerchantOpenApiKeyGenerationPureJavaTests {
@@ -81,8 +75,8 @@ class MerchantOpenApiKeyGenerationPureJavaTests {
     /**
      * 打印密钥材料说明。
      * <p>
-     * 为满足支付系统安全规范，日志只打印指纹、长度、算法、用途和公钥 PEM。merchantKey、平台私钥和商户响应私钥
-     * 不打印完整明文，真实交付应走密钥交付流程、KMS 或安全文件通道。
+     * 为满足支付系统安全规范，日志只打印指纹、长度、算法和用途。任何公私钥、merchantKey 或交付材料
+     * 均不打印完整明文，真实交付应走密钥交付流程、KMS 或安全文件通道。
      *
      * @param keyMaterial 商户和平台双方需要的密钥材料
      */
@@ -101,8 +95,6 @@ class MerchantOpenApiKeyGenerationPureJavaTests {
                 keyMaterial.platformPayloadKey().keySize(),
                 keyMaterial.platformPayloadKey().publicKeyX509Base64().length(),
                 keyMaterialFactory.fingerprint(keyMaterial.platformPayloadKey().publicKeyX509Base64()));
-        log.info("【2. 商户加密使用的密钥-平台公钥PEM】\n{}", keyMaterial.platformPayloadKey().publicKeyPem());
-
         log.info("【3. 商户解密用的密钥】持有方：商户；用途：商户解密平台响应data；算法：RSA-OAEP-256；RSA位数：{}；Base64长度：{}；指纹：{}",
                 keyMaterial.merchantResponseKey().keySize(),
                 keyMaterial.merchantResponseKey().privateKeyPkcs8Base64().length(),
@@ -112,8 +104,6 @@ class MerchantOpenApiKeyGenerationPureJavaTests {
                 keyMaterial.merchantResponseKey().keySize(),
                 keyMaterial.merchantResponseKey().publicKeyX509Base64().length(),
                 keyMaterialFactory.fingerprint(keyMaterial.merchantResponseKey().publicKeyX509Base64()));
-        log.info("【4. 平台加密用的密钥-商户响应公钥PEM】\n{}", keyMaterial.merchantResponseKey().publicKeyPem());
-
         log.info("【5. 平台解密用的密钥】持有方：平台；用途：平台解密商户请求体AES会话密钥；算法：RSA-OAEP-256；RSA位数：{}；Base64长度：{}；指纹：{}",
                 keyMaterial.platformPayloadKey().keySize(),
                 keyMaterial.platformPayloadKey().privateKeyPkcs8Base64().length(),

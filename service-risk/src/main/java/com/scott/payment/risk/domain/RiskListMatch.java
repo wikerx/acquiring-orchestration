@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskListMatch
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 运行时风控命中结果。
- * @status : create
+ * 运行时风控命中结果。
  */
 @Data
 public class RiskListMatch implements Serializable {

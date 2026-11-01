@@ -5,13 +5,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateTableResultResponse
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreate表响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 单个物理分表的预创建结果响应。
  */
 @Data
 public class ShardingTablePreCreateTableResultResponse {
@@ -72,13 +66,19 @@ public class ShardingTablePreCreateTableResultResponse {
      */
     private String schemaCheckStatus;
 
-    /** 分片时间字段 DATETIME(3) 校验状态。 */
+    /**
+     * 分片时间字段 DATETIME(3) 校验状态。
+     */
     private String shardingTimeCheckStatus;
 
-    /** 物理表 utf8mb4 字符集校验状态。 */
+    /**
+     * 物理表 utf8mb4 字符集校验状态。
+     */
     private String charsetCheckStatus;
 
-    /** 当前 AUTO_INCREMENT 是否处于季度安全号段。 */
+    /**
+     * 当前 AUTO_INCREMENT 是否处于季度安全号段。
+     */
     private String autoIncrementCheckStatus;
 
     /**

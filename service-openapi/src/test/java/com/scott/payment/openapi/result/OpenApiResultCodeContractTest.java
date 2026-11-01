@@ -17,7 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class OpenApiResultCodeContractTest {
 
-    /** V1.3 已发布的完整编码基线；任何新增、删除或替换都必须先完成协议评审。 */
+    /**
+     * V1.3 已发布的完整编码基线；任何新增、删除或替换都必须先完成协议评审。
+     */
     private static final Set<String> V1_3_PUBLISHED_CODES = Set.of(
             "A0000", "A0001", "A0002",
             "A1001", "A1002", "A1003", "A1004", "A1005", "A1006", "A1007", "A1008",
@@ -44,7 +46,9 @@ class OpenApiResultCodeContractTest {
         assertThat(codes).containsExactlyInAnyOrderElementsOf(V1_3_PUBLISHED_CODES);
     }
 
-    /** 每个公开码必须同时具备稳定键、类别、分组和处理策略，避免客户端从码前缀猜测重试。 */
+    /**
+     * 每个公开码必须同时具备稳定键、类别、分组和处理策略，避免客户端从码前缀猜测重试。
+     */
     @Test
     void shouldPublishRequiredGovernanceMetadata() {
         assertThat(OpenApiResultCode.values()).allSatisfy(code -> {
@@ -69,7 +73,9 @@ class OpenApiResultCodeContractTest {
         assertThat(result.getData()).isSameAs(businessData);
     }
 
-    /** 对外工厂只允许选择可信受众，商户与付款人文案必须隔离且统一为英文。 */
+    /**
+     * 对外工厂只允许选择可信受众，商户与付款人文案必须隔离且统一为英文。
+     */
     @Test
     void shouldPublishAudienceSpecificEnglishMessages() {
         CommonResult<Void> merchant = OpenApiResponseFactory.error(OpenApiResultCode.SYSTEM_ERROR);

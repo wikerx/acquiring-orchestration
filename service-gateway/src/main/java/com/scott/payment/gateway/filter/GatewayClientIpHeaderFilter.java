@@ -16,18 +16,14 @@ import java.net.InetSocketAddress;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayClientIpHeaderFilter
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 网关客户端 IP 透传过滤器，位于 service-gateway 过滤层，统一覆盖可信 X-Gateway-Client-Ip 供 OpenAPI 白名单校验使用。
- * @status : create
+ * 网关客户端 IP 透传过滤器，位于 service-gateway 过滤层，统一覆盖可信 X-Gateway-Client-Ip 供 OpenAPI 白名单校验使用。
  */
 @Component
 public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
 
-    /** Gateway 进程内保存可信客户端 IP 的 exchange attribute，外部请求无法注入。 */
+    /**
+     * Gateway 进程内保存可信客户端 IP 的 exchange attribute，外部请求无法注入。
+     */
     public static final String GATEWAY_CLIENT_IP_ATTRIBUTE =
             GatewayClientIpHeaderFilter.class.getName() + ".CLIENT_IP";
 
@@ -46,7 +42,9 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
      */
     private final GatewayClientIpProperties clientIpProperties;
 
-    /** 仅接受配置网段内的直接上游代理，并用于从右向左剥离可信代理链。 */
+    /**
+     * 仅接受配置网段内的直接上游代理，并用于从右向左剥离可信代理链。
+     */
     private final TrustedProxyMatcher trustedProxyMatcher;
 
     /**

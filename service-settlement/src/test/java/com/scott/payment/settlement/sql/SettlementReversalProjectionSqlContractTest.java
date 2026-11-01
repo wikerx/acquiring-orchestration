@@ -10,13 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalProjectionSqlContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 冲正 Maker-Checker 和交易三层结算投影迁移合同。
- * @status : create
+ * 冲正 Maker-Checker 和交易三层结算投影迁移合同。
  */
 class SettlementReversalProjectionSqlContractTest {
 

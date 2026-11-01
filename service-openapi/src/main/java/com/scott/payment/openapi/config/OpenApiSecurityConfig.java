@@ -8,13 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiSecurityConfig
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Security Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
- * @status : create
+ * 注册商户 JWT 验签、报文加解密和密钥材料生成所需的无状态安全组件。
  */
 @Configuration
 public class OpenApiSecurityConfig {

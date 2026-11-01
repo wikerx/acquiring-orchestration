@@ -34,9 +34,13 @@ public class DefaultSettlementBatchFailureService implements SettlementBatchFail
     private static final Logger LOGGER = LoggerFactory.getLogger(
             DefaultSettlementBatchFailureService.class);
 
-    /** 自动重试上限，耗尽后必须转人工复核。 */
+    /**
+     * 自动重试上限，耗尽后必须转人工复核。
+     */
     private static final int MAX_RETRY_COUNT = 8;
-    /** 数据库失败摘要最大长度，防止异常正文无限写入。 */
+    /**
+     * 数据库失败摘要最大长度，防止异常正文无限写入。
+     */
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 512;
     private static final List<Duration> RETRY_DELAYS = List.of(
             Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15),
@@ -108,7 +112,9 @@ public class DefaultSettlementBatchFailureService implements SettlementBatchFail
                 batch.getSettlementBatchNo(), descriptor.stage(), code, retryCount, expected);
     }
 
-    /** 将领域异常或瞬时 SQL 异常映射为稳定阶段、失败码、可重试性和脱敏摘要。 */
+    /**
+     * 将领域异常或瞬时 SQL 异常映射为稳定阶段、失败码、可重试性和脱敏摘要。
+     */
     private FailureDescriptor descriptor(Throwable failure) {
         if (failure instanceof SettlementProcessingException controlled) {
             return new FailureDescriptor(controlled.getStage(), controlled.getFailureCode(),
@@ -124,7 +130,9 @@ public class DefaultSettlementBatchFailureService implements SettlementBatchFail
                 "unexpected settlement processing failure: " + failure.getClass().getSimpleName());
     }
 
-    /** 沿异常 cause 链识别死锁、锁等待等瞬时 SQL 异常，避免永久失败误判。 */
+    /**
+     * 沿异常 cause 链识别死锁、锁等待等瞬时 SQL 异常，避免永久失败误判。
+     */
     private boolean containsTransientSql(Throwable failure) {
         Throwable current = failure;
         while (current != null) {
@@ -138,7 +146,9 @@ public class DefaultSettlementBatchFailureService implements SettlementBatchFail
         return false;
     }
 
-    /** 记录失败前要求处理租约仍归当前 owner 所有并未过期。 */
+    /**
+     * 记录失败前要求处理租约仍归当前 owner 所有并未过期。
+     */
     private void validateLease(SettlementBatchDO batch, String owner, LocalDateTime now) {
         if (batch == null || batch.getVersion() == null || batch.getRetryCount() == null
                 || !owner.equals(batch.getProcessingOwner())
@@ -148,7 +158,9 @@ public class DefaultSettlementBatchFailureService implements SettlementBatchFail
         }
     }
 
-    /** 截断并规范化失败摘要，禁止将异常正文或敏感报文无限写入批次表。 */
+    /**
+     * 截断并规范化失败摘要，禁止将异常正文或敏感报文无限写入批次表。
+     */
     private String sanitize(String value) {
         String sanitized = value == null || value.isBlank() ? "settlement processing failed"
                 : value.replace('\n', ' ').replace('\r', ' ').trim();

@@ -30,13 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementClearingFactService
- * @date : 2026-08-26 23:10
- * @email : scott_x@163.com
- * @description : 一次读取批次候选、一次读取交易明细、一次读取保证金明细，并阻断路由、版本、商户和币种冲突。
- * @status : create
+ * 一次读取批次候选、一次读取交易明细、一次读取保证金明细，并阻断路由、版本、商户和币种冲突。
  */
 @Service
 public class DefaultSettlementClearingFactService implements SettlementClearingFactService {
@@ -132,7 +126,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return load(batch, safe(candidates), "REVIEW_LOCKED", null, reviewOrder.getReviewOrderNo());
     }
 
-    /** 精确按候选来源路由加载清分事实，并校验数量、唯一性、币种 exponent 和候选一一归属。 */
+    /**
+     * 精确按候选来源路由加载清分事实，并校验数量、唯一性、币种 exponent 和候选一一归属。
+     */
     private SettlementBatchFacts load(SettlementBatchDO batch,
                                       List<SettlementCandidateDO> candidates,
                                       String expectedCandidateStatus,
@@ -190,7 +186,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return new SettlementBatchFacts(candidates, transactionDetails, reserveDetails, currencies);
     }
 
-    /** 将预审单冻结维度映射为临时批次对象，复用正式批次事实校验口径。 */
+    /**
+     * 将预审单冻结维度映射为临时批次对象，复用正式批次事实校验口径。
+     */
     private SettlementBatchDO reviewBatch(SettlementReviewOrderDO review) {
         if (review == null || !StringUtils.hasText(review.getReviewOrderNo())) {
             throw failure("SETTLEMENT_REVIEW_INCOMPLETE", "settlement review identity is incomplete");
@@ -210,7 +208,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return batch;
     }
 
-    /** 校验批次或预审具备商户、账户、目标币种、类型和正候选数等完整维度。 */
+    /**
+     * 校验批次或预审具备商户、账户、目标币种、类型和正候选数等完整维度。
+     */
     private void validateBatch(SettlementBatchDO batch) {
         if (batch == null || !StringUtils.hasText(batch.getSettlementBatchNo())
                 || !StringUtils.hasText(batch.getMerchantId()) || batch.getCandidateCount() == null
@@ -221,7 +221,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         }
     }
 
-    /** 校验候选状态、批次/预审独占归属、来源类型、目标币种和非影子模式。 */
+    /**
+     * 校验候选状态、批次/预审独占归属、来源类型、目标币种和非影子模式。
+     */
     private void validateCandidate(SettlementBatchDO batch,
                                    SettlementCandidateDO candidate,
                                    String expectedCandidateStatus,
@@ -246,7 +248,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         }
     }
 
-    /** 校验交易清分行修订、商户、方向、金额、币种精度和记录终态，并返回精确路由键。 */
+    /**
+     * 校验交易清分行修订、商户、方向、金额、币种精度和记录终态，并返回精确路由键。
+     */
     private FactKey validateTransactionDetail(
             SettlementBatchDO batch,
             Map<FactKey, SettlementCandidateDO> candidateByKey,
@@ -273,7 +277,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return key;
     }
 
-    /** 校验保证金清分行动作、方向、原标签币种、非负金额和候选来源，并返回精确路由键。 */
+    /**
+     * 校验保证金清分行动作、方向、原标签币种、非负金额和候选来源，并返回精确路由键。
+     */
     private FactKey validateReserveDetail(
             SettlementBatchDO batch,
             Map<FactKey, SettlementCandidateDO> candidateByKey,
@@ -301,7 +307,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return key;
     }
 
-    /** 要求批次类型与候选来源严格对应，REVERSAL 不直接重新读取清分候选。 */
+    /**
+     * 要求批次类型与候选来源严格对应，REVERSAL 不直接重新读取清分候选。
+     */
     private boolean sourceMatchesBatch(String sourceType, String batchType) {
         return switch (batchType) {
             case "REGULAR" -> CLEARING_REVISION.equals(sourceType);
@@ -311,7 +319,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         };
     }
 
-    /** 要求 RESERVE_RELEASE 只包含 RELEASE，ADJUSTMENT 只包含 ADJUSTMENT，交易清分包含 HOLD/RETURN。 */
+    /**
+     * 要求 RESERVE_RELEASE 只包含 RELEASE，ADJUSTMENT 只包含 ADJUSTMENT，交易清分包含 HOLD/RETURN。
+     */
     private boolean reserveActionMatchesSource(String actionType, String sourceType) {
         if (CLEARING_REVISION.equals(sourceType)) {
             return "HOLD".equals(actionType) || "RETURN".equals(actionType);
@@ -322,7 +332,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return ADJUSTMENT.equals(sourceType) && ADJUSTMENT.equals(actionType);
     }
 
-    /** 从保证金清分行提取动作唯一金额列，拒绝多列同时发生或负金额。 */
+    /**
+     * 从保证金清分行提取动作唯一金额列，拒绝多列同时发生或负金额。
+     */
     private BigDecimal reserveAmount(SettlementReserveClearingDetailDO row) {
         if (row == null || row.getReserveActionType() == null) {
             return null;
@@ -336,7 +348,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         };
     }
 
-    /** 构造交易号、季度分片时间和清分修订组合路由键，任一缺失即阻断。 */
+    /**
+     * 构造交易号、季度分片时间和清分修订组合路由键，任一缺失即阻断。
+     */
     private FactKey transactionKey(String transactionId, LocalDateTime time, Integer revision) {
         if (!StringUtils.hasText(transactionId) || time == null || revision == null || revision < 1) {
             throw failure("SETTLEMENT_CLEARING_ROUTE_INCOMPLETE",
@@ -345,7 +359,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return new FactKey(transactionId, time, revision);
     }
 
-    /** 汇总清分事实涉及的 ISO 币种及 exponent，并拒绝同币种精度冲突。 */
+    /**
+     * 汇总清分事实涉及的 ISO 币种及 exponent，并拒绝同币种精度冲突。
+     */
     private void addCurrency(Map<String, Integer> exponents, String currency, Integer exponent) {
         SettlementCurrency value;
         try {
@@ -364,7 +380,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         }
     }
 
-    /** 保证清分明细业务号在本批事实集合内唯一，防止一行重复参与金额计算。 */
+    /**
+     * 保证清分明细业务号在本批事实集合内唯一，防止一行重复参与金额计算。
+     */
     private void requireUnique(Set<String> detailNumbers, String value) {
         if (!StringUtils.hasText(value) || !detailNumbers.add(value)) {
             throw failure("SETTLEMENT_CLEARING_DETAIL_DUPLICATED",

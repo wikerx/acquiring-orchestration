@@ -3,13 +3,7 @@ package com.scott.payment.openapi.enums;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantStatusEnum
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 商户状态枚举，数据库使用数字码存储，代码层通过枚举表达业务语义
- * @status : create
+ * 商户状态枚举，数据库使用数字码存储，代码层通过枚举表达业务语义
  */
 
 @Getter

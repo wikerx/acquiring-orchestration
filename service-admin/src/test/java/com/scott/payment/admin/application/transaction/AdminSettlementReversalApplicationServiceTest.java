@@ -28,13 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReversalApplicationServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Admin 冲正命令先校验数据范围，再注入可信 Maker/Checker 快照。
- * @status : create
+ * 验证 Admin 冲正命令先校验数据范围，再注入可信 Maker/Checker 快照。
  */
 class AdminSettlementReversalApplicationServiceTest {
 

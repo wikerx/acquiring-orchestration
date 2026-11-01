@@ -10,13 +10,7 @@ import com.scott.payment.job.entity.SysJobTaskDO;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务运行日志服务接口
- * @status : create
+ * 任务运行日志服务接口
  */
 public interface JobRunLogService {
 

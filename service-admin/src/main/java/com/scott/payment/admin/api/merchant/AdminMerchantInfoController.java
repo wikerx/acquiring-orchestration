@@ -28,13 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantInfoController
- * @date : 2026-06-19 21:18
- * @email : scott_x@163.com
- * @description : 管理后台商户接入资料控制器
- * @status : create
+ * 管理后台商户接入资料控制器
  *
  * <p>商户管理菜单下的接口入口，负责商户基础资料、状态维护和 OpenAPI 安全材料管理的参数接收、
  * 权限校验与 HTTP 映射，具体业务编排由应用服务层处理。</p>

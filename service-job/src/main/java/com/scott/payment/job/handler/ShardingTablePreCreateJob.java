@@ -12,13 +12,7 @@ import com.scott.payment.job.service.ShardingTablePreCreateService;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateJob
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sharding Table Pre Create Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
- * @status : create
+ * Sharding Table Pre Create Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
  */
 @Component
 public class ShardingTablePreCreateJob implements JobHandler {

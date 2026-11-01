@@ -13,31 +13,34 @@ import java.net.URI;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutUrlPolicy
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : Hosted Checkout 外部 URL 策略；dev/test 允许本地联调目标，UAT、生产和未知环境只允许解析到公网地址的 HTTPS URL。
- * @status : create
+ * Hosted Checkout 外部 URL 策略；dev/test 允许本地联调目标，UAT、生产和未知环境只允许解析到公网地址的 HTTPS URL。
  */
 @Component
 public class HostedCheckoutUrlPolicy {
 
     private final OutboundHttpUrlPolicy merchantUrlPolicy;
 
-    /** 创建失败关闭的严格模式策略，避免非 Spring 装配绕过生产网络边界。 */
+    /**
+     * 创建失败关闭的严格模式策略，避免非 Spring 装配绕过生产网络边界。
+     */
     public HostedCheckoutUrlPolicy() {
         this(new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
     }
 
-    /** 按 Spring active profiles 创建策略；未知环境按严格模式处理。 */
+    /**
+     * 按 Spring active profiles 创建策略；未知环境按严格模式处理。
+     */
     @Autowired
     public HostedCheckoutUrlPolicy(Environment environment) {
         this(new OutboundHttpUrlPolicy(
                 OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles())));
     }
 
+    /**
+     * 使用指定出站 URL 策略创建实例，供边界测试验证环境规则。
+     *
+     * @param merchantUrlPolicy 商户回调与跳转地址校验策略
+     */
     HostedCheckoutUrlPolicy(OutboundHttpUrlPolicy merchantUrlPolicy) {
         this.merchantUrlPolicy = merchantUrlPolicy;
     }

@@ -6,13 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingPropertiesTest
- * @date : 2026-08-26 08:10
- * @email : scott_x@163.com
- * @description : 验证自动清分只接受正式28表拓扑，并拒绝非法超时、重试和消费线程参数。
- * @status : create
+ * 验证自动清分只接受正式28表拓扑，并拒绝非法超时、重试和消费线程参数。
  */
 class ClearingPropertiesTest {
 

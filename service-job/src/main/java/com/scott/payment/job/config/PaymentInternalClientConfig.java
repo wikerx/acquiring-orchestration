@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalClientConfig
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : service-payment 内部补偿客户端配置，位于 service-job 配置层，为任务处理器注册直连和服务发现 RestTemplate。
- * @status : create
+ * service-payment 内部补偿客户端配置，位于 service-job 配置层，为任务处理器注册直连和服务发现 RestTemplate。
  */
 @Configuration
 @EnableConfigurationProperties(PaymentInternalClientProperties.class)

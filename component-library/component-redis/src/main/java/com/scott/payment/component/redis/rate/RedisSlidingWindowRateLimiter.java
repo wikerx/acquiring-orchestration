@@ -16,13 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisSlidingWindowRateLimiter
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : Servlet 服务共用的 Redis 精确滑动窗口限流器，Redis 异常时降级到有界本地窗口
- * @status : create
+ * Servlet 服务共用的 Redis 精确滑动窗口限流器，Redis 异常时降级到有界本地窗口
  */
 @Slf4j
 public class RedisSlidingWindowRateLimiter {
@@ -105,7 +99,9 @@ public class RedisSlidingWindowRateLimiter {
         return Math.max(1L, (window.toMillis() + 999L) / 1000L);
     }
 
-    /** Redis 故障期间每分钟最多记录一次策略事件，避免限流流量放大异常日志。 */
+    /**
+     * Redis 故障期间每分钟最多记录一次策略事件，避免限流流量放大异常日志。
+     */
     private void warnFailure(String scope, RuntimeException exception) {
         long now = System.currentTimeMillis();
         long previous = lastWarningMillis.get();

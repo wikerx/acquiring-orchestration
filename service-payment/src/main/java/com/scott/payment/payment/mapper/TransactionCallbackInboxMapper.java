@@ -11,13 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionCallbackInboxMapper
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 渠道回调 Inbox Mapper，位于 service-payment 数据访问层，只负责全局非分片 Inbox 的原子受理、到期扫描和版本号 CAS 状态更新。
- * @status : create
+ * 渠道回调 Inbox Mapper，位于 service-payment 数据访问层，只负责全局非分片 Inbox 的原子受理、到期扫描和版本号 CAS 状态更新。
  */
 public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCallbackInboxDO> {
 
@@ -43,7 +37,9 @@ public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCa
             """)
     int upsertInbox(@Param("row") TransactionCallbackInboxDO row);
 
-    /** 按数据库幂等维度读取首次受理记录。 */
+    /**
+     * 按数据库幂等维度读取首次受理记录。
+     */
     @Select("""
             SELECT * FROM transaction_callback_inbox
             WHERE channel_code = #{channelCode} AND idempotency_key = #{idempotencyKey}
@@ -52,7 +48,9 @@ public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCa
     TransactionCallbackInboxDO selectByIdempotency(@Param("channelCode") String channelCode,
                                                     @Param("idempotencyKey") String idempotencyKey);
 
-    /** 查询到期且尚未被其他实例抢占的 Inbox 记录。 */
+    /**
+     * 查询到期且尚未被其他实例抢占的 Inbox 记录。
+     */
     @Select("""
             SELECT * FROM transaction_callback_inbox
             WHERE inbox_status IN (#{receivedStatus}, #{retryStatus})
@@ -65,7 +63,9 @@ public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCa
                                                @Param("receivedStatus") String receivedStatus,
                                                @Param("retryStatus") String retryStatus);
 
-    /** 使用版本、原状态和到期时间 CAS 抢占单条回调。 */
+    /**
+     * 使用版本、原状态和到期时间 CAS 抢占单条回调。
+     */
     @Update("""
             UPDATE transaction_callback_inbox
             SET inbox_status = #{processingStatus}, version = version + 1, update_time = #{now}
@@ -80,7 +80,9 @@ public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCa
               @Param("retryStatus") String retryStatus,
               @Param("processingStatus") String processingStatus);
 
-    /** 使用抢占后的版本号 CAS 标记业务处理完成。 */
+    /**
+     * 使用抢占后的版本号 CAS 标记业务处理完成。
+     */
     @Update("""
             UPDATE transaction_callback_inbox
             SET inbox_status = #{processedStatus}, processed_time = #{now}, last_error = NULL,
@@ -93,7 +95,9 @@ public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCa
                       @Param("processingStatus") String processingStatus,
                       @Param("processedStatus") String processedStatus);
 
-    /** 使用抢占后的版本号 CAS 记录失败并推进至 RETRY 或 CLOSED。 */
+    /**
+     * 使用抢占后的版本号 CAS 记录失败并推进至 RETRY 或 CLOSED。
+     */
     @Update("""
             UPDATE transaction_callback_inbox
             SET inbox_status = #{status}, retry_count = retry_count + 1,
@@ -110,7 +114,9 @@ public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCa
                    @Param("now") LocalDateTime now,
                    @Param("processingStatus") String processingStatus);
 
-    /** 分批恢复超时 PROCESSING 记录，进程崩溃也不会让回调永久卡住。 */
+    /**
+     * 分批恢复超时 PROCESSING 记录，进程崩溃也不会让回调永久卡住。
+     */
     @Update("""
             UPDATE transaction_callback_inbox
             SET inbox_status = CASE

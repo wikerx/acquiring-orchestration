@@ -1,14 +1,20 @@
 package com.scott.payment.payment.service.impl;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.client.risk.RiskInternalClient;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientRequestDTO;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientResponseDTO;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
-import com.scott.payment.component.core.enums.ApiResultEnum;
-import com.scott.payment.component.core.exception.ServiceException;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 
@@ -16,13 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskPaymentRiskInvokeServiceTests
- * @date : 2026-07-12 22:43
- * @email : scott_x@163.com
- * @description : Risk Payment Risk Invoke Service Tests 自动化测试类，位于 支付核心服务，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
+ * 支付调用风控适配服务测试。
+ *
+ * <p>验证内部风控请求字段、未知决策的安全降级、技术故障 Fail Closed 以及诊断日志的敏感数据保护。</p>
  */
 class RiskPaymentRiskInvokeServiceTests {
 
@@ -146,6 +148,39 @@ class RiskPaymentRiskInvokeServiceTests {
                 .containsExactly(ApiResultEnum.NETWORK_BUSY.getCode(), "risk service is unavailable");
         assertThat(commandDTO.getRiskCode()).isNull();
         assertThat(commandDTO.getRiskMessage()).isNull();
+    }
+
+    @Test
+    void shouldLogSourceUrlDigestWithoutRawUrl() {
+        Logger logger = (Logger) LoggerFactory.getLogger(RiskPaymentRiskInvokeService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            RiskPaymentRiskInvokeService service = new RiskPaymentRiskInvokeService(
+                    new CapturingRiskInternalClient(PaymentRiskDecisionEnum.PASS.getCode()));
+            PaymentCreateCommandDTO commandDTO = baseCommand();
+            String sourceUrl = "https://merchant.example.test/private/checkout?token=secret-token";
+            commandDTO.setSourceUrl(sourceUrl);
+
+            service.checkPreRoute(commandDTO);
+
+            assertThat(appender.list)
+                    .filteredOn(event -> event.getLevel() == Level.INFO)
+                    .extracting(ILoggingEvent::getFormattedMessage)
+                    .anySatisfy(message -> {
+                        assertThat(message).contains(
+                                "event: PAYMENT_RISK_REQUEST_START",
+                                "sourceUrlHash: " + RedisKeyDigest.sha256(sourceUrl));
+                        assertThat(message).doesNotContain(
+                                "merchant.example.test",
+                                "/private/checkout",
+                                "secret-token");
+                    });
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private PaymentCreateCommandDTO baseCommand() {

@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelMatchClientRequestDTO
- * @date : 2026-07-19 22:40
- * @email : scott_x@163.com
- * @description : service-job 调用 service-payment 渠道查询勾兑接口的客户端请求，位于任务客户端层，用于按 transaction_date_time 精确定位动作单分表并限制单次扫描规模。
- * @status : create
+ * service-job 调用 service-payment 渠道查询勾兑接口的客户端请求，位于任务客户端层，用于按 transaction_date_time 精确定位动作单分表并限制单次扫描规模。
  */
 @Data
 public class PaymentChannelMatchClientRequestDTO implements Serializable {

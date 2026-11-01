@@ -39,7 +39,9 @@ class OpenApiLegacyResultCodeIsolationTest {
                 .isEmpty();
     }
 
-    /** 兼容从仓库根目录或模块目录执行测试时的源码根目录定位。 */
+    /**
+     * 兼容从仓库根目录或模块目录执行测试时的源码根目录定位。
+     */
     private Path locateProductionSourceRoot() {
         Path workingDirectory = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         Path moduleSource = workingDirectory.resolve("service-openapi/src/main/java");
@@ -54,7 +56,9 @@ class OpenApiLegacyResultCodeIsolationTest {
                 + workingDirectory);
     }
 
-    /** 读取单个生产源码并检测被禁止的旧枚举依赖。 */
+    /**
+     * 读取单个生产源码并检测被禁止的旧枚举依赖。
+     */
     private boolean containsLegacyEnumReference(Path sourceFile) {
         try {
             return Files.readString(sourceFile).contains("ApiResultEnum");

@@ -15,27 +15,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : EmailDTOs
- * @date : 2026-07-04 16:11
- * @email : scott_x@163.com
- * @description : Email DTOs 聚合类型，位于 运营后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * Email DTOs 聚合类型，用于运营后台，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class EmailDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private EmailDTOs() {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailAccountQuery
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : Email Account Query 查询条件模型，位于 运营后台服务，承载筛选字段、时间范围、分页参数和列表查询边界。
-     * @status : create
+     * Email Account Query 查询条件模型，用于运营后台，承载筛选字段、时间范围、分页参数和列表查询边界。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -130,13 +121,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailAccountSaveRequest
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件账号写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 邮件账号写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class EmailAccountSaveRequest {
@@ -350,13 +335,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailAccountResponse
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件账号响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 邮件账号响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class EmailAccountResponse {
@@ -634,13 +613,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailAccountTestRequest
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件账号请求模型，位于 运营后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 邮件账号请求模型，用于运营后台，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
      */
     @Data
     public static class EmailAccountTestRequest {
@@ -669,13 +642,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailStatusRequest
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : Email Status Request 状态变更请求模型，位于 运营后台服务，承载启停、冻结、审核或处理状态更新所需字段。
-     * @status : create
+     * Email Status Request 状态变更请求模型，用于运营后台，承载启停、冻结、审核或处理状态更新所需字段。
      */
     @Data
     public static class EmailStatusRequest {
@@ -692,13 +659,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailTemplateQuery
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : Email Template Query 查询条件模型，位于 运营后台服务，承载筛选字段、时间范围、分页参数和列表查询边界。
-     * @status : create
+     * Email Template Query 查询条件模型，用于运营后台，承载筛选字段、时间范围、分页参数和列表查询边界。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -763,13 +724,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailTemplateSaveRequest
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件模板写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 邮件模板写操作请求模型，用于运营后台，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class EmailTemplateSaveRequest {
@@ -875,13 +830,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailTemplateResponse
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件模板响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 邮件模板响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class EmailTemplateResponse {
@@ -1039,13 +988,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailTemplatePreviewRequest
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件模板预览请求模型，位于 运营后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 邮件模板预览请求模型，用于运营后台，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
      */
     @Data
     public static class EmailTemplatePreviewRequest {
@@ -1086,13 +1029,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailTemplatePreviewResponse
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件模板预览响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 邮件模板预览响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class EmailTemplatePreviewResponse {
@@ -1132,13 +1069,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailSendRequest
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件send请求模型，位于 运营后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 邮件发送请求，承载模板、收件人、业务标识和模板变量。
      */
     @Data
     public static class EmailSendRequest {
@@ -1264,13 +1195,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailSendResult
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件批量发送响应中的单条任务结果，返回收件人摘要、记录号和初始投递状态。
-     * @status : create
+     * 邮件批量发送响应中的单条任务结果，返回收件人摘要、记录号和初始投递状态。
      */
     @Data
     public static class EmailSendResult {
@@ -1314,13 +1239,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailRecordQuery
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : Email Record Query 查询条件模型，位于 运营后台服务，承载筛选字段、时间范围、分页参数和列表查询边界。
-     * @status : create
+     * Email Record Query 查询条件模型，用于运营后台，承载筛选字段、时间范围、分页参数和列表查询边界。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -1426,13 +1345,7 @@ public final class EmailDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : EmailRecordResponse
-     * @date : 2026-07-04 16:11
-     * @email : scott_x@163.com
-     * @description : 邮件记录响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 邮件记录响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class EmailRecordResponse {

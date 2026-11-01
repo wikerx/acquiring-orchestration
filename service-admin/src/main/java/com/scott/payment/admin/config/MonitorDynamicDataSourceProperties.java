@@ -10,13 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorDynamicDataSourceProperties
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Monitor Dynamic Data Source Properties 配置属性模型，位于 运营后台服务，绑定 application 配置项并提供运行时默认值。
- * @status : create
+ * Monitor Dynamic Data Source Properties 配置属性模型，用于运营后台，绑定 application 配置项并提供运行时默认值。
  */
 @Data
 @Component

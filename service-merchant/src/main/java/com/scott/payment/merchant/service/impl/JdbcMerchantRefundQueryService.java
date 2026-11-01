@@ -32,21 +32,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantRefundQueryService
- * @date : 2026-08-08 00:40
- * @email : scott_x@163.com
- * @description : 商户端退款 JDBC 查询实现，通过 transaction 逻辑数据源读取副本分片并在每条 SQL 中强制绑定认证商户号。
- * @status : create
+ * 商户端退款 JDBC 查询实现，通过 transaction 逻辑数据源读取副本分片并在每条 SQL 中强制绑定认证商户号。
  */
 @Service
 public class JdbcMerchantRefundQueryService implements MerchantRefundQueryService {
 
-    /** 交易数据统一以 Asia/Shanghai 解释并路由季度分片。 */
+    /**
+     * 交易数据统一以 Asia/Shanghai 解释并路由季度分片。
+     */
     private static final String STORAGE_TIME_ZONE = TransactionShardingProperties.REQUIRED_ZONE_ID;
 
-    /** 商户退款列表固定查询的逻辑表关联，表名不接受外部输入。 */
+    /**
+     * 商户退款列表固定查询的逻辑表关联，表名不接受外部输入。
+     */
     private static final String REFUND_FROM_SQL = """
             FROM transaction_operation o
             LEFT JOIN transaction_refund_approval a
@@ -57,7 +55,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
              AND p.transaction_date_time = o.transaction_date_time
             """;
 
-    /** 商户退款记录投影，排除渠道、内部失败原因、申请人和审批操作人字段。 */
+    /**
+     * 商户退款记录投影，排除渠道、内部失败原因、申请人和审批操作人字段。
+     */
     private static final String REFUND_COLUMNS = """
             o.transaction_id AS refund_transaction_id,
             o.source_transaction_id, o.merchant_order_no, o.merchant_operation_no,
@@ -75,13 +75,21 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
             o.operation_id
             """;
 
-    /** JDBC 查询模板，生产环境应用统一交易查询超时。 */
+    /**
+     * JDBC 查询模板，生产环境应用统一交易查询超时。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 交易逻辑数据源普通读执行器，由 ShardingSphere 决定副本节点。 */
+    /**
+     * 交易逻辑数据源普通读执行器，由 ShardingSphere 决定副本节点。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
-    /** 单页允许返回的最大记录数。 */
+    /**
+     * 单页允许返回的最大记录数。
+     */
     private final int maxResultRows;
-    /** 当前已发布交易分片的最早起始时间。 */
+    /**
+     * 当前已发布交易分片的最早起始时间。
+     */
     private final LocalDateTime registeredNodeBegin;
 
     /**
@@ -150,7 +158,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 () -> detailNormalized(merchantId, transactionId, transactionDateTime));
     }
 
-    /** 在已归一化的存储时区范围内完成商户隔离分页和统计查询。 */
+    /**
+     * 在已归一化的存储时区范围内完成商户隔离分页和统计查询。
+     */
     private RefundSearchResponse searchNormalized(RefundQuery query) {
         String whereSql = whereSql(query);
         MapSqlParameterSource parameters = parameters(query);
@@ -181,7 +191,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         return response;
     }
 
-    /** 使用认证商户号和精确分片时间读取单笔退款。 */
+    /**
+     * 使用认证商户号和精确分片时间读取单笔退款。
+     */
     private RefundDetailResponse detailNormalized(String merchantId,
                                                   String transactionId,
                                                   LocalDateTime transactionDateTime) {
@@ -208,7 +220,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         return response;
     }
 
-    /** 读取商户隔离的状态统计和分币种金额统计。 */
+    /**
+     * 读取商户隔离的状态统计和分币种金额统计。
+     */
     private RefundSummary loadSummary(String whereSql, MapSqlParameterSource parameters) {
         RefundSummary summary = jdbcTemplate.queryForObject("""
                 SELECT COUNT(DISTINCT o.id) AS total_count,
@@ -277,7 +291,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 row.record(), rootAmounts.get(row.operationId())));
     }
 
-    /** 根据根主单金额补充历史退款范围，不覆盖已经保存的退款范围。 */
+    /**
+     * 根据根主单金额补充历史退款范围，不覆盖已经保存的退款范围。
+     */
     private void enrichRefundScope(RefundRecord record, BigDecimal rootAmount) {
         if (StringUtils.hasText(record.getRefundScope())) {
             return;
@@ -291,7 +307,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         }
     }
 
-    /** 归一化分页预算、时间范围、金额范围和查询时区。 */
+    /**
+     * 归一化分页预算、时间范围、金额范围和查询时区。
+     */
     private RefundQuery normalize(RefundQuery query) {
         RefundQuery safeQuery = query == null ? new RefundQuery() : query;
         safeQuery.setPageSize((int) Math.min(safeQuery.safePageSize(), maxResultRows));
@@ -326,7 +344,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         return safeQuery;
     }
 
-    /** 构建强制认证商户谓词和固定字段白名单下的筛选 SQL。 */
+    /**
+     * 构建强制认证商户谓词和固定字段白名单下的筛选 SQL。
+     */
     private String whereSql(RefundQuery query) {
         StringBuilder sql = new StringBuilder("""
                 WHERE o.deleted = 0
@@ -367,7 +387,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         return sql.toString();
     }
 
-    /** 构造商户退款查询全部命名参数。 */
+    /**
+     * 构造商户退款查询全部命名参数。
+     */
     private MapSqlParameterSource parameters(RefundQuery query) {
         return new MapSqlParameterSource()
                 .addValue("merchantId", query.getMerchantId())
@@ -390,7 +412,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 .addValue("completeEndTime", query.getCompleteEndTime());
     }
 
-    /** 返回商户退款 DTO 行映射器，并以内部投影保留生命周期 operation_id。 */
+    /**
+     * 返回商户退款 DTO 行映射器，并以内部投影保留生命周期 operation_id。
+     */
     private RowMapper<RefundQueryRow> refundRecordMapper() {
         BeanPropertyRowMapper<RefundRecord> mapper =
                 BeanPropertyRowMapper.newInstance(RefundRecord.class);
@@ -398,7 +422,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 mapper.mapRow(resultSet, rowNumber), resultSet.getString("operation_id"));
     }
 
-    /** 返回退款状态统计行映射器，并把 SQL NULL 归一化为零。 */
+    /**
+     * 返回退款状态统计行映射器，并把 SQL NULL 归一化为零。
+     */
     private RowMapper<RefundSummary> refundSummaryMapper() {
         return (resultSet, rowNumber) -> {
             RefundSummary summary = new RefundSummary();
@@ -411,7 +437,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         };
     }
 
-    /** 返回退款分币种金额统计行映射器。 */
+    /**
+     * 返回退款分币种金额统计行映射器。
+     */
     private RowMapper<RefundCurrencySummary> refundCurrencySummaryMapper() {
         return (resultSet, rowNumber) -> {
             RefundCurrencySummary summary = new RefundCurrencySummary();
@@ -425,14 +453,18 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         };
     }
 
-    /** 校验认证商户号，禁止缺失数据边界时执行任何 SQL。 */
+    /**
+     * 校验认证商户号，禁止缺失数据边界时执行任何 SQL。
+     */
     private void requireMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         }
     }
 
-    /** 解析页面查询时区，非法时区在访问数据库前拒绝。 */
+    /**
+     * 解析页面查询时区，非法时区在访问数据库前拒绝。
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : STORAGE_TIME_ZONE;
         try {
@@ -443,7 +475,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         }
     }
 
-    /** 兼容页面提交的 UTC+8、GMT+8 等短偏移格式。 */
+    /**
+     * 兼容页面提交的 UTC+8、GMT+8 等短偏移格式。
+     */
     private String normalizeZoneId(String zone) {
         String normalized = zone.trim();
         String upper = normalized.toUpperCase();
@@ -466,7 +500,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         return normalized;
     }
 
-    /** 将页面时区时间转换为交易库存储时区时间。 */
+    /**
+     * 将页面时区时间转换为交易库存储时区时间。
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime value,
                                               ZoneId sourceZone,
                                               ZoneId targetZone) {
@@ -474,7 +510,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 : value.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
-    /** 从已发布季度节点解析查询允许访问的最早时间。 */
+    /**
+     * 从已发布季度节点解析查询允许访问的最早时间。
+     */
     private LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
         if (physicalNodes == null || physicalNodes.isEmpty()) {
             return LocalDate.now().withDayOfMonth(1).atStartOfDay();
@@ -486,7 +524,9 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 .orElse(LocalDate.now().withDayOfMonth(1).atStartOfDay());
     }
 
-    /** 将 yyyy0Q 节点后缀转换为季度起始时间。 */
+    /**
+     * 将 yyyy0Q 节点后缀转换为季度起始时间。
+     */
     private LocalDateTime quarterBegin(String suffix) {
         int year = Integer.parseInt(suffix.substring(0, 4));
         int quarter = Integer.parseInt(suffix.substring(5, 6));
@@ -512,25 +552,13 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RefundQueryRow
-     * @date : 2026-08-08 00:40
-     * @email : scott_x@163.com
-     * @description : 商户退款接口记录与内部生命周期操作号的查询组合投影，operationId 不进入接口 DTO。
-     * @status : create
+     * 商户退款接口记录与内部生命周期操作号的查询组合投影，operationId 不进入接口 DTO。
      */
     private record RefundQueryRow(RefundRecord record, String operationId) {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RootAmount
-     * @date : 2026-08-08 00:40
-     * @email : scott_x@163.com
-     * @description : 生命周期根主单金额投影，用于兼容历史退款范围且允许交易金额为空。
-     * @status : create
+     * 生命周期根主单金额投影，用于兼容历史退款范围且允许交易金额为空。
      */
     private record RootAmount(String operationId, BigDecimal transactionAmount) {
     }

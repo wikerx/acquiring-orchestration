@@ -5,13 +5,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisKeySupport
- * @date : 2026-05-31 21:45
- * @email : scott_x@163.com
- * @description : Redis Key 与 TTL 校验工具
- * @status : create
+ * Redis Key 与 TTL 校验工具
  */
 public final class RedisKeySupport {
 

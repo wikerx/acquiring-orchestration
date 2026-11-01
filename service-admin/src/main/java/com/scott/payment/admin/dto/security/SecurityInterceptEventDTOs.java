@@ -10,16 +10,13 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SecurityInterceptEventDTOs
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 安全拦截事件后台 DTO 集合，位于 service-admin 传输层，用于查询、详情、导出和人工处理标记。
- * @status : create
+ * 安全拦截事件后台 DTO 集合，位于 service-admin 传输层，用于查询、详情、导出和人工处理标记。
  */
 public final class SecurityInterceptEventDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private SecurityInterceptEventDTOs() {
     }
 

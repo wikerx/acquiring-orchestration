@@ -15,18 +15,14 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminRiskTimelineQueryService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理端交易风控时间轴 JDBC 查询实现。
- * @status : create
+ * 管理端交易风控时间轴 JDBC 查询实现。
  */
 @Service
 public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQueryService {
 
-    /** 在只读数据源查询风控主记录及脱敏命中明细的命名参数模板。 */
+    /**
+     * 在只读数据源查询风控主记录及脱敏命中明细的命名参数模板。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     /**
@@ -165,6 +161,9 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
         return "SUCCESS";
     }
 
+    /**
+     * 规范化状态。
+     */
     private String normalizeStatus(Object value) {
         return value == null ? "" : String.valueOf(value).trim().toUpperCase(Locale.ROOT);
     }

@@ -6,13 +6,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : Money
- * @date : 2026-08-25 00:00
- * @email : scott_x@163.com
- * @description : 跨费用、保证金和结算领域复用的不可变金额值对象；保留原始精度且不隐式换汇或舍入。
- * @status : create
+ * 跨费用、保证金和结算领域复用的不可变金额值对象；保留原始精度且不隐式换汇或舍入。
  * @param amount 有符号业务金额
  * @param currency ISO 4217 三位币种代码
  * @param exponent 当前业务事实固化的币种小数位

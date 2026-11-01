@@ -3,13 +3,7 @@ package com.scott.payment.risk.domain;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskModuleTypeEnum
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 运行时风控模块类型。
- * @status : create
+ * 运行时风控模块类型。
  */
 @Getter
 public enum RiskModuleTypeEnum {
@@ -44,6 +38,11 @@ public enum RiskModuleTypeEnum {
      */
     private final String code;
 
+    /**
+     * 创建具有稳定持久化编码的风控模块类型。
+     *
+     * @param code 数据库、审计消息和内部接口共同使用的模块编码
+     */
     RiskModuleTypeEnum(String code) {
         this.code = code;
     }

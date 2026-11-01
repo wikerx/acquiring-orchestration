@@ -13,7 +13,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 验证 IP 分片路由快照的区间选择、重叠保护和版本变化判定。 */
+/**
+ * 验证 IP 分片路由快照的区间选择、重叠保护和版本变化判定。
+ */
 class IpShardRoutingSnapshotTests {
 
     @Test

@@ -6,13 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskSaveRequest
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务保存请求对象
- * @status : create
+ * 管理后台任务保存请求对象
  *
  * <p>用于新增或更新任务调度定义，承载调度模式、执行模式、超时重试和任务参数等配置。</p>
  */

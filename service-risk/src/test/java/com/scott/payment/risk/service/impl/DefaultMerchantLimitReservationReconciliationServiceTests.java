@@ -24,13 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantLimitReservationReconciliationServiceTests
- * @date : 2026-07-30 22:55
- * @email : scott_x@163.com
- * @description : 验证累计限额预占对账只依据明确 Redis marker 和支付事实推进，未知状态一律保守保留
- * @status : create
+ * 验证累计限额预占对账只依据明确 Redis marker 和支付事实推进，未知状态一律保守保留
  */
 @Slf4j
 class DefaultMerchantLimitReservationReconciliationServiceTests {

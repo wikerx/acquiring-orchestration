@@ -29,13 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisGlobalIdIntegrationTests
- * @date : 2026-06-25 10:37
- * @email : scott_x@163.com
- * @description : 在显式启用时验证真实 Redis TIME、状态 Hash、连续与并发发号唯一性以及序列溢出
- * @status : create
+ * 在显式启用时验证真实 Redis TIME、状态 Hash、连续与并发发号唯一性以及序列溢出
  */
 @Slf4j
 @EnabledIfSystemProperty(named = "global-id.redis.integration.enabled", matches = "true")

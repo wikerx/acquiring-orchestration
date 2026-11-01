@@ -1,6 +1,7 @@
 package com.scott.payment.admin.dto.transaction;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -11,1215 +12,2281 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementDTOs
- * @date : 2026-08-26 21:20
- * @email : scott_x@163.com
- * @description : Admin 结算批次管理契约；浏览器命令不允许携带操作人，应用层从登录上下文补齐。
- * @status : create
+ * Admin 结算批次管理契约；浏览器命令不允许携带操作人，应用层从登录上下文补齐。
  */
 public final class AdminSettlementDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private AdminSettlementDTOs() {
     }
 
-    /** 结算档案分页查询条件。 */
+    /**
+     * 结算档案分页查询条件。
+     */
     @Data
     public static class ProfileSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算档案编号精确过滤，可空。 */
+        /**
+         * 结算档案编号精确过滤，可空。
+         */
         private String settlementProfileNo;
-        /** 商户号过滤，可空且必须叠加 Admin 数据范围。 */
+        /**
+         * 商户号过滤，可空且必须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** 目标结算币种过滤，可空。 */
+        /**
+         * 目标结算币种过滤，可空。
+         */
         private String targetCurrency;
-        /** 自动或人工处理模式过滤，可空。 */
+        /**
+         * 自动或人工处理模式过滤，可空。
+         */
         private String processingMode;
-        /** 结算档案状态过滤，可空。 */
+        /**
+         * 结算档案状态过滤，可空。
+         */
         private String profileStatus;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
     }
 
-    /** 结算档案运营视图；账户、币种和生效区间只读，避免改变历史候选身份。 */
+    /**
+     * 结算档案运营视图；账户、币种和生效区间只读，避免改变历史候选身份。
+     */
     @Data
     public static class ProfileSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算档案表主键。 */
+        /**
+         * 结算档案表主键。
+         */
         private Long id;
-        /** 结算档案业务编号。 */
+        /**
+         * 结算档案业务编号。
+         */
         private String settlementProfileNo;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 商户名称。 */
+        /**
+         * 商户名称。
+         */
         private String merchantName;
-        /** 结算资金账户主键。 */
+        /**
+         * 结算资金账户主键。
+         */
         private Long settlementAccountId;
-        /** 结算资金账户号。 */
+        /**
+         * 结算资金账户号。
+         */
         private String settlementAccountNo;
-        /** 结算资金账户状态；只有 NORMAL 账户允许后续入账。 */
+        /**
+         * 结算资金账户状态；只有 NORMAL 账户允许后续入账。
+         */
         private String settlementAccountStatus;
-        /** 目标结算币种。 */
+        /**
+         * 目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 计算业务日期和日切点的 IANA 时区。 */
+        /**
+         * 计算业务日期和日切点的 IANA 时区。
+         */
         private String businessTimeZone;
-        /** 商户业务时区内的每日结算日切时间。 */
+        /**
+         * 商户业务时区内的每日结算日切时间。
+         */
         private LocalTime dailyCutoffTime;
-        /** 当前费用版本配置的首次结算周期单位，T 或 D。 */
+        /**
+         * 当前费用版本配置的首次结算周期单位，T 或 D。
+         */
         private String initialDelayUnit;
-        /** 当前费用版本配置的首次结算延迟天数。 */
+        /**
+         * 当前费用版本配置的首次结算延迟天数。
+         */
         private Integer initialDelayDays;
-        /** 当前费用版本配置的常规结算延迟天数。 */
+        /**
+         * 当前费用版本配置的常规结算延迟天数。
+         */
         private Integer regularDelayDays;
-        /** DAILY、WEEKLY、BIWEEKLY 或 MONTHLY。 */
+        /**
+         * DAILY、WEEKLY、BIWEEKLY 或 MONTHLY。
+         */
         private String settlementFrequency;
-        /** 周结或月结使用的周期日；每日结算可空。 */
+        /**
+         * 周结或月结使用的周期日；每日结算可空。
+         */
         private Integer frequencyDay;
-        /** 资金账户和当前费用周期均完整时才允许发起手动结算。 */
+        /**
+         * 资金账户和当前费用周期均完整时才允许发起手动结算。
+         */
         private Boolean manualSettlementAvailable;
-        /** 自动或人工结算处理模式。 */
+        /**
+         * 自动或人工结算处理模式。
+         */
         private String processingMode;
-        /** 结算档案当前状态。 */
+        /**
+         * 结算档案当前状态。
+         */
         private String profileStatus;
-        /** 档案生效业务日期。 */
+        /**
+         * 档案生效业务日期。
+         */
         private LocalDate effectiveDate;
-        /** 档案失效业务日期，可空。 */
+        /**
+         * 档案失效业务日期，可空。
+         */
         private LocalDate expireDate;
-        /** 结算档案乐观锁版本。 */
+        /**
+         * 结算档案乐观锁版本。
+         */
         private Long version;
-        /** 创建时间。 */
+        /**
+         * 创建时间。
+         */
         private LocalDateTime createTime;
-        /** 最后更新时间。 */
+        /**
+         * 最后更新时间。
+         */
         private LocalDateTime updateTime;
     }
 
-    /** 仅允许调整后续调度行为，不允许修改账户、币种或历史有效期。 */
+    /**
+     * 仅允许调整后续调度行为，不允许修改账户、币种或历史有效期。
+     */
     @Data
     public static class ProfileUpdateRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 更新后的自动或人工处理模式。 */
+        /**
+         * 更新后的自动或人工处理模式。
+         */
         private String processingMode;
-        /** 更新后的 IANA 业务时区。 */
+        /**
+         * 更新后的 IANA 业务时区。
+         */
         private String businessTimeZone;
-        /** 更新后的业务时区内日切时间。 */
+        /**
+         * 更新后的业务时区内日切时间。
+         */
         private LocalTime dailyCutoffTime;
-        /** 客户端读取到的期望乐观锁版本。 */
+        /**
+         * 客户端读取到的期望乐观锁版本。
+         */
         private Long expectedVersion;
     }
 
-    /** 正式结算批次分页查询条件。 */
+    /**
+     * 正式结算批次分页查询条件。
+     */
     @Data
     public static class BatchSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算批次号精确过滤，可空。 */
+        /**
+         * 结算批次号精确过滤，可空。
+         */
         private String settlementBatchNo;
-        /** 商户号过滤，可空且必须叠加 Admin 数据范围。 */
+        /**
+         * 商户号过滤，可空且必须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** TRANSACTION 或 RESERVE；领域接口由服务端强制写入，通用兼容接口可空。 */
+        /**
+         * TRANSACTION 或 RESERVE；领域接口由服务端强制写入，通用兼容接口可空。
+         */
         private String batchDomain;
-        /** 批次类型过滤，可空。 */
+        /**
+         * 批次类型过滤，可空。
+         */
         private String batchType;
-        /** 批次状态过滤，可空。 */
+        /**
+         * 批次状态过滤，可空。
+         */
         private String batchStatus;
-        /** 业务日期起点，包含。 */
+        /**
+         * 业务日期起点，包含。
+         */
         private LocalDate beginBusinessDate;
-        /** 业务日期终点，包含。 */
+        /**
+         * 业务日期终点，包含。
+         */
         private LocalDate endBusinessDate;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
-        /** 仅保留给旧版 service-settlement 内部查询客户端兼容，Admin 页面不再使用。 */
+        /**
+         * 仅保留给旧版 service-settlement 内部查询客户端兼容，Admin 页面不再使用。
+         */
         private Long cursorId;
-        /** 仅保留给旧版 service-settlement 内部查询客户端兼容，Admin 页面不再使用。 */
+        /**
+         * 仅保留给旧版 service-settlement 内部查询客户端兼容，Admin 页面不再使用。
+         */
         private Integer limit;
     }
 
-    /** 正式结算批次运营摘要及 Maker-Checker 审计信息。 */
+    /**
+     * 正式结算批次运营摘要及 Maker-Checker 审计信息。
+     */
     @Data
     public static class BatchSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算批次表主键。 */
+        /**
+         * 结算批次表主键。
+         */
         private Long id;
-        /** 稳定结算批次号。 */
+        /**
+         * 稳定结算批次号。
+         */
         private String settlementBatchNo;
-        /** 面向页面展示的批次号，通常与稳定批次号一致。 */
+        /**
+         * 面向页面展示的批次号，通常与稳定批次号一致。
+         */
         private String displayBatchNo;
-        /** 商户业务时区下的结算业务日期。 */
+        /**
+         * 商户业务时区下的结算业务日期。
+         */
         private LocalDate businessDate;
-        /** 生成业务日期时使用的 IANA 时区。 */
+        /**
+         * 生成业务日期时使用的 IANA 时区。
+         */
         private String businessTimeZone;
-        /** 商户当日批次序号。 */
+        /**
+         * 商户当日批次序号。
+         */
         private Integer dailySequence;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 商户名称。 */
+        /**
+         * 商户名称。
+         */
         private String merchantName;
-        /** 结算档案主键。 */
+        /**
+         * 结算档案主键。
+         */
         private Long settlementProfileId;
-        /** 结算资金账户主键。 */
+        /**
+         * 结算资金账户主键。
+         */
         private Long settlementAccountId;
-        /** 结算资金账户号。 */
+        /**
+         * 结算资金账户号。
+         */
         private String settlementAccountNo;
-        /** 批次唯一目标结算币种。 */
+        /**
+         * 批次唯一目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** REGULAR、RESERVE_RELEASE、ADJUSTMENT、REVERSAL 等批次类型。 */
+        /**
+         * REGULAR、RESERVE_RELEASE、ADJUSTMENT、REVERSAL 等批次类型。
+         */
         private String batchType;
-        /** 冲正批次关联的原批次号，非冲正为空。 */
+        /**
+         * 冲正批次关联的原批次号，非冲正为空。
+         */
         private String originalBatchNo;
-        /** 人工预审产生批次对应的预审单号，可空。 */
+        /**
+         * 人工预审产生批次对应的预审单号，可空。
+         */
         private String reviewOrderNo;
-        /** AUTO 或 MANUAL 创建模式。 */
+        /**
+         * AUTO 或 MANUAL 创建模式。
+         */
         private String createMode;
-        /** 批次状态。 */
+        /**
+         * 批次状态。
+         */
         private String batchStatus;
-        /** 批次结果中去重后的真实来源交易数。 */
+        /**
+         * 批次结果中去重后的真实来源交易数。
+         */
         private Long transactionCount;
-        /** 批次认领的结算项目数，包含交易清分修订或保证金动作。 */
+        /**
+         * 批次认领的结算项目数，包含交易清分修订或保证金动作。
+         */
         private Integer candidateCount;
-        /** 可生成交易主单/动作单状态投影的真实 CLEARING_REVISION 候选数。 */
+        /**
+         * 可生成交易主单/动作单状态投影的真实 CLEARING_REVISION 候选数。
+         */
         private Integer projectableCandidateCount;
-        /** 商户视角净入账方向。 */
+        /**
+         * 商户视角净入账方向。
+         */
         private String netDirection;
-        /** 目标结算币种净入账金额。 */
+        /**
+         * 目标结算币种净入账金额。
+         */
         private BigDecimal netAmount;
-        /** 批次结果指纹，用于重试时校验结果未漂移。 */
+        /**
+         * 批次结果指纹，用于重试时校验结果未漂移。
+         */
         private String resultFingerprint;
-        /** Maker 可信 Admin 账户主键，自动批次可空。 */
+        /**
+         * Maker 可信 Admin 账户主键，自动批次可空。
+         */
         private Long makerAccountId;
-        /** Maker 可信账户名称。 */
+        /**
+         * Maker 可信账户名称。
+         */
         private String makerAccountName;
-        /** 人工创建或操作原因。 */
+        /**
+         * 人工创建或操作原因。
+         */
         private String makerReason;
-        /** Maker 操作时间。 */
+        /**
+         * Maker 操作时间。
+         */
         private LocalDateTime makerTime;
-        /** Checker 可信 Admin 账户主键。 */
+        /**
+         * Checker 可信 Admin 账户主键。
+         */
         private Long checkerAccountId;
-        /** Checker 可信账户名称。 */
+        /**
+         * Checker 可信账户名称。
+         */
         private String checkerAccountName;
-        /** Checker 复核意见。 */
+        /**
+         * Checker 复核意见。
+         */
         private String checkerComment;
-        /** Checker 操作时间。 */
+        /**
+         * Checker 操作时间。
+         */
         private LocalDateTime checkerTime;
-        /** 批次失败后的重试次数。 */
+        /**
+         * 批次失败后的重试次数。
+         */
         private Integer retryCount;
-        /** 最近失败阶段。 */
+        /**
+         * 最近失败阶段。
+         */
         private String lastFailureStage;
-        /** 最近失败码。 */
+        /**
+         * 最近失败码。
+         */
         private String lastFailureCode;
-        /** 最近脱敏失败摘要。 */
+        /**
+         * 最近脱敏失败摘要。
+         */
         private String lastFailureMessage;
-        /** 批次汇率全部锁定时间。 */
+        /**
+         * 批次汇率全部锁定时间。
+         */
         private LocalDateTime rateLockedTime;
-        /** 批次结果计算完成时间。 */
+        /**
+         * 批次结果计算完成时间。
+         */
         private LocalDateTime calculatedTime;
-        /** 资金成功入账时间。 */
+        /**
+         * 资金成功入账时间。
+         */
         private LocalDateTime postedTime;
-        /** 批次取消时间。 */
+        /**
+         * 批次取消时间。
+         */
         private LocalDateTime cancelledTime;
-        /** 批次乐观锁版本。 */
+        /**
+         * 批次乐观锁版本。
+         */
         private Long version;
-        /** 批次创建时间。 */
+        /**
+         * 批次创建时间。
+         */
         private LocalDateTime createTime;
-        /** 批次最后更新时间。 */
+        /**
+         * 批次最后更新时间。
+         */
         private LocalDateTime updateTime;
     }
 
-    /** 旧版内部游标查询响应；Admin 页面使用标准分页。 */
+    /**
+     * 旧版内部游标查询响应；Admin 页面使用标准分页。
+     */
     @Data
     public static class BatchSearchResponse implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 当前批次摘要集合。 */
+        /**
+         * 当前批次摘要集合。
+         */
         private List<BatchSummary> records = Collections.emptyList();
-        /** 是否仍有下一页。 */
+        /**
+         * 是否仍有下一页。
+         */
         private boolean hasMore;
-        /** 下一页主键游标。 */
+        /**
+         * 下一页主键游标。
+         */
         private Long nextCursorId;
     }
 
-    /** 批次内一条不可变锁定汇率。 */
+    /**
+     * 批次内一条不可变锁定汇率。
+     */
     @Data
     public static class RateLine implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 批次汇率表主键。 */
+        /**
+         * 批次汇率表主键。
+         */
         private Long id;
-        /** 汇率源币种。 */
+        /**
+         * 汇率源币种。
+         */
         private String sourceCurrency;
-        /** 汇率目标币种，与批次目标币种一致。 */
+        /**
+         * 汇率目标币种，与批次目标币种一致。
+         */
         private String targetCurrency;
-        /** 结算汇率类型。 */
+        /**
+         * 结算汇率类型。
+         */
         private String rateType;
-        /** 一单位源币种对应目标币种的直接汇率。 */
+        /**
+         * 一单位源币种对应目标币种的直接汇率。
+         */
         private BigDecimal directRate;
-        /** 源币种 exponent。 */
+        /**
+         * 源币种 exponent。
+         */
         private Integer sourceCurrencyExponent;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 汇率来源。 */
+        /**
+         * 汇率来源。
+         */
         private String rateSource;
-        /** 原始报价编号，可空。 */
+        /**
+         * 原始报价编号，可空。
+         */
         private String quoteId;
-        /** 原报价是 DIRECT、INVERSE 或同币种恒等方向。 */
+        /**
+         * 原报价是 DIRECT、INVERSE 或同币种恒等方向。
+         */
         private String sourceQuoteDirection;
-        /** 原报价生效时间。 */
+        /**
+         * 原报价生效时间。
+         */
         private LocalDateTime effectiveTime;
-        /** 汇率锁定到批次的时间。 */
+        /**
+         * 汇率锁定到批次的时间。
+         */
         private LocalDateTime lockedTime;
-        /** 锁定汇率的系统或可信操作人。 */
+        /**
+         * 锁定汇率的系统或可信操作人。
+         */
         private String lockedBy;
     }
 
-    /** 按支付维度、结果项目、费用类别、方向和币种聚合的批次结果。 */
+    /**
+     * 按支付维度、结果项目、费用类别、方向和币种聚合的批次结果。
+     */
     @Data
     public static class ResultSummaryLine implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 支付类型。 */
+        /**
+         * 支付类型。
+         */
         private String paymentType;
-        /** 支付方式。 */
+        /**
+         * 支付方式。
+         */
         private String paymentMethod;
-        /** 交易类型。 */
+        /**
+         * 交易类型。
+         */
         private String transactionType;
-        /** 结算结果项目类型。 */
+        /**
+         * 结算结果项目类型。
+         */
         private String resultItemType;
-        /** 费用类别，非费用项目可空。 */
+        /**
+         * 费用类别，非费用项目可空。
+         */
         private String feeCategory;
-        /** 商户视角方向。 */
+        /**
+         * 商户视角方向。
+         */
         private String direction;
-        /** 清分来源币种。 */
+        /**
+         * 清分来源币种。
+         */
         private String sourceCurrency;
-        /** 来源币种 exponent。 */
+        /**
+         * 来源币种 exponent。
+         */
         private Integer sourceCurrencyExponent;
-        /** 批次目标币种。 */
+        /**
+         * 批次目标币种。
+         */
         private String targetCurrency;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 当前分组去重后的真实交易数。 */
+        /**
+         * 当前分组去重后的真实交易数。
+         */
         private Long transactionCount;
-        /** 当前分组原币种金额合计。 */
+        /**
+         * 当前分组原币种金额合计。
+         */
         private BigDecimal sourceAmount;
-        /** 当前分组目标币种金额合计。 */
+        /**
+         * 当前分组目标币种金额合计。
+         */
         private BigDecimal targetAmount;
     }
 
-    /** 批次最终净入账结果行。 */
+    /**
+     * 批次最终净入账结果行。
+     */
     @Data
     public static class NetPosting implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算结果表主键。 */
+        /**
+         * 结算结果表主键。
+         */
         private Long id;
-        /** 结算结果明细号。 */
+        /**
+         * 结算结果明细号。
+         */
         private String settlementResultItemNo;
-        /** 被冲正的原结果主键，非冲正为空。 */
+        /**
+         * 被冲正的原结果主键，非冲正为空。
+         */
         private Long reversalOfResultItemId;
-        /** 商户视角净入账方向。 */
+        /**
+         * 商户视角净入账方向。
+         */
         private String direction;
-        /** 目标结算币种净额。 */
+        /**
+         * 目标结算币种净额。
+         */
         private BigDecimal targetAmount;
-        /** 批次目标结算币种。 */
+        /**
+         * 批次目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 对应资金流水的唯一幂等键。 */
+        /**
+         * 对应资金流水的唯一幂等键。
+         */
         private String ledgerIdempotencyKey;
-        /** 净额聚合公式快照。 */
+        /**
+         * 净额聚合公式快照。
+         */
         private String formulaSnapshot;
-        /** 结果明细创建时间。 */
+        /**
+         * 结果明细创建时间。
+         */
         private LocalDateTime createTime;
     }
 
-    /** 批次投影任务和可靠 Outbox 的运维计数。 */
+    /**
+     * 批次投影任务和可靠 Outbox 的运维计数。
+     */
     @Data
     public static class OperationalState implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 投影任务总数，仅真实 CLEARING_REVISION 候选会生成交易投影。 */
+        /**
+         * 投影任务总数，仅真实 CLEARING_REVISION 候选会生成交易投影。
+         */
         private Long projectionTaskCount;
-        /** 已完成投影任务数。 */
+        /**
+         * 已完成投影任务数。
+         */
         private Long projectionCompletedCount;
-        /** 失败待补偿投影任务数。 */
+        /**
+         * 失败待补偿投影任务数。
+         */
         private Long projectionFailedCount;
-        /** 批次 Outbox 事件总数。 */
+        /**
+         * 批次 Outbox 事件总数。
+         */
         private Long outboxEventCount;
-        /** 已发送 Outbox 事件数。 */
+        /**
+         * 已发送 Outbox 事件数。
+         */
         private Long outboxSentCount;
-        /** 发送失败待重试 Outbox 事件数。 */
+        /**
+         * 发送失败待重试 Outbox 事件数。
+         */
         private Long outboxFailedCount;
     }
 
-    /** 正式结算批次详情。 */
+    /**
+     * 正式结算批次详情。
+     */
     @Data
     public static class BatchDetailResponse implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 批次运营摘要。 */
+        /**
+         * 批次运营摘要。
+         */
         private BatchSummary batch;
-        /** 批次不可变锁定汇率。 */
+        /**
+         * 批次不可变锁定汇率。
+         */
         private List<RateLine> rates = Collections.emptyList();
-        /** 批次结果维度汇总。 */
+        /**
+         * 批次结果维度汇总。
+         */
         private List<ResultSummaryLine> resultSummaries = Collections.emptyList();
-        /** 批次最终净入账结果。 */
+        /**
+         * 批次最终净入账结果。
+         */
         private NetPosting netPosting;
-        /** 投影和 Outbox 运维计数。 */
+        /**
+         * 投影和 Outbox 运维计数。
+         */
         private OperationalState operationalState;
     }
 
-    /** 浏览器命令不包含 operator，避免伪造操作人。 */
+    /**
+     * 浏览器命令不包含 operator，避免伪造操作人。
+     */
     @Data
     public static class BatchCommandRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 客户端生成的幂等请求键。 */
+        /**
+         * 客户端生成的幂等请求键。
+         */
         private String requestKey;
-        /** 批次期望乐观锁版本。 */
+        /**
+         * 批次期望乐观锁版本。
+         */
         private Long expectedVersion;
-        /** 人工操作原因。 */
+        /**
+         * 人工操作原因。
+         */
         private String reason;
     }
 
-    /** service-admin 补齐可信操作人后的内部命令。 */
+    /**
+     * service-admin 补齐可信操作人后的内部命令。
+     */
     @Data
     public static class InternalBatchCommandRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 客户端生成的幂等请求键。 */
+        /**
+         * 客户端生成的幂等请求键。
+         */
         private String requestKey;
-        /** 批次期望乐观锁版本。 */
+        /**
+         * 批次期望乐观锁版本。
+         */
         private Long expectedVersion;
-        /** 人工操作原因。 */
+        /**
+         * 人工操作原因。
+         */
         private String reason;
-        /** 可信 Admin 操作人主键。 */
+        /**
+         * 可信 Admin 操作人主键。
+         */
         private Long operatorId;
-        /** 可信 Admin 操作人名称。 */
+        /**
+         * 可信 Admin 操作人名称。
+         */
         private String operatorName;
-        /** 操作时已认证角色快照。 */
+        /**
+         * 操作时已认证角色快照。
+         */
         private String roleSnapshot;
-        /** 可信客户端地址。 */
+        /**
+         * 可信客户端地址。
+         */
         private String clientIp;
-        /** 客户端 User-Agent，长度受限。 */
+        /**
+         * 客户端 User-Agent，长度受限。
+         */
         private String userAgent;
-        /** Admin 操作时间。 */
+        /**
+         * Admin 操作时间。
+         */
         private LocalDateTime operationTime;
     }
 
-    /** 批次取消或其他控制命令结果。 */
+    /**
+     * 批次取消或其他控制命令结果。
+     */
     @Data
     public static class BatchCommandResponse implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 原请求批次号。 */
+        /**
+         * 原请求批次号。
+         */
         private String settlementBatchNo;
-        /** 命令产生的结果批次号，可空。 */
+        /**
+         * 命令产生的结果批次号，可空。
+         */
         private String resultBatchNo;
-        /** 幂等命令结果状态。 */
+        /**
+         * 幂等命令结果状态。
+         */
         private String resultStatus;
-        /** 取消后释放回 READY 的候选数量。 */
+        /**
+         * 取消后释放回 READY 的候选数量。
+         */
         private Integer releasedCandidateCount;
-        /** 恢复后重新进入异步处理的候选数量。 */
+        /**
+         * 恢复后重新进入异步处理的候选数量。
+         */
         private Integer restoredCandidateCount;
     }
 
-    /** 交易或保证金结算候选分页查询条件。 */
+    /**
+     * 交易或保证金结算候选分页查询条件。
+     */
     @Data
     public static class CandidateSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 候选编号精确过滤，可空。 */
+        /**
+         * 候选编号精确过滤，可空。
+         */
         private String candidateNo;
-        /** 商户号过滤，可空且必须叠加 Admin 数据范围。 */
+        /**
+         * 商户号过滤，可空且必须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** 来源真实平台交易号过滤，可空。 */
+        /**
+         * 来源真实平台交易号过滤，可空。
+         */
         private String sourceTransactionId;
-        /** 保证金释放或调整候选的技术动作号过滤，可空。 */
+        /**
+         * 保证金释放或调整候选的技术动作号过滤，可空。
+         */
         private String reserveActionNo;
-        /** 商户订单号过滤，可空。 */
+        /**
+         * 商户订单号过滤，可空。
+         */
         private String merchantOrderNo;
-        /** 来源交易时间起点，包含。 */
+        /**
+         * 来源交易时间起点，包含。
+         */
         private LocalDateTime beginTransactionTime;
-        /** 来源交易时间终点，不包含。 */
+        /**
+         * 来源交易时间终点，不包含。
+         */
         private LocalDateTime endTransactionTime;
-        /** 支付类型过滤，可空。 */
+        /**
+         * 支付类型过滤，可空。
+         */
         private String paymentType;
-        /** 支付方式过滤，可空。 */
+        /**
+         * 支付方式过滤，可空。
+         */
         private String paymentMethod;
-        /** 交易类型过滤，可空。 */
+        /**
+         * 交易类型过滤，可空。
+         */
         private String transactionType;
-        /** 标签币种过滤，可空。 */
+        /**
+         * 标签币种过滤，可空。
+         */
         private String labelCurrency;
-        /** 目标结算币种过滤，可空。 */
+        /**
+         * 目标结算币种过滤，可空。
+         */
         private String targetCurrency;
-        /** 来源清分修订号过滤，可空。 */
+        /**
+         * 来源清分修订号过滤，可空。
+         */
         private Integer sourceRevision;
-        /** 保证金责任编号过滤，可空。 */
+        /**
+         * 保证金责任编号过滤，可空。
+         */
         private String reserveNo;
-        /** 保证金责任状态过滤，可空。 */
+        /**
+         * 保证金责任状态过滤，可空。
+         */
         private String reserveStatus;
-        /** 预计释放日期起点，包含。 */
+        /**
+         * 预计释放日期起点，包含。
+         */
         private LocalDate beginExpectedReleaseDate;
-        /** 预计释放日期终点，包含。 */
+        /**
+         * 预计释放日期终点，包含。
+         */
         private LocalDate endExpectedReleaseDate;
-        /** 是否只查询已到期保证金候选。 */
+        /**
+         * 是否只查询已到期保证金候选。
+         */
         private Boolean due;
-        /** 是否只查询 FROZEN 保证金责任。 */
+        /**
+         * 是否只查询 FROZEN 保证金责任。
+         */
         private Boolean frozen;
-        /** 保证金剩余责任最小值，原标签币种。 */
+        /**
+         * 保证金剩余责任最小值，原标签币种。
+         */
         private BigDecimal minRemainingAmount;
-        /** 保证金剩余责任最大值，原标签币种。 */
+        /**
+         * 保证金剩余责任最大值，原标签币种。
+         */
         private BigDecimal maxRemainingAmount;
-        /** 候选状态过滤，可空。 */
+        /**
+         * 候选状态过滤，可空。
+         */
         private String candidateStatus;
-        /** 可结算业务日期起点，包含。 */
+        /**
+         * 可结算业务日期起点，包含。
+         */
         private LocalDate beginEligibleDate;
-        /** 可结算业务日期终点，包含。 */
+        /**
+         * 可结算业务日期终点，包含。
+         */
         private LocalDate endEligibleDate;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
     }
 
-    /** 一笔真实交易在正式结算批次中的汇总行；组件明细通过独立分页接口按需读取。 */
+    /**
+     * 一笔真实交易在正式结算批次中的汇总行；组件明细通过独立分页接口按需读取。
+     */
     @Data
     public static class TransactionSettlementSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 所属正式结算批次号。 */
+        /**
+         * 所属正式结算批次号。
+         */
         private String settlementBatchNo;
-        /** 批次业务日期。 */
+        /**
+         * 批次业务日期。
+         */
         private LocalDate businessDate;
-        /** 批次状态。 */
+        /**
+         * 批次状态。
+         */
         private String batchStatus;
-        /** 来源候选主键。 */
+        /**
+         * 来源候选主键。
+         */
         private Long candidateId;
-        /** 来源候选业务号，仅用于内部追溯，不作为用户查询条件。 */
+        /**
+         * 来源候选业务号，仅用于内部追溯，不作为用户查询条件。
+         */
         private String candidateNo;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 商户订单号。 */
+        /**
+         * 商户订单号。
+         */
         private String merchantOrderNo;
-        /** 平台真实交易号，即页面“系统订单号”。 */
+        /**
+         * 平台真实交易号，即页面“系统订单号”。
+         */
         private String sourceTransactionId;
-        /** 原交易时间。 */
+        /**
+         * 原交易时间。
+         */
         private LocalDateTime sourceTransactionDateTime;
-        /** 支付类型。 */
+        /**
+         * 支付类型。
+         */
         private String paymentType;
-        /** 支付方式。 */
+        /**
+         * 支付方式。
+         */
         private String paymentMethod;
-        /** 交易类型。 */
+        /**
+         * 交易类型。
+         */
         private String transactionType;
-        /** 原交易本金金额。 */
+        /**
+         * 原交易本金金额。
+         */
         private BigDecimal sourceAmount;
-        /** 原交易币种。 */
+        /**
+         * 原交易币种。
+         */
         private String sourceCurrency;
-        /** 原交易币种 exponent。 */
+        /**
+         * 原交易币种 exponent。
+         */
         private Integer sourceCurrencyExponent;
-        /** 当前交易包含的不可变财务组件数。 */
+        /**
+         * 当前交易包含的不可变财务组件数。
+         */
         private Long componentCount;
-        /** 当前交易各财务组件相抵后的商户资金方向。 */
+        /**
+         * 当前交易各财务组件相抵后的商户资金方向。
+         */
         private String netDirection;
-        /** 当前交易各财务组件相抵后的目标币种非负金额。 */
+        /**
+         * 当前交易各财务组件相抵后的目标币种非负金额。
+         */
         private BigDecimal netTargetAmount;
-        /** 批次目标结算币种。 */
+        /**
+         * 批次目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标结算币种 exponent。 */
+        /**
+         * 目标结算币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 批次成功入账时间。 */
+        /**
+         * 批次成功入账时间。
+         */
         private LocalDateTime postedTime;
-        /** 当前交易最后一条结果组件创建时间。 */
+        /**
+         * 当前交易最后一条结果组件创建时间。
+         */
         private LocalDateTime createTime;
     }
 
-    /** 交易清分修订或保证金动作结算候选摘要。 */
+    /**
+     * 交易清分修订或保证金动作结算候选摘要。
+     */
     @Data
     public static class CandidateSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 候选表主键。 */
+        /**
+         * 候选表主键。
+         */
         private Long id;
-        /** 候选业务编号。 */
+        /**
+         * 候选业务编号。
+         */
         private String candidateNo;
-        /** CLEARING_REVISION、RESERVE_RELEASE 或 ADJUSTMENT。 */
+        /**
+         * CLEARING_REVISION、RESERVE_RELEASE 或 ADJUSTMENT。
+         */
         private String sourceType;
-        /** 来源清分状态或保证金明细业务编号。 */
+        /**
+         * 来源清分状态或保证金明细业务编号。
+         */
         private String sourceBusinessId;
-        /** 来源清分修订号。 */
+        /**
+         * 来源清分修订号。
+         */
         private Integer sourceRevision;
-        /** 真实来源平台交易号；保证金候选回溯原支付交易。 */
+        /**
+         * 真实来源平台交易号；保证金候选回溯原支付交易。
+         */
         private String sourceTransactionId;
-        /** 保证金释放或调整候选的技术动作号，例如 RRL；普通交易候选为空。 */
+        /**
+         * 保证金释放或调整候选的技术动作号，例如 RRL；普通交易候选为空。
+         */
         private String reserveActionNo;
-        /** 来源交易时间，用于物理季度定位。 */
+        /**
+         * 来源交易时间，用于物理季度定位。
+         */
         private LocalDateTime sourceTransactionDateTime;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 商户名称。 */
+        /**
+         * 商户名称。
+         */
         private String merchantName;
-        /** 商户订单号。 */
+        /**
+         * 商户订单号。
+         */
         private String merchantOrderNo;
-        /** 支付类型。 */
+        /**
+         * 支付类型。
+         */
         private String paymentType;
-        /** 支付方式。 */
+        /**
+         * 支付方式。
+         */
         private String paymentMethod;
-        /** 交易类型。 */
+        /**
+         * 交易类型。
+         */
         private String transactionType;
-        /** 来源标签币种。 */
+        /**
+         * 来源标签币种。
+         */
         private String labelCurrency;
-        /** 来源标签金额。 */
+        /**
+         * 来源标签金额。
+         */
         private BigDecimal labelAmount;
-        /** 标签币种 exponent。 */
+        /**
+         * 标签币种 exponent。
+         */
         private Integer labelCurrencyExponent;
-        /** 参与本金结算的标签币种毛额。 */
+        /**
+         * 参与本金结算的标签币种毛额。
+         */
         private BigDecimal grossLabelAmount;
-        /** 清分平台费用组件合计；可能跨标签币种和 USD，页面不得自行相加换汇。 */
+        /**
+         * 清分平台费用组件合计；可能跨标签币种和 USD，页面不得自行相加换汇。
+         */
         private BigDecimal platformFeeAmount;
-        /** 原标签币种保证金扣留金额。 */
+        /**
+         * 原标签币种保证金扣留金额。
+         */
         private BigDecimal reserveAmount;
-        /** 清分阶段可确定的净结算金额，跨币种费用待结算求值时可空。 */
+        /**
+         * 清分阶段可确定的净结算金额，跨币种费用待结算求值时可空。
+         */
         private BigDecimal netSettlementAmount;
-        /** 费用是否已在清分阶段最终求值。 */
+        /**
+         * 费用是否已在清分阶段最终求值。
+         */
         private String feeEvaluationStatus;
-        /** 保证金候选动作类型。 */
+        /**
+         * 保证金候选动作类型。
+         */
         private String reserveActionType;
-        /** 保证金责任方向。 */
+        /**
+         * 保证金责任方向。
+         */
         private String reserveDirection;
-        /** 当前保证金动作金额，使用原标签币种。 */
+        /**
+         * 当前保证金动作金额，使用原标签币种。
+         */
         private BigDecimal reserveActionAmount;
-        /** 保证金责任编号。 */
+        /**
+         * 保证金责任编号。
+         */
         private String reserveNo;
-        /** 保证金责任状态。 */
+        /**
+         * 保证金责任状态。
+         */
         private String reserveStatus;
-        /** 保证金预计释放业务日期。 */
+        /**
+         * 保证金预计释放业务日期。
+         */
         private LocalDate expectedReserveReleaseDate;
-        /** 保证金当前剩余责任，使用原标签币种。 */
+        /**
+         * 保证金当前剩余责任，使用原标签币种。
+         */
         private BigDecimal remainingAmount;
-        /** 结算档案主键。 */
+        /**
+         * 结算档案主键。
+         */
         private Long settlementProfileId;
-        /** 目标结算币种。 */
+        /**
+         * 目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 最早可结算业务日期。 */
+        /**
+         * 最早可结算业务日期。
+         */
         private LocalDate settlementEligibleDate;
-        /** 候选状态。 */
+        /**
+         * 候选状态。
+         */
         private String candidateStatus;
-        /** 已认领或已入账批次号，可空。 */
+        /**
+         * 已认领或已入账批次号，可空。
+         */
         private String settlementBatchNo;
-        /** 已锁定预审单号，可空。 */
+        /**
+         * 已锁定预审单号，可空。
+         */
         private String reviewOrderNo;
-        /** 影子候选标记；正式查询只应返回 0。 */
+        /**
+         * 影子候选标记；正式查询只应返回 0。
+         */
         private Integer shadowMode;
-        /** 候选被批次或预审认领时间。 */
+        /**
+         * 候选被批次或预审认领时间。
+         */
         private LocalDateTime claimedTime;
-        /** 候选随批次资金入账时间。 */
+        /**
+         * 候选随批次资金入账时间。
+         */
         private LocalDateTime postedTime;
-        /** 候选乐观锁版本。 */
+        /**
+         * 候选乐观锁版本。
+         */
         private Long version;
-        /** 候选创建时间。 */
+        /**
+         * 候选创建时间。
+         */
         private LocalDateTime createTime;
-        /** 候选最后更新时间。 */
+        /**
+         * 候选最后更新时间。
+         */
         private LocalDateTime updateTime;
     }
 
-    /** 不可变结算结果明细分页查询条件。 */
+    /**
+     * 不可变结算结果明细分页查询条件。
+     */
     @Data
     public static class ResultItemSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算批次号过滤，可空。 */
+        /**
+         * 结算批次号过滤，可空。
+         */
         private String settlementBatchNo;
-        /** 商户号过滤，可空且必须叠加 Admin 数据范围。 */
+        /**
+         * 商户号过滤，可空且必须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** 来源真实平台交易号过滤，可空。 */
+        /**
+         * 来源真实平台交易号过滤，可空。
+         */
         private String sourceTransactionId;
-        /** 商户订单号过滤，可空。 */
+        /**
+         * 商户订单号过滤，可空。
+         */
         private String merchantOrderNo;
-        /** 原交易时间起点，包含，可空。 */
+        /**
+         * 原交易时间起点，包含，可空。
+         */
         private LocalDateTime beginTransactionTime;
-        /** 原交易时间终点，不包含，可空。 */
+        /**
+         * 原交易时间终点，不包含，可空。
+         */
         private LocalDateTime endTransactionTime;
-        /** 结果项目类型过滤，可空。 */
+        /**
+         * 结果项目类型过滤，可空。
+         */
         private String resultItemType;
-        /** TRACE、FINANCIAL_COMPONENT 或 LEDGER_POSTING。 */
+        /**
+         * TRACE、FINANCIAL_COMPONENT 或 LEDGER_POSTING。
+         */
         private String resultRole;
-        /** 商户视角方向过滤，可空。 */
+        /**
+         * 商户视角方向过滤，可空。
+         */
         private String direction;
-        /** 目标结算币种过滤，可空。 */
+        /**
+         * 目标结算币种过滤，可空。
+         */
         private String targetCurrency;
-        /** TRANSACTION_CLEARING 或 RESERVE_CLEARING，用于交易与保证金结果分区。 */
+        /**
+         * TRANSACTION_CLEARING 或 RESERVE_CLEARING，用于交易与保证金结果分区。
+         */
         private String sourceDetailType;
-        /** 批次业务日期起点，包含。 */
+        /**
+         * 批次业务日期起点，包含。
+         */
         private LocalDate beginBusinessDate;
-        /** 批次业务日期终点，包含。 */
+        /**
+         * 批次业务日期终点，包含。
+         */
         private LocalDate endBusinessDate;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
     }
 
-    /** 交易动作上的对账、结算和入账状态快照。 */
+    /**
+     * 交易动作上的对账、结算和入账状态快照。
+     */
     @Data
     public static class ReconciliationRecord implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 平台真实交易号。 */
+        /**
+         * 平台真实交易号。
+         */
         private String transactionId;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 商户订单号。 */
+        /**
+         * 商户订单号。
+         */
         private String merchantOrderNo;
-        /** 当前交易动作类型。 */
+        /**
+         * 当前交易动作类型。
+         */
         private String transactionType;
-        /** 当前对账状态。 */
+        /**
+         * 当前对账状态。
+         */
         private String reconciliationStatus;
-        /** 当前结算状态。 */
+        /**
+         * 当前结算状态。
+         */
         private String settlementStatus;
-        /** 当前入账状态。 */
+        /**
+         * 当前入账状态。
+         */
         private String accountingStatus;
-        /** 交易分片路由时间。 */
+        /**
+         * 交易分片路由时间。
+         */
         private LocalDateTime transactionDateTime;
-        /** 当前动作受理时间。 */
+        /**
+         * 当前动作受理时间。
+         */
         private LocalDateTime operationTime;
     }
 
-    /** 不可变结算结果行；金额和汇率仅按数据库精度透传，不在 Admin 二次计算。 */
+    /**
+     * 不可变结算结果行；金额和汇率仅按数据库精度透传，不在 Admin 二次计算。
+     */
     @Data
     public static class ResultItemSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算结果表主键。 */
+        /**
+         * 结算结果表主键。
+         */
         private Long id;
-        /** 结算结果明细号。 */
+        /**
+         * 结算结果明细号。
+         */
         private String settlementResultItemNo;
-        /** 所属结算批次号。 */
+        /**
+         * 所属结算批次号。
+         */
         private String settlementBatchNo;
-        /** 来源候选主键。 */
+        /**
+         * 来源候选主键。
+         */
         private Long candidateId;
-        /** 批次内稳定结果行号。 */
+        /**
+         * 批次内稳定结果行号。
+         */
         private Integer resultLineNo;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 结算资金账户主键。 */
+        /**
+         * 结算资金账户主键。
+         */
         private Long settlementAccountId;
-        /** TRANSACTION_CLEARING 或 RESERVE_CLEARING。 */
+        /**
+         * TRANSACTION_CLEARING 或 RESERVE_CLEARING。
+         */
         private String sourceDetailType;
-        /** 来源清分或保证金明细编号。 */
+        /**
+         * 来源清分或保证金明细编号。
+         */
         private String sourceDetailNo;
-        /** 被冲正的原结果主键，非冲正为空。 */
+        /**
+         * 被冲正的原结果主键，非冲正为空。
+         */
         private Long reversalOfResultItemId;
-        /** 真实来源平台交易号，纯保证金结果可回溯原支付。 */
+        /**
+         * 真实来源平台交易号，纯保证金结果可回溯原支付。
+         */
         private String sourceTransactionId;
-        /** 来源交易时间。 */
+        /**
+         * 来源交易时间。
+         */
         private LocalDateTime sourceTransactionDateTime;
-        /** 费用逻辑组号，非费用项目为空。 */
+        /**
+         * 费用逻辑组号，非费用项目为空。
+         */
         private String feeGroupNo;
-        /** 本金、费用组件、费用组最终值、调整、冲正或净入账等项目类型。 */
+        /**
+         * 本金、费用组件、费用组最终值、调整、冲正或净入账等项目类型。
+         */
         private String resultItemType;
-        /** 结果行财务角色。 */
+        /**
+         * 结果行财务角色。
+         */
         private String resultRole;
-        /** 支付类型。 */
+        /**
+         * 支付类型。
+         */
         private String paymentType;
-        /** 支付方式。 */
+        /**
+         * 支付方式。
+         */
         private String paymentMethod;
-        /** 交易类型。 */
+        /**
+         * 交易类型。
+         */
         private String transactionType;
-        /** 费用类别，非费用项目为空。 */
+        /**
+         * 费用类别，非费用项目为空。
+         */
         private String feeCategory;
-        /** 商户视角方向。 */
+        /**
+         * 商户视角方向。
+         */
         private String direction;
-        /** 清分保存的原币种金额。 */
+        /**
+         * 清分保存的原币种金额。
+         */
         private BigDecimal sourceAmount;
-        /** 清分保存的原币种。 */
+        /**
+         * 清分保存的原币种。
+         */
         private String sourceCurrency;
-        /** 原币种 exponent。 */
+        /**
+         * 原币种 exponent。
+         */
         private Integer sourceCurrencyExponent;
-        /** 使用的批次锁定汇率主键。 */
+        /**
+         * 使用的批次锁定汇率主键。
+         */
         private Long settlementBatchRateId;
-        /** 一单位原币种对应目标币种的批次直接汇率。 */
+        /**
+         * 一单位原币种对应目标币种的批次直接汇率。
+         */
         private BigDecimal directRate;
-        /** DECIMAL128 计算后的未舍入目标币种金额。 */
+        /**
+         * DECIMAL128 计算后的未舍入目标币种金额。
+         */
         private BigDecimal unroundedTargetAmount;
-        /** 按目标币种 exponent 最终舍入后的金额。 */
+        /**
+         * 按目标币种 exponent 最终舍入后的金额。
+         */
         private BigDecimal targetAmount;
-        /** 批次目标结算币种。 */
+        /**
+         * 批次目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 费用组命中的最低或最高费用边界。 */
+        /**
+         * 费用组命中的最低或最高费用边界。
+         */
         private String appliedLimit;
-        /** USD 最低费换算后的未舍入目标币种值，可空。 */
+        /**
+         * USD 最低费换算后的未舍入目标币种值，可空。
+         */
         private BigDecimal minimumTargetAmount;
-        /** USD 最高费换算后的未舍入目标币种值，可空。 */
+        /**
+         * USD 最高费换算后的未舍入目标币种值，可空。
+         */
         private BigDecimal maximumTargetAmount;
-        /** 最终目标金额舍入模式。 */
+        /**
+         * 最终目标金额舍入模式。
+         */
         private String roundingMode;
-        /** 金额计算公式快照。 */
+        /**
+         * 金额计算公式快照。
+         */
         private String formulaSnapshot;
-        /** 对应资金流水唯一幂等键。 */
+        /**
+         * 对应资金流水唯一幂等键。
+         */
         private String ledgerIdempotencyKey;
-        /** 批次业务日期。 */
+        /**
+         * 批次业务日期。
+         */
         private LocalDate businessDate;
-        /** 结算结果创建时间。 */
+        /**
+         * 结算结果创建时间。
+         */
         private LocalDateTime createTime;
     }
 
-    /** 结算资金流水分页查询条件。 */
+    /**
+     * 结算资金流水分页查询条件。
+     */
     @Data
     public static class PostingSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算批次号过滤，可空。 */
+        /**
+         * 结算批次号过滤，可空。
+         */
         private String settlementBatchNo;
-        /** 商户号过滤，可空且必须叠加 Admin 数据范围。 */
+        /**
+         * 商户号过滤，可空且必须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** 资金流水号过滤，可空。 */
+        /**
+         * 资金流水号过滤，可空。
+         */
         private String ledgerNo;
-        /** 账户方向过滤，可空。 */
+        /**
+         * 账户方向过滤，可空。
+         */
         private String direction;
-        /** AUTO 或 MANUAL 操作模式过滤，可空。 */
+        /**
+         * AUTO 或 MANUAL 操作模式过滤，可空。
+         */
         private String operationMode;
-        /** 流水币种过滤，可空。 */
+        /**
+         * 流水币种过滤，可空。
+         */
         private String currency;
-        /** 入账时间起点，包含。 */
+        /**
+         * 入账时间起点，包含。
+         */
         private LocalDateTime beginPostedTime;
-        /** 入账时间终点，包含。 */
+        /**
+         * 入账时间终点，包含。
+         */
         private LocalDateTime endPostedTime;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
     }
 
-    /** 结算净额余额流水；发生额非负，方向单独表达借贷。 */
+    /**
+     * 结算净额余额流水；发生额非负，方向单独表达借贷。
+     */
     @Data
     public static class PostingSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 资金流水表主键。 */
+        /**
+         * 资金流水表主键。
+         */
         private Long id;
-        /** 不可变资金流水号。 */
+        /**
+         * 不可变资金流水号。
+         */
         private String ledgerNo;
-        /** 同一资金操作的流水组号。 */
+        /**
+         * 同一资金操作的流水组号。
+         */
         private String ledgerGroupNo;
-        /** 资金账户主键。 */
+        /**
+         * 资金账户主键。
+         */
         private Long accountId;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 结算入账或冲正业务类型。 */
+        /**
+         * 结算入账或冲正业务类型。
+         */
         private String businessType;
-        /** 资金流水摘要。 */
+        /**
+         * 资金流水摘要。
+         */
         private String summary;
-        /** 来源业务编号。 */
+        /**
+         * 来源业务编号。
+         */
         private String businessNo;
-        /** 结算批次号。 */
+        /**
+         * 结算批次号。
+         */
         private String settlementBatchNo;
-        /** 账户和流水币种。 */
+        /**
+         * 账户和流水币种。
+         */
         private String currency;
-        /** 币种 exponent。 */
+        /**
+         * 币种 exponent。
+         */
         private Integer currencyExponent;
-        /** 账户金额方向。 */
+        /**
+         * 账户金额方向。
+         */
         private String direction;
-        /** 非负发生额。 */
+        /**
+         * 非负发生额。
+         */
         private BigDecimal amount;
-        /** 入账前余额。 */
+        /**
+         * 入账前余额。
+         */
         private BigDecimal balanceBefore;
-        /** 入账后余额。 */
+        /**
+         * 入账后余额。
+         */
         private BigDecimal balanceAfter;
-        /** 账户级单调递增序列。 */
+        /**
+         * 账户级单调递增序列。
+         */
         private Long accountSequence;
-        /** AUTO 或 MANUAL。 */
+        /**
+         * AUTO 或 MANUAL。
+         */
         private String operationMode;
-        /** 可信操作人账户主键。 */
+        /**
+         * 可信操作人账户主键。
+         */
         private Long operatorId;
-        /** 可信操作人名称。 */
+        /**
+         * 可信操作人名称。
+         */
         private String operatorName;
-        /** Maker-Checker 复核人账户主键，可空。 */
+        /**
+         * Maker-Checker 复核人账户主键，可空。
+         */
         private Long reviewerId;
-        /** Maker-Checker 复核人名称，可空。 */
+        /**
+         * Maker-Checker 复核人名称，可空。
+         */
         private String reviewerName;
-        /** 人工操作原因。 */
+        /**
+         * 人工操作原因。
+         */
         private String operationReason;
-        /** 复核意见。 */
+        /**
+         * 复核意见。
+         */
         private String reviewComment;
-        /** 业务发生时间。 */
+        /**
+         * 业务发生时间。
+         */
         private LocalDateTime businessTime;
-        /** 人工申请提交时间。 */
+        /**
+         * 人工申请提交时间。
+         */
         private LocalDateTime submitTime;
-        /** 人工复核时间。 */
+        /**
+         * 人工复核时间。
+         */
         private LocalDateTime reviewTime;
-        /** 资金成功入账时间。 */
+        /**
+         * 资金成功入账时间。
+         */
         private LocalDateTime postedTime;
-        /** 外部或内部请求编号。 */
+        /**
+         * 外部或内部请求编号。
+         */
         private String requestId;
-        /** 资金流水唯一幂等键。 */
+        /**
+         * 资金流水唯一幂等键。
+         */
         private String idempotencyKey;
-        /** 被当前流水冲正的原流水主键。 */
+        /**
+         * 被当前流水冲正的原流水主键。
+         */
         private Long reversalOfLedgerId;
-        /** 流水创建时间。 */
+        /**
+         * 流水创建时间。
+         */
         private LocalDateTime createTime;
     }
 
-    /** 保证金动作分页查询条件。 */
+    /**
+     * 保证金动作分页查询条件。
+     */
     @Data
     public static class ReserveItemSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算批次号过滤，可空。 */
+        /**
+         * 结算批次号过滤，可空。
+         */
         private String settlementBatchNo;
-        /** 商户号过滤，可空且必须叠加 Admin 数据范围。 */
+        /**
+         * 商户号过滤，可空且必须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** 保证金责任编号过滤，可空。 */
+        /**
+         * 保证金责任编号过滤，可空。
+         */
         private String reserveNo;
-        /** 不可变保证金动作编号过滤，可空。 */
+        /**
+         * 不可变保证金动作编号过滤，可空。
+         */
         private String reserveActionNo;
-        /** 来源真实平台交易号过滤，可空。 */
+        /**
+         * 来源真实平台交易号过滤，可空。
+         */
         private String sourceTransactionId;
-        /** 商户订单号过滤，可空。 */
+        /**
+         * 商户订单号过滤，可空。
+         */
         private String merchantOrderNo;
-        /** 保证金责任状态过滤，可空。 */
+        /**
+         * 保证金责任状态过滤，可空。
+         */
         private String reserveStatus;
-        /** 保证金动作类型过滤，可空。 */
+        /**
+         * 保证金动作类型过滤，可空。
+         */
         private String actionType;
-        /** 保证金原标签币种过滤，可空。 */
+        /**
+         * 保证金原标签币种过滤，可空。
+         */
         private String currency;
-        /** 原交易时间起点，包含，可空。 */
+        /**
+         * 原交易时间起点，包含，可空。
+         */
         private LocalDateTime beginTransactionTime;
-        /** 原交易时间终点，不包含，可空。 */
+        /**
+         * 原交易时间终点，不包含，可空。
+         */
         private LocalDateTime endTransactionTime;
-        /** 预计释放日期起点，包含，可空。 */
+        /**
+         * 预计释放日期起点，包含，可空。
+         */
         private LocalDate beginExpectedReleaseDate;
-        /** 预计释放日期终点，包含，可空。 */
+        /**
+         * 预计释放日期终点，包含，可空。
+         */
         private LocalDate endExpectedReleaseDate;
-        /** 批次业务日期起点，包含。 */
+        /**
+         * 批次业务日期起点，包含。
+         */
         private LocalDate beginBusinessDate;
-        /** 批次业务日期终点，包含。 */
+        /**
+         * 批次业务日期终点，包含。
+         */
         private LocalDate endBusinessDate;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
     }
 
-    /** Admin 保证金不可变动作和当前资金责任，币种始终为原标签币种。 */
+    /**
+     * Admin 保证金不可变动作和当前资金责任，币种始终为原标签币种。
+     */
     @Data
     public static class ReserveItemSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 保证金动作表主键。 */
+        /**
+         * 保证金动作表主键。
+         */
         private Long actionId;
-        /** 不可变保证金动作编号。 */
+        /**
+         * 不可变保证金动作编号。
+         */
         private String reserveActionNo;
-        /** 保证金责任表主键。 */
+        /**
+         * 保证金责任表主键。
+         */
         private Long reserveItemId;
-        /** 保证金责任编号。 */
+        /**
+         * 保证金责任编号。
+         */
         private String reserveNo;
-        /** 动作资金化所属结算批次号。 */
+        /**
+         * 动作资金化所属结算批次号。
+         */
         private String settlementBatchNo;
-        /** 批次业务日期。 */
+        /**
+         * 批次业务日期。
+         */
         private LocalDate businessDate;
-        /** 商户号。 */
+        /**
+         * 商户号。
+         */
         private String merchantId;
-        /** 保证金资金账户主键。 */
+        /**
+         * 保证金资金账户主键。
+         */
         private Long accountId;
-        /** 平台资金账户号，用于管理端识别对应资金账户。 */
+        /**
+         * 平台资金账户号，用于管理端识别对应资金账户。
+         */
         private String accountNo;
-        /** 来源真实平台交易号。 */
+        /**
+         * 来源真实平台交易号。
+         */
         private String sourceTransactionId;
-        /** 商户订单号。 */
+        /**
+         * 商户订单号。
+         */
         private String merchantOrderNo;
-        /** 来源交易时间。 */
+        /**
+         * 来源交易时间。
+         */
         private LocalDateTime sourceTransactionDateTime;
-        /** 来源保证金业务编号。 */
+        /**
+         * 来源保证金业务编号。
+         */
         private String sourceBusinessNo;
-        /** 来源保证金清分明细号。 */
+        /**
+         * 来源保证金清分明细号。
+         */
         private String sourceReserveDetailNo;
-        /** HOLD、RETURN、RELEASE、ADJUSTMENT 或对应冲正动作。 */
+        /**
+         * HOLD、RETURN、RELEASE、ADJUSTMENT 或对应冲正动作。
+         */
         private String actionType;
-        /** 保证金责任方向。 */
+        /**
+         * 保证金责任方向。
+         */
         private String direction;
-        /** 保证金原标签币种，不参与汇率转换。 */
+        /**
+         * 保证金原标签币种，不参与汇率转换。
+         */
         private String currency;
-        /** 保证金币种 exponent。 */
+        /**
+         * 保证金币种 exponent。
+         */
         private Integer currencyExponent;
-        /** 当前不可变动作金额。 */
+        /**
+         * 当前不可变动作金额。
+         */
         private BigDecimal amount;
-        /** 累计扣留金额。 */
+        /**
+         * 累计扣留金额。
+         */
         private BigDecimal retainedAmount;
-        /** 累计退款返还金额。 */
+        /**
+         * 累计退款返还金额。
+         */
         private BigDecimal returnedAmount;
-        /** 累计到期释放金额。 */
+        /**
+         * 累计到期释放金额。
+         */
         private BigDecimal releasedAmount;
-        /** 累计增加责任的借方调整金额。 */
+        /**
+         * 累计增加责任的借方调整金额。
+         */
         private BigDecimal debitAdjustmentAmount;
-        /** 累计减少责任的贷方调整金额。 */
+        /**
+         * 累计减少责任的贷方调整金额。
+         */
         private BigDecimal creditAdjustmentAmount;
-        /** 累计冲正金额。 */
+        /**
+         * 累计冲正金额。
+         */
         private BigDecimal reversedAmount;
-        /** 当前责任：扣留 + 借方调整 - 返还 - 释放 - 贷方调整 - 冲正。 */
+        /**
+         * 当前责任：扣留 + 借方调整 - 返还 - 释放 - 贷方调整 - 冲正。
+         */
         private BigDecimal remainingAmount;
-        /** 保证金责任状态。 */
+        /**
+         * 保证金责任状态。
+         */
         private String reserveStatus;
-        /** 预计可释放业务日期。 */
+        /**
+         * 预计可释放业务日期。
+         */
         private LocalDate expectedReleaseDate;
-        /** 当前动作发生时间。 */
+        /**
+         * 当前动作发生时间。
+         */
         private LocalDateTime actionTime;
     }
 
-    /** Admin 结算预审分页查询条件，业务日期按档案时区解释。 */
+    /**
+     * Admin 结算预审分页查询条件，业务日期按档案时区解释。
+     */
     @Data
     public static class ReviewSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 预审单号精确过滤，可空。 */
+        /**
+         * 预审单号精确过滤，可空。
+         */
         private String reviewOrderNo;
-        /** 商户号精确过滤，查询层仍须叠加 Admin 数据范围。 */
+        /**
+         * 商户号精确过滤，查询层仍须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** 预审类型过滤，可空。 */
+        /**
+         * 预审类型过滤，可空。
+         */
         private String reviewType;
-        /** Maker-Checker 预审状态过滤，可空。 */
+        /**
+         * Maker-Checker 预审状态过滤，可空。
+         */
         private String reviewStatus;
-        /** 业务日期起点，包含。 */
+        /**
+         * 业务日期起点，包含。
+         */
         private LocalDate beginBusinessDate;
-        /** 业务日期终点，包含。 */
+        /**
+         * 业务日期终点，包含。
+         */
         private LocalDate endBusinessDate;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
     }
 
-    /** 结算预审主单摘要，包含提交、复核和正式批次关联审计。 */
+    /**
+     * 结算预审主单摘要，包含提交、复核和正式批次关联审计。
+     */
     @Data
     public static class ReviewSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 预审主单数据库主键。 */
+        /**
+         * 预审主单数据库主键。
+         */
         private Long id;
-        /** 对外稳定的预审单号。 */
+        /**
+         * 对外稳定的预审单号。
+         */
         private String reviewOrderNo;
-        /** 预审业务类型。 */
+        /**
+         * 预审业务类型。
+         */
         private String reviewType;
-        /** 预审创建模式，例如人工创建。 */
+        /**
+         * 预审创建模式，例如人工创建。
+         */
         private String createMode;
-        /** 预审所属商户号。 */
+        /**
+         * 预审所属商户号。
+         */
         private String merchantId;
-        /** 预审所属商户名称。 */
+        /**
+         * 预审所属商户名称。
+         */
         private String merchantName;
-        /** 结算档案主键快照。 */
+        /**
+         * 结算档案主键快照。
+         */
         private Long settlementProfileId;
-        /** 目标结算资金账户主键快照。 */
+        /**
+         * 目标结算资金账户主键快照。
+         */
         private Long settlementAccountId;
-        /** 目标结算资金账户号。 */
+        /**
+         * 目标结算资金账户号。
+         */
         private String settlementAccountNo;
-        /** 批次目标结算币种。 */
+        /**
+         * 批次目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标结算币种 exponent。 */
+        /**
+         * 目标结算币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 按结算档案时区确定的业务日期。 */
+        /**
+         * 按结算档案时区确定的业务日期。
+         */
         private LocalDate businessDate;
-        /** 业务日期计算所用 IANA 时区快照。 */
+        /**
+         * 业务日期计算所用 IANA 时区快照。
+         */
         private String businessTimeZone;
-        /** 本次预审锁定的全部候选数。 */
+        /**
+         * 本次预审锁定的全部候选数。
+         */
         private Integer candidateCount;
-        /** 真实 CLEARING_REVISION 交易投影候选数。 */
+        /**
+         * 真实 CLEARING_REVISION 交易投影候选数。
+         */
         private Integer projectableCandidateCount;
-        /** 预审净额方向。 */
+        /**
+         * 预审净额方向。
+         */
         private String netDirection;
-        /** 目标币种预审净额，精度由 targetCurrencyExponent 解释。 */
+        /**
+         * 目标币种预审净额，精度由 targetCurrencyExponent 解释。
+         */
         private BigDecimal netAmount;
-        /** Maker-Checker 预审状态。 */
+        /**
+         * Maker-Checker 预审状态。
+         */
         private String reviewStatus;
-        /** 可信 Maker 管理账号主键。 */
+        /**
+         * 可信 Maker 管理账号主键。
+         */
         private Long submittedByAccountId;
-        /** 可信 Maker 管理账号名称快照。 */
+        /**
+         * 可信 Maker 管理账号名称快照。
+         */
         private String submittedByAccountName;
-        /** Maker 提交原因。 */
+        /**
+         * Maker 提交原因。
+         */
         private String submitReason;
-        /** Maker 提交时间。 */
+        /**
+         * Maker 提交时间。
+         */
         private LocalDateTime submittedTime;
-        /** 可信 Checker 管理账号主键。 */
+        /**
+         * 可信 Checker 管理账号主键。
+         */
         private Long decidedByAccountId;
-        /** 可信 Checker 管理账号名称快照。 */
+        /**
+         * 可信 Checker 管理账号名称快照。
+         */
         private String decidedByAccountName;
-        /** Checker 审批或拒绝动作。 */
+        /**
+         * Checker 审批或拒绝动作。
+         */
         private String decisionAction;
-        /** Checker 决策意见。 */
+        /**
+         * Checker 决策意见。
+         */
         private String reviewComment;
-        /** Checker 决策时间。 */
+        /**
+         * Checker 决策时间。
+         */
         private LocalDateTime decisionTime;
-        /** 审批后生成的正式结算批次号，可空。 */
+        /**
+         * 审批后生成的正式结算批次号，可空。
+         */
         private String settlementBatchNo;
-        /** 预审主单乐观锁版本。 */
+        /**
+         * 预审主单乐观锁版本。
+         */
         private Long version;
-        /** 预审主单创建时间。 */
+        /**
+         * 预审主单创建时间。
+         */
         private LocalDateTime createTime;
-        /** 预审主单最后更新时间。 */
+        /**
+         * 预审主单最后更新时间。
+         */
         private LocalDateTime updateTime;
     }
 
-    /** 预审与结算候选的锁定关系，记录消费或释放结果。 */
+    /**
+     * 预审与结算候选的锁定关系，记录消费或释放结果。
+     */
     @Data
     public static class ReviewCandidateLine implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 预审候选关系编号。 */
+        /**
+         * 预审候选关系编号。
+         */
         private String reviewCandidateNo;
-        /** 原结算候选数据库主键。 */
+        /**
+         * 原结算候选数据库主键。
+         */
         private Long candidateId;
-        /** 原结算候选业务编号。 */
+        /**
+         * 原结算候选业务编号。
+         */
         private String candidateNo;
-        /** CLEARING_REVISION、RESERVE_RELEASE 或 RESERVE_ADJUSTMENT。 */
+        /**
+         * CLEARING_REVISION、RESERVE_RELEASE 或 RESERVE_ADJUSTMENT。
+         */
         private String sourceType;
-        /** 来源业务幂等标识。 */
+        /**
+         * 来源业务幂等标识。
+         */
         private String sourceBusinessId;
-        /** 来源事实修订版本。 */
+        /**
+         * 来源事实修订版本。
+         */
         private Integer sourceRevision;
-        /** 真实交易来源的平台交易号；纯保证金候选可空。 */
+        /**
+         * 真实交易来源的平台交易号；纯保证金候选可空。
+         */
         private String sourceTransactionId;
-        /** 保证金释放或调整候选的技术动作号，例如 RRL；普通交易候选为空。 */
+        /**
+         * 保证金释放或调整候选的技术动作号，例如 RRL；普通交易候选为空。
+         */
         private String reserveActionNo;
-        /** 来源交易时间；纯保证金候选可空。 */
+        /**
+         * 来源交易时间；纯保证金候选可空。
+         */
         private LocalDateTime sourceTransactionDateTime;
-        /** 候选在预审中的 LOCKED、CONSUMED 或 RELEASED 状态。 */
+        /**
+         * 候选在预审中的 LOCKED、CONSUMED 或 RELEASED 状态。
+         */
         private String relationStatus;
-        /** 候选被预审锁定时间。 */
+        /**
+         * 候选被预审锁定时间。
+         */
         private LocalDateTime lockedTime;
-        /** 候选被正式批次消费时间，可空。 */
+        /**
+         * 候选被正式批次消费时间，可空。
+         */
         private LocalDateTime consumedTime;
-        /** 预审拒绝后释放候选时间，可空。 */
+        /**
+         * 预审拒绝后释放候选时间，可空。
+         */
         private LocalDateTime releasedTime;
     }
 
-    /** 预审候选明细分页参数。 */
+    /**
+     * 预审候选明细分页参数。
+     */
     @Data
     public static class ReviewCandidateSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 查询页码，从 1 开始。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+         * </p>
+         */
         private Integer pageNo;
+        /**
+         * 每页记录数，由接口上限约束避免无界查询。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+         * </p>
+         */
         private Integer pageSize;
     }
 
-    /** 预审期间锁定的统一直接汇率快照。 */
+    /**
+     * 预审期间锁定的统一直接汇率快照。
+     */
     @Data
     public static class ReviewRateLine implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 换汇源币种。 */
+        /**
+         * 换汇源币种。
+         */
         private String sourceCurrency;
-        /** 换汇目标结算币种。 */
+        /**
+         * 换汇目标结算币种。
+         */
         private String targetCurrency;
-        /** 一单位源币种可兑换的目标币种数量。 */
+        /**
+         * 一单位源币种可兑换的目标币种数量。
+         */
         private BigDecimal directRate;
-        /** 源币种 exponent。 */
+        /**
+         * 源币种 exponent。
+         */
         private Integer sourceCurrencyExponent;
-        /** 目标币种 exponent。 */
+        /**
+         * 目标币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 汇率提供方或汇率策略来源。 */
+        /**
+         * 汇率提供方或汇率策略来源。
+         */
         private String rateSource;
-        /** 汇率报价唯一标识。 */
+        /**
+         * 汇率报价唯一标识。
+         */
         private String quoteId;
-        /** 上游原始报价方向，用于审计直接或倒数归一。 */
+        /**
+         * 上游原始报价方向，用于审计直接或倒数归一。
+         */
         private String sourceQuoteDirection;
-        /** 汇率报价生效时间。 */
+        /**
+         * 汇率报价生效时间。
+         */
         private LocalDateTime effectiveTime;
-        /** 汇率在预审单中锁定时间。 */
+        /**
+         * 汇率在预审单中锁定时间。
+         */
         private LocalDateTime lockedTime;
     }
 
-    /** 预审详情，组合主单、候选、锁定汇率和目标币种汇总。 */
+    /**
+     * 预审详情，组合主单、候选、锁定汇率和目标币种汇总。
+     */
     @Data
     public static class ReviewDetailResponse implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 预审主单摘要。 */
+        /**
+         * 预审主单摘要。
+         */
         private ReviewSummary review;
-        /** 预审锁定候选明细。 */
+        /**
+         * 预审锁定候选明细。
+         */
         private List<ReviewCandidateLine> candidates = Collections.emptyList();
-        /** 预审锁定汇率明细。 */
+        /**
+         * 预审锁定汇率明细。
+         */
         private List<ReviewRateLine> rates = Collections.emptyList();
-        /** 按目标币种和结果类型聚合的试算汇总。 */
+        /**
+         * 按目标币种和结果类型聚合的试算汇总。
+         */
         private List<ResultSummaryLine> summaries = Collections.emptyList();
     }
 
-    /** 浏览器提交的候选引用，以版本号保护候选并发状态。 */
+    /**
+     * 浏览器提交的候选引用，以版本号保护候选并发状态。
+     */
     @Data
     public static class ReviewCandidateReference implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 结算候选数据库主键。 */
+        /**
+         * 结算候选数据库主键。
+         */
         private Long candidateId;
-        /** 页面读取到的候选乐观锁版本。 */
+        /**
+         * 页面读取到的候选乐观锁版本。
+         */
         private Long expectedVersion;
     }
 
-    /** 浏览器预审提交请求，不接受操作人字段。 */
+    /**
+     * 浏览器预审提交请求，不接受操作人字段。
+     */
     @Data
     public static class ReviewSubmitRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** Maker 请求幂等键。 */
+        /**
+         * Maker 请求幂等键。
+         */
         private String requestKey;
-        /** 预审业务类型。 */
+        /**
+         * 预审业务类型。
+         */
         private String reviewType;
-        /** 按结算档案时区确定的业务日期。 */
+        /**
+         * 按结算档案时区确定的业务日期。
+         */
         private LocalDate businessDate;
-        /** 候选交易时间窗口起点，包含。 */
+        /**
+         * 候选交易时间窗口起点，包含。
+         */
         private LocalDateTime cutoffBeginTime;
-        /** 候选交易时间窗口终点，不包含。 */
+        /**
+         * 候选交易时间窗口终点，不包含。
+         */
         private LocalDateTime cutoffEndTime;
-        /** 待锁定候选及其预期版本。 */
+        /**
+         * 待锁定候选及其预期版本。
+         */
         private List<ReviewCandidateReference> candidates = Collections.emptyList();
-        /** Maker 提交原因。 */
+        /**
+         * Maker 提交原因。
+         */
         private String reason;
     }
 
-    /** 浏览器预审决策请求，不接受 Checker 字段。 */
+    /**
+     * 浏览器预审决策请求，不接受 Checker 字段。
+     */
     @Data
     public static class ReviewDecisionRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** Checker 请求幂等键。 */
+        /**
+         * Checker 请求幂等键。
+         */
         private String requestKey;
-        /** 页面读取到的预审主单乐观锁版本。 */
+        /**
+         * 页面读取到的预审主单乐观锁版本。
+         */
         private Long expectedVersion;
-        /** Checker 决策意见。 */
+        /**
+         * Checker 决策意见。
+         */
         private String comment;
     }
 
-    /** 浏览器恢复失败决策任务的命令，不接受可信操作人字段。 */
+    /**
+     * 浏览器恢复失败决策任务的命令，不接受可信操作人字段。
+     */
     @Data
     public static class ReviewDecisionTaskResumeRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 恢复命令数据库幂等键。 */
+        /**
+         * 恢复命令数据库幂等键。
+         */
         private String requestKey;
-        /** 页面读取到的决策任务乐观锁版本。 */
+        /**
+         * 页面读取到的决策任务乐观锁版本。
+         */
         private Long expectedVersion;
-        /** 人工确认故障已排除的恢复原因。 */
+        /**
+         * 人工确认故障已排除的恢复原因。
+         */
         private String reason;
     }
 
-    /** service-admin 注入可信 Maker 后发送给 service-settlement 的预审命令。 */
+    /**
+     * service-admin 注入可信 Maker 后发送给 service-settlement 的预审命令。
+     */
     @Data
+    @EqualsAndHashCode(callSuper = true)
     public static class InternalReviewSubmitRequest extends ReviewSubmitRequest {
         private static final long serialVersionUID = 1L;
-        /** 可信登录管理账号主键。 */
+        /**
+         * 可信登录管理账号主键。
+         */
         private Long operatorId;
-        /** 可信登录管理账号名称快照。 */
+        /**
+         * 可信登录管理账号名称快照。
+         */
         private String operatorName;
-        /** 提交时的角色与权限快照。 */
+        /**
+         * 提交时的角色与权限快照。
+         */
         private String roleSnapshot;
-        /** 操作来源客户端 IP。 */
+        /**
+         * 操作来源客户端 IP。
+         */
         private String clientIp;
-        /** 操作来源 User-Agent。 */
+        /**
+         * 操作来源 User-Agent。
+         */
         private String userAgent;
-        /** service-admin 记录的操作时间。 */
+        /**
+         * service-admin 记录的操作时间。
+         */
         private LocalDateTime operationTime;
     }
 
-    /** service-admin 注入可信 Checker 后发送给 service-settlement 的预审决策。 */
+    /**
+     * service-admin 注入可信 Checker 后发送给 service-settlement 的预审决策。
+     */
     @Data
+    @EqualsAndHashCode(callSuper = true)
     public static class InternalReviewDecisionRequest extends ReviewDecisionRequest {
         private static final long serialVersionUID = 1L;
-        /** APPROVE 或 REJECT 决策。 */
+        /**
+         * APPROVE 或 REJECT 决策。
+         */
         private String decision;
-        /** 可信登录管理账号主键。 */
+        /**
+         * 可信登录管理账号主键。
+         */
         private Long operatorId;
-        /** 可信登录管理账号名称快照。 */
+        /**
+         * 可信登录管理账号名称快照。
+         */
         private String operatorName;
-        /** 决策时的角色与权限快照。 */
+        /**
+         * 决策时的角色与权限快照。
+         */
         private String roleSnapshot;
-        /** 操作来源客户端 IP。 */
+        /**
+         * 操作来源客户端 IP。
+         */
         private String clientIp;
-        /** 操作来源 User-Agent。 */
+        /**
+         * 操作来源 User-Agent。
+         */
         private String userAgent;
-        /** service-admin 记录的操作时间。 */
+        /**
+         * service-admin 记录的操作时间。
+         */
         private LocalDateTime operationTime;
     }
 
-    /** service-admin 注入可信操作人后发送给 service-settlement 的任务恢复命令。 */
+    /**
+     * service-admin 注入可信操作人后发送给 service-settlement 的任务恢复命令。
+     */
     @Data
+    @EqualsAndHashCode(callSuper = true)
     public static class InternalReviewDecisionTaskResumeRequest
             extends ReviewDecisionTaskResumeRequest {
         private static final long serialVersionUID = 1L;
@@ -1231,328 +2298,1060 @@ public final class AdminSettlementDTOs {
         private LocalDateTime operationTime;
     }
 
-    /** 预审提交或决策后的最新主单结果。 */
+    /**
+     * 预审提交或决策后的最新主单结果。
+     */
     @Data
     public static class ReviewCommandResponse implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 预审单号。 */
+        /**
+         * 预审单号。
+         */
         private String reviewOrderNo;
-        /** 命令执行后的预审状态。 */
+        /**
+         * 命令执行后的预审状态。
+         */
         private String reviewStatus;
-        /** 审批生成的正式结算批次号，可空。 */
+        /**
+         * 审批生成的正式结算批次号，可空。
+         */
         private String settlementBatchNo;
-        /** 预审锁定候选数。 */
+        /**
+         * 预审锁定候选数。
+         */
         private Integer candidateCount;
-        /** 目标结算币种。 */
+        /**
+         * 目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标结算币种 exponent。 */
+        /**
+         * 目标结算币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 预审净额方向。 */
+        /**
+         * 预审净额方向。
+         */
         private String netDirection;
-        /** 目标币种预审净额。 */
+        /**
+         * 目标币种预审净额。
+         */
         private BigDecimal netAmount;
-        /** 命令执行后的乐观锁版本。 */
+        /**
+         * 命令执行后的乐观锁版本。
+         */
         private Long version;
     }
 
-    /** 浏览器创建服务端冻结交易结算预览，不接收候选 ID 列表。 */
+    /**
+     * 浏览器创建服务端冻结交易结算预览，不接收候选 ID 列表。
+     */
     @Data
     public static class ManualReviewPreviewRequest implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 请求中的请求密钥，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String requestKey;
+        /**
+         * 商户号，用于限定商户配置、交易数据、风控规则和权限归属。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与 merchantOrderNo、transactionId 共同限定商户交易归属。
+         * </p>
+         */
         private String merchantId;
+        /**
+         * 结算资料ID，用于定位 {@code ManualReviewPreviewRequest} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long settlementProfileId;
+        /**
+         * 支付类型，用于区分 {@code ManualReviewPreviewRequest} 记录的处理类别、配置维度或外部协议枚举。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String paymentType;
+        /**
+         * 支付方式，表示支付方式、通知方式或调用方式。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String paymentMethod;
+        /**
+         * 请求中的原因，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String reason;
     }
 
-    /** service-admin 注入可信 Maker 后发送到结算服务的冻结预览请求。 */
+    /**
+     * service-admin 注入可信 Maker 后发送到结算服务的冻结预览请求。
+     */
     @Data
+    @EqualsAndHashCode(callSuper = true)
     public static class InternalManualReviewPreviewRequest extends ManualReviewPreviewRequest {
         private static final long serialVersionUID = 1L;
+        /**
+         * 执行本次管理操作的可信登录账号 ID，用于操作审计。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long operatorId;
+        /**
+         * 执行本次管理操作时的账号显示名称快照，用于操作审计。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String operatorName;
+        /**
+         * 请求中的角色快照，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String roleSnapshot;
+        /**
+         * 请求中的{@code clientIp}，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String clientIp;
+        /**
+         * 请求中的{@code userAgent}，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String userAgent;
+        /**
+         * 请求中的动作时间，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private LocalDateTime operationTime;
     }
 
-    /** 将冻结预览提交到后台异步生成队列。 */
+    /**
+     * 将冻结预览提交到后台异步生成队列。
+     */
     @Data
     public static class ManualReviewStartRequest implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 请求中的请求密钥，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String requestKey;
+        /**
+         * {@code expectedVersion}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long expectedVersion;
     }
 
-    /** 手动交易结算按来源币种统计行。 */
+    /**
+     * 手动交易结算按来源币种统计行。
+     */
     @Data
     public static class ManualReviewPreviewLine implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 来源币种，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         private String sourceCurrency;
+        /**
+         * 来源币种小数位，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         private Integer sourceCurrencyExponent;
+        /**
+         * 交易计数，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private Long transactionCount;
+        /**
+         * {@code grossAmount}，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal grossAmount;
+        /**
+         * 平台费用金额，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal platformFeeAmount;
+        /**
+         * 保证金金额，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal reserveAmount;
+        /**
+         * {@code releasedReserveAmount}，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal releasedReserveAmount;
+        /**
+         * {@code netSettlementAmount}，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal netSettlementAmount;
+        /**
+         * 等待费用计数，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private Long pendingFeeCount;
+        /**
+         * {@code reserveDelayUnit}字段，保存 {@code ManualReviewPreviewLine} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private String reserveDelayUnit;
+        /**
+         * {@code minimumReserveDelayDays}字段，保存 {@code ManualReviewPreviewLine} 当前处理所需的业务取值。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private Integer minimumReserveDelayDays;
+        /**
+         * {@code maximumReserveDelayDays}字段，保存 {@code ManualReviewPreviewLine} 当前处理所需的业务取值。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private Integer maximumReserveDelayDays;
+        /**
+         * {@code earliestExpectedReleaseDate}字段，保存 {@code ManualReviewPreviewLine} 当前处理所需的业务取值。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private LocalDate earliestExpectedReleaseDate;
+        /**
+         * {@code latestExpectedReleaseDate}字段，保存 {@code ManualReviewPreviewLine} 当前处理所需的业务取值。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private LocalDate latestExpectedReleaseDate;
     }
 
-    /** 手动交易结算预览、冻结范围和后台生成进度。 */
+    /**
+     * 手动交易结算预览、冻结范围和后台生成进度。
+     */
     @Data
     public static class ManualReviewTaskResponse implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 响应中的{@code taskNo}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String taskNo;
+        /**
+         * 响应中的审核订单编号，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String reviewOrderNo;
+        /**
+         * {@code taskStatus}，表示当前记录在业务流程中的处理状态。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+         * </p>
+         */
         private String taskStatus;
+        /**
+         * 审核类型，用于区分 {@code ManualReviewTaskResponse} 记录的处理类别、配置维度或外部协议枚举。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String reviewType;
+        /**
+         * 商户号，用于限定商户配置、交易数据、风控规则和权限归属。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与 merchantOrderNo、transactionId 共同限定商户交易归属。
+         * </p>
+         */
         private String merchantId;
+        /**
+         * 结算资料ID，用于定位 {@code ManualReviewTaskResponse} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long settlementProfileId;
+        /**
+         * 结算账号ID，用于定位 {@code ManualReviewTaskResponse} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long settlementAccountId;
+        /**
+         * {@code targetCurrency}，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         private String targetCurrency;
+        /**
+         * {@code targetCurrencyExponent}，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         private Integer targetCurrencyExponent;
+        /**
+         * 支付类型，用于区分 {@code ManualReviewTaskResponse} 记录的处理类别、配置维度或外部协议枚举。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String paymentType;
+        /**
+         * 支付方式，表示支付方式、通知方式或调用方式。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String paymentMethod;
+        /**
+         * 响应中的提交原因，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String submitReason;
+        /**
+         * 响应中的{@code businessDate}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private LocalDate businessDate;
+        /**
+         * 响应中的{@code cutoffEndTime}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private LocalDateTime cutoffEndTime;
+        /**
+         * {@code snapshotMaxCandidateId}，用于定位 {@code ManualReviewTaskResponse} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long snapshotMaxCandidateId;
+        /**
+         * {@code expectedCandidateCount}，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer expectedCandidateCount;
+        /**
+         * {@code processedCandidateCount}，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer processedCandidateCount;
+        /**
+         * {@code lockedCandidateCount}，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer lockedCandidateCount;
+        /**
+         * 响应中的{@code progressPercent}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer progressPercent;
+        /**
+         * 响应中的{@code initialDelayUnit}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String initialDelayUnit;
+        /**
+         * 响应中的初始延迟天数，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer initialDelayDays;
+        /**
+         * 响应中的{@code regularDelayDays}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer regularDelayDays;
+        /**
+         * 响应中的结算频率，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String settlementFrequency;
+        /**
+         * 响应中的频率日，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer frequencyDay;
+        /**
+         * 预览集合，承载 {@code ManualReviewTaskResponse} 当前请求或响应中的多值数据。
+         * <p>
+         * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
+         * </p>
+         */
         private List<ManualReviewPreviewLine> preview = Collections.emptyList();
+        /**
+         * 重试次数，用于记录 MQ、任务或商户通知当前已执行的重试轮次。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer retryCount;
+        /**
+         * 处理失败码，用于补偿策略、告警聚合和后台排障，不直接暴露底层异常。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String failureCode;
+        /**
+         * 响应中的失败说明，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String failureMessage;
+        /**
+         * 响应中的{@code startedTime}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private LocalDateTime startedTime;
+        /**
+         * 响应中的{@code completedTime}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private LocalDateTime completedTime;
+        /**
+         * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long version;
     }
 
-    /** 大批量预审单异步审批、驳回或取消进度。 */
+    /**
+     * 大批量预审单异步审批、驳回或取消进度。
+     */
     @Data
     public static class ReviewDecisionTaskResponse implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 响应中的{@code taskNo}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String taskNo;
+        /**
+         * 响应中的审核订单编号，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String reviewOrderNo;
+        /**
+         * 响应中的结论动作，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String decisionAction;
+        /**
+         * {@code taskStatus}，表示当前记录在业务流程中的处理状态。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+         * </p>
+         */
         private String taskStatus;
+        /**
+         * {@code totalSegmentCount}，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer totalSegmentCount;
+        /**
+         * {@code processedSegmentCount}，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer processedSegmentCount;
+        /**
+         * 结果批次计数，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer resultBatchCount;
+        /**
+         * 响应中的{@code progressPercent}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer progressPercent;
+        /**
+         * 响应中的首个结算批次编号，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String firstSettlementBatchNo;
+        /**
+         * 重试次数，用于记录 MQ、任务或商户通知当前已执行的重试轮次。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer retryCount;
+        /**
+         * 处理失败码，用于补偿策略、告警聚合和后台排障，不直接暴露底层异常。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String failureCode;
+        /**
+         * 响应中的失败说明，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String failureMessage;
+        /**
+         * 响应中的{@code startedTime}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private LocalDateTime startedTime;
+        /**
+         * 响应中的{@code completedTime}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private LocalDateTime completedTime;
+        /**
+         * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Long version;
+        /**
+         * {@code recoverable}，用于明确 {@code ReviewDecisionTaskResponse} 当前业务分支是否成立。
+         * <p>
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Boolean recoverable;
     }
 
-    /** Admin 结算冲正单分页查询条件。 */
+    /**
+     * Admin 结算冲正单分页查询条件。
+     */
     @Data
     public static class ReversalSearchRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 冲正单号精确过滤，可空。 */
+        /**
+         * 冲正单号精确过滤，可空。
+         */
         private String reversalOrderNo;
-        /** 原正式结算批次号精确过滤，可空。 */
+        /**
+         * 原正式结算批次号精确过滤，可空。
+         */
         private String originalBatchNo;
-        /** 商户号精确过滤，查询层仍须叠加 Admin 数据范围。 */
+        /**
+         * 商户号精确过滤，查询层仍须叠加 Admin 数据范围。
+         */
         private String merchantId;
-        /** Maker-Checker 冲正状态过滤，可空。 */
+        /**
+         * Maker-Checker 冲正状态过滤，可空。
+         */
         private String reversalStatus;
-        /** 提交日期起点，包含。 */
+        /**
+         * 提交日期起点，包含。
+         */
         private LocalDate beginSubmittedDate;
-        /** 提交日期终点，包含。 */
+        /**
+         * 提交日期终点，包含。
+         */
         private LocalDate endSubmittedDate;
-        /** 页码，从 1 开始。 */
+        /**
+         * 页码，从 1 开始。
+         */
         private Integer pageNo;
-        /** 页大小，受查询预算限制。 */
+        /**
+         * 页大小，受查询预算限制。
+         */
         private Integer pageSize;
     }
 
-    /** 结算冲正主单摘要，保存原批次、逆向批次及双人复核审计。 */
+    /**
+     * 结算冲正主单摘要，保存原批次、逆向批次及双人复核审计。
+     */
     @Data
     public static class ReversalSummary implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 冲正主单数据库主键。 */
+        /**
+         * 冲正主单数据库主键。
+         */
         private Long id;
-        /** 对外稳定的冲正单号。 */
+        /**
+         * 对外稳定的冲正单号。
+         */
         private String reversalOrderNo;
-        /** 被冲正的原正式结算批次号。 */
+        /**
+         * 被冲正的原正式结算批次号。
+         */
         private String originalBatchNo;
-        /** 审批后生成的逆向结算批次号，可空。 */
+        /**
+         * 审批后生成的逆向结算批次号，可空。
+         */
         private String reversalBatchNo;
-        /** 冲正所属商户号。 */
+        /**
+         * 冲正所属商户号。
+         */
         private String merchantId;
-        /** 原批次入账资金账户主键。 */
+        /**
+         * 原批次入账资金账户主键。
+         */
         private Long settlementAccountId;
-        /** 原批次目标结算币种。 */
+        /**
+         * 原批次目标结算币种。
+         */
         private String targetCurrency;
-        /** 目标结算币种 exponent。 */
+        /**
+         * 目标结算币种 exponent。
+         */
         private Integer targetCurrencyExponent;
-        /** 原批次净额方向。 */
+        /**
+         * 原批次净额方向。
+         */
         private String netDirection;
-        /** 原批次目标币种净额。 */
+        /**
+         * 原批次目标币种净额。
+         */
         private BigDecimal netAmount;
-        /** Maker-Checker 冲正状态。 */
+        /**
+         * Maker-Checker 冲正状态。
+         */
         private String reversalStatus;
-        /** 可信 Maker 管理账号主键。 */
+        /**
+         * 可信 Maker 管理账号主键。
+         */
         private Long submittedByAccountId;
-        /** 可信 Maker 管理账号名称快照。 */
+        /**
+         * 可信 Maker 管理账号名称快照。
+         */
         private String submittedByAccountName;
-        /** Maker 冲正申请原因。 */
+        /**
+         * Maker 冲正申请原因。
+         */
         private String submitReason;
-        /** Maker 提交时间。 */
+        /**
+         * Maker 提交时间。
+         */
         private LocalDateTime submittedTime;
-        /** 可信 Checker 管理账号主键。 */
+        /**
+         * 可信 Checker 管理账号主键。
+         */
         private Long decidedByAccountId;
-        /** 可信 Checker 管理账号名称快照。 */
+        /**
+         * 可信 Checker 管理账号名称快照。
+         */
         private String decidedByAccountName;
-        /** Checker 审批或拒绝动作。 */
+        /**
+         * Checker 审批或拒绝动作。
+         */
         private String decisionAction;
-        /** Checker 决策意见。 */
+        /**
+         * Checker 决策意见。
+         */
         private String decisionComment;
-        /** Checker 决策时间。 */
+        /**
+         * Checker 决策时间。
+         */
         private LocalDateTime decisionTime;
-        /** 冲正主单乐观锁版本。 */
+        /**
+         * 冲正主单乐观锁版本。
+         */
         private Long version;
-        /** 冲正主单创建时间。 */
+        /**
+         * 冲正主单创建时间。
+         */
         private LocalDateTime createTime;
-        /** 冲正主单最后更新时间。 */
+        /**
+         * 冲正主单最后更新时间。
+         */
         private LocalDateTime updateTime;
     }
 
-    /** 冲正详情，补充原批次指纹、资金关联和操作环境审计快照。 */
+    /**
+     * 冲正详情，补充原批次指纹、资金关联和操作环境审计快照。
+     */
     @Data
     public static class ReversalDetailResponse implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 冲正主单摘要。 */
+        /**
+         * 冲正主单摘要。
+         */
         private ReversalSummary reversal;
-        /** 原批次关键事实指纹，用于审批前后防篡改校验。 */
+        /**
+         * 原批次关键事实指纹，用于审批前后防篡改校验。
+         */
         private String sourceFingerprint;
-        /** 申请时读取到的原批次乐观锁版本。 */
+        /**
+         * 申请时读取到的原批次乐观锁版本。
+         */
         private Long originalBatchVersion;
-        /** 原批次净入账结果明细主键。 */
+        /**
+         * 原批次净入账结果明细主键。
+         */
         private Long originalNetResultItemId;
-        /** 原批次资金流水主键。 */
+        /**
+         * 原批次资金流水主键。
+         */
         private Long originalFundLedgerId;
-        /** Maker 提交时角色与权限快照。 */
+        /**
+         * Maker 提交时角色与权限快照。
+         */
         private String submittedRoleSnapshot;
-        /** Maker 客户端 IP。 */
+        /**
+         * Maker 客户端 IP。
+         */
         private String submitClientIp;
-        /** Maker User-Agent。 */
+        /**
+         * Maker User-Agent。
+         */
         private String submitUserAgent;
-        /** Checker 决策时角色与权限快照。 */
+        /**
+         * Checker 决策时角色与权限快照。
+         */
         private String decidedRoleSnapshot;
-        /** Checker 客户端 IP。 */
+        /**
+         * Checker 客户端 IP。
+         */
         private String decisionClientIp;
-        /** Checker User-Agent。 */
+        /**
+         * Checker User-Agent。
+         */
         private String decisionUserAgent;
     }
 
-    /** 浏览器冲正申请不接受 Maker 身份字段。 */
+    /**
+     * 浏览器冲正申请不接受 Maker 身份字段。
+     */
     @Data
     public static class ReversalSubmitRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** Maker 请求幂等键。 */
+        /**
+         * Maker 请求幂等键。
+         */
         private String requestKey;
-        /** 被冲正的原正式结算批次号。 */
+        /**
+         * 被冲正的原正式结算批次号。
+         */
         private String originalBatchNo;
-        /** 页面读取到的原批次乐观锁版本。 */
+        /**
+         * 页面读取到的原批次乐观锁版本。
+         */
         private Long expectedBatchVersion;
-        /** Maker 冲正申请原因。 */
+        /**
+         * Maker 冲正申请原因。
+         */
         private String reason;
     }
 
-    /** 浏览器冲正决策不接受 Checker 身份字段。 */
+    /**
+     * 浏览器冲正决策不接受 Checker 身份字段。
+     */
     @Data
     public static class ReversalDecisionRequest implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** Checker 请求幂等键。 */
+        /**
+         * Checker 请求幂等键。
+         */
         private String requestKey;
-        /** 页面读取到的冲正主单乐观锁版本。 */
+        /**
+         * 页面读取到的冲正主单乐观锁版本。
+         */
         private Long expectedVersion;
-        /** Checker 决策意见。 */
+        /**
+         * Checker 决策意见。
+         */
         private String comment;
     }
 
-    /** service-admin 注入可信 Maker 后发送给 service-settlement 的冲正申请。 */
+    /**
+     * service-admin 注入可信 Maker 后发送给 service-settlement 的冲正申请。
+     */
     @Data
+    @EqualsAndHashCode(callSuper = true)
     public static class InternalReversalSubmitRequest extends ReversalSubmitRequest {
         private static final long serialVersionUID = 1L;
-        /** 可信登录管理账号主键。 */
+        /**
+         * 可信登录管理账号主键。
+         */
         private Long operatorId;
-        /** 可信登录管理账号名称快照。 */
+        /**
+         * 可信登录管理账号名称快照。
+         */
         private String operatorName;
-        /** 提交时的角色与权限快照。 */
+        /**
+         * 提交时的角色与权限快照。
+         */
         private String roleSnapshot;
-        /** 操作来源客户端 IP。 */
+        /**
+         * 操作来源客户端 IP。
+         */
         private String clientIp;
-        /** 操作来源 User-Agent。 */
+        /**
+         * 操作来源 User-Agent。
+         */
         private String userAgent;
-        /** service-admin 记录的操作时间。 */
+        /**
+         * service-admin 记录的操作时间。
+         */
         private LocalDateTime operationTime;
     }
 
-    /** service-admin 注入可信 Checker 后发送给 service-settlement 的冲正决策。 */
+    /**
+     * service-admin 注入可信 Checker 后发送给 service-settlement 的冲正决策。
+     */
     @Data
+    @EqualsAndHashCode(callSuper = true)
     public static class InternalReversalDecisionRequest extends ReversalDecisionRequest {
         private static final long serialVersionUID = 1L;
-        /** APPROVE 或 REJECT 决策。 */
+        /**
+         * APPROVE 或 REJECT 决策。
+         */
         private String decision;
-        /** 可信登录管理账号主键。 */
+        /**
+         * 可信登录管理账号主键。
+         */
         private Long operatorId;
-        /** 可信登录管理账号名称快照。 */
+        /**
+         * 可信登录管理账号名称快照。
+         */
         private String operatorName;
-        /** 决策时的角色与权限快照。 */
+        /**
+         * 决策时的角色与权限快照。
+         */
         private String roleSnapshot;
-        /** 操作来源客户端 IP。 */
+        /**
+         * 操作来源客户端 IP。
+         */
         private String clientIp;
-        /** 操作来源 User-Agent。 */
+        /**
+         * 操作来源 User-Agent。
+         */
         private String userAgent;
-        /** service-admin 记录的操作时间。 */
+        /**
+         * service-admin 记录的操作时间。
+         */
         private LocalDateTime operationTime;
     }
 
-    /** 冲正申请或决策后的最新主单结果。 */
+    /**
+     * 冲正申请或决策后的最新主单结果。
+     */
     @Data
     public static class ReversalCommandResponse implements Serializable {
         private static final long serialVersionUID = 1L;
-        /** 冲正单号。 */
+        /**
+         * 冲正单号。
+         */
         private String reversalOrderNo;
-        /** 命令执行后的冲正状态。 */
+        /**
+         * 命令执行后的冲正状态。
+         */
         private String reversalStatus;
-        /** 被冲正的原正式结算批次号。 */
+        /**
+         * 被冲正的原正式结算批次号。
+         */
         private String originalBatchNo;
-        /** 审批生成的逆向结算批次号，可空。 */
+        /**
+         * 审批生成的逆向结算批次号，可空。
+         */
         private String reversalBatchNo;
-        /** 冲正所属商户号。 */
+        /**
+         * 冲正所属商户号。
+         */
         private String merchantId;
-        /** 原批次目标结算币种。 */
+        /**
+         * 原批次目标结算币种。
+         */
         private String currency;
-        /** 原批次净额方向。 */
+        /**
+         * 原批次净额方向。
+         */
         private String netDirection;
-        /** 原批次目标币种净额。 */
+        /**
+         * 原批次目标币种净额。
+         */
         private BigDecimal netAmount;
-        /** 命令执行后的乐观锁版本。 */
+        /**
+         * 命令执行后的乐观锁版本。
+         */
         private Long version;
     }
 }

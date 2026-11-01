@@ -7,13 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantUserListDTO
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : Admin 商户用户列表 DTO，聚合账号、商户、组织归属、角色和启停状态供运营查询。
- * @status : create
+ * Admin 商户用户列表 DTO，聚合账号、商户、组织归属、角色和启停状态供运营查询。
  */
 @Data
 public class AdminMerchantUserListDTO {

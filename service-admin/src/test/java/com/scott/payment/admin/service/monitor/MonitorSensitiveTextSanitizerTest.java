@@ -5,13 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorSensitiveTextSanitizerTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 监控摘要凭据、支付卡号、URL 参数脱敏和长度限制测试。
- * @status : create
+ * 监控摘要凭据、支付卡号、URL 参数脱敏和长度限制测试。
  */
 class MonitorSensitiveTextSanitizerTest {
 

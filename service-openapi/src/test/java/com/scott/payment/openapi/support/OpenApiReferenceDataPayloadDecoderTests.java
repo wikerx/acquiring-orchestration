@@ -18,7 +18,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 验证 IP 与 Card BIN 解密明文只接受协议声明的单个字符串字段。 */
+/**
+ * 验证 IP 与 Card BIN 解密明文只接受协议声明的单个字符串字段。
+ */
 class OpenApiReferenceDataPayloadDecoderTests {
 
     private final OpenApiPayloadCrypto crypto = mock(OpenApiPayloadCrypto.class);

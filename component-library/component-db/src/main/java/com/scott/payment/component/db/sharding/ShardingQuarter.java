@@ -4,13 +4,7 @@ import java.util.Objects;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingQuarter
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : Sharding Quarter 不可变数据结构，位于 公共组件库，用于在当前调用链中传递固定字段集合，不承担状态写入职责。
- * @status : create
+ * Sharding Quarter 不可变数据结构，位于 公共组件库，用于在当前调用链中传递固定字段集合，不承担状态写入职责。
  */
 public record ShardingQuarter(int year, int quarter) implements Comparable<ShardingQuarter> {
 

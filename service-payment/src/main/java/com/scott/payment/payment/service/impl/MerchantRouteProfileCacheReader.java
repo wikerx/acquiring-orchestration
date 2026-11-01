@@ -42,34 +42,54 @@ import java.util.stream.Collectors;
 @Service
 public class MerchantRouteProfileCacheReader {
 
-    /** 数据库未删除标识。 */
+    /**
+     * 数据库未删除标识。
+     */
     private static final long NOT_DELETED = 0L;
 
-    /** 数据库启用标识。 */
+    /**
+     * 数据库启用标识。
+     */
     private static final int ENABLED = 1;
 
-    /** 收单业务类型。 */
+    /**
+     * 收单业务类型。
+     */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
 
-    /** 范围字段的全量匹配标识。 */
+    /**
+     * 范围字段的全量匹配标识。
+     */
     private static final String ALL = "ALL";
 
-    /** 商户渠道绑定 Mapper。 */
+    /**
+     * 商户渠道绑定 Mapper。
+     */
     private final PaymentMerchantChannelMidBindingMapper midBindingMapper;
 
-    /** 渠道 MID Mapper。 */
+    /**
+     * 渠道 MID Mapper。
+     */
     private final PaymentChannelMidConfigMapper midConfigMapper;
 
-    /** 渠道基础信息 Mapper。 */
+    /**
+     * 渠道基础信息 Mapper。
+     */
     private final PaymentChannelInfoMapper channelInfoMapper;
 
-    /** 渠道支付能力 Mapper。 */
+    /**
+     * 渠道支付能力 Mapper。
+     */
     private final PaymentChannelPaymentCapabilityMapper capabilityMapper;
 
-    /** 渠道能力币种 Mapper。 */
+    /**
+     * 渠道能力币种 Mapper。
+     */
     private final PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
 
-    /** 渠道能力卡品牌 Mapper。 */
+    /**
+     * 渠道能力卡品牌 Mapper。
+     */
     private final PaymentChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
 
     /**
@@ -100,20 +120,26 @@ public class MerchantRouteProfileCacheReader {
         return load(merchantId);
     }
 
-    /** 失效 pending 或门禁未知时绕过 Redis 并读取主库。 */
+    /**
+     * 失效 pending 或门禁未知时绕过 Redis 并读取主库。
+     */
     @DS(DataSourceName.MASTER)
     public MerchantRouteProfile findFresh(String merchantId) {
         return load(merchantId);
     }
 
-    /** 仅供缓存门面在识别到旧结构快照时原 Key 在线升级。 */
+    /**
+     * 仅供缓存门面在识别到旧结构快照时原 Key 在线升级。
+     */
     @DS(DataSourceName.MASTER)
     @CachePut(cacheNames = PaymentCacheNames.MERCHANT_ROUTE, key = "#p0")
     public MerchantRouteProfile refreshCached(String merchantId) {
         return load(merchantId);
     }
 
-    /** 使用批量查询组装不含渠道凭据的商户路由快照。 */
+    /**
+     * 使用批量查询组装不含渠道凭据的商户路由快照。
+     */
     private MerchantRouteProfile load(String merchantId) {
         MerchantRouteProfile profile = new MerchantRouteProfile();
         profile.setSchemaVersion(MerchantRouteProfile.CURRENT_SCHEMA_VERSION);
@@ -233,7 +259,9 @@ public class MerchantRouteProfileCacheReader {
         return profile;
     }
 
-    /** 将渠道运行时配置的非敏感字段展平为稳定缓存对象。 */
+    /**
+     * 将渠道运行时配置的非敏感字段展平为稳定缓存对象。
+     */
     private RouteOption toOption(MerchantChannelMidBindingDO binding,
                                  ChannelMidConfigDO mid,
                                  ChannelInfoDO channel,
@@ -282,7 +310,9 @@ public class MerchantRouteProfileCacheReader {
         return option;
     }
 
-    /** 计算能力币种与 MID 币种范围的稳定交集。 */
+    /**
+     * 计算能力币种与 MID 币种范围的稳定交集。
+     */
     private List<String> intersectCurrencies(List<String> capabilityCurrencies, String midScope) {
         ArrayList<String> normalizedCurrencies = capabilityCurrencies.stream()
                 .filter(StringUtils::hasText)
@@ -297,7 +327,9 @@ public class MerchantRouteProfileCacheReader {
         return normalizedCurrencies;
     }
 
-    /** 将逗号分隔范围转换为大写集合；空值和 ALL 表示不限制。 */
+    /**
+     * 将逗号分隔范围转换为大写集合；空值和 ALL 表示不限制。
+     */
     private Set<String> scopeValues(String scope) {
         if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
             return Set.of();
@@ -312,24 +344,32 @@ public class MerchantRouteProfileCacheReader {
         return values;
     }
 
-    /** 过滤空主键并保持数据库顺序。 */
+    /**
+     * 过滤空主键并保持数据库顺序。
+     */
     private Set<Long> ids(List<Long> source) {
         return source.stream().filter(java.util.Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    /** 按非空主键建立索引，重复记录保留第一条。 */
+    /**
+     * 按非空主键建立索引，重复记录保留第一条。
+     */
     private <T> Map<Long, T> index(List<T> rows, Function<T, Long> idExtractor) {
         return rows.stream().filter(row -> idExtractor.apply(row) != null)
                 .collect(Collectors.toMap(idExtractor, Function.identity(), (left, right) -> left));
     }
 
-    /** 兼容 Mapper 测试替身或异常实现返回 null。 */
+    /**
+     * 兼容 Mapper 测试替身或异常实现返回 null。
+     */
     private <T> List<T> safeList(List<T> source) {
         return source == null ? List.of() : source;
     }
 
-    /** 使用固定 Locale 规范化渠道和币种编码。 */
+    /**
+     * 使用固定 Locale 规范化渠道和币种编码。
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }

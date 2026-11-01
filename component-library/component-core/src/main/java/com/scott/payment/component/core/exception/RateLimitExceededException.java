@@ -3,13 +3,7 @@ package com.scott.payment.component.core.exception;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RateLimitExceededException
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 对外请求超过滑动窗口配额时抛出的标准异常，携带 Retry-After 秒数
- * @status : create
+ * 对外请求超过滑动窗口配额时抛出的标准异常，携带 Retry-After 秒数
  */
 public class RateLimitExceededException extends ApiException {
 
@@ -22,6 +16,13 @@ public class RateLimitExceededException extends ApiException {
         this.retryAfterSeconds = Math.max(1L, retryAfterSeconds);
     }
 
+    /**
+     * 查询{@code getRetryAfterSeconds}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
+     * </p>
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     public long getRetryAfterSeconds() {
         return retryAfterSeconds;
     }

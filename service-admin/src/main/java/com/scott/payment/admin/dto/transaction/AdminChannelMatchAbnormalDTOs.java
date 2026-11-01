@@ -13,20 +13,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelMatchAbnormalDTOs
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 管理端勾兑异常接口模型，提供运营查询与受控处置字段，不包含人工目标交易状态。
- * @status : create
+ * 管理端勾兑异常接口模型，提供运营查询与受控处置字段，不包含人工目标交易状态。
  */
 public final class AdminChannelMatchAbnormalDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private AdminChannelMatchAbnormalDTOs() {
     }
 
-    /** 管理端案件分页查询。 */
+    /**
+     * 管理端案件分页查询。
+     */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class AbnormalQuery extends PageRequest {
@@ -174,7 +173,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private String queryTimeZone;
     }
 
-    /** 管理端案件记录。 */
+    /**
+     * 管理端案件记录。
+     */
     @Data
     public static class AbnormalRecord implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -541,7 +542,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 管理端案件状态统计。 */
+    /**
+     * 管理端案件状态统计。
+     */
     @Data
     public static class AbnormalSummary implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -595,7 +598,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private long highOrCriticalCount;
     }
 
-    /** 分页及统计响应。 */
+    /**
+     * 分页及统计响应。
+     */
     @Data
     public static class AbnormalSearchResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -618,7 +623,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private AbnormalSummary summary;
     }
 
-    /** 案件聚合详情。 */
+    /**
+     * 案件聚合详情。
+     */
     @Data
     public static class AbnormalDetailResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -640,7 +647,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private Map<String, Object> transactionDetail;
     }
 
-    /** 页面领取或转派请求；目标账号为空时领取给当前用户。 */
+    /**
+     * 页面领取或转派请求；目标账号为空时领取给当前用户。
+     */
     @Data
     public static class AssignRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -678,7 +687,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private String assigneeName;
     }
 
-    /** Admin 调用 Payment 的领取命令。 */
+    /**
+     * Admin 调用 Payment 的领取命令。
+     */
     @Data
     public static class AssignClientCommand implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -716,7 +727,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private String operatorName;
     }
 
-    /** 页面单笔重查请求。 */
+    /**
+     * 页面单笔重查请求。
+     */
     @Data
     public static class RequeryCommand implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -738,7 +751,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private Integer expectedVersion;
     }
 
-    /** 页面批量重查请求。 */
+    /**
+     * 页面批量重查请求。
+     */
     @Data
     public static class BatchRequeryCommand implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -753,7 +768,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private List<CaseReference> cases = new ArrayList<>();
     }
 
-    /** 批量案件引用。 */
+    /**
+     * 批量案件引用。
+     */
     @Data
     public static class CaseReference implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -783,7 +800,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private Integer expectedVersion;
     }
 
-    /** 批量重查结果。 */
+    /**
+     * 批量重查结果。
+     */
     @Data
     public static class BatchRequeryResult implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -822,7 +841,9 @@ public final class AdminChannelMatchAbnormalDTOs {
         private List<String> failedEventIds = new ArrayList<>();
     }
 
-    /** 页面关闭或忽略请求。 */
+    /**
+     * 页面关闭或忽略请求。
+     */
     @Data
     public static class ResolveCommand implements Serializable {
         private static final long serialVersionUID = 1L;

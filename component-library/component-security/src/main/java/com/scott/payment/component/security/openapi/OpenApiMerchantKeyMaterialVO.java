@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiMerchantKeyMaterialVO
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : openAPI商户密钥材料响应模型，位于 公共组件库，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * openAPI商户密钥材料响应模型，位于 公共组件库，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  */
 @Data
 public class OpenApiMerchantKeyMaterialVO {

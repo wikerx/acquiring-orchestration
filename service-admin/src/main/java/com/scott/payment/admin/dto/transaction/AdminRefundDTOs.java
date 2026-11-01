@@ -13,20 +13,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRefundDTOs
- * @date : 2026-08-06 16:00
- * @email : scott_x@163.com
- * @description : 管理端退款查询、详情和审批接口模型，保留运营排障所需渠道摘要但不包含渠道凭据或原始报文。
- * @status : create
+ * 管理端退款查询、详情和审批接口模型，保留运营排障所需渠道摘要但不包含渠道凭据或原始报文。
  */
 public final class AdminRefundDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private AdminRefundDTOs() {
     }
 
-    /** 管理端退款查询条件。 */
+    /**
+     * 管理端退款查询条件。
+     */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class RefundQuery extends PageRequest {
@@ -242,7 +241,9 @@ public final class AdminRefundDTOs {
         private String queryTimeZone;
     }
 
-    /** 管理端退款列表记录。 */
+    /**
+     * 管理端退款列表记录。
+     */
     @Data
     public static class RefundRecord implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -622,7 +623,9 @@ public final class AdminRefundDTOs {
         private Integer approvalVersion;
     }
 
-    /** 分币种退款金额统计。 */
+    /**
+     * 分币种退款金额统计。
+     */
     @Data
     public static class RefundCurrencySummary implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -673,7 +676,9 @@ public final class AdminRefundDTOs {
         private BigDecimal pendingAmount = BigDecimal.ZERO;
     }
 
-    /** 退款状态和金额统计。 */
+    /**
+     * 退款状态和金额统计。
+     */
     @Data
     public static class RefundSummary implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -728,7 +733,9 @@ public final class AdminRefundDTOs {
         private List<RefundCurrencySummary> currencyAmounts = new ArrayList<>();
     }
 
-    /** 退款分页与统计组合响应。 */
+    /**
+     * 退款分页与统计组合响应。
+     */
     @Data
     public static class RefundSearchResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -751,7 +758,9 @@ public final class AdminRefundDTOs {
         private RefundSummary summary;
     }
 
-    /** 退款详情响应。 */
+    /**
+     * 退款详情响应。
+     */
     @Data
     public static class RefundDetailResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -773,7 +782,9 @@ public final class AdminRefundDTOs {
         private Map<String, Object> transactionDetail;
     }
 
-    /** 页面提交的审批决策。 */
+    /**
+     * 页面提交的审批决策。
+     */
     @Data
     public static class ApprovalDecisionRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -803,7 +814,9 @@ public final class AdminRefundDTOs {
         private String approvalReason;
     }
 
-    /** Admin 调用 Payment 的审批请求。 */
+    /**
+     * Admin 调用 Payment 的审批请求。
+     */
     @Data
     public static class ApprovalClientRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -849,7 +862,9 @@ public final class AdminRefundDTOs {
         private String approvalReason;
     }
 
-    /** 审批结果。 */
+    /**
+     * 审批结果。
+     */
     @Data
     public static class ApprovalResult implements Serializable {
         private static final long serialVersionUID = 1L;

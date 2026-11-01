@@ -7,13 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeSimulationExportRow
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理端费用试算逐项明细导出，保留输入、汇率、费用和净结算完整快照。
- * @status : create
+ * 管理端费用试算逐项明细导出，保留输入、汇率、费用和净结算完整快照。
  */
 @Data
 public class FeeSimulationExportRow {

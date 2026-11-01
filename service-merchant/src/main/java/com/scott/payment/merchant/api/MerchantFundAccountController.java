@@ -17,13 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFundAccountController
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户端可用余额、在途余额、保证金余额与统一余额明细只读接口。
- * @status : create
+ * 商户端可用余额、在途余额、保证金余额与统一余额明细只读接口。
  */
 @RestController
 @RequestMapping("/merchant/fund-account")

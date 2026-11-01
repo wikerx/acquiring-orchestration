@@ -7,13 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantUserDetailDTO
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : Admin 商户用户详情 DTO，聚合账号、商户、部门、岗位、角色和登录安全状态。
- * @status : create
+ * Admin 商户用户详情 DTO，聚合账号、商户、部门、岗位、角色和登录安全状态。
  */
 @Data
 public class AdminMerchantUserDetailDTO {
@@ -82,13 +76,7 @@ public class AdminMerchantUserDetailDTO {
     private List<String> permissions = Collections.emptyList();
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : MerchantSummary
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户用户详情中的商户摘要，提供商户号、名称和状态等关联展示字段。
-     * @status : create
+     * 商户用户详情中的商户摘要，提供商户号、名称和状态等关联展示字段。
      */
     @Data
     public static class MerchantSummary {
@@ -129,13 +117,7 @@ public class AdminMerchantUserDetailDTO {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : DeptSummary
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户用户详情中的部门摘要，提供部门主键、编码和名称。
-     * @status : create
+     * 商户用户详情中的部门摘要，提供部门主键、编码和名称。
      */
     @Data
     public static class DeptSummary {
@@ -166,13 +148,7 @@ public class AdminMerchantUserDetailDTO {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PostSummary
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户用户详情中的岗位摘要，提供岗位主键、编码和名称。
-     * @status : create
+     * 商户用户详情中的岗位摘要，提供岗位主键、编码和名称。
      */
     @Data
     public static class PostSummary {
@@ -203,13 +179,7 @@ public class AdminMerchantUserDetailDTO {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RoleSummary
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户用户详情中的角色摘要，提供角色主键、编码、名称和状态。
-     * @status : create
+     * 商户用户详情中的角色摘要，提供角色主键、编码、名称和状态。
      */
     @Data
     public static class RoleSummary {

@@ -27,13 +27,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionOrderController
- * @date : 2026-07-14 23:59
- * @email : scott_x@163.com
- * @description : 交易主单管理接口，位于 service-admin 接口层，以平台交易生命周期主单维度查询交易汇总和详情。
- * @status : create
+ * 交易主单管理接口，位于 service-admin 接口层，以平台交易生命周期主单维度查询交易汇总和详情。
  */
 @RestController
 @RequestMapping("/admin/transactions/orders")

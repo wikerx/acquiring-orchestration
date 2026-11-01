@@ -43,7 +43,9 @@ import java.math.BigDecimal;
 @Slf4j
 public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChannelExecutor {
 
-    /** 退款动作幂等记录所在作用域，与准备阶段保持完全一致。 */
+    /**
+     * 退款动作幂等记录所在作用域，与准备阶段保持完全一致。
+     */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
     private final TransactionRecordService transactionRecordService;
@@ -138,6 +140,9 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
                 invokeResult != null && invokeResult.isOutcomeUncertain());
     }
 
+    /**
+     * 从已审批退款动作构建渠道退款命令。
+     */
     private PaymentCreateCommandDTO buildCommand(TransactionOperationDO operationDO,
                                                  TransactionOrderDO sourceOrder,
                                                  TransactionOperationDO sourceOperation,
@@ -171,6 +176,9 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         return command;
     }
 
+    /**
+     * 构建已准备请求。
+     */
     private PaymentPreparedChannelRequestDTO buildPreparedRequest(TransactionChannelRequestDO requestDO) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
         prepared.setRequestId(requestDO.getRequestId());
@@ -179,6 +187,9 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         return prepared;
     }
 
+    /**
+     * 调用渠道并把超时或未知结果保留为非终态。
+     */
     private PaymentChannelInvokeResultDTO invokeSafely(PaymentCreateCommandDTO command,
                                                        PaymentRouteResultDTO route,
                                                        TransactionOperationDO operation,
@@ -197,6 +208,9 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         }
     }
 
+    /**
+     * 构建已审批退款的渠道执行结果。
+     */
     private PaymentCreateResultDTO buildResult(TransactionOperationDO operation,
                                                TransactionOrderDO sourceOrder,
                                                PaymentCreateCommandDTO command,
@@ -241,6 +255,9 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         return result;
     }
 
+    /**
+     * 应用渠道状态映射结果。
+     */
     private void applyChannelStatus(PaymentCreateResultDTO result,
                                     PaymentChannelInvokeResultDTO invokeResult,
                                     ChannelPaymentResponse response) {
@@ -268,6 +285,9 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         result.setFailReasonMessage(resolution.getFailReasonMessage());
     }
 
+    /**
+     * 判断渠道调用是否明确失败。
+     */
     private boolean isInvokeFailed(PaymentChannelInvokeResultDTO invokeResult) {
         return invokeResult != null
                 && (StringUtils.hasText(invokeResult.getExceptionType())
@@ -275,13 +295,18 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
                 || "TIMEOUT".equals(invokeResult.getRequestStatus()));
     }
 
-    /** 退款执行只允许以渠道明确拒绝或发送前故障形成失败终态。 */
+    /**
+     * 退款执行只允许以渠道明确拒绝或发送前故障形成失败终态。
+     */
     private String confirmedFailureReason(PaymentChannelInvokeResultDTO invokeResult) {
         return PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode().equals(invokeResult.getFailureReasonCode())
                 ? PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode()
                 : PaymentFailureReasonEnum.CHANNEL_REQUEST_NOT_SENT.getCode();
     }
 
+    /**
+     * 构建幂等键。
+     */
     private String buildIdempotencyKey(TransactionOperationDO operation) {
         String merchantOperationNo = operation.getSourceTransactionId() + ":" + operation.getMerchantOperationNo();
         return idempotencyService.buildTransactionOperationKey(
@@ -300,10 +325,16 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         return amount.movePointRight(exponent).longValueExact();
     }
 
+    /**
+     * 将空金额转换为零值。
+     */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 校验已审批退款动作及其原交易事实。
+     */
     private void validate(TransactionOperationDO operationDO,
                           TransactionChannelRequestDO requestDO,
                           RefundExecutionMessage message) {

@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysShardingTableCreateLogDO
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : sys分表表create日志持久化模型，位于 运营后台服务，映射数据库中的业务事实、状态、版本和审计字段，不作为外部接口模型。
- * @status : create
+ * 分表创建日志持久化模型，记录批次、触发来源、执行状态和审计时间。
  */
 @Data
 @TableName("sys_sharding_table_create_log")

@@ -13,13 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentSchemaReadinessVerifierTests
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 支付数据库启动门禁测试，覆盖完整结构、缺失分表字段、查询故障和主库路由约束。
- * @status : create
+ * 支付数据库启动门禁测试，覆盖完整结构、缺失分表字段、查询故障和主库路由约束。
  */
 class PaymentSchemaReadinessVerifierTests {
 

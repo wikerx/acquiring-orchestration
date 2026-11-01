@@ -10,13 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementPhaseASchemaContractTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 校验结算 Phase A 独立 SQL 与完整设计基线一致，并锁定只读前后检及禁止余额入账的阶段边界。
- * @status : create
+ * 校验结算 Phase A 独立 SQL 与完整设计基线一致，并锁定只读前后检及禁止余额入账的阶段边界。
  */
 class SettlementPhaseASchemaContractTest {
 
@@ -30,7 +24,9 @@ class SettlementPhaseASchemaContractTest {
             "settlement_result_item",
             "settlement_result_summary");
 
-    /** Phase A 建表草案只增加结算档案及批次固定表，不重复创建候选或修改余额和保证金资金表。 */
+    /**
+     * Phase A 建表草案只增加结算档案及批次固定表，不重复创建候选或修改余额和保证金资金表。
+     */
     @Test
     void schemaShouldContainOnlyApprovedPhaseATables() throws IOException {
         String sql = readSql("20260826_01_settlement_phase_a_schema_draft.sql");
@@ -45,7 +41,9 @@ class SettlementPhaseASchemaContractTest {
                 .doesNotContain("UPDATE merchant_fund_account");
     }
 
-    /** 独立草案必须逐表复用已评审基线定义，避免字段、索引、CHECK 或金额精度漂移。 */
+    /**
+     * 独立草案必须逐表复用已评审基线定义，避免字段、索引、CHECK 或金额精度漂移。
+     */
     @Test
     void schemaShouldMatchReviewedBaselineDefinitions() throws IOException {
         String baseline = readSql("20260825_01_transaction_clearing_schema_draft.sql");
@@ -56,7 +54,9 @@ class SettlementPhaseASchemaContractTest {
                 .isEqualTo(tableDefinition(baseline, table)));
     }
 
-    /** 前后检只能读取数据库，不得隐藏 DDL 或数据修复语句。 */
+    /**
+     * 前后检只能读取数据库，不得隐藏 DDL 或数据修复语句。
+     */
     @Test
     void precheckAndPostcheckShouldRemainReadOnly() throws IOException {
         for (String fileName : List.of(
@@ -68,7 +68,9 @@ class SettlementPhaseASchemaContractTest {
         }
     }
 
-    /** 数据库必须同时兜底批次创建幂等、候选归属、汇率唯一和资金流水幂等。 */
+    /**
+     * 数据库必须同时兜底批次创建幂等、候选归属、汇率唯一和资金流水幂等。
+     */
     @Test
     void schemaShouldContainFinancialIdempotencyConstraints() throws IOException {
         String sql = readSql("20260826_01_settlement_phase_a_schema_draft.sql");
@@ -89,7 +91,9 @@ class SettlementPhaseASchemaContractTest {
                 "target_amount DECIMAL(24,8)");
     }
 
-    /** 前检必须覆盖认领日期，资金基线只允许使用既有交易结算和保证金结算业务类型。 */
+    /**
+     * 前检必须覆盖认领日期，资金基线只允许使用既有交易结算和保证金结算业务类型。
+     */
     @Test
     void checksShouldUseCandidateEligibilityAndExistingLedgerBusinessTypes() throws IOException {
         String precheck = readSql("20260826_02_settlement_phase_a_precheck_draft.sql");
@@ -114,7 +118,9 @@ class SettlementPhaseASchemaContractTest {
                 .doesNotContain("business_type = 'SETTLEMENT'");
     }
 
-    /** Phase B 复用的批次结构必须容纳封批、计算完成和失败补偿，且不把计算完成误写成资金入账。 */
+    /**
+     * Phase B 复用的批次结构必须容纳封批、计算完成和失败补偿，且不把计算完成误写成资金入账。
+     */
     @Test
     void schemaShouldContainPhaseBProcessingStatesWithoutPostingResults() throws IOException {
         String sql = readSql("20260826_01_settlement_phase_a_schema_draft.sql");

@@ -14,33 +14,39 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataSourceConsoleAccessProvider
- * @date : 2026-09-14 12:05
- * @email : scott_x@163.com
- * @description : 解析管理端 Druid 外部控制台入口并汇总本地连接池类型；不探测远程地址，也不把控制台认证信息写入响应。
- * @status : create
+ * 解析管理端 Druid 外部控制台入口并汇总本地连接池类型；不探测远程地址，也不把控制台认证信息写入响应。
  */
 @Component
 public class DataSourceConsoleAccessProvider {
 
-    /** 控制台入口已配置，可由前端在新窗口打开。 */
+    /**
+     * 控制台入口已配置，可由前端在新窗口打开。
+     */
     public static final String STATUS_CONFIGURED = "CONFIGURED";
 
-    /** 控制台入口未启用或未填写地址。 */
+    /**
+     * 控制台入口未启用或未填写地址。
+     */
     public static final String STATUS_NOT_CONFIGURED = "NOT_CONFIGURED";
 
-    /** 控制台地址格式无效，需要运维修正配置。 */
+    /**
+     * 控制台地址格式无效，需要运维修正配置。
+     */
     public static final String STATUS_MISCONFIGURED = "MISCONFIGURED";
 
-    /** 外部数据源控制台提供方编码；只用于前后端展示契约，不代表当前 JVM 实际使用 Druid。 */
+    /**
+     * 外部数据源控制台提供方编码；只用于前后端展示契约，不代表当前 JVM 实际使用 Druid。
+     */
     private static final String PROVIDER_DRUID = "DRUID";
 
-    /** 数据源控制台配置。 */
+    /**
+     * 数据源控制台配置。
+     */
     private final AdminDataSourceConsoleProperties properties;
 
-    /** 标准 JDBC Wrapper 连接池解析器，用于透过动态数据源代理识别实际 Hikari 连接池。 */
+    /**
+     * 标准 JDBC Wrapper 连接池解析器，用于透过动态数据源代理识别实际 Hikari 连接池。
+     */
     private final DataSourcePoolInspector dataSourcePoolInspector;
 
     /**

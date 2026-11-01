@@ -12,22 +12,20 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantKeyMetadataCacheService
- * @date : 2026-08-01 15:05
- * @email : scott_x@163.com
- * @description : 商户密钥元数据安全缓存门面，在失效 pending 或 Redis 状态未知时强制读取主库最新版本
- * @status : create
+ * 商户密钥元数据安全缓存门面，在失效 pending 或 Redis 状态未知时强制读取主库最新版本
  */
 @Slf4j
 @Service
 public class DefaultMerchantKeyMetadataCacheService implements MerchantKeyMetadataCacheService {
 
-    /** 密钥元数据缓存加载器。 */
+    /**
+     * 密钥元数据缓存加载器。
+     */
     private final MerchantKeyMetadataCacheReader cacheReader;
 
-    /** 数据库变更至永久缓存删除完成之间的安全门禁。 */
+    /**
+     * 数据库变更至永久缓存删除完成之间的安全门禁。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
     /**
@@ -97,7 +95,9 @@ public class DefaultMerchantKeyMetadataCacheService implements MerchantKeyMetada
         // Spring Cache 负责删除物理 Key，本方法只提供跨模块一致的失效入口。
     }
 
-    /** Redis 门禁异常时按安全配置不可确认处理，强制回源主库。 */
+    /**
+     * Redis 门禁异常时按安全配置不可确认处理，强制回源主库。
+     */
     private boolean mustBypassCache(String merchantId) {
         try {
             return invalidationGuard.isPending(PaymentCacheNames.MERCHANT_KEY_METADATA, merchantId);
@@ -109,7 +109,9 @@ public class DefaultMerchantKeyMetadataCacheService implements MerchantKeyMetada
         }
     }
 
-    /** 时间自然推进到 JWT 生效或失效边界时强制刷新永久 revision 缓存。 */
+    /**
+     * 时间自然推进到 JWT 生效或失效边界时强制刷新永久 revision 缓存。
+     */
     private boolean isJwtOutsideValidityWindow(MerchantKeyMetadata metadata, LocalDateTime now) {
         if (metadata == null || metadata.getJwtKeyId() == null) {
             return false;

@@ -5,13 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobApplication
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务应用
- * @status : create
+ * 任务应用
  */
 @EnableScheduling
 @SpringBootApplication(scanBasePackages = "com.scott.payment")

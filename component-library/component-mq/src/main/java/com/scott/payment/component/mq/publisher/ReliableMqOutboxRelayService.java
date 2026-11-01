@@ -16,32 +16,40 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxRelayService
- * @date : 2026-08-02 22:20
- * @email : scott_x@163.com
- * @description : 非交易 Outbox Relay，通过数据库 CAS 抢占、发送冻结快照并推进成功或重试终态
- * @status : create
+ * 非交易 Outbox Relay，通过数据库 CAS 抢占、发送冻结快照并推进成功或重试终态
  */
 @Slf4j
 @Service
 public class ReliableMqOutboxRelayService {
 
-    /** 重试等待上限，避免指数退避溢出。 */
+    /**
+     * 重试等待上限，避免指数退避溢出。
+     */
     private static final long MAX_RETRY_DELAY_SECONDS = 3600L;
-    /** Outbox 持久化服务。 */
+    /**
+     * Outbox 持久化服务。
+     */
     private final ReliableMqOutboxStore outboxStore;
-    /** MQ 生产者。 */
+    /**
+     * MQ 生产者。
+     */
     private final MqProducer mqProducer;
-    /** Outbox 配置。 */
+    /**
+     * Outbox 配置。
+     */
     private final ReliableMqOutboxProperties properties;
-    /** Outbox 低基数运维指标。 */
+    /**
+     * Outbox 低基数运维指标。
+     */
     private final MqOutboxOperationalMetrics metrics;
-    /** 当前生产服务名，用于共享 Outbox 表的数据隔离。 */
+    /**
+     * 当前生产服务名，用于共享 Outbox 表的数据隔离。
+     */
     private final String producerService;
 
-    /** 创建 Outbox Relay。 */
+    /**
+     * 创建 Outbox Relay。
+     */
     @Autowired
     public ReliableMqOutboxRelayService(ReliableMqOutboxStore outboxStore,
                                         MqProducer mqProducer,
@@ -58,7 +66,9 @@ public class ReliableMqOutboxRelayService {
         this.producerService = producerService.trim();
     }
 
-    /** 创建不注册指标的 Relay，供纯单元测试直接构造。 */
+    /**
+     * 创建不注册指标的 Relay，供纯单元测试直接构造。
+     */
     public ReliableMqOutboxRelayService(ReliableMqOutboxStore outboxStore,
                                         MqProducer mqProducer,
                                         ReliableMqOutboxProperties properties,
@@ -108,7 +118,9 @@ public class ReliableMqOutboxRelayService {
         }
     }
 
-    /** 扫描并投递一批已到期消息。 */
+    /**
+     * 扫描并投递一批已到期消息。
+     */
     public int relayDue() {
         long startNanos = System.nanoTime();
         String outcome = "failure";
@@ -133,14 +145,18 @@ public class ReliableMqOutboxRelayService {
         }
     }
 
-    /** 恢复超时 PROCESSING 消息。 */
+    /**
+     * 恢复超时 PROCESSING 消息。
+     */
     public int recoverStale() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime staleBefore = now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L));
         return outboxStore.recoverStale(producerService, staleBefore, now);
     }
 
-    /** 从数据库刷新 pending、CLOSED 和最老积压 Gauge。 */
+    /**
+     * 从数据库刷新 pending、CLOSED 和最老积压 Gauge。
+     */
     public void refreshMetrics() {
         ReliableMqOutboxMetricsSnapshot snapshot = outboxStore.metricsSnapshot(producerService);
         if (snapshot == null) {
@@ -159,7 +175,9 @@ public class ReliableMqOutboxRelayService {
         return value == null ? 0L : value;
     }
 
-    /** 根据当前失败次数推进 RETRY_WAIT 或 CLOSED。 */
+    /**
+     * 根据当前失败次数推进 RETRY_WAIT 或 CLOSED。
+     */
     private void recordFailure(ReliableMqOutboxDO event,
                                int claimedVersion,
                                RuntimeException exception) {
@@ -184,14 +202,18 @@ public class ReliableMqOutboxRelayService {
                 exception.getClass().getSimpleName(), affectedRows == 1);
     }
 
-    /** 计算受限指数退避秒数。 */
+    /**
+     * 计算受限指数退避秒数。
+     */
     private long retryDelaySeconds(int retryCount) {
         long base = Math.max(properties.getRetryDelaySeconds(), 1L);
         int shift = Math.min(Math.max(retryCount - 1, 0), 8);
         return Math.min(base * (1L << shift), MAX_RETRY_DELAY_SECONDS);
     }
 
-    /** CAS 冲突后确认消息是否已由其他实例投递成功。 */
+    /**
+     * CAS 冲突后确认消息是否已由其他实例投递成功。
+     */
     private boolean alreadySent(String eventId) {
         ReliableMqOutboxDO latest = outboxStore.findByEventId(eventId);
         return latest != null

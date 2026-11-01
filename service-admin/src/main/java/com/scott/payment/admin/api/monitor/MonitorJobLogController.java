@@ -21,13 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorJobLogController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端任务执行日志 HTTP 入口，负责日志查询、导出、删除和清理的权限、参数校验与操作审计。
- * @status : create
+ * 管理端任务执行日志 HTTP 入口，负责日志查询、导出、删除和清理的权限、参数校验与操作审计。
  */
 @RestController
 @RequestMapping("/admin/monitor/job-log")

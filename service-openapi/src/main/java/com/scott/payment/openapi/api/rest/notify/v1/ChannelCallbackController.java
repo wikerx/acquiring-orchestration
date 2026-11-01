@@ -36,13 +36,7 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.ApiResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackController
- * @date : 2026-05-28 10:58
- * @email : scott_x@163.com
- * @description : 渠道回调 HTTP 控制器，位于 商户开放接口服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 渠道公网回调入口，完成协议验签和来源校验后将标准事件写入支付核心 Inbox。
  */
 @RestController
 @RequestMapping("/channel/v1/callbacks")
@@ -240,6 +234,13 @@ public class ChannelCallbackController {
         return requestDTO;
     }
 
+    /**
+     * 根据渠道协议解析出的回调场景确定内部回调分类。
+     *
+     * @param endpointType 当前入口的默认回调分类
+     * @param event 已验签并标准化的渠道事件
+     * @return 财务交易或 3DS 回调分类
+     */
     private String resolveCallbackType(String endpointType, VerifiedChannelEvent event) {
         if (event.callbackKind() == null) {
             return endpointType;
@@ -248,6 +249,13 @@ public class ChannelCallbackController {
                 ? THREE_DS_CALLBACK_TYPE : CHANNEL_CALLBACK_TYPE;
     }
 
+    /**
+     * 为 3DS 事件补充支付核心识别的事件类型，普通财务回调保持为空。
+     *
+     * @param endpointEventType 当前入口的默认事件类型
+     * @param event 已验签并标准化的渠道事件
+     * @return 支付核心渠道事件类型
+     */
     private String resolveChannelEventType(String endpointEventType, VerifiedChannelEvent event) {
         if (event.callbackKind() == null) {
             return endpointEventType;
@@ -395,6 +403,12 @@ public class ChannelCallbackController {
         }
     }
 
+    /**
+     * 计算回调原始字节的 SHA-256 短摘要，用于日志关联。
+     *
+     * @param value 回调原始字节
+     * @return 16 位十六进制摘要；空报文返回 {@code null}
+     */
     private String digest16(byte[] value) {
         if (value == null || value.length == 0) {
             return null;
@@ -407,7 +421,9 @@ public class ChannelCallbackController {
         }
     }
 
-    /** 计算回调原始字节的完整 SHA-256，跨服务仅传递该不可逆摘要。 */
+    /**
+     * 计算回调原始字节的完整 SHA-256，跨服务仅传递该不可逆摘要。
+     */
     private String sha256(byte[] value) {
         byte[] bytes = value == null ? new byte[0] : value;
         try {
@@ -417,10 +433,22 @@ public class ChannelCallbackController {
         }
     }
 
+    /**
+     * 通过统一可信代理策略解析渠道回调来源 IP。
+     *
+     * @param request 渠道回调 HTTP 请求
+     * @return 可信网关来源 IP 或直连地址
+     */
     private String resolveClientIp(HttpServletRequest request) {
         return callbackSecuritySupport.resolveClientIp(request);
     }
 
+    /**
+     * 使用单调时钟计算渠道回调处理耗时。
+     *
+     * @param startNanos 入口记录的单调时钟纳秒值
+     * @return 非负毫秒耗时
+     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }

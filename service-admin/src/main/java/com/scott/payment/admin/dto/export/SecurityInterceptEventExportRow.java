@@ -6,13 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SecurityInterceptEventExportRow
- * @date : 2026-07-18
- * @email : scott_x@163.com
- * @description : 安全拦截事件导出行对象，位于 service-admin 导出传输层，只导出已脱敏的事件排查字段。
- * @status : create
+ * 安全拦截事件导出行对象，位于 service-admin 导出传输层，只导出已脱敏的事件排查字段。
  */
 @Data
 public class SecurityInterceptEventExportRow {

@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthMfaBindInfoResponse
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : OTP 绑定信息响应，位于 component-db 认证 DTO 层；仅在二阶段登录票据有效时返回二维码 URI 和脱敏账号信息。
- * @status : create
+ * OTP 绑定信息响应，位于 component-db 认证 DTO 层；仅在二阶段登录票据有效时返回二维码 URI 和脱敏账号信息。
  */
 @Data
 public class AuthMfaBindInfoResponse implements Serializable {

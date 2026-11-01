@@ -5,13 +5,7 @@ import com.scott.payment.clearing.entity.ClearingCompensationCandidateDO;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingRecoveryService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 单个清分候选的独立短事务恢复边界。
- * @status : update
+ * 单个清分候选的独立短事务恢复边界。
  */
 public interface ClearingRecoveryService {
 

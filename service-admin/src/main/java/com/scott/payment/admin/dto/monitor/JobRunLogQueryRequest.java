@@ -5,13 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogQueryRequest
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务运行日志查询请求 DTO
- * @status : create
+ * 管理后台任务运行日志查询请求 DTO
  *
  * <p>用于任务运行日志分页检索，支持按任务、状态、触发方式和执行节点过滤。</p>
  */

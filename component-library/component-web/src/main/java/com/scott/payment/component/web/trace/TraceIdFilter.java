@@ -13,13 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TraceIdFilter
- * @date : 2026-07-26 15:20
- * @email : scott_x@163.com
- * @description : Servlet 请求 traceId 过滤器，在业务处理前绑定 TraceContext 和 MDC，并在响应结束后清理线程上下文。
- * @status : create
+ * Servlet 请求 traceId 过滤器，在业务处理前绑定 TraceContext 和 MDC，并在响应结束后清理线程上下文。
  */
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)

@@ -1,35 +1,23 @@
 package com.scott.payment.clearing.domain.state;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingAnomalyTypeEnum
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分异常案件分类；分类值同时作为低基数指标标签。
- * @status : update
+ * 清分异常案件分类；分类值同时作为低基数指标标签。
  */
 public enum ClearingAnomalyTypeEnum {
     /**
-     * CONTROLLED FAILURE 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 已映射为稳定失败码的业务或技术失败。
      */
     CONTROLLED_FAILURE,
     /**
-     * FINANCIAL MISMATCH 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 汇总金额与明细、保证金或来源事实不平。
      */
     FINANCIAL_MISMATCH,
     /**
-     * PROJECTION MISMATCH 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 清分权威状态已提交，但查询投影未同步到相同版本。
      */
     PROJECTION_MISMATCH,
+    /**
+     * 自动恢复条件不满足，需要运营人员核查并决定后续动作。
+     */
     MANUAL_REVIEW
 }

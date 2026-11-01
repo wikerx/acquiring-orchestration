@@ -12,16 +12,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelAlertDTOs
- * @date : 2026-07-17 00:00
- * @email : scott_x@163.com
- * @description : 渠道预警管理 DTO 集合，位于 service-admin 接口传输层，仅承载后台规则配置、事件查询和邮件通知配置。
- * @status : create
+ * 渠道预警管理 DTO 集合，位于 service-admin 接口传输层，仅承载后台规则配置、事件查询和邮件通知配置。
  */
 public final class ChannelAlertDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private ChannelAlertDTOs() {
     }
 

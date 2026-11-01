@@ -10,13 +10,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoDictionaryApplicationService
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : openAPIISOdictionary应用服务，位于 商户开放接口服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户 ISO 国家、地区和币种字典查询应用入口，统一编排分页及筛选条件。
  */
 @Service
 public class OpenApiIsoDictionaryApplicationService {

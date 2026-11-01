@@ -8,13 +8,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobParameterMasker
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务参数脱敏工具
- * @status : create
+ * 任务参数脱敏工具
  */
 public final class JobParameterMasker {
 

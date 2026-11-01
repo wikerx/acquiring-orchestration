@@ -3,13 +3,7 @@ package com.scott.payment.channel.payout.enums;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutChannelCapability
- * @date : 2026-08-12 00:00
- * @email : scott_x@163.com
- * @description : 代付 Provider 能力枚举，避免与收单 Payment/Refund/Capture 能力混用。
- * @status : create
+ * 代付 Provider 能力枚举，避免与收单 Payment/Refund/Capture 能力混用。
  */
 @Getter
 public enum PayoutChannelCapability {

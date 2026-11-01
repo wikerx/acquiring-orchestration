@@ -3,13 +3,7 @@ package com.scott.payment.merchant.dto;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysOperLogRecordRequest
- * @date : 2026-06-20 10:28
- * @email : scott_x@163.com
- * @description : 商户管理系统操作日志写入请求
- * @status : create
+ * 商户管理系统操作日志写入请求
  */
 @Data
 public class SysOperLogRecordRequest {

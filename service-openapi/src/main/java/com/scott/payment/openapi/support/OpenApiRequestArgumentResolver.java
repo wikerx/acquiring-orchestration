@@ -15,13 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestArgumentResolver
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Request Argument Resolver 解析组件，位于 商户开放接口服务，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
- * @status : create
+ * 将请求体处理器保存的解密 DTO 注入控制器参数，并拒绝类型或上下文不匹配的调用。
  */
 @Component
 public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentResolver {

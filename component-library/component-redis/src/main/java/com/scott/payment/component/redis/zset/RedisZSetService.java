@@ -7,13 +7,7 @@ import java.util.Collection;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisZSetService
- * @date : 2026-05-31 22:03
- * @email : scott_x@163.com
- * @description : Redis ZSet 有序集合服务
- * @status : create
+ * Redis ZSet 有序集合服务
  */
 public interface RedisZSetService {
 

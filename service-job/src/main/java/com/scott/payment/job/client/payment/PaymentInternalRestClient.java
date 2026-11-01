@@ -25,13 +25,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalRestClient
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : service-payment 内部补偿 REST 客户端，位于 service-job 客户端层，负责内部 HMAC 签名、服务发现选择和统一响应解包。
- * @status : create
+ * service-payment 内部补偿 REST 客户端，位于 service-job 客户端层，负责内部 HMAC 签名、服务发现选择和统一响应解包。
  */
 @Slf4j
 @Service
@@ -76,7 +70,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String CHANNEL_MATCH_DUE_PATH = "/internal/payment/transactions/channel-match/match-due";
 
-    /** 收银台未提交订单超时关闭内部接口。 */
+    /**
+     * 收银台未提交订单超时关闭内部接口。
+     */
     private static final String CHECKOUT_EXPIRE_DUE_PATH = "/internal/payment/checkout/session/expire-due";
 
     private final RestTemplate directRestTemplate;

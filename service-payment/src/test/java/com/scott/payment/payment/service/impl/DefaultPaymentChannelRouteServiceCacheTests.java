@@ -24,13 +24,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentChannelRouteServiceCacheTests
- * @date : 2026-08-01 15:50
- * @email : scott_x@163.com
- * @description : 验证支付选路直接使用 merchant:route 快照并从本地短时缓存获取渠道敏感元数据
- * @status : create
+ * 验证支付选路直接使用 merchant:route 快照并从本地短时缓存获取渠道敏感元数据
  */
 class DefaultPaymentChannelRouteServiceCacheTests {
 
@@ -115,7 +109,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         assertThat(result.isEdcRequired()).isFalse();
     }
 
-    /** 原币直连必须优先于排序值更小的 EDC 候选，避免不必要的动态换汇。 */
+    /**
+     * 原币直连必须优先于排序值更小的 EDC 候选，避免不必要的动态换汇。
+     */
     @Test
     void shouldPreferDirectCurrencyCandidateOverEdcCandidate() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -148,7 +144,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         assertThat(result.isEdcRequired()).isFalse();
     }
 
-    /** 两个原币候选同时可用时，能力配置中更小的排序值必须稳定胜出。 */
+    /**
+     * 两个原币候选同时可用时，能力配置中更小的排序值必须稳定胜出。
+     */
     @Test
     void shouldPreferLowerCapabilitySortOrderForDirectCandidates() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -172,7 +170,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         assertThat(result.getMidConfigId()).isEqualTo(11L);
     }
 
-    /** 最高优先级完全相同仍必须拒绝，禁止按缓存列表先后随机选资金通道。 */
+    /**
+     * 最高优先级完全相同仍必须拒绝，禁止按缓存列表先后随机选资金通道。
+     */
     @Test
     void shouldRejectCandidatesWithSameHighestPriority() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -216,7 +216,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         verifyNoInteractions(metadataCache, midMapper, channelMapper);
     }
 
-    /** 路由层必须再次校验卡品牌，不能选择仅支持 Visa/Mastercard 的 MID 处理 AMEX。 */
+    /**
+     * 路由层必须再次校验卡品牌，不能选择仅支持 Visa/Mastercard 的 MID 处理 AMEX。
+     */
     @Test
     void shouldRejectRouteWhenMidDoesNotSupportCardBrand() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -236,7 +238,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         verifyNoInteractions(metadataCache, midMapper, channelMapper);
     }
 
-    /** 路由必须同时满足 MID 范围和渠道支付能力卡品牌，不能只校验 MID。 */
+    /**
+     * 路由必须同时满足 MID 范围和渠道支付能力卡品牌，不能只校验 MID。
+     */
     @Test
     void shouldRejectRouteWhenCapabilityDoesNotSupportCardBrand() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -259,7 +263,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         verifyNoInteractions(metadataCache, midMapper, channelMapper);
     }
 
-    /** 增量授权必须命中能力开关，不能只依赖交易类型文本范围。 */
+    /**
+     * 增量授权必须命中能力开关，不能只依赖交易类型文本范围。
+     */
     @Test
     void shouldRejectIncrementalAuthorizationWhenCapabilitySwitchIsDisabled() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -282,7 +288,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         verifyNoInteractions(metadataCache, midMapper, channelMapper);
     }
 
-    /** 关联交易不得使用已禁用的原 MID，也不得向商户暴露具体配置原因。 */
+    /**
+     * 关联交易不得使用已禁用的原 MID，也不得向商户暴露具体配置原因。
+     */
     @Test
     void shouldRejectRestoredRouteWithF414WhenOriginalMidIsDisabled() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -308,7 +316,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         verifyNoInteractions(channelMapper, metadataCache);
     }
 
-    /** 构造交易命令。 */
+    /**
+     * 构造交易命令。
+     */
     private PaymentCreateCommandDTO command() {
         PaymentCreateCommandDTO command = new PaymentCreateCommandDTO();
         command.setMerchantId("200045");
@@ -324,7 +334,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         return command;
     }
 
-    /** 构造仅包含非敏感路由字段的永久快照。 */
+    /**
+     * 构造仅包含非敏感路由字段的永久快照。
+     */
     private MerchantRouteProfile profile(LocalDateTime modifiedTime) {
         MerchantRouteProfile profile = new MerchantRouteProfile();
         profile.setMerchantId("200045");
@@ -334,7 +346,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         return profile;
     }
 
-    /** 构造指定身份和排序值的非敏感路由候选。 */
+    /**
+     * 构造指定身份和排序值的非敏感路由候选。
+     */
     private RouteOption routeOption(LocalDateTime modifiedTime,
                                     Long midConfigId,
                                     Long channelId,

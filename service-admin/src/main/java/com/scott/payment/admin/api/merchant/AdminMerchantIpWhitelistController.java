@@ -30,13 +30,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantIpWhitelistController
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 IP 白名单管理接口，位于 service-admin 接口层，负责后台精确 IP 白名单的权限校验、参数接收和 HTTP 映射。
- * @status : create
+ * 商户 IP 白名单管理接口，位于 service-admin 接口层，负责后台精确 IP 白名单的权限校验、参数接收和 HTTP 映射。
  */
 @RestController
 @RequestMapping("/admin/merchant/ip-whitelist")

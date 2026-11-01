@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantIdSequenceMapper
- * @date : 2026-09-17 18:10
- * @email : scott_x@163.com
- * @description : 商户号年度序列 Mapper；只负责幂等初始化、行锁读取和带版本条件的原子递增。
- * @status : create
+ * 商户号年度序列 Mapper；只负责幂等初始化、行锁读取和带版本条件的原子递增。
  */
 public interface MerchantIdSequenceMapper {
 

@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantEmailEntities
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户邮件发送实体集合，位于 service-merchant 数据层；复用管理系统邮件模板、发件账户和发送记录表支撑商户安全通知。
- * @status : create
+ * 商户邮件发送实体集合，位于 service-merchant 数据层；复用管理系统邮件模板、发件账户和发送记录表支撑商户安全通知。
  */
 public final class MerchantEmailEntities {
 
@@ -506,9 +500,13 @@ public final class MerchantEmailEntities {
          * </p>
          */
         private String contentSnapshot;
-        /** 加密保存的实际投递正文，仅在消费者发送成功前保留。 */
+        /**
+         * 加密保存的实际投递正文，仅在消费者发送成功前保留。
+         */
         private String deliveryContentCipher;
-        /** 实际投递正文类型，取值为 HTML 或 TEXT。 */
+        /**
+         * 实际投递正文类型，取值为 HTML 或 TEXT。
+         */
         private String contentType;
         /**
          * 持久化的变量快照，用于还原当前记录的业务事实。
@@ -559,7 +557,9 @@ public final class MerchantEmailEntities {
          * </p>
          */
         private Integer maxRetryCount;
-        /** 下一次允许重试的业务时间。 */
+        /**
+         * 下一次允许重试的业务时间。
+         */
         private LocalDateTime nextRetryTime;
         /**
          * 持久化的{@code sendStartTime}，用于还原当前记录的业务事实。

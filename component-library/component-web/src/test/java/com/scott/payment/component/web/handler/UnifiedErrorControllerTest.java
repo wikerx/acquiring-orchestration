@@ -11,13 +11,7 @@ import jakarta.servlet.RequestDispatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : UnifiedErrorControllerTest
- * @date : 2026-06-03 22:55
- * @email : scott_x@163.com
- * @description : 统一兜底错误响应控制器测试
- * @status : create
+ * 统一兜底错误响应控制器测试
  */
 class UnifiedErrorControllerTest {
 

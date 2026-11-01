@@ -38,20 +38,18 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobDispatchServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 调度分发锁和手动非阻塞执行测试。
- * @status : create
+ * 调度分发锁和手动非阻塞执行测试。
  */
 class JobDispatchServiceTests {
 
-    /** Executes manually triggered jobs without blocking the caller. */
+    /**
+     * Executes manually triggered jobs without blocking the caller.
+     */
     private ThreadPoolTaskExecutor taskExecutor;
 
-    /** Schedules delayed retries used by the dispatch fixture. */
+    /**
+     * Schedules delayed retries used by the dispatch fixture.
+     */
     private ThreadPoolTaskScheduler delayScheduler;
 
     @AfterEach
@@ -148,7 +146,9 @@ class JobDispatchServiceTests {
                 .finishTaskRun(eq(14L), eq(JobRunStatusEnum.FAILED), eq("job-node"));
     }
 
-    /** 重试调度异常可能携带任务参数，结构化日志不得附加完整 Throwable。 */
+    /**
+     * 重试调度异常可能携带任务参数，结构化日志不得附加完整 Throwable。
+     */
     @Test
     void rejectedRetryScheduleShouldLogExceptionTypeWithoutThrowable() {
         Fixture fixture = fixture(failingHandler());

@@ -5,13 +5,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqResourceInitializerRunner
- * @date : 2026-06-20 22:56
- * @email : scott_x@163.com
- * @description : RocketMQ 资源初始化启动 Runner
- * @status : create
+ * RocketMQ 资源初始化启动 Runner
  */
 @Slf4j
 public class MqResourceInitializerRunner implements ApplicationRunner {

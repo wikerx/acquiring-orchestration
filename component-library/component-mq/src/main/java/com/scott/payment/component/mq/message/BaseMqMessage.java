@@ -7,13 +7,7 @@ import java.time.LocalDateTime;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BaseMqMessage
- * @date : 2026-05-28 09:28
- * @email : scott_x@163.com
- * @description : 基础mq说明协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 基础mq说明协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  */
 @Data
 public class BaseMqMessage implements Serializable {

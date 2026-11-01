@@ -3,7 +3,6 @@ package com.scott.payment.openapi;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
@@ -18,13 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiSecurityFlowTests
- * @date : 2026-06-02 16:25
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 无 keyId 安全流程测试，覆盖 JWT 验签、请求体加密解密、响应加密和篡改拒绝。
- * @status : create
+ * 商户 OpenAPI 无 keyId 安全流程测试，覆盖 JWT 验签、请求体加密解密、响应加密和篡改拒绝。
  */
 @Slf4j
 class OpenApiSecurityFlowTests {
@@ -87,8 +80,8 @@ class OpenApiSecurityFlowTests {
                 System.currentTimeMillis() / 1000L,
                 TRADE_NO
         );
-        log.info("商户封装请求-请求明文脱敏: {}，JWT摘要: {}，data摘要: {}",
-                SensitiveDataMaskUtils.maskJson(merchantRequestJson),
+        log.info("商户封装请求-请求明文摘要: {}，JWT摘要: {}，data摘要: {}",
+                MerchantOpenApiTestSupport.safePayloadSummary(merchantRequestJson, keyFactory),
                 MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyFactory),
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedRequestData, keyFactory));
 
@@ -99,9 +92,9 @@ class OpenApiSecurityFlowTests {
         );
         assertThat(claims.getMerchantId()).isEqualTo(MERCHANT_ID);
         assertThat(decryptedRequestJson).isEqualTo(merchantRequestJson);
-        log.info("服务端处理请求-JWT验签成功，商户号: {}，请求体解密脱敏: {}",
+        log.info("服务端处理请求-JWT验签成功，商户号: {}，请求体明文摘要: {}",
                 claims.getMerchantId(),
-                SensitiveDataMaskUtils.maskJson(decryptedRequestJson));
+                MerchantOpenApiTestSupport.safePayloadSummary(decryptedRequestJson, keyFactory));
 
         String responseDataJson = JsonUtils.toJsonString(java.util.Map.of(
                 "orderInfo", java.util.Map.of("orderNo", TRADE_NO, "amount", 12389.45, "currency", "USD"),
@@ -119,9 +112,9 @@ class OpenApiSecurityFlowTests {
                 payloadCrypto.readPrivateKey(merchantResponseKey.privateKeyPkcs8Base64())
         );
         assertThat(merchantPlainResponse).isEqualTo(responseDataJson);
-        log.info("响应加密完成-code/message保持明文，data密文摘要: {}，商户解密后响应: {}",
+        log.info("响应加密完成-code/message保持明文，data密文摘要: {}，商户解密后响应摘要: {}",
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyFactory),
-                merchantPlainResponse);
+                MerchantOpenApiTestSupport.safePayloadSummary(merchantPlainResponse, keyFactory));
     }
 
     /**

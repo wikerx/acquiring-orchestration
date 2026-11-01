@@ -5,13 +5,7 @@ import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApprovedRefundChannelExecutor
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 已批准退款渠道执行边界，使用固定动作、固定渠道请求身份和审批消息恢复执行上下文。
- * @status : create
+ * 已批准退款渠道执行边界，使用固定动作、固定渠道请求身份和审批消息恢复执行上下文。
  */
 public interface ApprovedRefundChannelExecutor {
 

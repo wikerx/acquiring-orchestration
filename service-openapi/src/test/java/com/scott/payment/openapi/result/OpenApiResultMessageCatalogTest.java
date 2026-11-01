@@ -17,7 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class OpenApiResultMessageCatalogTest {
 
-    /** 48 个公开码必须完整登记内部、商户和付款人文案，不能出现空文案或未展开占位符。 */
+    /**
+     * 48 个公开码必须完整登记内部、商户和付款人文案，不能出现空文案或未展开占位符。
+     */
     @Test
     void shouldPublishCompleteAudienceAndLocaleMessages() {
         for (OpenApiResultCode code : OpenApiResultCode.values()) {
@@ -30,7 +32,9 @@ class OpenApiResultMessageCatalogTest {
         }
     }
 
-    /** 外部出口固定使用英文时，全部商户和付款人模板都不得包含中文字符。 */
+    /**
+     * 外部出口固定使用英文时，全部商户和付款人模板都不得包含中文字符。
+     */
     @Test
     void shouldKeepEveryExternalEnglishTemplateFreeOfChineseCharacters() {
         for (OpenApiResultCode code : OpenApiResultCode.values()) {
@@ -49,7 +53,9 @@ class OpenApiResultMessageCatalogTest {
         }
     }
 
-    /** 受控字段参数可以进入对应模板，但参数缺失或非法时必须回退到同对象安全静态文案。 */
+    /**
+     * 受控字段参数可以进入对应模板，但参数缺失或非法时必须回退到同对象安全静态文案。
+     */
     @Test
     void shouldRenderControlledPlaceholderOrFallBackSafely() {
         assertThat(OpenApiResultMessageCatalog.message(
@@ -76,7 +82,9 @@ class OpenApiResultMessageCatalogTest {
         assertThat(unsafeParameter).doesNotContain("<script>");
     }
 
-    /** 渠道失败按展示对象输出不同英文文案，只有管理端可以看到受控渠道摘要。 */
+    /**
+     * 渠道失败按展示对象输出不同英文文案，只有管理端可以看到受控渠道摘要。
+     */
     @Test
     void shouldKeepAudienceBoundaryWhenSelectingMessages() {
         Map<String, String> diagnosticParameters = Map.of(
@@ -113,7 +121,9 @@ class OpenApiResultMessageCatalogTest {
         assertThat(payer).doesNotContain("MPGS", "DECLINED", "Transaction failed", "REF-1");
     }
 
-    /** 疑似包含卡号等敏感内容的渠道描述必须整体回退，不能进入管理端文案。 */
+    /**
+     * 疑似包含卡号等敏感内容的渠道描述必须整体回退，不能进入管理端文案。
+     */
     @Test
     void shouldRejectSensitiveChannelResponseMessage() {
         String internal = OpenApiResultMessageCatalog.message(
@@ -129,7 +139,9 @@ class OpenApiResultMessageCatalogTest {
                 .doesNotContain("4111111111111111");
     }
 
-    /** 字段路径只允许进入商户和内部模板，诊断原因仅允许内部模板使用，付款人始终获得静态安全文案。 */
+    /**
+     * 字段路径只允许进入商户和内部模板，诊断原因仅允许内部模板使用，付款人始终获得静态安全文案。
+     */
     @Test
     void shouldIsolateContextualParameterDetailsByAudience() {
         OpenApiErrorProjection projection = OpenApiErrorMapper.project(
@@ -155,7 +167,9 @@ class OpenApiResultMessageCatalogTest {
                 .doesNotContain("orderInfo.amount", "greater than zero");
     }
 
-    /** 未登记格式的字段路径必须触发静态回退，不能借模板参数向任一外部对象注入内容。 */
+    /**
+     * 未登记格式的字段路径必须触发静态回退，不能借模板参数向任一外部对象注入内容。
+     */
     @Test
     void shouldFallBackWhenContextualFieldPathIsUnsafe() {
         OpenApiErrorProjection projection = OpenApiErrorMapper.project(
@@ -173,7 +187,9 @@ class OpenApiResultMessageCatalogTest {
                 .doesNotContain("<script>", "invalid amount");
     }
 
-    /** 校验指定受众和语言能够得到不含未展开占位符的已发布文案。 */
+    /**
+     * 校验指定受众和语言能够得到不含未展开占位符的已发布文案。
+     */
     private void assertPublished(OpenApiResultCode code,
                                  OpenApiMessageAudience audience,
                                  OpenApiMessageLocale locale) {

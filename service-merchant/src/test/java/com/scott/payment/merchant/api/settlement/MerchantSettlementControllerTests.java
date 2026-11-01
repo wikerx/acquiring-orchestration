@@ -21,13 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementControllerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户结算详情接口契约测试，验证批次号可在未保留 Java 参数名时由 Spring MVC 稳定绑定。
- * @status : create
+ * 商户结算详情接口契约测试，验证批次号可在未保留 Java 参数名时由 Spring MVC 稳定绑定。
  */
 class MerchantSettlementControllerTests {
 

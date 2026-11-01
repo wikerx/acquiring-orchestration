@@ -18,13 +18,7 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskRecordController
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 风控记录查询接口，位于 service-admin 接口层，仅用于管理端查看交易风控评估记录和命中明细。
- * @status : create
+ * 风控记录查询接口，位于 service-admin 接口层，仅用于管理端查看交易风控评估记录和命中明细。
  */
 @RestController
 @RequestMapping("/admin/risk/record")

@@ -37,13 +37,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalRestClient
- * @date : 2026-09-01 22:45
- * @email : scott_x@163.com
- * @description : Admin 清分内部 REST 协议适配器，统一 HMAC、防重放、直连/服务发现选择和 CommonResult 解包，不承担 RBAC 或清分状态机。
- * @status : update
+ * Admin 清分内部 REST 协议适配器，统一 HMAC、防重放、直连/服务发现选择和 CommonResult 解包，不承担 RBAC 或清分状态机。
  */
 @Service
 @Slf4j
@@ -52,34 +46,18 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
     /**
      * {@code ROOT}常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
      */
     private static final String ROOT = "/internal/clearing/v1";
     /**
      * 交易常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
      */
     private static final String TRANSACTIONS = ROOT + "/transactions";
     /**
      * {@code RESERVE_ADJUSTMENTS}常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
      */
     private static final String RESERVE_ADJUSTMENTS = ROOT + "/reserve-adjustments";
     /**
      * {@code TIER_PERIOD_REPLAYS}常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
      */
     private static final String TIER_PERIOD_REPLAYS = ROOT + "/tier-period-replays";
 
@@ -87,6 +65,9 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
     private final RestTemplate loadBalanced;
     private final ClearingInternalClientProperties properties;
 
+    /**
+     * 创建清分服务内部 REST 客户端。
+     */
     public ClearingInternalRestClient(
             @Qualifier("adminClearingInternalRestTemplate") RestTemplate direct,
             @Qualifier("adminClearingInternalLoadBalancedRestTemplate") RestTemplate loadBalanced,
@@ -96,14 +77,18 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
         this.properties = properties;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，按管理端条件分页查询清分交易。
+     */
     @Override
     public SearchResponse search(SearchRequest request) {
         return post(TRANSACTIONS + "/search", request,
                 new TypeReference<CommonResult<SearchResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，查询指定交易及其清分明细。
+     */
     @Override
     public DetailResponse detail(String transactionId, LocalDateTime transactionDateTime) {
         URI uri = UriComponentsBuilder.fromUriString(baseUrl() + TRANSACTIONS + "/" + transactionId)
@@ -112,35 +97,45 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
                 new TypeReference<CommonResult<DetailResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，重试处于可恢复状态的清分交易。
+     */
     @Override
     public CommandResponse retry(String transactionId, InternalActionRequest request) {
         return post(TRANSACTIONS + "/" + transactionId + "/retry", request,
                 new TypeReference<CommonResult<CommandResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，提交清分交易人工复核结果。
+     */
     @Override
     public CommandResponse review(String transactionId, InternalActionRequest request) {
         return post(TRANSACTIONS + "/" + transactionId + "/review", request,
                 new TypeReference<CommonResult<CommandResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，按指定费用版本重新计算清分交易。
+     */
     @Override
     public CommandResponse recalculate(String transactionId, InternalRecalculateRequest request) {
         return post(TRANSACTIONS + "/" + transactionId + "/recalculate", request,
                 new TypeReference<CommonResult<CommandResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，提交保证金差额调整申请。
+     */
     @Override
     public ReserveAdjustmentResponse submitReserveAdjustment(InternalReserveAdjustmentSubmitRequest request) {
         return post(RESERVE_ADJUSTMENTS, request,
                 new TypeReference<CommonResult<ReserveAdjustmentResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，复核指定保证金调整申请。
+     */
     @Override
     public ReserveAdjustmentResponse reviewReserveAdjustment(
             String adjustmentNo, InternalReserveAdjustmentReviewRequest request) {
@@ -148,14 +143,18 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
                 new TypeReference<CommonResult<ReserveAdjustmentResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，提交阶梯费用期间重放申请。
+     */
     @Override
     public TierPeriodReplayResponse submitTierPeriodReplay(InternalTierPeriodReplaySubmitRequest request) {
         return post(TIER_PERIOD_REPLAYS, request,
                 new TypeReference<CommonResult<TierPeriodReplayResponse>>() { });
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用清分内部接口，复核指定阶梯费用期间重放申请。
+     */
     @Override
     public TierPeriodReplayResponse reviewTierPeriodReplay(
             String replayNo, InternalTierPeriodReplayReviewRequest request) {
@@ -193,13 +192,13 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
             }
             return result.getData();
         } catch (HttpStatusCodeException exception) {
-            log.warn("service-clearing management call rejected, path: {}, status: {}",
-                    uri.getPath(), exception.getStatusCode().value());
+            log.warn("event: ADMIN_CLEARING_INTERNAL_HTTP_REJECTED method: {} path: {} status: {}",
+                    method.name(), uri.getPath(), exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-clearing management call rejected");
         } catch (RestClientException exception) {
-            log.warn("service-clearing management call failed, path: {}, exceptionType: {}",
-                    uri.getPath(), exception.getClass().getSimpleName());
+            log.warn("event: ADMIN_CLEARING_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+                    method.name(), uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-clearing management call failed");
         }
@@ -227,7 +226,9 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
         return new HttpEntity<>(body, headers);
     }
 
-    /** IP、localhost 和完整域名走直连，逻辑服务名走负载均衡客户端。 */
+    /**
+     * IP、localhost 和完整域名走直连，逻辑服务名走负载均衡客户端。
+     */
     private RestTemplate choose(URI uri) {
         String host = uri.getHost();
         if (host == null) {
@@ -237,6 +238,9 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
                 || IPV4.matcher(host).matches() || host.contains(".") ? direct : loadBalanced;
     }
 
+    /**
+     * 解析内部服务调用的基础地址。
+     */
     private String baseUrl() {
         String value = properties.getBaseUrl();
         if (value == null || value.isBlank()) {

@@ -8,13 +8,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalCallerInterceptorTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证结算内部管理接口只接受已签名的 service-admin 调用身份。
- * @status : create
+ * 验证结算内部管理接口只接受已签名的 service-admin 调用身份。
  */
 class SettlementInternalCallerInterceptorTest {
 

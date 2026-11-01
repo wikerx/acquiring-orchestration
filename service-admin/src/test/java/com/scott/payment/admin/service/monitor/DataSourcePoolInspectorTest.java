@@ -10,13 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataSourcePoolInspectorTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 标准 JDBC Wrapper API 解包 Hikari 连接池行为测试。
- * @status : create
+ * 标准 JDBC Wrapper API 解包 Hikari 连接池行为测试。
  */
 class DataSourcePoolInspectorTest {
 

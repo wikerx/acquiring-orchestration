@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTransactionIdempotencyMapper
- * @date : 2026-08-26 09:12
- * @email : scott_x@163.com
- * @description : 清分 MQ 消费幂等 Mapper，复用 transaction_idempotency 的数据库唯一键，不以 Redis 作为最终幂等。
- * @status : create
+ * 清分 MQ 消费幂等 Mapper，复用 transaction_idempotency 的数据库唯一键，不以 Redis 作为最终幂等。
  */
 public interface ClearingTransactionIdempotencyMapper {
 
@@ -33,7 +27,9 @@ public interface ClearingTransactionIdempotencyMapper {
             """)
     boolean existsSuccessfulConsumption(@Param("idempotencyKey") String idempotencyKey);
 
-    /** 与阶段B清分事实同事务写入 SUCCESS 消费幂等，不保存金额或费用配置正文。 */
+    /**
+     * 与阶段B清分事实同事务写入 SUCCESS 消费幂等，不保存金额或费用配置正文。
+     */
     @Insert("""
             INSERT INTO transaction_idempotency
             (idempotency_scope, idempotency_key, merchant_id, merchant_order_no,

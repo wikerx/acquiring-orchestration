@@ -15,13 +15,7 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TotpUtils
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : TOTP Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
- * @status : create
+ * TOTP Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  */
 public final class TotpUtils {
 

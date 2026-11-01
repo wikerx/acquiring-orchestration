@@ -31,13 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingCalculationService
- * @date : 2026-08-26 09:32
- * @email : scott_x@163.com
- * @description : 清分计算默认实现，按终态触发规则调用 finance-library，保留标签币种百分比与USD固定费/上下限且不做换汇。
- * @status : create
+ * 清分计算默认实现，按终态触发规则调用 finance-library，保留标签币种百分比与USD固定费/上下限且不做换汇。
  */
 @Service
 public class DefaultClearingCalculationService implements ClearingCalculationService {
@@ -52,7 +46,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
     private final FeeRefundCalculator feeRefundCalculator;
     private final ReserveCalculator reserveCalculator;
 
-    /** 创建不依赖 Spring 或外部系统的清分纯计算服务。 */
+    /**
+     * 创建不依赖 Spring 或外部系统的清分纯计算服务。
+     */
     public DefaultClearingCalculationService() {
         this(new FeeComponentCalculator(), new FeeRefundCalculator(), new ReserveCalculator());
     }
@@ -72,7 +68,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         this.reserveCalculator = reserveCalculator;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 使用冻结费用快照计算当前动作的本金、费用返还、保证金和阶梯增量。
+     */
     @Override
     public ClearingCalculationResult calculate(ClearingCalculationCommand command) {
         validateCommand(command);
@@ -102,12 +100,17 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
                 principal == null ? null : principal.direction(), fees, feeRefund, reserve);
     }
 
+    /**
+     * 将金融模型的参数异常转换为可持久化的受控清分失败。
+     */
     private ClearingProcessingException controlledFailure(ClearingFailureCodeEnum code,
                                                            IllegalArgumentException cause) {
         return new ClearingProcessingException(code, cause.getMessage());
     }
 
-    /** 只按原实际收费事实计算返费，不重新套用当前费用配置。 */
+    /**
+     * 只按原实际收费事实计算返费，不重新套用当前费用配置。
+     */
     private FeeRefundResult calculateFeeRefund(ClearingCalculationCommand command) {
         if (command.feeRefundCommand() == null) {
             return null;
@@ -119,7 +122,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         }
     }
 
-    /** 百分比组件保留标签币种，固定费和上下限继续保留 USD 原子组件。 */
+    /**
+     * 百分比组件保留标签币种，固定费和上下限继续保留 USD 原子组件。
+     */
     private List<CalculatedFee> calculateFees(ClearingCalculationCommand command, Money labelAmount) {
         List<CalculatedFee> fees = new ArrayList<>();
         for (FeeRuleConfigurationSnapshot rule : command.feeSnapshot().rules()) {
@@ -137,7 +142,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return List.copyOf(fees);
     }
 
-    /** 保证金始终按标签币种本金计算，清分阶段不得读取或应用汇率。 */
+    /**
+     * 保证金始终按标签币种本金计算，清分阶段不得读取或应用汇率。
+     */
     private ReserveCalculationResult calculateReserve(ClearingCalculationCommand command, Money labelAmount) {
         ClearingOperationFacts operation = command.operation();
         if (!"SUCCESS".equals(operation.transactionStatus())) {
@@ -156,6 +163,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
                 command.feeSnapshot().roundingMode()));
     }
 
+    /**
+     * 按终态交易类型确定本金方向，并优先采用渠道批准金额作为本金事实。
+     */
     private Principal principal(ClearingOperationFacts operation) {
         if (!"SUCCESS".equals(operation.transactionStatus())) {
             return null;
@@ -178,17 +188,23 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return new Principal(amount, direction);
     }
 
-    /** 将可空渠道批准金额转换为带 ISO exponent 的精确金额。 */
+    /**
+     * 将可空渠道批准金额转换为带 ISO exponent 的精确金额。
+     */
     private Money approvedAmount(ClearingOperationFacts operation) {
         return money(operation.approvedAmount(), operation.approvedCurrency(), "approved amount");
     }
 
-    /** 将数据库权威交易金额转换为带 ISO exponent 的精确金额。 */
+    /**
+     * 将数据库权威交易金额转换为带 ISO exponent 的精确金额。
+     */
     private Money transactionAmount(ClearingOperationFacts operation) {
         return money(operation.transactionAmount(), operation.transactionCurrency(), "transaction amount");
     }
 
-    /** 将商户标签金额转换为百分比费和保证金共用的精确金额。 */
+    /**
+     * 将商户标签金额转换为百分比费和保证金共用的精确金额。
+     */
     private Money labelAmount(ClearingOperationFacts operation) {
         Money label = money(operation.labelAmount(), operation.labelCurrency(), "label amount");
         if (label == null || label.amount().signum() < 0) {
@@ -200,6 +216,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return label;
     }
 
+    /**
+     * 将金额与币种转换为遵循 ISO 指数的金额值，并拒绝超出币种精度的数据。
+     */
     private Money money(BigDecimal amount, String currency, String fieldName) {
         if (amount == null || !StringUtils.hasText(currency)) {
             return null;
@@ -216,7 +235,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return result;
     }
 
-    /** 拒绝币种、金额或冻结费用版本不完整的计算命令，避免产生部分财务事实。 */
+    /**
+     * 拒绝币种、金额或冻结费用版本不完整的计算命令，避免产生部分财务事实。
+     */
     private void validateCommand(ClearingCalculationCommand command) {
         Objects.requireNonNull(command, "clearing calculation command is required");
         if (!Objects.equals(command.operation().merchantId(), command.feeSnapshot().merchantId())) {
@@ -229,6 +250,9 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         }
     }
 
+    /**
+     * 清分本金金额及其会计方向。
+     */
     private record Principal(Money amount, EntryDirection direction) {
     }
 }

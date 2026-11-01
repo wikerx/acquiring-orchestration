@@ -14,13 +14,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationConfigTests
- * @date : 2026-07-30 23:15
- * @email : scott_x@163.com
- * @description : 验证数据库基线切换门禁及规则快照、固定频率窗口容量边界
- * @status : update
+ * 验证数据库基线切换门禁及规则快照、固定频率窗口容量边界
  */
 @Slf4j
 class RiskEvaluationConfigTests {
@@ -28,12 +22,18 @@ class RiskEvaluationConfigTests {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(RiskEvaluationConfig.class);
 
+    /**
+     * 清理用例写入的追踪上下文，避免线程复用污染后续断言。
+     */
     @AfterEach
     void tearDown() {
         TraceContext.clear();
         MDC.clear();
     }
 
+    /**
+     * 验证默认配置使用集群安全固定窗口，并保持迁移开关关闭。
+     */
     @Test
     void shouldUseClusterSafeFixedWindowDefaultsWithoutMigrationSwitches() {
         contextRunner.run(context -> {
@@ -50,6 +50,9 @@ class RiskEvaluationConfigTests {
         });
     }
 
+    /**
+     * 验证只读执行器向工作线程传递追踪上下文并在任务结束后清理。
+     */
     @Test
     void shouldPropagateAndClearTraceContextInReadOnlyExecutor() {
         contextRunner.run(context -> {
@@ -73,6 +76,9 @@ class RiskEvaluationConfigTests {
         });
     }
 
+    /**
+     * 验证装饰任务完成后恢复工作线程原有追踪上下文。
+     */
     @Test
     void shouldRestoreWorkerContextAfterDecoratedTaskCompletes() {
         RiskTraceContextTaskDecorator decorator = new RiskTraceContextTaskDecorator();
@@ -91,6 +97,9 @@ class RiskEvaluationConfigTests {
         assertThat(MDC.get("riskTestContext")).isEqualTo("worker-previous-scope");
     }
 
+    /**
+     * 验证只读并发度不足以承载三个规则组时拒绝配置。
+     */
     @Test
     void shouldRejectReadOnlyParallelismBelowThreeGroups() {
         contextRunner
@@ -102,6 +111,9 @@ class RiskEvaluationConfigTests {
                 });
     }
 
+    /**
+     * 验证只读任务队列容量非正数时拒绝配置。
+     */
     @Test
     void shouldRejectNonPositiveReadOnlyQueueCapacity() {
         contextRunner
@@ -113,6 +125,9 @@ class RiskEvaluationConfigTests {
                 });
     }
 
+    /**
+     * 验证只读评估超时低于安全下限时拒绝配置。
+     */
     @Test
     void shouldRejectReadOnlyTimeoutBelowSafetyFloor() {
         contextRunner
@@ -124,6 +139,9 @@ class RiskEvaluationConfigTests {
                 });
     }
 
+    /**
+     * 验证容量旁路标记 TTL 超过绝对上限时拒绝配置。
+     */
     @Test
     void shouldRejectSnapshotCapacityBypassTtlAboveAbsoluteMaximum() {
         log.info("测试快照容量旁路 TTL 上限，关键输入: 301 秒超过短期旁路绝对上限");
@@ -137,6 +155,9 @@ class RiskEvaluationConfigTests {
         log.info("快照容量旁路 TTL 上限测试完成，结果: 启动门禁拒绝长期旁路配置");
     }
 
+    /**
+     * 验证未明确确认切换时禁止启用生命周期预占基线。
+     */
     @Test
     void shouldRejectLifecycleBaselineWithoutExplicitCutoverConfirmation() {
         log.info("测试生命周期基线切换门禁，关键输入: LIFECYCLE 且未确认");
@@ -149,6 +170,9 @@ class RiskEvaluationConfigTests {
                 });
     }
 
+    /**
+     * 验证影子比较模式无需切换确认且不改变生产决策基线。
+     */
     @Test
     void shouldAllowBaselineShadowWithoutCutoverConfirmation() {
         contextRunner
@@ -160,6 +184,9 @@ class RiskEvaluationConfigTests {
                 });
     }
 
+    /**
+     * 验证频控窗口超过绝对上限时拒绝配置。
+     */
     @Test
     void shouldRejectFrequencyWindowAboveAbsoluteMaximum() {
         contextRunner
@@ -171,6 +198,9 @@ class RiskEvaluationConfigTests {
                 });
     }
 
+    /**
+     * 验证频控阈值超过绝对上限时拒绝配置。
+     */
     @Test
     void shouldRejectFrequencyThresholdAboveAbsoluteMaximum() {
         contextRunner

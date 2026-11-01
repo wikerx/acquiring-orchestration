@@ -17,13 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantFundAccountProvisioningService
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户资金账户开户与结算币种一致性服务；当前每个商户只创建一个账户，并为后续多币种账户保留扩展位。
- * @status : create
+ * 商户资金账户开户与结算币种一致性服务；当前每个商户只创建一个账户，并为后续多币种账户保留扩展位。
  */
 @Service
 public class AdminMerchantFundAccountProvisioningService {
@@ -134,6 +128,9 @@ public class AdminMerchantFundAccountProvisioningService {
         accountMapper.updateById(account);
     }
 
+    /**
+     * 判断金额是否为空或为零。
+     */
     private boolean isZero(BigDecimal amount) {
         return amount == null || amount.compareTo(BigDecimal.ZERO) == 0;
     }

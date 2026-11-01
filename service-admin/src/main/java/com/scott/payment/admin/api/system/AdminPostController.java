@@ -1,13 +1,15 @@
 package com.scott.payment.admin.api.system;
 
 import com.scott.payment.admin.application.system.AdminPostApplicationService;
+import com.scott.payment.admin.dto.system.PostDTOs.Response;
+import com.scott.payment.admin.dto.system.PostDTOs.SaveRequest;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.component.db.auth.entity.SysPostDO;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,13 +25,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPostController
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台岗位管理控制器
- * @status : create
+ * 管理后台岗位管理控制器
  *
  * <p>岗位分页、详情和维护请求统一通过
  * {@link AdminPostApplicationService} 编排，Controller 保持为薄入口层。</p>
@@ -61,11 +57,11 @@ public class AdminPostController {
      */
     @GetMapping("/list")
     @RequiresPermission("system:post:list")
-    public CommonResult<PageResult<SysPostDO>> list(@RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
-                                                    @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
-                                                    @RequestParam(value = "postCode", required = false) String postCode,
-                                                    @RequestParam(value = "postName", required = false) String postName,
-                                                    @RequestParam(value = "status", required = false) Integer status) {
+    public CommonResult<PageResult<Response>> list(@RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
+                                                   @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
+                                                   @RequestParam(value = "postCode", required = false) String postCode,
+                                                   @RequestParam(value = "postName", required = false) String postName,
+                                                   @RequestParam(value = "status", required = false) Integer status) {
         return success(adminPostApplicationService.pagePosts(pageNo, pageSize, postCode, postName, status));
     }
 
@@ -76,7 +72,7 @@ public class AdminPostController {
      */
     @GetMapping("/all")
     @RequiresPermission("system:post:list")
-    public CommonResult<List<SysPostDO>> all() {
+    public CommonResult<List<Response>> all() {
         return success(adminPostApplicationService.listEnabledPosts());
     }
 
@@ -84,11 +80,11 @@ public class AdminPostController {
      * 查询岗位详情。
      *
      * @param id 岗位主键 ID
-     * @return 岗位实体
+     * @return 岗位详情
      */
     @GetMapping("/{id}")
     @RequiresPermission("system:post:query")
-    public CommonResult<SysPostDO> detail(@PathVariable("id") Long id) {
+    public CommonResult<Response> detail(@PathVariable("id") Long id) {
         return success(adminPostApplicationService.getPost(id));
     }
 
@@ -105,28 +101,29 @@ public class AdminPostController {
     /**
      * 新增岗位。
      *
-     * @param post 岗位实体
-     * @return 新增后的岗位
+     * @param request 岗位保存请求
+     * @return 新增后的岗位响应
      */
     @PostMapping
     @RequiresPermission("system:post:add")
     @OperationLog(moduleName = "岗位管理", businessType = OperationTypeConstants.CREATE, operation = "新增岗位")
-    public CommonResult<SysPostDO> create(@RequestBody SysPostDO post) {
-        return success(adminPostApplicationService.createPost(post));
+    public CommonResult<Response> create(@Valid @RequestBody SaveRequest request) {
+        return success(adminPostApplicationService.createPost(request));
     }
 
     /**
      * 修改岗位。
      *
-     * @param id   岗位主键 ID
-     * @param input 岗位实体
-     * @return 更新后的岗位
+     * @param id 岗位主键 ID
+     * @param request 岗位保存请求
+     * @return 更新后的岗位响应
      */
     @PutMapping("/{id}")
     @RequiresPermission("system:post:edit")
     @OperationLog(moduleName = "岗位管理", businessType = OperationTypeConstants.UPDATE, operation = "修改岗位")
-    public CommonResult<SysPostDO> update(@PathVariable("id") Long id, @RequestBody SysPostDO input) {
-        return success(adminPostApplicationService.updatePost(id, input));
+    public CommonResult<Response> update(@PathVariable("id") Long id,
+                                         @Valid @RequestBody SaveRequest request) {
+        return success(adminPostApplicationService.updatePost(id, request));
     }
 
     /**

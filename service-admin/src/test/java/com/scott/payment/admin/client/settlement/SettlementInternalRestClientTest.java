@@ -37,13 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalRestClientTest
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证 Admin 结算内部客户端的命令边界、完整目标签名和请求体摘要签名
- * @status : create
+ * 验证 Admin 结算内部客户端的命令边界、完整目标签名和请求体摘要签名
  */
 class SettlementInternalRestClientTest {
 

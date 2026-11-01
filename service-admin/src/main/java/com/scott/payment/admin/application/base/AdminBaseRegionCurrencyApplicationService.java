@@ -3,6 +3,10 @@ package com.scott.payment.admin.application.base;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.dto.base.RegionCurrencyDTOs.CreateRequest;
+import com.scott.payment.admin.dto.base.RegionCurrencyDTOs.RegionCurrencyResponse;
+import com.scott.payment.admin.dto.base.RegionCurrencyDTOs.StatusUpdateRequest;
+import com.scott.payment.admin.dto.base.RegionCurrencyDTOs.UpdateRequest;
 import com.scott.payment.admin.dto.export.RegionCurrencyExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
@@ -33,13 +37,7 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseRegionCurrencyApplicationService
- * @date : 2026-06-19 21:10
- * @email : scott_x@163.com
- * @description : 地区币种配置应用服务
- * @status : create
+ * 地区币种配置应用服务
  *
  * <p>负责管理后台国家地区与默认币种映射关系的用例编排，避免控制器直接拼装 Mapper 查询结果，
  * 并统一处理分页展示、详情查询、导出、绑定更新与状态切换。</p>
@@ -109,8 +107,8 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @return 分页结果
      */
     @DS(DataSourceName.SLAVE)
-    public PageResult<Map<String, Object>> pageRegionCurrencies(int pageNo, int pageSize,
-                                                                String keyword, String continentCode) {
+    public PageResult<RegionCurrencyResponse> pageRegionCurrencies(int pageNo, int pageSize,
+                                                                   String keyword, String continentCode) {
         Map<String, IsoCurrencyDO> currencyMap = enabledCurrencyMap();
 
         LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<>();
@@ -126,7 +124,7 @@ public class AdminBaseRegionCurrencyApplicationService {
         queryWrapper.orderByAsc(IsoCountryDO::getAlpha2Code);
 
         Page<IsoCountryDO> page = isoCountryMapper.selectPage(new Page<>(pageNo, pageSize), queryWrapper);
-        List<Map<String, Object>> records = page.getRecords().stream()
+        List<RegionCurrencyResponse> records = page.getRecords().stream()
                 .map(country -> toRegionCurrencyRow(country, currencyMap))
                 .toList();
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
@@ -139,7 +137,7 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @return 映射详情
      */
     @DS(DataSourceName.SLAVE)
-    public CommonResult<Map<String, Object>> getRegionCurrency(Long id) {
+    public CommonResult<RegionCurrencyResponse> getRegionCurrency(Long id) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
             return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "country not found");
@@ -186,8 +184,8 @@ public class AdminBaseRegionCurrencyApplicationService {
      */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public CommonResult<Void> createRegionCurrency(Map<String, String> body) {
-        return updateCountryCurrency(Long.valueOf(body.get("countryId")), body.get("currencyAlpha3Code"));
+    public CommonResult<Void> createRegionCurrency(CreateRequest request) {
+        return updateCountryCurrency(request.getCountryId(), request.getCurrencyAlpha3Code());
     }
 
     /**
@@ -199,8 +197,8 @@ public class AdminBaseRegionCurrencyApplicationService {
      */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public CommonResult<Void> updateRegionCurrency(Long id, Map<String, String> body) {
-        return updateCountryCurrency(id, body.get("currencyAlpha3Code"));
+    public CommonResult<Void> updateRegionCurrency(Long id, UpdateRequest request) {
+        return updateCountryCurrency(id, request.getCurrencyAlpha3Code());
     }
 
     /**
@@ -224,12 +222,12 @@ public class AdminBaseRegionCurrencyApplicationService {
      */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public CommonResult<Void> updateStatus(Long id, Map<String, Integer> body) {
+    public CommonResult<Void> updateStatus(Long id, StatusUpdateRequest request) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
             return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "country not found");
         }
-        country.setStatus(body.get("status"));
+        country.setStatus(request.getStatus());
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
         isoDictionaryCacheInvalidator.evictCountries();
@@ -248,7 +246,8 @@ public class AdminBaseRegionCurrencyApplicationService {
         if (country == null) {
             return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "country not found");
         }
-        country.setCurrencyAlpha3Code(StringUtils.hasText(currencyCode) ? currencyCode.trim() : "");
+        country.setCurrencyAlpha3Code(StringUtils.hasText(currencyCode)
+                ? currencyCode.trim().toUpperCase(Locale.ROOT) : "");
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
         isoDictionaryCacheInvalidator.evictCountries();
@@ -289,20 +288,21 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param currencyMap 币种映射
      * @return 行数据
      */
-    private Map<String, Object> toRegionCurrencyRow(IsoCountryDO country, Map<String, IsoCurrencyDO> currencyMap) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("id", country.getId());
-        row.put("alpha2Code", country.getAlpha2Code());
-        row.put("alpha3Code", country.getAlpha3Code());
-        row.put("countryName", country.getChineseName());
-        row.put("countryEnglishName", country.getEnglishName());
-        row.put("continentCode", country.getContinentCode());
-        row.put("continentName", country.getContinentName());
-        row.put("currencyAlpha3Code", country.getCurrencyAlpha3Code());
+    private RegionCurrencyResponse toRegionCurrencyRow(IsoCountryDO country,
+                                                       Map<String, IsoCurrencyDO> currencyMap) {
+        RegionCurrencyResponse row = new RegionCurrencyResponse();
+        row.setId(country.getId());
+        row.setAlpha2Code(country.getAlpha2Code());
+        row.setAlpha3Code(country.getAlpha3Code());
+        row.setCountryName(country.getChineseName());
+        row.setCountryEnglishName(country.getEnglishName());
+        row.setContinentCode(country.getContinentCode());
+        row.setContinentName(country.getContinentName());
+        row.setCurrencyAlpha3Code(country.getCurrencyAlpha3Code());
         IsoCurrencyDO currency = currencyMap.get(country.getCurrencyAlpha3Code());
-        row.put("currencyName", currency != null ? currency.getChineseName() : "-");
-        row.put("currencySymbol", currency != null ? currency.getCurrencySymbol() : "");
-        row.put("status", country.getStatus());
+        row.setCurrencyName(currency != null ? currency.getChineseName() : "-");
+        row.setCurrencySymbol(currency != null ? currency.getCurrencySymbol() : "");
+        row.setStatus(country.getStatus());
         return row;
     }
 

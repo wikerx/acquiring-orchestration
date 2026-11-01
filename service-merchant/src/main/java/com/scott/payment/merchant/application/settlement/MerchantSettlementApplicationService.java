@@ -35,13 +35,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementApplicationService
- * @date : 2026-09-01 22:35
- * @email : scott_x@163.com
- * @description : 商户结算查询和导出编排；每次查询及每个导出分页都从可信登录上下文重新绑定 merchantId，禁止客户端指定数据范围。
- * @status : update
+ * 商户结算查询和导出编排；每次查询及每个导出分页都从可信登录上下文重新绑定 merchantId，禁止客户端指定数据范围。
  */
 @Service
 public class MerchantSettlementApplicationService {
@@ -99,12 +93,16 @@ public class MerchantSettlementApplicationService {
         return queryService.getBatch(currentMerchantId(), settlementBatchNo);
     }
 
-    /** 下载正式结算凭证前重新绑定当前认证商户。 */
+    /**
+     * 下载正式结算凭证前重新绑定当前认证商户。
+     */
     public BatchDetail getVoucher(String settlementBatchNo) {
         return queryService.getVoucher(currentMerchantId(), settlementBatchNo);
     }
 
-    /** 分页查询当前认证商户指定批次的结算汇总。 */
+    /**
+     * 分页查询当前认证商户指定批次的结算汇总。
+     */
     public PageResult<SummaryLine> searchResultSummaries(String settlementBatchNo,
                                                          Integer pageNo,
                                                          Integer pageSize) {
@@ -122,7 +120,9 @@ public class MerchantSettlementApplicationService {
         return queryService.searchTransactionItems(currentMerchantId(), query);
     }
 
-    /** 分页查询当前商户正式批次内一笔交易的结算财务组件。 */
+    /**
+     * 分页查询当前商户正式批次内一笔交易的结算财务组件。
+     */
     public PageResult<TransactionItem> searchTransactionComponents(String settlementBatchNo,
                                                                     String transactionId,
                                                                     Integer pageNo,
@@ -131,14 +131,18 @@ public class MerchantSettlementApplicationService {
                 currentMerchantId(), settlementBatchNo, transactionId, pageNo, pageSize);
     }
 
-    /** 按真实交易身份查询当前认证商户的对账状态快照。 */
+    /**
+     * 按真实交易身份查询当前认证商户的对账状态快照。
+     */
     public List<ReconciliationRecord> findReconciliationRecordsByTransaction(
             String transactionId, LocalDateTime transactionDateTime) {
         return queryService.findReconciliationRecordsByTransaction(
                 currentMerchantId(), transactionId, transactionDateTime);
     }
 
-    /** 按真实交易身份查询当前认证商户的清分详情。 */
+    /**
+     * 按真实交易身份查询当前认证商户的清分详情。
+     */
     public ClearingDetail findClearingDetailByTransaction(
             String transactionId, LocalDateTime transactionDateTime) {
         return queryService.findClearingDetailByTransaction(
@@ -231,7 +235,9 @@ public class MerchantSettlementApplicationService {
                 }, response);
     }
 
-    /** 分页导出当前认证商户指定批次的全部结算汇总。 */
+    /**
+     * 分页导出当前认证商户指定批次的全部结算汇总。
+     */
     public void exportResultSummaries(String settlementBatchNo, HttpServletResponse response) {
         String batchNo = StringUtils.hasText(settlementBatchNo) ? settlementBatchNo.trim() : settlementBatchNo;
         Locale locale = localeResolver.resolveCurrentLocale();

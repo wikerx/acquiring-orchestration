@@ -36,13 +36,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalController
- * @date : 2026-05-31 21:52
- * @email : scott_x@163.com
- * @description : 支付内部控制器，负责收银台、交易命令、渠道回调、渠道勾兑与商户交互审计回写，不承载管理端或商户端列表统计查询。
- * @status : create
+ * 支付内部控制器，负责收银台、交易命令、渠道回调、渠道勾兑与商户交互审计回写，不承载管理端或商户端列表统计查询。
  */
 @RestController
 @RequestMapping("/internal/payment")
@@ -58,7 +52,9 @@ public class PaymentInternalController {
      */
     private final PaymentCheckoutApplicationService paymentCheckoutApplicationService;
 
-    /** 渠道回调可靠受理应用服务。 */
+    /**
+     * 渠道回调可靠受理应用服务。
+     */
     private final TransactionCallbackInboxApplicationService callbackInboxApplicationService;
 
     /**
@@ -112,7 +108,9 @@ public class PaymentInternalController {
         return success(paymentCheckoutApplicationService.expireDue(LocalDateTime.now(), limit));
     }
 
-    /** 解析卡 BIN 品牌并校验当前收银台会话是否支持。 */
+    /**
+     * 解析卡 BIN 品牌并校验当前收银台会话是否支持。
+     */
     @PostMapping("/checkout/card-bin/resolve")
     public CommonResult<PaymentCheckoutCardBinResultDTO> resolveCheckoutCardBin(
             @Valid @RequestBody PaymentCheckoutCardBinCommandDTO commandDTO) {

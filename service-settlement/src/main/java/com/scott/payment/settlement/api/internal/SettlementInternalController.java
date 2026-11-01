@@ -17,13 +17,7 @@ import java.time.LocalDateTime;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalController
- * @date : 2026-08-26 21:10
- * @email : scott_x@163.com
- * @description : 仅供 service-admin 通过 HMAC 调用的结算批次命令接口。
- * @status : create
+ * 仅供 service-admin 通过 HMAC 调用的结算批次命令接口。
  */
 @RestController
 @RequestMapping("/internal/settlement/v1/batches")
@@ -57,7 +51,9 @@ public class SettlementInternalController {
         return success(response);
     }
 
-    /** 将汇率锁定重试耗尽批次恢复为可异步处理状态。 */
+    /**
+     * 将汇率锁定重试耗尽批次恢复为可异步处理状态。
+     */
     @PostMapping("/{settlementBatchNo}/retry")
     public CommonResult<BatchCommandResponse> retry(
             @PathVariable("settlementBatchNo") String settlementBatchNo,

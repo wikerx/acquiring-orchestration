@@ -6,13 +6,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysMenuDeleteRequest
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : Sys Menu Delete Request 删除请求模型，位于 运营后台服务，承载批量删除、软删除或停用操作所需的记录标识。
- * @status : create
+ * Sys Menu Delete Request 删除请求模型，用于运营后台，承载批量删除、软删除或停用操作所需的记录标识。
  */
 @Data
 public class SysMenuDeleteRequest implements Serializable {

@@ -8,13 +8,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxReplicaProbe
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 可靠 MQ Outbox 从库可见性探针，用同事务事件确认业务修改已经完成主从复制
- * @status : create
+ * 可靠 MQ Outbox 从库可见性探针，用同事务事件确认业务修改已经完成主从复制
  */
 @Service
 public class ReliableMqOutboxReplicaProbe {

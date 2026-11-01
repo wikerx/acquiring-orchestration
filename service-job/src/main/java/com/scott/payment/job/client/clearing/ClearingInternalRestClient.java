@@ -25,13 +25,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingInternalRestClient
- * @date : 2026-09-01 22:30
- * @email : scott_x@163.com
- * @description : 带 HMAC、防重放随机数、有界超时和 CommonResult 解包的清分补偿 REST 客户端；不承载补偿业务规则。
- * @status : update
+ * 带 HMAC、防重放随机数、有界超时和 CommonResult 解包的清分补偿 REST 客户端；不承载补偿业务规则。
  */
 @Service
 @Slf4j
@@ -60,7 +54,13 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
         this.properties = properties;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 调用 service-clearing 在指定季度半开区间内执行一页幂等补偿扫描。
+     * 调用失败或响应结构无效时抛出内部服务异常，不返回部分统计。
+     *
+     * @param request 扫描模式、时间范围、复合游标和页大小
+     * @return 本页处理统计及下一页游标
+     */
     @Override
     public Response scan(Request request) {
         URI uri = URI.create(normalizeBaseUrl(properties.getBaseUrl()) + PATH);

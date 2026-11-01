@@ -1,18 +1,13 @@
 package com.scott.payment.clearing.service;
 
 import com.scott.payment.clearing.domain.model.ClearingOperationFacts;
+import com.scott.payment.clearing.domain.model.SettlementCandidateDependencyPlan;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingSettlementCandidateService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分到结算的候选输出边界；不认领批次、不换汇、不写余额。
- * @status : update
+ * 清分到结算的候选输出边界；不认领批次、不换汇、不写余额。
  */
 public interface ClearingSettlementCandidateService {
 
@@ -24,6 +19,7 @@ public interface ClearingSettlementCandidateService {
      * @param operation 数据库权威动作事实
      * @param settlementCurrency 档案目标结算币种
      * @param eligibleDate 最早可结算业务日
+     * @param dependencyPlan 必须与当前候选同事务持久化的源候选依赖
      * @param now UTC 审计时间
      * @throws IllegalStateException 唯一键已存在但来源身份不一致时抛出
      */
@@ -32,6 +28,7 @@ public interface ClearingSettlementCandidateService {
                 ClearingOperationFacts operation,
                 String settlementCurrency,
                 LocalDate eligibleDate,
+                SettlementCandidateDependencyPlan dependencyPlan,
                 LocalDateTime now);
 
     /**
@@ -43,6 +40,7 @@ public interface ClearingSettlementCandidateService {
      * @param operation 数据库权威动作事实
      * @param settlementCurrency 档案目标结算币种
      * @param eligibleDate 最早可结算业务日
+     * @param dependencyPlan 新修订必须继承并重新写入的源候选依赖
      * @param now UTC 审计时间
      * @throws IllegalStateException 旧候选已认领、状态不可替换或 CAS 失败时抛出
      */
@@ -52,6 +50,7 @@ public interface ClearingSettlementCandidateService {
                  ClearingOperationFacts operation,
                  String settlementCurrency,
                  LocalDate eligibleDate,
+                 SettlementCandidateDependencyPlan dependencyPlan,
                  LocalDateTime now);
 
     /**
@@ -63,6 +62,7 @@ public interface ClearingSettlementCandidateService {
      * @param operation 数据库权威动作事实
      * @param settlementCurrency 档案目标结算币种
      * @param eligibleDate 最早可结算业务日
+     * @param dependencyPlan 新修订必须继承并重新写入的源候选依赖
      * @param now UTC 审计时间
      * @throws IllegalStateException 旧候选未冻结、已认领或版本 CAS 失败时抛出
      */
@@ -72,6 +72,7 @@ public interface ClearingSettlementCandidateService {
                            ClearingOperationFacts operation,
                            String settlementCurrency,
                            LocalDate eligibleDate,
+                           SettlementCandidateDependencyPlan dependencyPlan,
                            LocalDateTime now);
 
     /**
@@ -84,6 +85,7 @@ public interface ClearingSettlementCandidateService {
      * @param merchantId 平台商户号
      * @param settlementCurrency 当前活动档案目标币种
      * @param eligibleDate 最早结算业务日
+     * @param dependencyPlan 原保证金扣留候选依赖
      * @param now UTC审计时间
      */
     void createReserveRelease(String reserveStateId,
@@ -93,6 +95,7 @@ public interface ClearingSettlementCandidateService {
                               String merchantId,
                               String settlementCurrency,
                               LocalDate eligibleDate,
+                              SettlementCandidateDependencyPlan dependencyPlan,
                               LocalDateTime now);
 
     /**
@@ -105,6 +108,7 @@ public interface ClearingSettlementCandidateService {
      * @param merchantId 平台商户号
      * @param settlementCurrency 档案目标结算币种
      * @param eligibleDate 最早可结算业务日
+     * @param dependencyPlan 原保证金扣留候选依赖
      * @param now UTC 审计时间
      * @throws IllegalStateException 唯一键已存在但来源身份不一致时抛出
      */
@@ -115,5 +119,6 @@ public interface ClearingSettlementCandidateService {
                           String merchantId,
                           String settlementCurrency,
                           LocalDate eligibleDate,
+                          SettlementCandidateDependencyPlan dependencyPlan,
                           LocalDateTime now);
 }

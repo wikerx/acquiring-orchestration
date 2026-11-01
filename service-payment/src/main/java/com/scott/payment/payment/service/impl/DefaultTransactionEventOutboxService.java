@@ -208,7 +208,9 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                 eventNo, transactionDateTime, eventType, now == null ? LocalDateTime.now() : now) == 1;
     }
 
-    /** 查询指定季度的 pending、CLOSED 和最老积压时间聚合快照。 */
+    /**
+     * 查询指定季度的 pending、CLOSED 和最老积压时间聚合快照。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public TransactionEventOutboxMetricsSnapshot metricsSnapshot(LocalDateTime eventTime) {

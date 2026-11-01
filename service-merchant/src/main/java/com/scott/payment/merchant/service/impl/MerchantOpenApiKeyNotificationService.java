@@ -23,13 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiKeyNotificationService
- * @date : 2026-08-05 00:00
- * @email : scott_x@163.com
- * @description : 商户门户密钥生命周期通知服务，只从密钥概要提取指纹尾号，不传输或记录完整密钥材料
- * @status : create
+ * 商户门户密钥生命周期通知服务，只从密钥概要提取指纹尾号，不传输或记录完整密钥材料
  */
 @Slf4j
 @Service

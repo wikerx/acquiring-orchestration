@@ -9,13 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelPaymentRequest
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道统一请求基类，位于 payment-channel-api DTO 层，用于承载渠道调用所需交易、金额、卡、账单和 3DS 上下文；敏感字段只允许内存使用。
- * @status : create
+ * 收单渠道统一请求基类，位于 payment-channel-api DTO 层，用于承载渠道调用所需交易、金额、卡、账单和 3DS 上下文；敏感字段只允许内存使用。
  */
 @Data
 public class ChannelPaymentRequest implements Serializable {
@@ -138,13 +132,7 @@ public class ChannelPaymentRequest implements Serializable {
     private Map<String, String> extension = new HashMap<>();
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingInfo
-     * @date : 2026-07-12 00:00
-     * @email : scott_x@163.com
-     * @description : 渠道支付请求的账单地址信息，供渠道风控和认证使用且不得完整写入普通日志。
-     * @status : create
+     * 渠道支付请求的账单地址信息，供渠道风控和认证使用且不得完整写入普通日志。
      */
     @Data
     public static class BillingInfo implements Serializable {
@@ -234,13 +222,7 @@ public class ChannelPaymentRequest implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ThreeDsInfo
-     * @date : 2026-07-12 00:00
-     * @email : scott_x@163.com
-     * @description : 渠道支付请求中的 3DS 认证信息模型，位于 payment-channel-api 协议层，仅承载渠道适配所需字段，不记录平台认证状态。
-     * @status : create
+     * 渠道支付请求中的 3DS 认证信息模型，位于 payment-channel-api 协议层，仅承载渠道适配所需字段，不记录平台认证状态。
      */
     @Data
     public static class ThreeDsInfo implements Serializable {

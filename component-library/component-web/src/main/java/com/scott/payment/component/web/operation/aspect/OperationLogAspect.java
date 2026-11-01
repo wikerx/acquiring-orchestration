@@ -29,13 +29,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogAspect
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统操作日志 AOP 自动采集切面
- * @status : create
+ * 管理类系统操作日志 AOP 自动采集切面
  */
 @Slf4j
 @Aspect

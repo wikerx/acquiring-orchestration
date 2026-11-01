@@ -17,13 +17,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateApplicationService
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreate应用服务，位于 调度任务服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 分表表precreate应用服务，位于 调度任务服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class ShardingTablePreCreateApplicationService {

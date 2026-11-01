@@ -7,13 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JsonUtils
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 统一 JSON 序列化与反序列化工具，封装 fastjson2 的基础调用，避免业务代码散落使用多套 JSON 实现。
- * @status : create
+ * 统一 JSON 序列化与反序列化工具，封装 fastjson2 的基础调用，避免业务代码散落使用多套 JSON 实现。
  */
 public final class JsonUtils {
 

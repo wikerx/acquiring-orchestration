@@ -11,13 +11,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAuthWebMvcConfig
- * @date : 2026-06-06 12:00
- * @email : scott_x@163.com
- * @description : Merchant Auth Web Mvc Config 配置类，位于 商户后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
- * @status : create
+ * Merchant Auth Web Mvc Config 配置类，位于 商户后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  */
 @Configuration
 public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {

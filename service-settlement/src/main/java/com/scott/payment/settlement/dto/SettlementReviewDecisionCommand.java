@@ -5,13 +5,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewDecisionCommand
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 表示预审批准、拒绝或取消命令；请求键和期望版本保护终态幂等，批准必须由异于 Maker 的可信 Checker 执行。
- * @status : create
+ * 表示预审批准、拒绝或取消命令；请求键和期望版本保护终态幂等，批准必须由异于 Maker 的可信 Checker 执行。
  * @param requestKey 预审决策数据库幂等键
  * @param expectedVersion service-admin 页面读取的预审单版本
  * @param decision APPROVE、REJECT 或 CANCEL

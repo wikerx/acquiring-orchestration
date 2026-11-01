@@ -36,13 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementReviewQueryService
- * @date : 2026-09-01 23:15
- * @email : scott_x@163.com
- * @description : 从 transaction 逻辑读数据源查询交易/保证金候选和预审单；按来源类型选择季度关联、强制数据范围并提供命令前访问校验。
- * @status : update
+ * 从 transaction 逻辑读数据源查询交易/保证金候选和预审单；按来源类型选择季度关联、强制数据范围并提供命令前访问校验。
  */
 @Service
 public class JdbcAdminSettlementReviewQueryService implements AdminSettlementReviewQueryService {
@@ -212,6 +206,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
 
+    /**
+     * 创建管理端结算复核查询服务。
+     */
     @Autowired
     public JdbcAdminSettlementReviewQueryService(DataSource dataSource,
                                                  TransactionLogicalReadExecutor readExecutor,
@@ -220,6 +217,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         this(factory.create(dataSource, shardingProperties), readExecutor, shardingProperties);
     }
 
+    /**
+     * 创建带查询预算的管理端结算复核查询服务。
+     */
     public JdbcAdminSettlementReviewQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                                  TransactionLogicalReadExecutor readExecutor,
                                                  TransactionShardingProperties shardingProperties) {
@@ -228,7 +228,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按候选来源类型和管理数据范围分页查询结算候选。
+     */
     @Override
     public PageResult<CandidateSummary> searchCandidates(CandidateSearchRequest request,
                                                          Set<String> sourceTypes,
@@ -239,7 +241,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return readExecutor.read(() -> candidatePage(query, normalizedSources, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按管理数据范围分页查询交易或保证金结算预审单。
+     */
     @Override
     public PageResult<ReviewSummary> searchReviews(ReviewSearchRequest request,
                                                    AdminMerchantDataScope dataScope) {
@@ -248,7 +252,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return readExecutor.read(() -> reviewPage(query, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询指定类型的结算候选详情并校验管理数据范围。
+     */
     @Override
     public CandidateSummary candidateDetail(String candidateNo,
                                             Set<String> sourceTypes,
@@ -259,7 +265,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return readExecutor.read(() -> requireCandidate(normalizedCandidateNo, normalizedSources, scope));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询预审单选择、汇率、审批指纹和处理结果详情。
+     */
     @Override
     public ReviewDetailResponse reviewDetail(String reviewOrderNo, AdminMerchantDataScope dataScope) {
         String orderNo = requireReviewNo(reviewOrderNo);
@@ -267,6 +275,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return readExecutor.read(() -> detail(orderNo, scope));
     }
 
+    /**
+     * 查询结算预审单固化的候选明细。
+     */
     @Override
     public PageResult<ReviewCandidateLine> reviewCandidates(
             String reviewOrderNo,
@@ -331,6 +342,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         });
     }
 
+    /**
+     * 校验指定商户是否位于当前管理端数据范围。
+     */
     @Override
     public void requireMerchantAccess(String merchantId, AdminMerchantDataScope dataScope) {
         String normalized = trim(merchantId);
@@ -341,6 +355,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         }
     }
 
+    /**
+     * 查询手动结算任务并校验管理数据范围。
+     */
     @Override
     public void requireManualTaskAccess(String taskNo,
                                         String reviewType,
@@ -373,6 +390,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         });
     }
 
+    /**
+     * 查询预审决策任务并校验管理数据范围。
+     */
     @Override
     public void requireDecisionTaskAccess(String taskNo, AdminMerchantDataScope dataScope) {
         if (taskNo == null || !taskNo.trim().matches("DT[0-9a-f]{32}")) {
@@ -499,6 +519,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
+    /**
+     * 根据候选来源选择确定性排序表达式。
+     */
     private String candidateOrderBy(Set<String> sourceTypes) {
         if (sourceTypes.equals(Set.of("CLEARING_REVISION"))) {
             return "candidate.source_transaction_date_time DESC, candidate.id DESC";
@@ -522,6 +545,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         throw new ServiceException(ApiResultEnum.PARAM_INVALID);
     }
 
+    /**
+     * 构建结算预审单分页结果。
+     */
     private PageResult<ReviewSummary> reviewPage(ReviewSearchRequest query,
                                                  AdminMerchantDataScope scope) {
         if (scope.empty()) {
@@ -555,7 +581,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
-    /** 加载预审主单、选择候选、锁定汇率和结果汇总，所有子查询继承主单已验证的数据范围。 */
+    /**
+     * 加载预审主单、选择候选、锁定汇率和结果汇总，所有子查询继承主单已验证的数据范围。
+     */
     private ReviewDetailResponse detail(String reviewOrderNo, AdminMerchantDataScope scope) {
         ReviewSummary review = requireReview(reviewOrderNo, scope);
         MapSqlParameterSource parameters = new MapSqlParameterSource("reviewOrderNo", reviewOrderNo);
@@ -592,6 +620,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return response;
     }
 
+    /**
+     * 构建结算预审候选分页结果。
+     */
     private PageResult<ReviewCandidateLine> reviewCandidatePage(String reviewOrderNo,
                                                                 int pageNo,
                                                                 int pageSize,
@@ -616,7 +647,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return PageResult.of(total, pageNo, pageSize, rows);
     }
 
-    /** 仅补充当前页保证金动作对应的原交易，避免非分片预审表跨分片 LEFT JOIN 放大分页结果。 */
+    /**
+     * 仅补充当前页保证金动作对应的原交易，避免非分片预审表跨分片 LEFT JOIN 放大分页结果。
+     */
     private void enrichReserveSourceTransactions(List<ReviewCandidateLine> rows) {
         Set<String> reserveActionNos = new HashSet<>();
         Set<LocalDateTime> reserveActionTimes = new HashSet<>();
@@ -670,7 +703,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         }
     }
 
-    /** 在数据范围内锁定唯一预审单视图；不存在或越权统一抛出资源不存在。 */
+    /**
+     * 在数据范围内锁定唯一预审单视图；不存在或越权统一抛出资源不存在。
+     */
     private ReviewSummary requireReview(String reviewOrderNo, AdminMerchantDataScope scope) {
         if (scope.empty()) throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         MapSqlParameterSource parameters = new MapSqlParameterSource("reviewOrderNo", reviewOrderNo)
@@ -683,7 +718,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return rows.get(0);
     }
 
-    /** 在来源类型和数据范围内查询唯一候选；不存在或越权统一抛出资源不存在。 */
+    /**
+     * 在来源类型和数据范围内查询唯一候选；不存在或越权统一抛出资源不存在。
+     */
     private CandidateSummary requireCandidate(String candidateNo,
                                               Set<String> sourceTypes,
                                               AdminMerchantDataScope scope) {
@@ -702,6 +739,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return rows.get(0);
     }
 
+    /**
+     * 按安全分页参数查询当前业务记录。
+     */
     private <T> PageResult<T> page(String table,
                                    String columns,
                                    String where,
@@ -721,11 +761,16 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return PageResult.of(total, pageNo, pageSize, rows);
     }
 
-    /** @return 候选表别名下参数化的 Admin 商户数据范围谓词。 */
+    /**
+     * @return 候选表别名下参数化的 Admin 商户数据范围谓词。
+     */
     private String candidateScopeSql(AdminMerchantDataScope scope) {
         return scope.allMerchants() ? "" : " AND candidate.merchant_id IN (:permittedMerchantIds)\n";
     }
 
+    /**
+     * 校验并规范化结算候选记录。
+     */
     private CandidateSearchRequest normalizeCandidate(CandidateSearchRequest request) {
         if (request == null || request.getBeginEligibleDate() == null || request.getEndEligibleDate() == null
                 || request.getBeginEligibleDate().isAfter(request.getEndEligibleDate())
@@ -754,6 +799,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return request;
     }
 
+    /**
+     * 规范化复核。
+     */
     private ReviewSearchRequest normalizeReview(ReviewSearchRequest request) {
         if (request == null || request.getBeginBusinessDate() == null || request.getEndBusinessDate() == null
                 || request.getBeginBusinessDate().isAfter(request.getEndBusinessDate())
@@ -768,6 +816,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return request;
     }
 
+    /**
+     * 校验并规范化分页参数。
+     */
     private void normalizePage(Integer rawPageNo, Integer rawPageSize,
                                java.util.function.IntConsumer pageNoSetter,
                                java.util.function.IntConsumer pageSizeSetter) {
@@ -780,6 +831,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         pageSizeSetter.accept(pageSize);
     }
 
+    /**
+     * 规范化结算候选来源集合并去重。
+     */
     private Set<String> normalizeSources(Set<String> sourceTypes) {
         if (sourceTypes == null || sourceTypes.isEmpty()) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         Set<String> normalized = sourceTypes.stream().map(value -> value.toUpperCase(Locale.ROOT)).collect(
@@ -790,6 +844,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return normalized;
     }
 
+    /**
+     * 校验并获取复核号。
+     */
     private String requireReviewNo(String value) {
         String normalized = trim(value);
         if (normalized == null || !normalized.matches("SO\\d{8}-\\d{8}")) {
@@ -798,6 +855,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return normalized;
     }
 
+    /**
+     * 规范化并校验待审核结算候选单号。
+     */
     private String requireCandidateNo(String value) {
         String normalized = trim(value);
         if (normalized == null || normalized.length() > 64) {
@@ -806,6 +866,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return normalized;
     }
 
+    /**
+     * 读取枚举值。
+     */
     private String enumValue(String value, Set<String> allowed) {
         String normalized = trim(value);
         if (normalized == null) return null;
@@ -814,6 +877,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return normalized;
     }
 
+    /**
+     * 将动态查询字段转换为可空文本。
+     */
     private String textValue(String value, int maxLength) {
         String normalized = trim(value);
         if (normalized != null && normalized.length() > maxLength) {
@@ -822,6 +888,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return normalized;
     }
 
+    /**
+     * 读取编码值。
+     */
     private String codeValue(String value, int maxLength) {
         String normalized = textValue(value, maxLength);
         if (normalized == null) return null;
@@ -830,6 +899,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return normalized;
     }
 
+    /**
+     * 读取币种值。
+     */
     private String currencyValue(String value) {
         String normalized = codeValue(value, 3);
         if (normalized != null && !normalized.matches("[A-Z]{3}")) {
@@ -838,6 +910,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return normalized;
     }
 
+    /**
+     * 校验日期时间查询范围。
+     */
     private void validateDateTimeRange(java.time.LocalDateTime begin, java.time.LocalDateTime end) {
         if ((begin == null) != (end == null) || (begin != null && (begin.isAfter(end)
                 || ChronoUnit.DAYS.between(begin.toLocalDate(), end.toLocalDate()) > MAX_DATE_SPAN_DAYS))) {
@@ -845,6 +920,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         }
     }
 
+    /**
+     * 校验业务日期查询范围。
+     */
     private void validateDateRange(java.time.LocalDate begin, java.time.LocalDate end) {
         if ((begin == null) != (end == null) || (begin != null && (begin.isAfter(end)
                 || ChronoUnit.DAYS.between(begin, end) > MAX_DATE_SPAN_DAYS))) {
@@ -852,6 +930,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         }
     }
 
+    /**
+     * 校验金额查询范围。
+     */
     private void validateAmountRange(java.math.BigDecimal minimum, java.math.BigDecimal maximum) {
         if (!validAmount(minimum) || !validAmount(maximum)
                 || (minimum != null && maximum != null && minimum.compareTo(maximum) > 0)) {
@@ -859,41 +940,66 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         }
     }
 
+    /**
+     * 计算有效金额。
+     */
     private boolean validAmount(java.math.BigDecimal value) {
         return value == null || (value.signum() >= 0 && value.scale() <= 8 && value.precision() <= 24);
     }
 
-    /** @return 无表别名场景下参数化的 Admin 商户数据范围谓词。 */
+    /**
+     * @return 无表别名场景下参数化的 Admin 商户数据范围谓词。
+     */
     private String scopeSql(AdminMerchantDataScope scope) {
         return scope.allMerchants() ? "" : " AND merchant_id IN (:permittedMerchantIds)\n";
     }
 
+    /**
+     * 构建结算预审数据范围 SQL。
+     */
     private String reviewScopeSql(AdminMerchantDataScope scope) {
         return scope.allMerchants() ? "" : " AND review.merchant_id IN (:permittedMerchantIds)\n";
     }
 
-    /** @return 非空可信数据范围；缺失上下文时按未授权拒绝。 */
+    /**
+     * @return 非空可信数据范围；缺失上下文时按未授权拒绝。
+     */
     private AdminMerchantDataScope requireScope(AdminMerchantDataScope scope) {
         if (scope == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         return scope;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 封装保证金结算候选的稳定去重键。
+     */
     private record ReserveCandidateKey(String actionNo, LocalDateTime actionTime, Integer revision) {
     }
 
+    /**
+     * 转换为本地日期时间。
+     */
     private static LocalDateTime toLocalDateTime(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 
+    /**
+     * 封装保证金候选关联的原交易身份。
+     */
     private record ReserveSourceReference(String actionNo,
                                           LocalDateTime actionTime,
                                           Integer revision,
                                           String originalTransactionId,
                                           LocalDateTime originalTransactionDateTime) {
+        /**
+         * 构建稳定的缓存或幂等键。
+         */
         private ReserveCandidateKey key() {
             return new ReserveCandidateKey(actionNo, actionTime, revision);
         }

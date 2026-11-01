@@ -7,13 +7,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysOperLogQueryRequest
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : sysoper日志查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
- * @status : create
+ * sysoper日志查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

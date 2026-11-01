@@ -10,13 +10,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReversalControllerContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证冲正管理浏览器接口使用独立最小权限并保留操作审计。
- * @status : create
+ * 验证冲正管理浏览器接口使用独立最小权限并保留操作审计。
  */
 class AdminSettlementReversalControllerContractTest {
 

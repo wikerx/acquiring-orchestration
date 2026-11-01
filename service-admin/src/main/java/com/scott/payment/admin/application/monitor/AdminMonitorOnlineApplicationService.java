@@ -23,13 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorOnlineApplicationService
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端在线用户监控应用服务，负责在线会话分页、账号与用户名称批量补充，以及带审计时间的强制下线状态更新。
- * @status : create
+ * 管理端在线用户监控应用服务，负责在线会话分页、账号与用户名称批量补充，以及带审计时间的强制下线状态更新。
  *
  * <p>负责管理后台在线用户监控用例编排，统一处理登录会话分页查询、账户与用户信息补充、
  * 以及强制下线等后台监控动作。</p>
@@ -121,10 +115,10 @@ public class AdminMonitorOnlineApplicationService {
         List<Long> userIds = page.getRecords().stream().map(SysLoginSessionDO::getUserId).distinct().toList();
 
         Map<Long, String> accountNameMap = accountIds.isEmpty() ? Map.of()
-                : sysAccountMapper.selectBatchIds(accountIds).stream()
+                : sysAccountMapper.selectByIds(accountIds).stream()
                 .collect(Collectors.toMap(SysAccountDO::getId, SysAccountDO::getLoginAccount, (left, right) -> left));
         Map<Long, String> userNameMap = userIds.isEmpty() ? Map.of()
-                : sysUserMapper.selectBatchIds(userIds).stream()
+                : sysUserMapper.selectByIds(userIds).stream()
                 .collect(Collectors.toMap(SysUserDO::getId, SysUserDO::getRealName, (left, right) -> left));
 
         List<Map<String, Object>> records = page.getRecords().stream().map(session -> {
@@ -144,6 +138,9 @@ public class AdminMonitorOnlineApplicationService {
         return result;
     }
 
+    /**
+     * 规范化输入值。
+     */
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

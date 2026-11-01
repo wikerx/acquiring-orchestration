@@ -11,13 +11,7 @@ import java.util.zip.ZipOutputStream;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiKeyExportService
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : 生成商户 OpenAPI 的配置、密钥文件和完整接入包；私钥只进入受控下载内容，不写日志或平台请求私钥。
- * @status : update
+ * 生成商户 OpenAPI 的配置、密钥文件和完整接入包；私钥只进入受控下载内容，不写日志或平台请求私钥。
  */
 public class OpenApiKeyExportService {
 
@@ -46,7 +40,9 @@ public class OpenApiKeyExportService {
      */
     private static final String ZIP_CONTENT_TYPE = "application/zip";
 
-    /** Gateway 中所有商户 OpenAPI 的统一外部前缀。 */
+    /**
+     * Gateway 中所有商户 OpenAPI 的统一外部前缀。
+     */
     private static final String OPENAPI_BASE_PATH = "/api/rest";
 
     private final OpenApiBaseUrlResolver baseUrlResolver;

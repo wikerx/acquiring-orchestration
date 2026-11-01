@@ -14,17 +14,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqAdminFacadeTest
- * @date : 2026-08-25
- * @email : scott_x@163.com
- * @description : 验证 RocketMQ 5.x Topic 消息类型声明和已有资源一致性门禁，不连接真实 Broker。
- * @status : create
+ * 验证 RocketMQ 5.x Topic 消息类型声明和已有资源一致性门禁，不连接真实 Broker。
  */
 class RocketMqAdminFacadeTest {
 
-    /** Delay Topic 声明必须写入官方 TopicConfig，不能只依赖发送端的投递时间。 */
+    /**
+     * Delay Topic 声明必须写入官方 TopicConfig，不能只依赖发送端的投递时间。
+     */
     @Test
     void shouldBuildDelayTopicConfig() {
         RocketMqAdminFacade facade = newFacade();
@@ -40,7 +36,9 @@ class RocketMqAdminFacadeTest {
         assertThat(topicConfig.getWriteQueueNums()).isEqualTo(4);
     }
 
-    /** 普通 Topic 使用 Broker 默认类型，避免把无前缀 message.type 当作属性变更提交。 */
+    /**
+     * 普通 Topic 使用 Broker 默认类型，避免把无前缀 message.type 当作属性变更提交。
+     */
     @Test
     void shouldBuildNormalTopicConfigWithoutMessageTypeMutationAttribute() {
         RocketMqAdminFacade facade = newFacade();
@@ -51,7 +49,9 @@ class RocketMqAdminFacadeTest {
         assertThat(topicConfig.getAttributes()).isEmpty();
     }
 
-    /** 已存在的 NORMAL Topic 不能被同名 DELAY 声明静默复用或覆盖。 */
+    /**
+     * 已存在的 NORMAL Topic 不能被同名 DELAY 声明静默复用或覆盖。
+     */
     @Test
     void shouldRejectExistingNormalTopicWhenDelayIsDeclared() {
         RocketMqAdminFacade facade = newFacade();
@@ -71,7 +71,9 @@ class RocketMqAdminFacadeTest {
                 .withMessageContaining("actual=NORMAL");
     }
 
-    /** 未配置 message-type 的既有资源继续按 NORMAL 兼容，避免影响原 Topic。 */
+    /**
+     * 未配置 message-type 的既有资源继续按 NORMAL 兼容，避免影响原 Topic。
+     */
     @Test
     void shouldDefaultToNormalAndAcceptExistingNormalTopic() {
         RocketMqAdminFacade facade = newFacade();

@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 OpenAPI 的 Payment、Payout 调用边分别执行失败关闭的 HMAC 配置门禁。 */
+/**
+ * 验证 OpenAPI 的 Payment、Payout 调用边分别执行失败关闭的 HMAC 配置门禁。
+ */
 class InternalClientCredentialPropertiesTest {
 
     @Test

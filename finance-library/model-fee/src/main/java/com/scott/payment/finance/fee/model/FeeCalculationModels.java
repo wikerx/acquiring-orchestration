@@ -8,20 +8,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeCalculationModels
- * @date : 2026-08-25 19:20
- * @email : scott_x@163.com
- * @description : 定义清分和后台试算共用的不可变费用计算契约；百分比按标签币种，固定费和上下限按 USD，不包含汇率或数据库对象。
- * @status : create
+ * 定义清分和后台试算共用的不可变费用计算契约；百分比按标签币种，固定费和上下限按 USD，不包含汇率或数据库对象。
  */
 public final class FeeCalculationModels {
 
     private FeeCalculationModels() {
     }
 
-    /** 费用规则计价模式。 */
+    /**
+     * 费用规则计价模式。
+     */
     public enum FeeMode {
         /**
          * STANDARD 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -33,7 +29,9 @@ public final class FeeCalculationModels {
         TIER
     }
 
-    /** 阶梯累计指标。 */
+    /**
+     * 阶梯累计指标。
+     */
     public enum TierMetric {
         /**
          * COUNT 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -45,7 +43,9 @@ public final class FeeCalculationModels {
         AMOUNT
     }
 
-    /** 清分费用原子组件类型。 */
+    /**
+     * 清分费用原子组件类型。
+     */
     public enum FeeComponentType {
         /**
          * PERCENTAGE 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -64,7 +64,9 @@ public final class FeeCalculationModels {
         LIMIT_ADJUSTMENT
     }
 
-    /** 费用组件对商户应结金额的方向。 */
+    /**
+     * 费用组件对商户应结金额的方向。
+     */
     public enum EntryDirection {
         /**
          * DEBIT 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -76,7 +78,9 @@ public final class FeeCalculationModels {
         CREDIT
     }
 
-    /** 当前费用组是否已经得到单币种最终金额。 */
+    /**
+     * 当前费用组是否已经得到单币种最终金额。
+     */
     public enum FeeEvaluationStatus {
         /**
          * FINAL AT CLEARING 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -88,7 +92,9 @@ public final class FeeCalculationModels {
         PENDING_SETTLEMENT_RATE
     }
 
-    /** 最低和最高费用的求值状态。 */
+    /**
+     * 最低和最高费用的求值状态。
+     */
     public enum LimitEvaluationStatus {
         /**
          * NOT REQUIRED 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -107,7 +113,9 @@ public final class FeeCalculationModels {
         PENDING_SETTLEMENT_RATE
     }
 
-    /** 同币种限额求值后实际采用的边界。 */
+    /**
+     * 同币种限额求值后实际采用的边界。
+     */
     public enum AppliedLimit {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。

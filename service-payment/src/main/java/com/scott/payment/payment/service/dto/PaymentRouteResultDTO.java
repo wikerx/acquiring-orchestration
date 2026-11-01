@@ -8,13 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRouteResultDTO
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道路由结果 DTO，位于 service-payment 服务 DTO 层，用于承载渠道编码、MID 标识和路由原因。
- * @status : create
+ * 收单渠道路由结果 DTO，位于 service-payment 服务 DTO 层，用于承载渠道编码、MID 标识和路由原因。
  */
 @Data
 public class PaymentRouteResultDTO implements Serializable {
@@ -86,7 +80,9 @@ public class PaymentRouteResultDTO implements Serializable {
      */
     private Long capabilityId;
 
-    /** 当前渠道能力和 MID 是否明确支持 3DS。 */
+    /**
+     * 当前渠道能力和 MID 是否明确支持 3DS。
+     */
     private boolean threeDsSupported;
 
     /**

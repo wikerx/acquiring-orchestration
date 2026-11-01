@@ -79,6 +79,12 @@ DUPLICATE_TYPE_JAVADOC = re.compile(
 )
 JAVADOC_BLOCK_RE = re.compile(r"/\*\*.*?\*/", re.DOTALL)
 ADJACENT_JAVADOC_RE = re.compile(r"/\*\*.*?\*/\s*/\*\*", re.DOTALL)
+FORBIDDEN_METADATA_TAG_RE = re.compile(
+    r"(?m)^\s*\*\s*@(author|email|date|version|status|classname)\b",
+    re.IGNORECASE,
+)
+INHERIT_DOC_RE = re.compile(r"\{@inheritDoc\}", re.IGNORECASE)
+ONE_LINE_JAVADOC_RE = re.compile(r"(?m)^\s*/\*\*[^\r\n]*\*/\s*$")
 TYPE_RE = re.compile(
     r"^(?P<indent>\s*)(?P<mods>(?:(?:public|protected|private|abstract|final|static|sealed|non-sealed|strictfp)\s+)*)"
     r"(?P<kind>@interface|class|interface|enum|record)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b"
@@ -497,6 +503,12 @@ def scan_file(path: Path) -> list[str]:
     for pattern in TEMPLATE_PATTERNS:
         if any(pattern.search(block) for block in javadocs):
             findings.append(f"template:{pattern.pattern}")
+    if FORBIDDEN_METADATA_TAG_RE.search(text):
+        findings.append("forbidden-javadoc-metadata")
+    if INHERIT_DOC_RE.search(text):
+        findings.append("inherit-doc-placeholder")
+    if ONE_LINE_JAVADOC_RE.search(text):
+        findings.append("one-line-javadoc")
     if DUPLICATE_TYPE_JAVADOC.search(text):
         findings.append("duplicate-type-javadoc")
     if ADJACENT_JAVADOC_RE.search(text):

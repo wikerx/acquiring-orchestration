@@ -3,7 +3,11 @@ package com.scott.payment.admin.application.base;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.converter.IsoCountryConverter;
+import com.scott.payment.admin.dto.base.IsoCountryDTOs.Response;
+import com.scott.payment.admin.dto.base.IsoCountryDTOs.SaveRequest;
 import com.scott.payment.admin.dto.export.IsoCountryExportRow;
+import com.scott.payment.admin.dto.base.IsoStatusUpdateRequest;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
@@ -25,18 +29,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseCountryApplicationService
- * @date : 2026-06-19 21:08
- * @email : scott_x@163.com
- * @description : 国家地区基础资料应用服务
- * @status : create
+ * 国家地区基础资料应用服务
  *
  * <p>负责管理后台国家地区基础资料用例编排，包括分页查询、详情查询、新增、更新、状态切换和逻辑删除。</p>
  */
@@ -69,6 +66,11 @@ public class AdminBaseCountryApplicationService {
     private final IsoCountryMapper isoCountryMapper;
 
     /**
+     * 国家和地区接口模型转换器。
+     */
+    private final IsoCountryConverter isoCountryConverter;
+
+    /**
      * ISO 字典缓存失效器。写操作在主库事务内登记 {@code all} 与 {@code codes} 两个失效事件，
      * 待从库看见同事务 Outbox 后再删除永久缓存，供管理端、OpenAPI、支付和收银台按需重建。
      */
@@ -82,15 +84,20 @@ public class AdminBaseCountryApplicationService {
      * 创建国家地区基础资料应用服务。
      *
      * @param isoCountryMapper 国家地区 Mapper
+     * @param isoCountryConverter 国家地区接口模型转换器
      * @param isoDictionaryCacheInvalidator ISO 字典缓存失效器
      * @param excelExportService Excel 导出服务
+     * @param excelI18nMessageResolver Excel 国际化文案解析器
+     * @param excelLocaleResolver Excel 语言解析器
      */
     public AdminBaseCountryApplicationService(IsoCountryMapper isoCountryMapper,
+                                              IsoCountryConverter isoCountryConverter,
                                               IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator,
                                               ExcelExportService excelExportService,
                                               ExcelI18nMessageResolver excelI18nMessageResolver,
                                               ExcelLocaleResolver excelLocaleResolver) {
         this.isoCountryMapper = isoCountryMapper;
+        this.isoCountryConverter = isoCountryConverter;
         this.isoDictionaryCacheInvalidator = isoDictionaryCacheInvalidator;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
@@ -108,8 +115,8 @@ public class AdminBaseCountryApplicationService {
      * @return 分页结果
      */
     @DS(DataSourceName.SLAVE)
-    public PageResult<IsoCountryDO> pageCountries(int pageNo, int pageSize, String keyword,
-                                                  String continentCode, Integer status) {
+    public PageResult<Response> pageCountries(int pageNo, int pageSize, String keyword,
+                                              String continentCode, Integer status) {
         LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(keyword)) {
             queryWrapper.and(wrapper -> wrapper
@@ -124,7 +131,8 @@ public class AdminBaseCountryApplicationService {
         queryWrapper.orderByAsc(IsoCountryDO::getAlpha2Code);
 
         Page<IsoCountryDO> page = isoCountryMapper.selectPage(new Page<>(pageNo, pageSize), queryWrapper);
-        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
+                isoCountryConverter.toResponses(page.getRecords()));
     }
 
     /**
@@ -134,8 +142,8 @@ public class AdminBaseCountryApplicationService {
      * @return 国家地区详情
      */
     @DS(DataSourceName.SLAVE)
-    public IsoCountryDO getCountry(Long id) {
-        return isoCountryMapper.selectById(id);
+    public Response getCountry(Long id) {
+        return isoCountryConverter.toResponse(isoCountryMapper.selectById(id));
     }
 
     /**
@@ -171,12 +179,13 @@ public class AdminBaseCountryApplicationService {
     /**
      * 新增国家地区资料。
      *
-     * @param country 国家地区实体
-     * @return 保存后的实体
+     * @param request 国家地区保存请求
+     * @return 保存后的国家地区资料
      */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public IsoCountryDO createCountry(IsoCountryDO country) {
+    public Response createCountry(SaveRequest request) {
+        IsoCountryDO country = isoCountryConverter.toEntity(request);
         country.setId(null);
         country.setCreatedAt(LocalDateTime.now());
         country.setUpdatedAt(LocalDateTime.now());
@@ -186,49 +195,49 @@ public class AdminBaseCountryApplicationService {
         }
         isoCountryMapper.insert(country);
         isoDictionaryCacheInvalidator.evictCountries();
-        return country;
+        return isoCountryConverter.toResponse(country);
     }
 
     /**
      * 更新国家地区资料。
      *
      * @param id    主键
-     * @param input 更新输入
+     * @param request 更新输入
      * @return 更新结果
      */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public CommonResult<IsoCountryDO> updateCountry(Long id, IsoCountryDO input) {
+    public CommonResult<Response> updateCountry(Long id, SaveRequest request) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
             return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "country not found");
         }
-        mergeCountry(country, input);
+        mergeCountry(country, request);
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
         isoDictionaryCacheInvalidator.evictCountries();
-        return success(country);
+        return success(isoCountryConverter.toResponse(country));
     }
 
     /**
      * 更新国家地区状态。
      *
      * @param id   主键
-     * @param body 状态请求体
+     * @param request 状态更新请求
      * @return 更新结果
      */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public CommonResult<IsoCountryDO> updateStatus(Long id, Map<String, Integer> body) {
+    public CommonResult<Response> updateStatus(Long id, IsoStatusUpdateRequest request) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
             return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "country not found");
         }
-        country.setStatus(body.get("status"));
+        country.setStatus(request.getStatus());
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
         isoDictionaryCacheInvalidator.evictCountries();
-        return success(country);
+        return success(isoCountryConverter.toResponse(country));
     }
 
     /**
@@ -252,50 +261,50 @@ public class AdminBaseCountryApplicationService {
      * 用非空字段合并更新内容，避免覆盖前端未提交的字段。
      *
      * @param country 当前持久化实体
-     * @param input   本次更新输入
+     * @param request 本次更新输入
      */
-    private void mergeCountry(IsoCountryDO country, IsoCountryDO input) {
-        if (input.getContinentCode() != null) {
-            country.setContinentCode(input.getContinentCode());
+    private void mergeCountry(IsoCountryDO country, SaveRequest request) {
+        if (request.getContinentCode() != null) {
+            country.setContinentCode(request.getContinentCode());
         }
-        if (input.getContinentName() != null) {
-            country.setContinentName(input.getContinentName());
+        if (request.getContinentName() != null) {
+            country.setContinentName(request.getContinentName());
         }
-        if (input.getAlpha2Code() != null) {
-            country.setAlpha2Code(input.getAlpha2Code());
+        if (request.getAlpha2Code() != null) {
+            country.setAlpha2Code(request.getAlpha2Code());
         }
-        if (input.getAlpha3Code() != null) {
-            country.setAlpha3Code(input.getAlpha3Code());
+        if (request.getAlpha3Code() != null) {
+            country.setAlpha3Code(request.getAlpha3Code());
         }
-        if (input.getNumericCode() != null) {
-            country.setNumericCode(input.getNumericCode());
+        if (request.getNumericCode() != null) {
+            country.setNumericCode(request.getNumericCode());
         }
-        if (input.getEnglishName() != null) {
-            country.setEnglishName(input.getEnglishName());
+        if (request.getEnglishName() != null) {
+            country.setEnglishName(request.getEnglishName());
         }
-        if (input.getShortEnglishName() != null) {
-            country.setShortEnglishName(input.getShortEnglishName());
+        if (request.getShortEnglishName() != null) {
+            country.setShortEnglishName(request.getShortEnglishName());
         }
-        if (input.getChineseName() != null) {
-            country.setChineseName(input.getChineseName());
+        if (request.getChineseName() != null) {
+            country.setChineseName(request.getChineseName());
         }
-        if (input.getFlagEmoji() != null) {
-            country.setFlagEmoji(input.getFlagEmoji());
+        if (request.getFlagEmoji() != null) {
+            country.setFlagEmoji(request.getFlagEmoji());
         }
-        if (input.getPrimaryLanguageCode() != null) {
-            country.setPrimaryLanguageCode(input.getPrimaryLanguageCode());
+        if (request.getPrimaryLanguageCode() != null) {
+            country.setPrimaryLanguageCode(request.getPrimaryLanguageCode());
         }
-        if (input.getPrimaryLanguageEnglish() != null) {
-            country.setPrimaryLanguageEnglish(input.getPrimaryLanguageEnglish());
+        if (request.getPrimaryLanguageEnglish() != null) {
+            country.setPrimaryLanguageEnglish(request.getPrimaryLanguageEnglish());
         }
-        if (input.getPrimaryLanguageChinese() != null) {
-            country.setPrimaryLanguageChinese(input.getPrimaryLanguageChinese());
+        if (request.getPrimaryLanguageChinese() != null) {
+            country.setPrimaryLanguageChinese(request.getPrimaryLanguageChinese());
         }
-        if (input.getCurrencyAlpha3Code() != null) {
-            country.setCurrencyAlpha3Code(input.getCurrencyAlpha3Code());
+        if (request.getCurrencyAlpha3Code() != null) {
+            country.setCurrencyAlpha3Code(request.getCurrencyAlpha3Code());
         }
-        if (input.getStatus() != null) {
-            country.setStatus(input.getStatus());
+        if (request.getStatus() != null) {
+            country.setStatus(request.getStatus());
         }
     }
 

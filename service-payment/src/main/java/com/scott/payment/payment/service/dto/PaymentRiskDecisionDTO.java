@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRiskDecisionDTO
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单交易风控决策 DTO，位于 service-payment 服务 DTO 层，用于承载实时风控返回的通过、拒绝、复核或跳过结果。
- * @status : create
+ * 收单交易风控决策 DTO，位于 service-payment 服务 DTO 层，用于承载实时风控返回的通过、拒绝、复核或跳过结果。
  */
 @Data
 public class PaymentRiskDecisionDTO implements Serializable {

@@ -5,7 +5,6 @@ import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
@@ -42,13 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityDatabaseFlowTests
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 商户密钥 MySQL 存储、MyBatisPlus 查询和加密接口调用集成测试
- * @status : create
+ * OpenAPI 商户密钥 MySQL 存储、MyBatisPlus 查询和加密接口调用集成测试
  */
 @Slf4j
 @AutoConfigureMockMvc
@@ -168,7 +161,7 @@ class MerchantSecurityDatabaseFlowTests extends OpenApiIsolatedMysqlIntegrationT
                 merchantMaterial.getMerchantKey(),
                 System.currentTimeMillis() / 1000L
         );
-        String httpRequestBody = JsonUtils.toJsonString(Map.of("data", encryptedRequestData));
+        String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedRequestData);
         logMerchantHttpCall(authorization, httpRequestBody);
 
         verifyServerReceiveAndSecurityBranches(authorization, encryptedRequestData, merchantMaterial);
@@ -239,7 +232,8 @@ class MerchantSecurityDatabaseFlowTests extends OpenApiIsolatedMysqlIntegrationT
                 plainRequestJson,
                 merchantSecurityService.getPlatformPublicKey(merchantMaterial.getMerchantId())
         );
-        log.info("商户请求JSON明文已生成，脱敏内容：{}", SensitiveDataMaskUtils.maskJson(plainRequestJson));
+        log.info("商户请求JSON明文已生成，载荷摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(plainRequestJson, keyMaterialFactory));
         log.info("商户完成请求体data加密，data段数：{}，data长度：{}，data指纹：{}",
                 encryptedRequestData.split("\\.").length,
                 encryptedRequestData.length(),
@@ -248,18 +242,9 @@ class MerchantSecurityDatabaseFlowTests extends OpenApiIsolatedMysqlIntegrationT
     }
 
     private void logMerchantHttpCall(String authorization, String httpRequestBody) {
-        Map<String, Object> safeHeaders = new LinkedHashMap<>();
-        safeHeaders.put("Content-Type", MediaType.APPLICATION_JSON_VALUE);
-        safeHeaders.put("authorizationParts", authorization.split("\\.").length);
-        safeHeaders.put("authorizationFingerprint", keyMaterialFactory.fingerprint(authorization));
-        Map<String, Object> safeBody = new LinkedHashMap<>();
-        safeBody.put("data", "<compact密文省略>");
-        safeBody.put("bodyLength", httpRequestBody.length());
-        safeBody.put("bodyFingerprint", keyMaterialFactory.fingerprint(httpRequestBody));
-        log.info("商户发起HTTP调用，method：POST，path：{}，headers安全摘要：{}，body安全摘要：{}",
-                AUTHORIZATION_PATH,
-                JsonUtils.toJsonString(safeHeaders),
-                JsonUtils.toJsonString(safeBody));
+        log.info("商户发起HTTP调用，调用摘要：{}",
+                MerchantOpenApiTestSupport.safeHttpCallSummary(
+                        authorization, httpRequestBody, keyMaterialFactory));
     }
 
     private void verifyServerReceiveAndSecurityBranches(String authorization,
@@ -271,15 +256,13 @@ class MerchantSecurityDatabaseFlowTests extends OpenApiIsolatedMysqlIntegrationT
         String decryptedJson = payloadCrypto.decrypt(encryptedRequestData, merchantSecurityService.getPlatformPrivateKey(merchantMaterial.getMerchantId()));
         ApiMerchantPaymentRequestDTO requestDTO = JsonUtils.parseObject(decryptedJson, ApiMerchantPaymentRequestDTO.class);
 
-        log.info("服务端收到商户参数，JWT验签成功，商户号：{}，jti：{}，请求体解密脱敏：{}",
+        log.info("服务端收到商户参数，JWT验签成功，商户号：{}，jti摘要：{}，请求体明文摘要：{}",
                 claims.getMerchantId(),
-                claims.getJwtId(),
-                SensitiveDataMaskUtils.maskJson(decryptedJson));
-        log.info("服务端解析DTO成功，订单号：{}，金额：{} {}，脱敏卡号：{}",
-                requestDTO.getOrderInfo().getOrderNo(),
-                requestDTO.getOrderInfo().getAmount(),
-                requestDTO.getOrderInfo().getCurrency(),
-                SensitiveDataMaskUtils.maskPan(requestDTO.getCardInfo().getCardNo()));
+                keyMaterialFactory.fingerprint(claims.getJwtId()),
+                MerchantOpenApiTestSupport.safePayloadSummary(decryptedJson, keyMaterialFactory));
+        log.info("服务端解析DTO成功，merchantId：{}，payloadType：{}",
+                claims.getMerchantId(),
+                requestDTO.getClass().getSimpleName());
 
         assertThatThrownBy(() -> merchantJwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)

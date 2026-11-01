@@ -16,13 +16,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinCacheInvalidationCoordinator
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : Card BIN 缓存发布协调器，在管理端数据库事务内冻结 generation 和可靠 MQ Outbox，激活工作交给从库确认后的支付消费者
- * @status : create
+ * Card BIN 缓存发布协调器，在管理端数据库事务内冻结 generation 和可靠 MQ Outbox，激活工作交给从库确认后的支付消费者
  */
 @Slf4j
 @Service
@@ -30,10 +24,6 @@ public class CardBinCacheInvalidationCoordinator {
 
     /**
      * {@code CACHE_NAMESPACE}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     public static final String CACHE_NAMESPACE = "card-bin-range";
     /**
@@ -76,6 +66,9 @@ public class CardBinCacheInvalidationCoordinator {
                 message(publication));
     }
 
+    /**
+     * 解析业务结果的本地化说明。
+     */
     private CacheGenerationChangedMessage message(RedisCachePublication publication) {
         CacheGenerationChangedMessage message = new CacheGenerationChangedMessage();
         message.setMessageId("card-bin-cache-" + publication.generation());
@@ -89,8 +82,14 @@ public class CardBinCacheInvalidationCoordinator {
         return message;
     }
 
+    /**
+     * 创建事务提交后的缓存失效回调。
+     */
     private TransactionSynchronization synchronization(RedisCachePublication publication) {
         return new TransactionSynchronization() {
+            /**
+             * 在事务回滚时撤销未提交的卡 BIN 缓存代际发布凭证。
+             */
             @Override
             public void afterCompletion(int status) {
                 try {
@@ -109,6 +108,9 @@ public class CardBinCacheInvalidationCoordinator {
         };
     }
 
+    /**
+     * 校验并获取交易。
+     */
     private void requireTransaction() {
         if (!TransactionSynchronizationManager.isActualTransactionActive()
                 || !TransactionSynchronizationManager.isSynchronizationActive()) {

@@ -14,58 +14,68 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxStore
- * @date : 2026-08-02 22:10
- * @email : scott_x@163.com
- * @description : 非交易可靠 MQ Outbox 主库持久化边界，抢占和状态推进使用独立短事务
- * @status : create
+ * 非交易可靠 MQ Outbox 主库持久化边界，抢占和状态推进使用独立短事务
  */
 @Service
 public class ReliableMqOutboxStore {
 
-    /** Outbox Mapper。 */
+    /**
+     * Outbox Mapper。
+     */
     private final ReliableMqOutboxMapper mapper;
 
-    /** 创建 Outbox 持久化边界。 */
+    /**
+     * 创建 Outbox 持久化边界。
+     */
     public ReliableMqOutboxStore(ReliableMqOutboxMapper mapper) {
         this.mapper = mapper;
     }
 
-    /** 在调用方事务中写入消息意图。 */
+    /**
+     * 在调用方事务中写入消息意图。
+     */
     @DS(DataSourceName.MASTER)
     public int insert(ReliableMqOutboxDO event) {
         return mapper.insert(event);
     }
 
-    /** 按事件号查询消息。 */
+    /**
+     * 按事件号查询消息。
+     */
     @DS(DataSourceName.MASTER)
     public ReliableMqOutboxDO findByEventId(String eventId) {
         return mapper.selectByEventId(eventId);
     }
 
-    /** 查询已到期消息。 */
+    /**
+     * 查询已到期消息。
+     */
     @DS(DataSourceName.MASTER)
     public List<ReliableMqOutboxDO> findDue(String producerService, LocalDateTime now, int limit) {
         return mapper.selectDue(producerService, now, limit);
     }
 
-    /** 在独立短事务中 CAS 抢占消息。 */
+    /**
+     * 在独立短事务中 CAS 抢占消息。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int claim(Long id, Integer version, LocalDateTime now) {
         return mapper.claim(id, version, now);
     }
 
-    /** 在独立短事务中标记消息成功。 */
+    /**
+     * 在独立短事务中标记消息成功。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int markSent(Long id, Integer version, LocalDateTime now) {
         return mapper.markSent(id, version, now);
     }
 
-    /** 在独立短事务中记录消息失败。 */
+    /**
+     * 在独立短事务中记录消息失败。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int markFailed(Long id,
@@ -77,14 +87,18 @@ public class ReliableMqOutboxStore {
         return mapper.markFailed(id, version, targetStatus, nextRetryTime, failureReason, now);
     }
 
-    /** 恢复超时占用，返回恢复数量。 */
+    /**
+     * 恢复超时占用，返回恢复数量。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int recoverStale(String producerService, LocalDateTime staleBefore, LocalDateTime now) {
         return mapper.recoverStale(producerService, staleBefore, now);
     }
 
-    /** 查询 pending、CLOSED 和最老积压时间的聚合快照。 */
+    /**
+     * 查询 pending、CLOSED 和最老积压时间的聚合快照。
+     */
     @DS(DataSourceName.MASTER)
     public ReliableMqOutboxMetricsSnapshot metricsSnapshot(String producerService) {
         return mapper.selectMetricsSnapshot(producerService);

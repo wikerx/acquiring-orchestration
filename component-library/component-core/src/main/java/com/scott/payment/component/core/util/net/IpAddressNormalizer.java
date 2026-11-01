@@ -8,13 +8,7 @@ import java.net.UnknownHostException;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpAddressNormalizer
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : IP 地址规范化工具，位于 component-core 通用工具层，仅接受精确 IPv4/IPv6 地址，不解析主机名、CIDR 或范围表达式。
- * @status : create
+ * IP 地址规范化工具，位于 component-core 通用工具层，仅接受精确 IPv4/IPv6 地址，不解析主机名、CIDR 或范围表达式。
  */
 public final class IpAddressNormalizer {
 

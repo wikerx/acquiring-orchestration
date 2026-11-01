@@ -6,13 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateSourceExportRow
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 汇率汇率来源导出行模型，位于 运营后台服务，定义 Excel 列及运营可见值，不承载数据库写入规则。
- * @status : create
+ * 汇率源导出行模型，用于运营后台，定义 Excel 列及运营可见值，不承载数据库写入规则。
  */
 @Data
 public class ExchangeRateSourceExportRow {

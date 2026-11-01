@@ -31,21 +31,21 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionLogicalMapperPocTest
- * @date : 2026-08-02 02:15
- * @email : scott_x@163.com
- * @description : 通过真实 Payment Mapper 验证三表逻辑 SQL 的季度路由、自增回填、Binding 和单分片锁。
- * @status : create
+ * 通过真实 Payment Mapper 验证三表逻辑 SQL 的季度路由、自增回填、Binding 和单分片锁。
  */
 public class PaymentTransactionLogicalMapperPocTest {
 
-    /** 同时承载两个季度物理表的隔离主库连接池。 */
+    /**
+     * 同时承载两个季度物理表的隔离主库连接池。
+     */
     private HikariDataSource primary;
-    /** 使用生产 Mapper 执行逻辑 SQL 的 ShardingSphere 数据源。 */
+    /**
+     * 使用生产 Mapper 执行逻辑 SQL 的 ShardingSphere 数据源。
+     */
     private DataSource shardingDataSource;
-    /** 绕过逻辑路由核对自增回填和季度落表结果的测试入口。 */
+    /**
+     * 绕过逻辑路由核对自增回填和季度落表结果的测试入口。
+     */
     private JdbcTemplate direct;
 
     @BeforeEach

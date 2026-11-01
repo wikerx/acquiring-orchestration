@@ -12,13 +12,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LocalOpenApiPayloadKeyProvider
- * @date : 2026-05-29 21:45
- * @email : scott_x@163.com
- * @description : 本地 OpenAPI 报文加密 RSA 密钥提供实现
- * @status : create
+ * 本地 OpenAPI 报文加密 RSA 密钥提供实现
  */
 @Component
 public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider {

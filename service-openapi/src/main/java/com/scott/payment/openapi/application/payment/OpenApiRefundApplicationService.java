@@ -6,13 +6,7 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRefundApplicationService
- * @date : 2026-07-14 19:20
- * @email : scott_x@163.com
- * @description : openAPI退款应用服务，位于 商户开放接口服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户退款应用入口，将原交易关联、退款金额和幂等信息委托支付服务处理。
  */
 @Service
 public class OpenApiRefundApplicationService {

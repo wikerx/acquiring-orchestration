@@ -3,13 +3,7 @@ package com.scott.payment.component.redis.string;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisStringService
- * @date : 2026-05-31 21:48
- * @email : scott_x@163.com
- * @description : Redis String 数据结构服务
- * @status : create
+ * Redis String 数据结构服务
  */
 public interface RedisStringService {
 

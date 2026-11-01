@@ -38,20 +38,16 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateServiceImpl
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreate服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 分表表precreate服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreateService {
 
     private final TransactionShardingGovernanceProperties shardingProperties;
 
-    /** 当前已发布交易逻辑规则，用于生成仅增加已验证季度的候选版本。 */
+    /**
+     * 当前已发布交易逻辑规则，用于生成仅增加已验证季度的候选版本。
+     */
     private final TransactionShardingProperties transactionShardingProperties;
     private final ShardingQuarterResolver quarterResolver;
     private final ShardingPhysicalTableNameResolver tableNameResolver;
@@ -317,7 +313,9 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         return "MATCHED";
     }
 
-    /** 在规则结束前按滚动季度窗口发出续期告警，不恢复历史查询跨度限制。 */
+    /**
+     * 在规则结束前按滚动季度窗口发出续期告警，不恢复历史查询跨度限制。
+     */
     private void addExpiryWarnings(
             ShardingTablePreCreateResult result,
             List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules) {
@@ -388,7 +386,9 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
                 : "FIX_BLOCKERS_AND_REPEAT_DRY_RUN");
     }
 
-    /** 判断单表是否满足加入 actualDataNodes 的全部结构和号段门禁。 */
+    /**
+     * 判断单表是否满足加入 actualDataNodes 的全部结构和号段门禁。
+     */
     private boolean isPublicationReadyTable(ShardingTablePreCreateTableResult tableResult) {
         return Set.of("CREATED", "SKIPPED").contains(tableResult.getStatus())
                 && "MATCHED".equals(tableResult.getSchemaCheckStatus())

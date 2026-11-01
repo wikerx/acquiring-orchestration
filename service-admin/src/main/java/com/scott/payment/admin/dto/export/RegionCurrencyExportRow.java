@@ -4,13 +4,7 @@ import com.scott.payment.component.excel.annotation.ExcelExportColumn;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RegionCurrencyExportRow
- * @date : 2026-06-19 23:50
- * @email : scott_x@163.com
- * @description : 地区币种配置导出行对象
- * @status : create
+ * 地区币种配置导出行对象
  */
 @Data
 public class RegionCurrencyExportRow {

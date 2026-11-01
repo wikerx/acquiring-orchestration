@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysOperLogDO
- * @date : 2026-06-20 10:29
- * @email : scott_x@163.com
- * @description : 商户管理系统操作日志数据库实体，只保存商户管理侧审计日志
- * @status : create
+ * 商户管理系统操作日志数据库实体，只保存商户管理侧审计日志
  */
 @Data
 @TableName("sys_oper_log")

@@ -9,13 +9,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingKeyParser
- * @date : 2026-07-21 00:00
- * @email : scott_x@163.com
- * @description : 内部异步恢复和动作列表补充查询缺少显式时间时，从第一版平台交易号或生命周期操作号恢复业务时间；详情查询和支付写链路不得依赖该组件。
- * @status : create
+ * 内部异步恢复和动作列表补充查询缺少显式时间时，从第一版平台交易号或生命周期操作号恢复业务时间；详情查询和支付写链路不得依赖该组件。
  */
 @Component
 public class TransactionShardingKeyParser {

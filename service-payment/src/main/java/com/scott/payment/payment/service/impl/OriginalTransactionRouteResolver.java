@@ -17,9 +17,15 @@ import org.springframework.util.StringUtils;
  */
 final class OriginalTransactionRouteResolver {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private OriginalTransactionRouteResolver() {
     }
 
+    /**
+     * 从原交易冻结身份恢复渠道路由。
+     */
     static PaymentRouteResultDTO restore(PaymentChannelRouteService routeService,
                                          TransactionOrderDO sourceOrder,
                                          TransactionOperationDO sourceOperation) {
@@ -39,6 +45,9 @@ final class OriginalTransactionRouteResolver {
                 snapshot.getMidNo());
     }
 
+    /**
+     * 构建原交易渠道路由快照。
+     */
     static PaymentRouteResultDTO snapshot(TransactionOrderDO sourceOrder,
                                           TransactionOperationDO sourceOperation) {
         PaymentRouteResultDTO frozenSnapshot = parseFrozenRoute(sourceOperation);
@@ -104,10 +113,16 @@ final class OriginalTransactionRouteResolver {
         return snapshot;
     }
 
+    /**
+     * 判断后续动作是否已冻结原渠道路由。
+     */
     private static boolean hasFrozenRoute(TransactionOperationDO sourceOperation) {
         return sourceOperation != null && StringUtils.hasText(sourceOperation.getChannelRouteSnapshotJson());
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private static String firstText(String... values) {
         if (values == null) {
             return null;

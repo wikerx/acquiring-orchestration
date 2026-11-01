@@ -17,10 +17,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Slf4j
 public class PaymentRiskReservationCompensation {
 
-    /** 支付本地事务未提交时发送给风控预占回滚接口的稳定原因。 */
+    /**
+     * 支付本地事务未提交时发送给风控预占回滚接口的稳定原因。
+     */
     private static final String ROLLBACK_REASON = "payment local preparation rolled back";
 
-    /** 风控评估与商户累计限额预占补偿入口。 */
+    /**
+     * 风控评估与商户累计限额预占补偿入口。
+     */
     private final PaymentRiskInvokeService paymentRiskInvokeService;
 
     /**
@@ -56,6 +60,9 @@ public class PaymentRiskReservationCompensation {
                     "transaction synchronization is required for risk reservation");
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在事务完成后执行风险预占补偿。
+             */
             @Override
             public void afterCompletion(int status) {
                 // 只有明确提交才保留预占；回滚和未知完成状态都按未提交处理。

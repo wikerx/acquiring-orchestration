@@ -7,13 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationProperties
- * @date : 2026-08-03 00:00
- * @email : scott_x@163.com
- * @description : 商户交易结果通知配置，位于 service-payment 配置层，限制新建通知任务的失败重试上限。
- * @status : create
+ * 商户交易结果通知配置，位于 service-payment 配置层，限制新建通知任务的失败重试上限。
  */
 @Data
 @Validated

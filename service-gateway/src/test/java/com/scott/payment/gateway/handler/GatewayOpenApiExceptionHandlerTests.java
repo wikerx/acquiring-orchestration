@@ -15,17 +15,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayOpenApiExceptionHandlerTests
- * @date : 2026-10-26 00:00
- * @email : scott_x@163.com
- * @description : 验证 Gateway 对商户 OpenAPI 和付款人 Checkout API 的上游异常返回受众隔离的英文 F2000，并保留 HTTP 状态与 traceId。
- * @status : create
+ * 验证 Gateway 对商户 OpenAPI 和付款人 Checkout API 的上游异常返回受众隔离的英文 F2000，并保留 HTTP 状态与 traceId。
  */
 class GatewayOpenApiExceptionHandlerTests {
 
-    /** 未分类 OpenAPI 异常返回 HTTP 500 + F2000，响应体不包含内部地址或异常说明。 */
+    /**
+     * 未分类 OpenAPI 异常返回 HTTP 500 + F2000，响应体不包含内部地址或异常说明。
+     */
     @Test
     void shouldReturnControlledSystemErrorForOpenApiFailure() {
         GatewayOpenApiExceptionHandler handler = handler();
@@ -41,7 +37,9 @@ class GatewayOpenApiExceptionHandlerTests {
                 .doesNotContain("10.0.0.8", "secret-token");
     }
 
-    /** Gateway 已知连接失败保持 503，响应体仍使用统一 F2000 而不是框架错误页。 */
+    /**
+     * Gateway 已知连接失败保持 503，响应体仍使用统一 F2000 而不是框架错误页。
+     */
     @Test
     void shouldPreserveKnownGatewayHttpStatus() {
         GatewayOpenApiExceptionHandler handler = handler();
@@ -54,7 +52,9 @@ class GatewayOpenApiExceptionHandlerTests {
         assertThat(timeout.getResponse().getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
     }
 
-    /** 付款人 Checkout API 的 Gateway 异常必须使用付款人英文文案，不能落入框架错误页或商户文案。 */
+    /**
+     * 付款人 Checkout API 的 Gateway 异常必须使用付款人英文文案，不能落入框架错误页或商户文案。
+     */
     @Test
     void shouldReturnPayerEnglishMessageForCheckoutApiFailure() {
         GatewayOpenApiExceptionHandler handler = handler();
@@ -71,7 +71,9 @@ class GatewayOpenApiExceptionHandlerTests {
                 .doesNotContain("10.0.0.9");
     }
 
-    /** 管理系统等内部命名空间不允许被商户 OpenAPI 五位码污染。 */
+    /**
+     * 管理系统等内部命名空间不允许被商户 OpenAPI 五位码污染。
+     */
     @Test
     void shouldPropagateFailureOutsideOpenApiNamespace() {
         GatewayOpenApiExceptionHandler handler = handler();

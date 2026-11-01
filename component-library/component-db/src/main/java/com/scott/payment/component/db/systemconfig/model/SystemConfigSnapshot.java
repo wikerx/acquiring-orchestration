@@ -4,13 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemConfigSnapshot
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : Admin、Merchant、OpenAPI 与交易服务共享的系统参数永久缓存快照
- * @status : create
+ * Admin、Merchant、OpenAPI 与交易服务共享的系统参数永久缓存快照
  *
  * @param id 数据库主键
  * @param configName 参数名称

@@ -7,13 +7,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLookupRequestDTO
- * @date : 2026-08-11 15:44
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 归属检索明文请求，解密后只接受单个 IPv4 或 IPv6 字面量
- * @status : create
+ * 商户 OpenAPI IP 归属检索明文请求，解密后只接受单个 IPv4 或 IPv6 字面量
  */
 @Data
 public class IpLookupRequestDTO implements Serializable {

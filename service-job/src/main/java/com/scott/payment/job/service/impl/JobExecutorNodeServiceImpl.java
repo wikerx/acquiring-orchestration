@@ -15,13 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeServiceImpl
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务执行器节点服务实现
- * @status : create
+ * 任务执行器节点服务实现
  */
 @Slf4j
 @Service

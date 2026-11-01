@@ -9,17 +9,13 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PendingBalanceSchemaContractTests
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 在途余额数据库脚本契约测试，防止重新创建旧明细表或移除空表保护与交易聚合索引。
- * @status : create
+ * 在途余额数据库脚本契约测试，防止重新创建旧明细表或移除空表保护与交易聚合索引。
  */
 class PendingBalanceSchemaContractTests {
 
-    /** 基础结构不得再创建旧在途表，迁移必须先校验空表并补齐交易聚合索引。 */
+    /**
+     * 基础结构不得再创建旧在途表，迁移必须先校验空表并补齐交易聚合索引。
+     */
     @Test
     void shouldKeepPendingBalanceDerivedFromTransactionOperations() throws IOException {
         String foundation = Files.readString(Path.of(

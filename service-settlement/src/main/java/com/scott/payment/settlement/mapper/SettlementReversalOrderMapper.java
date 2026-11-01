@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalOrderMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 冲正申请数据访问接口；申请只追加，创建/决策请求键由唯一约束兜底，批准或拒绝仅允许从待复核状态按版本 CAS 进入终态。
- * @status : create
+ * 冲正申请数据访问接口；申请只追加，创建/决策请求键由唯一约束兜底，批准或拒绝仅允许从待复核状态按版本 CAS 进入终态。
  */
 public interface SettlementReversalOrderMapper {
 

@@ -33,13 +33,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFeeApplicationServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理端费用应用服务导出编排测试。
- * @status : create
+ * 管理端费用应用服务导出编排测试。
  */
 class AdminFeeApplicationServiceTests {
 
@@ -48,7 +42,9 @@ class AdminFeeApplicationServiceTests {
         InternalAuthContextHolder.clear();
     }
 
-    /** 试算记录导出必须按逐项明细展开，并使用数据字典标签及统一空值口径。 */
+    /**
+     * 试算记录导出必须按逐项明细展开，并使用数据字典标签及统一空值口径。
+     */
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     void shouldExportLocalizedSimulationDetailRows() {

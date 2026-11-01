@@ -9,20 +9,19 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeEntities
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 费用方案、可编辑草稿、审核后不可变版本、规则、阶梯和试算记录的持久化模型集合。
- * @status : create
+ * 费用方案、可编辑草稿、审核后不可变版本、规则、阶梯和试算记录的持久化模型集合。
  */
 public final class FeeEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private FeeEntities() {
     }
 
-    /** 费用模板或商户费用方案主记录。 */
+    /**
+     * 费用模板或商户费用方案主记录。
+     */
     @Data
     @TableName("fee_plan")
     public static class FeePlanDO {
@@ -51,21 +50,37 @@ public final class FeeEntities {
          * </p>
          */
         private String planName;
-        /** TEMPLATE 或 MERCHANT；商户方案必须关联 merchantId。 */
+        /**
+         * TEMPLATE 或 MERCHANT；商户方案必须关联 merchantId。
+         */
         private String planType;
-        /** 商户号；模板方案为空。 */
+        /**
+         * 商户号；模板方案为空。
+         */
         private String merchantId;
-        /** 商户配置复制或调整时的来源模板主键，可为空。 */
+        /**
+         * 商户配置复制或调整时的来源模板主键，可为空。
+         */
         private Long sourceTemplateId;
-        /** 复制时锁定的模板版本号，可为空且不随模板后续变更。 */
+        /**
+         * 复制时锁定的模板版本号，可为空且不随模板后续变更。
+         */
         private Integer sourceTemplateVersionNo;
-        /** TEMPLATE、TEMPLATE_CUSTOMIZED 或 INDEPENDENT。 */
+        /**
+         * TEMPLATE、TEMPLATE_CUSTOMIZED 或 INDEPENDENT。
+         */
         private String originType;
-        /** 当前已审核生效版本主键；未生效时为空。 */
+        /**
+         * 当前已审核生效版本主键；未生效时为空。
+         */
         private Long currentVersionId;
-        /** 当前已审核生效版本号；未生效时为空。 */
+        /**
+         * 当前已审核生效版本号；未生效时为空。
+         */
         private Integer currentVersionNo;
-        /** ENABLED、DISABLED 或 ARCHIVED；归档代替物理删除。 */
+        /**
+         * ENABLED、DISABLED 或 ARCHIVED；归档代替物理删除。
+         */
         private String status;
         /**
          * 备注，用于保存人工备注、交易说明或配置补充说明。
@@ -119,7 +134,9 @@ public final class FeeEntities {
         private Long deleted;
     }
 
-    /** 费用方案版本；草稿可编辑，提交审核后保持不可变。 */
+    /**
+     * 费用方案版本；草稿可编辑，提交审核后保持不可变。
+     */
     @Data
     @TableName("fee_plan_version")
     public static class FeePlanVersionDO {
@@ -140,9 +157,13 @@ public final class FeeEntities {
          * </p>
          */
         private Long planId;
-        /** 方案内从 1 递增且不复用的版本号。 */
+        /**
+         * 方案内从 1 递增且不复用的版本号。
+         */
         private Integer versionNo;
-        /** DRAFT、PENDING_REVIEW、ACTIVE、REJECTED 或 SUPERSEDED。 */
+        /**
+         * DRAFT、PENDING_REVIEW、ACTIVE、REJECTED 或 SUPERSEDED。
+         */
         private String versionStatus;
         /**
          * 变更类型，用于区分 {@code FeePlanVersionDO} 记录的处理类别、配置维度或外部协议枚举。
@@ -176,23 +197,41 @@ public final class FeeEntities {
          * </p>
          */
         private String originType;
-        /** 滚动保证金比例，例如 10 表示 10%。 */
+        /**
+         * 滚动保证金比例，例如 10 表示 10%。
+         */
         private BigDecimal reserveRate;
-        /** 滚动保证金留存周期单位：T 工作日、D 自然日。 */
+        /**
+         * 滚动保证金留存周期单位：T 工作日、D 自然日。
+         */
         private String reserveDelayUnit;
-        /** 滚动保证金 T/D+N 留存天数。 */
+        /**
+         * 滚动保证金 T/D+N 留存天数。
+         */
         private Integer reserveDelayDays;
-        /** 商户单一结算币种快照；模板版本为空，商户版本使用 ISO 4217 三位代码。 */
+        /**
+         * 商户单一结算币种快照；模板版本为空，商户版本使用 ISO 4217 三位代码。
+         */
         private String settlementCurrency;
-        /** 首次与常规结算周期共用的单位。 */
+        /**
+         * 首次与常规结算周期共用的单位。
+         */
         private String initialDelayUnit;
-        /** 首次结算延迟天数，最小为 1。 */
+        /**
+         * 首次结算延迟天数，最小为 1。
+         */
         private Integer initialDelayDays;
-        /** 常规结算延迟天数，最小为 1。 */
+        /**
+         * 常规结算延迟天数，最小为 1。
+         */
         private Integer regularDelayDays;
-        /** DAILY、WEEKLY、BIWEEKLY 或 MONTHLY。 */
+        /**
+         * DAILY、WEEKLY、BIWEEKLY 或 MONTHLY。
+         */
         private String settlementFrequency;
-        /** 周结为 1 至 7，月结为 1 至 28，日结为空。 */
+        /**
+         * 周结为 1 至 7，月结为 1 至 28，日结为空。
+         */
         private Integer frequencyDay;
         /**
          * 持久化的变更原因，用于还原当前记录的业务事实。
@@ -202,13 +241,21 @@ public final class FeeEntities {
          * </p>
          */
         private String changeReason;
-        /** 草稿阶段为最后保存账号，提交后为本次提交账号。 */
+        /**
+         * 草稿阶段为最后保存账号，提交后为本次提交账号。
+         */
         private Long submitById;
-        /** 草稿阶段为最后保存人，提交后为本次提交人名称快照。 */
+        /**
+         * 草稿阶段为最后保存人，提交后为本次提交人名称快照。
+         */
         private String submitByName;
-        /** 草稿阶段为最后保存时间，提交后为提交审核时间，不等同于生效时间。 */
+        /**
+         * 草稿阶段为最后保存时间，提交后为提交审核时间，不等同于生效时间。
+         */
         private LocalDateTime submitTime;
-        /** 审核账号 ID；待审核时为空，且不能等于提交账号。 */
+        /**
+         * 审核账号 ID；待审核时为空，且不能等于提交账号。
+         */
         private Long reviewById;
         /**
          * 审核按名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
@@ -226,11 +273,17 @@ public final class FeeEntities {
          * </p>
          */
         private String reviewComment;
-        /** 审核动作系统时间；待审核时为空。 */
+        /**
+         * 审核动作系统时间；待审核时为空。
+         */
         private LocalDateTime reviewTime;
-        /** 审核通过时间即生效时间；未通过时为空。 */
+        /**
+         * 审核通过时间即生效时间；未通过时为空。
+         */
         private LocalDateTime effectiveTime;
-        /** 被后续版本替代的系统时间；当前版本为空。 */
+        /**
+         * 被后续版本替代的系统时间；当前版本为空。
+         */
         private LocalDateTime supersededTime;
         /**
          * 记录创建时刻，持久化精度为毫秒。
@@ -260,7 +313,9 @@ public final class FeeEntities {
         private Long deleted;
     }
 
-    /** 单个交易匹配维度下的费用规则。 */
+    /**
+     * 单个交易匹配维度下的费用规则。
+     */
     @Data
     @TableName("fee_rule")
     public static class FeeRuleDO {
@@ -281,9 +336,13 @@ public final class FeeEntities {
          * </p>
          */
         private Long planVersionId;
-        /** 同一条页面多选规则展开后的分组编码；历史原子规则允许为空。 */
+        /**
+         * 同一条页面多选规则展开后的分组编码；历史原子规则允许为空。
+         */
         private String ruleGroupCode;
-        /** TRANSACTION_FEE、REFUND_FEE、RISK_FEE、DISPUTE_FEE 或 SETTLEMENT_FX_FEE。 */
+        /**
+         * TRANSACTION_FEE、REFUND_FEE、RISK_FEE、DISPUTE_FEE 或 SETTLEMENT_FX_FEE。
+         */
         private String feeCategory;
         /**
          * 费用规则名称，用于运营识别同一费用版本内的原子匹配规则。
@@ -317,9 +376,13 @@ public final class FeeEntities {
          * </p>
          */
         private String paymentMethod;
-        /** INTERNAL、EXTERNAL、THREE_DS；非风控费用使用 NONE。 */
+        /**
+         * INTERNAL、EXTERNAL、THREE_DS；非风控费用使用 NONE。
+         */
         private String riskServiceType;
-        /** NO_CHARGE、SUCCESS、SUCCESS_OR_FAILURE、ON_CALL；非风控费用使用 NOT_APPLICABLE。 */
+        /**
+         * NO_CHARGE、SUCCESS、SUCCESS_OR_FAILURE、ON_CALL；非风控费用使用 NOT_APPLICABLE。
+         */
         private String chargeTrigger;
         /**
          * 费用计算模式，决定当前规则采用标准费率还是阶梯费率。
@@ -329,17 +392,29 @@ public final class FeeEntities {
          * </p>
          */
         private String feeMode;
-        /** 百分比数值，例如 2.3 表示 2.3%，按标签币种金额计提。 */
+        /**
+         * 百分比数值，例如 2.3 表示 2.3%，按标签币种金额计提。
+         */
         private BigDecimal percentageRate;
-        /** 固定费用，币种恒为 USD，不能为空。 */
+        /**
+         * 固定费用，币种恒为 USD，不能为空。
+         */
         private BigDecimal fixedAmountUsd;
-        /** 最低费用，币种恒为 USD；不设下限时为空。 */
+        /**
+         * 最低费用，币种恒为 USD；不设下限时为空。
+         */
         private BigDecimal minimumAmountUsd;
-        /** 最高费用，币种恒为 USD；不设上限时为空。 */
+        /**
+         * 最高费用，币种恒为 USD；不设上限时为空。
+         */
         private BigDecimal maximumAmountUsd;
-        /** COUNT 或 AMOUNT；标准费率时为空。 */
+        /**
+         * COUNT 或 AMOUNT；标准费率时为空。
+         */
         private String tierMetric;
-        /** 阶梯累计周期，本期固定为 MONTH；标准费率时为空。 */
+        /**
+         * 阶梯累计周期，本期固定为 MONTH；标准费率时为空。
+         */
         private String tierPeriod;
         /**
          * 排序号，数值越小越优先展示或匹配。
@@ -376,7 +451,9 @@ public final class FeeEntities {
         private Long deleted;
     }
 
-    /** 月累计笔数或 USD 金额阶梯。 */
+    /**
+     * 月累计笔数或 USD 金额阶梯。
+     */
     @Data
     @TableName("fee_rule_tier")
     public static class FeeRuleTierDO {
@@ -397,17 +474,29 @@ public final class FeeEntities {
          * </p>
          */
         private Long feeRuleId;
-        /** 月累计笔数或归一到 USD 的累计金额下界，包含。 */
+        /**
+         * 月累计笔数或归一到 USD 的累计金额下界，包含。
+         */
         private BigDecimal lowerBound;
-        /** 月累计笔数或归一到 USD 的累计金额上界，不包含；末档为空。 */
+        /**
+         * 月累计笔数或归一到 USD 的累计金额上界，不包含；末档为空。
+         */
         private BigDecimal upperBound;
-        /** 当前档百分比数值，例如 2.3 表示 2.3%。 */
+        /**
+         * 当前档百分比数值，例如 2.3 表示 2.3%。
+         */
         private BigDecimal percentageRate;
-        /** 当前档固定费用，币种恒为 USD。 */
+        /**
+         * 当前档固定费用，币种恒为 USD。
+         */
         private BigDecimal fixedAmountUsd;
-        /** 当前档最低费用，币种恒为 USD；不设下限时为空。 */
+        /**
+         * 当前档最低费用，币种恒为 USD；不设下限时为空。
+         */
         private BigDecimal minimumAmountUsd;
-        /** 当前档最高费用，币种恒为 USD；不设上限时为空。 */
+        /**
+         * 当前档最高费用，币种恒为 USD；不设上限时为空。
+         */
         private BigDecimal maximumAmountUsd;
         /**
          * 排序号，数值越小越优先展示或匹配。
@@ -436,7 +525,9 @@ public final class FeeEntities {
         private Long deleted;
     }
 
-    /** 无副作用试算的输入和结果快照。 */
+    /**
+     * 无副作用试算的输入和结果快照。
+     */
     @Data
     @TableName("fee_simulation_record")
     public static class FeeSimulationRecordDO {
@@ -506,27 +597,49 @@ public final class FeeEntities {
          * </p>
          */
         private String paymentMethod;
-        /** INTERNAL、EXTERNAL、THREE_DS；非风控费用试算使用 NONE。 */
+        /**
+         * INTERNAL、EXTERNAL、THREE_DS；非风控费用试算使用 NONE。
+         */
         private String riskServiceType;
-        /** 试算标签金额，币种由 labelCurrency 指定，不做展示层舍入。 */
+        /**
+         * 试算标签金额，币种由 labelCurrency 指定，不做展示层舍入。
+         */
         private BigDecimal labelAmount;
-        /** 标签金额 ISO 4217 三位币种代码。 */
+        /**
+         * 标签金额 ISO 4217 三位币种代码。
+         */
         private String labelCurrency;
-        /** 系统选用的标签币种到 USD 正向结算汇率，禁止取反向汇率倒数。 */
+        /**
+         * 系统选用的标签币种到 USD 正向结算汇率，禁止取反向汇率倒数。
+         */
         private BigDecimal labelToUsdRate;
-        /** 标签金额按试算汇率归一后的 USD 快照。 */
+        /**
+         * 标签金额按试算汇率归一后的 USD 快照。
+         */
         private BigDecimal labelAmountUsd;
-        /** 系统业务汇率记录 ID；USD 恒等汇率允许为空。 */
+        /**
+         * 系统业务汇率记录 ID；USD 恒等汇率允许为空。
+         */
         private Long settlementRateId;
-        /** 本次试算选用的汇率来源编码，不包含敏感信息。 */
+        /**
+         * 本次试算选用的汇率来源编码，不包含敏感信息。
+         */
         private String settlementRateSource;
-        /** 被选汇率的生效时间，使用系统业务时间。 */
+        /**
+         * 被选汇率的生效时间，使用系统业务时间。
+         */
         private LocalDateTime rateEffectiveTime;
-        /** 本次试算解析汇率的估值时间，使用系统业务时间。 */
+        /**
+         * 本次试算解析汇率的估值时间，使用系统业务时间。
+         */
         private LocalDateTime rateValuationTime;
-        /** 本次交易发生前的当月累计笔数。 */
+        /**
+         * 本次交易发生前的当月累计笔数。
+         */
         private Long monthlyCountBefore;
-        /** 本次交易发生前的当月累计金额，已归一为 USD。 */
+        /**
+         * 本次交易发生前的当月累计金额，已归一为 USD。
+         */
         private BigDecimal monthlyAmountUsdBefore;
         /**
          * 本次费用计算命中的规则主键，用于审计和复现计算过程。
@@ -544,13 +657,21 @@ public final class FeeEntities {
          * </p>
          */
         private Long matchedTierId;
-        /** 按标签币种计算的百分比费用，尚未换算为 USD。 */
+        /**
+         * 按标签币种计算的百分比费用，尚未换算为 USD。
+         */
         private BigDecimal percentageFeeLabel;
-        /** 百分比费用换算并叠加固定费用后的 USD 金额，尚未应用上下限。 */
+        /**
+         * 百分比费用换算并叠加固定费用后的 USD 金额，尚未应用上下限。
+         */
         private BigDecimal rawFeeUsd;
-        /** 应用最低和最高费用后的最终 USD 试算金额。 */
+        /**
+         * 应用最低和最高费用后的最终 USD 试算金额。
+         */
         private BigDecimal finalFeeUsd;
-        /** 试算使用的滚动保证金比例快照。 */
+        /**
+         * 试算使用的滚动保证金比例快照。
+         */
         private BigDecimal reserveRate;
         /**
          * 试算保证金金额，按规则计算并换算为 USD，仅用于预览不产生资金流水。
@@ -612,7 +733,9 @@ public final class FeeEntities {
         private LocalDateTime createTime;
     }
 
-    /** 费用试算逐项计算快照，不通过展示公式反推历史选择或金额。 */
+    /**
+     * 费用试算逐项计算快照，不通过展示公式反推历史选择或金额。
+     */
     @Data
     @TableName("fee_simulation_record_detail")
     public static class FeeSimulationRecordDetailDO {
@@ -641,7 +764,9 @@ public final class FeeEntities {
          * </p>
          */
         private Integer lineNo;
-        /** FEE 或 RESERVE。 */
+        /**
+         * FEE 或 RESERVE。
+         */
         private String itemType;
         /**
          * 费用类别，用于区分交易手续费、退款费、风控费、争议费和结算换汇费。
@@ -659,7 +784,9 @@ public final class FeeEntities {
          * </p>
          */
         private String riskServiceType;
-        /** CALCULATED、NOT_APPLICABLE 或 NOT_CONFIGURED。 */
+        /**
+         * CALCULATED、NOT_APPLICABLE 或 NOT_CONFIGURED。
+         */
         private String calculationStatus;
         /**
          * 是否计入费用合计；1 表示计入，0 表示仅展示该费用明细。

@@ -13,13 +13,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorJobNodeController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端任务执行节点 HTTP 入口，负责权限和统一响应，节点注册与心跳查询委托任务调度应用服务。
- * @status : create
+ * 管理端任务执行节点 HTTP 入口，负责权限和统一响应，节点注册与心跳查询委托任务调度应用服务。
  */
 @RestController
 @RequestMapping("/admin/monitor/job-node")

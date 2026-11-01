@@ -7,13 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewNumberFormatter
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 将结算业务日期和数据库日序列格式化为固定长度预审单号，并校验序列范围避免静默截断。
- * @status : create
+ * 将结算业务日期和数据库日序列格式化为固定长度预审单号，并校验序列范围避免静默截断。
  */
 @Component
 public final class SettlementReviewNumberFormatter {

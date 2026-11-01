@@ -27,13 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskServiceImpl
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务任务服务实现
- * @status : create
+ * 任务任务服务实现
  */
 @Service
 public class JobTaskServiceImpl implements JobTaskService {

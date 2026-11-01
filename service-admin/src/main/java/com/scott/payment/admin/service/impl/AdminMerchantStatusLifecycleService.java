@@ -33,13 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantStatusLifecycleService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Applies session and notification side effects for merchant freeze state transitions.
- * @status : create
+ * Applies session and notification side effects for merchant freeze state transitions.
  */
 @Slf4j
 @Service
@@ -47,26 +41,14 @@ public class AdminMerchantStatusLifecycleService {
 
     /**
      * {@code TEMPLATE_FROZEN}，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     public static final String TEMPLATE_FROZEN = "MERCHANT_FROZEN";
     /**
      * {@code TEMPLATE_UNFROZEN}，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     public static final String TEMPLATE_UNFROZEN = "MERCHANT_UNFROZEN";
     /**
      * 场景常量，统一 {@code AdminMerchantStatusLifecycleService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SCENE = "MERCHANT_STATUS_CHANGED";
     /**
@@ -86,6 +68,9 @@ public class AdminMerchantStatusLifecycleService {
     private final SysMerchantUserMapper merchantUserMapper;
     private final AdminEmailService emailService;
 
+    /**
+     * 创建管理端商户状态生命周期服务。
+     */
     public AdminMerchantStatusLifecycleService(SysAppMapper appMapper,
                                                SysAccountMapper accountMapper,
                                                SysLoginSessionMapper loginSessionMapper,
@@ -119,6 +104,9 @@ public class AdminMerchantStatusLifecycleService {
         sendAfterCommit(merchant, recipients, templateCode, operationTime);
     }
 
+    /**
+     * 查询商户允许访问的后台应用。
+     */
     private SysAppDO merchantApp() {
         SysAppDO app = appMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
@@ -131,6 +119,9 @@ public class AdminMerchantStatusLifecycleService {
         return app;
     }
 
+    /**
+     * 查询商户当前启用的管理员账户。
+     */
     private List<SysAccountDO> activeMerchantAccounts(Long appId, String merchantId) {
         return accountMapper.selectList(Wrappers.<SysAccountDO>lambdaQuery()
                 .eq(SysAccountDO::getAppId, appId)
@@ -139,6 +130,9 @@ public class AdminMerchantStatusLifecycleService {
                 .eq(SysAccountDO::getDeleted, AuthConstants.NOT_DELETED));
     }
 
+    /**
+     * 注销指定商户账号集合的全部有效登录会话。
+     */
     private void logoutSessions(Long appId, List<SysAccountDO> accounts, LocalDateTime now) {
         List<Long> accountIds = accounts.stream().map(SysAccountDO::getId).filter(java.util.Objects::nonNull).toList();
         if (accountIds.isEmpty()) {
@@ -153,6 +147,9 @@ public class AdminMerchantStatusLifecycleService {
                 .eq(SysLoginSessionDO::getLogout, AuthConstants.DISABLED));
     }
 
+    /**
+     * 查询商户管理员通知邮箱集合。
+     */
     private List<String> administratorEmails(Long appId,
                                              BaseMerchantInfoDO merchant,
                                              List<SysAccountDO> merchantAccounts) {
@@ -188,6 +185,9 @@ public class AdminMerchantStatusLifecycleService {
                 ? List.of(merchant.getContactEmail().trim()) : List.of();
     }
 
+    /**
+     * 在事务提交成功后发送业务通知。
+     */
     private void sendAfterCommit(BaseMerchantInfoDO merchant,
                                  List<String> recipients,
                                  String templateCode,
@@ -201,6 +201,9 @@ public class AdminMerchantStatusLifecycleService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -208,6 +211,9 @@ public class AdminMerchantStatusLifecycleService {
         });
     }
 
+    /**
+     * 发送当前邮件任务并记录发送结果。
+     */
     private void send(BaseMerchantInfoDO merchant,
                       List<String> recipients,
                       String templateCode,
@@ -233,11 +239,14 @@ public class AdminMerchantStatusLifecycleService {
             request.setVariables(variables);
             emailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("merchant status notice send failed, merchantId: {}, templateCode: {}, exceptionType: {}",
+            log.warn("event: ADMIN_MERCHANT_STATUS_NOTICE_FAILED merchantId: {} templateCode: {} exceptionType: {}",
                     merchant.getMerchantId(), templateCode, exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 解析当前操作人的审计名称。
+     */
     private String operatorName() {
         InternalAuthAccount operator = InternalAuthContextHolder.get();
         if (operator == null) {

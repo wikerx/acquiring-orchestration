@@ -6,13 +6,7 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPreAuthorizationApplicationService
- * @date : 2026-07-14 19:20
- * @email : scott_x@163.com
- * @description : openAPIpre授权应用服务，位于 商户开放接口服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户预授权应用入口，将已完成安全校验的冻结额度请求委托支付服务处理。
  */
 @Service
 public class OpenApiPreAuthorizationApplicationService {

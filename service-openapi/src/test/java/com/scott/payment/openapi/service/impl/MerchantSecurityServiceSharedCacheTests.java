@@ -24,13 +24,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityServiceSharedCacheTests
- * @date : 2026-08-01 13:00
- * @email : scott_x@163.com
- * @description : 验证 OpenAPI 商户状态校验复用共享非敏感 merchant:info 画像且不回退到私有商户 Mapper
- * @status : create
+ * 验证 OpenAPI 商户状态校验复用共享非敏感 merchant:info 画像且不回退到私有商户 Mapper
  */
 class MerchantSecurityServiceSharedCacheTests {
 

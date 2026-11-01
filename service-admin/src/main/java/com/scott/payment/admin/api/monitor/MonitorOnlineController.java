@@ -16,15 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorOnlineController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理端在线会话监控 HTTP 入口，负责权限、分页参数和统一响应，不直接查询或修改登录会话数据。
- * @status : create
+ * 管理端在线会话监控 HTTP 入口，负责权限、分页参数和统一响应，不直接查询或修改登录会话数据。
  *
-     * <p>在线会话查询与强制下线状态变更统一由应用服务层处理。</p>
+ * <p>在线会话查询与强制下线状态变更统一由应用服务层处理。</p>
  */
 @RestController
 @RequestMapping("/admin/monitor")

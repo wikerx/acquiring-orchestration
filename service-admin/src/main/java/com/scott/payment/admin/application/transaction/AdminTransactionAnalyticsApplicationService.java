@@ -10,18 +10,14 @@ import com.scott.payment.admin.service.AdminTransactionAnalyticsQueryService;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionAnalyticsApplicationService
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 管理端交易分析应用服务，编排分析用例并将接口层与只读统计查询实现隔离。
- * @status : create
+ * 管理端交易分析应用服务，编排分析用例并将接口层与只读统计查询实现隔离。
  */
 @Service
 public class AdminTransactionAnalyticsApplicationService {
 
-    /** 管理端交易分析只读查询依赖，不允许为空。 */
+    /**
+     * 管理端交易分析只读查询依赖，不允许为空。
+     */
     private final AdminTransactionAnalyticsQueryService analyticsQueryService;
 
     /**

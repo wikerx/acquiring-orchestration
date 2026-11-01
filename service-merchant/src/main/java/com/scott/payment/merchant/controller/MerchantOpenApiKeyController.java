@@ -39,13 +39,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiKeyController
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : 商户openAPI密钥 HTTP 控制器，位于 商户后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 商户openAPI密钥 HTTP 控制器，位于 商户后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  */
 @RestController
 @RequestMapping("/merchant/openapi/keys")

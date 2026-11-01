@@ -9,13 +9,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementP0ConsistencySqlContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 结算 P0 数据库迁移合同，防止资金守恒、冲正唯一性和真实交易投影约束漂移。
- * @status : create
+ * 结算 P0 数据库迁移合同，防止资金守恒、冲正唯一性和真实交易投影约束漂移。
  */
 class SettlementP0ConsistencySqlContractTest {
 

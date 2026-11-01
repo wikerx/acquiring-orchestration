@@ -10,17 +10,13 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementClearingFactMapper
- * @date : 2026-08-26 23:10
- * @email : scott_x@163.com
- * @description : 结算清分事实批量只读 Mapper；每个分片 OR 分支固定携带交易号、精确时间和清分修订号。
- * @status : create
+ * 结算清分事实批量只读 Mapper；每个分片 OR 分支固定携带交易号、精确时间和清分修订号。
  */
 public interface SettlementClearingFactMapper {
 
-    /** 按不可删除审计关系读取本批全部已认领候选。 */
+    /**
+     * 按不可删除审计关系读取本批全部已认领候选。
+     */
     @Select("""
             SELECT candidate.*
             FROM settlement_batch_candidate relation
@@ -35,7 +31,9 @@ public interface SettlementClearingFactMapper {
     List<SettlementCandidateDO> selectClaimedCandidates(
             @Param("settlementBatchNo") String settlementBatchNo);
 
-    /** 按预审不可删除关系读取仍被该预审单独占的候选。 */
+    /**
+     * 按预审不可删除关系读取仍被该预审单独占的候选。
+     */
     @Select("""
             SELECT candidate.*
             FROM settlement_review_candidate relation
@@ -50,7 +48,9 @@ public interface SettlementClearingFactMapper {
     List<SettlementCandidateDO> selectReviewLockedCandidates(
             @Param("reviewOrderNo") String reviewOrderNo);
 
-    /** 在一个 SQL 中精确读取全部交易清分修订，禁止按交易号逐条查询。 */
+    /**
+     * 在一个 SQL 中精确读取全部交易清分修订，禁止按交易号逐条查询。
+     */
     @Select("""
             <script>
             SELECT *
@@ -69,7 +69,9 @@ public interface SettlementClearingFactMapper {
     List<SettlementTransactionClearingDetailDO> selectTransactionDetails(
             @Param("locators") List<SettlementClearingLocator> locators);
 
-    /** 在一个 SQL 中精确读取全部保证金清分修订，禁止按交易号逐条查询。 */
+    /**
+     * 在一个 SQL 中精确读取全部保证金清分修订，禁止按交易号逐条查询。
+     */
     @Select("""
             <script>
             SELECT *

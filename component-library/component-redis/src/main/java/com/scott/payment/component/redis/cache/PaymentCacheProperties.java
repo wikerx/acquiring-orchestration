@@ -8,13 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCacheProperties
- * @date : 2026-07-30 09:35
- * @email : scott_x@163.com
- * @description : 支付系统 Redis 缓存配置，区分常驻业务快照与有限期恢复性数据
- * @status : update
+ * 支付系统 Redis 缓存配置，区分常驻业务快照与有限期恢复性数据
  */
 @ConfigurationProperties(prefix = "payment.cache.redis")
 public class PaymentCacheProperties {

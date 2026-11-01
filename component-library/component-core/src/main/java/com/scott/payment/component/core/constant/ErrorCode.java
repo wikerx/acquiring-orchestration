@@ -1,13 +1,7 @@
 package com.scott.payment.component.core.constant;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ErrorCode
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 系统错误码常量定义
- * @status : create
+ * 系统错误码常量定义
  */
 public final class ErrorCode {
 

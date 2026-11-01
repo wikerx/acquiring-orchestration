@@ -31,39 +31,21 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiCallbackSecuritySupport
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 回调类入口安全校验组件，负责渠道回调签名和商户通知重试维护密钥校验。
- * @status : create
+ * OpenAPI 回调类入口安全校验组件，负责渠道回调签名和商户通知重试维护密钥校验。
  */
 @Component
 public class OpenApiCallbackSecuritySupport {
 
     /**
-     * {@code MAX_VERIFICATION_HEADER_COUNT}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 渠道回调验签最多接收的请求头数量，防止异常请求消耗过多内存。
      */
     private static final int MAX_VERIFICATION_HEADER_COUNT = 128;
     /**
-     * {@code MAX_VERIFICATION_HEADER_NAME_LENGTH}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 单个渠道回调请求头名称允许的最大字符数。
      */
     private static final int MAX_VERIFICATION_HEADER_NAME_LENGTH = 128;
     /**
-     * {@code MAX_VERIFICATION_HEADER_VALUE_LENGTH}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 单个渠道回调请求头值允许的最大 UTF-8 字节数。
      */
     private static final int MAX_VERIFICATION_HEADER_VALUE_LENGTH = 4096;
 
@@ -102,10 +84,14 @@ public class OpenApiCallbackSecuritySupport {
      */
     private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
 
-    /** 按渠道编码定位 provider 验签实现。 */
+    /**
+     * 按渠道编码定位 provider 验签实现。
+     */
     private final PaymentChannelCallbackProtocolRegistry callbackProtocolRegistry;
 
-    /** MID 级回调密钥解析器，优先于环境级渠道兜底配置。 */
+    /**
+     * MID 级回调密钥解析器，优先于环境级渠道兜底配置。
+     */
     private final ChannelCallbackSecretResolver channelCallbackSecretResolver;
 
     /**
@@ -206,7 +192,13 @@ public class OpenApiCallbackSecuritySupport {
         }
     }
 
-    /** MID-scoped callbacks never fall back to an environment-wide secret. */
+    /**
+     * MID 级回调只读取原交易 MID 的签名密钥，不回退到渠道级共享密钥。
+     *
+     * @param channelCode 渠道编码
+     * @param merchantId 渠道回调中解析出的 MID
+     * @return 对应 MID 的回调密钥；未提供 MID 时返回渠道级密钥
+     */
     private String resolveChannelSecret(String channelCode, String merchantId) {
         return StringUtils.hasText(merchantId)
                 ? channelCallbackSecretResolver.resolve(channelCode, merchantId)
@@ -214,8 +206,12 @@ public class OpenApiCallbackSecuritySupport {
     }
 
     /**
-     * Collect a bounded HTTP header context for provider-specific callback verification.
-     * Header values are never logged here; persistence uses the controller's masked summary.
+     * 收集数量、名称和值长度均受限的请求头，供渠道协议实现验签。
+     *
+     * <p>本方法不记录请求头；持久化审计只使用控制器生成的脱敏摘要。</p>
+     *
+     * @param request 渠道回调 HTTP 请求
+     * @return 不可修改的多值请求头集合
      */
     private Map<String, List<String>> verificationHeaders(HttpServletRequest request) {
         Enumeration<String> names = request.getHeaderNames();
@@ -450,6 +446,16 @@ public class OpenApiCallbackSecuritySupport {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 记录 OpenAPI 维护入口的认证拒绝并返回统一异常。
+     *
+     * @param request 当前 HTTP 请求
+     * @param eventType 安全事件类型
+     * @param riskLevel 风险等级
+     * @param hitRuleCode 命中的安全规则
+     * @param message 不含敏感数据的内部诊断摘要
+     * @return 已完成审计记录的认证异常
+     */
     private ApiException recordAndReturnOpenApiException(HttpServletRequest request,
                                                          String eventType,
                                                          String riskLevel,
@@ -469,6 +475,16 @@ public class OpenApiCallbackSecuritySupport {
         return exception;
     }
 
+    /**
+     * 以认证失败码记录渠道回调安全拒绝。
+     *
+     * @param request 当前 HTTP 请求
+     * @param eventType 安全事件类型
+     * @param riskLevel 风险等级
+     * @param hitRuleCode 命中的渠道回调规则
+     * @param message 不含回调原文的内部诊断摘要
+     * @return 已完成审计记录的认证异常
+     */
     private ApiException recordAndReturnChannelException(HttpServletRequest request,
                                                          String eventType,
                                                          String riskLevel,
@@ -478,6 +494,17 @@ public class OpenApiCallbackSecuritySupport {
                 message, OpenApiResultCode.AUTHENTICATION_FAILED);
     }
 
+    /**
+     * 使用指定公开结果码记录渠道回调安全拒绝。
+     *
+     * @param request 当前 HTTP 请求
+     * @param eventType 安全事件类型
+     * @param riskLevel 风险等级
+     * @param hitRuleCode 命中的渠道回调规则
+     * @param message 不含回调原文的内部诊断摘要
+     * @param result 统一 OpenAPI 结果码
+     * @return 已完成审计记录的渠道回调异常
+     */
     private ApiException recordAndReturnChannelException(HttpServletRequest request,
                                                          String eventType,
                                                          String riskLevel,
@@ -502,7 +529,10 @@ public class OpenApiCallbackSecuritySupport {
      * 渠道回调入口安全校验结果。
      *
      * @param signatureValid 签名校验是否通过
-     * @param ipAllowed IP 白名单是否通过；当前配置尚未启用独立 IP 规则时按通过记录
+     * @param ipAllowed IP 白名单是否通过；未要求配置白名单时按通过记录
+     * @param request 渠道协议验签使用的原始请求对象
+     * @param event 已验签并标准化的渠道事件
+     * @param acknowledgement 渠道协议要求的成功确认响应
      */
     public record CallbackSecurityResult(boolean signatureValid,
                                          boolean ipAllowed,

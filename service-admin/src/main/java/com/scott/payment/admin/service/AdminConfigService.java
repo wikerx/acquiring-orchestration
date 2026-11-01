@@ -10,13 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminConfigService
- * @date : 2026-06-19 21:52
- * @email : scott_x@163.com
- * @description : 管理后台系统参数配置领域服务
- * @status : create
+ * 管理后台系统参数配置领域服务
  *
  * <p>负责系统参数配置的核心领域规则，包括配置查询、保存更新和软删除，不处理接口协议适配。</p>
  */

@@ -7,7 +7,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 精确验证本地降级窗口的边界、拒绝不计数和身份容量保护。 */
+/**
+ * 精确验证本地降级窗口的边界、拒绝不计数和身份容量保护。
+ */
 class LocalSlidingWindowRateLimiterTests {
 
     @Test

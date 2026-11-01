@@ -9,13 +9,7 @@ import java.net.InetAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobNodeContext
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 调度中心执行节点上下文
- * @status : create
+ * 调度中心执行节点上下文
  */
 @Component
 public class JobNodeContext {

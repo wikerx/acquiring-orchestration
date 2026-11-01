@@ -32,7 +32,9 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
     private final TransactionCallbackService callbackService;
     private final long processingTimeoutSeconds;
 
-    /** 创建生产环境使用的 Inbox Worker。 */
+    /**
+     * 创建生产环境使用的 Inbox Worker。
+     */
     @Autowired
     public DefaultTransactionCallbackInboxWorker(
             TransactionCallbackInboxService inboxService,
@@ -44,13 +46,17 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
         this.processingTimeoutSeconds = Math.max(processingTimeoutSeconds, 1L);
     }
 
-    /** 测试使用默认两分钟 PROCESSING 租约。 */
+    /**
+     * 测试使用默认两分钟 PROCESSING 租约。
+     */
     DefaultTransactionCallbackInboxWorker(TransactionCallbackInboxService inboxService,
                                            TransactionCallbackService callbackService) {
         this(inboxService, callbackService, 120L);
     }
 
-    /** 先恢复超时抢占，再逐条用 CAS 获取处理权，单条失败不会中断整批。 */
+    /**
+     * 先恢复超时抢占，再逐条用 CAS 获取处理权，单条失败不会中断整批。
+     */
     @Override
     public int processDue(LocalDateTime now, int limit) {
         LocalDateTime actualNow = now == null
@@ -80,6 +86,9 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
         return processed;
     }
 
+    /**
+     * 处理单条回调 Inbox 记录。
+     */
     private boolean processOne(TransactionCallbackInboxDO inbox, LocalDateTime now) {
         // claim 的状态与版本条件是多实例并发下唯一处理权的持久化边界。
         if (!inboxService.claim(inbox, now)) {
@@ -117,7 +126,9 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
         }
     }
 
-    /** 返回不早于抢占时间的当前交易业务时间，避免长任务把完成时间记录为批次开始时间。 */
+    /**
+     * 返回不早于抢占时间的当前交易业务时间，避免长任务把完成时间记录为批次开始时间。
+     */
     private LocalDateTime currentBusinessTime(LocalDateTime claimedAt) {
         LocalDateTime current = LocalDateTime.now(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID));
         return current.isBefore(claimedAt) ? claimedAt : current;

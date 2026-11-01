@@ -7,13 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LocalSlidingWindowRateLimiter
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : Redis 故障时使用的有界进程内精确滑动窗口，容量耗尽时拒绝新身份以保护 JVM
- * @status : create
+ * Redis 故障时使用的有界进程内精确滑动窗口，容量耗尽时拒绝新身份以保护 JVM
  */
 public class LocalSlidingWindowRateLimiter {
 

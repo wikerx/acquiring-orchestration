@@ -36,56 +36,88 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOnboardingService
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : 商户开户领域服务，承载资料完整性、审核状态流转、激活门禁和相关人员敏感信息处理
- * @status : create
+ * 商户开户领域服务，承载资料完整性、审核状态流转、激活门禁和相关人员敏感信息处理
  */
 @Service
 public class MerchantOnboardingService {
 
-    /** 开户草稿状态；允许继续编辑和提交审核。 */
+    /**
+     * 开户草稿状态；允许继续编辑和提交审核。
+     */
     public static final String ONBOARDING_DRAFT = "DRAFT";
-    /** 开户待审核状态；禁止再次提交。 */
+    /**
+     * 开户待审核状态；禁止再次提交。
+     */
     public static final String ONBOARDING_PENDING_REVIEW = "PENDING_REVIEW";
-    /** 开户待补件状态；允许补充资料后再次提交。 */
+    /**
+     * 开户待补件状态；允许补充资料后再次提交。
+     */
     public static final String ONBOARDING_SUPPLEMENT_REQUIRED = "SUPPLEMENT_REQUIRED";
-    /** 开户审核通过状态；等待费率、渠道和风险配置。 */
+    /**
+     * 开户审核通过状态；等待费率、渠道和风险配置。
+     */
     public static final String ONBOARDING_APPROVED = "APPROVED";
-    /** 开户驳回状态；当前流程不允许继续激活。 */
+    /**
+     * 开户驳回状态；当前流程不允许继续激活。
+     */
     public static final String ONBOARDING_REJECTED = "REJECTED";
-    /** 开户已激活状态；商户账号和资金账户已经初始化。 */
+    /**
+     * 开户已激活状态；商户账号和资金账户已经初始化。
+     */
     public static final String ONBOARDING_ACTIVE = "ACTIVE";
-    /** 尚未提交审核。 */
+    /**
+     * 尚未提交审核。
+     */
     public static final String REVIEW_NOT_SUBMITTED = "NOT_SUBMITTED";
-    /** 审核待处理。 */
+    /**
+     * 审核待处理。
+     */
     public static final String REVIEW_PENDING = "PENDING";
-    /** 审核要求补件。 */
+    /**
+     * 审核要求补件。
+     */
     public static final String REVIEW_SUPPLEMENT = "SUPPLEMENT";
-    /** 审核通过。 */
+    /**
+     * 审核通过。
+     */
     public static final String REVIEW_PASSED = "PASSED";
-    /** 审核驳回。 */
+    /**
+     * 审核驳回。
+     */
     public static final String REVIEW_REJECTED = "REJECTED";
-    /** 激活条件尚未满足。 */
+    /**
+     * 激活条件尚未满足。
+     */
     public static final String ACTIVATION_NOT_READY = "NOT_READY";
-    /** 激活条件已经满足。 */
+    /**
+     * 激活条件已经满足。
+     */
     public static final String ACTIVATION_READY = "READY";
-    /** 商户已完成激活。 */
+    /**
+     * 商户已完成激活。
+     */
     public static final String ACTIVATION_ACTIVE = "ACTIVE";
 
-    /** 未删除标识；固定为 0。 */
+    /**
+     * 未删除标识；固定为 0。
+     */
     private static final int NOT_DELETED = 0;
-    /** 商户 KYB 资料业务类型；与 biz_document 归属查询保持一致。 */
+    /**
+     * 商户 KYB 资料业务类型；与 biz_document 归属查询保持一致。
+     */
     private static final String DOCUMENT_BIZ_TYPE = "MERCHANT_KYB";
-    /** 允许的人工审核决定集合。 */
+    /**
+     * 允许的人工审核决定集合。
+     */
     private static final Set<String> REVIEW_DECISIONS = Set.of("PASS", "SUPPLEMENT", "REJECT");
-    /** 可满足个人身份证明要求的资料类型集合。 */
+    /**
+     * 可满足个人身份证明要求的资料类型集合。
+     */
     private static final Set<String> ID_DOCUMENT_TYPES = Set.of(
             "DIRECTOR_ID", "UBO_ID", "LEGAL_REPRESENTATIVE_ID", "AUTHORIZED_SIGNER_ID");
-    /** 就绪问题稳定编码与中文业务标签映射；接口返回编码，操作异常保留可读中文。 */
+    /**
+     * 就绪问题稳定编码与中文业务标签映射；接口返回编码，操作异常保留可读中文。
+     */
     private static final Map<String, String> READINESS_ISSUE_LABELS = Map.ofEntries(
             Map.entry("OPERATING_COUNTRY", "实际经营国家"),
             Map.entry("MERCHANT_DESCRIPTION", "商户描述"),
@@ -130,21 +162,37 @@ public class MerchantOnboardingService {
             Map.entry("FEE_PLAN_NOT_ACTIVE", "尚无已生效商户费率版本"),
             Map.entry("CHANNEL_MID_NOT_ACTIVE", "尚无当前生效的渠道 MID 绑定"));
 
-    /** 商户相关人员 Mapper；负责人员列表和软删除替换。 */
+    /**
+     * 商户相关人员 Mapper；负责人员列表和软删除替换。
+     */
     private final MerchantRelatedPersonMapper relatedPersonMapper;
-    /** 合规资料元数据 Mapper；仅查询有效 KYB 资料。 */
+    /**
+     * 合规资料元数据 Mapper；仅查询有效 KYB 资料。
+     */
     private final BizDocumentMapper documentMapper;
-    /** 审核记录 Mapper；保存不可变审核轨迹。 */
+    /**
+     * 审核记录 Mapper；保存不可变审核轨迹。
+     */
     private final MerchantReviewRecordMapper reviewRecordMapper;
-    /** 商户费率方案 Mapper；用于激活前确认当前版本已生效。 */
+    /**
+     * 商户费率方案 Mapper；用于激活前确认当前版本已生效。
+     */
     private final FeePlanMapper feePlanMapper;
-    /** 商户渠道 MID 绑定 Mapper；用于激活前确认存在有效渠道能力。 */
+    /**
+     * 商户渠道 MID 绑定 Mapper；用于激活前确认存在有效渠道能力。
+     */
     private final MerchantChannelMidBindingMapper channelMidBindingMapper;
-    /** 相关人员证件号加密与脱敏边界；不允许为空。 */
+    /**
+     * 相关人员证件号加密与脱敏边界；不允许为空。
+     */
     private final MerchantProfileSensitiveCrypto sensitiveCrypto;
-    /** 商户主账号幂等开户服务；只在激活时调用。 */
+    /**
+     * 商户主账号幂等开户服务；只在激活时调用。
+     */
     private final AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService;
-    /** 商户资金账户幂等开户服务；只在激活时调用。 */
+    /**
+     * 商户资金账户幂等开户服务；只在激活时调用。
+     */
     private final AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
 
     /**
@@ -534,6 +582,9 @@ public class MerchantOnboardingService {
         return row;
     }
 
+    /**
+     * 加载商户进件关联人员并转换为响应模型。
+     */
     private List<MerchantOnboardingDTOs.RelatedPerson> loadRelatedPersons(String merchantId) {
         return relatedPersonMapper.selectList(Wrappers.<MerchantRelatedPersonDO>lambdaQuery()
                         .eq(MerchantRelatedPersonDO::getMerchantId, merchantId)
@@ -543,6 +594,9 @@ public class MerchantOnboardingService {
                 .stream().map(this::toRelatedPerson).toList();
     }
 
+    /**
+     * 转换为商户关联自然人信息。
+     */
     private MerchantOnboardingDTOs.RelatedPerson toRelatedPerson(MerchantRelatedPersonDO row) {
         MerchantOnboardingDTOs.RelatedPerson dto = new MerchantOnboardingDTOs.RelatedPerson();
         dto.setId(row.getId());
@@ -564,6 +618,9 @@ public class MerchantOnboardingService {
         return dto;
     }
 
+    /**
+     * 加载商户进件资料并转换为响应模型。
+     */
     private List<MerchantOnboardingDTOs.Document> loadDocuments(String merchantId) {
         return documentMapper.selectList(Wrappers.<BizDocumentDO>lambdaQuery()
                         .eq(BizDocumentDO::getBizType, DOCUMENT_BIZ_TYPE)
@@ -574,6 +631,9 @@ public class MerchantOnboardingService {
                 .stream().map(this::toDocument).toList();
     }
 
+    /**
+     * 将商户资料实体转换为进件文档响应。
+     */
     private MerchantOnboardingDTOs.Document toDocument(BizDocumentDO row) {
         MerchantOnboardingDTOs.Document dto = new MerchantOnboardingDTOs.Document();
         dto.setId(row.getId());
@@ -587,6 +647,9 @@ public class MerchantOnboardingService {
         return dto;
     }
 
+    /**
+     * 按创建时间倒序加载商户审核记录。
+     */
     private List<MerchantOnboardingDTOs.ReviewRecord> loadReviewRecords(String merchantId) {
         return reviewRecordMapper.selectList(Wrappers.<MerchantReviewRecordDO>lambdaQuery()
                         .eq(MerchantReviewRecordDO::getMerchantId, merchantId)
@@ -595,6 +658,9 @@ public class MerchantOnboardingService {
                 .stream().map(this::toReviewRecord).toList();
     }
 
+    /**
+     * 转换为复核记录。
+     */
     private MerchantOnboardingDTOs.ReviewRecord toReviewRecord(MerchantReviewRecordDO row) {
         MerchantOnboardingDTOs.ReviewRecord dto = new MerchantOnboardingDTOs.ReviewRecord();
         dto.setId(row.getId());
@@ -635,6 +701,9 @@ public class MerchantOnboardingService {
         reviewRecordMapper.insert(record);
     }
 
+    /**
+     * 解析当前操作人的审计名称。
+     */
     private String operatorName(InternalAuthAccount operator) {
         if (operator == null) return "system";
         if (StringUtils.hasText(operator.getRealName())) return operator.getRealName().trim();
@@ -642,17 +711,26 @@ public class MerchantOnboardingService {
         return "system";
     }
 
+    /**
+     * 判断商户相关人员是否具有指定角色。
+     */
     private boolean hasRole(MerchantOnboardingDTOs.RelatedPerson person, String role) {
         return person.getPersonRoles() != null
                 && person.getPersonRoles().stream().anyMatch(item -> role.equalsIgnoreCase(item));
     }
 
+    /**
+     * 校验问题列表为空，否则汇总问题并拒绝当前操作。
+     */
     private void requireNoIssues(List<String> issues, String prefix) {
         if (!issues.isEmpty()) {
             throw invalid(prefix + issues.stream().map(this::readinessIssueLabel).collect(Collectors.joining("、")));
         }
     }
 
+    /**
+     * 校验进件必填字段，并将缺失项编码加入问题列表。
+     */
     private void required(List<String> issues, String value, String issueCode) {
         if (!StringUtils.hasText(value)) issues.add(issueCode);
     }
@@ -667,12 +745,18 @@ public class MerchantOnboardingService {
         return READINESS_ISSUE_LABELS.getOrDefault(issueCode, issueCode);
     }
 
+    /**
+     * 将非空文本集合连接为持久化字符串。
+     */
     private String join(List<String> values) {
         if (values == null) return null;
         return values.stream().filter(StringUtils::hasText).map(this::upper).distinct()
                 .collect(Collectors.joining(","));
     }
 
+    /**
+     * 将持久化文本拆分为去重编码集合。
+     */
     private List<String> split(String value) {
         if (!StringUtils.hasText(value)) return new ArrayList<>();
         return Arrays.stream(value.split(","))
@@ -680,26 +764,44 @@ public class MerchantOnboardingService {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    /**
+     * 将动态数据库字段安全转换为布尔值。
+     */
     private Integer bool(Boolean value) {
         return Boolean.TRUE.equals(value) ? 1 : 0;
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 将业务编码规范化为小写文本。
+     */
     private String lower(String value) {
         return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 返回默认复核状态。
+     */
     private String defaultReviewStatus(String value) {
         return StringUtils.hasText(value) ? value : REVIEW_NOT_SUBMITTED;
     }
 
+    /**
+     * 构建商户进件参数校验异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

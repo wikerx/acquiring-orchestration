@@ -29,18 +29,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminConfigServiceImplTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理端系统参数统一永久缓存读写契约测试。
- * @status : create
+ * 管理端系统参数统一永久缓存读写契约测试。
  */
 @Slf4j
 class AdminConfigServiceImplTests {
 
-    /** 保存任意全局唯一配置键时都必须登记统一缓存失效意图。 */
+    /**
+     * 保存任意全局唯一配置键时都必须登记统一缓存失效意图。
+     */
     @Test
     void shouldPrepareReliableInvalidationWhenSavingAnySystemConfig() {
         Fixture fixture = fixture();
@@ -60,7 +56,9 @@ class AdminConfigServiceImplTests {
         assertThat(request.getConfigKey()).isEqualTo("platform.gateway.api-secret");
     }
 
-    /** 删除配置时必须在数据库软删除前登记同一个缓存 Key 的可靠失效。 */
+    /**
+     * 删除配置时必须在数据库软删除前登记同一个缓存 Key 的可靠失效。
+     */
     @Test
     void shouldPrepareReliableInvalidationWhenDeletingSystemConfig() {
         Fixture fixture = fixture();
@@ -81,7 +79,9 @@ class AdminConfigServiceImplTests {
         ));
     }
 
-    /** Admin 详情查询必须复用跨服务缓存快照而不是再次直接查询 Mapper。 */
+    /**
+     * Admin 详情查询必须复用跨服务缓存快照而不是再次直接查询 Mapper。
+     */
     @Test
     void shouldReadAdminDetailFromSharedSystemConfigReader() {
         Fixture fixture = fixture();
@@ -102,7 +102,9 @@ class AdminConfigServiceImplTests {
         verify(fixture.readService()).findByKey("platform.gateway.base-url");
     }
 
-    /** Admin 批量配置值读取必须逐键复用共享缓存并过滤停用或空值。 */
+    /**
+     * Admin 批量配置值读取必须逐键复用共享缓存并过滤停用或空值。
+     */
     @Test
     void shouldReadEnabledConfigValuesFromSharedCache() {
         Fixture fixture = fixture();
@@ -121,7 +123,9 @@ class AdminConfigServiceImplTests {
         );
     }
 
-    /** 保存和删除入口必须保留数据库事务，保证 Outbox 与业务数据同提交或同回滚。 */
+    /**
+     * 保存和删除入口必须保留数据库事务，保证 Outbox 与业务数据同提交或同回滚。
+     */
     @Test
     void shouldKeepSystemConfigMutationsInsideDatabaseTransactions()
             throws NoSuchMethodException {

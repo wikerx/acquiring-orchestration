@@ -5,13 +5,7 @@ import lombok.Data;
 import org.apache.rocketmq.common.attribute.TopicMessageType;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqResourceDefinitionProperties
- * @date : 2026-06-20 22:41
- * @email : scott_x@163.com
- * @description : 单个 RocketMQ 资源声明配置
- * @status : create
+ * 单个 RocketMQ 资源声明配置
  */
 @Data
 public class MqResourceDefinitionProperties {

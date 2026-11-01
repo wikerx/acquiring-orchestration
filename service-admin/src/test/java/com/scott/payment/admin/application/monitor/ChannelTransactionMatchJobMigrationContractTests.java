@@ -9,13 +9,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelTransactionMatchJobMigrationContractTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 渠道交易查询勾兑任务初始化 SQL 合同测试。
- * @status : create
+ * 渠道交易查询勾兑任务初始化 SQL 合同测试。
  */
 class ChannelTransactionMatchJobMigrationContractTests {
 

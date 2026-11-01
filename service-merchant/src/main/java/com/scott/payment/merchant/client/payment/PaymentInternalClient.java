@@ -4,13 +4,7 @@ import com.scott.payment.merchant.client.payment.dto.PaymentTransactionActionCli
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionResponse;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalClient
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : service-payment 内部客户端契约，位于 service-merchant 客户端层，只承载商户后台发起退款等需要支付核心变更状态的动作入口。
- * @status : create
+ * service-payment 内部客户端契约，位于 service-merchant 客户端层，只承载商户后台发起退款等需要支付核心变更状态的动作入口。
  */
 public interface PaymentInternalClient {
 

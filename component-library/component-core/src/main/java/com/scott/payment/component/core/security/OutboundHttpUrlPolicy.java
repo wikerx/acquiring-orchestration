@@ -10,35 +10,41 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OutboundHttpUrlPolicy
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : 通用出站 HTTP URL 安全策略，负责结构校验、环境模式选择、DNS 全地址解析和非公网目标阻断，不决定具体业务错误码。
- * @status : create
+ * 通用出站 HTTP URL 安全策略，负责结构校验、环境模式选择、DNS 全地址解析和非公网目标阻断，不决定具体业务错误码。
  */
 public final class OutboundHttpUrlPolicy {
 
-    /** 出站目标校验模式。 */
+    /**
+     * 出站目标校验模式。
+     */
     public enum Mode {
-        /** 仅供明确的 dev/test 环境联调，允许 HTTP、私网和回环目标。 */
+        /**
+         * 仅供明确的 dev/test 环境联调，允许 HTTP、私网和回环目标。
+         */
         DEVELOPMENT,
-        /** UAT、生产和未知环境使用，只允许解析到公网地址的 HTTPS URL。 */
+        /**
+         * UAT、生产和未知环境使用，只允许解析到公网地址的 HTTPS URL。
+         */
         PUBLIC_HTTPS_ONLY
     }
 
-    /** DNS 解析边界，允许测试使用确定性地址集验证多地址策略。 */
+    /**
+     * DNS 解析边界，允许测试使用确定性地址集验证多地址策略。
+     */
     @FunctionalInterface
     public interface HostResolver {
-        /** @return 主机名当前解析出的全部地址 */
+        /**
+         * @return 主机名当前解析出的全部地址
+         */
         InetAddress[] resolve(String host) throws UnknownHostException;
     }
 
     private final Mode mode;
     private final HostResolver hostResolver;
 
-    /** 使用系统 DNS 创建指定模式的策略。 */
+    /**
+     * 使用系统 DNS 创建指定模式的策略。
+     */
     public OutboundHttpUrlPolicy(Mode mode) {
         this(mode, InetAddress::getAllByName);
     }
@@ -106,7 +112,9 @@ public final class OutboundHttpUrlPolicy {
         return addresses.clone();
     }
 
-    /** 仅校验 URL 结构，不执行 DNS 解析或环境网络策略。 */
+    /**
+     * 仅校验 URL 结构，不执行 DNS 解析或环境网络策略。
+     */
     public static boolean isStructurallyValid(String value) {
         return parse(value) != null;
     }

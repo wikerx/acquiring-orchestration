@@ -15,13 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import static com.scott.payment.openapi.result.OpenApiResponseFactory.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPayoutController
- * @date : 2026-05-28 10:23
- * @email : scott_x@163.com
- * @description : openAPI代付 HTTP 控制器，位于 商户开放接口服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 商户代付 OpenAPI V1 控制器，依赖统一安全链路完成验签、解密、防重放和响应加密。
  */
 @ApiVersion(apiVersion = 1)
 @RestController

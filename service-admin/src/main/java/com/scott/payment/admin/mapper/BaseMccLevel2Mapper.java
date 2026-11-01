@@ -5,13 +5,7 @@ import com.scott.payment.admin.entity.base.MccEntities;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BaseMccLevel2Mapper
- * @date : 2026-06-27 16:49
- * @email : scott_x@163.com
- * @description : Base MCC Level 2 Mapper 映射组件，位于 运营后台服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
- * @status : create
+ * Base MCC Level 2 数据访问接口，负责对应持久化记录的查询和写入。
  */
 public interface BaseMccLevel2Mapper extends BaseMapper<MccEntities.BaseMccLevel2DO> {
 }

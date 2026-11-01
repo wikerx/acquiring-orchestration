@@ -9,20 +9,19 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HolidayCalendarEntities
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 全局中国大陆结算节假日日历持久化模型。
- * @status : create
+ * 全局中国大陆结算节假日日历持久化模型。
  */
 public final class HolidayCalendarEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private HolidayCalendarEntities() {
     }
 
-    /** 日历年度及确认状态。 */
+    /**
+     * 日历年度及确认状态。
+     */
     @Data
     @TableName("settlement_calendar_year")
     public static class CalendarYearDO {
@@ -136,7 +135,9 @@ public final class HolidayCalendarEntities {
         private Long deleted;
     }
 
-    /** 自然日工作属性。 */
+    /**
+     * 自然日工作属性。
+     */
     @Data
     @TableName("settlement_holiday_calendar")
     public static class CalendarDayDO {

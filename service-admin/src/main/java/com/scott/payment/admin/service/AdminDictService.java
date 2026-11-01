@@ -11,13 +11,7 @@ import com.scott.payment.component.core.model.PageResult;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictService
- * @date : 2026-06-19 21:52
- * @email : scott_x@163.com
- * @description : 管理后台数据字典领域服务
- * @status : create
+ * 管理后台数据字典领域服务
  *
  * <p>负责字典类型与字典项的持久化、查询和删除规则，不处理接口协议适配。</p>
  */
@@ -111,6 +105,8 @@ public interface AdminDictService {
      */
     void deleteDictData(String dictType, String dictValue, String locale);
 
-    /** 主动清空管理端与商户端共享的启用字典下拉快照。 */
+    /**
+     * 主动清空管理端与商户端共享的启用字典下拉快照。
+     */
     void refreshOptionCache();
 }

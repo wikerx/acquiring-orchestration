@@ -56,31 +56,49 @@ import java.util.Objects;
 @Service
 public class DefaultVoidTransactionPreparationService implements VoidTransactionPreparationService {
 
-    /** 渠道请求记录号前缀；准备阶段生成后固定，供超时恢复和回调关联。 */
+    /**
+     * 渠道请求记录号前缀；准备阶段生成后固定，供超时恢复和回调关联。
+     */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
-    /** 平台侧渠道撤销号前缀；外呼重试必须复用准备阶段持久化的同一编号。 */
+    /**
+     * 平台侧渠道撤销号前缀；外呼重试必须复用准备阶段持久化的同一编号。
+     */
     private static final String CHANNEL_TRANSACTION_ID_PREFIX = "CH";
 
-    /** 交易动作幂等作用域，隔离其他业务域使用的同名幂等键。 */
+    /**
+     * 交易动作幂等作用域，隔离其他业务域使用的同名幂等键。
+     */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
-    /** 未显式提供时区时用于计算 UTC 分片时间的业务默认时区。 */
+    /**
+     * 未显式提供时区时用于计算 UTC 分片时间的业务默认时区。
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
-    /** Outbox 聚合类型，同一支付生命周期按 operationId 关联事件。 */
+    /**
+     * Outbox 聚合类型，同一支付生命周期按 operationId 关联事件。
+     */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
 
-    /** Outbox 初始状态，表示撤销事实已落库但事件尚未投递。 */
+    /**
+     * Outbox 初始状态，表示撤销事实已落库但事件尚未投递。
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
 
-    /** Outbox 最大自动投递次数，超过后转人工处置。 */
+    /**
+     * Outbox 最大自动投递次数，超过后转人工处置。
+     */
     private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
 
-    /** 新增记录的乐观锁初始版本。 */
+    /**
+     * 新增记录的乐观锁初始版本。
+     */
     private static final int INITIAL_VERSION = 0;
 
-    /** 新增记录的逻辑未删除标识。 */
+    /**
+     * 新增记录的逻辑未删除标识。
+     */
     private static final int NOT_DELETED = 0;
 
     private final IsoDictionaryService isoDictionaryService;
@@ -95,6 +113,16 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
 
     private final TransactionStateMachineService transactionStateMachineService;
 
+    /**
+     * 创建授权取消本地准备服务。
+     *
+     * @param isoDictionaryService 币种辅币位字典
+     * @param paymentChannelRouteService 原交易渠道和原 MID 恢复服务
+     * @param transactionIdempotencyService 动作幂等服务
+     * @param transactionEventOutboxService 可靠交易事件服务
+     * @param transactionRecordService 交易事实持久化服务
+     * @param transactionStateMachineService 授权取消状态和累计金额规则服务
+     */
     public DefaultVoidTransactionPreparationService(IsoDictionaryService isoDictionaryService,
                                                     PaymentChannelRouteService paymentChannelRouteService,
                                                     TransactionIdempotencyService transactionIdempotencyService,
@@ -228,6 +256,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return target;
     }
 
+    /**
+     * 读取并校验原交易主单。
+     */
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         String sourceTransactionId = transactionInfoDTO.getSourceTransactionId();
@@ -241,7 +272,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return sourceOrderDO;
     }
 
-    /** 锁定原交易主单，串行化撤销与请款、增量授权及退款的状态竞争。 */
+    /**
+     * 锁定原交易主单，串行化撤销与请款、增量授权及退款的状态竞争。
+     */
     private TransactionOrderDO lockSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null
                 || !StringUtils.hasText(sourceOrderDO.getOperationId())
@@ -251,7 +284,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return transactionRecordService.lockOrder(sourceOrderDO.getTransactionDateTime(), sourceOrderDO.getOperationId());
     }
 
-    /** 拒绝存在处理中请款、增量授权、退款或撤销的原交易，防止撤销覆盖未决资金动作。 */
+    /**
+     * 拒绝存在处理中请款、增量授权、退款或撤销的原交易，防止撤销覆盖未决资金动作。
+     */
     private void validateNoConflictingFundAction(PaymentCreateCommandDTO commandDTO,
                                                  TransactionOrderDO sourceOrderDO,
                                                  LocalDateTime now) {
@@ -286,6 +321,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         }
     }
 
+    /**
+     * 返回两个时间中的较晚值。
+     */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
             return second;
@@ -296,7 +334,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return first.isAfter(second) ? first : second;
     }
 
-    /** 仅在请求指纹一致且原记录已有交易号时复用撤销幂等结果。 */
+    /**
+     * 仅在请求指纹一致且原记录已有交易号时复用撤销幂等结果。
+     */
     private PaymentCreateResultDTO resolveDuplicateVoid(PaymentCreateCommandDTO commandDTO,
                                                         TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getRequestFingerprint())
@@ -311,7 +351,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return toDuplicateResult(record);
     }
 
-    /** 对原交易、撤销类型、币种和商户操作号生成稳定撤销请求指纹。 */
+    /**
+     * 对原交易、撤销类型、币种和商户操作号生成稳定撤销请求指纹。
+     */
     private String canonicalVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                    TransactionOrderDO sourceOrderDO) {
         String sourceTransactionId = commandDTO.getTransactionInfo() == null
@@ -328,11 +370,16 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return sha256(canonical);
     }
 
-    /** 指纹文本统一去除首尾空白并转大写，避免大小写差异绕过幂等冲突检测。 */
+    /**
+     * 指纹文本统一去除首尾空白并转大写，避免大小写差异绕过幂等冲突检测。
+     */
     private String normalizeFingerprintText(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String source) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -373,7 +420,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         commandDTO.setEdcEnabled(0);
     }
 
-    /** 按本次展示币种、请求币种、原交易展示币种、原交易币种的顺序解析商户展示币种。 */
+    /**
+     * 按本次展示币种、请求币种、原交易展示币种、原交易币种的顺序解析商户展示币种。
+     */
     private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
         if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
             return normalizeCurrency(commandDTO.getLabelCurrency());
@@ -387,6 +436,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return sourceOrderDO.getTransactionCurrency();
     }
 
+    /**
+     * 构建撤销结果。
+     */
     private PaymentCreateResultDTO buildVoidResult(PaymentCreateCommandDTO commandDTO,
                                                    TransactionOrderDO sourceOrderDO,
                                                    String transactionId) {
@@ -404,6 +456,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return resultDTO;
     }
 
+    /**
+     * 构建渠道请求并补齐冻结路由身份。
+     */
     private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
                                                                   TransactionOrderDO sourceOrderDO) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
@@ -413,6 +468,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return prepared;
     }
 
+    /**
+     * 构建待提交的渠道调用结果。
+     */
     private PaymentChannelInvokeResultDTO buildPreparedInvokeResult(PaymentCreateCommandDTO commandDTO,
                                                                     PaymentRouteResultDTO routeResultDTO,
                                                                     String operationId,
@@ -445,7 +503,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return invokeResultDTO;
     }
 
-    /** 在渠道调用前持久化撤销动作及原渠道路由请求事实，供失败恢复和幂等重放使用。 */
+    /**
+     * 在渠道调用前持久化撤销动作及原渠道路由请求事实，供失败恢复和幂等重放使用。
+     */
     private void recordVoidPreparedFact(PaymentCreateCommandDTO commandDTO,
                                         TransactionOrderDO sourceOrderDO,
                                         PaymentRouteResultDTO routeResultDTO,
@@ -462,7 +522,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         transactionRecordService.recordFollowUpTransaction(recordDTO);
     }
 
-    /** 将撤销创建事件写入原交易生命周期的 FIFO Outbox。 */
+    /**
+     * 将撤销创建事件写入原交易生命周期的 FIFO Outbox。
+     */
     private void saveTransactionCreatedEvent(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId(resultDTO.getTransactionId());
@@ -505,7 +567,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         transactionEventOutboxService.save(eventDO);
     }
 
-    /** 保存撤销准备结果快照，重复请求只能返回原结果且禁止再次调用渠道。 */
+    /**
+     * 保存撤销准备结果快照，重复请求只能返回原结果且禁止再次调用渠道。
+     */
     private void completeIdempotency(String idempotencyKey, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         transactionIdempotencyService.complete(
                 TRANSACTION_OPERATION_SCOPE,
@@ -518,6 +582,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                 JsonUtils.toJsonString(resultDTO));
     }
 
+    /**
+     * 构建幂等重复请求的返回结果。
+     */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
@@ -540,7 +607,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return resultDTO;
     }
 
-    /** 使用原交易累计金额和本次撤销事实补全商户响应，不暴露渠道原始敏感载荷。 */
+    /**
+     * 使用原交易累计金额和本次撤销事实补全商户响应，不暴露渠道原始敏感载荷。
+     */
     private void enrichVoidResult(PaymentCreateCommandDTO commandDTO,
                                   TransactionOrderDO sourceOrderDO,
                                   PaymentRouteResultDTO routeResultDTO,
@@ -574,6 +643,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         }
     }
 
+    /**
+     * 解析商户可见授权金额。
+     */
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
             return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
@@ -581,6 +653,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return sourceOrderDO.getAuthorizedAmount();
     }
 
+    /**
+     * 解析商户可见已请款金额。
+     */
     private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
             return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
@@ -588,6 +663,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return sourceOrderDO.getCapturedAmount();
     }
 
+    /**
+     * 返回首个正金额。
+     */
     private BigDecimal firstPositive(BigDecimal first, BigDecimal second) {
         if (first != null && first.compareTo(BigDecimal.ZERO) > 0) {
             return first;
@@ -595,7 +673,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return second;
     }
 
-    /** 后续动作优先使用本次回调地址，未提供时继承交易信息中的原回调地址。 */
+    /**
+     * 后续动作优先使用本次回调地址，未提供时继承交易信息中的原回调地址。
+     */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
             return commandDTO.getCallbackUrl();
@@ -606,10 +686,16 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return null;
     }
 
+    /**
+     * 补充商户可见响应字段。
+     */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
         PaymentOpenApiResultSupport.applyMerchantProjection(resultDTO);
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -622,6 +708,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return null;
     }
 
+    /**
+     * 解析渠道订单号。
+     */
     private String resolveChannelOrderNo(TransactionOrderDO sourceOrderDO) {
         return firstText(
                 sourceOrderDO.getChannelOrderNo(),
@@ -629,7 +718,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                 sourceOrderDO.getLatestTransactionId());
     }
 
-    /** 按原交易币种的 ISO 4217 精度精确转换最小货币单位。 */
+    /**
+     * 按原交易币种的 ISO 4217 精度精确转换最小货币单位。
+     */
     private Long toMinorAmount(BigDecimal amount, String currency) {
         try {
             return isoDictionaryService.toMinorUnit(amount, currency);
@@ -638,6 +729,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         }
     }
 
+    /**
+     * 解析币种辅币位数。
+     */
     private int resolveCurrencyExponent(String currency) {
         IsoCurrencyInfo currencyInfo = isoDictionaryService.getCurrency(currency)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency can not be resolved"));
@@ -647,14 +741,23 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return currencyInfo.defaultFractionDigits();
     }
 
+    /**
+     * 返回无换汇场景的单位交易汇率。
+     */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
+    /**
+     * 规范化币种。
+     */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 转换为响应中的子商户信息。
+     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -676,6 +779,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         return target;
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime localTime, String timeZone) {
         if (localTime == null) {
             return null;

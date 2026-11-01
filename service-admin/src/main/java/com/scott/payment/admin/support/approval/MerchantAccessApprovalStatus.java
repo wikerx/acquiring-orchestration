@@ -1,13 +1,7 @@
 package com.scott.payment.admin.support.approval;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccessApprovalStatus
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 商户来源网址和 IP 白名单共用的审批状态，约束待审、通过、拒绝三种状态及其交易状态组合。
- * @status : create
+ * 商户来源网址和 IP 白名单共用的审批状态，约束待审、通过、拒绝三种状态及其交易状态组合。
  */
 public enum MerchantAccessApprovalStatus {
 
@@ -42,6 +36,9 @@ public enum MerchantAccessApprovalStatus {
      */
     private final int code;
 
+    /**
+     * 创建商户接入审批状态值对象。
+     */
     MerchantAccessApprovalStatus(int code) {
         this.code = code;
     }

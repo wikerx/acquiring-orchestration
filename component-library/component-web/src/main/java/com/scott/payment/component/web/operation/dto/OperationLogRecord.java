@@ -3,13 +3,7 @@ package com.scott.payment.component.web.operation.dto;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogRecord
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统操作日志采集记录
- * @status : create
+ * 管理类系统操作日志采集记录
  */
 @Data
 public class OperationLogRecord {

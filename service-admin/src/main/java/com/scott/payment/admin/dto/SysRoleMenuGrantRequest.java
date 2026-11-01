@@ -8,13 +8,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysRoleMenuGrantRequest
- * @date : 2026-06-07 00:00
- * @email : scott_x@163.com
- * @description : 管理后台角色菜单授权保存请求 DTO
- * @status : create
+ * 管理后台角色菜单授权保存请求 DTO
  *
  * <p>用于提交角色菜单授权结果，承载角色主键和本次授予的菜单主键集合。</p>
  */

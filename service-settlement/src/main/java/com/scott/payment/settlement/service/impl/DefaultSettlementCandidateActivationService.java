@@ -16,13 +16,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementCandidateActivationService
- * @date : 2026-08-26 22:00
- * @email : scott_x@163.com
- * @description : 在 transaction 主库事务内联表锁定合法候选，并以候选版本和全部冻结维度批量 CAS 完成真实激活。
- * @status : create
+ * 在 transaction 主库事务内联表锁定合法候选，并以候选版本和全部冻结维度批量 CAS 完成真实激活。
  */
 @Service
 public class DefaultSettlementCandidateActivationService implements SettlementCandidateActivationService {

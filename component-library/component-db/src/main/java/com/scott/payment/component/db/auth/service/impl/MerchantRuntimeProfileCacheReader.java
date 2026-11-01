@@ -17,13 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.Semaphore;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRuntimeProfileCacheReader
- * @date : 2026-07-30 21:25
- * @email : scott_x@163.com
- * @description : 完整商户资料缓存读写器，负责主库加载、事务提交后的精确缓存更新
- * @status : create
+ * 完整商户资料缓存读写器，负责主库加载、事务提交后的精确缓存更新
  */
 @Service
 public class MerchantRuntimeProfileCacheReader {

@@ -36,30 +36,115 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinRangeIndex
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的 Card BIN 三位分片索引；查询按 generation 隔离，发布只从 SLAVE 构建数据库有界永久缓存
- * @status : update
+ * 支付与 OpenAPI 共用的 Card BIN 三位分片索引；查询按 generation 隔离，发布只从 SLAVE 构建数据库有界永久缓存
  */
 @Slf4j
 @Service
 public class CardBinRangeIndex {
 
+    /**
+     * {@code CACHE_NAMESPACE}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CACHE_NAMESPACE = "card-bin-range";
+    /**
+     * {@code GENERATION_FIELD}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String GENERATION_FIELD = "_generation";
+    /**
+     * {@code FORMAT_FIELD}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String FORMAT_FIELD = "_format";
+    /**
+     * {@code INDEX_FORMAT_VERSION}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String INDEX_FORMAT_VERSION = "id-priority-v1";
+    /**
+     * {@code SHARD_PREFIX_LENGTH}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int SHARD_PREFIX_LENGTH = 3;
+    /**
+     * {@code SHARD_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int SHARD_COUNT = 1_000;
+    /**
+     * {@code NORMALIZED_BIN_LENGTH}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int NORMALIZED_BIN_LENGTH = 11;
+    /**
+     * {@code SHARD_DIVISOR}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long SHARD_DIVISOR = 100_000_000L;
+    /**
+     * {@code MAX_BIN_VALUE}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long MAX_BIN_VALUE = 99_999_999_999L;
+    /**
+     * {@code ESTIMATED_HASH_ENTRY_OVERHEAD_BYTES}，用于以不可逆摘要关联敏感原文或大报文。
+     * <p>
+     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int ESTIMATED_HASH_ENTRY_OVERHEAD_BYTES = 64;
+    /**
+     * {@code LEGACY_SLOT_IDENTITY}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String LEGACY_SLOT_IDENTITY = "card-bin-range-index";
+    /**
+     * {@code LEGACY_SLOT_A}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String LEGACY_SLOT_A = "a";
+    /**
+     * {@code LEGACY_SLOT_B}常量，统一 {@code CardBinRangeIndex} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String LEGACY_SLOT_B = "b";
 
     private final StringRedisTemplate redisTemplate;
@@ -331,7 +416,9 @@ public class CardBinRangeIndex {
         }
     }
 
-    /** 删除固定数量的数据库派生分片；Redisson 可用时使用跨节点批处理降低发布耗时。 */
+    /**
+     * 删除固定数量的数据库派生分片；Redisson 可用时使用跨节点批处理降低发布耗时。
+     */
     private void clearAllShards() {
         if (redissonClient.isPresent()) {
             RBatch batch = redissonClient.get().createBatch(BatchOptions.defaults()
@@ -348,7 +435,9 @@ public class CardBinRangeIndex {
         }
     }
 
-    /** 全部数据和源签名校验完成后才标记分片代际；空分片也会成为权威未命中来源。 */
+    /**
+     * 全部数据和源签名校验完成后才标记分片代际；空分片也会成为权威未命中来源。
+     */
     private void markAllShardsComplete(String generation) {
         if (redissonClient.isPresent()) {
             RBatch batch = redissonClient.get().createBatch(BatchOptions.defaults()
@@ -443,6 +532,13 @@ public class CardBinRangeIndex {
         }
     }
 
+    /**
+     * 使用发布租约的 owner token 释放索引发布锁，防止误删其他节点续租后的锁。
+     * 清理失败发生在主流程异常之后时，将其附加为 suppressed 异常，保留真正的发布失败原因。
+     *
+     * @param ownerToken 当前索引发布租约的持有者令牌
+     * @param original 发布主流程异常；主流程成功时为空
+     */
     private void releasePublicationLock(String ownerToken, RuntimeException original) {
         try {
             Long released = redisTemplate.execute(
@@ -484,7 +580,9 @@ public class CardBinRangeIndex {
         return Comparator.comparingLong(CardBinRangeIndexEntry::id);
     }
 
-    /** 校验 Redis 候选的关键区间字段；损坏载荷必须回源，不能被解释为权威未命中。 */
+    /**
+     * 校验 Redis 候选的关键区间字段；损坏载荷必须回源，不能被解释为权威未命中。
+     */
     private boolean validCandidate(CardBinRangeIndexEntry entry) {
         return entry != null
                 && entry.id() != null
@@ -547,7 +645,9 @@ public class CardBinRangeIndex {
         return redisProperties.businessKey("cardBin", "index", "ready");
     }
 
-    /** 从带格式版本的完成标记中提取 generation；旧格式返回 null 并触发一次完整重建。 */
+    /**
+     * 从带格式版本的完成标记中提取 generation；旧格式返回 null 并触发一次完整重建。
+     */
     private String readyGeneration(String marker) {
         if (!StringUtils.hasText(marker)) {
             return null;
@@ -575,11 +675,15 @@ public class CardBinRangeIndex {
         }
     }
 
-    /** Redis 三位分片及该分片内的前缀字段。 */
+    /**
+     * Redis 三位分片及该分片内的前缀字段。
+     */
     record IndexCoordinate(String shard, String field) {
     }
 
-    /** 单条待写入的数据库派生候选，不包含商户查询输入。 */
+    /**
+     * 单条待写入的数据库派生候选，不包含商户查询输入。
+     */
     private record IndexWrite(String shard, String field, String payload) {
     }
 }

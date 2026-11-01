@@ -25,13 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFinanceApplicationService
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 商户费率、账户余额和余额明细只读应用服务，从认证上下文绑定商户数据范围。
- * @status : create
+ * 商户费率、账户余额和余额明细只读应用服务，从认证上下文绑定商户数据范围。
  */
 @Service
 public class MerchantFinanceApplicationService {
@@ -131,7 +125,9 @@ public class MerchantFinanceApplicationService {
                 })
                 .build(), response);
     }
-    /** 读取认证商户号；缺失时拒绝查询，禁止降级为未限定商户的访问。 */
+    /**
+     * 读取认证商户号；缺失时拒绝查询，禁止降级为未限定商户的访问。
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {
@@ -140,7 +136,9 @@ public class MerchantFinanceApplicationService {
         return account.getMerchantId();
     }
 
-    /** 生成导出文件中的操作人快照，不包含敏感认证信息。 */
+    /**
+     * 生成导出文件中的操作人快照，不包含敏感认证信息。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) return "merchant";

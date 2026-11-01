@@ -30,31 +30,17 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingRecalculationService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 未结算单笔清分重算编排。目标费用版本在事务外加载，最终由完成服务以一个短事务切换修订和候选。
- * @status : update
+ * 未结算单笔清分重算编排。目标费用版本在事务外加载，最终由完成服务以一个短事务切换修订和候选。
  */
 @Service
 public class DefaultClearingRecalculationService implements ClearingRecalculationService {
 
     /**
-     * {@code REASON_MAX_LENGTH}常量，统一 {@code DefaultClearingRecalculationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 人工重算原因允许持久化的最大字符数。
      */
     private static final int REASON_MAX_LENGTH = 400;
     /**
-     * {@code OPERATOR_MAX_LENGTH}常量，统一 {@code DefaultClearingRecalculationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 人工重算操作人标识允许持久化的最大字符数。
      */
     private static final int OPERATOR_MAX_LENGTH = 64;
 
@@ -66,6 +52,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
     private final ClearingCompletionService completionService;
     private final Clock clock;
 
+    /**
+     * 创建人工重算服务，生产环境统一使用 UTC 系统时钟生成触发时间。
+     */
     @Autowired
     public DefaultClearingRecalculationService(ClearingTransactionFinanceStateMapper financeStateMapper,
                                                ClearingTransactionOperationMapper operationMapper,
@@ -77,6 +66,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
                 preparationService, completionService, Clock.systemUTC());
     }
 
+    /**
+     * 创建可注入时钟的人工重算服务，供测试稳定验证审计时间和消息身份。
+     */
     DefaultClearingRecalculationService(ClearingTransactionFinanceStateMapper financeStateMapper,
                                         ClearingTransactionOperationMapper operationMapper,
                                         ClearingTransactionMerchantSnapshotMapper merchantSnapshotMapper,
@@ -93,7 +85,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
         this.clock = clock;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按管理端请求重算未结算交易，并以新修订替换原清分事实和结算候选。
+     */
     @Override
     public ClearingCommandResponse recalculate(String transactionId, ClearingRecalculateRequest request) {
         validateRequest(transactionId, request);
@@ -131,7 +125,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
         return response;
     }
 
-    /** 构造确定性重算触发消息，仅携带动作身份，不伪造新的支付终态。 */
+    /**
+     * 构造确定性重算触发消息，仅携带动作身份，不伪造新的支付终态。
+     */
     private PaymentTransactionEventMessage message(ClearingTransactionOperationDO operation,
                                                     ClearingTransactionFinanceStateDO state,
                                                     ClearingRecalculateRequest request) {
@@ -151,7 +147,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
         return message;
     }
 
-    /** 重算前同时校验动作、快照、未结算状态、修订和版本，阻止旧页面覆盖新事实。 */
+    /**
+     * 重算前同时校验动作、快照、未结算状态、修订和版本，阻止旧页面覆盖新事实。
+     */
     private void validateCurrentFacts(String transactionId,
                                       ClearingRecalculateRequest request,
                                       ClearingTransactionFinanceStateDO state,
@@ -175,6 +173,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
         }
     }
 
+    /**
+     * 将数据库动作记录转换为重算流程使用的不可变权威事实。
+     */
     private ClearingOperationFacts toFacts(ClearingTransactionOperationDO row) {
         return new ClearingOperationFacts(
                 row.getTransactionId(), row.getOperationId(), row.getSourceTransactionId(), row.getMerchantId(),
@@ -184,7 +185,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
                 row.getTransactionDateTime(), row.getTransactionUtcTime(), row.getTransactionTimeZone(), row.getVersion());
     }
 
-    /** 要求明确目标费用版本、当前修订和可信操作审计信息。 */
+    /**
+     * 要求明确目标费用版本、当前修订和可信操作审计信息。
+     */
     private void validateRequest(String transactionId, ClearingRecalculateRequest request) {
         if (!StringUtils.hasText(transactionId) || request == null || request.getTransactionDateTime() == null
                 || request.getExpectedVersion() == null || request.getExpectedVersion() < 0
@@ -197,6 +200,9 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
         requiredText(request.getOperator(), "operator", OPERATOR_MAX_LENGTH);
     }
 
+    /**
+     * 校验人工重算审计字段非空且不超过持久化长度限制。
+     */
     private void requiredText(String value, String field, int maxLength) {
         if (!StringUtils.hasText(value) || value.trim().length() > maxLength) {
             throw new IllegalArgumentException(field + " is missing or too long");

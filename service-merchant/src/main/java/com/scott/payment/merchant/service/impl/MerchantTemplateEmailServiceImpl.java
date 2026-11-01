@@ -36,13 +36,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTemplateEmailServiceImpl
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户模板邮件服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 商户模板邮件服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailService {
@@ -119,13 +113,21 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     private final MerchantEmailAccountMapper emailAccountMapper;
     private final MerchantEmailSendRecordMapper emailSendRecordMapper;
     private final ObjectMapper objectMapper;
-    /** 邮件真实正文加密组件。 */
+    /**
+     * 邮件真实正文加密组件。
+     */
     private final EmailPayloadCrypto payloadCrypto;
-    /** Merchant 邮件异步投递编排。 */
+    /**
+     * Merchant 邮件异步投递编排。
+     */
     private final MerchantEmailDeliveryService deliveryService;
-    /** 邮件默认重试配置。 */
+    /**
+     * 邮件默认重试配置。
+     */
     private final EmailDeliveryProperties deliveryProperties;
-    /** 跨系统已启用邮件模板快照读取器。 */
+    /**
+     * 跨系统已启用邮件模板快照读取器。
+     */
     private final EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
 
     /**
@@ -216,7 +218,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return new MerchantEmailSendResult(record.getId(), record.getSendStatus());
     }
 
-    /** 模板或发件账户缺失时也写入关闭记录，避免安全邮件准备失败却没有审计轨迹。 */
+    /**
+     * 模板或发件账户缺失时也写入关闭记录，避免安全邮件准备失败却没有审计轨迹。
+     */
     private MerchantEmailSendResult recordPreparationFailure(MerchantEmailSendCommand request,
                                                              RuntimeException exception) {
         LocalDateTime now = LocalDateTime.now();

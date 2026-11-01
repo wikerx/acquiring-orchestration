@@ -24,18 +24,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRefundApplicationServiceTests
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 商户退款管理隔离测试，验证浏览器商户号被认证上下文商户号覆盖且详情查询携带租户边界。
- * @status : create
+ * 商户退款管理隔离测试，验证浏览器商户号被认证上下文商户号覆盖且详情查询携带租户边界。
  */
 @Slf4j
 class MerchantRefundApplicationServiceTests {
 
-    /** 商户退款分页必须覆盖浏览器商户号后调用本地查询服务。 */
+    /**
+     * 商户退款分页必须覆盖浏览器商户号后调用本地查询服务。
+     */
     @Test
     void searchShouldOverrideBrowserMerchantIdAndApplyMerchantMessage() {
         log.info("用例：验证商户退款分页覆盖伪造商户号并调用service-merchant本地查询服务");
@@ -59,7 +55,9 @@ class MerchantRefundApplicationServiceTests {
         log.info("结果：认证商户号覆盖成功，退款记录返回统一商户可见说明");
     }
 
-    /** 商户退款详情必须把认证商户号传给本地查询服务。 */
+    /**
+     * 商户退款详情必须把认证商户号传给本地查询服务。
+     */
     @Test
     void detailShouldPassAuthenticatedMerchantIdToLocalQueryService() {
         log.info("用例：验证商户退款详情携带认证商户号调用本地查询服务");

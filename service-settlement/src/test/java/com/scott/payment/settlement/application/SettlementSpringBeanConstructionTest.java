@@ -12,7 +12,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
 
-/** 验证保留测试构造器的结算服务仍可由 Spring 选择生产构造器创建。 */
+/**
+ * 验证保留测试构造器的结算服务仍可由 Spring 选择生产构造器创建。
+ */
 class SettlementSpringBeanConstructionTest {
 
     @ParameterizedTest(name = "Spring should construct {0}")

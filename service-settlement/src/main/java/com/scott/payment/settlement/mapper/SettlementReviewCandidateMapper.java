@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewCandidateMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 预审候选不可删除关系数据访问接口；冻结候选身份和版本，批准时标记消费，拒绝、取消或过期时标记释放。
- * @status : create
+ * 预审候选不可删除关系数据访问接口；冻结候选身份和版本，批准时标记消费，拒绝、取消或过期时标记释放。
  */
 public interface SettlementReviewCandidateMapper {
 
@@ -60,6 +54,16 @@ public interface SettlementReviewCandidateMapper {
     List<SettlementReviewCandidateDO> selectByOrderNoForUpdate(
             @Param("reviewOrderNo") String reviewOrderNo);
 
+    /**
+     * 查询{@code selectRangeForUpdate}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param reviewOrderNo 结算预审单号或冲正单号，用于定位唯一业务单据
+     * @param firstCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param lastCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             SELECT *
             FROM settlement_review_candidate
@@ -110,6 +114,14 @@ public interface SettlementReviewCandidateMapper {
     int markReleased(@Param("reviewOrderNo") String reviewOrderNo,
                      @Param("now") LocalDateTime now);
 
+    /**
+     * 按分段主键边界释放仍属于该预审单的候选，避免影响已被其他流程消费的记录。
+     * @param reviewOrderNo 结算预审单号或冲正单号，用于定位唯一业务单据
+     * @param firstCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param lastCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_review_candidate
             SET relation_status = 'RELEASED', released_time = #{now},
@@ -123,6 +135,14 @@ public interface SettlementReviewCandidateMapper {
                           @Param("lastCandidateId") long lastCandidateId,
                           @Param("now") LocalDateTime now);
 
+    /**
+     * 按分段主键边界将预审候选绑定到正式结算批次，只更新仍处于锁定状态的记录。
+     * @param reviewOrderNo 结算预审单号或冲正单号，用于定位唯一业务单据
+     * @param firstCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param lastCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_review_candidate
             SET relation_status = 'CONSUMED', consumed_time = #{now},

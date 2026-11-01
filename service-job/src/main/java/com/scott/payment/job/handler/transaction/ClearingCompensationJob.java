@@ -23,13 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingCompensationJob
- * @date : 2026-09-01 22:30
- * @email : scott_x@163.com
- * @description : 按单季度复合游标分页触发清分补偿；Job 只限制范围和页数，不访问交易库、不覆盖清分终态也不依赖业务开关。
- * @status : update
+ * 按单季度复合游标分页触发清分补偿；Job 只限制范围和页数，不访问交易库、不覆盖清分终态也不依赖业务开关。
  */
 @Component
 public class ClearingCompensationJob implements JobHandler {
@@ -178,7 +172,9 @@ public class ClearingCompensationJob implements JobHandler {
                 + ", writes=" + writes + ", truncated=" + hasMore, result);
     }
 
-    /** 将空模式收敛为 DRY_RUN，并拒绝任何未显式支持的写入模式。 */
+    /**
+     * 将空模式收敛为 DRY_RUN，并拒绝任何未显式支持的写入模式。
+     */
     private String normalizeMode(String value) {
         String normalized = StringUtils.hasText(value)
                 ? value.trim().toUpperCase(Locale.ROOT) : "DRY_RUN";
@@ -198,7 +194,9 @@ public class ClearingCompensationJob implements JobHandler {
         return normalized;
     }
 
-    /** 校验左闭右开时间范围有效且不跨物理季度，避免跨分表扫描。 */
+    /**
+     * 校验左闭右开时间范围有效且不跨物理季度，避免跨分表扫描。
+     */
     private void validateRange(LocalDateTime begin, LocalDateTime end) {
         if (begin == null || end == null || !begin.isBefore(end)
                 || !quarterStart(begin).equals(quarterStart(end.minusNanos(1)))) {

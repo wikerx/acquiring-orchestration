@@ -7,13 +7,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateProvider
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 汇率汇率提供方协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 汇率汇率提供方协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
  */
 public interface ExchangeRateProvider {
 

@@ -107,7 +107,9 @@ public class ClearingProcessingApplicationService {
         }
     }
 
-    /** 仅对 Stage A 成功领取租约的消息执行事务外准备和 Stage B 原子提交。 */
+    /**
+     * 仅对 Stage A 成功领取租约的消息执行事务外准备和 Stage B 原子提交。
+     */
     private ClearingProcessingResult completeAcquired(PaymentTransactionEventMessage message,
                                                       ClearingClaimResult claim,
                                                       String processingOwner,
@@ -131,9 +133,14 @@ public class ClearingProcessingApplicationService {
         }
     }
 
-    /** 可恢复的租约竞争；保持 IllegalStateException 契约并与未知技术故障区分日志级别。 */
+    /**
+     * 可恢复的租约竞争；保持 IllegalStateException 契约并与未知技术故障区分日志级别。
+     */
     private static final class ClearingLeaseBusyException extends IllegalStateException {
 
+        /**
+         * 创建用于区分可恢复租约竞争的内部异常。
+         */
         private ClearingLeaseBusyException() {
             super("clearing processing lease is busy");
         }

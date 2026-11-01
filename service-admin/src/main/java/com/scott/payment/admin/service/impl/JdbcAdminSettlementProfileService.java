@@ -29,13 +29,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementProfileService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Admin 结算档案 JDBC 实现；查询和 CAS 更新均限定交易逻辑数据源及 Admin 商户范围。
- * @status : create
+ * Admin 结算档案 JDBC 实现；查询和 CAS 更新均限定交易逻辑数据源及 Admin 商户范围。
  */
 @Service
 public class JdbcAdminSettlementProfileService implements AdminSettlementProfileService {
@@ -78,7 +72,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
     private final int maxResultRows;
 
-    /** 创建生产查询服务，并继承交易查询超时与结果预算。 */
+    /**
+     * 创建生产查询服务，并继承交易查询超时与结果预算。
+     */
     @Autowired
     public JdbcAdminSettlementProfileService(DataSource dataSource,
                                              TransactionLogicalReadExecutor transactionLogicalReadExecutor,
@@ -88,7 +84,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
                 transactionLogicalReadExecutor, shardingProperties);
     }
 
-    /** 创建可注入 JDBC 模板的服务，供聚焦测试验证 SQL 与数据范围。 */
+    /**
+     * 创建可注入 JDBC 模板的服务，供聚焦测试验证 SQL 与数据范围。
+     */
     public JdbcAdminSettlementProfileService(NamedParameterJdbcTemplate jdbcTemplate,
                                              TransactionLogicalReadExecutor transactionLogicalReadExecutor,
                                              TransactionShardingProperties shardingProperties) {
@@ -98,7 +96,7 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
     }
 
     /**
-     * 查询{@code search}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 按管理数据范围分页查询业务记录。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -167,6 +165,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return requireProfile(profileNo, scope);
     }
 
+    /**
+     * 使用已规范化条件和商户数据范围分页查询结算配置。
+     */
     private PageResult<ProfileSummary> searchNormalized(ProfileSearchRequest query,
                                                         AdminMerchantDataScope dataScope) {
         if (dataScope.empty()) {
@@ -191,6 +192,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return PageResult.of(total, query.getPageNo(), query.getPageSize(), records);
     }
 
+    /**
+     * 在商户数据范围内查询结算配置，不存在时返回业务错误。
+     */
     private ProfileSummary requireProfile(String settlementProfileNo,
                                           AdminMerchantDataScope dataScope) {
         if (dataScope.empty()) {
@@ -210,6 +214,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return rows.get(0);
     }
 
+    /**
+     * 构建查询来源表 SQL 片段。
+     */
     private String fromSql() {
         return """
                  FROM merchant_settlement_profile profile
@@ -235,6 +242,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
                 """;
     }
 
+    /**
+     * 构建受控字段组成的查询条件 SQL。
+     */
     private String whereSql(ProfileSearchRequest query, AdminMerchantDataScope dataScope) {
         StringBuilder sql = new StringBuilder(" WHERE 1 = 1");
         sql.append(merchantScopeSql(dataScope));
@@ -247,6 +257,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return sql.toString();
     }
 
+    /**
+     * 构建命名 SQL 查询参数。
+     */
     private MapSqlParameterSource parameters(ProfileSearchRequest query,
                                              AdminMerchantDataScope dataScope) {
         return new MapSqlParameterSource()
@@ -258,14 +271,23 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
                 .addValue("permittedMerchantIds", dataScope.merchantIds());
     }
 
+    /**
+     * 构建管理端商户数据范围 SQL。
+     */
     private String merchantScopeSql(AdminMerchantDataScope dataScope) {
         return dataScope.allMerchants() ? "" : " AND profile.merchant_id IN (:permittedMerchantIds)";
     }
 
+    /**
+     * 构建结算档案更新语句的商户数据范围条件。
+     */
     private String updateMerchantScopeSql(AdminMerchantDataScope dataScope) {
         return dataScope.allMerchants() ? "" : " AND merchant_id IN (:permittedMerchantIds)";
     }
 
+    /**
+     * 规范化输入值。
+     */
     private ProfileSearchRequest normalize(ProfileSearchRequest request) {
         ProfileSearchRequest query = request == null ? new ProfileSearchRequest() : request;
         query.setSettlementProfileNo(trimToNull(query.getSettlementProfileNo()));
@@ -290,6 +312,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return query;
     }
 
+    /**
+     * 校验并规范化结算配置更新请求。
+     */
     private ProfileUpdateRequest normalizeUpdate(ProfileUpdateRequest request) {
         if (request == null) {
             throw invalid("结算档案修改请求不能为空");
@@ -316,6 +341,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return request;
     }
 
+    /**
+     * 校验并返回调用方的商户数据范围。
+     */
     private AdminMerchantDataScope requiredScope(AdminMerchantDataScope dataScope) {
         if (dataScope == null) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
@@ -323,6 +351,9 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return dataScope;
     }
 
+    /**
+     * 读取并校验结算档案编号。
+     */
     private String requiredProfileNo(String value) {
         String profileNo = trimToNull(value);
         if (profileNo == null || profileNo.length() > 64) {
@@ -331,21 +362,33 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         return profileNo;
     }
 
+    /**
+     * 当筛选值存在时追加对应的查询条件。
+     */
     private void appendCondition(StringBuilder sql, String value, String condition) {
         if (value != null) {
             sql.append(condition);
         }
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 构建结算档案参数校验异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

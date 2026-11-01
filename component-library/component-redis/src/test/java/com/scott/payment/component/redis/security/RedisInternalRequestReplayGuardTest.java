@@ -15,13 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisInternalRequestReplayGuardTest
- * @date : 2026-08-20 23:58
- * @email : scott_x@163.com
- * @description : 验证内部 HMAC nonce 使用环境隔离摘要 Key 原子占用，重复请求与 Redis 异常均失败关闭
- * @status : create
+ * 验证内部 HMAC nonce 使用环境隔离摘要 Key 原子占用，重复请求与 Redis 异常均失败关闭
  */
 class RedisInternalRequestReplayGuardTest {
 
@@ -29,7 +23,9 @@ class RedisInternalRequestReplayGuardTest {
     private static final String NONCE = "nonce-value-1234567890";
     private static final Duration TTL = Duration.ofMinutes(10);
 
-    /** 验证首次占用成功且物理 Key 不暴露原始 nonce。 */
+    /**
+     * 验证首次占用成功且物理 Key 不暴露原始 nonce。
+     */
     @Test
     void shouldAcquireHashedNonceKey() {
         Fixture fixture = fixture(Boolean.TRUE);
@@ -41,7 +37,9 @@ class RedisInternalRequestReplayGuardTest {
         assertThat(expectedKey).doesNotContain(NONCE);
     }
 
-    /** 验证 Redis SET NX 返回 false 时识别为重放请求。 */
+    /**
+     * 验证 Redis SET NX 返回 false 时识别为重放请求。
+     */
     @Test
     void shouldRejectRepeatedNonce() {
         Fixture fixture = fixture(Boolean.FALSE);
@@ -49,7 +47,9 @@ class RedisInternalRequestReplayGuardTest {
         assertThat(fixture.guard().tryAcquire(CALLER, NONCE, TTL)).isFalse();
     }
 
-    /** 验证 Redis 未返回执行结果时不允许内部请求降级放行。 */
+    /**
+     * 验证 Redis 未返回执行结果时不允许内部请求降级放行。
+     */
     @Test
     void shouldFailClosedWhenRedisReturnsNull() {
         Fixture fixture = fixture(null);
@@ -59,7 +59,9 @@ class RedisInternalRequestReplayGuardTest {
                 .hasMessageContaining("returned no result");
     }
 
-    /** 验证非法 TTL 不会发起 Redis 写入。 */
+    /**
+     * 验证非法 TTL 不会发起 Redis 写入。
+     */
     @Test
     void shouldRejectNonPositiveTtl() {
         Fixture fixture = fixture(Boolean.TRUE);

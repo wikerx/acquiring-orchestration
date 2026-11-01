@@ -5,13 +5,7 @@ import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantIpWhitelistAccessDeniedException
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 准入拒绝异常，对外固定投影为 A3003，内部保留不泄露配置状态的审计原因和规范化请求 IP。
- * @status : create
+ * 商户 OpenAPI IP 准入拒绝异常，对外固定投影为 A3003，内部保留不泄露配置状态的审计原因和规范化请求 IP。
  */
 public class MerchantIpWhitelistAccessDeniedException extends ApiException {
 
@@ -19,7 +13,9 @@ public class MerchantIpWhitelistAccessDeniedException extends ApiException {
 
     private final MerchantIpWhitelistDenyReason reason;
 
-    /** 平台从可信网关上下文识别到的规范化请求 IP。 */
+    /**
+     * 平台从可信网关上下文识别到的规范化请求 IP。
+     */
     private final String requestIp;
 
     /**

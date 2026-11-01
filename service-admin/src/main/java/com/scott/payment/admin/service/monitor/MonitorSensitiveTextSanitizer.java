@@ -6,25 +6,25 @@ import org.springframework.util.StringUtils;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorSensitiveTextSanitizer
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 系统监控文本脱敏器，移除常见凭据、URL 敏感参数和支付卡号，并对面向管理端的摘要执行长度限制。
- * @status : create
+ * 系统监控文本脱敏器，移除常见凭据、URL 敏感参数和支付卡号，并对面向管理端的摘要执行长度限制。
  */
 @Component
 public class MonitorSensitiveTextSanitizer {
 
-    /** 名称和值形式的凭据、密码和支付卡安全码匹配规则。 */
+    /**
+     * 名称和值形式的凭据、密码和支付卡安全码匹配规则。
+     */
     private static final Pattern NAMED_SECRET = Pattern.compile(
             "(?i)(authorization|cookie|set-cookie|token|secret|password|passwd|pwd|api[-_]?key|access[-_]?key|private[-_]?key|cvv|cvc|security[-_]?code)"
                     + "\\s*[:=]\\s*([^,;\\s&]+)");
-    /** URL 查询参数中的凭据、密码和支付卡安全码匹配规则。 */
+    /**
+     * URL 查询参数中的凭据、密码和支付卡安全码匹配规则。
+     */
     private static final Pattern URL_SECRET = Pattern.compile(
             "(?i)([?&](?:token|secret|password|passwd|pwd|api[-_]?key|access[-_]?key|cvv|cvc|security[-_]?code)=)[^&#\\s]*");
-    /** 可能的 13 至 19 位支付卡号匹配规则，允许空格或短横线分隔。 */
+    /**
+     * 可能的 13 至 19 位支付卡号匹配规则，允许空格或短横线分隔。
+     */
     private static final Pattern PAN = Pattern.compile("(?<!\\d)(?:\\d[ -]?){13,19}(?!\\d)");
 
     /**

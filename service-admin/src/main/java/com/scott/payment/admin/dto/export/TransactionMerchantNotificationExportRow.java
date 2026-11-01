@@ -6,13 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionMerchantNotificationExportRow
- * @date : 2026-07-17
- * @email : scott_x@163.com
- * @description : 商户通知任务导出行对象，位于 service-admin 导出传输层，仅导出通知排查所需的安全字段。
- * @status : create
+ * 商户通知任务导出行对象，位于 service-admin 导出传输层，仅导出通知排查所需的安全字段。
  */
 @Data
 public class TransactionMerchantNotificationExportRow {

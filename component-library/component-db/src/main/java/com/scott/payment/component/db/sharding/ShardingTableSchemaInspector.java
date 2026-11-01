@@ -10,30 +10,34 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTableSchemaInspector
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表治理结构检查器；通过治理直连数据源校验物理表主键、自增号段、分片时间精度、字符集及模板一致性，不执行 DDL。
- * @status : create
+ * 分表治理结构检查器；通过治理直连数据源校验物理表主键、自增号段、分片时间精度、字符集及模板一致性，不执行 DDL。
  */
 @Component
 public class ShardingTableSchemaInspector {
 
-    /** 从 SHOW CREATE TABLE 的实时元数据中提取自增计数器，避免 information_schema 统计缓存误报。 */
+    /**
+     * 从 SHOW CREATE TABLE 的实时元数据中提取自增计数器，避免 information_schema 统计缓存误报。
+     */
     private static final Pattern AUTO_INCREMENT_PATTERN = Pattern.compile(
             "\\bAUTO_INCREMENT\\s*=\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
-    /** CHECK 名称在同一 schema 内必须唯一，模板表和季度表允许使用不同名称。 */
+    /**
+     * CHECK 名称在同一 schema 内必须唯一，模板表和季度表允许使用不同名称。
+     */
     private static final Pattern CHECK_CONSTRAINT_NAME_PATTERN = Pattern.compile(
             "\\bCONSTRAINT\\s+`[^`]+`\\s+CHECK\\b", Pattern.CASE_INSENSITIVE);
-    /** 季度物理表允许使用独立的说明性表注释，列注释仍参与结构比较。 */
+    /**
+     * 季度物理表允许使用独立的说明性表注释，列注释仍参与结构比较。
+     */
     private static final Pattern TABLE_COMMENT_PATTERN = Pattern.compile(
             "\\s+COMMENT='(?:\\\\.|[^'])*'\\s*$", Pattern.CASE_INSENSITIVE);
 
-    /** 治理直连数据源的只读元数据查询入口。 */
+    /**
+     * 治理直连数据源的只读元数据查询入口。
+     */
     private final JdbcTemplate jdbcTemplate;
-    /** 将规则解析为受控模板/物理表名，并阻断非法标识符进入元数据 SQL。 */
+    /**
+     * 将规则解析为受控模板/物理表名，并阻断非法标识符进入元数据 SQL。
+     */
     private final ShardingPhysicalTableNameResolver tableNameResolver;
 
     /**

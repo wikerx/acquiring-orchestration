@@ -1,6 +1,8 @@
 package com.scott.payment.clearing.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.clearing.domain.model.SettlementCandidateDependencyPlan;
+import com.scott.payment.clearing.domain.state.SettlementCandidateDependencyType;
 import com.scott.payment.clearing.entity.ClearingMerchantSettlementProfileDO;
 import com.scott.payment.clearing.entity.ClearingReserveAdjustmentDO;
 import com.scott.payment.clearing.entity.ClearingReserveDetailDO;
@@ -36,49 +38,28 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultReserveAdjustmentService
- * @date : 2026-08-26 19:05
- * @email : scott_x@163.com
- * @description : 以申请唯一键和双人复核驱动标签币种保证金差额事实、状态CAS和独立结算候选。
- * @status : create
+ * 以申请唯一键和双人复核驱动标签币种保证金差额事实、状态CAS和独立结算候选。
  */
 @Service
 public class DefaultReserveAdjustmentService implements ReserveAdjustmentService {
 
     /**
-     * {@code BUSINESS_ZONE}常量，统一 {@code DefaultReserveAdjustmentService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 将复核时刻转换为调整交易分片时间和业务日期的固定平台时区。
      */
     private static final ZoneId BUSINESS_ZONE = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
     /**
-     * 等待审核常量，统一 {@code DefaultReserveAdjustmentService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 调整申请已提交但尚未完成双人复核的状态。
      */
     private static final String PENDING_REVIEW = "PENDING_REVIEW";
     /**
-     * {@code EXECUTED}常量，统一 {@code DefaultReserveAdjustmentService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 调整申请已生成财务事实并完成保证金状态更新的终态。
      */
     private static final String EXECUTED = "EXECUTED";
     /**
-     * {@code REJECTED}常量，统一 {@code DefaultReserveAdjustmentService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 调整申请被复核人拒绝且未生成财务事实的终态。
      */
     private static final String REJECTED = "REJECTED";
 
@@ -89,6 +70,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
     private final ReserveCalculator reserveCalculator;
     private final ClearingOperationalMetrics metrics;
 
+    /**
+     * 创建保证金调整服务，并注入申请、状态、结算资料、候选、计算器和指标依赖。
+     */
     public DefaultReserveAdjustmentService(ClearingReserveAdjustmentMapper adjustmentMapper,
                                            ClearingReserveMapper reserveMapper,
                                            ClearingMerchantSettlementProfileMapper profileMapper,
@@ -103,7 +87,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         this.metrics = metrics;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 幂等提交保证金调整申请，并冻结原保证金事实和复核所需上下文。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -171,7 +157,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         return result(persisted);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 复核保证金调整申请；批准时以版本 CAS 更新负债并写入调整候选。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -221,20 +209,28 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         return approve(request, reviewer, comment, command.reviewInstant(), auditTime);
     }
 
-    /** 成功指标在数据库提交后写入；无事务的纯单元测试调用则立即记录。 */
+    /**
+     * 成功指标在数据库提交后写入；无事务的纯单元测试调用则立即记录。
+     */
     private void recordAfterCommit(String outcome) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             metrics.recordReserveAdjustment(outcome);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            /** 事务真正提交后才发布成功指标，避免回滚操作被统计为已资金化。 */
+            /**
+             * 事务真正提交后才发布成功指标，避免回滚操作被统计为已资金化。
+             */
             @Override
             public void afterCommit() {
                 metrics.recordReserveAdjustment(outcome);
             }
 
-            /** @param status Spring 事务最终状态；非提交状态统一记录失败指标 */
+            /**
+             * 事务结束后只对未提交结果记录失败指标，避免把回滚申请计为成功。
+             *
+             * @param status Spring 事务最终状态；非提交状态统一记录失败指标
+             */
             @Override
             public void afterCompletion(int status) {
                 if (status != TransactionSynchronization.STATUS_COMMITTED) {
@@ -244,7 +240,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         });
     }
 
-    /** 批准时在同一事务追加调整事实、CAS 保证金状态、创建候选并终结申请。 */
+    /**
+     * 批准时在同一事务追加调整事实、CAS 保证金状态、创建候选并终结申请。
+     */
     private ReserveAdjustmentResult approve(ClearingReserveAdjustmentDO request,
                                             String reviewer,
                                             String comment,
@@ -286,12 +284,28 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
                 "reserve adjustment state CAS");
         candidateService.createAdjustment(
                 request.getAdjustmentNo(), sourceRevision, transactionId, transactionTime,
-                state.getMerchantId(), profile.getTargetCurrency(), businessDate, auditTime);
+                state.getMerchantId(), profile.getTargetCurrency(), businessDate,
+                reserveDependency(state, hold), auditTime);
         requireOne(adjustmentMapper.markExecuted(
                 request.getAdjustmentNo(), request.getVersion(), reviewer, comment, auditTime,
                 transactionId, sourceRevision, auditTime), "reserve adjustment execute CAS");
         return new ReserveAdjustmentResult(
                 request.getAdjustmentNo(), EXECUTED, transactionId, sourceRevision, request.getVersion() + 1);
+    }
+
+    /**
+     * 构造保证金调整对原支付 HOLD 候选的强制依赖。
+     *
+     * @param state 已锁定的原支付保证金状态
+     * @param hold 原始保证金扣留事实
+     * @return 必须与调整候选同事务写入的依赖计划
+     */
+    private SettlementCandidateDependencyPlan reserveDependency(ClearingReserveStateDO state,
+                                                                ClearingReserveDetailDO hold) {
+        return new SettlementCandidateDependencyPlan(
+                state.getOriginalFinanceStateId(), hold.getClearingRevision(),
+                state.getOriginalTransactionId(), state.getMerchantId(),
+                Set.of(SettlementCandidateDependencyType.RESERVE_HOLD_POSTED));
     }
 
     /**
@@ -379,7 +393,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         return row;
     }
 
-    /** 锁定状态必须匹配提交时冻结的业务身份、分片时间和版本。 */
+    /**
+     * 锁定状态必须匹配提交时冻结的业务身份、分片时间和版本。
+     */
     private void validateStateIdentity(ClearingReserveStateDO state,
                                        String reserveStateId,
                                        String transactionId,
@@ -393,10 +409,14 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         }
     }
 
-    /** 原 HOLD 必须与状态中的快照、币种和商户身份一致。 */
+    /**
+     * 原 HOLD 必须与状态中的快照、币种和商户身份一致。
+     */
     private void validateHold(ClearingReserveStateDO state, ClearingReserveDetailDO hold) {
         if (hold == null || !"HOLD".equals(hold.getReserveActionType())
                 || !Objects.equals(state.getOriginalHoldDetailNo(), hold.getReserveClearingDetailNo())
+                || !StringUtils.hasText(state.getOriginalFinanceStateId())
+                || hold.getClearingRevision() == null || hold.getClearingRevision() < 1
                 || !Objects.equals(state.getOriginalFeePlanVersionId(), hold.getFeePlanVersionId())
                 || !Objects.equals(state.getOriginalReserveSnapshotHash(), hold.getReserveSnapshotHash())
                 || !Objects.equals(state.getReserveCurrency(), hold.getReserveCurrency())
@@ -405,7 +425,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         }
     }
 
-    /** 活动结算档案必须属于同一商户并提供合法目标币种。 */
+    /**
+     * 活动结算档案必须属于同一商户并提供合法目标币种。
+     */
     private void validateProfile(ClearingReserveStateDO state,
                                  ClearingMerchantSettlementProfileDO profile) {
         if (profile == null || !Objects.equals(state.getMerchantId(), profile.getMerchantId())
@@ -415,7 +437,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         }
     }
 
-    /** 重复复核只有在决定、复核人和终态一致时返回稳定结果。 */
+    /**
+     * 重复复核只有在决定、复核人和终态一致时返回稳定结果。
+     */
     private boolean terminalReplay(ClearingReserveAdjustmentDO request,
                                    ReviewCommand command,
                                    String reviewer) {
@@ -436,7 +460,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         return false;
     }
 
-    /** 幂等请求键冲突后核对全部冻结参数，禁止不同申请复用旧结果。 */
+    /**
+     * 幂等请求键冲突后核对全部冻结参数，禁止不同申请复用旧结果。
+     */
     private void validateDuplicate(ClearingReserveAdjustmentDO row,
                                    String adjustmentNo,
                                    SubmitCommand command) {
@@ -458,7 +484,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         }
     }
 
-    /** 提交命令要求正金额、合法方向、冻结版本和可信提交审计。 */
+    /**
+     * 提交命令要求正金额、合法方向、冻结版本和可信提交审计。
+     */
     private void validateSubmit(SubmitCommand command) {
         if (command == null || !StringUtils.hasText(command.requestKey())
                 || command.requestKey().length() > 128 || !StringUtils.hasText(command.reserveStateId())
@@ -473,7 +501,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         normalized(command.submitOperator(), "submit operator", 128);
     }
 
-    /** 复核命令要求申请版本、固定决定、可信复核人和审计时点。 */
+    /**
+     * 复核命令要求申请版本、固定决定、可信复核人和审计时点。
+     */
     private void validateReview(ReviewCommand command) {
         if (command == null || !StringUtils.hasText(command.adjustmentNo())
                 || command.expectedRequestVersion() < 0 || command.decision() == null
@@ -484,6 +514,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         normalized(command.reviewOperator(), "review operator", 128);
     }
 
+    /**
+     * 规范化人工原因和操作人文本，拒绝空值、换行注入与超长内容。
+     */
     private String normalized(String value, String field, int maxLength) {
         if (!StringUtils.hasText(value)) {
             throw new IllegalArgumentException(field + " is required");
@@ -495,7 +528,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         return result;
     }
 
-    /** 以业务身份派生稳定编号，使申请重放得到相同的调整、明细和候选关联键。 */
+    /**
+     * 以业务身份派生稳定编号，使申请重放得到相同的调整、明细和候选关联键。
+     */
     private String stableId(String prefix, String identity) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -506,6 +541,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         }
     }
 
+    /**
+     * 将保证金调整申请的当前持久化状态转换为幂等响应。
+     */
     private ReserveAdjustmentResult result(ClearingReserveAdjustmentDO row) {
         return new ReserveAdjustmentResult(
                 row.getAdjustmentNo(), row.getAdjustmentStatus(), row.getExecutionTransactionId(),
@@ -513,6 +551,9 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
                 row.getVersion() == null ? 0L : row.getVersion());
     }
 
+    /**
+     * 要求带版本条件的保证金写操作精确命中一行。
+     */
     private void requireOne(int affected, String operation) {
         if (affected != 1) {
             throw new IllegalStateException(operation + " did not affect the expected row");

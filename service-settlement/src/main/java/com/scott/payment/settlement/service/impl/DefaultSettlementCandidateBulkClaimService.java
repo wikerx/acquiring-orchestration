@@ -23,13 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementCandidateBulkClaimService
- * @date : 2026-08-26 22:20
- * @email : scott_x@163.com
- * @description : 批次首锁后按依赖拓扑分页锁定候选，以版本批量 CAS、批量审计关系和批次计数 CAS 完成认领封批。
- * @status : create
+ * 批次首锁后按依赖拓扑分页锁定候选，以版本批量 CAS、批量审计关系和批次计数 CAS 完成认领封批。
  */
 @Service
 public class DefaultSettlementCandidateBulkClaimService implements SettlementCandidateBulkClaimService {
@@ -43,7 +37,9 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
      * </p>
      */
     private static final int CLAIM_PAGE_SIZE = 200;
-    /** 单批硬上限 1000 条，避免事实读取和结果入库随历史积压无界增长。 */
+    /**
+     * 单批硬上限 1000 条，避免事实读取和结果入库随历史积压无界增长。
+     */
     private static final int MAX_CLAIM_PAGES_PER_BATCH = 5;
 
     private final SettlementBatchMapper batchMapper;
@@ -99,7 +95,9 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         return batch.getCandidateCount();
     }
 
-    /** 对一页 READY 候选执行批量版本 CAS、关系幂等插入和批次候选计数 CAS。 */
+    /**
+     * 对一页 READY 候选执行批量版本 CAS、关系幂等插入和批次候选计数 CAS。
+     */
     private void claimPage(SettlementBatchDO batch,
                            List<SettlementCandidateDO> candidates,
                            LocalDateTime claimedTime) {
@@ -128,7 +126,9 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         batch.setBatchStatus(SettlementBatchStatus.CLAIMING.name());
     }
 
-    /** 仅对非空批次从 CREATED 原子封存为 CLAIMED，0 候选批次由上层取消留痕。 */
+    /**
+     * 仅对非空批次从 CREATED 原子封存为 CLAIMED，0 候选批次由上层取消留痕。
+     */
     private void sealIfNonEmpty(SettlementBatchDO batch, LocalDateTime sealedTime) {
         if (batch.getCandidateCount() == 0) {
             return;
@@ -139,7 +139,9 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         }
     }
 
-    /** 构造批次候选不可删除关系，冻结来源类型、业务 ID 和修订号。 */
+    /**
+     * 构造批次候选不可删除关系，冻结来源类型、业务 ID 和修订号。
+     */
     private SettlementBatchCandidateDO relation(String batchNo,
                                                 SettlementCandidateDO candidate,
                                                 LocalDateTime claimedTime) {
@@ -158,7 +160,9 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         return row;
     }
 
-    /** 将批次状态字符串解析为枚举，拒绝未知值进入认领状态机。 */
+    /**
+     * 将批次状态字符串解析为枚举，拒绝未知值进入认领状态机。
+     */
     private SettlementBatchStatus parseStatus(String value) {
         try {
             return SettlementBatchStatus.valueOf(value);
@@ -167,7 +171,9 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         }
     }
 
-    /** 由批次号和候选主键生成稳定关系号，保证分页重放身份一致。 */
+    /**
+     * 由批次号和候选主键生成稳定关系号，保证分页重放身份一致。
+     */
     private String relationNo(String settlementBatchNo, Long candidateId) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

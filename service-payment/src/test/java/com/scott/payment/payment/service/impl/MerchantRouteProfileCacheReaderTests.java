@@ -30,17 +30,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRouteProfileCacheReaderTests
- * @date : 2026-08-01 15:45
- * @email : scott_x@163.com
- * @description : 验证商户路由快照使用五次批量查询构建且不会携带渠道敏感元数据正文
- * @status : create
+ * 验证商户路由快照使用五次批量查询构建且不会携带渠道敏感元数据正文
  */
 class MerchantRouteProfileCacheReaderTests {
 
-    /** 交易路由快照必须承载管理端支付能力中的运行时约束。 */
+    /**
+     * 交易路由快照必须承载管理端支付能力中的运行时约束。
+     */
     @Test
     void shouldExposeCapabilityRuntimePolicyFields() {
         assertThat(List.of(MerchantRouteProfile.RouteOption.class.getDeclaredFields()))
@@ -53,7 +49,9 @@ class MerchantRouteProfileCacheReaderTests {
                 );
     }
 
-    /** 初始化 MyBatis-Plus Lambda 字段缓存。 */
+    /**
+     * 初始化 MyBatis-Plus Lambda 字段缓存。
+     */
     @BeforeEach
     void setUp() {
         initializeTableInfo(MerchantChannelMidBindingDO.class);
@@ -119,7 +117,9 @@ class MerchantRouteProfileCacheReaderTests {
         verify(cardBrandMapper).selectList(any());
     }
 
-    /** 构造启用的商户 MID 绑定。 */
+    /**
+     * 构造启用的商户 MID 绑定。
+     */
     private MerchantChannelMidBindingDO binding() {
         MerchantChannelMidBindingDO row = new MerchantChannelMidBindingDO();
         row.setId(1L);
@@ -130,7 +130,9 @@ class MerchantRouteProfileCacheReaderTests {
         return row;
     }
 
-    /** 构造包含敏感元数据的 MID 数据库行，敏感字段不得复制到返回模型。 */
+    /**
+     * 构造包含敏感元数据的 MID 数据库行，敏感字段不得复制到返回模型。
+     */
     private ChannelMidConfigDO mid() {
         ChannelMidConfigDO row = new ChannelMidConfigDO();
         row.setId(10L);
@@ -150,7 +152,9 @@ class MerchantRouteProfileCacheReaderTests {
         return row;
     }
 
-    /** 构造启用的收单渠道。 */
+    /**
+     * 构造启用的收单渠道。
+     */
     private ChannelInfoDO channel() {
         ChannelInfoDO row = new ChannelInfoDO();
         row.setId(20L);
@@ -164,7 +168,9 @@ class MerchantRouteProfileCacheReaderTests {
         return row;
     }
 
-    /** 构造启用的银行卡支付能力。 */
+    /**
+     * 构造启用的银行卡支付能力。
+     */
     private ChannelPaymentCapabilityDO capability() {
         ChannelPaymentCapabilityDO row = new ChannelPaymentCapabilityDO();
         row.setId(30L);
@@ -182,7 +188,9 @@ class MerchantRouteProfileCacheReaderTests {
         return row;
     }
 
-    /** 构造能力支持币种。 */
+    /**
+     * 构造能力支持币种。
+     */
     private ChannelCapabilityCurrencyDO currency() {
         ChannelCapabilityCurrencyDO row = new ChannelCapabilityCurrencyDO();
         row.setId(40L);
@@ -193,7 +201,9 @@ class MerchantRouteProfileCacheReaderTests {
         return row;
     }
 
-    /** 构造能力支持卡品牌。 */
+    /**
+     * 构造能力支持卡品牌。
+     */
     private ChannelCapabilityCardBrandDO cardBrand() {
         ChannelCapabilityCardBrandDO row = new ChannelCapabilityCardBrandDO();
         row.setId(50L);
@@ -205,7 +215,9 @@ class MerchantRouteProfileCacheReaderTests {
         return row;
     }
 
-    /** 为纯单元测试初始化实体列信息。 */
+    /**
+     * 为纯单元测试初始化实体列信息。
+     */
     private void initializeTableInfo(Class<?> entityType) {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         assistant.setCurrentNamespace(getClass().getName() + "." + entityType.getSimpleName());

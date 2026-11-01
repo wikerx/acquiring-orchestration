@@ -10,13 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLookupRoutingRefreshScheduler
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 管理端 IP 分片路由预加载与轮询器，确保与 OpenAPI 共享相同的数据版本判断
- * @status : create
+ * 管理端 IP 分片路由预加载与轮询器，确保与 OpenAPI 共享相同的数据版本判断
  */
 @Slf4j
 @Component
@@ -25,11 +19,16 @@ public class IpLookupRoutingRefreshScheduler implements ApplicationRunner {
     private final IpShardRoutingSnapshot routingSnapshot;
     private final AtomicLong lastWarningMillis = new AtomicLong();
 
+    /**
+     * 创建 IP 地址库路由刷新调度器。
+     */
     public IpLookupRoutingRefreshScheduler(IpShardRoutingSnapshot routingSnapshot) {
         this.routingSnapshot = routingSnapshot;
     }
 
-    /** 在管理端启动完成前从 SLAVE 预加载路由，避免首次精确查询额外读取路由表。 */
+    /**
+     * 在管理端启动完成前从 SLAVE 预加载路由，避免首次精确查询额外读取路由表。
+     */
     @Override
     public void run(ApplicationArguments args) {
         refresh();

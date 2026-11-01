@@ -8,38 +8,46 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccessConfigDTOs
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 商户店铺网址和 IP 白名单门户 DTO，不包含可由页面指定的商户号。
- * @status : create
+ * 商户店铺网址和 IP 白名单门户 DTO，不包含可由页面指定的商户号。
  */
 public final class MerchantAccessConfigDTOs {
 
     private MerchantAccessConfigDTOs() {
     }
 
-    /** 店铺网址提交请求。 */
+    /**
+     * 店铺网址提交请求。
+     */
     @Data
     public static class SourceUrlSubmitRequest {
-        /** 待审核店铺网址列表。 */
+        /**
+         * 待审核店铺网址列表。
+         */
         private List<String> sourceUrls = new ArrayList<>();
-        /** 提交说明。 */
+        /**
+         * 提交说明。
+         */
         private String remark;
     }
 
-    /** IP 白名单提交请求。 */
+    /**
+     * IP 白名单提交请求。
+     */
     @Data
     public static class IpWhitelistSubmitRequest {
-        /** 待审核精确 IP 列表。 */
+        /**
+         * 待审核精确 IP 列表。
+         */
         private List<String> ipValues = new ArrayList<>();
-        /** 提交说明。 */
+        /**
+         * 提交说明。
+         */
         private String remark;
     }
 
-    /** 店铺网址记录。 */
+    /**
+     * 店铺网址记录。
+     */
     @Data
     public static class SourceUrlItem {
         /**
@@ -67,7 +75,9 @@ public final class MerchantAccessConfigDTOs {
          * </p>
          */
         private String sourceUrl;
-        /** 供管理端响应反序列化使用，不允许出现在商户端响应中。 */
+        /**
+         * 供管理端响应反序列化使用，不允许出现在商户端响应中。
+         */
         @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
         private String sourceHost;
         /**
@@ -148,7 +158,9 @@ public final class MerchantAccessConfigDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** IP 白名单记录。 */
+    /**
+     * IP 白名单记录。
+     */
     @Data
     public static class IpWhitelistItem {
         /**

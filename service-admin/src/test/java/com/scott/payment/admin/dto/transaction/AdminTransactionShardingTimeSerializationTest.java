@@ -17,13 +17,7 @@ import java.time.format.DateTimeFormatter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionShardingTimeSerializationTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理后台交易列表分片时间序列化契约测试。
- * @status : create
+ * 管理后台交易列表分片时间序列化契约测试。
  *
  *
  * <p>页面展示仍可隐藏毫秒，但列表响应必须保留数据库 {@code DATETIME(3)} 精度，
@@ -36,7 +30,9 @@ class AdminTransactionShardingTimeSerializationTest {
     private static final LocalDateTime TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 8, 2, 12, 8, 36, 233_000_000);
 
-    /** 使用秒级全局配置模拟生产 ObjectMapper，验证 DTO 的字段级毫秒格式覆盖。 */
+    /**
+     * 使用秒级全局配置模拟生产 ObjectMapper，验证 DTO 的字段级毫秒格式覆盖。
+     */
     private final ObjectMapper objectMapper = secondsConfiguredObjectMapper();
 
     /**

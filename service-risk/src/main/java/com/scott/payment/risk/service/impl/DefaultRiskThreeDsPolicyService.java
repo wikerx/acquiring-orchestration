@@ -12,51 +12,34 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskThreeDsPolicyService
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : 默认路由后 3DS 策略服务，仅执行规则读取，不创建累计限额或频控预占。
- * @status : create
+ * 默认路由后 3DS 策略服务，仅执行规则读取，不创建累计限额或频控预占。
  */
 @Service
 public class DefaultRiskThreeDsPolicyService implements RiskThreeDsPolicyService {
 
     /**
-     * {@code ACTION_FORCE_THREE_DS}常量，统一 {@code DefaultRiskThreeDsPolicyService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 规则命中后强制执行 3DS 的策略动作。
      */
     private static final String ACTION_FORCE_THREE_DS = "FORCE_3DS";
+
     /**
-     * {@code ACTION_SKIP_THREE_DS}常量，统一 {@code DefaultRiskThreeDsPolicyService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 规则命中后允许跳过 3DS 的策略动作。
      */
     private static final String ACTION_SKIP_THREE_DS = "SKIP_3DS";
+
     /**
-     * {@code ACTION_NONE}常量，统一 {@code DefaultRiskThreeDsPolicyService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 没有适用 3DS 规则或规则动作不可识别时的稳定返回值。
      */
     private static final String ACTION_NONE = "NONE";
+
     /**
-     * {@code DECISION_REQUIRE_THREE_DS}常量，统一 {@code DefaultRiskThreeDsPolicyService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 通用风控决策要求 3DS 时使用的决策编码。
      */
     private static final String DECISION_REQUIRE_THREE_DS = "REQUIRE_3DS";
 
-    /** 只读运行时规则仓储。 */
+    /**
+     * 只读运行时规则仓储。
+     */
     private final RiskListRuntimeRepository riskListRuntimeRepository;
 
     /**
@@ -94,7 +77,9 @@ public class DefaultRiskThreeDsPolicyService implements RiskThreeDsPolicyService
         return result(required, required ? ACTION_FORCE_THREE_DS : action, rule.getRuleId(), rule.getDecisionReason());
     }
 
-    /** 将数据库命中字段收敛为稳定策略动作。 */
+    /**
+     * 将数据库命中字段收敛为稳定策略动作。
+     */
     private String normalizedAction(RiskListMatch rule) {
         if (!StringUtils.hasText(rule.getHitElement())) {
             return ACTION_NONE;
@@ -104,7 +89,9 @@ public class DefaultRiskThreeDsPolicyService implements RiskThreeDsPolicyService
                 ? action : ACTION_NONE;
     }
 
-    /** 构造只读策略结果。 */
+    /**
+     * 构造只读策略结果。
+     */
     private RiskThreeDsPolicyResultDTO result(boolean required, String action, Long ruleId, String reason) {
         RiskThreeDsPolicyResultDTO result = new RiskThreeDsPolicyResultDTO();
         result.setRequired(required);

@@ -6,13 +6,7 @@ import com.scott.payment.clearing.domain.state.ClearingAnomalyTypeEnum;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingAnomalyService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 持久化和关闭清分异常案件，不改变交易或清分权威状态。
- * @status : update
+ * 持久化和关闭清分异常案件，不改变交易或清分权威状态。
  */
 public interface ClearingAnomalyService {
 

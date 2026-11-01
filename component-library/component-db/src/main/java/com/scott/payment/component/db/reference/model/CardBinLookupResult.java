@@ -1,13 +1,7 @@
 package com.scott.payment.component.db.reference.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinLookupResult
- * @date : 2026-08-11 15:38
- * @email : scott_x@163.com
- * @description : 公共卡 BIN 检索结果，仅返回归属信息，不暴露区间、来源批次或审计字段
- * @status : create
+ * 公共卡 BIN 检索结果，仅返回归属信息，不暴露区间、来源批次或审计字段
  *
  * @param matched                是否命中启用的卡 BIN 区间，不允许为空
  * @param cardBin                实际查询使用的十一位 BIN；日志中不得完整输出

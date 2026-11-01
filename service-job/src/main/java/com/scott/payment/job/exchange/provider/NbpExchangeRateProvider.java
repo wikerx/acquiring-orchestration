@@ -18,18 +18,14 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NbpExchangeRateProvider
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : NBP 汇率源适配器，调用波兰国家银行 Table C API 并输出统一的外币兑 PLN 原始买卖报价。
- * @status : create
+ * NBP 汇率源适配器，调用波兰国家银行 Table C API 并输出统一的外币兑 PLN 原始买卖报价。
  */
 @Component
 public class NbpExchangeRateProvider implements ExchangeRateProvider {
 
-    /** NBP 汇率源稳定编码，用于 Provider 注册和规则来源匹配。 */
+    /**
+     * NBP 汇率源稳定编码，用于 Provider 注册和规则来源匹配。
+     */
     public static final String SOURCE_CODE = "NBP";
     /**
      * 默认超时秒数常量，统一 {@code NbpExchangeRateProvider} 内部使用的配置值、状态码或协议字段。

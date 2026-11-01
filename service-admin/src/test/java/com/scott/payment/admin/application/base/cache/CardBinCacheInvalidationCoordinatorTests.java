@@ -23,13 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinCacheInvalidationCoordinatorTests
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 验证 Card BIN 数据库事务与 Redis generation、可靠 MQ Outbox 的提交和回滚契约。
- * @status : create
+ * 验证 Card BIN 数据库事务与 Redis generation、可靠 MQ Outbox 的提交和回滚契约。
  */
 class CardBinCacheInvalidationCoordinatorTests {
 

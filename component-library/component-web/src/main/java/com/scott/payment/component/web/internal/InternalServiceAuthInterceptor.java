@@ -18,20 +18,18 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalServiceAuthInterceptor
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 内部服务接口签名拦截器，为 /internal/** 接口提供服务间 HMAC 鉴权边界。
- * @status : create
+ * 内部服务接口签名拦截器，为 /internal/** 接口提供服务间 HMAC 鉴权边界。
  */
 public class InternalServiceAuthInterceptor implements HandlerInterceptor {
 
-    /** 调用方服务标识允许的格式。 */
+    /**
+     * 调用方服务标识允许的格式。
+     */
     private static final Pattern CALLER_PATTERN = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
 
-    /** nonce 允许的格式和长度。 */
+    /**
+     * nonce 允许的格式和长度。
+     */
     private static final Pattern NONCE_PATTERN = Pattern.compile("[A-Za-z0-9_-]{16,128}");
 
     /**
@@ -48,7 +46,9 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
      */
     private final InternalServiceAuthProperties properties;
 
-    /** 跨实例 nonce 防重放守卫。 */
+    /**
+     * 跨实例 nonce 防重放守卫。
+     */
     private final InternalRequestReplayGuard replayGuard;
 
     /**
@@ -186,7 +186,9 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
                 ? configuredNonceTtl : minimumNonceTtl;
     }
 
-    /** 校验内部认证时间配置，禁止零值、负值或缺失配置削弱认证边界。 */
+    /**
+     * 校验内部认证时间配置，禁止零值、负值或缺失配置削弱认证边界。
+     */
     private Duration requirePositiveDuration(Duration value, String propertyName) {
         if (value == null || value.isZero() || value.isNegative()) {
             throw new IllegalStateException(propertyName + " must be positive");

@@ -33,13 +33,7 @@ import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskInternalRestClient
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : service-risk REST 客户端，位于 service-payment 客户端层，负责内部 HMAC 签名、服务发现选择和统一响应解包。
- * @status : create
+ * service-risk REST 客户端，位于 service-payment 客户端层，负责内部 HMAC 签名、服务发现选择和统一响应解包。
  */
 @Service
 @Slf4j
@@ -116,7 +110,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
     public RiskPaymentEvaluateClientResponseDTO evaluatePayment(RiskPaymentEvaluateClientRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
         URI uri = URI.create(SERVICE_RISK_EVALUATE_URL);
-        log.info("event: PAYMENT_RISK_CALL_START stage=RISK_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} currency: {} amount: {} targetService: {} path: {} requestSummary: {}",
+        log.info("支付风控调用开始, event: PAYMENT_RISK_CALL_START, stage: RISK_CALL, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, currency: {}, amount: {}, targetService: {}, path: {}, requestSummary: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -139,7 +133,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
                     }
             );
             RiskPaymentEvaluateClientResponseDTO responseDTO = unwrapResult(result);
-            log.info("event: PAYMENT_RISK_CALL_END stage=RISK_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} decision: {} riskRecordNo: {} reasonCode: {} platformCode: {} responseDigest: {} responseSummary: {} durationMs: {}",
+            log.info("支付风控调用完成, event: PAYMENT_RISK_CALL_END, stage: RISK_CALL, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, decision: {}, riskRecordNo: {}, reasonCode: {}, platformCode: {}, responseDigest: {}, responseSummary: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
                     requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -154,7 +148,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
                     elapsedMillis(startNanos));
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: PAYMENT_RISK_CALL_END stage=RISK_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} targetService: {} path: {} durationMs: {} exceptionType: {}",
+            log.warn("支付风控调用失败, event: PAYMENT_RISK_CALL_FAILED, stage: RISK_CALL, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, targetService: {}, path: {}, durationMs: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
                     requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -193,8 +187,18 @@ public class RiskInternalRestClient implements RiskInternalClient {
             }
             return result.getData();
         } catch (RestClientException exception) {
-            log.warn("service-risk 3DS policy call failed, targetPath: {}, exceptionType: {}",
-                    uri.getPath(), exception.getClass().getSimpleName());
+            log.warn("service-risk 3DS 策略调用失败, event: PAYMENT_RISK_THREE_DS_POLICY_CALL_FAILED, "
+                            + "stage: RISK, traceId: {}, merchantId: {}, channelCode: {}, paymentMethod: {}, "
+                            + "cardBrand: {}, currency: {}, amount: {}, targetPath: {}, exceptionType: {}",
+                    TraceContext.getTraceId(),
+                    requestDTO == null ? null : requestDTO.getMerchantId(),
+                    requestDTO == null ? null : requestDTO.getChannelCode(),
+                    requestDTO == null ? null : requestDTO.getPaymentMethod(),
+                    requestDTO == null ? null : requestDTO.getCardBrand(),
+                    requestDTO == null ? null : requestDTO.getCurrency(),
+                    requestDTO == null ? null : requestDTO.getAmount(),
+                    uri.getPath(),
+                    exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-risk 3DS policy call failed");
         }
@@ -231,8 +235,15 @@ public class RiskInternalRestClient implements RiskInternalClient {
             }
             return result.getData();
         } catch (RestClientException exception) {
-            log.warn("service-risk reservation cancellation failed, targetPath: {}, exceptionType: {}",
-                    uri.getPath(), exception.getClass().getSimpleName());
+            log.warn("service-risk 限额预占撤销失败, event: PAYMENT_RISK_RESERVATION_CANCEL_FAILED, "
+                            + "stage: RISK_COMPENSATION, traceId: {}, transactionId: {}, riskRecordNo: {}, "
+                            + "reason: {}, targetPath: {}, exceptionType: {}",
+                    TraceContext.getTraceId(),
+                    requestDTO == null ? null : requestDTO.getTransactionId(),
+                    requestDTO == null ? null : requestDTO.getRiskRecordNo(),
+                    requestDTO == null ? null : requestDTO.getReason(),
+                    uri.getPath(),
+                    exception.getClass().getSimpleName());
             throw new ServiceException(
                     ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-risk reservation cancellation failed");
@@ -335,6 +346,9 @@ public class RiskInternalRestClient implements RiskInternalClient {
         }
     }
 
+    /**
+     * 解包内部服务统一响应并校验业务结果。
+     */
     private RiskPaymentEvaluateClientResponseDTO unwrapResult(CommonResult<RiskPaymentEvaluateClientResponseDTO> result) {
         if (result == null) {
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-risk response is empty");

@@ -14,27 +14,29 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogPersistenceService
- * @date : 2026-08-01 14:40
- * @email : scott_x@163.com
- * @description : 操作日志事务写入服务，以 sys_oper_log 唯一索引吸收 RocketMQ 重复投递
- * @status : create
+ * 操作日志事务写入服务，以 sys_oper_log 唯一索引吸收 RocketMQ 重复投递
  */
 @Service
 public class OperationLogPersistenceService {
 
-    /** 后台用户操作人类型。 */
+    /**
+     * 后台用户操作人类型。
+     */
     private static final int ADMIN_OPERATOR_TYPE = 1;
 
-    /** 商户用户操作人类型。 */
+    /**
+     * 商户用户操作人类型。
+     */
     private static final int MERCHANT_OPERATOR_TYPE = 2;
 
-    /** 默认成功状态。 */
+    /**
+     * 默认成功状态。
+     */
     private static final int SUCCESS_STATUS = 1;
 
-    /** 操作日志数据访问入口。 */
+    /**
+     * 操作日志数据访问入口。
+     */
     private final DataOperationLogMapper operationLogMapper;
 
     /**
@@ -49,8 +51,8 @@ public class OperationLogPersistenceService {
     /**
      * 将一条已通过基础校验的操作日志写入主库。
      *
-     * <p>Redis 只减少重复插入请求。数据库唯一键命中表示同一消息此前已经成功写入，
-     * 可以正常确认本次 MQ 消费；其他数据库异常必须上抛触发 RocketMQ 重试。</p>
+     * <p>Redis 只减少重复插入请求。数据库唯一键冲突后必须按消费幂等键回查，确认同一消息
+     * 已经成功写入才可以结束消费；其他约束冲突和数据库异常必须上抛触发 RocketMQ 重试。</p>
      *
      * @param message       已由公共契约反序列化的操作日志消息
      * @param idempotentKey 非空消费幂等键
@@ -62,10 +64,10 @@ public class OperationLogPersistenceService {
         try {
             operationLogMapper.insert(entity);
         } catch (DuplicateKeyException exception) {
-            if (!StringUtils.hasText(idempotentKey)) {
+            // 只有业务幂等键对应记录确实存在时才能确认重复，其他唯一键冲突必须重试或人工处理。
+            if (!existsByIdempotentKey(idempotentKey)) {
                 throw exception;
             }
-            // 数据库唯一索引是最终幂等依据，命中即表示该审计事实已完成持久化。
         }
     }
 

@@ -33,13 +33,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementController
- * @date : 2026-09-01 22:35
- * @email : scott_x@163.com
- * @description : 商户结算账单、真实交易明细和保证金动作的查询及导出入口；只暴露当前商户数据，不提供任何结算命令。
- * @status : update
+ * 商户结算账单、真实交易明细和保证金动作的查询及导出入口；只暴露当前商户数据，不提供任何结算命令。
  */
 @RestController
 @RequestMapping("/merchant/settlements")
@@ -77,7 +71,9 @@ public class MerchantSettlementController {
         return success(applicationService.getBatch(settlementBatchNo));
     }
 
-    /** 独立授权读取正式结算凭证数据，PDF 由浏览器生成。 */
+    /**
+     * 独立授权读取正式结算凭证数据，PDF 由浏览器生成。
+     */
     @GetMapping("/{settlementBatchNo}/voucher")
     @RequiresPermission("merchant:settlement:batch:voucher-download")
     @OperationLog(moduleName = "结算账单", businessType = OperationTypeConstants.EXPORT,
@@ -86,7 +82,9 @@ public class MerchantSettlementController {
         return success(applicationService.getVoucher(settlementBatchNo));
     }
 
-    /** 分页读取当前商户指定正式批次的结算汇总。 */
+    /**
+     * 分页读取当前商户指定正式批次的结算汇总。
+     */
     @GetMapping("/{settlementBatchNo}/summaries")
     @RequiresPermission("merchant:settlement:batch:summary:list")
     @OperationLog(moduleName = "结算账单", businessType = OperationTypeConstants.QUERY,
@@ -98,7 +96,9 @@ public class MerchantSettlementController {
         return success(applicationService.searchResultSummaries(settlementBatchNo, pageNo, pageSize));
     }
 
-    /** 导出当前商户指定正式批次的全部结算汇总。 */
+    /**
+     * 导出当前商户指定正式批次的全部结算汇总。
+     */
     @PostMapping("/{settlementBatchNo}/summaries/export")
     @RequiresPermission("merchant:settlement:batch:summary:export")
     @OperationLog(moduleName = "结算账单", businessType = OperationTypeConstants.EXPORT,
@@ -122,7 +122,9 @@ public class MerchantSettlementController {
         return success(applicationService.searchTransactionItems(query));
     }
 
-    /** 分页查询当前商户正式批次内一笔交易的结算财务组件。 */
+    /**
+     * 分页查询当前商户正式批次内一笔交易的结算财务组件。
+     */
     @GetMapping("/transaction-items/batches/{settlementBatchNo}/transactions/{transactionId}")
     @RequiresPermission("merchant:settlement:transaction-item:list")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
@@ -136,7 +138,9 @@ public class MerchantSettlementController {
                 settlementBatchNo, transactionId, pageNo, pageSize));
     }
 
-    /** 按真实交易号和交易时间查询当前认证商户的对账状态快照。 */
+    /**
+     * 按真实交易号和交易时间查询当前认证商户的对账状态快照。
+     */
     @GetMapping("/reconciliation-records/transactions/{transactionId}")
     @RequiresPermission("merchant:reconciliation:record:detail")
     @OperationLog(moduleName = "交易对账", businessType = OperationTypeConstants.QUERY,
@@ -149,7 +153,9 @@ public class MerchantSettlementController {
                 transactionId, transactionDateTime));
     }
 
-    /** 按真实交易号和交易时间查询当前认证商户的清分详情。 */
+    /**
+     * 按真实交易号和交易时间查询当前认证商户的清分详情。
+     */
     @GetMapping("/clearing-records/transactions/{transactionId}")
     @RequiresPermission("merchant:clearing:record:detail")
     @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.QUERY,

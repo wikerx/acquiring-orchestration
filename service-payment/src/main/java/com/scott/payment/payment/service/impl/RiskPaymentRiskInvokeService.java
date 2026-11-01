@@ -27,7 +27,9 @@ import org.springframework.util.StringUtils;
 @Slf4j
 public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
 
-    /** service-risk 不可用时使用的安全失败说明。 */
+    /**
+     * service-risk 不可用时使用的安全失败说明。
+     */
     private static final String RISK_SERVICE_UNAVAILABLE_MESSAGE = "risk service is unavailable";
 
     /**
@@ -54,7 +56,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
     public PaymentRiskDecisionDTO checkPreRoute(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
         // 只记录业务定位字段和不可逆摘要，原始 IP、持卡人资料及完整 URL 不得进入日志。
-        log.info("开始调用支付风控, event: PAYMENT_RISK_REQUEST_START, stage: RISK, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, ingressClientIpHash: {}, payerIpHash: {}, sourceUrl: {}, requestFingerprint: {}",
+        log.info("开始调用支付风控, event: PAYMENT_RISK_REQUEST_START, stage: RISK, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, ingressClientIpHash: {}, payerIpHash: {}, sourceUrlHash: {}, requestFingerprint: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -65,7 +67,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
                 commandDTO.getAmount(),
                 digestIp(commandDTO.getIngressClientIp()),
                 digestIp(commandDTO.getPayerIp()),
-                maskUrl(commandDTO.getSourceUrl()),
+                digestSensitiveValue(commandDTO.getSourceUrl()),
                 commandDTO.getRequestFingerprint());
         PaymentRiskDecisionDTO decisionDTO;
         try {
@@ -171,26 +173,24 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return rootCause.getClass().getSimpleName();
     }
 
-    /** 将 IP 转换为不可逆摘要，兼顾同源关联与敏感数据保护。 */
+    /**
+     * 将 IP 转换为不可逆摘要，兼顾同源关联与敏感数据保护。
+     *
+     * @param value 原始 IP
+     * @return IP 摘要；空输入返回 {@code null}
+     */
     private String digestIp(String value) {
-        return StringUtils.hasText(value) ? RedisKeyDigest.sha256(value.trim()) : null;
+        return digestSensitiveValue(value);
     }
 
     /**
-     * 脱敏商户来源页面 URL。
+     * 将敏感文本转换为不可逆摘要，避免日志泄露 URL、IP 等完整内容。
      *
-     * @param url 商户来源页面地址
-     * @return 去除 query 值后的 URL
+     * @param value 原始敏感文本
+     * @return 文本摘要；空输入返回 {@code null}
      */
-    private String maskUrl(String url) {
-        if (!StringUtils.hasText(url)) {
-            return null;
-        }
-        int queryIndex = url.indexOf('?');
-        if (queryIndex < 0) {
-            return url;
-        }
-        return url.substring(0, queryIndex) + "?...";
+    private String digestSensitiveValue(String value) {
+        return StringUtils.hasText(value) ? RedisKeyDigest.sha256(value.trim()) : null;
     }
 
     /**
@@ -224,7 +224,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return requestDTO;
     }
 
-    /** 填充平台型商户场景下的子商户身份与经营信息。 */
+    /**
+     * 填充平台型商户场景下的子商户身份与经营信息。
+     */
     private void fillSubMerchantInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.SubMerchantInfoDTO subMerchantInfoDTO = commandDTO.getSubMerchantInfo();
         if (subMerchantInfoDTO == null) {
@@ -238,7 +240,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setMerchantBillingAddress(subMerchantInfoDTO.getSubStreet());
     }
 
-    /** 填充账单持卡人信息；这些字段仅进入内部风控请求，不得写入日志。 */
+    /**
+     * 填充账单持卡人信息；这些字段仅进入内部风控请求，不得写入日志。
+     */
     private void fillBillingInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingInfoDTO = commandDTO.getBillingCardHolderInfo();
         if (billingInfoDTO == null) {
@@ -254,7 +258,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setBillingCity(billingInfoDTO.getCity());
     }
 
-    /** 填充付款人身份，付款人与账单持卡人是两个独立业务主体。 */
+    /**
+     * 填充付款人身份，付款人与账单持卡人是两个独立业务主体。
+     */
     private void fillPayerInfo(PaymentCreateCommandDTO commandDTO,
                                RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.PayerInfoDTO payerInfo = commandDTO.getPayerInfo();
@@ -280,7 +286,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         }
     }
 
-    /** 填充收货人信息，显式 shippingInfo 优先于旧版 riskContext 兼容字段。 */
+    /**
+     * 填充收货人信息，显式 shippingInfo 优先于旧版 riskContext 兼容字段。
+     */
     private void fillShippingInfo(PaymentCreateCommandDTO commandDTO,
                                   RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo = commandDTO.getShippingInfo();
@@ -358,7 +366,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         }
     }
 
-    /** 填充 3DS 认证证据，供风控评估认证强度和责任转移。 */
+    /**
+     * 填充 3DS 认证证据，供风控评估认证强度和责任转移。
+     */
     private void fillThreeDsInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.ThreeDsInfoDTO threeDsInfoDTO = commandDTO.getThreeDsInfo();
         if (threeDsInfoDTO == null) {

@@ -9,13 +9,7 @@ import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.Transa
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionQueryService
- * @date : 2026-07-20 00:00
- * @email : scott_x@163.com
- * @description : 商户后台交易只读查询服务，位于 service-merchant 服务层，按当前商户边界直接查询交易查询库/备库，不承担退款等资金状态变更。
- * @status : create
+ * 商户后台交易只读查询服务，位于 service-merchant 服务层，按当前商户边界直接查询交易查询库/备库，不承担退款等资金状态变更。
  */
 public interface MerchantTransactionQueryService {
 

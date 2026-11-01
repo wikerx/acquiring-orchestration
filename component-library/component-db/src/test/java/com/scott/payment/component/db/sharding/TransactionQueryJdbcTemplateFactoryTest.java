@@ -6,13 +6,7 @@ import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionQueryJdbcTemplateFactoryTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 交易查询 JDBC 语句超时工厂测试。
- * @status : create
+ * 交易查询 JDBC 语句超时工厂测试。
  */
 class TransactionQueryJdbcTemplateFactoryTest {
 

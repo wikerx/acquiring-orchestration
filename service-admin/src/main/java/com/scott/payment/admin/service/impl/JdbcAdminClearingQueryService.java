@@ -28,13 +28,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminClearingQueryService
- * @date : 2026-08-27 14:00
- * @email : scott_x@163.com
- * @description : Admin 清分 JDBC 查询实现；在 transaction 逻辑数据源内完成单季度分页和详情装配，允许读写分离路由副本。
- * @status : create
+ * Admin 清分 JDBC 查询实现；在 transaction 逻辑数据源内完成单季度分页和详情装配，允许读写分离路由副本。
  */
 @Service
 public class JdbcAdminClearingQueryService implements AdminClearingQueryService {
@@ -54,10 +48,6 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
 
     /**
      * {@code FINANCE_FROM_SQL}常量，统一 {@code JdbcAdminClearingQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String FINANCE_FROM_SQL = "FROM transaction_finance_state f\n";
 
@@ -87,7 +77,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
     private final int maxResultRows;
 
-    /** 创建生产查询服务，并继承交易查询超时和结果预算。 */
+    /**
+     * 创建生产查询服务，并继承交易查询超时和结果预算。
+     */
     @Autowired
     public JdbcAdminClearingQueryService(DataSource dataSource,
                                          TransactionLogicalReadExecutor transactionLogicalReadExecutor,
@@ -97,7 +89,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
                 transactionLogicalReadExecutor, shardingProperties);
     }
 
-    /** 创建可注入 JDBC 模板的查询服务，供聚焦测试验证 SQL 和路由。 */
+    /**
+     * 创建可注入 JDBC 模板的查询服务，供聚焦测试验证 SQL 和路由。
+     */
     public JdbcAdminClearingQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                          TransactionLogicalReadExecutor transactionLogicalReadExecutor,
                                          TransactionShardingProperties shardingProperties) {
@@ -106,14 +100,18 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
     }
 
-    /** 在 transaction 普通读作用域执行标准分页，稳定按交易时间和主键倒序。 */
+    /**
+     * 在 transaction 普通读作用域执行标准分页，稳定按交易时间和主键倒序。
+     */
     @Override
     public PageResult<Summary> search(SearchRequest request) {
         SearchRequest query = normalize(request);
         return transactionLogicalReadExecutor.read(() -> searchNormalized(query));
     }
 
-    /** 使用动作号和真实分片时间读取当前修订，避免交易分表广播。 */
+    /**
+     * 使用动作号和真实分片时间读取当前修订，避免交易分表广播。
+     */
     @Override
     public DetailResponse detail(String transactionId, LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(transactionId) || transactionDateTime == null) {
@@ -124,7 +122,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
                 () -> detailNormalized(normalizedId, transactionDateTime));
     }
 
-    /** 使用复合身份一次读取批量目标，实际重算仍由清分服务逐笔执行 CAS。 */
+    /**
+     * 使用复合身份一次读取批量目标，实际重算仍由清分服务逐笔执行 CAS。
+     */
     @Override
     public List<Summary> findByReferences(List<RecalculateBatchItem> references) {
         if (references == null || references.isEmpty()) {
@@ -152,6 +152,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
                 parameters, BeanPropertyRowMapper.newInstance(Summary.class)));
     }
 
+    /**
+     * 使用已规范化条件分页查询清分记录。
+     */
     private PageResult<Summary> searchNormalized(SearchRequest query) {
         String whereSql = whereSql(query);
         MapSqlParameterSource parameters = parameters(query);
@@ -176,6 +179,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
         return PageResult.of(total, pageNo, pageSize, records);
     }
 
+    /**
+     * 使用交易号和分片时间查询单笔清分详情。
+     */
     private DetailResponse detailNormalized(String transactionId,
                                             LocalDateTime transactionDateTime) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
@@ -230,6 +236,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
         return response;
     }
 
+    /**
+     * 规范化输入值。
+     */
     private SearchRequest normalize(SearchRequest request) {
         if (request == null || request.getBeginTime() == null || request.getEndTime() == null
                 || !request.getBeginTime().isBefore(request.getEndTime())) {
@@ -252,6 +261,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
         return request;
     }
 
+    /**
+     * 构建受控字段组成的查询条件 SQL。
+     */
     private String whereSql(SearchRequest query) {
         StringBuilder sql = new StringBuilder("""
                 WHERE f.transaction_date_time >= :beginTime
@@ -270,6 +282,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
         return sql.toString();
     }
 
+    /**
+     * 构建命名 SQL 查询参数。
+     */
     private MapSqlParameterSource parameters(SearchRequest query) {
         return new MapSqlParameterSource()
                 .addValue("beginTime", query.getBeginTime())
@@ -279,10 +294,16 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
                 .addValue("clearingStatus", query.getClearingStatus());
     }
 
+    /**
+     * 根据交易时间生成季度分片标识。
+     */
     private int quarterKey(LocalDateTime value) {
         return value.getYear() * 10 + (value.getMonthValue() - 1) / 3 + 1;
     }
 
+    /**
+     * 规范化清分状态，并拒绝平台状态集合外的输入。
+     */
     private String normalizedStatus(String value) {
         String normalized = trim(value);
         if (normalized == null) {
@@ -295,6 +316,9 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
         return normalized;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

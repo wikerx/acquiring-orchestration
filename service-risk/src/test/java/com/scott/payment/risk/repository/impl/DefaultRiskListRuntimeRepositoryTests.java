@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -50,17 +51,34 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskListRuntimeRepositoryTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控运行时 Redis 缓存行为测试。
- * @status : create
+ * 风控运行时 Redis 缓存行为测试。
  */
 @Slf4j
 class DefaultRiskListRuntimeRepositoryTests {
 
+    /**
+     * 验证 Spring 选择生产构造器，并在可选基础设施缺省时仍注入强依赖 Mapper。
+     */
+    @Test
+    void shouldSelectProductionConstructorWhenCreatedBySpring() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RiskEvaluationProperties properties = new RiskEvaluationProperties();
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(RiskRuntimeMapper.class, () -> mapper);
+            context.registerBean(RiskEvaluationProperties.class, () -> properties);
+            context.registerBean(PaymentRedisProperties.class, () -> redisProperties);
+            context.register(DefaultRiskListRuntimeRepository.class);
+
+            context.refresh();
+
+            assertThat(context.getBean(DefaultRiskListRuntimeRepository.class)).isNotNull();
+        }
+    }
+
+    /**
+     * 验证生产仓储缺少强依赖 RiskRuntimeMapper 时启动失败关闭。
+     */
     @Test
     void shouldRequireRiskRuntimeMapperInProductionConstructor() {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
@@ -81,6 +99,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .hasMessage("RiskRuntimeMapper is required for production risk evaluation");
     }
 
+    /**
+     * 验证单次数据库查询即可解析商户已启用的受控风控功能。
+     */
     @Test
     void shouldMapEnabledMerchantFunctionKeysWithSingleDatabaseQuery() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -97,6 +118,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         verify(mapper).selectEnabledMerchantFunctionKeys("200045");
     }
 
+    /**
+     * 验证商户功能启用状态以数据库事实为准。
+     */
     @Test
     void shouldReadMerchantRiskFunctionEnablementFromDatabase() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -109,6 +133,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .isTrue();
     }
 
+    /**
+     * 验证地区名单使用专用层级查询而不误用普通哈希字段。
+     */
     @Test
     void shouldUseDedicatedHierarchicalRegionQueryInsteadOfHashColumns() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -146,6 +173,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.anyString());
     }
 
+    /**
+     * 验证加载地区快照时传递对应名单功能范围。
+     */
     @Test
     void shouldPassRegionFunctionScopeWhenLoadingSnapshotRows() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -168,6 +198,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         verify(mapper).selectActiveRegionSnapshotRows("BLACK", "region", "200045", 5_001);
     }
 
+    /**
+     * 验证规则缓存按当前 generation 隔离，避免读取旧版本规则。
+     */
     @Test
     void shouldIsolateRuleCacheEntriesByCurrentGeneration() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -199,6 +232,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .doesNotContain("card-fingerprint-digest");
     }
 
+    /**
+     * 验证结构化空命中缓存可直接返回且不重复查询数据库。
+     */
     @Test
     void shouldReadExplicitNegativeCacheOnceWithoutQueryingDatabase() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -220,6 +256,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         verify(mapper, never()).countActiveSourceUrlRules(anyString());
     }
 
+    /**
+     * 验证空命中写入类型化缓存对象而不是魔法字符串。
+     */
     @Test
     void shouldWriteStructuredNegativeCacheInsteadOfMagicString() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -243,6 +282,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         assertThat(ttlCaptor.getValue()).isEqualTo(Duration.ofSeconds(60));
     }
 
+    /**
+     * 验证规则发布未完成时绕过可能陈旧的缓存并回源数据库。
+     */
     @Test
     void shouldBypassStaleRuleCacheWhilePublicationIsPending() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -276,6 +318,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         );
     }
 
+    /**
+     * 验证 generation 查询失败时绕过缓存，避免使用未知版本数据。
+     */
     @Test
     void shouldBypassRuleCacheWhenGenerationLookupFails() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -309,6 +354,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         verify(redis, never()).set(anyString(), any(), any());
     }
 
+    /**
+     * 验证布尔规则和名单规则缓存共同使用 generation 版本空间。
+     */
     @Test
     void shouldVersionBooleanAndListRuleCacheFamilies() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -339,6 +387,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .anySatisfy(key -> assertThat(key).contains(":rule:frequency:active:"));
     }
 
+    /**
+     * 验证 generation 切换后不再读取旧命名空间缓存。
+     */
     @Test
     void shouldStopReadingOldRuleCacheAfterGenerationChanges() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -383,6 +434,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         verify(mapper).selectMerchantLimitRule("M202607290001", new BigDecimal("100.00"), "USD");
     }
 
+    /**
+     * 验证来源主机命中时直接通过，不受规则未命中动作影响。
+     */
     @Test
     void shouldAllowConfiguredSourceHostRegardlessOfMissActionStoredOnRule() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -413,6 +467,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 });
     }
 
+    /**
+     * 验证待审核来源被拒绝，已批准及兼容快照来源继续允许。
+     */
     @Test
     void shouldRejectPendingSourceUrlWhileAllowingApprovedAndLegacySnapshotHosts() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -450,6 +507,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", legacyLookup)).isEmpty();
     }
 
+    /**
+     * 验证商户启用 IP 白名单却没有生效条目时失败关闭。
+     */
     @Test
     void shouldFailClosedWhenMerchantHasNoEffectiveIpWhitelist() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -470,6 +530,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .countMerchantIpWhitelistHit("M202607290001", "198.51.100.24");
     }
 
+    /**
+     * 验证启用 IP 白名单后请求缺少客户端 IP 时失败关闭。
+     */
     @Test
     void shouldFailClosedWhenMerchantRequestIpIsMissing() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -487,6 +550,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .countMerchantIpWhitelistHit(anyString(), anyString());
     }
 
+    /**
+     * 验证请求 IP 命中商户生效白名单时允许继续评估。
+     */
     @Test
     void shouldPassWhenMerchantRequestIpMatchesEffectiveWhitelist() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -506,6 +572,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         assertThat(repository.findMerchantIpWhitelistMiss("M202607290001", ipLookup)).isEmpty();
     }
 
+    /**
+     * 验证 Redis 物理键仅包含 IP 和卡 BIN 摘要，不暴露原始值。
+     */
     @Test
     void shouldDigestIpAndCardBinDimensionsInPhysicalKeys() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -529,6 +598,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         });
     }
 
+    /**
+     * 验证发卡国家使用点查询缓存，避免加载超容量完整快照。
+     */
     @Test
     void shouldCacheIssuerCountryPointLookupInsteadOfLoadingOversizedSnapshot() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -572,6 +644,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         verifyNoInteractions(redisTemplate);
     }
 
+    /**
+     * 验证累计限额基线来自逻辑交易表并按业务时间聚合。
+     */
     @Test
     void shouldReserveCumulativeMerchantLimitFromLogicalTransactionTable() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -617,6 +692,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         );
     }
 
+    /**
+     * 验证影子模式记录生命周期差异但仍使用历史交易基线决策。
+     */
     @Test
     void shouldKeepLegacySeedWhileObservingLifecycleBaselineInShadowMode() {
         log.info("测试累计基线 shadow，关键输入: 历史基线 100 USD、生命周期基线 90 USD");
@@ -662,6 +740,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("累计基线 shadow 验证完成，结果: 真实决策继续使用历史 100 USD 基线");
     }
 
+    /**
+     * 验证集群计数器从已确认生命周期事实重建初始基线。
+     */
     @Test
     void shouldRebuildClusterSafeCounterFromConfirmedLifecycleBaseline() {
         log.info("测试累计计数重建，关键输入: 已确认 LIFECYCLE 基线 75 USD、同槽计数模式");
@@ -710,6 +791,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("累计计数重建验证完成，结果: 同槽 Key 使用生命周期 75 USD 基线初始化");
     }
 
+    /**
+     * 验证闰日场景下日、周、月累计窗口边界保持准确。
+     */
     @Test
     void shouldResolveLeapDayDailyWeeklyAndMonthlyBoundaries() {
         log.info("测试累计周期边界，关键输入: 2028-02-29 23:59:59 的日、周、月规则");
@@ -759,6 +843,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("累计周期边界验证完成，结果: 闰日日/周/月区间均为左闭右开");
     }
 
+    /**
+     * 验证先持久化 PREPARING，再修改 Redis，成功后迁移为 RESERVED。
+     */
     @Test
     void shouldPersistPreparingBeforeRedisMutationAndMarkReservedAfterSuccess() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -814,6 +901,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         order.verify(stateService).markReserved(any());
     }
 
+    /**
+     * 验证累计计数脚本使用简洁且同槽的 Redis 键集合。
+     */
     @Test
     void shouldUseConciseCoLocatedKeysForClusterSafeCumulativeCounter() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -860,6 +950,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         });
     }
 
+    /**
+     * 验证累计限额超限时拒绝交易且不创建预占事实。
+     */
     @Test
     void shouldRejectCumulativeMerchantLimitWithoutPersistingReservation() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -896,6 +989,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         assertThat(evaluation.reservations()).isEmpty();
     }
 
+    /**
+     * 验证返回阻断结论前保留全部累计规则检查明细。
+     */
     @Test
     void shouldAuditAllCumulativeRulesBeforeReturningBlockedDecision() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -946,6 +1042,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any());
     }
 
+    /**
+     * 验证频控重试复用稳定交易标记，防止重复累计。
+     */
     @Test
     void shouldUseStableTransactionMarkerForFrequencyRetries() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -997,6 +1096,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .isEqualTo(keysCaptor.getAllValues().get(1).get(1));
     }
 
+    /**
+     * 验证成功次数规则在放行交易前先取得频控名额。
+     */
     @Test
     void shouldReserveConfiguredFrequencySuccessSlotBeforeAllowingTransaction() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1042,6 +1144,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 3600);
     }
 
+    /**
+     * 验证成功次数名额已满时阻断预计成功的交易。
+     */
     @Test
     void shouldBlockProjectedSuccessWhenFrequencySuccessLimitIsFull() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1078,6 +1183,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         });
     }
 
+    /**
+     * 验证频控名额基础设施不可用时进入 REVIEW 而不静默放行。
+     */
     @Test
     void shouldReviewInsteadOfAllowingWhenFrequencySuccessReservationIsUnavailable() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1110,6 +1218,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         });
     }
 
+    /**
+     * 验证规则不限制成功次数时不创建频控成功名额。
+     */
     @Test
     void shouldNotReserveFrequencySuccessSlotWhenSuccessCountIsZero() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1136,6 +1247,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         verifyNoInteractions(successReservationService);
     }
 
+    /**
+     * 验证 MPGS 交易金额高于含边界美元阈值时命中 3DS 规则。
+     */
     @Test
     void shouldMatchMpgsThreeDsRuleAboveInclusiveUsdThreshold() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1167,6 +1281,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .containsSame(rule);
     }
 
+    /**
+     * 验证 MPGS 交易金额等于含边界美元阈值时命中 3DS 规则。
+     */
     @Test
     void shouldMatchMpgsThreeDsRuleAtInclusiveUsdThreshold() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1188,6 +1305,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .containsSame(rule);
     }
 
+    /**
+     * 验证 MPGS 交易金额低于美元阈值时不命中 3DS 规则。
+     */
     @Test
     void shouldNotMatchMpgsThreeDsRuleBelowUsdThreshold() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1208,6 +1328,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .isEmpty();
     }
 
+    /**
+     * 验证路由至其他渠道时不误用 MPGS 专属 3DS 规则。
+     */
     @Test
     void shouldNotMatchMpgsThreeDsRuleForAnotherRoutedChannel() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1228,6 +1351,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .isEmpty();
     }
 
+    /**
+     * 验证频控窗口超过配置上限时在 Redis 变更前拒绝执行。
+     */
     @Test
     void shouldRejectFrequencyRuleAboveConfiguredWindowCapBeforeRedisMutation() {
         log.info("测试频率规则窗口上限，关键输入: 86401 秒规则超过默认 86400 秒");
@@ -1275,6 +1401,56 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("频率规则窗口上限验证完成，结果: Redis 写入前进入 REVIEW");
     }
 
+    /**
+     * 已知频控字段格式错误时必须在 Redis 写入前进入人工复核。
+     */
+    @Test
+    void shouldReviewMalformedFrequencyPolicyBeforeRedisMutation() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        RiskListMatch frequencyRule = new RiskListMatch();
+        frequencyRule.setRuleId(27L);
+        frequencyRule.setThresholdCount(5);
+        frequencyRule.setTimeWindowSeconds(3_600);
+        frequencyRule.setElementsJson("""
+                {"elements":["ip"],"allowedCount":"invalid"}
+                """);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper,
+                redis,
+                redisTemplate,
+                null
+        );
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        List<RiskListMatch> details = repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-MALFORMED", "10.000000"),
+                null,
+                null,
+                ipLookup,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThat(details).singleElement().satisfies(detail -> {
+            assertThat(detail.getMatchResult()).isEqualTo("ERROR");
+            assertThat(detail.getDecisionAction()).isEqualTo("REVIEW");
+            assertThat(detail.getDecisionReason()).contains("configuration is invalid");
+        });
+        verifyNoInteractions(redisTemplate);
+    }
+
+    /**
+     * 验证客户与设备名单使用各自查询值，不复用无关请求字段。
+     */
     @Test
     void shouldUseCustomerAndDeviceLookupsInsteadOfUnrelatedRequestFields() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1324,6 +1500,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         assertThat(hashTag(counterKeys.get(0))).isNotEqualTo(hashTag(counterKeys.get(1)));
     }
 
+    /**
+     * 按用例提供的基础设施依赖构造风控运行时仓储。
+     */
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
                                                         RedisStringService redis) {
         RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
@@ -1332,6 +1511,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         return repository(mapper, redis, generationStore);
     }
 
+    /**
+     * 构造使用指定规则快照的风控运行时仓储。
+     */
     private DefaultRiskListRuntimeRepository snapshotRepository(RiskRuntimeMapper mapper,
                                                                 RedisStringService redis) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
@@ -1351,6 +1533,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(null), provider(null), properties, redisProperties);
     }
 
+    /**
+     * 构造包含来源主机状态和动作的规则快照行。
+     */
     private RiskRuleSnapshotRow sourceUrlSnapshotRow(long ruleId, String sourceHost, Boolean runtimeAllowed) {
         RiskRuleSnapshotRow row = new RiskRuleSnapshotRow();
         row.setRuleId(ruleId);
@@ -1362,6 +1547,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         return row;
     }
 
+    /**
+     * 构造具有美元阈值和 MPGS 渠道范围的 3DS 规则。
+     */
     private RiskRuleSnapshotRow mpgsThreeDsRule() {
         RiskRuleSnapshotRow rule = new RiskRuleSnapshotRow();
         rule.setRuleId(30L);
@@ -1377,6 +1565,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         return rule;
     }
 
+    /**
+     * 按用例提供的基础设施依赖构造风控运行时仓储。
+     */
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
                                                         RedisStringService redis,
                                                         RedisCacheGenerationStore generationStore) {
@@ -1396,6 +1587,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 redisProperties);
     }
 
+    /**
+     * 按用例提供的基础设施依赖构造风控运行时仓储。
+     */
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
                                                         RedisStringService redis,
                                                         StringRedisTemplate redisTemplate,
@@ -1403,6 +1597,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         return repository(mapper, redis, redisTemplate, stateService, null);
     }
 
+    /**
+     * 按用例提供的基础设施依赖构造风控运行时仓储。
+     */
     private DefaultRiskListRuntimeRepository repository(
             RiskRuntimeMapper mapper,
             RedisStringService redis,
@@ -1429,6 +1626,9 @@ class DefaultRiskListRuntimeRepositoryTests {
                 redisProperties);
     }
 
+    /**
+     * 构造指定维度、窗口和阈值的频控规则。
+     */
     private RiskListMatch frequencyRule(long ruleId, int allowedCount, int successCount) {
         RiskListMatch rule = new RiskListMatch();
         rule.setRuleId(ruleId);
@@ -1485,12 +1685,18 @@ class DefaultRiskListRuntimeRepositoryTests {
                 redisProperties);
     }
 
+    /**
+     * 提取 Redis 键哈希标签，验证多键脚本使用同一集群槽位。
+     */
     private String hashTag(String key) {
         int start = key.indexOf('{');
         int end = key.indexOf('}', start + 1);
         return key.substring(start + 1, end);
     }
 
+    /**
+     * 构造累计限额评估所需的商户交易请求。
+     */
     private RiskPaymentEvaluateRequestDTO cumulativeRequest(String transactionId, String amount) {
         RiskPaymentEvaluateRequestDTO requestDTO = new RiskPaymentEvaluateRequestDTO();
         requestDTO.setMerchantId("M202607290001");
@@ -1502,6 +1708,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         return requestDTO;
     }
 
+    /**
+     * 构造指定周期、阈值和动作的累计限额规则。
+     */
     private RiskListMatch cumulativeRule(long ruleId, String limitType, String amountLimit) {
         RiskListMatch rule = new RiskListMatch();
         rule.setRuleId(ruleId);
@@ -1515,6 +1724,9 @@ class DefaultRiskListRuntimeRepositoryTests {
         return rule;
     }
 
+    /**
+     * 构造始终返回指定测试依赖的 Spring ObjectProvider。
+     */
     @SuppressWarnings("unchecked")
     private <T> ObjectProvider<T> provider(T value) {
         ObjectProvider<T> provider = mock(ObjectProvider.class);

@@ -11,13 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelColumnWidthWriteHandler
- * @date : 2026-06-19 23:35
- * @email : scott_x@163.com
- * @description : Excel 列宽控制处理器
- * @status : create
+ * Excel 列宽控制处理器
  *
  * <p>优先根据列定义设置建议列宽，并根据内容长度做增量放宽，
  * 避免导出文件出现大量文本被截断。</p>

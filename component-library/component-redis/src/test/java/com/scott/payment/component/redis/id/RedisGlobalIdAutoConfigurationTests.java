@@ -10,13 +10,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisGlobalIdAutoConfigurationTests
- * @date : 2026-06-25 10:37
- * @email : scott_x@163.com
- * @description : 验证全局 ID 自动装配的模式、受保护环境 Key 隔离和状态恢复启动门禁
- * @status : create
+ * 验证全局 ID 自动装配的模式、受保护环境 Key 隔离和状态恢复启动门禁
  */
 @Slf4j
 class RedisGlobalIdAutoConfigurationTests {

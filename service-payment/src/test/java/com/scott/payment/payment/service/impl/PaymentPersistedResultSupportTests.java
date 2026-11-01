@@ -11,13 +11,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentPersistedResultSupportTests
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : 验证同步结果 CAS 冲突后，对外结果以数据库终态及受控商户文案为准。
- * @status : create
+ * 验证同步结果 CAS 冲突后，对外结果以数据库终态及受控商户文案为准。
  */
 class PaymentPersistedResultSupportTests {
 

@@ -18,13 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogAspectTests
- * @date : 2026-08-18 22:10
- * @email : scott_x@163.com
- * @description : 操作日志参数过滤测试，防止文件导出时序列化 Servlet 请求或响应对象导致审计记录丢失。
- * @status : create
+ * 操作日志参数过滤测试，防止文件导出时序列化 Servlet 请求或响应对象导致审计记录丢失。
  */
 class OperationLogAspectTests {
 
@@ -82,7 +76,9 @@ class OperationLogAspectTests {
         assertThat(record.getErrorMsg()).doesNotContain("internal implementation detail");
     }
 
-    /** 相关人员证件号经过切面序列化后必须脱敏，避免更新商户资料时写入操作日志。 */
+    /**
+     * 相关人员证件号经过切面序列化后必须脱敏，避免更新商户资料时写入操作日志。
+     */
     @Test
     void shouldMaskRelatedPersonIdNumberWhenSerializingOperationParameters() {
         @SuppressWarnings("unchecked")

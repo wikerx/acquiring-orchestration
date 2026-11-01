@@ -17,13 +17,7 @@ import static com.scott.payment.finance.reserve.model.ReserveCalculationModels.R
 import static com.scott.payment.finance.reserve.model.ReserveCalculationModels.ReserveActionType.RETURN;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReserveCalculator
- * @date : 2026-08-25 19:30
- * @email : scott_x@163.com
- * @description : 仅按原标签币种计算保证金扣留、返还、到期释放和差额调整事实，使用固化费率且不执行任何汇率换算。
- * @status : create
+ * 仅按原标签币种计算保证金扣留、返还、到期释放和差额调整事实，使用固化费率且不执行任何汇率换算。
  */
 public class ReserveCalculator {
 

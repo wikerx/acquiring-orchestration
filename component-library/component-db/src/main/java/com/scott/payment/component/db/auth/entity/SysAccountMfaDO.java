@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysAccountMfaDO
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 系统账号 MFA 配置数据库实体，位于 component-db 认证数据层；按应用和账号独立保存 OTP 策略、绑定状态、加密密钥和锁定信息。
- * @status : create
+ * 系统账号 MFA 配置数据库实体，位于 component-db 认证数据层；按应用和账号独立保存 OTP 策略、绑定状态、加密密钥和锁定信息。
  */
 @Data
 @TableName("sys_account_mfa")

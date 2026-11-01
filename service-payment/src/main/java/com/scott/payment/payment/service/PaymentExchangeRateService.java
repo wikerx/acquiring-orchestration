@@ -6,13 +6,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentExchangeRateService
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : 支付核心交易汇率服务，位于 service-payment 服务层，用于 EDC 查询标签币种到渠道交易币种的有效交易汇率。
- * @status : create
+ * 支付核心交易汇率服务，位于 service-payment 服务层，用于 EDC 查询标签币种到渠道交易币种的有效交易汇率。
  */
 public interface PaymentExchangeRateService {
 

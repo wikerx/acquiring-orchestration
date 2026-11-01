@@ -1,13 +1,7 @@
 package com.scott.payment.component.db.reference.model;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBrandRuleMatcher
- * @date : 2026-09-30
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的公开 IIN 卡品牌兜底规则；只识别品牌，不伪造 BIN 区间归属。
- * @status : create
+ * 支付与 OpenAPI 共用的公开 IIN 卡品牌兜底规则；只识别品牌，不伪造 BIN 区间归属。
  */
 public final class CardBrandRuleMatcher {
 

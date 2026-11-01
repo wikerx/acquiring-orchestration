@@ -24,13 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantLimitReservationStateServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 累计限额预占状态机测试，覆盖事务锁、乐观锁、幂等终态和非法反向迁移。
- * @status : create
+ * 累计限额预占状态机测试，覆盖事务锁、乐观锁、幂等终态和非法反向迁移。
  */
 class DefaultMerchantLimitReservationStateServiceTests {
 
@@ -38,6 +32,9 @@ class DefaultMerchantLimitReservationStateServiceTests {
             Instant.parse("2026-07-30T02:00:00Z"),
             ZoneId.of("Asia/Shanghai"));
 
+    /**
+     * 验证 Spring 在多构造器场景下明确选择生产装配构造器。
+     */
     @Test
     void shouldSelectProductionConstructorWhenCreatedBySpring() {
         MerchantLimitReservationMapper mapper = mock(MerchantLimitReservationMapper.class);
@@ -51,6 +48,9 @@ class DefaultMerchantLimitReservationStateServiceTests {
         }
     }
 
+    /**
+     * 验证锁定读取必须加入已有事务，禁止脱离状态迁移边界。
+     */
     @Test
     void shouldRequireExistingTransactionForLockingRead() throws NoSuchMethodException {
         Transactional transactional = DefaultMerchantLimitReservationStateService.class
@@ -61,6 +61,9 @@ class DefaultMerchantLimitReservationStateServiceTests {
         assertThat(transactional.propagation()).isEqualTo(Propagation.MANDATORY);
     }
 
+    /**
+     * 验证 RESERVED 可确认，重复确认返回幂等结果。
+     */
     @Test
     void shouldConfirmReservedReservationAndTreatDuplicateConfirmAsIdempotent() {
         MerchantLimitReservationMapper mapper = mock(MerchantLimitReservationMapper.class);
@@ -88,6 +91,9 @@ class DefaultMerchantLimitReservationStateServiceTests {
         assertThat(duplicate.idempotent()).isEqualTo(1);
     }
 
+    /**
+     * 验证迟到取消不能覆盖已确认预占终态。
+     */
     @Test
     void shouldNotLetLateCancelOverwriteConfirmedReservation() {
         MerchantLimitReservationMapper mapper = mock(MerchantLimitReservationMapper.class);
@@ -104,6 +110,9 @@ class DefaultMerchantLimitReservationStateServiceTests {
                 eq(9L), eq(4), any(), any(), any(), any());
     }
 
+    /**
+     * 验证并发 CAS 已完成 PREPARING 到 RESERVED 时按幂等成功处理。
+     */
     @Test
     void shouldTreatConcurrentPreparingToReservedCasAsIdempotent() {
         MerchantLimitReservationMapper mapper = mock(MerchantLimitReservationMapper.class);
@@ -125,6 +134,9 @@ class DefaultMerchantLimitReservationStateServiceTests {
         assertThat(service.markReserved(preparing)).isTrue();
     }
 
+    /**
+     * 构造具有指定状态、版本和计数投影的预占事实。
+     */
     private MerchantLimitReservationDO reservation(Long id,
                                                    MerchantLimitReservationStatus status,
                                                    int version) {

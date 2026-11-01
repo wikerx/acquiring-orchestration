@@ -8,13 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MybatisPlusMapperScanConfig
- * @date : 2026-06-03 14:20
- * @email : scott_x@163.com
- * @description : MyBatis Plus Mapper 扫描配置，统一发现组件库和业务服务中的 Mapper
- * @status : create
+ * MyBatis Plus Mapper 扫描配置，统一发现组件库和业务服务中的 Mapper
  */
 @Configuration
 @MapperScan("com.scott.payment.**.mapper")

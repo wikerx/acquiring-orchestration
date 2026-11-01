@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysOperLogDTO
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 系统后台操作日志响应 DTO
- * @status : create
+ * 系统后台操作日志响应 DTO
  */
 @Data
 public class SysOperLogDTO {

@@ -8,17 +8,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPasswordResetSecurityConfig
- * @date : 2026-10-14 00:00
- * @email : scott_x@163.com
- * @description : 管理后台找回密码安全配置，为匿名恢复入口提供跨实例原子限流并在 Redis 故障时拒绝放行。
- * @status : create
+ * 管理后台找回密码安全配置，为匿名恢复入口提供跨实例原子限流并在 Redis 故障时拒绝放行。
  */
 @Configuration
 public class AdminPasswordResetSecurityConfig {
 
+    /**
+     * {@code LOCAL_IDENTITY_CAPACITY}常量，统一 {@code AdminPasswordResetSecurityConfig} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int LOCAL_IDENTITY_CAPACITY = 10_000;
 
     /**

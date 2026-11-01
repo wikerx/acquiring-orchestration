@@ -8,13 +8,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionLogicalReadExecutor
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 在 transaction 逻辑数据源上下文中执行普通或主库强一致只读查询。
- * @status : create
+ * 在 transaction 逻辑数据源上下文中执行普通或主库强一致只读查询。
  */
 @Component
 public class TransactionLogicalReadExecutor {

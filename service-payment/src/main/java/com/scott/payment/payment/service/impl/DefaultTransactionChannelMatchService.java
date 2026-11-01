@@ -43,10 +43,14 @@ import java.util.Set;
 @Slf4j
 public class DefaultTransactionChannelMatchService implements TransactionChannelMatchService {
 
-    /** 未指定批量大小时的扫描条数，兼顾恢复速度与渠道 QUERY 限流。 */
+    /**
+     * 未指定批量大小时的扫描条数，兼顾恢复速度与渠道 QUERY 限流。
+     */
     private static final int DEFAULT_LIMIT = 100;
 
-    /** 单批扫描硬上限，防止管理端参数绕过任务流量控制。 */
+    /**
+     * 单批扫描硬上限，防止管理端参数绕过任务流量控制。
+     */
     private static final int MAX_LIMIT = 500;
 
     /**
@@ -54,18 +58,26 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
      */
     private static final long MISSING_IDENTITY_RETRY_HOURS = 24L;
 
-    /** 已取得同步结果或明确超时/失败的资金请求允许直接进入渠道状态查询。 */
+    /**
+     * 已取得同步结果或明确超时/失败的资金请求允许直接进入渠道状态查询。
+     */
     private static final Set<String> QUERYABLE_ORIGINAL_REQUEST_STATUSES = Set.of(
             "SUCCESS", "TIMEOUT", "FAILED");
 
-    /** 管理端允许主动重查的勾兑状态；空值、无需勾兑和已匹配均禁止重复发起。 */
+    /**
+     * 管理端允许主动重查的勾兑状态；空值、无需勾兑和已匹配均禁止重复发起。
+     */
     private static final Set<String> REQUERYABLE_CHANNEL_MATCH_STATUSES = Set.of(
             "PENDING", "REVIEW_REQUIRED", "MISMATCHED", "FAILED");
 
-    /** 平台终态与渠道查询终态一致。 */
+    /**
+     * 平台终态与渠道查询终态一致。
+     */
     private static final String CHANNEL_MATCH_MATCHED = "MATCHED";
 
-    /** 平台终态与渠道查询终态冲突，需要人工复核但不得自动改写资金终态。 */
+    /**
+     * 平台终态与渠道查询终态冲突，需要人工复核但不得自动改写资金终态。
+     */
     private static final String CHANNEL_MATCH_MISMATCHED = "MISMATCHED";
 
     private final TransactionRecordService transactionRecordService;
@@ -78,13 +90,19 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
 
     private final ChannelTransactionStatusResolver channelStatusResolver;
 
-    /** 自动异常升级配置。 */
+    /**
+     * 自动异常升级配置。
+     */
     private final ChannelMatchAbnormalProperties abnormalProperties;
 
-    /** 历史 INIT/SENT 请求恢复查询配置。 */
+    /**
+     * 历史 INIT/SENT 请求恢复查询配置。
+     */
     private final ChannelMatchRecoveryProperties recoveryProperties;
 
-    /** 延迟获取异常服务，避免人工重查服务与自动勾兑服务形成构造器环。 */
+    /**
+     * 延迟获取异常服务，避免人工重查服务与自动勾兑服务形成构造器环。
+     */
     private final ObjectProvider<ChannelMatchAbnormalService> abnormalServiceProvider;
 
     /**
@@ -330,12 +348,18 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         }
     }
 
+    /**
+     * 判断交易是否已进入终态。
+     */
     private boolean isTerminalTransaction(TransactionOperationDO operationDO) {
         return operationDO != null
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus()));
     }
 
+    /**
+     * 判断原渠道请求是否具备查询条件。
+     */
     private boolean isQueryableOriginalRequest(TransactionChannelRequestDO originalRequestDO,
                                                LocalDateTime now) {
         if (originalRequestDO == null || !StringUtils.hasText(originalRequestDO.getRequestStatus())) {
@@ -406,6 +430,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         }
     }
 
+    /**
+     * 构建查询引用。
+     */
     private PaymentPreparedChannelRequestDTO buildQueryReference(TransactionOperationDO operationDO,
                                                                 TransactionChannelRequestDO originalRequestDO) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
@@ -424,6 +451,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         return prepared;
     }
 
+    /**
+     * 判断交易是否具备渠道查询身份。
+     */
     private boolean hasSupportedQueryIdentity(PaymentCreateCommandDTO queryCommand,
                                               PaymentRouteResultDTO routeResult,
                                               TransactionOperationDO operationDO,
@@ -438,6 +468,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 preparedQueryRequest);
     }
 
+    /**
+     * 生成渠道身份缺失原因。
+     */
     private String missingIdentityReason(TransactionOperationDO operationDO, TransactionChannelRequestDO originalRequestDO) {
         String requestId = firstText(originalRequestDO == null ? null : originalRequestDO.getRequestId(),
                 operationDO == null ? null : operationDO.getLastChannelMatchRequestId());
@@ -571,6 +604,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         }
     }
 
+    /**
+     * 判断勾兑异常是否需要升级处理。
+     */
     private boolean shouldEscalate(TransactionOperationDO operationDO) {
         if (!abnormalProperties.isEnabled()) {
             return false;
@@ -581,6 +617,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         return currentCount + 1 >= threshold;
     }
 
+    /**
+     * 创建渠道勾兑异常服务测试实例。
+     */
     private ChannelMatchAbnormalService abnormalService() {
         return abnormalServiceProvider == null ? null : abnormalServiceProvider.getIfAvailable();
     }
@@ -608,6 +647,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         return commandDTO;
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String first, String second) {
         return StringUtils.hasText(first) ? first : second;
     }

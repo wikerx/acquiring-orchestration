@@ -64,9 +64,13 @@ import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels
 @Service
 public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationSnapshotService {
 
-    /** 不可变费用版本缓存的基础有效期。 */
+    /**
+     * 不可变费用版本缓存的基础有效期。
+     */
     private static final Duration CACHE_TTL = Duration.ofDays(30);
-    /** 最多增加一天随机抖动，避免大量版本缓存同时失效。 */
+    /**
+     * 最多增加一天随机抖动，避免大量版本缓存同时失效。
+     */
     private static final long CACHE_JITTER_BOUND = Duration.ofDays(1).toSeconds() + 1;
 
     private final ClearingTransactionMerchantSnapshotMapper snapshotMapper;
@@ -99,7 +103,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 () -> ThreadLocalRandom.current().nextLong(Long.MAX_VALUE));
     }
 
-    /** 包级测试构造器，用固定随机源验证 TTL 抖动而不改变生产缓存协议。 */
+    /**
+     * 包级测试构造器，用固定随机源验证 TTL 抖动而不改变生产缓存协议。
+     */
     DefaultFeeConfigurationSnapshotService(ClearingTransactionMerchantSnapshotMapper snapshotMapper,
                                            FeeVersionQueryService queryService,
                                            StringRedisTemplate redisTemplate,
@@ -304,7 +310,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return freeze(configuration, lockTime, CURRENT_SCHEMA_VERSION);
     }
 
-    /** 历史快照回源时沿用其 schema 和哈希算法，禁止用当前版本摘要误判历史数据。 */
+    /**
+     * 历史快照回源时沿用其 schema 和哈希算法，禁止用当前版本摘要误判历史数据。
+     */
     private FeeVersionSnapshot freeze(FeeVersionConfigurationDTO configuration,
                                       LocalDateTime lockTime,
                                       int schemaVersion) {
@@ -345,7 +353,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 reserve, RefundFeeReturnPolicy.NONE, configuration.rules(), hash);
     }
 
-    /** 排除 snapshotHash 自身后重建规范哈希材料，用于校验持久化快照未被修改。 */
+    /**
+     * 排除 snapshotHash 自身后重建规范哈希材料，用于校验持久化快照未被修改。
+     */
     private String hash(FeeVersionSnapshot snapshot) {
         if (snapshot.schemaVersion() == 3) {
             LegacyFeeSnapshotHashMaterial legacy = new LegacyFeeSnapshotHashMaterial(
@@ -382,7 +392,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 数据库快照行必须与请求商户、动作、费用版本和分片时间完全一致。 */
+    /**
+     * 数据库快照行必须与请求商户、动作、费用版本和分片时间完全一致。
+     */
     private void validateRowIdentity(ClearingTransactionMerchantSnapshotDO row,
                                      String merchantId,
                                      String operationId,
@@ -407,7 +419,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 反序列化后的快照身份必须与动作冻结列及 SHA-256 一致。 */
+    /**
+     * 反序列化后的快照身份必须与动作冻结列及 SHA-256 一致。
+     */
     private void validateSnapshotIdentity(FeeVersionSnapshot snapshot,
                                           ClearingTransactionMerchantSnapshotDO row) {
         if (snapshot == null || !Objects.equals(snapshot.merchantId(), row.getMerchantId())
@@ -419,7 +433,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 缓存或主从降级配置只能返回请求中的确切不可变版本。 */
+    /**
+     * 缓存或主从降级配置只能返回请求中的确切不可变版本。
+     */
     private void validateConfigurationIdentity(FeeVersionConfigurationDTO configuration,
                                                ClearingTransactionMerchantSnapshotDO row) {
         if (configuration == null) {
@@ -439,15 +455,23 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /**
+     * 构造带稳定失败码的费用快照异常，供清分状态机受控落库。
+     */
     private ClearingProcessingException failure(ClearingFailureCodeEnum code, String message) {
         return new ClearingProcessingException(code, message);
     }
 
+    /**
+     * 为不可变费用版本生成跨实例一致的缓存业务键。
+     */
     private String versionKey(Long versionId) {
         return keyResolver.businessKey("fee", "version", String.valueOf(versionId));
     }
 
-    /** 使用字段顺序稳定的专用 ObjectMapper 序列化哈希材料，禁止替换为普通业务 JSON 配置。 */
+    /**
+     * 使用字段顺序稳定的专用 ObjectMapper 序列化哈希材料，禁止替换为普通业务 JSON 配置。
+     */
     private String canonicalJson(Object value) {
         try {
             return canonicalMapper.writeValueAsString(value);
@@ -456,7 +480,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** v5 哈希忽略 BigDecimal 尾随零，快照 JSON 本身仍保留原业务精度。 */
+    /**
+     * v5 哈希忽略 BigDecimal 尾随零，快照 JSON 本身仍保留原业务精度。
+     */
     private String canonicalHashJson(Object value) {
         try {
             return hashMapper.writeValueAsString(value);
@@ -465,7 +491,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 对 UTF-8 规范 JSON 计算小写十六进制 SHA-256 摘要。 */
+    /**
+     * 对 UTF-8 规范 JSON 计算小写十六进制 SHA-256 摘要。
+     */
     private String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -475,13 +503,18 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
-    /** 以固定时间摘要比较校验费用快照完整性，避免普通字符串比较泄露逐字符匹配信息。 */
+    /**
+     * 以固定时间摘要比较校验费用快照完整性，避免普通字符串比较泄露逐字符匹配信息。
+     */
     private boolean constantTimeEquals(String expected, String actual) {
         return expected != null && actual != null && MessageDigest.isEqual(
                 expected.getBytes(StandardCharsets.US_ASCII),
                 actual.getBytes(StandardCharsets.US_ASCII));
     }
 
+    /**
+     * 复制业务 JSON 配置并启用稳定字段和映射顺序，用于生成可复算的快照原文。
+     */
     @SuppressWarnings("deprecation")
     private ObjectMapper canonicalMapper(ObjectMapper source) {
         ObjectMapper copy = source.copy();
@@ -492,10 +525,16 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return copy;
     }
 
+    /**
+     * 创建哈希专用序列化器，使数值相等但尾随零不同的金额产生相同哈希材料。
+     */
     private ObjectMapper normalizedHashMapper(ObjectMapper source) {
         ObjectMapper copy = source.copy();
         SimpleModule module = new SimpleModule();
         module.addSerializer(BigDecimal.class, new JsonSerializer<>() {
+            /**
+             * 写出移除尾随零后的十进制数值，保持费用快照哈希的数值语义。
+             */
             @Override
             public void serialize(BigDecimal value,
                                   JsonGenerator generator,
@@ -507,9 +546,15 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return copy;
     }
 
+    /**
+     * 已冻结费用快照及其持久化哈希校验结果。
+     */
     private record FrozenSnapshotRead(FeeVersionSnapshot snapshot, boolean hashValid) {
     }
 
+    /**
+     * 当前快照协议参与哈希的完整材料，包含结算周期策略。
+     */
     private record FeeSnapshotHashMaterial(int schemaVersion,
                                            String merchantId,
                                            Long feePlanId,
@@ -526,6 +571,9 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                                            List<FeeRuleConfigurationSnapshot> rules) {
     }
 
+    /**
+     * 历史快照协议参与哈希的兼容材料，不包含后续新增的结算周期策略。
+     */
     private record LegacyFeeSnapshotHashMaterial(int schemaVersion,
                                                  String merchantId,
                                                  Long feePlanId,

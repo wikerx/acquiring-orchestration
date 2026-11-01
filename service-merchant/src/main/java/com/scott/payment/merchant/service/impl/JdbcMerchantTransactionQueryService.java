@@ -98,7 +98,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             settlement_status, reconciliation_status, accounting_status,
             channel_code, channel_order_no, transaction_date_time, transaction_time_zone
             """;
-    /** 交易动作查询的稳定显式投影，包含页面展示所需的交易、汇率与结算状态字段。 */
+    /**
+     * 交易动作查询的稳定显式投影，包含页面展示所需的交易、汇率与结算状态字段。
+     */
     private static final String OPERATION_QUERY_COLUMNS = """
             operation_id, transaction_id, source_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, operation_sequence,
@@ -137,11 +139,17 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 在 transaction 逻辑数据源上执行普通读和强一致读。 */
+    /**
+     * 在 transaction 逻辑数据源上执行普通读和强一致读。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
-    /** 单次同步查询允许返回的最大记录数。 */
+    /**
+     * 单次同步查询允许返回的最大记录数。
+     */
     private final int maxResultRows;
-    /** 当前版本已登记物理节点中的最早季度，用于受控批量定位生命周期主单。 */
+    /**
+     * 当前版本已登记物理节点中的最早季度，用于受控批量定位生命周期主单。
+     */
     private final LocalDateTime registeredNodeBegin;
 
     /**
@@ -605,7 +613,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         enrichOperationThreeDs(rows);
     }
 
-    /** 批量识别当前商户的历史收银台交易，避免逐条查询和跨商户读取。 */
+    /**
+     * 批量识别当前商户的历史收银台交易，避免逐条查询和跨商户读取。
+     */
     private void enrichAccessTypes(List<TransactionOperationResponse> rows) {
         String merchantId = rows.stream()
                 .map(TransactionOperationResponse::getMerchantId)
@@ -671,7 +681,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         enrichOrderThreeDs(rows);
     }
 
-    /** 按生命周期操作号批量补齐商户可见主单 3DS 标识。 */
+    /**
+     * 按生命周期操作号批量补齐商户可见主单 3DS 标识。
+     */
     private void enrichOrderThreeDs(List<TransactionOrderResponse> rows) {
         Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
                 .map(TransactionOrderResponse::getOperationId)
@@ -681,7 +693,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
     }
 
-    /** 按生命周期操作号批量补齐商户可见动作单 3DS 标识。 */
+    /**
+     * 按生命周期操作号批量补齐商户可见动作单 3DS 标识。
+     */
     private void enrichOperationThreeDs(List<TransactionOperationResponse> rows) {
         Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
                 .map(TransactionOperationResponse::getOperationId)
@@ -1054,7 +1068,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 : transactionLogicalReadExecutor.read(query);
     }
 
-    /** 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。 */
+    /**
+     * 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。
+     */
     private LocalDateTime exclusiveEnd(LocalDateTime endTime) {
         LocalDateTime actualEnd = endTime == null ? LocalDateTime.now() : endTime;
         return actualEnd.plusNanos(1_000_000L);
@@ -1167,7 +1183,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         };
     }
 
-    /** 将支付核心持久化的请求来源映射为商户端接入类型。 */
+    /**
+     * 将支付核心持久化的请求来源映射为商户端接入类型。
+     */
     private String resolveAccessType(String requestSource) {
         return ACCESS_TYPE_HOSTED_CHECKOUT.equalsIgnoreCase(requestSource)
                 ? ACCESS_TYPE_HOSTED_CHECKOUT
@@ -1196,7 +1214,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 rs.getBigDecimal("amount"));
     }
 
-    /** ISO 4217 辅币位属于标签币种，无法识别时保留为空，禁止静默按两位小数展示。 */
+    /**
+     * ISO 4217 辅币位属于标签币种，无法识别时保留为空，禁止静默按两位小数展示。
+     */
     private static Integer resolveLabelCurrencyExponent(String currency) {
         return IsoCurrencyResolver.resolve(currency)
                 .map(info -> info.defaultFractionDigits())
@@ -1239,7 +1259,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return rs.wasNull() ? null : value;
     }
 
-    /** 兼容历史结果集缺少新增来源字段的场景。 */
+    /**
+     * 兼容历史结果集缺少新增来源字段的场景。
+     */
     private String getStringIfExists(ResultSet rs, String column) {
         try {
             return rs.getString(column);
@@ -1397,7 +1419,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private record OperationVisibleInfoRow(String operationId, String authCode, String cardBin, String cardNumberMasked) {
     }
 
-    /** 将最早已登记季度转换为 ShardingSphere 可路由的半开范围起点。 */
+    /**
+     * 将最早已登记季度转换为 ShardingSphere 可路由的半开范围起点。
+     */
     private static LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
         return physicalNodes == null ? LocalDateTime.of(1970, 1, 1, 0, 0)
                 : physicalNodes.stream()
@@ -1410,7 +1434,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .orElse(LocalDateTime.of(1970, 1, 1, 0, 0));
     }
 
-    /** 商户归属和真实分片时间共同限定富化查询范围。 */
+    /**
+     * 商户归属和真实分片时间共同限定富化查询范围。
+     */
     private record MerchantTimeScope(String merchantId, LocalDateTime transactionDateTime) {
     }
 
@@ -1419,19 +1445,33 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     private static class SummaryAccumulator {
-        /** 当前筛选条件命中的交易操作单数量。 */
+        /**
+         * 当前筛选条件命中的交易操作单数量。
+         */
         private long totalCount;
-        /** 当前筛选条件中成功的交易操作单数量。 */
+        /**
+         * 当前筛选条件中成功的交易操作单数量。
+         */
         private long successCount;
-        /** 当前筛选条件中失败的交易操作单数量。 */
+        /**
+         * 当前筛选条件中失败的交易操作单数量。
+         */
         private long failedCount;
-        /** 按标签币种归集的全部标签金额，禁止跨币种相加。 */
+        /**
+         * 按标签币种归集的全部标签金额，禁止跨币种相加。
+         */
         private final Map<String, TransactionAmountSummaryResponse> amountSummaries = new LinkedHashMap<>();
-        /** 按标签币种归集的成功交易标签金额。 */
+        /**
+         * 按标签币种归集的成功交易标签金额。
+         */
         private final Map<String, TransactionAmountSummaryResponse> successAmountSummaries = new LinkedHashMap<>();
-        /** 按标签币种归集的失败交易标签金额。 */
+        /**
+         * 按标签币种归集的失败交易标签金额。
+         */
         private final Map<String, TransactionAmountSummaryResponse> failedAmountSummaries = new LinkedHashMap<>();
-        /** 按支付方式和支付品牌分组，并在每组内按标签币种归集金额。 */
+        /**
+         * 按支付方式和支付品牌分组，并在每组内按标签币种归集金额。
+         */
         private final Map<String, TransactionPaymentMethodSummaryResponse> paymentMethodSummaries = new LinkedHashMap<>();
 
         void addAmount(SummaryRow row) {

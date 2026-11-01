@@ -40,29 +40,120 @@ import java.util.Locale;
 @Service
 public class DefaultTransactionCallbackInboxService implements TransactionCallbackInboxService {
 
+    /**
+     * {@code INBOX_PREFIX}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String INBOX_PREFIX = "CBI";
+    /**
+     * {@code ACCEPTED}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ACCEPTED = "ACCEPTED";
+    /**
+     * 是否命中既有幂等结果；为 true 时必须复用原结果且禁止重复调用渠道。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与幂等结果和准备结果共同决定是否允许发起渠道调用。
+     * </p>
+     */
     private static final String DUPLICATE = "DUPLICATE";
+    /**
+     * {@code DEFAULT_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int DEFAULT_MAX_RETRY_COUNT = 12;
+    /**
+     * 最大批次大小，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int MAX_BATCH_SIZE = 500;
+    /**
+     * {@code MAX_PAYLOAD_LENGTH}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_PAYLOAD_LENGTH = 131_072;
+    /**
+     * {@code MAX_ERROR_LENGTH}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_ERROR_LENGTH = 256;
+    /**
+     * {@code MAX_CHANNEL_CODE_LENGTH}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_CHANNEL_CODE_LENGTH = 32;
+    /**
+     * {@code MAX_CREDENTIAL_HINT_LENGTH}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_CREDENTIAL_HINT_LENGTH = 128;
+    /**
+     * {@code MAX_CALLBACK_EVENT_ID_LENGTH}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
+     * </p>
+     */
     private static final int MAX_CALLBACK_EVENT_ID_LENGTH = 256;
+    /**
+     * {@code MAX_RETRY_DELAY_SECONDS}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long MAX_RETRY_DELAY_SECONDS = 3_600L;
+    /**
+     * {@code SHA256_HEX_PATTERN}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SHA256_HEX_PATTERN = "[0-9a-fA-F]{64}";
 
     private final TransactionCallbackInboxMapper inboxMapper;
     private final Clock clock;
 
-    /** 创建生产环境使用的 Inbox 服务。 */
+    /**
+     * 创建生产环境使用的 Inbox 服务。
+     */
     @Autowired
     public DefaultTransactionCallbackInboxService(TransactionCallbackInboxMapper inboxMapper) {
         this(inboxMapper, Clock.system(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID)));
     }
 
-    /** 测试可注入固定时钟，确保重试时间断言稳定。 */
+    /**
+     * 测试可注入固定时钟，确保重试时间断言稳定。
+     */
     DefaultTransactionCallbackInboxService(TransactionCallbackInboxMapper inboxMapper, Clock clock) {
         this.inboxMapper = inboxMapper;
         this.clock = clock;
@@ -97,7 +188,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         return result(persisted, inboxId.equals(persisted.getInboxId()) ? ACCEPTED : DUPLICATE);
     }
 
-    /** 查询到期待处理回调并将单批数量限制在 1 至 500。 */
+    /**
+     * 查询到期待处理回调并将单批数量限制在 1 至 500。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(readOnly = true)
@@ -111,7 +204,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
                 TransactionCallbackInboxStatusEnum.RETRY.name());
     }
 
-    /** 使用查询版本和待处理状态 CAS 抢占记录；成功后同步更新内存对象版本。 */
+    /**
+     * 使用查询版本和待处理状态 CAS 抢占记录；成功后同步更新内存对象版本。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
@@ -134,7 +229,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         return false;
     }
 
-    /** 使用抢占后的版本号 CAS 标记完成，防止超时重领后的旧 Worker 覆盖新状态。 */
+    /**
+     * 使用抢占后的版本号 CAS 标记完成，防止超时重领后的旧 Worker 覆盖新状态。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
@@ -149,7 +246,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
                 TransactionCallbackInboxStatusEnum.PROCESSED.name()) == 1;
     }
 
-    /** 记录失败并按指数退避安排重试；达到单条记录的最大次数后进入 CLOSED。 */
+    /**
+     * 记录失败并按指数退避安排重试；达到单条记录的最大次数后进入 CLOSED。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
@@ -175,7 +274,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
                 TransactionCallbackInboxStatusEnum.PROCESSING.name()) == 1;
     }
 
-    /** 分批恢复进程退出遗留的超时 PROCESSING 记录，同时计入一次失败尝试。 */
+    /**
+     * 分批恢复进程退出遗留的超时 PROCESSING 记录，同时计入一次失败尝试。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
@@ -194,6 +295,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
                 actualLimit);
     }
 
+    /**
+     * 构建渠道回调 Inbox 记录。
+     */
     private TransactionCallbackInboxDO buildInbox(TransactionChannelCallbackCommandDTO commandDTO,
                                                    String channelCode,
                                                    String idempotencyKey,
@@ -223,6 +327,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         return inbox;
     }
 
+    /**
+     * 构建移除敏感字段的安全载荷。
+     */
     private String safePayload(TransactionChannelCallbackCommandDTO source) {
         // 请求头单独脱敏保存，标准化业务载荷中移除请求头，避免敏感凭据被重复持久化。
         TransactionChannelCallbackCommandDTO copy = JsonUtils.parseObject(
@@ -236,6 +343,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         return payload;
     }
 
+    /**
+     * 构建幂等键。
+     */
     private String buildIdempotencyKey(TransactionChannelCallbackCommandDTO commandDTO) {
         // 凭据提示参与隔离同渠道多账户，但仅保存组合值摘要，不暴露原始凭据线索。
         return sha256(String.join("\n",
@@ -245,6 +355,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
                 commandDTO.getCallbackEventId().trim()));
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -255,6 +368,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         }
     }
 
+    /**
+     * 校验渠道回调 Inbox 受理命令及可信校验结果。
+     */
     private void validate(TransactionChannelCallbackCommandDTO commandDTO) {
         // 只有网关层已完成验签与 IP 校验的回调才允许入箱，Worker 不重新信任原始请求头。
         if (commandDTO == null
@@ -274,25 +390,40 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         }
     }
 
+    /**
+     * 校验已持久化的回调 Inbox 记录。
+     */
     private void validatePersistedInbox(TransactionCallbackInboxDO inbox) {
         if (inbox == null || inbox.getId() == null || inbox.getVersion() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 规范化渠道编码。
+     */
     private String normalizeChannelCode(String channelCode) {
         return channelCode.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 规范化可选配置值。
+     */
     private String normalizeOptional(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 提取可记录的异常类型。
+     */
     private String safeFailureType(Throwable failure) {
         String value = failure == null ? "CallbackProcessingException" : failure.getClass().getSimpleName();
         return value.length() <= MAX_ERROR_LENGTH ? value : value.substring(0, MAX_ERROR_LENGTH);
     }
 
+    /**
+     * 构建渠道回调 Inbox 受理结果。
+     */
     private TransactionCallbackInboxAcceptResultDTO result(TransactionCallbackInboxDO inbox,
                                                             String acceptResult) {
         TransactionCallbackInboxAcceptResultDTO result = new TransactionCallbackInboxAcceptResultDTO();

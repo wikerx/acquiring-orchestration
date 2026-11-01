@@ -20,13 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDatasourceMonitorSamplerTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 数据源指标有界历史、采样节流和 performance_schema 降级行为测试。
- * @status : create
+ * 数据源指标有界历史、采样节流和 performance_schema 降级行为测试。
  */
 class AdminDatasourceMonitorSamplerTest {
 

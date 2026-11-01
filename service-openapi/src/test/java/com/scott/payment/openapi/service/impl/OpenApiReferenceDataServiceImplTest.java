@@ -18,13 +18,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiReferenceDataServiceImplTest
- * @date : 2026-08-11 15:47
- * @email : scott_x@163.com
- * @description : 商户基础数据服务行为测试，校验最小响应映射和外部参数错误码
- * @status : create
+ * 商户基础数据服务行为测试，校验最小响应映射和外部参数错误码
  */
 @Slf4j
 class OpenApiReferenceDataServiceImplTest {

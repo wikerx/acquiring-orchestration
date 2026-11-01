@@ -1,13 +1,7 @@
 package com.scott.payment.component.db.auth.support;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantLocaleSupport
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Merchant-level locale values supported by email templates and the merchant portal.
- * @status : create
+ * Merchant-level locale values supported by email templates and the merchant portal.
  */
 public final class MerchantLocaleSupport {
 

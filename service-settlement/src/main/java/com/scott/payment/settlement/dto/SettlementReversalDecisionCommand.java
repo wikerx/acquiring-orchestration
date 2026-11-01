@@ -5,13 +5,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalDecisionCommand
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 表示冲正批准或拒绝命令；决策请求键和期望版本共同保护终态幂等，操作人必须通过 Maker-Checker 校验。
- * @status : create
+ * 表示冲正批准或拒绝命令；决策请求键和期望版本共同保护终态幂等，操作人必须通过 Maker-Checker 校验。
  * @param requestKey 冲正决策数据库幂等键
  * @param expectedVersion service-admin 页面读取的冲正单版本
  * @param decision APPROVE 或 REJECT

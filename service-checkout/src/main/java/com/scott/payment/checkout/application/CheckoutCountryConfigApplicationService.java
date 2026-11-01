@@ -15,13 +15,9 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutCountryConfigApplicationService
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : 收银台国家或地区配置应用服务，位于 收银台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 将平台 ISO 国家地区字典转换为收银台可直接展示的配置。
+ *
+ * <p>本服务只处理展示名称、文案语言、国旗图标和稳定排序，不持有收银台会话或支付交易状态。</p>
  */
 @Service
 public class CheckoutCountryConfigApplicationService {

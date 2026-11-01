@@ -23,18 +23,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalControllerTest
- * @date : 2026-08-21 10:10
- * @email : scott_x@163.com
- * @description : 校验支付内部接口的 HTTP 参数绑定契约，避免编译参数名缺失导致定时任务无法进入业务处理
- * @status : create
+ * 校验支付内部接口的 HTTP 参数绑定契约，避免编译参数名缺失导致定时任务无法进入业务处理
  */
 @Slf4j
 class PaymentInternalControllerTest {
 
-    /** 回调 HTTP 入口只能进入 Inbox 受理路径，旧同步业务处理路径不再暴露。 */
+    /**
+     * 回调 HTTP 入口只能进入 Inbox 受理路径，旧同步业务处理路径不再暴露。
+     */
     @Test
     void shouldExposeOnlyCallbackInboxAcceptanceEndpoint() throws Exception {
         PaymentTransactionApplicationService transactionApplicationService =

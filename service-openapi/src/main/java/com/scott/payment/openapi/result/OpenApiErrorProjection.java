@@ -34,7 +34,9 @@ public record OpenApiErrorProjection(OpenApiResultCode resultCode,
                                      Map<String, String> messageParameters,
                                      OpenApiResultEvidence evidence) {
 
-    /** 固化文案参数，避免响应生成期间被调用方修改。 */
+    /**
+     * 固化文案参数，避免响应生成期间被调用方修改。
+     */
     public OpenApiErrorProjection {
         messageParameters = messageParameters == null ? Map.of() : Map.copyOf(messageParameters);
     }

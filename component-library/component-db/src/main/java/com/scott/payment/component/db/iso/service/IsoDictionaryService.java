@@ -9,13 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoDictionaryService
- * @date : 2026-06-03 14:28
- * @email : scott_x@163.com
- * @description : ISO 国家地区与币种基础字典公共查询服务
- * @status : create
+ * ISO 国家地区与币种基础字典公共查询服务
  */
 public interface IsoDictionaryService {
 

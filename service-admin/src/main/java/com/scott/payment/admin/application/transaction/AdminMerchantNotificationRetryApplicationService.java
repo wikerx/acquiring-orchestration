@@ -14,27 +14,29 @@ import org.springframework.util.StringUtils;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantNotificationRetryApplicationService
- * @date : 2026-08-04 13:45
- * @email : scott_x@163.com
- * @description : 管理后台人工重发商户终态回调应用服务，只写主库 Outbox，由 service-data 消费后执行外部 HTTP 回调
- * @status : create
+ * 管理后台人工重发商户终态回调应用服务，只写主库 Outbox，由 service-data 消费后执行外部 HTTP 回调
  */
 @Service
 public class AdminMerchantNotificationRetryApplicationService {
 
-    /** 人工重发 Outbox 事件号前缀。 */
+    /**
+     * 人工重发 Outbox 事件号前缀。
+     */
     private static final String EVENT_ID_PREFIX = "MNR-";
 
-    /** 操作人审计摘要最大长度。 */
+    /**
+     * 操作人审计摘要最大长度。
+     */
     private static final int MAX_OPERATOR_LENGTH = 64;
 
-    /** 可靠 MQ Outbox 发布器。 */
+    /**
+     * 可靠 MQ Outbox 发布器。
+     */
     private final ReliableMqPublisher reliableMqPublisher;
 
-    /** 交易逻辑表强一致查询服务，用于人工重发前校验终态和通知任务。 */
+    /**
+     * 交易逻辑表强一致查询服务，用于人工重发前校验终态和通知任务。
+     */
     private final AdminTransactionQueryService transactionQueryService;
 
     /**
@@ -89,7 +91,9 @@ public class AdminMerchantNotificationRetryApplicationService {
                 message);
     }
 
-    /** 返回适合 MQ 审计字段的操作人摘要。 */
+    /**
+     * 返回适合 MQ 审计字段的操作人摘要。
+     */
     private String safeOperator(String operator) {
         if (!StringUtils.hasText(operator)) {
             return "admin";

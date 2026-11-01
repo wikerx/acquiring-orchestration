@@ -9,13 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionStatusHistoryDO
- * @date : 2026-07-14 17:35
- * @email : scott_x@163.com
- * @description : 交易状态历史实体，位于 service-payment 持久化层，记录订单和动作状态每一次流转，用于审计和详情页时间线。
- * @status : create
+ * 交易状态历史实体，位于 service-payment 持久化层，记录订单和动作状态每一次流转，用于审计和详情页时间线。
  */
 @Data
 @TableName("transaction_status_history")

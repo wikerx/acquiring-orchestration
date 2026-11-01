@@ -5,10 +5,14 @@ import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDate;
 
-/** 交易结算周期计算所需的已入账事实和已确认工作日日历查询。 */
+/**
+ * 交易结算周期计算所需的已入账事实和已确认工作日日历查询。
+ */
 public interface ClearingSettlementEligibilityMapper {
 
-    /** 首个正式交易结算批次入账后，后续交易使用常规周期。 */
+    /**
+     * 首个正式交易结算批次入账后，后续交易使用常规周期。
+     */
     @Select("""
             SELECT COUNT(1)
             FROM settlement_batch
@@ -19,7 +23,9 @@ public interface ClearingSettlementEligibilityMapper {
             """)
     int countPostedRegularSettlement(@Param("merchantId") String merchantId);
 
-    /** 从已确认日历中读取起始日之后第 N 个工作日。 */
+    /**
+     * 从已确认日历中读取起始日之后第 N 个工作日。
+     */
     @Select("""
             SELECT day.calendar_date
             FROM settlement_holiday_calendar day
@@ -36,7 +42,9 @@ public interface ClearingSettlementEligibilityMapper {
     LocalDate selectNthConfirmedWorkday(@Param("startDate") LocalDate startDate,
                                         @Param("offset") int offset);
 
-    /** 校验起始日之后至目标日的每个自然日都存在于已确认日历中。 */
+    /**
+     * 校验起始日之后至目标日的每个自然日都存在于已确认日历中。
+     */
     @Select("""
             SELECT COUNT(1)
             FROM settlement_holiday_calendar day

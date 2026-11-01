@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalClientConfig
- * @date : 2026-07-14 23:55
- * @email : scott_x@163.com
- * @description : service-payment 内部查询客户端配置，位于 service-admin 配置层，为交易管理页面注册直连和服务发现 RestTemplate。
- * @status : create
+ * service-payment 内部查询客户端配置，位于 service-admin 配置层，为交易管理页面注册直连和服务发现 RestTemplate。
  */
 @Configuration
 @EnableConfigurationProperties(PaymentInternalClientProperties.class)
@@ -63,8 +57,8 @@ public class PaymentInternalClientConfig {
     public RestTemplate paymentInternalLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
                                                                 TraceIdRestTemplateInterceptor traceIdRestTemplateInterceptor) {
         return restTemplateBuilder
-                .setConnectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
-                .setReadTimeout(Duration.ofMillis(READ_TIMEOUT_MILLIS))
+                .connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
+                .readTimeout(Duration.ofMillis(READ_TIMEOUT_MILLIS))
                 .additionalInterceptors(traceIdRestTemplateInterceptor)
                 .build();
     }

@@ -81,7 +81,6 @@ import java.time.temporal.ChronoUnit;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -831,7 +830,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return resultDTO;
     }
 
-    /** 使用持久化的交易号和请求号恢复未发送的准备结果，不生成新的幂等或渠道身份。 */
+    /**
+     * 使用持久化的交易号和请求号恢复未发送的准备结果，不生成新的幂等或渠道身份。
+     */
     @Override
     public PaymentCreateResultDTO resumePreparedTransaction(PaymentCreateCommandDTO commandDTO) {
         validatePreparedIdentity(commandDTO);
@@ -892,7 +893,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 StringUtils.hasText(indicator) ? indicator : "REQUIRED");
     }
 
-    /** 从动作单、主单和原渠道请求恢复浏览器回跳后的提交上下文。 */
+    /**
+     * 从动作单、主单和原渠道请求恢复浏览器回跳后的提交上下文。
+     */
     private PaymentInitialPreparationResultDTO restorePreparedTransaction(PaymentCreateCommandDTO commandDTO) {
         // 恢复路径只从主库权威事实重建身份，禁止相信浏览器回跳或重试请求携带的金额、币种和渠道标识。
         TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
@@ -952,7 +955,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return preparation;
     }
 
-    /** 构造当前数据库事实对应的首次交易结果。 */
+    /**
+     * 构造当前数据库事实对应的首次交易结果。
+     */
     private PaymentCreateResultDTO resultFromPreparedFacts(PaymentCreateCommandDTO commandDTO,
                                                             TransactionOperationDO operationDO,
                                                             TransactionOrderDO orderDO) {
@@ -984,7 +989,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return result;
     }
 
-    /** 渠道请求已被其他线程抢占时返回数据库中的最新状态。 */
+    /**
+     * 渠道请求已被其他线程抢占时返回数据库中的最新状态。
+     */
     private PaymentCreateResultDTO latestPreparedResult(PaymentInitialPreparationResultDTO preparation) {
         return restorePreparedTransaction(preparation.getCommandDTO()).getResultDTO();
     }
@@ -1013,7 +1020,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 resultDTO, persistedOperation, persistedOrder);
     }
 
-    /** 将 CAS 冲突后的“主库暂未读到”统一收口为可重试错误，避免误报订单不存在。 */
+    /**
+     * 将 CAS 冲突后的“主库暂未读到”统一收口为可重试错误，避免误报订单不存在。
+     */
     private TransactionOperationDO readAuthoritativeOperationAfterCasConflict(
             String transactionId,
             LocalDateTime transactionDateTime) {
@@ -1028,7 +1037,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
-    /** 将 CAS 冲突后的“主库暂未读到”统一收口为可重试错误，避免误报订单不存在。 */
+    /**
+     * 将 CAS 冲突后的“主库暂未读到”统一收口为可重试错误，避免误报订单不存在。
+     */
     private TransactionOrderDO readAuthoritativeOrderAfterCasConflict(
             LocalDateTime transactionDateTime,
             String operationId) {
@@ -1042,12 +1053,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
-    /** CAS 已确认输给并发提交方后禁止回退同步旧结果；调用方可按原幂等键安全重试。 */
+    /**
+     * CAS 已确认输给并发提交方后禁止回退同步旧结果；调用方可按原幂等键安全重试。
+     */
     private ServiceException authoritativeResultUnavailable(Throwable cause) {
         return new ServiceException(ApiResultEnum.NETWORK_BUSY, cause);
     }
 
-    /** 构造 3DS 等资金请求前失败的本地结果上下文，不包含伪造的渠道响应。 */
+    /**
+     * 构造 3DS 等资金请求前失败的本地结果上下文，不包含伪造的渠道响应。
+     */
     private PaymentChannelInvokeResultDTO preparedFailureInvokeResult(PaymentPreparedChannelRequestDTO prepared,
                                                                        PaymentCreateCommandDTO command,
                                                                        PaymentRouteResultDTO route,
@@ -1083,7 +1098,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return invokeResult;
     }
 
-    /** 校验收银台回跳携带的已准备交易身份。 */
+    /**
+     * 校验收银台回跳携带的已准备交易身份。
+     */
     private void validatePreparedIdentity(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
                 || !StringUtils.hasText(commandDTO.getTransactionId())
@@ -1376,26 +1393,34 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return resultDTO;
     }
 
-    /** 基于原交易权威订单号、币种和本次退款金额生成稳定请求指纹。 */
+    /**
+     * 基于原交易权威订单号、币种和本次退款金额生成稳定请求指纹。
+     */
     private String resolveRefundRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
         return canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, PaymentTransactionTypeEnum.REFUND);
     }
 
-    /** 为请款或预授权完成生成包含原交易、金额和币种的稳定请求指纹。 */
+    /**
+     * 为请款或预授权完成生成包含原交易、金额和币种的稳定请求指纹。
+     */
     private String resolveCaptureLikeRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                         PaymentTransactionTypeEnum transactionType) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
         return canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, transactionType);
     }
 
-    /** 为撤销生成不依赖可选金额字段的稳定请求指纹，确保同一原交易动作唯一。 */
+    /**
+     * 为撤销生成不依赖可选金额字段的稳定请求指纹，确保同一原交易动作唯一。
+     */
     private String resolveVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
         return canonicalVoidRequestFingerprint(commandDTO, fingerprintSourceOrderDO);
     }
 
-    /** 为增量授权生成包含原授权、增额和原币种的稳定请求指纹。 */
+    /**
+     * 为增量授权生成包含原授权、增额和原币种的稳定请求指纹。
+     */
     private String resolveIncrementalAuthorizationRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
         return canonicalFollowUpRequestFingerprint(
@@ -1672,6 +1697,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
+    /**
+     * 调用渠道并把超时或未知结果保留为非终态。
+     */
     private PaymentChannelInvokeResultDTO invokeChannelSafely(PaymentCreateCommandDTO commandDTO,
                                                               PaymentRouteResultDTO routeResultDTO,
                                                               String operationId,
@@ -1714,7 +1742,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
-    /** Hosted Checkout 已完成路由和 3DS 策略评估时恢复同一 MID，禁止资金动作再次随机路由。 */
+    /**
+     * Hosted Checkout 已完成路由和 3DS 策略评估时恢复同一 MID，禁止资金动作再次随机路由。
+     */
     private PaymentRouteResultDTO resolveInitialRoute(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.ChannelIdentityDTO identity = commandDTO.getChannelIdentity();
         if (identity == null) {
@@ -1823,6 +1853,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 "source transaction has a pending capture-like action");
     }
 
+    /**
+     * 返回两个时间中的较晚值。
+     */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
             return second;
@@ -1900,7 +1933,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return sha256(canonical);
     }
 
-    /** 撤销指纹绑定商户、原订单、商户操作号和原交易号，避免可选金额差异破坏动作幂等。 */
+    /**
+     * 撤销指纹绑定商户、原订单、商户操作号和原交易号，避免可选金额差异破坏动作幂等。
+     */
     private String canonicalVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                    TransactionOrderDO sourceOrderDO) {
         String sourceTransactionId = commandDTO.getTransactionInfo() == null
@@ -1917,12 +1952,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return sha256(canonical);
     }
 
-    /** 指纹文本统一去除首尾空白并转大写，避免大小写差异绕过幂等冲突检测。 */
+    /**
+     * 指纹文本统一去除首尾空白并转大写，避免大小写差异绕过幂等冲突检测。
+     */
     private String normalizeFingerprintText(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
-    /** 指纹金额去除无意义尾零，使等值十进制金额命中同一幂等请求。 */
+    /**
+     * 指纹金额去除无意义尾零，使等值十进制金额命中同一幂等请求。
+     */
     private String normalizeFingerprintAmount(BigDecimal amount) {
         if (amount == null) {
             return "";
@@ -1930,6 +1969,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return amount.stripTrailingZeros().toPlainString();
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String source) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -1940,15 +1982,24 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
+    /**
+     * 判断当前交易类型是否要求请求币种。
+     */
     private boolean requiresRequestCurrency(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.CAPTURE != transactionTypeEnum
                 && PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
     }
 
+    /**
+     * 判断当前交易类型是否要求商户订单号。
+     */
     private boolean requiresMerchantOrderNo(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
     }
 
+    /**
+     * 构建商户订单流程锁键。
+     */
     private String merchantOrderFlowLockKey(String merchantId, String merchantOrderNo) {
         String lockIdentity = (merchantId == null ? "" : merchantId.trim().toUpperCase(Locale.ROOT))
                 + ':'
@@ -1974,6 +2025,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 TRANSACTION_OPERATION_LOCK_PURPOSE);
     }
 
+    /**
+     * 校验后续动作关联的原交易。
+     */
     private void validateSourceTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
                 || commandDTO.getTransactionInfo() == null
@@ -2031,6 +2085,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return sourceOrderDO;
     }
 
+    /**
+     * 判断交易是否属于请款类动作。
+     */
     private boolean isCaptureLike(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.CAPTURE == transactionTypeEnum
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == transactionTypeEnum;
@@ -2130,7 +2187,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return target;
     }
 
-    /** 从本次查询动作集合或交易事实表恢复源动作时间，商户请求无需携带该字段。 */
+    /**
+     * 从本次查询动作集合或交易事实表恢复源动作时间，商户请求无需携带该字段。
+     */
     private LocalDateTime resolveSourceTransactionDateTime(TransactionOperationDO operationDO,
                                                            List<TransactionOperationDO> operations) {
         if (operationDO == null || !StringUtils.hasText(operationDO.getSourceTransactionId())) {
@@ -2151,7 +2210,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return source == null ? null : source.getTransactionDateTime();
     }
 
-    /** 由独立保存的 BIN 和尾号构造商户允许看到的脱敏卡摘要。 */
+    /**
+     * 由独立保存的 BIN 和尾号构造商户允许看到的脱敏卡摘要。
+     */
     private String maskedCardSummary(TransactionPaymentMethodInfoDO paymentMethodInfo) {
         if (paymentMethodInfo == null
                 || !StringUtils.hasText(paymentMethodInfo.getCardBin())
@@ -2354,6 +2415,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setCscResult(summary.getCscResult());
     }
 
+    /**
+     * 规范化渠道返回的脱敏卡号。
+     */
     private String normalizeChannelCardNumber(String cardNumberMasked) {
         if (!StringUtils.hasText(cardNumberMasked)) {
             return null;
@@ -2495,6 +2559,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return current;
     }
 
+    /**
+     * 仅在请款成功时累计已请款金额。
+     */
     private BigDecimal sumCapturedOnSuccess(BigDecimal existingAmount,
                                             PaymentCreateResultDTO resultDTO) {
         BigDecimal current = existingAmount == null ? BigDecimal.ZERO : existingAmount;
@@ -2507,10 +2574,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return current;
     }
 
+    /**
+     * 补充商户可见响应字段。
+     */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
         PaymentOpenApiResultSupport.applyMerchantProjection(resultDTO);
     }
 
+    /**
+     * 解析平台标准支付品牌。
+     */
     private String resolvePaymentBrand(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getTransactionInfo() != null && StringUtils.hasText(commandDTO.getTransactionInfo().getCardBrand())) {
             return commandDTO.getTransactionInfo().getCardBrand();
@@ -2537,6 +2610,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return null;
     }
 
+    /**
+     * 解析脱敏卡号中的 BIN。
+     */
     private String resolveCardBin(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getCardInfo() == null || !StringUtils.hasText(commandDTO.getCardInfo().getCardNo())) {
             return null;
@@ -2548,6 +2624,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return cardNo.substring(0, 6) + "****" + cardNo.substring(cardNo.length() - 4);
     }
 
+    /**
+     * 转换为响应中的子商户信息。
+     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -2570,6 +2649,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return isEmptySubMerchantInfo(target) ? null : target;
     }
 
+    /**
+     * 判断子商户信息是否为空。
+     */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || Stream.of(
                 value.getSubId(),
@@ -2588,6 +2670,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 value.getChargeType()).allMatch(item -> !StringUtils.hasText(item));
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -2600,7 +2685,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return null;
     }
 
-    /** 后续动作优先使用本次回调地址，未提供时继承交易信息中的原回调地址。 */
+    /**
+     * 后续动作优先使用本次回调地址，未提供时继承交易信息中的原回调地址。
+     */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
             return commandDTO.getCallbackUrl();
@@ -2677,6 +2764,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return true;
     }
 
+    /**
+     * 应用无需换汇的金额计划。
+     */
     private void applyNoConversion(PaymentCreateCommandDTO commandDTO) {
         commandDTO.setTransactionCurrency(normalizeCurrency(commandDTO.getLabelCurrency()));
         commandDTO.setTransactionAmount(commandDTO.getLabelAmount());
@@ -2687,10 +2777,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         commandDTO.setEdcEnabled(0);
     }
 
+    /**
+     * 返回无换汇场景的单位交易汇率。
+     */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
+    /**
+     * 规范化币种。
+     */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
@@ -2710,6 +2806,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return resultDTO != null
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
@@ -2759,6 +2858,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 currencyExponent);
     }
 
+    /**
+     * 记录后续交易动作及其金额事实。
+     */
     private void recordFollowUpTransaction(PaymentCreateCommandDTO commandDTO,
                                            TransactionOrderDO sourceOrderDO,
                                            PaymentRouteResultDTO routeResultDTO,
@@ -2840,6 +2942,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 eventDO.getRetryCount());
     }
 
+    /**
+     * 记录支付处理完成日志。
+     */
     private void logPaymentEnd(String event, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO, long startNanos) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
         log.info("支付交易处理结束, event: {}, stage: FINISH, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, currency: {}, amount: {}, platformStatus: {}, durationMs: {}",
@@ -2936,12 +3041,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return resultDTO;
     }
 
-    /** 以幂等记录的最新状态覆盖渠道异步确认前保存的历史响应快照。 */
+    /**
+     * 以幂等记录的最新状态覆盖渠道异步确认前保存的历史响应快照。
+     */
     private void applyLatestIdempotencyStatus(PaymentCreateResultDTO resultDTO, String transactionStatus) {
         PaymentPersistedResultSupport.overwriteLatestIdempotencyStatus(resultDTO, transactionStatus);
     }
 
-    /** 判断当前动作是否为共用商户订单流守卫的首次交易类型。 */
+    /**
+     * 判断当前动作是否为共用商户订单流守卫的首次交易类型。
+     */
     private boolean isInitialTransactionType(String transactionType) {
         return PaymentTransactionTypeEnum.PAYMENT.getCode().equals(transactionType)
                 || PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(transactionType)
@@ -3046,15 +3155,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 请求来源摘要 JSON
      */
     private String requestSourceSummary(PaymentCreateCommandDTO commandDTO) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("ingressClientIpHash", digestNullable(commandDTO.getIngressClientIp()));
-        summary.put("payerIpHash", digestNullable(commandDTO.getPayerIp()));
-        summary.put("sourceUrl", maskUrl(commandDTO.getSourceUrl()));
-        summary.put("callbackUrl", maskUrl(commandDTO.getCallbackUrl()));
-        summary.put("userAgent", truncateText(commandDTO.getUserAgent(), 160));
+        PaymentRequestSourceSummary summary = new PaymentRequestSourceSummary(
+                digestNullable(commandDTO.getIngressClientIp()),
+                digestNullable(commandDTO.getPayerIp()),
+                maskUrl(commandDTO.getSourceUrl()),
+                maskUrl(commandDTO.getCallbackUrl()),
+                truncateText(commandDTO.getUserAgent(), 160));
         return JsonUtils.toJsonString(summary);
     }
 
+    /**
+     * 为空值保留空语义，为非空文本计算摘要。
+     */
     private String digestNullable(String value) {
         return StringUtils.hasText(value) ? sha256(value.trim()) : null;
     }
@@ -3178,6 +3290,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 resultDTO == null ? null : resultDTO.getAmount());
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
@@ -3217,6 +3332,22 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                     lockKey,
                     exception);
         }
+    }
+
+    /**
+     * 支付请求来源的脱敏日志摘要。
+     *
+     * @param ingressClientIpHash 网关识别的客户端 IP 摘要
+     * @param payerIpHash 商户上送付款人 IP 摘要
+     * @param sourceUrl 不含查询参数的来源地址
+     * @param callbackUrl 不含查询参数的商户回调地址
+     * @param userAgent 长度受控的浏览器标识
+     */
+    private record PaymentRequestSourceSummary(String ingressClientIpHash,
+                                               String payerIpHash,
+                                               String sourceUrl,
+                                               String callbackUrl,
+                                               String userAgent) {
     }
 
 }

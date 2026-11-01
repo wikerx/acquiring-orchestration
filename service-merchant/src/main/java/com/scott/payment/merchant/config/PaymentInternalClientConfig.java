@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalClientConfig
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : service-payment 内部客户端配置，位于 service-merchant 配置层，仅用于退款等状态变更内部调用。
- * @status : create
+ * service-payment 内部客户端配置，位于 service-merchant 配置层，仅用于退款等状态变更内部调用。
  */
 @Configuration
 @EnableConfigurationProperties(PaymentInternalClientProperties.class)

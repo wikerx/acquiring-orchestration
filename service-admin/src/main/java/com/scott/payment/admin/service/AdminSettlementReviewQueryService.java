@@ -13,13 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReviewQueryService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Admin 结算候选和预审单本地只读查询边界。
- * @status : create
+ * Admin 结算候选和预审单本地只读查询边界。
  */
 public interface AdminSettlementReviewQueryService {
 
@@ -68,7 +62,9 @@ public interface AdminSettlementReviewQueryService {
      */
     ReviewDetailResponse reviewDetail(String reviewOrderNo, AdminMerchantDataScope dataScope);
 
-    /** 分页读取预审候选，禁止详情接口一次加载大批量关系。 */
+    /**
+     * 分页读取预审候选，禁止详情接口一次加载大批量关系。
+     */
     PageResult<ReviewCandidateLine> reviewCandidates(String reviewOrderNo,
                                                      ReviewCandidateSearchRequest request,
                                                      AdminMerchantDataScope dataScope);
@@ -93,12 +89,18 @@ public interface AdminSettlementReviewQueryService {
      */
     void requireReviewAccess(String reviewOrderNo, AdminMerchantDataScope dataScope);
 
-    /** 校验商户号属于当前 Admin 数据范围。 */
+    /**
+     * 校验商户号属于当前 Admin 数据范围。
+     */
     void requireMerchantAccess(String merchantId, AdminMerchantDataScope dataScope);
 
-    /** 校验异步手动结算任务属于当前 Admin 数据范围。 */
+    /**
+     * 校验异步手动结算任务属于当前 Admin 数据范围。
+     */
     void requireManualTaskAccess(String taskNo, String reviewType, AdminMerchantDataScope dataScope);
 
-    /** 校验异步预审决策任务属于当前 Admin 数据范围。 */
+    /**
+     * 校验异步预审决策任务属于当前 Admin 数据范围。
+     */
     void requireDecisionTaskAccess(String taskNo, AdminMerchantDataScope dataScope);
 }

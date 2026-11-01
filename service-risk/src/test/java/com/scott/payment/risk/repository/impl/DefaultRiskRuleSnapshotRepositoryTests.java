@@ -34,13 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskRuleSnapshotRepositoryTests
- * @date : 2026-07-31 15:52
- * @email : scott_x@163.com
- * @description : 风控完整常驻快照契约测试，覆盖 Hash、代际重建、有效空集合、短 Key 与无 TTL 写入
- * @status : create
+ * 风控完整常驻快照契约测试，覆盖 Hash、代际重建、有效空集合、短 Key 与无 TTL 写入
  */
 @Slf4j
 class DefaultRiskRuleSnapshotRepositoryTests {

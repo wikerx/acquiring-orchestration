@@ -13,13 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ServiceScopedNacosConfigurationContractTest
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : 锁定每个后端服务只导入原有服务配置的约束，防止内部鉴权再次创建独立或 cipher 服务 DataId。
- * @status : create
+ * 锁定每个后端服务只导入原有服务配置的约束，防止内部鉴权再次创建独立或 cipher 服务 DataId。
  */
 class ServiceScopedNacosConfigurationContractTest {
 
@@ -43,7 +37,9 @@ class ServiceScopedNacosConfigurationContractTest {
             "- optional:nacos:${spring.application.name}-${spring.profiles.active}."
                     + "${spring.cloud.nacos.config.file-extension}";
 
-    /** 五套环境的每个服务必须只导入原有服务 DataId，不得加载独立调用边或 cipher 服务 DataId。 */
+    /**
+     * 五套环境的每个服务必须只导入原有服务 DataId，不得加载独立调用边或 cipher 服务 DataId。
+     */
     @Test
     void everyServiceProfileShouldImportOneOrdinaryServiceConfiguration() throws IOException {
         Path repositoryRoot = findRepositoryRoot();
@@ -65,7 +61,9 @@ class ServiceScopedNacosConfigurationContractTest {
         }
     }
 
-    /** 管理脚本必须按服务发布并使用两阶段轮换，旧配置删除必须具备显式保护。 */
+    /**
+     * 管理脚本必须按服务发布并使用两阶段轮换，旧配置删除必须具备显式保护。
+     */
     @Test
     void managementScriptShouldProtectServiceBundleMigrationAndCleanup() throws IOException {
         String script = read(findRepositoryRoot().resolve("scripts/manage-nacos-internal-auth.sh"));

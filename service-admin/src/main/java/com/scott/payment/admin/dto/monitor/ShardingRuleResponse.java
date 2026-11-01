@@ -6,13 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingRuleResponse
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表规则响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 分表规则响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  */
 @Data
 public class ShardingRuleResponse {
@@ -22,19 +16,29 @@ public class ShardingRuleResponse {
      */
     private String ruleKey;
 
-    /** 当前实例加载的交易分片规则版本。 */
+    /**
+     * 当前实例加载的交易分片规则版本。
+     */
     private String ruleVersion;
 
-    /** 当前实例规则 checksum 前缀。 */
+    /**
+     * 当前实例规则 checksum 前缀。
+     */
     private String ruleChecksumPrefix;
 
-    /** 当前实例已验证并登记的季度节点。 */
+    /**
+     * 当前实例已验证并登记的季度节点。
+     */
     private List<String> verifiedPhysicalNodes = new ArrayList<>();
 
-    /** 当前季度是否已登记为实际节点。 */
+    /**
+     * 当前季度是否已登记为实际节点。
+     */
     private Boolean currentNodeRegistered;
 
-    /** 下一季度是否已登记为实际节点。 */
+    /**
+     * 下一季度是否已登记为实际节点。
+     */
     private Boolean nextNodeRegistered;
 
     /**

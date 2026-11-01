@@ -3,13 +3,7 @@ package com.scott.payment.component.core.security;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalRequestReplayGuard
- * @date : 2026-08-20 23:50
- * @email : scott_x@163.com
- * @description : 内部服务请求 nonce 防重放契约，由 Redis 原子实现保证多实例间同一调用方和 nonce 只能成功一次
- * @status : create
+ * 内部服务请求 nonce 防重放契约，由 Redis 原子实现保证多实例间同一调用方和 nonce 只能成功一次
  */
 public interface InternalRequestReplayGuard {
 

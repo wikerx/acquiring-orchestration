@@ -88,7 +88,9 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
         return statusChanged;
     }
 
-    /** 在独立事务中抢占 INIT 渠道请求。 */
+    /**
+     * 在独立事务中抢占 INIT 渠道请求。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -134,7 +136,9 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
         return statusChanged;
     }
 
-    /** 在独立事务中写入通用交易级 3DS 标识。 */
+    /**
+     * 在独立事务中写入通用交易级 3DS 标识。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)

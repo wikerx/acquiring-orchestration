@@ -6,13 +6,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthLoginRequest
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统登录请求
- * @status : create
+ * 管理类系统登录请求
  */
 @Data
 public class AuthLoginRequest implements Serializable {

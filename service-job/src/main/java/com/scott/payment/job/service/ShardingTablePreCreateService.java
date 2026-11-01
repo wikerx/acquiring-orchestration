@@ -6,13 +6,7 @@ import com.scott.payment.job.dto.sharding.ShardingTablePreCreateResult;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateService
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreate服务契约，位于 调度任务服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 分表表precreate服务契约，位于 调度任务服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public interface ShardingTablePreCreateService {
 

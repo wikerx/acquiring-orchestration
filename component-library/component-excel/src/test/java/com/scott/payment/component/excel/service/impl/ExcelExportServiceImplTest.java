@@ -31,13 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelExportServiceImplTest
- * @date : 2026-06-20 00:45
- * @email : scott_x@163.com
- * @description : Excel 导出服务回归测试
- * @status : create
+ * Excel 导出服务回归测试
  *
  * <p>重点验证导出文件是否同时包含标题区、表头区和数据区，
  * 避免标题处理器变更后再次出现“文件能下载但表格为空”的回归问题。</p>
@@ -83,7 +77,9 @@ class ExcelExportServiceImplTest {
         }
     }
 
-    /** 验证分页导出会连续拉取并写入多个批次，且不要求业务层聚合全部数据。 */
+    /**
+     * 验证分页导出会连续拉取并写入多个批次，且不要求业务层聚合全部数据。
+     */
     @Test
     void shouldWriteRowsFromMultiplePages() throws IOException {
         ExcelExportServiceImpl service = createService();
@@ -115,7 +111,9 @@ class ExcelExportServiceImplTest {
         }
     }
 
-    /** 验证超长业务标识使用文本格式，避免 Excel 显示为科学计数法。 */
+    /**
+     * 验证超长业务标识使用文本格式，避免 Excel 显示为科学计数法。
+     */
     @Test
     void shouldApplyTextFormatToLongBusinessIdentifier() throws IOException {
         ExcelExportServiceImpl service = createService();
@@ -233,7 +231,9 @@ class ExcelExportServiceImplTest {
         }
     }
 
-    /** 测试超长业务标识导出行。 */
+    /**
+     * 测试超长业务标识导出行。
+     */
     public static class TextIdentifierExportRow {
 
         @ExcelExportColumn(order = 1, headerKey = "excel.settlement.transactionId", forceText = true)

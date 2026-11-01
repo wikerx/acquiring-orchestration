@@ -64,57 +64,91 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantPrimaryAccountProvisioningService
- * @date : 2026-08-05 00:00
- * @email : scott_x@163.com
- * @description : 管理端商户开户应用服务，负责在商户资料事务中创建独立管理员角色、主账号和强制 MFA，并在提交后发送开户通知
- * @status : create
+ * 管理端商户开户应用服务，负责在商户资料事务中创建独立管理员角色、主账号和强制 MFA，并在提交后发送开户通知
  */
 @Service
 public class AdminMerchantPrimaryAccountProvisioningService {
 
     /**
      * 账号创建模板，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ACCOUNT_ACTIVATION_TEMPLATE = "MERCHANT_ACCOUNT_ACTIVATION";
     /**
      * 账号创建场景常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
+     */
+    private static final String ACCOUNT_ACTIVATION_SCENE = "ACCOUNT_ACTIVATION";
+    /**
+     * {@code ACCOUNT_ACTIVATION_PURPOSE}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
      * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
-    private static final String ACCOUNT_ACTIVATION_SCENE = "ACCOUNT_ACTIVATION";
     private static final String ACCOUNT_ACTIVATION_PURPOSE = "ACCOUNT_ACTIVATION";
+    /**
+     * {@code VERIFICATION_STATE_PENDING}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String VERIFICATION_STATE_PENDING = "PENDING";
+    /**
+     * {@code EMAIL_CODE_TTL_MINUTES}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int EMAIL_CODE_TTL_MINUTES = 30;
+    /**
+     * {@code ACCOUNT_LOGIN_SEPARATOR}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ACCOUNT_LOGIN_SEPARATOR = "_";
+    /**
+     * {@code CODE_DIGITS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_DIGITS = "23456789";
+    /**
+     * {@code CODE_LOWERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
+    /**
+     * {@code CODE_UPPERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    /**
+     * {@code CODE_CHARACTERS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_CHARACTERS = CODE_DIGITS + CODE_LOWERCASE + CODE_UPPERCASE;
     private static final DateTimeFormatter EMAIL_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     /**
      * 角色类型系统，用于区分 {@code AdminMerchantPrimaryAccountProvisioningService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
     /**
      * {@code DATA_SCOPE_SELF}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DATA_SCOPE_SELF = "SELF";
     /**
@@ -143,6 +177,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
     private final AdminEmailService emailService;
     private final AdminConfigService configService;
 
+    /**
+     * 创建管理端商户主账户开通服务。
+     */
     public AdminMerchantPrimaryAccountProvisioningService(
             SysAppMapper appMapper,
             SysUserMapper userMapper,
@@ -223,6 +260,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return count != null && count > 0;
     }
 
+    /**
+     * 查询商户允许访问的后台应用。
+     */
     private SysAppDO merchantApp() {
         SysAppDO app = appMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
@@ -235,6 +275,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return app;
     }
 
+    /**
+     * 校验指定管理账户处于可操作状态。
+     */
     private void assertAccountAvailable(Long appId, String loginAccount) {
         Long count = accountMapper.selectCount(Wrappers.<SysAccountDO>lambdaQuery()
                 .eq(SysAccountDO::getAppId, appId)
@@ -245,6 +288,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         }
     }
 
+    /**
+     * 校验指定角色处于可授权状态。
+     */
     private void assertRoleAvailable(Long appId, String roleCode) {
         Long count = roleMapper.selectCount(Wrappers.<SysRoleDO>lambdaQuery()
                 .eq(SysRoleDO::getAppId, appId)
@@ -255,6 +301,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         }
     }
 
+    /**
+     * 创建商户管理员角色并授予默认权限。
+     */
     private SysRoleDO createAdministratorRole(SysAppDO app,
                                                BaseMerchantInfoDO merchant,
                                                String roleCode,
@@ -276,6 +325,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return role;
     }
 
+    /**
+     * 为商户授予允许访问的后台应用。
+     */
     private void grantMerchantApplication(Long appId, Long roleId, LocalDateTime now) {
         List<SysMenuDO> menus = menuMapper.selectList(Wrappers.<SysMenuDO>lambdaQuery()
                 .eq(SysMenuDO::getAppId, appId)
@@ -350,6 +402,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         }
     }
 
+    /**
+     * 根据商户联系人资料创建统一用户记录。
+     */
     private SysUserDO createUser(BaseMerchantInfoDO merchant, LocalDateTime now) {
         SysUserDO user = new SysUserDO();
         user.setUserType(AuthConstants.USER_TYPE_MERCHANT);
@@ -370,6 +425,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return user;
     }
 
+    /**
+     * 创建账户。
+     */
     private SysAccountDO createAccount(SysAppDO app,
                                        BaseMerchantInfoDO merchant,
                                        SysUserDO user,
@@ -404,6 +462,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return account;
     }
 
+    /**
+     * 为商户主账户创建待绑定的强制 TOTP 配置。
+     */
     private void createRequiredMfa(SysAppDO app,
                                    BaseMerchantInfoDO merchant,
                                    SysAccountDO account,
@@ -425,6 +486,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         accountMfaMapper.insert(mfa);
     }
 
+    /**
+     * 创建商户用户与统一账户的关联记录。
+     */
     private SysMerchantUserDO createMerchantUser(BaseMerchantInfoDO merchant,
                                                   SysUserDO user,
                                                   SysAccountDO account,
@@ -445,6 +509,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return merchantUser;
     }
 
+    /**
+     * 为商户管理员绑定默认角色。
+     */
     private void bindAdministratorRole(SysAppDO app,
                                        BaseMerchantInfoDO merchant,
                                        SysMerchantUserDO merchantUser,
@@ -460,6 +527,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         merchantUserRoleMapper.insert(relation);
     }
 
+    /**
+     * 创建账号激活请求，并在事务提交后安排激活邮件。
+     */
     private void createActivationRequestAndScheduleEmail(BaseMerchantInfoDO merchant,
                                                          SysAccountDO account,
                                                          String displayLoginAccount,
@@ -491,6 +561,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -498,6 +571,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         });
     }
 
+    /**
+     * 发送商户管理员账户激活通知。
+     */
     private void sendAccountActivationNotice(BaseMerchantInfoDO merchant,
                                              SysAccountDO account,
                                              String displayLoginAccount,
@@ -539,6 +615,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         }
     }
 
+    /**
+     * 构建商户管理员账户激活地址。
+     */
     private String activationUrl(String baseUrl, String requestNo) {
         return UriComponentsBuilder.fromUriString(baseUrl)
                 .path("/account-verification")
@@ -548,6 +627,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
                 .toUriString();
     }
 
+    /**
+     * 读取并校验商户后台基础地址。
+     */
     private String merchantSystemBaseUrl() {
         Map<String, String> values = configService.enabledConfigValues(Set.of(SystemConfigKeys.MERCHANT_FRONTEND_BASE_URL));
         String configured = values.get(SystemConfigKeys.MERCHANT_FRONTEND_BASE_URL);
@@ -555,6 +637,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return baseUrl.replaceAll("/+$", "");
     }
 
+    /**
+     * 生成邮件验证码并限制字符范围。
+     */
     private String generateEmailCode() {
         char[] code = new char[6];
         code[0] = randomCharacter(CODE_DIGITS);
@@ -572,10 +657,16 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return new String(code);
     }
 
+    /**
+     * 生成验证码允许字符集中的随机字符。
+     */
     private char randomCharacter(String characters) {
         return characters.charAt(SECURE_RANDOM.nextInt(characters.length()));
     }
 
+    /**
+     * 计算邮件发送内容指纹用于幂等控制。
+     */
     private String emailFingerprint(String email) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -590,10 +681,16 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         }
     }
 
+    /**
+     * 生成商户主资金账户登录标识。
+     */
     private String toAccountLoginName(String merchantId, String displayLoginAccount) {
         return displayLoginAccount + ACCOUNT_LOGIN_SEPARATOR + merchantId;
     }
 
+    /**
+     * 校验开通商户主账户所需的商户号和联系人邮箱。
+     */
     private void requireProvisioningFields(BaseMerchantInfoDO merchant) {
         if (merchant == null || merchant.getId() == null || !StringUtils.hasText(merchant.getMerchantId())) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "商户主键和商户号不能为空");
@@ -603,6 +700,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         }
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

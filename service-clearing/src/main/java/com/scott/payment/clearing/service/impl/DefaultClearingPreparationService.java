@@ -43,22 +43,36 @@ import java.util.Set;
 @Service
 public class DefaultClearingPreparationService implements ClearingPreparationService {
 
-    /** 这些状态不代表 3DS 已实际执行，不能据此收取 3DS 风险服务费。 */
+    /**
+     * 这些状态不代表 3DS 已实际执行，不能据此收取 3DS 风险服务费。
+     */
     private static final Set<String> NON_EXECUTED_THREE_DS_INDICATORS =
             Set.of("N", "NO", "NONE", "NOT_REQUIRED", "SKIPPED", "FAILED", "REQUIRED");
-    /** 只有形成正向资金事实的交易类型可以创建保证金扣留。 */
+    /**
+     * 只有形成正向资金事实的交易类型可以创建保证金扣留。
+     */
     private static final Set<String> RESERVE_HOLD_TRANSACTION_TYPES =
             Set.of("PAYMENT", "CAPTURE", "PRE_AUTH_COMPLETION");
 
-    /** 读取非分表定位记录、支付维度和真实风险调用事实。 */
+    /**
+     * 读取非分表定位记录、支付维度和真实风险调用事实。
+     */
     private final ClearingTransactionContextMapper contextMapper;
-    /** 按 locator 提供的真实分片时间读取源动作。 */
+    /**
+     * 按 locator 提供的真实分片时间读取源动作。
+     */
     private final ClearingTransactionOperationMapper operationMapper;
-    /** 校验源动作是否已经形成不可逆清分结果。 */
+    /**
+     * 校验源动作是否已经形成不可逆清分结果。
+     */
     private final ClearingTransactionFinanceStateMapper financeStateMapper;
-    /** 加载并校验动作受理时冻结的确切费用版本。 */
+    /**
+     * 加载并校验动作受理时冻结的确切费用版本。
+     */
     private final FeeConfigurationSnapshotService snapshotService;
-    /** 使用冻结周期和确认日历计算交易最早可结算日。 */
+    /**
+     * 使用冻结周期和确认日历计算交易最早可结算日。
+     */
     private final SettlementEligibilityService eligibilityService;
 
     /**
@@ -83,7 +97,9 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         this.eligibilityService = eligibilityService;
     }
 
-    /** 兼容既有单元测试构造器；生产注入始终使用完整周期服务。 */
+    /**
+     * 兼容既有单元测试构造器；生产注入始终使用完整周期服务。
+     */
     DefaultClearingPreparationService(ClearingTransactionContextMapper contextMapper,
                                       ClearingTransactionOperationMapper operationMapper,
                                       ClearingTransactionFinanceStateMapper financeStateMapper,
@@ -92,7 +108,9 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                 (merchantId, transactionDate, snapshot) -> transactionDate);
     }
 
-    /** 加载当前动作的冻结配置和业务上下文，构造首次清分命令。 */
+    /**
+     * 加载当前动作的冻结配置和业务上下文，构造首次清分命令。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public CompletionCommand prepare(PaymentTransactionEventMessage message,
@@ -105,7 +123,9 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return prepareWithSnapshot(message, claim, processingOwner, currentSnapshot);
     }
 
-    /** 使用人工指定的不可变费用版本构造重算命令，不改变原动作和分片身份。 */
+    /**
+     * 使用人工指定的不可变费用版本构造重算命令，不改变原动作和分片身份。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public CompletionCommand prepareForRecalculation(PaymentTransactionEventMessage message,
@@ -155,7 +175,9 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                 settlementEligibleDate, expectedReserveReleaseDate);
     }
 
-    /** 事务外准备只接受 Stage A 已领取的动作，并校验消息与领取事实一致。 */
+    /**
+     * 事务外准备只接受 Stage A 已领取的动作，并校验消息与领取事实一致。
+     */
     private ClearingOperationFacts validateRequest(PaymentTransactionEventMessage message,
                                                    ClearingClaimResult claim,
                                                    String processingOwner) {
@@ -174,7 +196,9 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return operation;
     }
 
-    /** Locator 必须匹配当前动作、根交易、商户和真实分片时间。 */
+    /**
+     * Locator 必须匹配当前动作、根交易、商户和真实分片时间。
+     */
     private LocatorFacts validateLocator(ClearingTransactionLocatorDO row,
                                          ClearingOperationFacts operation) {
         if (row == null
@@ -190,7 +214,9 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return toLocatorFacts(row);
     }
 
-    /** 费用维度只读取非敏感支付方式和品牌，缺失时不猜测默认值。 */
+    /**
+     * 费用维度只读取非敏感支付方式和品牌，缺失时不猜测默认值。
+     */
     private void validatePaymentMethod(ClearingPaymentMethodInfoDO paymentMethod) {
         if (paymentMethod == null || !StringUtils.hasText(paymentMethod.getPaymentMethod())
                 || !StringUtils.hasText(paymentMethod.getPaymentBrand())) {
@@ -226,17 +252,22 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         ClearingOperationFacts sourceOperation = validateSourceOperation(sourceOperationRow, locatorRow, operation);
         ClearingTransactionFinanceStateDO sourceState = financeStateMapper.selectByTransaction(
                 locatorRow.getTransactionId(), locatorRow.getTransactionDateTime());
-        if (sourceState == null || !isCompleted(sourceState.getClearingStatus())) {
+        if (sourceState == null || !isCompleted(sourceState.getClearingStatus())
+                || !StringUtils.hasText(sourceState.getFinanceStateId())
+                || sourceState.getClearingRevision() == null || sourceState.getClearingRevision() < 1) {
             throw failure(ClearingFailureCodeEnum.SOURCE_CLEARING_PENDING,
                     "source transaction clearing is not completed");
         }
         FeeVersionSnapshot sourceSnapshot = snapshotService.load(
                 sourceOperation.merchantId(), sourceOperation.operationId(), sourceOperation.transactionId(),
                 sourceOperation.transactionDateTime());
-        return new SourceContext(sourceOperation, toLocatorFacts(locatorRow), sourceSnapshot);
+        return new SourceContext(sourceOperation, toLocatorFacts(locatorRow), sourceSnapshot,
+                sourceState.getFinanceStateId(), sourceState.getClearingRevision());
     }
 
-    /** 退款等源动作必须按 locator 精确读取并校验生命周期归属。 */
+    /**
+     * 退款等源动作必须按 locator 精确读取并校验生命周期归属。
+     */
     private ClearingOperationFacts validateSourceOperation(ClearingTransactionOperationDO row,
                                                            ClearingTransactionLocatorDO locator,
                                                            ClearingOperationFacts current) {
@@ -256,7 +287,9 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                 row.getTransactionDateTime(), row.getTransactionUtcTime(), row.getTransactionTimeZone(), row.getVersion());
     }
 
-    /** 只有清分完成或无需清分状态可作为退款来源。 */
+    /**
+     * 只有清分完成或无需清分状态可作为退款来源。
+     */
     private boolean isCompleted(String clearingStatus) {
         if (!StringUtils.hasText(clearingStatus)) {
             return false;
@@ -268,13 +301,17 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         }
     }
 
-    /** 根据支付工具冻结的 3DS 指示判断服务是否实际执行；空值和显式未执行值不得计费。 */
+    /**
+     * 根据支付工具冻结的 3DS 指示判断服务是否实际执行；空值和显式未执行值不得计费。
+     */
     private boolean hasExecutedThreeDs(String indicator) {
         return StringUtils.hasText(indicator)
                 && !NON_EXECUTED_THREE_DS_INDICATORS.contains(indicator.trim().toUpperCase(Locale.ROOT));
     }
 
-    /** 保证金释放日按动作业务日和冻结留存规则计算，不使用服务器默认时区。 */
+    /**
+     * 保证金释放日按动作业务日和冻结留存规则计算，不使用服务器默认时区。
+     */
     private LocalDate reserveReleaseDate(ClearingOperationFacts operation,
                                          ReservePolicySnapshot reserve) {
         if (reserve == null || !RESERVE_HOLD_TRANSACTION_TYPES.contains(operation.transactionType())
@@ -306,14 +343,18 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return result;
     }
 
-    /** 将持久化 locator 转为不可变命令事实。 */
+    /**
+     * 将持久化 locator 转为不可变命令事实。
+     */
     private LocatorFacts toLocatorFacts(ClearingTransactionLocatorDO row) {
         return new LocatorFacts(row.getTransactionId(), row.getOperationId(), row.getRootTransactionId(),
                 row.getMerchantId(), row.getMerchantOrderNo(), row.getTransactionType(),
                 row.getTransactionDateTime(), row.getRootTransactionDateTime());
     }
 
-    /** 使用稳定失败码构造可由应用层受控记录的准备异常。 */
+    /**
+     * 使用稳定失败码构造可由应用层受控记录的准备异常。
+     */
     private ClearingProcessingException failure(ClearingFailureCodeEnum code, String message) {
         return new ClearingProcessingException(code, message);
     }

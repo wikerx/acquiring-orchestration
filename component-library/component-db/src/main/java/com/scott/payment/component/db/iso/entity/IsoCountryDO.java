@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCountryDO
- * @date : 2026-06-03 14:22
- * @email : scott_x@163.com
- * @description : ISO 3166 国家地区基础字典数据库实体
- * @status : create
+ * ISO 3166 国家地区基础字典数据库实体
  */
 @Data
 @TableName("base_iso_country")

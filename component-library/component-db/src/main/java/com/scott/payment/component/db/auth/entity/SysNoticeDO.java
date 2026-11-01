@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysNoticeDO
- * @date : 2026-06-12 17:37
- * @email : scott_x@163.com
- * @description : 通知公告数据库实体，对应 sys_notice 表
- * @status : create
+ * 通知公告数据库实体，对应 sys_notice 表
  */
 @Data
 @TableName("sys_notice")

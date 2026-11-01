@@ -17,13 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminReserveAdjustmentController
- * @date : 2026-08-26 19:10
- * @email : scott_x@163.com
- * @description : Admin 保证金清分差额申请和双人复核入口；操作人只由应用层读取可信登录上下文。
- * @status : create
+ * Admin 保证金清分差额申请和双人复核入口；操作人只由应用层读取可信登录上下文。
  */
 @RestController
 @RequestMapping("/admin/clearing/reserve-adjustments")
@@ -31,6 +25,11 @@ public class AdminReserveAdjustmentController {
 
     private final AdminClearingApplicationService applicationService;
 
+    /**
+     * 创建保证金调整申请与复核控制器。
+     *
+     * @param applicationService 清分管理应用服务
+     */
     public AdminReserveAdjustmentController(AdminClearingApplicationService applicationService) {
         this.applicationService = applicationService;
     }

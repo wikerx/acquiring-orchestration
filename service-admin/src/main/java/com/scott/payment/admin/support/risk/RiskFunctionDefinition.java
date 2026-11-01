@@ -7,13 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskFunctionDefinition
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 收单风控管理功能白名单定义，固定功能码、物理表名、路由和权限前缀，禁止请求参数直接决定动态表名。
- * @status : create
+ * 收单风控管理功能白名单定义，固定功能码、物理表名、路由和权限前缀，禁止请求参数直接决定动态表名。
  */
 public enum RiskFunctionDefinition {
 
@@ -401,6 +395,9 @@ public enum RiskFunctionDefinition {
      */
     private final boolean ruleFunction;
 
+    /**
+     * 创建风控函数定义。
+     */
     RiskFunctionDefinition(String moduleType,
                            String functionCode,
                            String functionName,

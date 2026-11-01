@@ -10,13 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorTimeRangeNormalizerTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 监控查询时区转换、时间桶选择和最大七天范围校验测试。
- * @status : create
+ * 监控查询时区转换、时间桶选择和最大七天范围校验测试。
  */
 class MonitorTimeRangeNormalizerTest {
 

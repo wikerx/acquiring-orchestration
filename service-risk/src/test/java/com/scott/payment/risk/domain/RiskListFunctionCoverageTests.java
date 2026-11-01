@@ -9,13 +9,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskListFunctionCoverageTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 管理端名单定义与运行时名单枚举覆盖契约测试。
- * @status : create
+ * 管理端名单定义与运行时名单枚举覆盖契约测试。
  */
 class RiskListFunctionCoverageTests {
 
@@ -63,6 +57,9 @@ class RiskListFunctionCoverageTests {
             "risk_white_device_fingerprint"
     );
 
+    /**
+     * 验证受管 AML、黑名单和白名单表均有唯一运行时功能映射。
+     */
     @Test
     void shouldCoverEveryManagedAmlBlacklistAndWhitelistTable() {
         Set<String> runtimeTables = Arrays.stream(RiskListFunction.values())

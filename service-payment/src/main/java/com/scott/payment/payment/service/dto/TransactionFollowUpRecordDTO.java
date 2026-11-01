@@ -10,13 +10,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionFollowUpRecordDTO
- * @date : 2026-07-14 19:40
- * @email : scott_x@163.com
- * @description : 后续交易动作记录 DTO，位于 service-payment 服务 DTO 层，承载原交易、路由、渠道响应和交易结果，供交易事实记录服务写入动作单和状态历史。
- * @status : create
+ * 后续交易动作记录 DTO，位于 service-payment 服务 DTO 层，承载原交易、路由、渠道响应和交易结果，供交易事实记录服务写入动作单和状态历史。
  */
 @Data
 public class TransactionFollowUpRecordDTO implements Serializable {

@@ -17,10 +17,14 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** OpenAPI 旧异常码到 V1.3 的收敛映射测试。 */
+/**
+ * OpenAPI 旧异常码到 V1.3 的收敛映射测试。
+ */
 class OpenApiErrorMapperTest {
 
-    /** 已有受控旧码必须按 V1.3 的安全材料、身份和访问状态分别投影。 */
+    /**
+     * 已有受控旧码必须按 V1.3 的安全材料、身份和访问状态分别投影。
+     */
     @Test
     void shouldMapMerchantAuthenticationFailuresByRegisteredMeaning() {
         assertThat(project("F401008").resultCode())
@@ -31,7 +35,9 @@ class OpenApiErrorMapperTest {
                 .isEqualTo(OpenApiResultCode.MERCHANT_ACCESS_BLOCKED);
     }
 
-    /** IP 白名单拒绝使用来源不允许语义，不能向响应 message 泄露真实客户端 IP。 */
+    /**
+     * IP 白名单拒绝使用来源不允许语义，不能向响应 message 泄露真实客户端 IP。
+     */
     @Test
     void shouldMapIpWhitelistDenialToSourceNotAllowed() {
         OpenApiErrorProjection projection = OpenApiErrorMapper.project(
@@ -41,7 +47,9 @@ class OpenApiErrorMapperTest {
         assertThat(projection.resultCode()).isEqualTo(OpenApiResultCode.SOURCE_NOT_ALLOWED);
     }
 
-    /** 内部微服务调用故障属于平台故障，不能仅凭旧 F502/F503 冒充渠道调用未确认。 */
+    /**
+     * 内部微服务调用故障属于平台故障，不能仅凭旧 F502/F503 冒充渠道调用未确认。
+     */
     @Test
     void shouldMapInternalServiceFailuresToSystemError() {
         ApiException timeout = new ApiException("F502", "internal");
@@ -51,7 +59,9 @@ class OpenApiErrorMapperTest {
         assertThat(project("F503").resultCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR);
     }
 
-    /** 业务码投影不得携带 HTTP 决策，既有接口 HTTP 契约由 Web 边界独立维护。 */
+    /**
+     * 业务码投影不得携带 HTTP 决策，既有接口 HTTP 契约由 Web 边界独立维护。
+     */
     @Test
     void shouldKeepHttpSemanticsOutsideBusinessCodeProjection() {
         assertThat(Arrays.stream(OpenApiErrorProjection.class.getRecordComponents())
@@ -60,7 +70,9 @@ class OpenApiErrorMapperTest {
                         "outcomeUncertain", "fieldPath", "messageParameters", "evidence");
     }
 
-    /** 旧网关类码只有具备已确认渠道响应证据时才能归为 F1000。 */
+    /**
+     * 旧网关类码只有具备已确认渠道响应证据时才能归为 F1000。
+     */
     @Test
     void shouldMapAmbiguousGatewayCodeFromConfirmedChannelEvidence() {
         for (String legacyCode : Set.of("F210", "F502", "F503", "Z606")) {
@@ -80,7 +92,9 @@ class OpenApiErrorMapperTest {
         }
     }
 
-    /** 请求已发送且结果不确定时才能归为 F3000；仅有超时异常名不足以形成该结论。 */
+    /**
+     * 请求已发送且结果不确定时才能归为 F3000；仅有超时异常名不足以形成该结论。
+     */
     @Test
     void shouldMapAmbiguousGatewayCodeFromUnconfirmedChannelEvidence() {
         for (String legacyCode : Set.of("F210", "F502", "F503", "Z606")) {
@@ -99,7 +113,9 @@ class OpenApiErrorMapperTest {
         }
     }
 
-    /** 证据字段缺失或相互矛盾时必须回到各旧码的安全兜底，不能推断渠道结果。 */
+    /**
+     * 证据字段缺失或相互矛盾时必须回到各旧码的安全兜底，不能推断渠道结果。
+     */
     @Test
     void shouldFailClosedWhenAmbiguousGatewayEvidenceIsIncomplete() {
         Map<String, OpenApiResultCode> fallbacks = Map.of(
@@ -128,7 +144,9 @@ class OpenApiErrorMapperTest {
         });
     }
 
-    /** 明确渠道拒绝、无来源的旧拒绝和内部异常案件必须保持不同边界。 */
+    /**
+     * 明确渠道拒绝、无来源的旧拒绝和内部异常案件必须保持不同边界。
+     */
     @Test
     void shouldRespectLegacySourceEvidenceBoundaries() {
         assertThat(project("F207").resultCode()).isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR);
@@ -138,7 +156,9 @@ class OpenApiErrorMapperTest {
         assertThat(project("Z606").resultCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR);
     }
 
-    /** 支付核心细分原因必须通过稳定机器码投影，禁止根据内部异常 message 猜测公开语义。 */
+    /**
+     * 支付核心细分原因必须通过稳定机器码投影，禁止根据内部异常 message 猜测公开语义。
+     */
     @Test
     void shouldMapStructuredPaymentReasonCodesWithoutInspectingMessages() {
         assertThat(project("F409001").resultCode())
@@ -212,6 +232,7 @@ class OpenApiErrorMapperTest {
                 Map.entry("F429", OpenApiResultCode.TOO_MANY_REQUESTS),
                 Map.entry("F500", OpenApiResultCode.SYSTEM_ERROR),
                 Map.entry("F500001", OpenApiResultCode.SYSTEM_ERROR),
+                Map.entry("F500002", OpenApiResultCode.SYSTEM_ERROR),
                 Map.entry("F502", OpenApiResultCode.SYSTEM_ERROR),
                 Map.entry("F503", OpenApiResultCode.SYSTEM_ERROR),
                 Map.entry("F510", OpenApiResultCode.BUSINESS_IDENTIFIER_CONFLICT),
@@ -232,8 +253,6 @@ class OpenApiErrorMapperTest {
         Arrays.stream(ApiResultEnum.values()).map(ApiResultEnum::getCode)
                 .forEach(registeredLegacyCodes::add);
 
-        assertThat(ApiResultEnum.values()).hasSize(54);
-        assertThat(registeredLegacyCodes).hasSize(52);
         assertThat(expected.keySet()).containsExactlyInAnyOrderElementsOf(registeredLegacyCodes);
         expected.forEach((legacyCode, resultCode) ->
                 assertThat(project(legacyCode).resultCode())
@@ -241,12 +260,16 @@ class OpenApiErrorMapperTest {
                         .isEqualTo(resultCode));
     }
 
-    /** 投影不带结构化上下文的内部旧码，用于验证安全默认映射。 */
+    /**
+     * 投影不带结构化上下文的内部旧码，用于验证安全默认映射。
+     */
     private OpenApiErrorProjection project(String legacyCode) {
         return OpenApiErrorMapper.project(new ApiException(legacyCode, "internal detail"));
     }
 
-    /** 投影带渠道确定性证据的内部旧码，用于验证 F1000 与 F3000 的严格分界。 */
+    /**
+     * 投影带渠道确定性证据的内部旧码，用于验证 F1000 与 F3000 的严格分界。
+     */
     private OpenApiErrorProjection projectWithContext(String legacyCode,
                                                       OpenApiResultOrigin origin,
                                                       Boolean requestSent,

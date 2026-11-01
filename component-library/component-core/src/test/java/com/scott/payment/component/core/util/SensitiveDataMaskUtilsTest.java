@@ -8,13 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SensitiveDataMaskUtilsTest
- * @date : 2026-06-26 15:24
- * @email : scott_x@163.com
- * @description : Sensitive Data Mask Utils Test 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
- * @status : create
+ * Sensitive Data Mask Utils Test 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  */
 class SensitiveDataMaskUtilsTest {
 

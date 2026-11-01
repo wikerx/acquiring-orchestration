@@ -11,13 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutUrlPolicyTests
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : Hosted Checkout 商户 URL 和平台前端 URL 结构策略测试。
- * @status : create
+ * Hosted Checkout 商户 URL 和平台前端 URL 结构策略测试。
  */
 class HostedCheckoutUrlPolicyTests {
 

@@ -5,13 +5,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisListService
- * @date : 2026-05-31 21:56
- * @email : scott_x@163.com
- * @description : Redis List 数据结构服务
- * @status : create
+ * Redis List 数据结构服务
  */
 public interface RedisListService {
 

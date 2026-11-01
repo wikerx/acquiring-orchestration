@@ -12,17 +12,13 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultChannelTransactionStatusResolverTests
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : 验证支付核心只根据渠道统一动作状态和平台交易类型解析终态，不识别具体 provider 编码或原始协议状态。
- * @status : create
+ * 验证支付核心只根据渠道统一动作状态和平台交易类型解析终态，不识别具体 provider 编码或原始协议状态。
  */
 class DefaultChannelTransactionStatusResolverTests {
 
-    /** 渠道统一 FAILED 是明确的渠道拒绝证据，不能与平台调用异常共用原因码。 */
+    /**
+     * 渠道统一 FAILED 是明确的渠道拒绝证据，不能与平台调用异常共用原因码。
+     */
     @Test
     void shouldRecordConfirmedChannelDeclineReason() {
         ChannelPaymentResponse response = new ChannelPaymentResponse();
@@ -39,7 +35,9 @@ class DefaultChannelTransactionStatusResolverTests {
                 .isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
     }
 
-    /** 一步支付只有统一 AUTHORIZED 时仍需等待资金捕获结果。 */
+    /**
+     * 一步支付只有统一 AUTHORIZED 时仍需等待资金捕获结果。
+     */
     @Test
     void shouldKeepPaymentPendingWhenUnifiedChannelStatusIsAuthorized() {
         ChannelPaymentResponse response = new ChannelPaymentResponse();
@@ -56,7 +54,9 @@ class DefaultChannelTransactionStatusResolverTests {
                 .isEqualTo(PaymentPendingReasonEnum.WAITING_CHANNEL_CALLBACK.getCode());
     }
 
-    /** 渠道统一 CAPTURED 已确认资金捕获，可推进平台成功终态。 */
+    /**
+     * 渠道统一 CAPTURED 已确认资金捕获，可推进平台成功终态。
+     */
     @Test
     void shouldCompletePaymentWhenUnifiedChannelStatusIsCaptured() {
         ChannelPaymentResponse response = new ChannelPaymentResponse();
@@ -71,7 +71,9 @@ class DefaultChannelTransactionStatusResolverTests {
         assertThat(resolution.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
     }
 
-    /** 渠道统一 REFUNDED 只对退款动作构成成功终态。 */
+    /**
+     * 渠道统一 REFUNDED 只对退款动作构成成功终态。
+     */
     @Test
     void shouldCompleteRefundWhenUnifiedChannelStatusIsRefunded() {
         ChannelPaymentResponse response = new ChannelPaymentResponse();

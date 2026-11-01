@@ -65,6 +65,19 @@ GENERATED_LAYER_BOILERPLATE = re.compile(
     r"^[ \t]*\* </p>\n"
 )
 
+JAVADOC_BLOCK = re.compile(r"/\*\*.*?\*/", re.DOTALL)
+METADATA_TAG_LINE = re.compile(
+    r"(?m)^[ \t]*\*[ \t]*@(author|email|date|version|status|classname)\s*:?.*$\n?",
+    re.IGNORECASE,
+)
+DESCRIPTION_TAG_LINE = re.compile(
+    r"(?m)^(?P<indent>[ \t]*)\*[ \t]*@description\s*:\s*(?P<description>.+?)\s*$",
+    re.IGNORECASE,
+)
+ONE_LINE_JAVADOC = re.compile(
+    r"(?m)^(?P<indent>[ \t]*)/\*\*[ \t]*(?P<body>[^\r\n]*?)[ \t]*\*/[ \t]*$"
+)
+
 
 def iter_java_files(root: Path):
     for path in root.rglob("*.java"):
@@ -234,12 +247,38 @@ def remove_duplicate_javadocs_across_annotations(text: str) -> str:
     return "".join(line for line_index, line in enumerate(lines) if line_index not in remove_lines)
 
 
+def remove_javadoc_metadata(text: str) -> str:
+    """Retain the responsibility description while removing ownership and history tags."""
+    def clean_block(match: re.Match[str]) -> str:
+        block = match.group(0)
+        block = DESCRIPTION_TAG_LINE.sub(
+            lambda item: f"{item.group('indent')}* {item.group('description')}", block
+        )
+        return METADATA_TAG_LINE.sub("", block)
+
+    return JAVADOC_BLOCK.sub(clean_block, text)
+
+
+def expand_one_line_javadocs(text: str) -> str:
+    """Use the same readable multiline form for type, method and field Javadocs."""
+    return ONE_LINE_JAVADOC.sub(
+        lambda match: (
+            f"{match.group('indent')}/**\n"
+            f"{match.group('indent')} * {match.group('body').strip()}\n"
+            f"{match.group('indent')} */"
+        ),
+        text,
+    )
+
+
 def clean_text(text: str) -> str:
     changed = remove_duplicate_type_javadocs(text)
     changed = remove_duplicate_javadocs_across_annotations(changed)
     changed = move_javadocs_before_annotations(changed)
     changed = GENERATED_CONSTRUCTOR_JAVADOC.sub("", changed)
     changed = GENERATED_LAYER_BOILERPLATE.sub("", changed)
+    changed = remove_javadoc_metadata(changed)
+    changed = expand_one_line_javadocs(changed)
     for pattern, replacement in REPLACEMENTS:
         changed = pattern.sub(replacement, changed)
     return changed

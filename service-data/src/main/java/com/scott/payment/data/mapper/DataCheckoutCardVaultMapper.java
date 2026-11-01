@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataCheckoutCardVaultMapper
- * @date : 2026-08-08 18:00
- * @email : scott_x@163.com
- * @description : 卡资料库季度逻辑表 Mapper，只负责带分片键的密文写入和重复消息身份核验。
- * @status : create
+ * 卡资料库季度逻辑表 Mapper，只负责带分片键的密文写入和重复消息身份核验。
  */
 public interface DataCheckoutCardVaultMapper {
 
@@ -49,25 +43,43 @@ public interface DataCheckoutCardVaultMapper {
     int insert(@Param("record") DataCheckoutCardVaultDO record);
 
     /**
-     * 在唯一键冲突后按同一季度确认是否为相同业务消息。
+     * 在消息号唯一键冲突后按同一季度读取记录身份。
      *
      * @param messageId MQ 消息号
-     * @param merchantId 商户号
-     * @param transactionId 平台交易号
      * @param transactionDateTime 交易分片时间
-     * @return 已存在的记录身份；不存在表示唯一键被其他业务占用
+     * @return 消息号对应的记录身份；不存在时返回 null
      */
     @Select("""
             SELECT id, vault_record_id, message_id, merchant_id, checkout_attempt_id,
                    transaction_id, transaction_date_time
             FROM transaction_card_vault
             WHERE transaction_date_time = #{transactionDateTime}
-              AND (message_id = #{messageId}
-                   OR (merchant_id = #{merchantId} AND transaction_id = #{transactionId}))
+              AND message_id = #{messageId}
             LIMIT 1
             """)
-    DataCheckoutCardVaultDO selectIdentity(@Param("messageId") String messageId,
-                                           @Param("merchantId") String merchantId,
-                                           @Param("transactionId") String transactionId,
-                                           @Param("transactionDateTime") LocalDateTime transactionDateTime);
+    DataCheckoutCardVaultDO selectIdentityByMessageId(
+            @Param("messageId") String messageId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
+     * 在商户交易唯一键冲突后按同一季度读取记录身份。
+     *
+     * @param merchantId 商户号
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 交易分片时间
+     * @return 商户交易对应的记录身份；不存在时返回 null
+     */
+    @Select("""
+            SELECT id, vault_record_id, message_id, merchant_id, checkout_attempt_id,
+                   transaction_id, transaction_date_time
+            FROM transaction_card_vault
+            WHERE transaction_date_time = #{transactionDateTime}
+              AND merchant_id = #{merchantId}
+              AND transaction_id = #{transactionId}
+            LIMIT 1
+            """)
+    DataCheckoutCardVaultDO selectIdentityByMerchantTransaction(
+            @Param("merchantId") String merchantId,
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
 }

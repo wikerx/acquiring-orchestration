@@ -25,13 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionIdempotencyServiceTests
- * @date : 2026-08-04 14:00
- * @email : scott_x@163.com
- * @description : 验证首次交易请求幂等、商户订单流重开 CAS 和异步终态保护条件
- * @status : create
+ * 验证首次交易请求幂等、商户订单流重开 CAS 和异步终态保护条件
  */
 @ExtendWith(MockitoExtension.class)
 class DefaultTransactionIdempotencyServiceTests {
@@ -43,11 +37,15 @@ class DefaultTransactionIdempotencyServiceTests {
                 TransactionIdempotencyDO.class);
     }
 
-    /** 交易幂等持久化替身，用于捕获状态与版本 CAS 条件。 */
+    /**
+     * 交易幂等持久化替身，用于捕获状态与版本 CAS 条件。
+     */
     @Mock
     private TransactionIdempotencyMapper idempotencyMapper;
 
-    /** FAILED 流守卫必须同时带主键、scope、key、状态和版本条件才能重新占用。 */
+    /**
+     * FAILED 流守卫必须同时带主键、scope、key、状态和版本条件才能重新占用。
+     */
     @Test
     void shouldRestartFailedMerchantOrderFlowWithVersionCas() {
         when(idempotencyMapper.update(isNull(), any())).thenReturn(1);
@@ -72,7 +70,9 @@ class DefaultTransactionIdempotencyServiceTests {
         assertThat(wrapper.getSqlSegment()).contains("idempotency_scope", "idempotency_key", "transaction_status", "version");
     }
 
-    /** 渠道终态同步必须覆盖后续动作，不能再按首次交易类型过滤 TRANSACTION_OPERATION。 */
+    /**
+     * 渠道终态同步必须覆盖后续动作，不能再按首次交易类型过滤 TRANSACTION_OPERATION。
+     */
     @Test
     void shouldSynchronizeNonTerminalTransactionRecordsWithoutInitialTypeFilter() {
         when(idempotencyMapper.update(isNull(), any())).thenReturn(2);
@@ -89,7 +89,9 @@ class DefaultTransactionIdempotencyServiceTests {
         assertThat(wrapper.getSqlSegment()).doesNotContain("transaction_type");
     }
 
-    /** 非终态目标不得通过异步同步接口覆盖幂等事实。 */
+    /**
+     * 非终态目标不得通过异步同步接口覆盖幂等事实。
+     */
     @Test
     void shouldRejectNonTerminalStatusSynchronization() {
         DefaultTransactionIdempotencyService service = new DefaultTransactionIdempotencyService(idempotencyMapper);

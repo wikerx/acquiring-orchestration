@@ -31,13 +31,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GlobalExceptionHandler
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 全局异常处理器
- * @status : create
+ * 全局异常处理器
  */
 @Slf4j
 @RestControllerAdvice

@@ -15,13 +15,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementFeeGroupCalculator
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 在目标结算币种统一求值标签币种百分比组件、USD 固定费和 USD 上下限，不修改原清分费用事实。
- * @status : create
+ * 在目标结算币种统一求值标签币种百分比组件、USD 固定费和 USD 上下限，不修改原清分费用事实。
  */
 public final class SettlementFeeGroupCalculator {
 

@@ -78,13 +78,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionConsistencyBaselineTests
- * @date : 2026-07-23 11:20
- * @email : scott_x@163.com
- * @description : BUG-VERIFY-001-001 修复前一致性基线测试，记录当前渠道调用、幂等、交易事实和恢复能力的 P0 缺口。
- * @status : create
+ * BUG-VERIFY-001-001 修复前一致性基线测试，记录当前渠道调用、幂等、交易事实和恢复能力的 P0 缺口。
  */
 class PaymentTransactionConsistencyBaselineTests {
 
@@ -157,7 +151,9 @@ class PaymentTransactionConsistencyBaselineTests {
                 .isEqualTo(1);
     }
 
-    /** 回调先提交终态时，同步渠道响应不得覆盖或返回与数据库相反的状态。 */
+    /**
+     * 回调先提交终态时，同步渠道响应不得覆盖或返回与数据库相反的状态。
+     */
     @Test
     void shouldReturnPersistedTerminalStateWhenCallbackWinsSyncResultCas() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -194,7 +190,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.primaryOrderReadCount).isEqualTo(1);
     }
 
-    /** 同步渠道返回成功但回调已先提交失败时，响应和幂等快照必须以失败事实为准。 */
+    /**
+     * 同步渠道返回成功但回调已先提交失败时，响应和幂等快照必须以失败事实为准。
+     */
     @Test
     void shouldReturnPersistedFailureWhenCallbackBeatsSuccessfulSyncResult() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -229,7 +227,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.primaryOrderReadCount).isEqualTo(1);
     }
 
-    /** CAS 已失败但主库暂时读不到权威动作时必须失败关闭，禁止把同步旧结果写入幂等快照。 */
+    /**
+     * CAS 已失败但主库暂时读不到权威动作时必须失败关闭，禁止把同步旧结果写入幂等快照。
+     */
     @Test
     void shouldFailClosedWhenAuthoritativeOperationIsUnavailableAfterCasConflict() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -261,7 +261,9 @@ class PaymentTransactionConsistencyBaselineTests {
                 .orElseThrow().getResultSnapshot()).doesNotContain("\"status\":\"FAILED\"");
     }
 
-    /** 生产实现以 F511 表示主库未命中时，也必须转换为可重试错误并保留原因为审计证据。 */
+    /**
+     * 生产实现以 F511 表示主库未命中时，也必须转换为可重试错误并保留原因为审计证据。
+     */
     @Test
     void shouldMapPrimaryOrderNotFoundToRetryableErrorAfterCasConflict() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -386,7 +388,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.initialRecordCount).isEqualTo(1);
     }
 
-    /** SUCCESS 已占用同一 merchantId + merchantOrderNo 时，新 orderInfo.orderId 必须被拒绝。 */
+    /**
+     * SUCCESS 已占用同一 merchantId + merchantOrderNo 时，新 orderInfo.orderId 必须被拒绝。
+     */
     @Test
     void shouldRejectNewOrderIdAfterMerchantOrderFlowSucceeded() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -406,7 +410,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.initialRecordCount).isEqualTo(1);
     }
 
-    /** Payment、Authorization、Pre-Authorization 必须共用同一商户订单支付流守卫。 */
+    /**
+     * Payment、Authorization、Pre-Authorization 必须共用同一商户订单支付流守卫。
+     */
     @Test
     void shouldShareMerchantOrderFlowAcrossInitialTransactionTypes() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -430,7 +436,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.initialRecordCount).isEqualTo(1);
     }
 
-    /** 渠道异步确认 FAILED 后，新 orderInfo.orderId 可以重新占用同一商户订单支付流。 */
+    /**
+     * 渠道异步确认 FAILED 后，新 orderInfo.orderId 可以重新占用同一商户订单支付流。
+     */
     @Test
     void shouldAllowNewOrderIdAfterAsynchronousFailure() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -452,7 +460,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.initialRecordCount).isEqualTo(2);
     }
 
-    /** 渠道异步确认 SUCCESS 后，同一商户订单不得再创建新的首次交易。 */
+    /**
+     * 渠道异步确认 SUCCESS 后，同一商户订单不得再创建新的首次交易。
+     */
     @Test
     void shouldRejectNewOrderIdAfterAsynchronousSuccess() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -912,7 +922,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
     }
 
-    /** Capture 和 PreAuth Completion 必须复用原交易渠道及 MID，禁止按当前绑定重新选路。 */
+    /**
+     * Capture 和 PreAuth Completion 必须复用原交易渠道及 MID，禁止按当前绑定重新选路。
+     */
     @Test
     void shouldRestoreOriginalChannelMidForCaptureWithoutRerouting() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -963,7 +975,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(resultDTO.getRouteResultDTO().getMidConfigId()).isEqualTo(1001L);
     }
 
-    /** 原 MID 不可用时仍须落失败动作和幂等快照，重复请求不得再次尝试渠道恢复。 */
+    /**
+     * 原 MID 不可用时仍须落失败动作和幂等快照，重复请求不得再次尝试渠道恢复。
+     */
     @Test
     void shouldPersistF414CaptureRejectionWithoutCallingChannel() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -1141,7 +1155,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
-    /** Capture 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    /**
+     * Capture 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。
+     */
     @Test
     void shouldReturnAsynchronousCaptureTerminalStatusForDuplicateAfterTimeout() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -1221,7 +1237,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
-    /** Capture 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    /**
+     * Capture 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。
+     */
     @Test
     void shouldReturnPersistedCaptureTerminalStateWhenCallbackWinsSyncResultCas() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -1333,7 +1351,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
     }
 
-    /** 退款必须复用原成功交易的渠道和 MID，禁止按 REFUND 能力重新执行商户路由。 */
+    /**
+     * 退款必须复用原成功交易的渠道和 MID，禁止按 REFUND 能力重新执行商户路由。
+     */
     @Test
     void shouldRestoreOriginalChannelMidForRefundWithoutRerouting() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -1455,7 +1475,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
-    /** Refund 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    /**
+     * Refund 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。
+     */
     @Test
     void shouldReturnAsynchronousRefundTerminalStatusForDuplicateAfterTimeout() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -1507,7 +1529,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
     }
 
-    /** Refund 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    /**
+     * Refund 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。
+     */
     @Test
     void shouldReturnPersistedRefundTerminalStateWhenCallbackWinsSyncResultCas() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -1757,7 +1781,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
-    /** Void 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    /**
+     * Void 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。
+     */
     @Test
     void shouldReturnAsynchronousVoidTerminalStatusForDuplicateAfterTimeout() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -1810,7 +1836,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
     }
 
-    /** Void 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    /**
+     * Void 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。
+     */
     @Test
     void shouldReturnPersistedVoidTerminalStateWhenCallbackWinsSyncResultCas() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -2115,7 +2143,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
-    /** 增量授权同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    /**
+     * 增量授权同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。
+     */
     @Test
     void shouldReturnAsynchronousIncrementalAuthorizationTerminalStatusForDuplicateAfterTimeout() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -2197,7 +2227,9 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
     }
 
-    /** Incremental Authorization 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    /**
+     * Incremental Authorization 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。
+     */
     @Test
     void shouldReturnPersistedIncrementalAuthorizationTerminalStateWhenCallbackWinsSyncResultCas() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
@@ -3044,7 +3076,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return true;
         }
 
-        /** 以同步临界区模拟 FAILED + version CAS 重新占用商户订单流。 */
+        /**
+         * 以同步临界区模拟 FAILED + version CAS 重新占用商户订单流。
+         */
         @Override
         public synchronized boolean tryRestartFailedFlow(TransactionIdempotencyDO existingRecord,
                                                          TransactionIdempotencyDO replacement) {
@@ -3060,7 +3094,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return true;
         }
 
-        /** 模拟渠道回调/主动查询把请求幂等记录和商户订单流守卫同时推进到终态。 */
+        /**
+         * 模拟渠道回调/主动查询把请求幂等记录和商户订单流守卫同时推进到终态。
+         */
         @Override
         public synchronized int synchronizeInitialTransactionStatus(String transactionId, String transactionStatus) {
             int updated = 0;
@@ -3230,18 +3266,26 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private TransactionOperationDO lastFollowUpOperation;
 
-        /** 仅供 CAS 冲突用例开启当前动作回读，其他历史基线维持原替身边界。 */
+        /**
+         * 仅供 CAS 冲突用例开启当前动作回读，其他历史基线维持原替身边界。
+         */
         private boolean enableCurrentOperationLookup;
 
-        /** 模拟 CAS 冲突后主库路由或提交可见性异常。 */
+        /**
+         * 模拟 CAS 冲突后主库路由或提交可见性异常。
+         */
         private boolean primaryOperationUnavailable;
 
         private boolean primaryOperationNotFound;
 
-        /** CAS 冲突后执行主库强一致回读的次数。 */
+        /**
+         * CAS 冲突后执行主库强一致回读的次数。
+         */
         private int primaryOperationReadCount;
 
-        /** CAS 冲突后执行生命周期主单强一致回读的次数。 */
+        /**
+         * CAS 冲突后执行生命周期主单强一致回读的次数。
+         */
         private int primaryOrderReadCount;
 
         /**
@@ -3773,7 +3817,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return true;
         }
 
-        /** 测试桩直接确认退款渠道结果已完成，避免引入真实持久化依赖。 */
+        /**
+         * 测试桩直接确认退款渠道结果已完成，避免引入真实持久化依赖。
+         */
         @Override
         public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
                                                    TransactionOrderDO sourceOrderDO,
@@ -3858,7 +3904,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
-        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        /**
+         * 非空时模拟渠道回调在同步结果前已经提交的数据库终态。
+         */
         private String concurrentPersistedStatus;
 
         private CapturingPaymentChannelResultTransactionService(TransactionRecordService recordService) {
@@ -3929,7 +3977,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
-        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        /**
+         * 非空时模拟渠道回调在同步结果前已经提交的数据库终态。
+         */
         private String concurrentPersistedStatus;
 
         private CapturingCaptureChannelResultTransactionService(TransactionRecordService recordService) {
@@ -3974,7 +4024,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
-        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        /**
+         * 非空时模拟渠道回调在同步结果前已经提交的数据库终态。
+         */
         private String concurrentPersistedStatus;
 
         private CapturingRefundChannelResultTransactionService(TransactionRecordService recordService) {
@@ -4019,7 +4071,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
-        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        /**
+         * 非空时模拟渠道回调在同步结果前已经提交的数据库终态。
+         */
         private String concurrentPersistedStatus;
 
         private CapturingVoidChannelResultTransactionService(TransactionRecordService recordService) {
@@ -4065,7 +4119,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
-        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        /**
+         * 非空时模拟渠道回调在同步结果前已经提交的数据库终态。
+         */
         private String concurrentPersistedStatus;
 
         private CapturingIncrementalAuthorizationChannelResultTransactionService(TransactionRecordService recordService) {

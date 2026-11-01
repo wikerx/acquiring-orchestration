@@ -17,27 +17,31 @@ import org.springframework.util.StringUtils;
 import java.security.PublicKey;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutCardVaultPublisher
- * @date : 2026-08-08 18:00
- * @email : scott_x@163.com
- * @description : 在新收银台支付尝试事务内生成无 CVV 卡资料密文，并通过可靠 Outbox 投递给 service-data。
- * @status : create
+ * 在新收银台支付尝试事务内生成无 CVV 卡资料密文，并通过可靠 Outbox 投递给 service-data。
  */
 @Service
 public class PaymentCheckoutCardVaultPublisher {
 
-    /** 卡资料消息号前缀，消息号由支付尝试号确定以保持重投稳定。 */
+    /**
+     * 卡资料消息号前缀，消息号由支付尝试号确定以保持重投稳定。
+     */
     private static final String MESSAGE_ID_PREFIX = "CV";
 
-    /** Hosted Checkout 配置。 */
+    /**
+     * Hosted Checkout 配置。
+     */
     private final PaymentCheckoutProperties properties;
-    /** 混合加密组件。 */
+    /**
+     * 混合加密组件。
+     */
     private final CheckoutCardEnvelopeCipher cipher;
-    /** 可靠 MQ Outbox 发布器。 */
+    /**
+     * 可靠 MQ Outbox 发布器。
+     */
     private final ReliableMqPublisher mqPublisher;
-    /** service-data 卡资料传输公钥；功能关闭时为空。 */
+    /**
+     * service-data 卡资料传输公钥；功能关闭时为空。
+     */
     private final PublicKey transferPublicKey;
 
     /**
@@ -52,6 +56,13 @@ public class PaymentCheckoutCardVaultPublisher {
         this(properties, mqPublisher, new CheckoutCardEnvelopeCipher());
     }
 
+    /**
+     * 使用可替换加密器创建卡资料密文发布器，供协议和加密单元测试使用。
+     *
+     * @param properties 收银台卡资料保险库配置
+     * @param mqPublisher 可靠 MQ 发布器
+     * @param cipher 只在内存中处理卡资料密文信封的加密器
+     */
     PaymentCheckoutCardVaultPublisher(PaymentCheckoutProperties properties,
                                       ReliableMqPublisher mqPublisher,
                                       CheckoutCardEnvelopeCipher cipher) {
@@ -109,7 +120,9 @@ public class PaymentCheckoutCardVaultPublisher {
         mqPublisher.publish(MqTopic.CHECKOUT_CARD_VAULT, MqTag.CHECKOUT_CARD_VAULT_STORE, message);
     }
 
-    /** 明文仅存在于当前加密调用栈，字段定义刻意不包含 securityCode/CVV。 */
+    /**
+     * 明文仅存在于当前加密调用栈，字段定义刻意不包含 securityCode/CVV。
+     */
     private record CardVaultPlaintext(String cardNo,
                                       String expirationMonth,
                                       String expirationYear,

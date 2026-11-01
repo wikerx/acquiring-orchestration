@@ -9,17 +9,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationalMetricsMapper
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 清分运维指标只读 Mapper；每次查询必须携带单季度半开时间窗口。
- * @status : update
+ * 清分运维指标只读 Mapper；每次查询必须携带单季度半开时间窗口。
  */
 public interface ClearingOperationalMetricsMapper {
 
-    /** 按清分状态聚合单季度待处理数量和最老等待秒数。 */
+    /**
+     * 按清分状态聚合单季度待处理数量和最老等待秒数。
+     */
     @Select("""
             SELECT clearing_status,
                    COUNT(*) AS pending_count,
@@ -42,7 +38,9 @@ public interface ClearingOperationalMetricsMapper {
             @Param("endTime") LocalDateTime endTime,
             @Param("now") LocalDateTime now);
 
-    /** 按标签币种聚合单季度尚未返还或释放的保证金负债。 */
+    /**
+     * 按标签币种聚合单季度尚未返还或释放的保证金负债。
+     */
     @Select("""
             SELECT reserve_currency,
                    SUM(remaining_amount) AS remaining_amount

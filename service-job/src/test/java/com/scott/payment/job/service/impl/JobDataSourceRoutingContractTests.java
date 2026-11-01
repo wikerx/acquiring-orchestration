@@ -12,13 +12,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobDataSourceRoutingContractTests
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 固定任务管理普通查询与调度强一致查询的数据源路由边界。
- * @status : create
+ * 固定任务管理普通查询与调度强一致查询的数据源路由边界。
  */
 class JobDataSourceRoutingContractTests {
 

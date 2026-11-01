@@ -8,13 +8,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NbpExchangeRateJsonParserTest
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 验证波兰国家银行 Table C 报价按外币兑 PLN 的方向映射为平台即期买入价和即期卖出价。
- * @status : create
+ * 验证波兰国家银行 Table C 报价按外币兑 PLN 的方向映射为平台即期买入价和即期卖出价。
  */
 class NbpExchangeRateJsonParserTest {
 

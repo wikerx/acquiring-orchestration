@@ -7,13 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionOrderExportRow
- * @date : 2026-07-17
- * @email : scott_x@163.com
- * @description : 交易主单导出行对象，位于 service-admin 导出传输层，仅承载后台运营可见的交易生命周期汇总字段。
- * @status : create
+ * 交易主单导出行对象，位于 service-admin 导出传输层，仅承载后台运营可见的交易生命周期汇总字段。
  */
 @Data
 public class TransactionOrderExportRow {
@@ -132,15 +126,21 @@ public class TransactionOrderExportRow {
     @ExcelExportColumn(order = 19, headerKey = "excel.transaction.common.channelMatchStatus", width = 18)
     private String channelMatchStatus;
 
-    /** 本笔交易是否实际使用 3DS。 */
+    /**
+     * 本笔交易是否实际使用 3DS。
+     */
     @ExcelExportColumn(order = 20, headerKey = "excel.transaction.common.threeDs", width = 12)
     private String threeDs;
 
-    /** 本笔交易是否实际启用 DCC。 */
+    /**
+     * 本笔交易是否实际启用 DCC。
+     */
     @ExcelExportColumn(order = 21, headerKey = "excel.transaction.common.dcc", width = 12)
     private String dcc;
 
-    /** 本笔交易是否实际启用 EDC。 */
+    /**
+     * 本笔交易是否实际启用 EDC。
+     */
     @ExcelExportColumn(order = 22, headerKey = "excel.transaction.common.edc", width = 12)
     private String edc;
 

@@ -43,7 +43,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     private static final long DEFAULT_RETRY_DELAY_MINUTES = 1L;
 
-    /** 商户通知重试时间按平台交易时区转换为 RocketMQ 绝对时间戳。 */
+    /**
+     * 商户通知重试时间按平台交易时区转换为 RocketMQ 绝对时间戳。
+     */
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     /**
@@ -56,9 +58,13 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     private final MqProducer mqProducer;
 
-    /** PROCESSING 状态允许保留的秒数，超时后由下一轮扫描恢复。 */
+    /**
+     * PROCESSING 状态允许保留的秒数，超时后由下一轮扫描恢复。
+     */
     private final long processingTimeoutSeconds;
-    /** 交易 Outbox 低基数运维指标。 */
+    /**
+     * 交易 Outbox 低基数运维指标。
+     */
     private final MqOutboxOperationalMetrics metrics;
 
     /**
@@ -79,7 +85,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         this.metrics = metrics;
     }
 
-    /** 测试和独立组件环境使用默认 PROCESSING 超时配置。 */
+    /**
+     * 测试和独立组件环境使用默认 PROCESSING 超时配置。
+     */
     DefaultTransactionEventOutboxRelayService(TransactionEventOutboxService eventOutboxService,
                                                MqProducer mqProducer) {
         this(eventOutboxService, mqProducer, 120L, MqOutboxOperationalMetrics.noop());
@@ -124,7 +132,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         }
     }
 
-    /** {@inheritDoc} 本实现从所有已发布季度汇总交易 Outbox 状态并刷新 Gauge。 */
+    /**
+     * 从所有已发布季度汇总交易 Outbox 状态并刷新运行指标。
+     */
     @Override
     public void refreshMetrics(List<LocalDateTime> publishedQuarters) {
         long init = 0L;
@@ -151,6 +161,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         metrics.updateTransaction(init, processing, failed, closed, oldest, LocalDateTime.now());
     }
 
+    /**
+     * 将空计数转换为零值。
+     */
     private long count(Long value) {
         return value == null ? 0L : value;
     }
@@ -276,7 +289,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         }
     }
 
-    /** 保留历史 AUTO 路由：通知重试定时、生命周期及分组消息顺序，其余普通投递。 */
+    /**
+     * 保留历史 AUTO 路由：通知重试定时、生命周期及分组消息顺序，其余普通投递。
+     */
     private void sendAuto(TransactionEventOutboxDO eventDO,
                           BaseMqMessage message,
                           String messageId,
@@ -306,7 +321,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         sendSerialized(eventDO, messageId, traceId, retryCount);
     }
 
-    /** 普通发送冻结 JSON。 */
+    /**
+     * 普通发送冻结 JSON。
+     */
     private void sendSerialized(TransactionEventOutboxDO eventDO,
                                 String messageId,
                                 String traceId,
@@ -315,7 +332,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                 retryCount, eventDO.getPayloadJson());
     }
 
-    /** 校验分组键后顺序发送冻结 JSON。 */
+    /**
+     * 校验分组键后顺序发送冻结 JSON。
+     */
     private void sendSerializedOrderly(TransactionEventOutboxDO eventDO,
                                        String messageId,
                                        String traceId,
@@ -327,7 +346,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                 retryCount, eventDO.getPayloadJson(), eventDO.getMessageGroup());
     }
 
-    /** 校验数据库 UTC 投递时间后定时发送冻结 JSON。 */
+    /**
+     * 校验数据库 UTC 投递时间后定时发送冻结 JSON。
+     */
     private void sendSerializedScheduled(TransactionEventOutboxDO eventDO,
                                          String messageId,
                                          String traceId,
@@ -339,6 +360,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                 retryCount, eventDO.getPayloadJson(), eventDO.getDeliverAt().toInstant(ZoneOffset.UTC));
     }
 
+    /**
+     * 判断消息是否为交易生命周期事件。
+     */
     private boolean isLifecycleEvent(String tag) {
         return MqTag.TRANSACTION_CREATED.equals(tag)
                 || MqTag.TRANSACTION_STATUS_CHANGED.equals(tag)
@@ -356,6 +380,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
+    /**
+     * 构建交易事件消息。
+     */
     private BaseMqMessage buildMessage(TransactionEventOutboxDO eventDO) {
         // 解析仅用于校验消息契约和读取 Header；真正发送的仍是数据库中已冻结的原始 JSON。
         if (MqTag.TRANSACTION_CLEARING_RETRY_DUE.equals(eventDO.getTag())) {
@@ -396,7 +423,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         return message;
     }
 
-    /** 返回不包含异常正文或消息载荷的失败类型摘要。 */
+    /**
+     * 返回不包含异常正文或消息载荷的失败类型摘要。
+     */
     private String safeFailReason(Exception exception) {
         String failureType = exception.getClass().getSimpleName();
         return StringUtils.hasText(failureType) ? failureType : "MqPublishException";

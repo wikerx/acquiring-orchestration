@@ -7,13 +7,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigInteger;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingAutoIncrementValueCalculator
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表自动自增值calculator协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 分表自动自增值calculator协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  */
 @Component
 public class ShardingAutoIncrementValueCalculator {

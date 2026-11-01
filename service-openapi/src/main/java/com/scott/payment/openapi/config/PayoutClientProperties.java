@@ -7,22 +7,20 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutClientProperties
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : service-openapi 调用 service-payout 的客户端配置，维护固定调用方和内部服务签名密钥。
- * @status : create
+ * service-openapi 调用 service-payout 的客户端配置，维护固定调用方和内部服务签名密钥。
  */
 @Data
 @ConfigurationProperties(prefix = "openapi.payout-client")
 public class PayoutClientProperties {
 
-    /** 建立 service-payout 连接的超时，单位毫秒。 */
+    /**
+     * 建立 service-payout 连接的超时，单位毫秒。
+     */
     private int connectTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 
-    /** 等待 service-payout 同步响应的超时，单位毫秒。 */
+    /**
+     * 等待 service-payout 同步响应的超时，单位毫秒。
+     */
     private int readTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_READ_TIMEOUT_MILLIS;
 
     /**
@@ -35,7 +33,9 @@ public class PayoutClientProperties {
      */
     private String internalSecret;
 
-    /** 校验固定调用方和 Nacos 注入的 active 密钥，禁止无密钥启动代付入口。 */
+    /**
+     * 校验固定调用方和 Nacos 注入的 active 密钥，禁止无密钥启动代付入口。
+     */
     public void validate() {
         InternalServiceClientCredentialValidator.validate(
                 "openapi payout-client", "service-openapi", internalCaller, internalSecret);

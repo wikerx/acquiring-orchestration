@@ -11,13 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionOrderDO
- * @date : 2026-07-14 17:35
- * @email : scott_x@163.com
- * @description : 交易生命周期主单实体，位于 service-payment 持久化层，使用 operation_id 关联同一原始交易生命周期，保存授权、请款、退款等动作共享的当前状态和金额汇总。
- * @status : create
+ * 交易生命周期主单实体，位于 service-payment 持久化层，使用 operation_id 关联同一原始交易生命周期，保存授权、请款、退款等动作共享的当前状态和金额汇总。
  */
 @Data
 @TableName("transaction_order")
@@ -159,16 +153,24 @@ public class TransactionOrderDO implements Serializable {
      */
     private BigDecimal settlementAmount;
 
-    /** 最近真实动作中 1 单位交易币种兑换的结算币种数量。 */
+    /**
+     * 最近真实动作中 1 单位交易币种兑换的结算币种数量。
+     */
     private BigDecimal settlementRate;
 
-    /** 最近真实动作的结算业务日期。 */
+    /**
+     * 最近真实动作的结算业务日期。
+     */
     private LocalDate settlementDate;
 
-    /** 当前结算快照来源的动作交易号。 */
+    /**
+     * 当前结算快照来源的动作交易号。
+     */
     private String settlementTransactionId;
 
-    /** 当前结算快照来源的动作分片时间。 */
+    /**
+     * 当前结算快照来源的动作分片时间。
+     */
     private LocalDateTime settlementTransactionDateTime;
 
     /**
@@ -336,13 +338,19 @@ public class TransactionOrderDO implements Serializable {
      */
     private String merchantWebsite;
 
-    /** 商户异步通知地址明文；只允许用于通知投递和商户查询回显，禁止完整写入日志。 */
+    /**
+     * 商户异步通知地址明文；只允许用于通知投递和商户查询回显，禁止完整写入日志。
+     */
     private String callbackUrl;
 
-    /** Hosted Checkout 交易完成后的商户页面返回地址明文。 */
+    /**
+     * Hosted Checkout 交易完成后的商户页面返回地址明文。
+     */
     private String redirectUrl;
 
-    /** Hosted Checkout 创建会话时指定的显示语言。 */
+    /**
+     * Hosted Checkout 创建会话时指定的显示语言。
+     */
     private String language;
 
     /**

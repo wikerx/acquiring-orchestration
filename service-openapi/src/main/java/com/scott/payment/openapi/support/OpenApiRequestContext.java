@@ -11,13 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestContext
- * @date : 2026-06-19 19:19
- * @email : scott_x@163.com
- * @description : openAPI上下文协作组件，位于 商户开放接口服务，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 读取当前请求中已经验证的商户身份和 OpenAPI 安全上下文，禁止业务层重新信任请求字段。
  */
 @Component
 public class OpenApiRequestContext {

@@ -17,13 +17,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionEventOutboxRelaySchedulerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 交易生命周期 Outbox 调度测试，验证单批上限和调度器只委托 relay 服务处理待发送事件。
- * @status : create
+ * 交易生命周期 Outbox 调度测试，验证单批上限和调度器只委托 relay 服务处理待发送事件。
  */
 class TransactionEventOutboxRelaySchedulerTests {
 

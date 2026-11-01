@@ -43,13 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentCheckoutThreeDsServiceTests
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : 收银台统一 3DS 编排服务测试，通过公开 Channel SPI 验证路由、请求转换和挑战结果映射，不依赖具体渠道协议类型。
- * @status : create
+ * 收银台统一 3DS 编排服务测试，通过公开 Channel SPI 验证路由、请求转换和挑战结果映射，不依赖具体渠道协议类型。
  */
 @Slf4j
 class DefaultPaymentCheckoutThreeDsServiceTests {

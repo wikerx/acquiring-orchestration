@@ -8,13 +8,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthLoginResponse
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统登录响应
- * @status : create
+ * 管理类系统登录响应
  */
 @Data
 public class AuthLoginResponse implements Serializable {

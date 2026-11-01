@@ -20,14 +20,8 @@ import java.util.Base64;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AcquiringAesGcmEncryptionPlugin
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : Nacos 配置加密 SPI 实现；每条 cipher-acqaesgcm 配置使用独立 AES-256-GCM 数据密钥和随机 IV，
+ * Nacos 配置加密 SPI 实现；每条 cipher-acqaesgcm 配置使用独立 AES-256-GCM 数据密钥和随机 IV，
  * 数据密钥再由部署环境的根密钥包装，避免配置正文与可直接解密它的明文数据密钥同时落库。
- * @status : create
  */
 public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginService {
 
@@ -35,44 +29,123 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         NacosConfigInfoEncryptedKeyCompatibility.installIfRequired();
     }
 
-    /** DataId 使用的算法标识，例如 cipher-acqaesgcm-service-payment-dev.yaml。 */
+    /**
+     * DataId 使用的算法标识，例如 cipher-acqaesgcm-service-payment-dev.yaml。
+     */
     public static final String ALGORITHM = "acqaesgcm";
 
-    /** 环境变量形式的配置加密主密钥名称。 */
+    /**
+     * 环境变量形式的配置加密主密钥名称。
+     */
     public static final String MASTER_KEY_ENV = "NACOS_ENCRYPTION_MASTER_KEY";
 
-    /** JVM 系统属性形式的配置加密主密钥名称。 */
+    /**
+     * JVM 系统属性形式的配置加密主密钥名称。
+     */
     public static final String MASTER_KEY_PROPERTY = "acquiring.nacos.encryption.master-key";
 
-    /** 环境变量形式的配置加密主密钥文件路径。 */
+    /**
+     * 环境变量形式的配置加密主密钥文件路径。
+     */
     public static final String MASTER_KEY_FILE_ENV = "NACOS_ENCRYPTION_MASTER_KEY_FILE";
 
-    /** JVM 系统属性形式的配置加密主密钥文件路径。 */
+    /**
+     * JVM 系统属性形式的配置加密主密钥文件路径。
+     */
     public static final String MASTER_KEY_FILE_PROPERTY = "acquiring.nacos.encryption.master-key-file";
 
+    /**
+     * 算法转换常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
+    /**
+     * 报文版本，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PAYLOAD_VERSION = "v1";
+    /**
+     * {@code SEPARATOR}常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SEPARATOR = ".";
+    /**
+     * {@code AES_KEY_BITS}常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：位；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或数值精度边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int AES_KEY_BITS = 256;
+    /**
+     * 一次性 AES 数据密钥字节数。
+     * <p>
+     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int AES_KEY_BYTES = AES_KEY_BITS / 8;
+    /**
+     * AES-GCM 随机 IV 字节数，每次卡数据封装必须重新生成。
+     * <p>
+     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int GCM_IV_BYTES = 12;
+    /**
+     * AES-GCM 认证标签位数，用于同时校验卡数据密文完整性。
+     * <p>
+     * 单位：位；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或数值精度边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int GCM_TAG_BITS = 128;
+    /**
+     * {@code MAX_MASTER_KEY_FILE_BYTES}常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_MASTER_KEY_FILE_BYTES = 16 * 1024;
+    /**
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    /** 使用当前配置的数据密钥加密 Nacos 配置正文。 */
+    /**
+     * 使用当前配置的数据密钥加密 Nacos 配置正文。
+     */
     @Override
     public String encrypt(String secretKey, String content) {
         return encryptWithKey(decodeKey(secretKey, "data key"), requireContent(content));
     }
 
-    /** 使用当前配置的数据密钥解密 Nacos 配置正文。 */
+    /**
+     * 使用当前配置的数据密钥解密 Nacos 配置正文。
+     */
     @Override
     public String decrypt(String secretKey, String content) {
         return decryptWithKey(decodeKey(secretKey, "data key"), requireContent(content));
     }
 
-    /** 为单条 Nacos 配置生成随机 256 位数据密钥。 */
+    /**
+     * 为单条 Nacos 配置生成随机 256 位数据密钥。
+     */
     @Override
     public String generateSecretKey() {
         try {
@@ -85,19 +158,25 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
-    /** 返回 DataId 中使用的算法名称。 */
+    /**
+     * 返回 DataId 中使用的算法名称。
+     */
     @Override
     public String algorithmName() {
         return ALGORITHM;
     }
 
-    /** 使用环境级根密钥包装单条配置的数据密钥。 */
+    /**
+     * 使用环境级根密钥包装单条配置的数据密钥。
+     */
     @Override
     public String encryptSecretKey(String secretKey) {
         return encryptWithKey(resolveMasterKey(), requireContent(secretKey));
     }
 
-    /** 使用环境级根密钥解包单条配置的数据密钥。 */
+    /**
+     * 使用环境级根密钥解包单条配置的数据密钥。
+     */
     @Override
     public String decryptSecretKey(String secretKey) {
         return decryptWithKey(resolveMasterKey(), requireContent(secretKey));
@@ -143,7 +222,9 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
-    /** POSIX 环境拒绝组或其他用户可访问的根密钥文件；不支持 POSIX 权限的平台由部署层保证 ACL。 */
+    /**
+     * POSIX 环境拒绝组或其他用户可访问的根密钥文件；不支持 POSIX 权限的平台由部署层保证 ACL。
+     */
     private void validateMasterKeyFilePermissions(Path keyPath) throws IOException {
         try {
             Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(keyPath, LinkOption.NOFOLLOW_LINKS);

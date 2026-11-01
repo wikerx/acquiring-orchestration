@@ -34,7 +34,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 后台用户新增、编辑内嵌角色授权的服务端权限边界测试。 */
+/**
+ * 后台用户新增、编辑内嵌角色授权的服务端权限边界测试。
+ */
 class AdminUserRoleAssignmentSecurityTests {
 
     @AfterEach
@@ -42,7 +44,9 @@ class AdminUserRoleAssignmentSecurityTests {
         InternalAuthContextHolder.clear();
     }
 
-    /** 只有新增用户权限但没有分配角色权限时，构造 roleIds 也必须被服务层拒绝。 */
+    /**
+     * 只有新增用户权限但没有分配角色权限时，构造 roleIds 也必须被服务层拒绝。
+     */
     @Test
     void shouldRejectEmbeddedRoleAssignmentWithoutAssignRolePermission() {
         SysAppMapper appMapper = mock(SysAppMapper.class);

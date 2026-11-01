@@ -9,13 +9,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccountEmailChangedListener
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 商户个人邮箱变更监听器；仅在资料事务提交后签发待验证邮箱确认邮件。
- * @status : create
+ * 商户个人邮箱变更监听器；仅在资料事务提交后签发待验证邮箱确认邮件。
  */
 @Slf4j
 @Component
@@ -23,12 +17,16 @@ public class MerchantAccountEmailChangedListener {
 
     private final MerchantEmailVerificationService emailVerificationService;
 
-    /** 创建商户邮箱变更监听器。 */
+    /**
+     * 创建商户邮箱变更监听器。
+     */
     public MerchantAccountEmailChangedListener(MerchantEmailVerificationService emailVerificationService) {
         this.emailVerificationService = emailVerificationService;
     }
 
-    /** 事务提交后签发邮箱变更验证请求。 */
+    /**
+     * 事务提交后签发邮箱变更验证请求。
+     */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAccountEmailChanged(AccountEmailChangedEvent event) {
         if (event == null || !AuthConstants.APP_MERCHANT.equals(event.appCode())) {

@@ -11,13 +11,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisStringServiceImpl
- * @date : 2026-05-31 21:48
- * @email : scott_x@163.com
- * @description : 提供现有风控规则缓存依赖的通用 String 能力；可显式关闭，但新增调用仍须先登记 Key 与 TTL
- * @status : create
+ * 提供现有风控规则缓存依赖的通用 String 能力；可显式关闭，但新增调用仍须先登记 Key 与 TTL
  */
 @Service
 @ConditionalOnProperty(

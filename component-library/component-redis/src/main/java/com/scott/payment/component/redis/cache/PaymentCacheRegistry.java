@@ -7,13 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCacheRegistry
- * @date : 2026-07-30 09:35
- * @email : scott_x@163.com
- * @description : 支付系统特殊 Spring Cache 生命周期注册表；普通缓存使用 CacheManager 默认 TTL 动态创建
- * @status : create
+ * 支付系统特殊 Spring Cache 生命周期注册表；普通缓存使用 CacheManager 默认 TTL 动态创建
  */
 public final class PaymentCacheRegistry {
 

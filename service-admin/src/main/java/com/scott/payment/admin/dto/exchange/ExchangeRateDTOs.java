@@ -13,16 +13,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateDTOs
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 管理端汇率业务接口模型集合，统一定义汇率源、原始汇率、业务汇率及使用快照的查询和响应契约。
- * @status : create
+ * 管理端汇率业务接口模型集合，统一定义汇率源、原始汇率、业务汇率及使用快照的查询和响应契约。
  */
 public final class ExchangeRateDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private ExchangeRateDTOs() {
     }
 
@@ -476,19 +473,31 @@ public final class ExchangeRateDTOs {
          * </p>
          */
         private String createMethod;
-        /** 发布时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 发布时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime publishStartTime;
-        /** 发布时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 发布时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime publishEndTime;
-        /** 拉取时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 拉取时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime fetchStartTime;
-        /** 拉取时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 拉取时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime fetchEndTime;
 
-        /** 原始汇率生效时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 原始汇率生效时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime effectiveStartTime;
 
-        /** 原始汇率生效时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 原始汇率生效时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime effectiveEndTime;
     }
 
@@ -1179,19 +1188,29 @@ public final class ExchangeRateDTOs {
          * </p>
          */
         private String rateStatus;
-        /** 生成方式，取值为 AUTO 或 MANUAL，允许为空，非敏感字段。 */
+        /**
+         * 生成方式，取值为 AUTO 或 MANUAL，允许为空，非敏感字段。
+         */
         private String generateMethod;
 
-        /** 业务汇率生效时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 业务汇率生效时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime effectiveStartTime;
 
-        /** 业务汇率生效时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 业务汇率生效时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime effectiveEndTime;
 
-        /** 业务汇率创建时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 业务汇率创建时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime createStartTime;
 
-        /** 业务汇率创建时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        /**
+         * 业务汇率创建时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。
+         */
         private LocalDateTime createEndTime;
     }
 
@@ -1286,11 +1305,17 @@ public final class ExchangeRateDTOs {
          * </p>
          */
         private String adjustDescription;
-        /** 业务汇率开始生效的时间点，按系统业务时区返回，不允许为空，非敏感字段。 */
+        /**
+         * 业务汇率开始生效的时间点，按系统业务时区返回，不允许为空，非敏感字段。
+         */
         private LocalDateTime effectiveTime;
-        /** 业务汇率失效时间；为空表示永不过期，按系统业务时区返回，非敏感字段。 */
+        /**
+         * 业务汇率失效时间；为空表示永不过期，按系统业务时区返回，非敏感字段。
+         */
         private LocalDateTime expireTime;
-        /** 生成方式，AUTO 表示按原始汇率和规则生成，MANUAL 表示人工录入，非敏感字段。 */
+        /**
+         * 生成方式，AUTO 表示按原始汇率和规则生成，MANUAL 表示人工录入，非敏感字段。
+         */
         private String generateMethod;
         /**
          * 汇率状态，表示当前记录在业务流程中的处理状态。
@@ -1305,13 +1330,19 @@ public final class ExchangeRateDTOs {
          * 汇率管理备注字段，用于记录人工说明，不参与核心状态流转。
          */
         private String remark;
-        /** 记录创建时间，按系统业务时区返回，不允许为空，非敏感字段。 */
+        /**
+         * 记录创建时间，按系统业务时区返回，不允许为空，非敏感字段。
+         */
         private LocalDateTime createTime;
 
-        /** 最近一次修改记录的管理员名称；历史数据可能为空，非敏感字段。 */
+        /**
+         * 最近一次修改记录的管理员名称；历史数据可能为空，非敏感字段。
+         */
         private String updateBy;
 
-        /** 最近更新时间，按系统业务时区返回，不允许为空，非敏感字段。 */
+        /**
+         * 最近更新时间，按系统业务时区返回，不允许为空，非敏感字段。
+         */
         private LocalDateTime updateTime;
     }
 

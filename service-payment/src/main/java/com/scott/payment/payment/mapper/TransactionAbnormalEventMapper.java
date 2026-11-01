@@ -11,13 +11,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionAbnormalEventMapper
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 勾兑异常案件 Mapper，仅访问 transaction_abnormal_event 逻辑表并要求所有更新携带分片时间和版本。
- * @status : create
+ * 勾兑异常案件 Mapper，仅访问 transaction_abnormal_event 逻辑表并要求所有更新携带分片时间和版本。
  */
 public interface TransactionAbnormalEventMapper extends BaseMapper<TransactionAbnormalEventDO> {
 
@@ -169,7 +163,9 @@ public interface TransactionAbnormalEventMapper extends BaseMapper<TransactionAb
     TransactionAbnormalEventDO selectByEventId(@Param("eventId") String eventId,
                                                @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
-    /** @return 精确案件详情投影 */
+    /**
+     * @return 精确案件详情投影
+     */
     @Select("""
             SELECT abnormal_event_id, transaction_id, operation_id, abnormal_type, abnormal_level,
                    event_status, source_record_type, source_record_id, abnormal_description,

@@ -11,6 +11,9 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
  */
 public final class OpenApiPaymentResponseFactory {
 
+    /**
+     * 支付响应适配器只提供静态方法，不允许实例化。
+     */
     private OpenApiPaymentResponseFactory() {
     }
 

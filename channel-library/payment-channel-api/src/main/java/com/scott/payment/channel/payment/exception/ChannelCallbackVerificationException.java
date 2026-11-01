@@ -1,13 +1,7 @@
 package com.scott.payment.channel.payment.exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackVerificationException
- * @date : 2026-08-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道回调验签失败异常，向入口层提供稳定原因分类，不包含密钥、签名原文或敏感报文。
- * @status : create
+ * 渠道回调验签失败异常，向入口层提供稳定原因分类，不包含密钥、签名原文或敏感报文。
  */
 public class ChannelCallbackVerificationException extends ChannelException {
 
@@ -53,7 +47,9 @@ public class ChannelCallbackVerificationException extends ChannelException {
         return reason;
     }
 
-    /** 不暴露协议细节的稳定验签失败分类。 */
+    /**
+     * 不暴露协议细节的稳定验签失败分类。
+     */
     public enum Reason {
         /**
          * HEADER MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。

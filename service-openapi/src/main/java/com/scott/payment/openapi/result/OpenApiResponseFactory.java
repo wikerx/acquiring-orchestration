@@ -16,6 +16,9 @@ import java.util.Map;
  */
 public final class OpenApiResponseFactory {
 
+    /**
+     * 响应工厂只提供静态构造方法，不允许实例化。
+     */
     private OpenApiResponseFactory() {
     }
 

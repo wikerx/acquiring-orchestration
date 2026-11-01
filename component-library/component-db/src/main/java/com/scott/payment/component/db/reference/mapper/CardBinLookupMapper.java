@@ -9,13 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinLookupMapper
- * @date : 2026-08-11 15:35
- * @email : scott_x@163.com
- * @description : 卡 BIN 公共只读查询 Mapper，统一按十一位数值区间和最大主键返回单条匹配
- * @status : create
+ * 卡 BIN 公共只读查询 Mapper，统一按十一位数值区间和最大主键返回单条匹配
  */
 @Mapper
 public interface CardBinLookupMapper {

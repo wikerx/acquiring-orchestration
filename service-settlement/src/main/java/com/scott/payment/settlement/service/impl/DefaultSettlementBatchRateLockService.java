@@ -46,9 +46,13 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
     private static final Logger LOGGER = LoggerFactory.getLogger(
             DefaultSettlementBatchRateLockService.class);
 
-    /** 持久化汇率矩阵的业务类型。 */
+    /**
+     * 持久化汇率矩阵的业务类型。
+     */
     private static final String RATE_TYPE = "SETTLEMENT";
-    /** 汇率行经过完整性校验后的冻结状态。 */
+    /**
+     * 汇率行经过完整性校验后的冻结状态。
+     */
     private static final String RATE_STATUS = "LOCKED";
 
     private final SettlementBatchMapper batchMapper;
@@ -117,7 +121,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return locked;
     }
 
-    /** 调用统一报价解析服务生成完整来源币种到目标币种的归一直接汇率矩阵。 */
+    /**
+     * 调用统一报价解析服务生成完整来源币种到目标币种的归一直接汇率矩阵。
+     */
     private RateMatrix resolve(Set<SettlementCurrency> currencies,
                                SettlementBatchDO batch,
                                LocalDateTime now) {
@@ -133,7 +139,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         }
     }
 
-    /** 将纯计算汇率矩阵映射为批次不可变行，冻结精度、来源、报价方向和锁定时间。 */
+    /**
+     * 将纯计算汇率矩阵映射为批次不可变行，冻结精度、来源、报价方向和锁定时间。
+     */
     private List<SettlementBatchRateDO> rows(SettlementBatchDO batch,
                                              RateMatrix matrix,
                                              String owner,
@@ -161,7 +169,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return rows;
     }
 
-    /** 校验持久化汇率矩阵覆盖全部币种且方向/精度/目标一致，并建立来源币种到行 ID 映射。 */
+    /**
+     * 校验持久化汇率矩阵覆盖全部币种且方向/精度/目标一致，并建立来源币种到行 ID 映射。
+     */
     private SettlementLockedRateMatrix validateAndConvert(SettlementBatchDO batch,
                                                            Set<SettlementCurrency> currencies,
                                                            List<SettlementBatchRateDO> stored) {
@@ -212,7 +222,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return new SettlementLockedRateMatrix(RateMatrix.of(rates), ids);
     }
 
-    /** 要求批次处于可锁汇率状态且处理租约归 owner 所有并未过期。 */
+    /**
+     * 要求批次处于可锁汇率状态且处理租约归 owner 所有并未过期。
+     */
     private void validateLease(SettlementBatchDO batch, String owner, LocalDateTime now) {
         if (batch == null || batch.getVersion() == null
                 || !owner.equals(batch.getProcessingOwner())
@@ -223,7 +235,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         }
     }
 
-    /** 从锁读批次取得非空 version，作为汇率状态 CAS 前置条件。 */
+    /**
+     * 从锁读批次取得非空 version，作为汇率状态 CAS 前置条件。
+     */
     private long requireVersion(SettlementBatchDO batch) {
         if (batch.getVersion() == null) {
             throw failure("SETTLEMENT_BATCH_VERSION_MISSING", false,
@@ -232,7 +246,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return batch.getVersion();
     }
 
-    /** 将数据库批次状态解析为枚举，拒绝未知状态值。 */
+    /**
+     * 将数据库批次状态解析为枚举，拒绝未知状态值。
+     */
     private SettlementBatchStatus status(String value) {
         try {
             return SettlementBatchStatus.valueOf(value);
@@ -242,7 +258,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         }
     }
 
-    /** 将数据库 CAS 后的状态、版本和锁定时间同步回调用方批次快照。 */
+    /**
+     * 将数据库 CAS 后的状态、版本和锁定时间同步回调用方批次快照。
+     */
     private void copyMutableState(SettlementBatchDO source, SettlementBatchDO target) {
         target.setBatchStatus(source.getBatchStatus());
         target.setRateLockedTime(source.getRateLockedTime());

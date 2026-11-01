@@ -13,13 +13,7 @@ import java.util.HexFormat;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalServiceSignature
- * @date : 2026-07-11 00:00
- * @email : scott_x@163.com
- * @description : 内部服务 HMAC-SHA256 签名工具，统一构造签名文本并提供常量时间验签能力。
- * @status : create
+ * 内部服务 HMAC-SHA256 签名工具，统一构造签名文本并提供常量时间验签能力。
  */
 public final class InternalServiceSignature {
 

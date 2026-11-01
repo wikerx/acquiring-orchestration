@@ -4,6 +4,9 @@ import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.openapi.result.OpenApiResultDefinition;
 import com.scott.payment.component.core.openapi.result.OpenApiResultDefinitionRegistry;
+import com.scott.payment.component.core.openapi.result.OpenApiResultEvidence;
+import com.scott.payment.component.core.openapi.result.OpenApiResultOrigin;
+import com.scott.payment.component.core.openapi.result.OpenApiResultPhase;
 
 import java.util.Map;
 
@@ -17,7 +20,9 @@ public class OpenApiContextualException extends ApiException {
 
     private static final long serialVersionUID = 1L;
 
-    /** 仅包含受控枚举、布尔事实和安全模板参数的投影上下文。 */
+    /**
+     * 仅包含受控枚举、布尔事实和安全模板参数的投影上下文。
+     */
     private final OpenApiErrorContext errorContext;
 
     /**
@@ -73,5 +78,32 @@ public class OpenApiContextualException extends ApiException {
                         fieldPath,
                         parameters,
                         definition.evidence()));
+    }
+
+    /**
+     * 创建内部服务调用失败异常，并保留请求发送边界和业务结果确定性。
+     *
+     * <p>该上下文只表示平台内部调用结果，不得伪装成渠道超时。调用方取得明确业务错误码时应直接
+     * 透传该稳定编码；只有未取得可解析响应时才使用本工厂记录平台故障事实。</p>
+     *
+     * @param internalReason 不含请求数据或下游异常原文的稳定诊断摘要
+     * @param requestSent 是否确认请求已经越过 HTTP 发送边界；无法确认时为 {@code null}
+     * @param outcomeUncertain 写操作是否可能已被下游受理但未取得响应
+     * @return 带平台调用证据的结构化异常
+     */
+    public static OpenApiContextualException internalServiceCall(String internalReason,
+                                                                 Boolean requestSent,
+                                                                 boolean outcomeUncertain) {
+        return new OpenApiContextualException(
+                OpenApiResultCode.SYSTEM_ERROR.getCode(),
+                internalReason,
+                new OpenApiErrorContext(
+                        OpenApiResultPhase.PLATFORM,
+                        OpenApiResultOrigin.PLATFORM_SYSTEM,
+                        requestSent,
+                        outcomeUncertain,
+                        null,
+                        Map.of(),
+                        OpenApiResultEvidence.PLATFORM_FAILURE));
     }
 }

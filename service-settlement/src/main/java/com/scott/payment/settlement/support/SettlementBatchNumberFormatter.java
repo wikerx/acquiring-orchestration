@@ -7,13 +7,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchNumberFormatter
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 将数据库日序列格式化为稳定存储号和业务展示号；只负责格式，不生成或回收序号。
- * @status : create
+ * 将数据库日序列格式化为稳定存储号和业务展示号；只负责格式，不生成或回收序号。
  */
 @Component
 public final class SettlementBatchNumberFormatter {

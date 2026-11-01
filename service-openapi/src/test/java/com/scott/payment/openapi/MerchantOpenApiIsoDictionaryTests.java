@@ -33,13 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiIsoDictionaryTests
- * @date : 2026-06-03 15:50
- * @email : scott_x@163.com
- * @description : 测试专用商户加密调用 ISO 国家地区与币种 OpenAPI 接口测试
- * @status : create
+ * 测试专用商户加密调用 ISO 国家地区与币种 OpenAPI 接口测试
  */
 @Slf4j
 @AutoConfigureMockMvc
@@ -175,7 +169,9 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 .isEqualTo(2);
     }
 
-    /** 两个币种代码必须精确组合，冲突条件不能回退到全量结果。 */
+    /**
+     * 两个币种代码必须精确组合，冲突条件不能回退到全量结果。
+     */
     @Test
     void shouldMatchBothCurrencyCodesAndReturnEmptyForConflict() throws Exception {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
@@ -204,7 +200,9 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
         assertThat(conflictingCurrencies).isEmpty();
     }
 
-    /** 旧名称字段必须拒绝，不能因为被忽略而返回全部币种。 */
+    /**
+     * 旧名称字段必须拒绝，不能因为被忽略而返回全部币种。
+     */
     @Test
     void shouldRejectCurrencyNameAsQueryParameter() throws Exception {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
@@ -235,8 +233,9 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 OpenApiResultCode.PARAM_INVALID
         );
 
-        log.info("商户国家地区查询异常响应验证完成，错误响应：{}",
-                mvcResult.getResponse().getContentAsString());
+        log.info("商户国家地区查询异常响应验证完成，错误响应摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(
+                        mvcResult.getResponse().getContentAsString(), keyMaterialFactory));
     }
 
     /**
@@ -257,8 +256,9 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 OpenApiResultCode.PARAM_INVALID
         );
 
-        log.info("商户币种查询异常响应验证完成，错误响应：{}",
-                mvcResult.getResponse().getContentAsString());
+        log.info("商户币种查询异常响应验证完成，错误响应摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(
+                        mvcResult.getResponse().getContentAsString(), keyMaterialFactory));
     }
 
     /**
@@ -306,9 +306,9 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 jwtId
         );
         String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
-        log.info("商户发起ISO查询，path: {}，请求明文: {}，authorization摘要: {}，data摘要: {}",
+        log.info("商户发起ISO查询，path: {}，请求明文摘要: {}，authorization摘要: {}，data摘要: {}",
                 path,
-                plainRequestJson,
+                MerchantOpenApiTestSupport.safePayloadSummary(plainRequestJson, keyMaterialFactory),
                 MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory),
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory));
 
@@ -355,9 +355,9 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 jwtId
         );
         String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
-        log.info("商户发起ISO异常查询，path: {}，请求明文: {}，authorization摘要: {}，data摘要: {}，预期错误码: {}",
+        log.info("商户发起ISO异常查询，path: {}，请求明文摘要: {}，authorization摘要: {}，data摘要: {}，预期错误码: {}",
                 path,
-                plainRequestJson,
+                MerchantOpenApiTestSupport.safePayloadSummary(plainRequestJson, keyMaterialFactory),
                 MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory),
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory),
                 expectedError.getCode());
@@ -367,10 +367,11 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
                         .content(httpRequestBody)
                         .with(MerchantOpenApiTestSupport.gatewayIngress()))
-                .andDo(result -> log.info("平台返回ISO异常响应，path: {}，HTTP状态: {}，响应: {}",
+                .andDo(result -> log.info("平台返回ISO异常响应，path: {}，HTTP状态: {}，响应摘要: {}",
                         path,
                         result.getResponse().getStatus(),
-                        result.getResponse().getContentAsString()))
+                        MerchantOpenApiTestSupport.safePayloadSummary(
+                                result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(expectedError.getCode()))
                 .andReturn();
@@ -396,7 +397,8 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
         assertThat(encryptedResult).isNotNull();
         PrivateKey responsePrivateKey = payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64());
         String plainDataJson = payloadCrypto.decrypt(encryptedResult.getData(), responsePrivateKey);
-        log.info("商户响应data解密完成，明文data: {}", plainDataJson);
+        log.info("商户响应data解密完成，明文data摘要: {}",
+                MerchantOpenApiTestSupport.safePayloadSummary(plainDataJson, keyMaterialFactory));
         return JsonUtils.parseObject(plainDataJson, typeReference);
     }
 }

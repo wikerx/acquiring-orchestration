@@ -1,13 +1,7 @@
 package com.scott.payment.component.db.iso.service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoDictionaryCacheInvalidator
- * @date : 2026-07-30 21:30
- * @email : scott_x@163.com
- * @description : ISO 字典缓存精确失效契约，由管理端在国家、币种或地区币种映射持久化成功后调用，确保新旧实例都不读取陈旧字典
- * @status : create
+ * ISO 字典缓存精确失效契约，由管理端在国家、币种或地区币种映射持久化成功后调用，确保新旧实例都不读取陈旧字典
  */
 public interface IsoDictionaryCacheInvalidator {
 

@@ -12,13 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MfaSecretConfigurationTests
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : MFA 主密钥门禁回归测试，验证服务身份、环境限制、密钥强度以及未初始化时失败关闭。
- * @status : create
+ * MFA 主密钥门禁回归测试，验证服务身份、环境限制、密钥强度以及未初始化时失败关闭。
  */
 class MfaSecretConfigurationTests {
 

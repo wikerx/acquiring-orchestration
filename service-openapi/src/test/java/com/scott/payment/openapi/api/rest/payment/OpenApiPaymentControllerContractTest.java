@@ -41,13 +41,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPaymentControllerContractTest
- * @date : 2026-07-14 17:05
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单交易控制器契约测试，校验一个外部接口一个控制器、一个应用服务以及安全注解、版本和路径不被误改。
- * @status : create
+ * 商户 OpenAPI 收单交易控制器契约测试，校验一个外部接口一个控制器、一个应用服务以及安全注解、版本和路径不被误改。
  */
 @Slf4j
 class OpenApiPaymentControllerContractTest {
@@ -94,7 +88,9 @@ class OpenApiPaymentControllerContractTest {
         assertThat(transactionInfo.isMerchantWebsiteValid()).isFalse();
     }
 
-    /** 首次交易请求必须接收文档声明的业务快照，商户请求不得承担分表路由时间。 */
+    /**
+     * 首次交易请求必须接收文档声明的业务快照，商户请求不得承担分表路由时间。
+     */
     @Test
     void shouldExposeMerchantSnapshotsWithoutShardingTimes() {
         List<String> requestFieldNames = Arrays.stream(ApiMerchantPaymentRequestDTO.class.getDeclaredFields())
@@ -111,7 +107,9 @@ class OpenApiPaymentControllerContractTest {
                 .doesNotContain("sourceTransactionDateTime", "rootTransactionDateTime");
     }
 
-    /** 创建类交易已返回业务 data 时，外层表示 OpenAPI 处理成功，业务结果留在密文内层。 */
+    /**
+     * 创建类交易已返回业务 data 时，外层表示 OpenAPI 处理成功，业务结果留在密文内层。
+     */
     @Test
     void shouldKeepFailedTransactionDataAndExposeA0000AtEnvelopeLevel() {
         PaymentCreateVO response = new PaymentCreateVO();

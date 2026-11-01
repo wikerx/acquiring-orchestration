@@ -17,68 +17,78 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutSessionCreateRequestDTO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户创建 Hosted Checkout 会话请求。字段结构严格对齐商户文档 8.1，支付方式、有效期、重试和 3DS 策略由平台配置决定。
- * @status : create
+ * 商户创建 Hosted Checkout 会话请求。字段结构严格对齐商户文档 8.1，支付方式、有效期、重试和 3DS 策略由平台配置决定。
  */
 @Data
 public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 创建会话时校验商户、订单和付款人等必填对象的校验分组。
+     */
     public interface Create {
     }
 
+    /**
+     * 校验可选字段格式、长度和精度的校验分组。
+     */
     public interface Format {
     }
 
-    /** 商户身份及可选子商户信息。 */
+    /**
+     * 商户身份及可选子商户信息。
+     */
     @Valid
     @NotNull(message = "merchantInfo", groups = Create.class)
     private MerchantInfoDTO merchantInfo;
 
-    /** 商户订单号、幂等号、金额和币种。 */
+    /**
+     * 商户订单号、幂等号、金额和币种。
+     */
     @Valid
     @NotNull(message = "orderInfo", groups = Create.class)
     private OrderInfoDTO orderInfo;
 
-    /** 可选商品或服务明细。 */
+    /**
+     * 可选商品或服务明细。
+     */
     @Valid
     private List<ApiMerchantPaymentRequestDTO.GoodsInfoDTO> goodsInfo;
 
-    /** 可选账单持卡人预填对象；存在时整对象优先。 */
+    /**
+     * 可选账单持卡人预填对象；存在时整对象优先。
+     */
     @Valid
     private ApiMerchantPaymentRequestDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 付款人快照；ipAddress 必传。 */
+    /**
+     * 付款人快照；ipAddress 必传。
+     */
     @Valid
     @NotNull(message = "payerInfo", groups = Create.class)
     private ApiMerchantPaymentRequestDTO.PayerInfoDTO payerInfo;
 
-    /** 可选收货人快照。 */
+    /**
+     * 可选收货人快照。
+     */
     @Valid
     private ApiMerchantPaymentRequestDTO.ShippingInfoDTO shippingInfo;
 
-    /** 当前版本预留的风控扩展对象，不参与处理且不返回。 */
+    /**
+     * 当前版本预留的风控扩展对象，不参与处理且不返回。
+     */
     @Valid
     private ApiMerchantPaymentRequestDTO.RiskInfoDTO riskInfo;
 
-    /** 可选交易描述、终态通知、结果页返回地址和语言。 */
+    /**
+     * 可选交易描述、终态通知、结果页返回地址和语言。
+     */
     @Valid
     private TransactionInfoDTO transactionInfo;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : MerchantInfoDTO
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 商户信息传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
-     * @status : create
+     * 创建收银台会话所需的商户号和可选子商户信息。
      */
     @Data
     public static class MerchantInfoDTO implements Serializable {
@@ -108,13 +118,7 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : OrderInfoDTO
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 订单信息传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
-     * @status : create
+     * 创建收银台会话的商户订单号、幂等号、标签金额和币种。
      */
     @Data
     public static class OrderInfoDTO implements Serializable {
@@ -169,13 +173,7 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : TransactionInfoDTO
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 交易信息传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
-     * @status : create
+     * 收银台交易描述、商户回调地址和付款完成跳转地址。
      */
     @Data
     public static class TransactionInfoDTO implements Serializable {

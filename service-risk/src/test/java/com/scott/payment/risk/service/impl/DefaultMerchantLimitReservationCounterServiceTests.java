@@ -16,16 +16,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantLimitReservationCounterServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 累计限额 Redis 投影测试，验证同槽 Key、单投影回滚和异常三态。
- * @status : create
+ * 累计限额 Redis 投影测试，验证同槽 Key、单投影回滚和异常三态。
  */
 class DefaultMerchantLimitReservationCounterServiceTests {
 
+    /**
+     * 验证累计限额投影通过同槽键原子回滚。
+     */
     @Test
     void shouldRollbackClusterSafeProjectionWithCoLocatedKeys() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -59,6 +56,9 @@ class DefaultMerchantLimitReservationCounterServiceTests {
         assertThat(hashTag(clusterKeys.get(0))).isEqualTo(hashTag(clusterKeys.get(1)));
     }
 
+    /**
+     * 验证 Lua 返回空结果时按回滚失败处理。
+     */
     @Test
     void shouldTreatNullLuaResultAsRollbackFailure() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -73,6 +73,9 @@ class DefaultMerchantLimitReservationCounterServiceTests {
         assertThat(service.rollback(reservation("CLUSTER_SAFE"))).isFalse();
     }
 
+    /**
+     * 验证未知计数投影模式被明确拒绝，避免错误补偿。
+     */
     @Test
     void shouldRejectUnknownCounterProjection() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -83,6 +86,9 @@ class DefaultMerchantLimitReservationCounterServiceTests {
         assertThat(service.rollback(reservation("LEGACY"))).isFalse();
     }
 
+    /**
+     * 构造具有指定状态、版本和计数投影的预占事实。
+     */
     private MerchantLimitReservationDO reservation(String mode) {
         MerchantLimitReservationDO reservation = new MerchantLimitReservationDO();
         reservation.setTransactionId("TX202607301000000000001");
@@ -95,6 +101,9 @@ class DefaultMerchantLimitReservationCounterServiceTests {
         return reservation;
     }
 
+    /**
+     * 提取 Redis 键哈希标签，验证多键脚本使用同一集群槽位。
+     */
     private String hashTag(String key) {
         int start = key.indexOf('{');
         int end = key.indexOf('}', start + 1);

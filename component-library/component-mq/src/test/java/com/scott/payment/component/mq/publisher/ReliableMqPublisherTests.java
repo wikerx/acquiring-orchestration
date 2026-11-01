@@ -28,18 +28,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqPublisherTests
- * @date : 2026-08-02 22:25
- * @email : scott_x@163.com
- * @description : 可靠 MQ 发布测试，验证冻结快照、即时投递触发和独立审计事务传播级别
- * @status : create
+ * 可靠 MQ 发布测试，验证冻结快照、即时投递触发和独立审计事务传播级别
  */
 @Slf4j
 class ReliableMqPublisherTests {
 
-    /** 提交回调只调度即时 Relay，不能在仍绑定原事务连接的请求线程内执行。 */
+    /**
+     * 提交回调只调度即时 Relay，不能在仍绑定原事务连接的请求线程内执行。
+     */
     @Test
     void shouldPersistFrozenMessageAndTriggerImmediateRelay() {
         log.info("测试可靠MQ消息入队，关键输入: 固定messageId和脱敏载荷");
@@ -78,7 +74,9 @@ class ReliableMqPublisherTests {
         log.info("可靠MQ消息入队测试完成，结果: INIT快照已保存且提交后异步触发Relay");
     }
 
-    /** Publisher 与 Relay 必须使用同一规范化服务名，避免消息写入后无法被当前服务扫描。 */
+    /**
+     * Publisher 与 Relay 必须使用同一规范化服务名，避免消息写入后无法被当前服务扫描。
+     */
     @Test
     void shouldNormalizeProducerServiceAndRejectBlankName() {
         ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
@@ -100,7 +98,9 @@ class ReliableMqPublisherTests {
                 .hasMessage("spring.application.name can not be blank");
     }
 
-    /** 冻结消息写入入口必须使用 REQUIRES_NEW，不能加入已经结束或随后会回滚的认证事务。 */
+    /**
+     * 冻结消息写入入口必须使用 REQUIRES_NEW，不能加入已经结束或随后会回滚的认证事务。
+     */
     @Test
     void preparedEventPublisherShouldRequireNewTransaction() throws NoSuchMethodException {
         log.info("测试独立审计事务传播，关键输入: ReliableMqPublisher.publishPreparedEvent");
@@ -113,7 +113,9 @@ class ReliableMqPublisherTests {
         log.info("独立审计事务传播测试完成，结果: 外层事务结束后REQUIRES_NEW");
     }
 
-    /** 外层事务结束前不得嵌套占用连接，回滚后仍应异步持久化冻结的审计消息。 */
+    /**
+     * 外层事务结束前不得嵌套占用连接，回滚后仍应异步持久化冻结的审计消息。
+     */
     @Test
     void shouldPersistIndependentAuditOnlyAfterOuterTransactionCompletes() {
         log.info("测试独立审计延迟入队，关键输入: 外层事务回滚、连接受限");
@@ -148,7 +150,9 @@ class ReliableMqPublisherTests {
         log.info("独立审计延迟入队测试完成，结果: 回滚后冻结消息已持久化");
     }
 
-    /** 相同事件号的业务载荷一致时允许幂等重放，不受新 traceId 和创建时间影响。 */
+    /**
+     * 相同事件号的业务载荷一致时允许幂等重放，不受新 traceId 和创建时间影响。
+     */
     @Test
     void shouldAcceptDuplicateEventWithSameBusinessPayload() {
         ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
@@ -168,7 +172,9 @@ class ReliableMqPublisherTests {
         verify(relay).relayEvent("MSG-OUTBOX-001");
     }
 
-    /** 相同事件号若指向不同业务载荷必须失败，禁止静默丢弃新消息。 */
+    /**
+     * 相同事件号若指向不同业务载荷必须失败，禁止静默丢弃新消息。
+     */
     @Test
     void shouldRejectDuplicateEventWithDifferentBusinessPayload() {
         ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
@@ -187,7 +193,9 @@ class ReliableMqPublisherTests {
                 .hasMessage("mq outbox event id conflicts with a different message");
     }
 
-    /** 构造带稳定业务字段和不同发布元数据的测试消息。 */
+    /**
+     * 构造带稳定业务字段和不同发布元数据的测试消息。
+     */
     private TestMqMessage testMessage(String businessKey) {
         TestMqMessage message = new TestMqMessage();
         message.setMessageId("MSG-OUTBOX-001");
@@ -198,7 +206,9 @@ class ReliableMqPublisherTests {
         return message;
     }
 
-    /** 构造数据库中已冻结的 Outbox 快照。 */
+    /**
+     * 构造数据库中已冻结的 Outbox 快照。
+     */
     private ReliableMqOutboxDO existingEvent(TestMqMessage message) {
         message.setCreatedAt(LocalDateTime.of(2026, 8, 1, 23, 0));
         message.setTraceId("TRACE-EXISTING");
@@ -212,11 +222,15 @@ class ReliableMqPublisherTests {
         return event;
     }
 
-    /** 测试专用消息，businessKey 代表必须参与冲突判断的业务载荷。 */
+    /**
+     * 测试专用消息，businessKey 代表必须参与冲突判断的业务载荷。
+     */
     @lombok.Getter
     @lombok.Setter
     private static class TestMqMessage extends BaseMqMessage {
-        /** 必须参与重复事件冲突判断的稳定业务键。 */
+        /**
+         * 必须参与重复事件冲突判断的稳定业务键。
+         */
         private String businessKey;
     }
 }

@@ -10,6 +10,9 @@ import com.scott.payment.component.db.reference.model.CardBrandRuleMatcher;
  */
 final class PaymentCardBrandRuleMatcher {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private PaymentCardBrandRuleMatcher() {
     }
 

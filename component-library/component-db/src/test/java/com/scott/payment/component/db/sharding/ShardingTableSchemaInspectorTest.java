@@ -15,21 +15,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTableSchemaInspectorTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 验证分表治理从实时建表元数据读取大号段 AUTO_INCREMENT，避免 MySQL information_schema 缓存造成误判。
- * @status : create
+ * 验证分表治理从实时建表元数据读取大号段 AUTO_INCREMENT，避免 MySQL information_schema 缓存造成误判。
  */
 class ShardingTableSchemaInspectorTest {
 
-    /** 用于验证治理表名白名单和 SHOW CREATE TABLE 查询的季度物理表名。 */
+    /**
+     * 用于验证治理表名白名单和 SHOW CREATE TABLE 查询的季度物理表名。
+     */
     private static final String TABLE_NAME = "transaction_order_202603";
-    /** 模板表与季度物理表允许使用不同的 CHECK 约束名。 */
+    /**
+     * 模板表与季度物理表允许使用不同的 CHECK 约束名。
+     */
     private static final String TEMPLATE_TABLE = "transaction_clearing_detail";
-    /** 季度物理表名，用于验证治理结构等价比较。 */
+    /**
+     * 季度物理表名，用于验证治理结构等价比较。
+     */
     private static final String PHYSICAL_TABLE = "transaction_clearing_detail_202603";
 
     @Test

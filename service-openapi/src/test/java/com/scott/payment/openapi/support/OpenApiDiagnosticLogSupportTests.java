@@ -12,13 +12,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiDiagnosticLogSupportTests
- * @date : 2026-08-03
- * @email : scott_x@163.com
- * @description : 验证商户 OpenAPI 诊断摘要不会泄露代付收款账户等敏感明文。
- * @status : create
+ * 验证商户 OpenAPI 诊断摘要只保留不可逆元数据，不泄露解密后的业务字段。
  */
 class OpenApiDiagnosticLogSupportTests {
 
@@ -28,6 +22,10 @@ class OpenApiDiagnosticLogSupportTests {
         request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.8");
         request.addHeader("X-Forwarded-For", "198.51.100.7, 10.0.0.2");
         request.addHeader("X-Real-IP", "192.0.2.9");
+        request.addHeader("Origin", "https://merchant.example/checkout?token=origin-secret");
+        request.addHeader("Referer", "https://merchant.example/pay?session=referer-secret");
+        request.addHeader("User-Agent", "merchant-browser-sensitive-marker");
+        request.addHeader("X-Request-Id", "merchant-request-sensitive-marker");
         request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         String summary = new OpenApiDiagnosticLogSupport().headerSummary(request);
@@ -40,11 +38,19 @@ class OpenApiDiagnosticLogSupportTests {
                 .doesNotContain("203.0.113.8")
                 .doesNotContain("198.51.100.7")
                 .doesNotContain("10.0.0.2")
-                .doesNotContain("192.0.2.9");
+                .doesNotContain("192.0.2.9")
+                .doesNotContain("origin-secret")
+                .doesNotContain("referer-secret")
+                .doesNotContain("merchant-browser-sensitive-marker")
+                .doesNotContain("merchant-request-sensitive-marker")
+                .contains("originDigest")
+                .contains("refererDigest")
+                .contains("userAgentDigest")
+                .contains("xRequestIdDigest");
     }
 
     @Test
-    void shouldMaskPayoutReceiverAccountNumberInPlainRequestSummary() {
+    void shouldOnlyExposeMetadataForDecryptedPayoutRequest() {
         PayoutCreateRequestDTO request = new PayoutCreateRequestDTO();
         request.setMerchantOrderNo("PAYOUT-LOG-MASK-001");
         request.setReceiverAccountNo("6222021234567890123");
@@ -53,12 +59,14 @@ class OpenApiDiagnosticLogSupportTests {
 
         assertThat(summary)
                 .doesNotContain("6222021234567890123")
-                .contains("6222******0123")
-                .contains("PAYOUT-LOG-MASK-001");
+                .doesNotContain("PAYOUT-LOG-MASK-001")
+                .contains("\"payloadType\":\"PayoutCreateRequestDTO\"")
+                .contains("\"jsonLength\":")
+                .contains("\"jsonDigest\":");
     }
 
     @Test
-    void shouldMaskReferenceLookupValuesInPlainSummaries() {
+    void shouldOnlyExposeMetadataForReferenceRequestAndResponse() {
         IpLookupRequestDTO ipRequest = new IpLookupRequestDTO();
         ipRequest.setIpAddress("2001:4860:4860::8888");
         CardBinLookupVO cardBinResponse = new CardBinLookupVO();
@@ -70,10 +78,10 @@ class OpenApiDiagnosticLogSupportTests {
         String responseSummary = support.plainResponseSummary(cardBinResponse);
 
         assertThat(requestSummary)
-                .contains("\"ipAddress\":\"***\"")
+                .contains("\"payloadType\":\"IpLookupRequestDTO\"")
                 .doesNotContain("2001:4860:4860::8888");
         assertThat(responseSummary)
-                .contains("\"cardBin\":\"***\"")
+                .contains("\"payloadType\":\"CardBinLookupVO\"")
                 .doesNotContain("411111");
     }
 
@@ -84,7 +92,7 @@ class OpenApiDiagnosticLogSupportTests {
 
         String summary = new OpenApiDiagnosticLogSupport().plainRequestSummary(request);
 
-        assertThat(summary).contains("\"cardBin\":\"***\"")
+        assertThat(summary).contains("\"payloadType\":\"CardBinLookupRequestDTO\"")
                 .doesNotContain("4111111234567890");
     }
 }

@@ -25,25 +25,29 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantEmailDeliveryServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Merchant 邮件消费者的重复消息吸收、CAS 抢占和失败退避。
- * @status : create
+ * 验证 Merchant 邮件消费者的重复消息吸收、CAS 抢占和失败退避。
  */
 class MerchantEmailDeliveryServiceTests {
 
-    /** 商户邮件记录 CAS Mapper。 */
+    /**
+     * 商户邮件记录 CAS Mapper。
+     */
     private MerchantEmailSendRecordMapper recordMapper;
-    /** 商户 SMTP 账户 Mapper。 */
+    /**
+     * 商户 SMTP 账户 Mapper。
+     */
     private MerchantEmailAccountMapper accountMapper;
-    /** SMTP 发送适配器。 */
+    /**
+     * SMTP 发送适配器。
+     */
     private MerchantSmtpEmailSender smtpEmailSender;
-    /** 邮件正文解密组件。 */
+    /**
+     * 邮件正文解密组件。
+     */
     private EmailPayloadCrypto payloadCrypto;
-    /** 被测 Merchant 邮件投递状态机。 */
+    /**
+     * 被测 Merchant 邮件投递状态机。
+     */
     private MerchantEmailDeliveryService deliveryService;
 
     @BeforeEach
@@ -90,7 +94,9 @@ class MerchantEmailDeliveryServiceTests {
         verify(recordMapper, never()).markDeliveryFailure(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
-    /** SMTP 已成功时，成功终态持久化异常不得误写为 SMTP 发送失败。 */
+    /**
+     * SMTP 已成功时，成功终态持久化异常不得误写为 SMTP 发送失败。
+     */
     @Test
     void shouldNotMarkDeliveryFailureWhenSuccessPersistenceFails() {
         MerchantEmailSendRecordDO record = record(EmailDeliveryStatus.PENDING);
@@ -138,7 +144,9 @@ class MerchantEmailDeliveryServiceTests {
                 eq("EMAIL_SEND_FAILED"), eq("IllegalStateException"));
     }
 
-    /** 超时预算超过恢复窗口时不得启动 SMTP，避免发送中记录被恢复任务重复抢占。 */
+    /**
+     * 超时预算超过恢复窗口时不得启动 SMTP，避免发送中记录被恢复任务重复抢占。
+     */
     @Test
     void shouldRejectSmtpTimeoutBudgetThatCanOverlapRecovery() {
         MerchantEmailSendRecordDO record = record(EmailDeliveryStatus.PENDING);

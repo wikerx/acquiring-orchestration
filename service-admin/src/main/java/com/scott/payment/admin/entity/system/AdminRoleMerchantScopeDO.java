@@ -3,13 +3,7 @@ package com.scott.payment.admin.entity.system;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRoleMerchantScopeDO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 有效 Admin 角色及其可选商户范围值的只读投影。
- * @status : create
+ * 有效 Admin 角色及其可选商户范围值的只读投影。
  */
 @Data
 public class AdminRoleMerchantScopeDO {

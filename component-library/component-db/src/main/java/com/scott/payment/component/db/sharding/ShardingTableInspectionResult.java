@@ -3,13 +3,7 @@ package com.scott.payment.component.db.sharding;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTableInspectionResult
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表inspection协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 分表表inspection协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  */
 @Data
 public class ShardingTableInspectionResult {
@@ -44,10 +38,14 @@ public class ShardingTableInspectionResult {
      */
     private boolean shardingColumnExists;
 
-    /** 分片时间字段是否为 DATETIME(3)。 */
+    /**
+     * 分片时间字段是否为 DATETIME(3)。
+     */
     private boolean shardingColumnPrecisionMatched;
 
-    /** 表字符集是否为 utf8mb4。 */
+    /**
+     * 表字符集是否为 utf8mb4。
+     */
     private boolean charsetMatched;
 
     /**

@@ -7,13 +7,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingKeyParserTest
- * @date : 2026-07-21 00:00
- * @email : scott_x@163.com
- * @description : 交易分表键时间片解析测试，覆盖第一版无前缀交易号、OP 生命周期号和旧前缀拒绝规则。
- * @status : create
+ * 交易分表键时间片解析测试，覆盖第一版无前缀交易号、OP 生命周期号和旧前缀拒绝规则。
  */
 class TransactionShardingKeyParserTest {
 

@@ -9,13 +9,7 @@ import org.mapstruct.ReportingPolicy;
 import org.mapstruct.factory.Mappers;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiIsoDictionaryConverter
- * @date : 2026-09-30 00:00
- * @email : scott_x@163.com
- * @description : 将 ISO 公共字典信息映射为商户 OpenAPI 响应，保留可选字段的 null 值。
- * @status : create
+ * 将 ISO 公共字典信息映射为商户 OpenAPI 响应，保留可选字段的 null 值。
  */
 @Mapper(unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface OpenApiIsoDictionaryConverter {

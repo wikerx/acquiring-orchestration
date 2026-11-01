@@ -13,13 +13,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardBinRangeIndexInitializer
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的 Card BIN 分片索引初始化器，允许任一查询服务独立补齐同一份 Redis 快照
- * @status : create
+ * 支付与 OpenAPI 共用的 Card BIN 分片索引初始化器，允许任一查询服务独立补齐同一份 Redis 快照
  */
 @Slf4j
 @Component
@@ -31,7 +25,21 @@ import java.time.Duration;
         matchIfMissing = false)
 public class CardBinRangeIndexInitializer implements ApplicationRunner {
 
+    /**
+     * {@code CACHE_NAMESPACE}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CACHE_NAMESPACE = "card-bin-range";
+    /**
+     * {@code INITIALIZATION_GATE_TTL}常量，统一 {@code CardBinRangeIndexInitializer} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Duration INITIALIZATION_GATE_TTL = Duration.ofMinutes(30);
 
     private final CardBinRangeIndex rangeIndex;

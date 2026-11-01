@@ -1,13 +1,7 @@
 package com.scott.payment.component.core.cache;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisKeyResolver
- * @date : 2026-07-30 21:10
- * @email : scott_x@163.com
- * @description : 跨组件 Redis 业务 Key 解析契约，使数据组件复用统一环境前缀而不依赖 Redis 实现模块
- * @status : create
+ * 跨组件 Redis 业务 Key 解析契约，使数据组件复用统一环境前缀而不依赖 Redis 实现模块
  */
 public interface PaymentRedisKeyResolver {
 

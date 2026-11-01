@@ -17,13 +17,7 @@ import com.scott.payment.channel.payment.exception.ChannelUnsupportedOperationEx
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelClient
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道客户端 SPI，位于 payment-channel-api API 层，用于统一授权、支付、请款、退款、撤销、冲正和查询等渠道能力。
- * @status : create
+ * 收单渠道客户端 SPI，位于 payment-channel-api API 层，用于统一授权、支付、请款、退款、撤销、冲正和查询等渠道能力。
  */
 public interface PaymentChannelClient {
 

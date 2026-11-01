@@ -17,17 +17,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionQueryCacheInvalidationConsumerTests
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 验证交易查询缓存 MQ 失效对重复投递和 Redis 失败的消费契约。
- * @status : create
+ * 验证交易查询缓存 MQ 失效对重复投递和 Redis 失败的消费契约。
  */
 class TransactionQueryCacheInvalidationConsumerTests {
 
-    /** 查询缓存失效必须跟随同一交易 FIFO 队列顺序消费生命周期事件。 */
+    /**
+     * 查询缓存失效必须跟随同一交易 FIFO 队列顺序消费生命周期事件。
+     */
     @Test
     void listenerContractShouldUsePaymentTransactionFifoTopicAndOrderlyMode() {
         RocketMQMessageListener listener = TransactionQueryCacheInvalidationConsumer.class

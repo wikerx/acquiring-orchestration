@@ -7,13 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HolidayCalendarExportRow
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 中国大陆结算节假日日历导出行。
- * @status : create
+ * 中国大陆结算节假日日历导出行。
  */
 @Data
 public class HolidayCalendarExportRow {

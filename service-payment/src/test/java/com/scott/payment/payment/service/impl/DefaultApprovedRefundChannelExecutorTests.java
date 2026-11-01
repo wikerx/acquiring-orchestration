@@ -36,17 +36,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultApprovedRefundChannelExecutorTests
- * @date : 2026-08-06
- * @email : scott_x@163.com
- * @description : 已批准退款渠道执行测试，锁定固定渠道恢复、请求身份复用和未知结果非终态语义。
- * @status : create
+ * 已批准退款渠道执行测试，锁定固定渠道恢复、请求身份复用和未知结果非终态语义。
  */
 class DefaultApprovedRefundChannelExecutorTests {
 
-    /** 审批后的首次执行必须复用受理事务保存的渠道和请求身份。 */
+    /**
+     * 审批后的首次执行必须复用受理事务保存的渠道和请求身份。
+     */
     @Test
     void shouldRestoreFixedRouteAndReusePreparedRequestIdentity() {
         Fixture fixture = new Fixture();
@@ -79,7 +75,9 @@ class DefaultApprovedRefundChannelExecutorTests {
                 eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), eq(new BigDecimal("2.50")), eq("USD"), any());
     }
 
-    /** 渠道超时且结果未知时必须保留处理中，禁止误记失败。 */
+    /**
+     * 渠道超时且结果未知时必须保留处理中，禁止误记失败。
+     */
     @Test
     void shouldKeepOutcomeUncertainTimeoutProcessing() {
         Fixture fixture = new Fixture();
@@ -105,7 +103,9 @@ class DefaultApprovedRefundChannelExecutorTests {
                 eq(PaymentTransactionStatusEnum.PROCESSING.getCode()), eq(new BigDecimal("2.50")), eq("USD"), any());
     }
 
-    /** 渠道响应已明确拒绝退款时可以形成失败终态，但必须保留渠道拒绝来源。 */
+    /**
+     * 渠道响应已明确拒绝退款时可以形成失败终态，但必须保留渠道拒绝来源。
+     */
     @Test
     void shouldPersistConfirmedChannelDeclineAsFailed() {
         Fixture fixture = new Fixture();
@@ -128,7 +128,9 @@ class DefaultApprovedRefundChannelExecutorTests {
         assertThat(preparation.getResultDTO().getPendingReasonCode()).isNull();
     }
 
-    /** 并发回调先完成退款时，审批执行器必须从主库回读并以持久化终态完成幂等快照。 */
+    /**
+     * 并发回调先完成退款时，审批执行器必须从主库回读并以持久化终态完成幂等快照。
+     */
     @Test
     void shouldUsePrimaryPersistedResultWhenConcurrentCallbackWins() {
         Fixture fixture = new Fixture();

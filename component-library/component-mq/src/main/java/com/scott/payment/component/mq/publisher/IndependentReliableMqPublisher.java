@@ -10,24 +10,24 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IndependentReliableMqPublisher
- * @date : 2026-08-02 22:15
- * @email : scott_x@163.com
- * @description : 冻结安全、登录和操作审计消息，并在外层事务结束后使用独立事务可靠入队
- * @status : create
+ * 冻结安全、登录和操作审计消息，并在外层事务结束后使用独立事务可靠入队
  */
 @Slf4j
 @Service
 public class IndependentReliableMqPublisher {
 
-    /** 当前事务型可靠发布器。 */
+    /**
+     * 当前事务型可靠发布器。
+     */
     private final ReliableMqPublisher delegate;
-    /** 事务完成后执行独立 Outbox 持久化的受控线程池。 */
+    /**
+     * 事务完成后执行独立 Outbox 持久化的受控线程池。
+     */
     private final TaskExecutor outboxExecutor;
 
-    /** 创建独立事务可靠发布器。 */
+    /**
+     * 创建独立事务可靠发布器。
+     */
     public IndependentReliableMqPublisher(
             ReliableMqPublisher delegate,
             @Qualifier("reliableMqOutboxRelayExecutor") TaskExecutor outboxExecutor) {
@@ -61,7 +61,9 @@ public class IndependentReliableMqPublisher {
         return event.getEventId();
     }
 
-    /** 将冻结消息交给独立线程，避免调用方事务连接与独立事务形成连接池嵌套占用。 */
+    /**
+     * 将冻结消息交给独立线程，避免调用方事务连接与独立事务形成连接池嵌套占用。
+     */
     private void schedulePersistence(ReliableMqOutboxDO event) {
         try {
             outboxExecutor.execute(() -> persistSafely(event));
@@ -72,7 +74,9 @@ public class IndependentReliableMqPublisher {
         }
     }
 
-    /** 保存冻结消息；异常只记录类型，不能覆盖原业务结果或泄露消息载荷。 */
+    /**
+     * 保存冻结消息；异常只记录类型，不能覆盖原业务结果或泄露消息载荷。
+     */
     private void persistSafely(ReliableMqOutboxDO event) {
         try {
             delegate.publishPreparedEvent(event);

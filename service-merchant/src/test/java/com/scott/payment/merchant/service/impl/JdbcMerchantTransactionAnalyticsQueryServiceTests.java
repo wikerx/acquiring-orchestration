@@ -30,18 +30,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantTransactionAnalyticsQueryServiceTests
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 商户端交易分析隔离测试，验证所有统计绑定认证商户号且失败分析不读取内部或渠道失败字段。
- * @status : create
+ * 商户端交易分析隔离测试，验证所有统计绑定认证商户号且失败分析不读取内部或渠道失败字段。
  */
 @Slf4j
 class JdbcMerchantTransactionAnalyticsQueryServiceTests {
 
-    /** 商户总览的全部 SQL 必须包含 merchant_id 谓词并绑定认证商户号。 */
+    /**
+     * 商户总览的全部 SQL 必须包含 merchant_id 谓词并绑定认证商户号。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void overviewShouldBindAuthenticatedMerchantInEveryQuery() throws Exception {
@@ -80,7 +76,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
         log.info("结果：本期、上期主查询和6条列表查询均绑定merchant-a，支付工具分组兼容MySQL严格模式");
     }
 
-    /** 失败原因聚合只能读取商户可见消息，不得引用内部原因或渠道响应。 */
+    /**
+     * 失败原因聚合只能读取商户可见消息，不得引用内部原因或渠道响应。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void failuresShouldOnlyUseMerchantVisibleMessage() throws Exception {
@@ -106,7 +104,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
         log.info("结果：失败原因SQL仅使用merchant_visible_message，未读取内部或渠道字段");
     }
 
-    /** 支付品牌和查询时区必须绑定到商户隔离 SQL，页面时间转换为存储时区。 */
+    /**
+     * 支付品牌和查询时区必须绑定到商户隔离 SQL，页面时间转换为存储时区。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void overviewShouldBindPaymentBrandAndConvertQueryTimezone() throws Exception {
@@ -149,7 +149,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
         log.info("结果：认证商户隔离条件保留，UTC本期和向前平移7天的上期区间均转换为存储时区");
     }
 
-    /** 今天和近三十天必须分别向前平移一日、三十日，并保留当前时刻进度。 */
+    /**
+     * 今天和近三十天必须分别向前平移一日、三十日，并保留当前时刻进度。
+     */
     @Test
     void overviewShouldAlignTodayAndThirtyDayComparisonWindows() throws Exception {
         log.info("用例：验证今天和近三十天使用等长同进度上一周期");
@@ -168,7 +170,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
         log.info("结果：今天向前平移1日，近三十天向前平移30日，结束时刻进度保持一致");
     }
 
-    /** 上一期金额必须按币种和精度分别比较，并正确处理新增及归零场景。 */
+    /**
+     * 上一期金额必须按币种和精度分别比较，并正确处理新增及归零场景。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void overviewShouldCompareAlignedPeriodAmountsWithoutCrossCurrencyAggregation() {
@@ -227,7 +231,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
         log.info("结果：USD独立上涨25%，JPY识别为新增，EUR独立下降至零，未发生跨币种合并");
     }
 
-    /** 缺少认证商户号时必须在执行 SQL 前失败。 */
+    /**
+     * 缺少认证商户号时必须在执行 SQL 前失败。
+     */
     @Test
     void overviewShouldRejectMissingMerchantBeforeSql() {
         log.info("用例：验证缺少认证商户号时拒绝执行统计查询");
@@ -249,7 +255,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
         return query;
     }
 
-    /** 执行指定区间总览并校验服务端生成的上一周期查询边界。 */
+    /**
+     * 执行指定区间总览并校验服务端生成的上一周期查询边界。
+     */
     @SuppressWarnings("unchecked")
     private void assertComparisonWindow(LocalDateTime beginTime,
                                         LocalDateTime endTime,
@@ -281,7 +289,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
                 .containsExactly(endTime, expectedPreviousEnd);
     }
 
-    /** 构造测试使用的总览计数结果。 */
+    /**
+     * 构造测试使用的总览计数结果。
+     */
     private OverviewResponse summary(long total,
                                      long success,
                                      long failed,
@@ -298,7 +308,9 @@ class JdbcMerchantTransactionAnalyticsQueryServiceTests {
         return response;
     }
 
-    /** 构造单币种成功金额测试数据。 */
+    /**
+     * 构造单币种成功金额测试数据。
+     */
     private AmountMetric amount(String currency, int exponent, String amount, long successCount) {
         AmountMetric metric = new AmountMetric();
         metric.setCurrency(currency);

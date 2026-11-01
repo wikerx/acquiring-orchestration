@@ -12,16 +12,13 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuntimeMapperShardingContractTests
- * @date : 2026-08-02 03:40
- * @email : scott_x@163.com
- * @description : 校验 Risk 交易逻辑表 SQL 按商户、币种和时间范围路由，禁止主路径动态拼接物理表。
- * @status : create
+ * 校验 Risk 交易逻辑表 SQL 按商户、币种和时间范围路由，禁止主路径动态拼接物理表。
  */
 class RiskRuntimeMapperShardingContractTests {
 
+    /**
+     * 验证金额聚合按商户和币种隔离，并使用左闭右开时间区间。
+     */
     @Test
     void amountAggregationShouldIsolateMerchantCurrencyAndHalfOpenTimeRange() throws NoSuchMethodException {
         Method method = RiskRuntimeMapper.class.getMethod(
@@ -47,6 +44,9 @@ class RiskRuntimeMapperShardingContractTests {
                 .doesNotContain("${", "UNION ALL", "&lt;&gt;");
     }
 
+    /**
+     * 验证交易状态查询只访问业务时间所属的单一逻辑季度范围。
+     */
     @Test
     void statusLookupShouldUseOneLogicalQuarterRange() throws NoSuchMethodException {
         Method method = RiskRuntimeMapper.class.getMethod(
@@ -67,6 +67,9 @@ class RiskRuntimeMapperShardingContractTests {
                 .doesNotContain("${", "UNION ALL");
     }
 
+    /**
+     * 读取 Mapper 方法上的 Select 注解 SQL 供分片契约断言。
+     */
     private static String selectSql(Method method) {
         Select annotation = method.getAnnotation(Select.class);
         assertThat(annotation).isNotNull();

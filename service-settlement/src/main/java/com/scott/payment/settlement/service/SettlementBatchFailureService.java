@@ -3,13 +3,7 @@ package com.scott.payment.settlement.service;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchFailureService
- * @date : 2026-08-26 23:40
- * @email : scott_x@163.com
- * @description : 结算批次失败分类与数据库补偿边界，负责重试退避或不可逆转入人工复核。
- * @status : create
+ * 结算批次失败分类与数据库补偿边界，负责重试退避或不可逆转入人工复核。
  */
 public interface SettlementBatchFailureService {
 

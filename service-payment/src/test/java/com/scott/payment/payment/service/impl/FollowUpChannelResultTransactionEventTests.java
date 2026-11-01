@@ -26,18 +26,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FollowUpChannelResultTransactionEventTests
- * @date : 2026-08-02 23:00
- * @email : scott_x@163.com
- * @description : 后续交易渠道结果事件回归测试，验证终态 CAS 与商户通知触发 Outbox 在同一事务编排中只写一次
- * @status : create
+ * 后续交易渠道结果事件回归测试，验证终态 CAS 与商户通知触发 Outbox 在同一事务编排中只写一次
  */
 @Slf4j
 class FollowUpChannelResultTransactionEventTests {
 
-    /** Capture 终态 CAS 只有首次成功时写状态变更事件。 */
+    /**
+     * Capture 终态 CAS 只有首次成功时写状态变更事件。
+     */
     @Test
     void shouldSaveCaptureTerminalEventOnlyWhenStatusChanges() {
         log.info("测试 Capture 终态事件，关键输入: 首次 CAS 成功、重复 CAS 失败");
@@ -58,7 +54,9 @@ class FollowUpChannelResultTransactionEventTests {
         log.info("Capture 终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
 
-    /** Refund 终态 CAS 只有首次成功时写状态变更事件。 */
+    /**
+     * Refund 终态 CAS 只有首次成功时写状态变更事件。
+     */
     @Test
     void shouldSaveRefundTerminalEventOnlyWhenStatusChanges() {
         log.info("测试 Refund 终态事件，关键输入: 首次 CAS 成功、重复 CAS 失败");
@@ -79,7 +77,9 @@ class FollowUpChannelResultTransactionEventTests {
         log.info("Refund 终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
 
-    /** Void 终态 CAS 只有首次成功时写状态变更事件。 */
+    /**
+     * Void 终态 CAS 只有首次成功时写状态变更事件。
+     */
     @Test
     void shouldSaveVoidTerminalEventOnlyWhenStatusChanges() {
         log.info("测试 Void 终态事件，关键输入: 首次 CAS 成功、重复 CAS 失败");
@@ -100,7 +100,9 @@ class FollowUpChannelResultTransactionEventTests {
         log.info("Void 终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
 
-    /** Incremental Authorization 终态 CAS 只有首次成功时写状态变更事件。 */
+    /**
+     * Incremental Authorization 终态 CAS 只有首次成功时写状态变更事件。
+     */
     @Test
     void shouldSaveIncrementalAuthorizationTerminalEventOnlyWhenStatusChanges() {
         log.info("测试增额授权终态事件，关键输入: 首次 CAS 成功、重复 CAS 失败");
@@ -125,7 +127,9 @@ class FollowUpChannelResultTransactionEventTests {
         log.info("增额授权终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
 
-    /** 构造可按真实交易时间定位动作单的记录服务。 */
+    /**
+     * 构造可按真实交易时间定位动作单的记录服务。
+     */
     private TransactionRecordService recordServiceWithOperation() {
         TransactionRecordService recordService = mock(TransactionRecordService.class);
         TransactionOperationDO operationDO = new TransactionOperationDO();
@@ -140,7 +144,9 @@ class FollowUpChannelResultTransactionEventTests {
         return recordService;
     }
 
-    /** 填充不同后续交易准备结果共享的事件身份。 */
+    /**
+     * 填充不同后续交易准备结果共享的事件身份。
+     */
     private void fillPreparation(Object preparation, String transactionType) {
         PaymentCreateCommandDTO command = new PaymentCreateCommandDTO();
         command.setMerchantId("M200001");
@@ -167,7 +173,9 @@ class FollowUpChannelResultTransactionEventTests {
         }
     }
 
-    /** 验证结果事务只使用主库权威事实发起 CAS，不能依赖延迟副本或准备阶段旧快照。 */
+    /**
+     * 验证结果事务只使用主库权威事实发起 CAS，不能依赖延迟副本或准备阶段旧快照。
+     */
     private void verifyPrimaryReads(TransactionRecordService recordService) {
         verify(recordService, times(2))
                 .findSourceOperationByTransactionIdPrimary("TX1001", transactionDateTime());
@@ -176,7 +184,9 @@ class FollowUpChannelResultTransactionEventTests {
         verify(recordService, never()).findOrder(transactionDateTime(), "OP1001");
     }
 
-    /** 验证同一终态只产生一次可精确路由的事件。 */
+    /**
+     * 验证同一终态只产生一次可精确路由的事件。
+     */
     private void verifyTerminalEvent(TransactionLifecycleEventService eventService,
                                      String transactionType) {
         verify(eventService, times(1)).saveStatusChanged(
@@ -197,7 +207,9 @@ class FollowUpChannelResultTransactionEventTests {
                 transactionDateTime());
     }
 
-    /** 返回固定毫秒级分片时间，证明事件不依赖交易号解析。 */
+    /**
+     * 返回固定毫秒级分片时间，证明事件不依赖交易号解析。
+     */
     private LocalDateTime transactionDateTime() {
         return LocalDateTime.of(2026, 8, 2, 23, 0, 0, 417_000_000);
     }

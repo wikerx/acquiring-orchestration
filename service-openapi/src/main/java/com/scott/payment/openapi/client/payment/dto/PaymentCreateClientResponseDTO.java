@@ -9,13 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCreateClientResponseDTO
- * @date : 2026-05-31 21:11
- * @email : scott_x@163.com
- * @description : service-payment 创建收单交易的内部响应参数，返回商户 OpenAPI 需要回显的订单、交易、金额、卡品牌和平台响应码摘要；operationId 仅内部使用，不返回商户。
- * @status : create
+ * service-payment 创建收单交易的内部响应参数，返回商户 OpenAPI 需要回显的订单、交易、金额、卡品牌和平台响应码摘要；operationId 仅内部使用，不返回商户。
  */
 @Data
 public class PaymentCreateClientResponseDTO implements Serializable {
@@ -35,7 +29,9 @@ public class PaymentCreateClientResponseDTO implements Serializable {
      */
     private String sourceTransactionId;
 
-    /** 源交易发生时间，由 payment 服务自动定位。 */
+    /**
+     * 源交易发生时间，由 payment 服务自动定位。
+     */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime sourceTransactionDateTime;
 
@@ -59,16 +55,24 @@ public class PaymentCreateClientResponseDTO implements Serializable {
      */
     private String merchantId;
 
-    /** 首次交易保存的商品或服务明细。 */
+    /**
+     * 首次交易保存的商品或服务明细。
+     */
     private List<PaymentCreateClientRequestDTO.GoodsInfoDTO> goodsInfo;
 
-    /** 首次交易保存的持卡人账单信息。 */
+    /**
+     * 首次交易保存的持卡人账单信息。
+     */
     private PaymentCreateClientRequestDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 首次交易保存的付款人信息。 */
+    /**
+     * 首次交易保存的付款人信息。
+     */
     private PaymentCreateClientRequestDTO.PayerInfoDTO payerInfo;
 
-    /** 首次交易保存的收货人信息。 */
+    /**
+     * 首次交易保存的收货人信息。
+     */
     private PaymentCreateClientRequestDTO.ShippingInfoDTO shippingInfo;
 
     /**
@@ -206,16 +210,24 @@ public class PaymentCreateClientResponseDTO implements Serializable {
      */
     private String settlementCurrency;
 
-    /** 已形成的结算换汇汇率。 */
+    /**
+     * 已形成的结算换汇汇率。
+     */
     private BigDecimal settlementRate;
 
-    /** 已形成的结算费用金额。 */
+    /**
+     * 已形成的结算费用金额。
+     */
     private BigDecimal settlementFeeAmount;
 
-    /** 已形成的费用明细。 */
+    /**
+     * 已形成的费用明细。
+     */
     private List<FeeItemDTO> feeItems;
 
-    /** 可向商户返回的 3DS 安全字段子集。 */
+    /**
+     * 可向商户返回的 3DS 安全字段子集。
+     */
     private ThreeDsInfoDTO threeDSInfo;
 
     /**
@@ -224,7 +236,9 @@ public class PaymentCreateClientResponseDTO implements Serializable {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
-    /** 生命周期根主单的分片时间，后续动作必须原样回传。 */
+    /**
+     * 生命周期根主单的分片时间，后续动作必须原样回传。
+     */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime rootTransactionDateTime;
 
@@ -273,20 +287,18 @@ public class PaymentCreateClientResponseDTO implements Serializable {
      */
     private String merchantWebsite;
 
-    /** Hosted Checkout 结果页返回地址。 */
+    /**
+     * Hosted Checkout 结果页返回地址。
+     */
     private String redirectUrl;
 
-    /** Hosted Checkout 创建会话语言。 */
+    /**
+     * Hosted Checkout 创建会话语言。
+     */
     private String language;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ThreeDsInfoDTO
-     * @date : 2026-05-31 21:11
-     * @email : scott_x@163.com
-     * @description : threeds信息传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
-     * @status : create
+     * 支付核心返回的 3DS 认证状态和责任转移结果。
      */
     @Data
     public static class ThreeDsInfoDTO implements Serializable {
@@ -335,13 +347,7 @@ public class PaymentCreateClientResponseDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : FeeItemDTO
-     * @date : 2026-05-31 21:11
-     * @email : scott_x@163.com
-     * @description : 费用明细传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
-     * @status : create
+     * 支付核心已计算完成的单项费用金额、币种和适用汇率。
      */
     @Data
     public static class FeeItemDTO implements Serializable {
@@ -383,13 +389,7 @@ public class PaymentCreateClientResponseDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : SubMerchantInfoDTO
-     * @date : 2026-05-31 21:11
-     * @email : scott_x@163.com
-     * @description : 支付核心响应中的子商户快照 DTO，回传交易创建时冻结的子商户标识和展示信息。
-     * @status : create
+     * 支付核心响应中的子商户快照 DTO，回传交易创建时冻结的子商户标识和展示信息。
      */
     @Data
     public static class SubMerchantInfoDTO implements Serializable {

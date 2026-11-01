@@ -4,13 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTemplateEmailService
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户模板邮件服务，位于 service-merchant 服务层；复用管理系统邮件模板配置发送商户安全通知并落发送记录。
- * @status : create
+ * 商户模板邮件服务，位于 service-merchant 服务层；复用管理系统邮件模板配置发送商户安全通知并落发送记录。
  */
 public interface MerchantTemplateEmailService {
 

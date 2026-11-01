@@ -22,13 +22,7 @@ import java.time.Duration;
 import java.util.function.LongSupplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayIngressAuthFilter
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 收银台下游入口过滤器，在控制器前拒绝未经过 service-gateway 签发的公网业务请求。
- * @status : create
+ * 收银台下游入口过滤器，在控制器前拒绝未经过 service-gateway 签发的公网业务请求。
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 30)
@@ -47,11 +41,15 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
     private final InternalRequestReplayGuard replayGuard;
     private final LongSupplier currentTimeMillis;
 
-    /** 入口验签成功后写入的可信请求属性。 */
+    /**
+     * 入口验签成功后写入的可信请求属性。
+     */
     public static final String GATEWAY_AUTHENTICATED_ATTRIBUTE =
             GatewayIngressAuthFilter.class.getName() + ".AUTHENTICATED";
 
-    /** v2 入口验签成功后写入，表示客户端 IP 已包含在 HMAC 规范文本中。 */
+    /**
+     * v2 入口验签成功后写入，表示客户端 IP 已包含在 HMAC 规范文本中。
+     */
     public static final String GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE =
             GatewayIngressAuthFilter.class.getName() + ".CLIENT_IP_AUTHENTICATED";
 
@@ -155,18 +153,24 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    /** 判断当前请求是否已通过 Gateway 入口验签。 */
+    /**
+     * 判断当前请求是否已通过 Gateway 入口验签。
+     */
     public static boolean isGatewayAuthenticated(HttpServletRequest request) {
         return request != null && Boolean.TRUE.equals(request.getAttribute(GATEWAY_AUTHENTICATED_ATTRIBUTE));
     }
 
-    /** 判断客户端 IP 是否已经由 Gateway v2 HMAC 绑定，旧签名通过时仍返回 false。 */
+    /**
+     * 判断客户端 IP 是否已经由 Gateway v2 HMAC 绑定，旧签名通过时仍返回 false。
+     */
     public static boolean isGatewayClientIpAuthenticated(HttpServletRequest request) {
         return request != null
                 && Boolean.TRUE.equals(request.getAttribute(GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE));
     }
 
-    /** 仅对各服务显式配置的收银台入口执行验签。 */
+    /**
+     * 仅对各服务显式配置的收银台入口执行验签。
+     */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();

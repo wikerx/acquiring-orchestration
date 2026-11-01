@@ -10,13 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionIdempotencyDO
- * @date : 2026-07-12 18:20
- * @email : scott_x@163.com
- * @description : 交易幂等记录实体，位于 service-payment 持久化层，用数据库唯一约束兜底资金类请求的重复提交。
- * @status : create
+ * 交易幂等记录实体，位于 service-payment 持久化层，用数据库唯一约束兜底资金类请求的重复提交。
  */
 @Data
 @TableName("transaction_idempotency")

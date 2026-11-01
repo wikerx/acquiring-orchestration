@@ -67,13 +67,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentTransactionServiceImplTests
- * @date : 2026-07-12 20:50
- * @email : scott_x@163.com
- * @description : 收单交易服务单元测试，验证创建授权交易时的幂等、风控短路、渠道路由和渠道响应状态映射。
- * @status : create
+ * 收单交易服务单元测试，验证创建授权交易时的幂等、风控短路、渠道路由和渠道响应状态映射。
  */
 @Slf4j
 class PaymentTransactionServiceImplTests {
@@ -972,7 +966,9 @@ class PaymentTransactionServiceImplTests {
                 .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
     }
 
-    /** 后续动作必须使用调用链传入的动作时间和根主单时间，禁止从平台交易号解析分片。 */
+    /**
+     * 后续动作必须使用调用链传入的动作时间和根主单时间，禁止从平台交易号解析分片。
+     */
     @Test
     void shouldLocateSourceOrderWithExplicitActionAndRootShardingTimes() {
         CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
@@ -998,7 +994,9 @@ class PaymentTransactionServiceImplTests {
         assertThat(channelInvokeService.commandDTO).isSameAs(commandDTO);
     }
 
-    /** 缺少显式源交易分片时间时必须拒绝，不能退回交易号解析。 */
+    /**
+     * 缺少显式源交易分片时间时必须拒绝，不能退回交易号解析。
+     */
     @Test
     void shouldRejectFollowUpWhenSourceTransactionDateTimeIsMissing() {
         PaymentTransactionServiceImpl service = newService(
@@ -1619,25 +1617,45 @@ class PaymentTransactionServiceImplTests {
         private PaymentChannelInvokeResultDTO resultChannelInvokeResultDTO;
 
         private PaymentCreateResultDTO resultDTO;
-        /** 恢复已准备交易时读取原资金渠道请求的次数。 */
+        /**
+         * 恢复已准备交易时读取原资金渠道请求的次数。
+         */
         private int originalChannelRequestLookups;
-        /** 最近一次源交易查询收到的平台交易号。 */
+        /**
+         * 最近一次源交易查询收到的平台交易号。
+         */
         private String sourceLookupTransactionId;
-        /** 最近一次源交易查询收到的动作真实分片时间。 */
+        /**
+         * 最近一次源交易查询收到的动作真实分片时间。
+         */
         private LocalDateTime sourceLookupDateTime;
-        /** 最近一次源交易查询收到的生命周期主单真实分片时间。 */
+        /**
+         * 最近一次源交易查询收到的生命周期主单真实分片时间。
+         */
         private LocalDateTime rootLookupDateTime;
-        /** 模拟数据库 INIT -> SENT 抢占结果。 */
+        /**
+         * 模拟数据库 INIT -> SENT 抢占结果。
+         */
         private boolean submissionClaimAllowed = true;
-        /** 渠道提交抢占次数。 */
+        /**
+         * 渠道提交抢占次数。
+         */
         private int submissionClaimCount;
-        /** 主库已提交的权威状态；为空时保持普通测试事实。 */
+        /**
+         * 主库已提交的权威状态；为空时保持普通测试事实。
+         */
         private String authoritativeTransactionStatus;
-        /** 恢复路径从主库读取动作单的次数。 */
+        /**
+         * 恢复路径从主库读取动作单的次数。
+         */
         private int primaryOperationLookups;
-        /** 恢复路径从主库读取主单的次数。 */
+        /**
+         * 恢复路径从主库读取主单的次数。
+         */
         private int primaryOrderLookups;
-        /** 恢复路径从主库读取原渠道请求的次数。 */
+        /**
+         * 恢复路径从主库读取原渠道请求的次数。
+         */
         private int primaryChannelRequestLookups;
 
         private PaymentRiskDecisionEnum riskDecisionEnum;
@@ -1675,7 +1693,9 @@ class PaymentTransactionServiceImplTests {
             this.currencyExponent = currencyExponent;
         }
 
-        /** 模拟 INIT 渠道请求的数据库 CAS 抢占成功，允许当前调用方执行一次 PSP 请求。 */
+        /**
+         * 模拟 INIT 渠道请求的数据库 CAS 抢占成功，允许当前调用方执行一次 PSP 请求。
+         */
         @Override
         public boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
             submissionClaimCount++;
@@ -1701,7 +1721,9 @@ class PaymentTransactionServiceImplTests {
             this.currencyExponent = currencyExponent;
         }
 
-        /** 模拟首次交易渠道结果 CAS 成功，并保留结果供后续断言。 */
+        /**
+         * 模拟首次交易渠道结果 CAS 成功，并保留结果供后续断言。
+         */
         @Override
         public boolean completeInitialChannelResultAndReport(PaymentCreateCommandDTO commandDTO,
                                                              PaymentRouteResultDTO routeResultDTO,
@@ -1714,7 +1736,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
-        /** 模拟渠道提交前本地失败对 INIT 请求的 CAS 抢占成功。 */
+        /**
+         * 模拟渠道提交前本地失败对 INIT 请求的 CAS 抢占成功。
+         */
         @Override
         public boolean claimInitialPreChannelFailure(String requestId, LocalDateTime transactionDateTime) {
             return StringUtils.hasText(requestId) && transactionDateTime != null;
@@ -2020,7 +2044,9 @@ class PaymentTransactionServiceImplTests {
             this.resultDTO = recordDTO.getResultDTO();
         }
 
-        /** 模拟 Capture 动作 CAS 成功。 */
+        /**
+         * 模拟 Capture 动作 CAS 成功。
+         */
         @Override
         public boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
                                                     TransactionOrderDO sourceOrderDO,
@@ -2033,7 +2059,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
-        /** 模拟 Refund 动作 CAS 成功。 */
+        /**
+         * 模拟 Refund 动作 CAS 成功。
+         */
         @Override
         public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
                                                    TransactionOrderDO sourceOrderDO,
@@ -2046,7 +2074,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
-        /** 模拟 Void 动作 CAS 成功。 */
+        /**
+         * 模拟 Void 动作 CAS 成功。
+         */
         @Override
         public boolean completeVoidChannelResult(TransactionOperationDO operationDO,
                                                  TransactionOrderDO sourceOrderDO,
@@ -2059,7 +2089,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
-        /** 模拟 Incremental Authorization 动作 CAS 成功。 */
+        /**
+         * 模拟 Incremental Authorization 动作 CAS 成功。
+         */
         @Override
         public boolean completeIncrementalAuthorizationChannelResult(TransactionOperationDO operationDO,
                                                                      TransactionOrderDO sourceOrderDO,
@@ -2113,7 +2145,9 @@ class PaymentTransactionServiceImplTests {
 
     private static class CapturingTransactionEventOutboxService implements TransactionEventOutboxService {
 
-        /** 按事务写入顺序捕获全部事件，验证创建事件和终态事件的先后关系。 */
+        /**
+         * 按事务写入顺序捕获全部事件，验证创建事件和终态事件的先后关系。
+         */
         private final List<TransactionEventOutboxDO> events = new ArrayList<>();
 
         private TransactionEventOutboxDO eventDO;
@@ -2174,12 +2208,16 @@ class PaymentTransactionServiceImplTests {
 
         private String transactionId;
 
-        /** 准备阶段持久化并用于本次 PSP 调用的渠道请求 ID。 */
+        /**
+         * 准备阶段持久化并用于本次 PSP 调用的渠道请求 ID。
+         */
         private String requestId;
 
         private String channelOrderNo;
 
-        /** 准备阶段持久化并用于本次 PSP 调用的渠道交易 ID。 */
+        /**
+         * 准备阶段持久化并用于本次 PSP 调用的渠道交易 ID。
+         */
         private String channelTransactionId;
 
         /**

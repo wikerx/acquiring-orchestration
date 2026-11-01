@@ -26,13 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFeeSimulationCalculator
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 无副作用费用试算器；使用调用方已从系统解析的标签币种到 USD 正向结算汇率完成高精度计算。
- * @status : create
+ * 无副作用费用试算器；使用调用方已从系统解析的标签币种到 USD 正向结算汇率完成高精度计算。
  */
 @Component
 public class AdminFeeSimulationCalculator {
@@ -162,6 +156,9 @@ public class AdminFeeSimulationCalculator {
         return response;
     }
 
+    /**
+     * 解析币种辅币位数。
+     */
     private int resolveCurrencyExponent(String currency) {
         int exponent = IsoCurrencyResolver.resolve(currency)
                 .orElseThrow(() -> new IllegalArgumentException("unsupported ISO 4217 label currency"))
@@ -172,14 +169,23 @@ public class AdminFeeSimulationCalculator {
         return exponent;
     }
 
+    /**
+     * 将金额封装为美元 Money 值对象。
+     */
     private Money usdAmount(BigDecimal amount) {
         return new Money(zero(amount), "USD", USD_EXPONENT);
     }
 
+    /**
+     * 将可空金额封装为美元 Money 值对象。
+     */
     private Money optionalUsdAmount(BigDecimal amount) {
         return amount == null ? null : usdAmount(amount);
     }
 
+    /**
+     * 按交易金额和规则阶梯范围选择唯一适用的费用阶梯。
+     */
     private FeeRuleTierDO selectTier(FeeSimulationRequest request,
                                      FeeRuleDO rule,
                                      List<FeeRuleTierDO> tiers,
@@ -205,6 +211,9 @@ public class AdminFeeSimulationCalculator {
                 .orElseThrow(() -> new IllegalArgumentException("tier is not configured for reached value"));
     }
 
+    /**
+     * 校验输入是否满足当前业务约束。
+     */
     private void validate(FeeSimulationRequest request, FeeRuleDO rule, BigDecimal labelToUsdRate) {
         if (request == null || rule == null) {
             throw new IllegalArgumentException("simulation request and rule are required");
@@ -221,6 +230,9 @@ public class AdminFeeSimulationCalculator {
         }
     }
 
+    /**
+     * 构建可供运营人员核对的费用计算公式。
+     */
     private String buildFormula(FeeSimulationRequest request,
                                 BigDecimal labelToUsdRate,
                                 BigDecimal percentageRate,
@@ -248,14 +260,23 @@ public class AdminFeeSimulationCalculator {
         return formula.toString();
     }
 
+    /**
+     * 按管理端精度格式化高精度数值。
+     */
     private String displayDecimal(BigDecimal value) {
         return zero(value).setScale(DISPLAY_SCALE, RoundingMode.HALF_UP).toPlainString();
     }
 
+    /**
+     * 按管理端精度格式化汇率。
+     */
     private String displayRate(BigDecimal value) {
         return zero(value).stripTrailingZeros().toPlainString();
     }
 
+    /**
+     * 将空金额或计数转换为零值。
+     */
     private BigDecimal zero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }

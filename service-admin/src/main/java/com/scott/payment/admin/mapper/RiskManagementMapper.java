@@ -11,13 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskManagementMapper
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 收单风控管理 Mapper，位于 service-admin 数据访问层，仅接收服务层白名单解析后的物理表名。
- * @status : create
+ * 收单风控管理 Mapper，位于 service-admin 数据访问层，仅接收服务层白名单解析后的物理表名。
  */
 public interface RiskManagementMapper {
 

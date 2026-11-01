@@ -19,20 +19,36 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayIpRateLimitFilter
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 网关 IP 总量限流器，对同一客户端访问全部 /api/rest 接口的流量统一计数
- * @status : create
+ * 商户 OpenAPI 网关 IP 总量限流器，对同一客户端访问全部 /api/rest 接口的流量统一计数
  */
 @Slf4j
 @Component
 public class GatewayIpRateLimitFilter implements GlobalFilter, Ordered {
 
+    /**
+     * {@code OPENAPI_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String OPENAPI_PATH_PREFIX = "/api/rest/";
+    /**
+     * {@code RATE_LIMIT_SCOPE}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final String RATE_LIMIT_SCOPE = "openapiIp";
+    /**
+     * {@code UNKNOWN_CLIENT_IP}常量，统一 {@code GatewayIpRateLimitFilter} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String UNKNOWN_CLIENT_IP = "unknown";
     private final ReactiveRedisSlidingWindowRateLimiter rateLimiter;
     private final GatewayRateLimitProperties properties;

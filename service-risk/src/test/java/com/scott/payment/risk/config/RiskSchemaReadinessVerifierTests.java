@@ -13,16 +13,13 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskSchemaReadinessVerifierTests
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 风控数据库启动门禁测试，覆盖完整契约、缺表、缺列、查询故障和主库路由约束。
- * @status : create
+ * 风控数据库启动门禁测试，覆盖完整契约、缺表、缺列、查询故障和主库路由约束。
  */
 class RiskSchemaReadinessVerifierTests {
 
+    /**
+     * 验证所需表和字段全部存在时通过风控库表就绪检查。
+     */
     @Test
     void shouldAcceptCompleteRiskSchemaContract() {
         RiskSchemaReadinessVerifier verifier = new RiskSchemaReadinessVerifier(() -> List.of(
@@ -40,6 +37,9 @@ class RiskSchemaReadinessVerifierTests {
         assertThatCode(verifier::afterSingletonsInstantiated).doesNotThrowAnyException();
     }
 
+    /**
+     * 验证关键库表缺失时中止启动并返回迁移提示。
+     */
     @Test
     void shouldFailStartupWithMigrationHintWhenRequiredObjectsAreMissing() {
         RiskSchemaReadinessVerifier verifier = new RiskSchemaReadinessVerifier(() -> List.of(
@@ -53,6 +53,9 @@ class RiskSchemaReadinessVerifierTests {
                 .hasMessageContaining(RiskSchemaReadinessVerifier.MIGRATION_FILE);
     }
 
+    /**
+     * 验证表存在但必需字段缺失时仍然中止启动。
+     */
     @Test
     void shouldFailStartupWhenRequiredTableExistsButColumnIsMissing() {
         RiskSchemaReadinessVerifier verifier = new RiskSchemaReadinessVerifier(() -> List.of(
@@ -73,6 +76,9 @@ class RiskSchemaReadinessVerifierTests {
                 .hasMessageContaining(RiskSchemaReadinessVerifier.MIGRATION_FILE);
     }
 
+    /**
+     * 验证就绪查询异常时中止启动且不泄露原始 SQL 细节。
+     */
     @Test
     void shouldFailStartupWithoutLeakingSqlDetailsWhenReadinessQueryFails() {
         RiskSchemaReadinessVerifier verifier = new RiskSchemaReadinessVerifier(() -> {
@@ -86,6 +92,9 @@ class RiskSchemaReadinessVerifierTests {
                 .hasMessageNotContaining("internal_table");
     }
 
+    /**
+     * 验证库表契约检查始终固定读取主数据源。
+     */
     @Test
     void shouldAlwaysReadSchemaContractFromMasterDataSource() throws NoSuchMethodException {
         Method method = RiskSchemaReadinessMapper.class.getMethod("selectPresentRequiredColumns");

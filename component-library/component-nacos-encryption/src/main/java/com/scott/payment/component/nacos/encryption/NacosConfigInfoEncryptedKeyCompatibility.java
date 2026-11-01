@@ -10,25 +10,47 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NacosConfigInfoEncryptedKeyCompatibility
- * @date : 2026-09-02 00:00
- * @email : scott_x@163.com
- * @description : Nacos 2.3.2 服务端配置恢复兼容层；修复 config_info Mapper 在读取密文正文时遗漏
+ * Nacos 2.3.2 服务端配置恢复兼容层；修复 config_info Mapper 在读取密文正文时遗漏
  * encrypted_data_key，导致配置中心重启后无法解密 cipher-* DataId 的问题。仅在检测到 Config Server 时启用，
  * 不介入普通 Nacos 客户端，也不修改配置内容、密钥或数据库数据。
- * @status : create
  */
 final class NacosConfigInfoEncryptedKeyCompatibility {
 
     private static final String CONFIG_SERVER_MARKER =
             "com.alibaba.nacos.config.server.service.repository.ConfigInfoPersistService";
+    /**
+     * {@code MAPPER_MANAGER_CLASS}常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String MAPPER_MANAGER_CLASS = "com.alibaba.nacos.plugin.datasource.MapperManager";
     private static final String CONFIG_INFO_MAPPER_INTERFACE =
             "com.alibaba.nacos.plugin.datasource.mapper.ConfigInfoMapper";
+    /**
+     * 配置信息表常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CONFIG_INFO_TABLE = "config_info";
+    /**
+     * 内容字段常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CONTENT_COLUMN = "content";
+    /**
+     * {@code ENCRYPTED_DATA_KEY_COLUMN}常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ENCRYPTED_DATA_KEY_COLUMN = "encrypted_data_key";
 
     private NacosConfigInfoEncryptedKeyCompatibility() {
@@ -127,6 +149,14 @@ final class NacosConfigInfoEncryptedKeyCompatibility {
             this.delegate = delegate;
         }
 
+        /**
+         * 委托 MyBatis Mapper 调用，并在 ConfigInfo 写入后同步兼容的加密密钥列。
+         *
+         * @param proxy 当前 Mapper 代理实例
+         * @param method 被代理调用的 Mapper 方法
+         * @param args 原始调用参数；写入方法处理完成后从中提取 ConfigInfo 主键
+         * @return 原 Mapper 方法的返回结果
+         */
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             Object result;

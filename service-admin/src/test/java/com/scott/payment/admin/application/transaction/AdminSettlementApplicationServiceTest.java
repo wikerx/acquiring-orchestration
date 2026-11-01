@@ -27,13 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementApplicationServiceTest
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证 Admin 结算查询边界及资金命令绑定可信登录操作人的应用服务测试
- * @status : create
+ * 验证 Admin 结算查询边界及资金命令绑定可信登录操作人的应用服务测试
  */
 class AdminSettlementApplicationServiceTest {
 

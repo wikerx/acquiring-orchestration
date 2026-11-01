@@ -8,17 +8,13 @@ import com.scott.payment.settlement.entity.SettlementBatchDO;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementResultCalculationService
- * @date : 2026-08-26 23:30
- * @email : scott_x@163.com
- * @description : 使用清分事实和批次统一汇率生成不可变结算结果及汇总，并推进到等待资金提交的 CALCULATED 状态。
- * @status : create
+ * 使用清分事实和批次统一汇率生成不可变结算结果及汇总，并推进到等待资金提交的 CALCULATED 状态。
  */
 public interface SettlementResultCalculationService {
 
-    /** 使用与正式结算相同的算法生成不落库预览。 */
+    /**
+     * 使用与正式结算相同的算法生成不落库预览。
+     */
     SettlementCalculationPreview preview(SettlementBatchDO batch,
                                          SettlementBatchFacts facts,
                                          SettlementLockedRateMatrix rates,

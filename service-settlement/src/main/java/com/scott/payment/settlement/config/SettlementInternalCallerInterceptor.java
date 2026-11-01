@@ -13,13 +13,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalCallerInterceptor
- * @date : 2026-08-26 21:10
- * @email : scott_x@163.com
- * @description : 在 HMAC 验证后把结算管理内部接口严格限制给 service-admin，未知调用方默认拒绝。
- * @status : create
+ * 在 HMAC 验证后把结算管理内部接口严格限制给 service-admin，未知调用方默认拒绝。
  */
 public class SettlementInternalCallerInterceptor implements HandlerInterceptor {
 

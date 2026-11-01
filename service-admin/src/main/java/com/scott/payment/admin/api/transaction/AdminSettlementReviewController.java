@@ -32,13 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReviewController
- * @date : 2026-09-01 22:50
- * @email : scott_x@163.com
- * @description : Admin 交易/保证金候选、预审单和 Maker-Checker 命令入口；查询使用本地逻辑数据源，状态命令由应用层注入可信身份后远程执行。
- * @status : update
+ * Admin 交易/保证金候选、预审单和 Maker-Checker 命令入口；查询使用本地逻辑数据源，状态命令由应用层注入可信身份后远程执行。
  */
 @RestController
 @RequestMapping("/admin/settlement")
@@ -46,6 +40,11 @@ public class AdminSettlementReviewController {
 
     private final AdminSettlementApplicationService applicationService;
 
+    /**
+     * 创建结算候选、预审单和异步决策任务管理控制器。
+     *
+     * @param applicationService 结算预审应用服务
+     */
     public AdminSettlementReviewController(AdminSettlementApplicationService applicationService) {
         this.applicationService = applicationService;
     }
@@ -139,7 +138,9 @@ public class AdminSettlementReviewController {
         return success(applicationService.reviewDetail(reviewOrderNo));
     }
 
-    /** 独立授权读取预审凭证数据，PDF 由浏览器基于该不可变快照生成。 */
+    /**
+     * 独立授权读取预审凭证数据，PDF 由浏览器基于该不可变快照生成。
+     */
     @GetMapping("/review-orders/{reviewOrderNo}/voucher")
     @RequiresPermission("settlement:review-order:voucher-download")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.EXPORT,
@@ -149,6 +150,13 @@ public class AdminSettlementReviewController {
         return success(applicationService.reviewVoucher(reviewOrderNo));
     }
 
+    /**
+     * 分页查询指定预审单固化的候选明细。
+     *
+     * @param reviewOrderNo 预审单号
+     * @param request 候选类型、业务编号和分页条件
+     * @return 预审单候选明细分页
+     */
     @PostMapping("/review-orders/{reviewOrderNo}/candidates/search")
     @RequiresPermission("settlement:review-order:detail")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
@@ -175,6 +183,13 @@ public class AdminSettlementReviewController {
         return success(applicationService.submitTransactionReview(request, servletRequest));
     }
 
+    /**
+     * 校验手动交易结算范围并生成只读预览，不创建预审单。
+     *
+     * @param request 交易候选筛选和选中范围
+     * @param servletRequest 可信客户端环境来源
+     * @return 预览统计、校验结果和任务标识
+     */
     @PostMapping("/transaction-review-tasks/preview")
     @RequiresPermission("settlement:transaction-review:create")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.CREATE,
@@ -185,6 +200,13 @@ public class AdminSettlementReviewController {
         return success(applicationService.previewManualTransactionReview(request, servletRequest));
     }
 
+    /**
+     * 根据已确认的交易预览任务异步生成结算预审单。
+     *
+     * @param taskNo 手动预览任务号
+     * @param request 任务版本和启动参数
+     * @return 启动后的任务状态
+     */
     @PostMapping("/transaction-review-tasks/{taskNo}/start")
     @RequiresPermission("settlement:transaction-review:create")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.CREATE,
@@ -195,6 +217,12 @@ public class AdminSettlementReviewController {
         return success(applicationService.startManualTransactionReview(taskNo, request));
     }
 
+    /**
+     * 查询手动交易结算任务的执行进度和结果。
+     *
+     * @param taskNo 手动任务号
+     * @return 当前任务状态、统计和关联预审单
+     */
     @GetMapping("/transaction-review-tasks/{taskNo}")
     @RequiresPermission("settlement:transaction-candidate:list")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
@@ -204,6 +232,13 @@ public class AdminSettlementReviewController {
         return success(applicationService.manualTransactionReviewTask(taskNo));
     }
 
+    /**
+     * 校验手动保证金结算范围并生成只读预览，不创建预审单。
+     *
+     * @param request 保证金候选筛选和选中范围
+     * @param servletRequest 可信客户端环境来源
+     * @return 预览统计、校验结果和任务标识
+     */
     @PostMapping("/reserve-review-tasks/preview")
     @RequiresPermission("settlement:reserve-review:create")
     @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.CREATE,
@@ -214,6 +249,13 @@ public class AdminSettlementReviewController {
         return success(applicationService.previewManualReserveReview(request, servletRequest));
     }
 
+    /**
+     * 根据已确认的保证金预览任务异步生成结算预审单。
+     *
+     * @param taskNo 手动预览任务号
+     * @param request 任务版本和启动参数
+     * @return 启动后的任务状态
+     */
     @PostMapping("/reserve-review-tasks/{taskNo}/start")
     @RequiresPermission("settlement:reserve-review:create")
     @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.CREATE,
@@ -224,6 +266,12 @@ public class AdminSettlementReviewController {
         return success(applicationService.startManualReserveReview(taskNo, request));
     }
 
+    /**
+     * 查询手动保证金结算任务的执行进度和结果。
+     *
+     * @param taskNo 手动任务号
+     * @return 当前任务状态、统计和关联预审单
+     */
     @GetMapping("/reserve-review-tasks/{taskNo}")
     @RequiresPermission("settlement:reserve-candidate:list")
     @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.QUERY,
@@ -306,6 +354,14 @@ public class AdminSettlementReviewController {
                 reviewOrderNo, "CANCEL", request, servletRequest));
     }
 
+    /**
+     * 提交预审单异步审批任务，正式结算由后台任务执行。
+     *
+     * @param reviewOrderNo 待审批预审单号
+     * @param request 审批意见和并发前置条件
+     * @param servletRequest 可信客户端环境来源
+     * @return 异步决策任务状态
+     */
     @PostMapping("/review-orders/{reviewOrderNo}/approve-task")
     @RequiresPermission("settlement:review-order:approve")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
@@ -317,6 +373,14 @@ public class AdminSettlementReviewController {
                 reviewOrderNo, "APPROVE", request, servletRequest));
     }
 
+    /**
+     * 提交预审单异步驳回任务并释放未处理候选。
+     *
+     * @param reviewOrderNo 待驳回预审单号
+     * @param request 驳回意见和并发前置条件
+     * @param servletRequest 可信客户端环境来源
+     * @return 异步决策任务状态
+     */
     @PostMapping("/review-orders/{reviewOrderNo}/reject-task")
     @RequiresPermission("settlement:review-order:reject")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
@@ -328,6 +392,14 @@ public class AdminSettlementReviewController {
                 reviewOrderNo, "REJECT", request, servletRequest));
     }
 
+    /**
+     * 提交预审单异步取消任务并释放未处理候选。
+     *
+     * @param reviewOrderNo 待取消预审单号
+     * @param request 取消原因和并发前置条件
+     * @param servletRequest 可信客户端环境来源
+     * @return 异步决策任务状态
+     */
     @PostMapping("/review-orders/{reviewOrderNo}/cancel-task")
     @RequiresPermission("settlement:review-order:cancel")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
@@ -339,6 +411,12 @@ public class AdminSettlementReviewController {
                 reviewOrderNo, "CANCEL", request, servletRequest));
     }
 
+    /**
+     * 查询异步预审决策任务的执行进度和业务结果。
+     *
+     * @param taskNo 决策任务号
+     * @return 决策任务状态和关联预审结果
+     */
     @GetMapping("/review-decision-tasks/{taskNo}")
     @RequiresPermission("settlement:review-order:list")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
@@ -348,6 +426,14 @@ public class AdminSettlementReviewController {
         return success(applicationService.reviewDecisionTask(taskNo));
     }
 
+    /**
+     * 在校验任务版本和操作权限后恢复可重试的失败决策任务。
+     *
+     * @param taskNo 待恢复决策任务号
+     * @param request 任务版本和恢复原因
+     * @param servletRequest 可信客户端环境来源
+     * @return 恢复后的决策任务状态
+     */
     @PostMapping("/review-decision-tasks/{taskNo}/resume")
     @RequiresPermission("settlement:review-order:recover")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,

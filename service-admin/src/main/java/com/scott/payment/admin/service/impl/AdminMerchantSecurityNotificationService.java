@@ -24,13 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantSecurityNotificationService
- * @date : 2026-08-05 00:00
- * @email : scott_x@163.com
- * @description : 管理端商户密钥生命周期通知服务，仅向邮件模板传递密钥类型、操作信息和不可逆指纹尾号
- * @status : create
+ * 管理端商户密钥生命周期通知服务，仅向邮件模板传递密钥类型、操作信息和不可逆指纹尾号
  */
 @Slf4j
 @Service
@@ -38,42 +32,22 @@ public class AdminMerchantSecurityNotificationService {
 
     /**
      * 模板创建，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     public static final String TEMPLATE_CREATED = "API_KEY_CREATED";
     /**
      * 模板重置，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     public static final String TEMPLATE_RESET = "API_KEY_RESET";
     /**
      * 模板启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     public static final String TEMPLATE_ENABLED = "API_KEY_ENABLED";
     /**
      * {@code TEMPLATE_DISABLED}，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     public static final String TEMPLATE_DISABLED = "API_KEY_DISABLED";
     /**
      * 场景常量，统一 {@code AdminMerchantSecurityNotificationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SCENE = "API_KEY_CHANGED";
     /**
@@ -87,6 +61,9 @@ public class AdminMerchantSecurityNotificationService {
 
     private final AdminEmailService emailService;
 
+    /**
+     * 创建管理端商户安全通知服务。
+     */
     public AdminMerchantSecurityNotificationService(AdminEmailService emailService) {
         this.emailService = emailService;
     }
@@ -110,6 +87,9 @@ public class AdminMerchantSecurityNotificationService {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -117,6 +97,9 @@ public class AdminMerchantSecurityNotificationService {
         });
     }
 
+    /**
+     * 发送当前邮件任务并记录发送结果。
+     */
     private void send(BaseMerchantInfoDO merchant,
                       String templateCode,
                       String keyName,
@@ -147,11 +130,14 @@ public class AdminMerchantSecurityNotificationService {
             request.setVariables(variables);
             emailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("merchant key lifecycle notice send failed, merchantId: {}, templateCode: {}, exceptionType: {}",
+            log.warn("event: ADMIN_MERCHANT_KEY_NOTICE_FAILED merchantId: {} templateCode: {} exceptionType: {}",
                     merchant.getMerchantId(), templateCode, exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 提取安全令牌指纹末四位供审计展示。
+     */
     private String fingerprintLast4(String source) {
         if (!StringUtils.hasText(source)) {
             return "----";
@@ -166,6 +152,9 @@ public class AdminMerchantSecurityNotificationService {
         }
     }
 
+    /**
+     * 解析当前操作人的审计名称。
+     */
     private String operatorName() {
         InternalAuthAccount operator = InternalAuthContextHolder.get();
         if (operator == null) {

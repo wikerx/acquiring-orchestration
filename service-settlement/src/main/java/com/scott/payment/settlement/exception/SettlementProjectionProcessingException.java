@@ -1,23 +1,25 @@
 package com.scott.payment.settlement.exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementProjectionProcessingException
- * @date : 2026-08-26 21:00
- * @email : scott_x@163.com
- * @description : 结算交易投影事务失败身份；携带回滚前的任务版本和重试次数，供外层独立事务安全记录退避。
- * @status : create
+ * 结算交易投影事务失败身份；携带回滚前的任务版本和重试次数，供外层独立事务安全记录退避。
  */
 public class SettlementProjectionProcessingException extends RuntimeException {
 
-    /** 回滚后重新定位投影任务的全局幂等号。 */
+    /**
+     * 回滚后重新定位投影任务的全局幂等号。
+     */
     private final String taskNo;
-    /** 回滚后任务应恢复的 CAS 版本。 */
+    /**
+     * 回滚后任务应恢复的 CAS 版本。
+     */
     private final long expectedVersion;
-    /** 回滚后任务应恢复的重试次数。 */
+    /**
+     * 回滚后任务应恢复的重试次数。
+     */
     private final int expectedRetryCount;
-    /** 可用于告警聚合且不包含敏感正文的稳定失败码。 */
+    /**
+     * 可用于告警聚合且不包含敏感正文的稳定失败码。
+     */
     private final String failureCode;
 
     /**
@@ -41,22 +43,30 @@ public class SettlementProjectionProcessingException extends RuntimeException {
         this.failureCode = failureCode;
     }
 
-    /** @return 投影任务全局幂等号 */
+    /**
+     * @return 投影任务全局幂等号
+     */
     public String getTaskNo() {
         return taskNo;
     }
 
-    /** @return 回滚后的期望任务版本 */
+    /**
+     * @return 回滚后的期望任务版本
+     */
     public long getExpectedVersion() {
         return expectedVersion;
     }
 
-    /** @return 回滚后的期望重试次数 */
+    /**
+     * @return 回滚后的期望重试次数
+     */
     public int getExpectedRetryCount() {
         return expectedRetryCount;
     }
 
-    /** @return 稳定失败码 */
+    /**
+     * @return 稳定失败码
+     */
     public String getFailureCode() {
         return failureCode;
     }

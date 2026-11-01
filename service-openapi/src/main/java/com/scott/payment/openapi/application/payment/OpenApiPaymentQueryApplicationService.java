@@ -6,13 +6,7 @@ import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPaymentQueryApplicationService
- * @date : 2026-07-14 19:20
- * @email : scott_x@163.com
- * @description : openAPI支付查询应用服务，位于 商户开放接口服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户交易查询应用入口，按商户隔离条件读取订单及其交易动作快照。
  */
 @Service
 public class OpenApiPaymentQueryApplicationService {

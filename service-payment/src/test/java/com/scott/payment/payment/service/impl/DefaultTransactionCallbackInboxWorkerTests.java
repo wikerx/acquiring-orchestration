@@ -21,13 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionCallbackInboxWorkerTests
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 渠道回调 Inbox Worker 测试，验证成功完成、业务失败重试和线程 TraceContext 清理。
- * @status : create
+ * 渠道回调 Inbox Worker 测试，验证成功完成、业务失败重试和线程 TraceContext 清理。
  */
 class DefaultTransactionCallbackInboxWorkerTests {
 
@@ -38,7 +32,9 @@ class DefaultTransactionCallbackInboxWorkerTests {
         TraceContext.clear();
     }
 
-    /** 成功抢占后调用现有幂等回调服务，并仅在业务处理返回后标记 PROCESSED。 */
+    /**
+     * 成功抢占后调用现有幂等回调服务，并仅在业务处理返回后标记 PROCESSED。
+     */
     @Test
     void shouldProcessClaimedCallbackAndMarkProcessed() {
         TransactionCallbackInboxService inboxService = mock(TransactionCallbackInboxService.class);
@@ -61,7 +57,9 @@ class DefaultTransactionCallbackInboxWorkerTests {
         assertThat(TraceContext.getTraceId()).isNull();
     }
 
-    /** 业务处理异常时不得标记完成，必须记录失败供后续重试。 */
+    /**
+     * 业务处理异常时不得标记完成，必须记录失败供后续重试。
+     */
     @Test
     void shouldRecordFailureWhenCallbackProcessingThrows() {
         TransactionCallbackInboxService inboxService = mock(TransactionCallbackInboxService.class);

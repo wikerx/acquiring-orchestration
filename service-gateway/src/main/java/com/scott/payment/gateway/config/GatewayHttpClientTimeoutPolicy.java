@@ -3,16 +3,17 @@ package com.scott.payment.gateway.config;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayHttpClientTimeoutPolicy
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : Gateway 下游 HTTP 超时启动门禁，确保连接和响应等待时间已显式配置且单项不超过平台 60 秒上限。
- * @status : create
+ * Gateway 下游 HTTP 超时启动门禁，确保连接和响应等待时间已显式配置且单项不超过平台 60 秒上限。
  */
 public final class GatewayHttpClientTimeoutPolicy {
 
+    /**
+     * 最大超时毫秒数常量，统一 {@code GatewayHttpClientTimeoutPolicy} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final long MAX_TIMEOUT_MILLIS = 60_000L;
 
     private GatewayHttpClientTimeoutPolicy() {

@@ -20,18 +20,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SecurityInterceptEventRecorderTests
- * @date : 2026-08-01 18:00
- * @email : scott_x@163.com
- * @description : OpenAPI 安全拦截审计生产端测试，验证脱敏契约、开关与发布失败隔离
- * @status : create
+ * OpenAPI 安全拦截审计生产端测试，验证脱敏契约、开关与发布失败隔离
  */
 @Slf4j
 class SecurityInterceptEventRecorderTests {
 
-    /** 安全拦截请求应只发布脱敏元数据。 */
+    /**
+     * 安全拦截请求应只发布脱敏元数据。
+     */
     @Test
     void shouldPublishSanitizedSecurityAuditMessage() {
         log.info("测试安全拦截审计发布，关键输入: 认证请求头存在且请求路径带查询参数");
@@ -62,14 +58,20 @@ class SecurityInterceptEventRecorderTests {
         assertThat(message.getMerchantId()).isEqualTo("200045");
         assertThat(message.getClientIp()).isEqualTo("203.0.113.10");
         assertThat(message.getRequestPath()).isEqualTo("/api/rest/payment/v1/create");
+        assertThat(message.getRequestId()).isEqualTo("REQ-SEC-001");
+        assertThat(message.getUserAgent()).isEqualTo("sdk-test/1.0");
         assertThat(message.getReasonCode()).isEqualTo(OpenApiResultCode.SOURCE_NOT_ALLOWED.getCode());
         assertThat(message.getHeaderSummary())
                 .contains("authorizationPresent")
+                .doesNotContain("REQ-SEC-001")
+                .doesNotContain("sdk-test/1.0")
                 .doesNotContain("must-not-enter-message");
         log.info("安全拦截审计发布完成，结果: 认证原文和查询参数未进入 MQ 契约");
     }
 
-    /** 安全审计开关关闭时不得发布消息。 */
+    /**
+     * 安全审计开关关闭时不得发布消息。
+     */
     @Test
     void shouldSkipPublishingWhenDisabled() {
         log.info("测试安全审计开关，关键输入: enabled=false");
@@ -88,7 +90,9 @@ class SecurityInterceptEventRecorderTests {
         log.info("安全审计开关测试完成，结果: 未发布消息");
     }
 
-    /** MQ 异常不得覆盖原始安全拦截结果。 */
+    /**
+     * MQ 异常不得覆盖原始安全拦截结果。
+     */
     @Test
     void shouldIsolatePublishFailureFromSecurityDecision() {
         log.info("测试安全审计发布失败隔离，关键输入: RocketMQ 不可用");
@@ -106,7 +110,9 @@ class SecurityInterceptEventRecorderTests {
         log.info("安全审计发布失败隔离完成，结果: 原始安全处置不受审计故障影响");
     }
 
-    /** 异常原因只能返回稳定分类，禁止把任意异常正文带入安全审计 MQ。 */
+    /**
+     * 异常原因只能返回稳定分类，禁止把任意异常正文带入安全审计 MQ。
+     */
     @Test
     void shouldUseExceptionTypeAsSecurityReasonMessage() {
         SecurityInterceptEventRecorder recorder = new SecurityInterceptEventRecorder(

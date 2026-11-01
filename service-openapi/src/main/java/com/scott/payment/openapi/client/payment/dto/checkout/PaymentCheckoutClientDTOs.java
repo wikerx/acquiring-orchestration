@@ -11,16 +11,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutClientDTOs
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : service-openapi 调用 service-payment Hosted Checkout 内部接口 DTO。
- * @status : create
+ * service-openapi 调用 service-payment Hosted Checkout 内部接口 DTO。
  */
 public final class PaymentCheckoutClientDTOs {
 
+    /**
+     * 内部 DTO 集合不允许实例化。
+     */
     private PaymentCheckoutClientDTOs() {
     }
 
@@ -32,91 +29,149 @@ public final class PaymentCheckoutClientDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** 已认证的平台商户号。 */
+        /**
+         * 已认证的平台商户号。
+         */
         private String merchantId;
 
-        /** 商户订单号。 */
+        /**
+         * 商户订单号。
+         */
         private String merchantOrderNo;
 
-        /** 商户本次创建请求号，用于内部幂等关联。 */
+        /**
+         * 商户本次创建请求号，用于内部幂等关联。
+         */
         private String merchantRequestId;
 
-        /** 创建请求规范化后的摘要，用于拒绝幂等键复用不同载荷。 */
+        /**
+         * 创建请求规范化后的摘要，用于拒绝幂等键复用不同载荷。
+         */
         private String requestFingerprint;
 
-        /** 订单金额，单位为 {@link #currency} 主币种单位。 */
+        /**
+         * 订单金额，单位为 {@link #currency} 主币种单位。
+         */
         private BigDecimal amount;
 
-        /** ISO 4217 三位币种代码。 */
+        /**
+         * ISO 4217 三位币种代码。
+         */
         private String currency;
 
-        /** 币种小数位数，由 ISO 字典解析，不用于金额舍入。 */
+        /**
+         * 币种小数位数，由 ISO 字典解析，不用于金额舍入。
+         */
         private Integer currencyExponent;
 
-        /** 支付动作，例如直接支付或预授权。 */
+        /**
+         * 支付动作，例如直接支付或预授权。
+         */
         private String paymentAction;
 
-        /** 付款页展示的订单主题。 */
+        /**
+         * 付款页展示的订单主题。
+         */
         private String orderSubject;
 
-        /** 付款页展示的订单说明。 */
+        /**
+         * 付款页展示的订单说明。
+         */
         private String orderDescription;
 
-        /** 商品明细 JSON 快照，不包含卡号、CVV 或密钥。 */
+        /**
+         * 商品明细 JSON 快照，不包含卡号、CVV 或密钥。
+         */
         private String orderItemsJson;
 
-        /** 商户允许的支付方式和 3DS 模式。 */
+        /**
+         * 商户允许的支付方式和 3DS 模式。
+         */
         private List<AllowedPaymentMethod> allowedPaymentMethods;
 
-        /** 收银台前端域名；已在 OpenAPI 层完成协议和长度校验。 */
+        /**
+         * 收银台前端域名；已在 OpenAPI 层完成协议和长度校验。
+         */
         private String checkoutDomain;
 
-        /** 收银台语言区域标识。 */
+        /**
+         * 收银台语言区域标识。
+         */
         private String locale;
 
-        /** 付款页展示的商户名称。 */
+        /**
+         * 付款页展示的商户名称。
+         */
         private String merchantDisplayName;
 
-        /** 付款页展示的商户 Logo 地址。 */
+        /**
+         * 付款页展示的商户 Logo 地址。
+         */
         private String merchantLogoUrl;
 
-        /** 商户通知 URL 明文；仅在内部签名链路传输，禁止完整写入日志。 */
+        /**
+         * 商户通知 URL 明文；仅在内部签名链路传输，禁止完整写入日志。
+         */
         private String merchantNotifyUrl;
 
-        /** 子商户完整明文 JSON 快照。 */
+        /**
+         * 子商户完整明文 JSON 快照。
+         */
         private String subMerchantInfoJson;
 
-        /** 付款人预填信息明文 JSON 快照。 */
+        /**
+         * 付款人预填信息明文 JSON 快照。
+         */
         private String payerInfoJson;
 
-        /** 持卡人账单预填信息明文 JSON 快照。 */
+        /**
+         * 持卡人账单预填信息明文 JSON 快照。
+         */
         private String billingInfoJson;
 
-        /** 收货信息结构化 JSON；生成交易后拆分写入明文结构化快照表。 */
+        /**
+         * 收货信息结构化 JSON；生成交易后拆分写入明文结构化快照表。
+         */
         private String shippingInfoJson;
 
-        /** 交易完成后 Form POST 的商户结果页地址明文。 */
+        /**
+         * 交易完成后 Form POST 的商户结果页地址明文。
+         */
         private String redirectUrl;
 
-        /** ISO 3166-1 alpha-3 付款人国家/地区代码。 */
+        /**
+         * ISO 3166-1 alpha-3 付款人国家/地区代码。
+         */
         private String payerCountry;
 
-        /** 付款人邮箱明文。 */
+        /**
+         * 付款人邮箱明文。
+         */
         private String payerEmail;
 
-        /** 付款人邮箱不可逆摘要，用于风控匹配。 */
+        /**
+         * 付款人邮箱不可逆摘要，用于风控匹配。
+         */
         private String payerEmailHash;
 
-        /** 是否允许失败后重试，1 表示允许、0 表示禁止。 */
+        /**
+         * 是否允许失败后重试，1 表示允许、0 表示禁止。
+         */
         private Integer retryAllowed;
 
-        /** 会话过期时间，按内部服务约定时区解释。 */
+        /**
+         * 会话过期时间，按内部服务约定时区解释。
+         */
         private LocalDateTime expireTime;
 
-        /** 创建请求来源，例如商户 OpenAPI。 */
+        /**
+         * 创建请求来源，例如商户 OpenAPI。
+         */
         private String requestSource;
 
-        /** 跨 OpenAPI、payment 和渠道链路的追踪号。 */
+        /**
+         * 跨 OpenAPI、payment 和渠道链路的追踪号。
+         */
         private String traceId;
     }
 
@@ -128,16 +183,24 @@ public final class PaymentCheckoutClientDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** 平台支付方式编码。 */
+        /**
+         * 平台支付方式编码。
+         */
         private String paymentMethod;
 
-        /** 可选指定渠道编码；为空时由支付服务路由。 */
+        /**
+         * 可选指定渠道编码；为空时由支付服务路由。
+         */
         private String channelCode;
 
-        /** 允许的卡品牌或支付品牌。 */
+        /**
+         * 允许的卡品牌或支付品牌。
+         */
         private List<String> brands;
 
-        /** 3DS 执行模式。 */
+        /**
+         * 3DS 执行模式。
+         */
         private String threeDsMode;
     }
 
@@ -149,22 +212,34 @@ public final class PaymentCheckoutClientDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** Hosted Checkout 会话号。 */
+        /**
+         * Hosted Checkout 会话号。
+         */
         private String checkoutSessionId;
 
-        /** 会话访问令牌的内部标识，不是浏览器可直接使用的原始 token。 */
+        /**
+         * 会话访问令牌的内部标识，不是浏览器可直接使用的原始 token。
+         */
         private String checkoutTokenId;
 
-        /** 付款人访问收银台的 URL，可能携带一次性 token，禁止写日志。 */
+        /**
+         * 付款人访问收银台的 URL，可能携带一次性 token，禁止写日志。
+         */
         private String checkoutUrl;
 
-        /** 会话当前状态。 */
+        /**
+         * 会话当前状态。
+         */
         private String checkoutStatus;
 
-        /** 会话过期时间。 */
+        /**
+         * 会话过期时间。
+         */
         private LocalDateTime expireTime;
 
-        /** service-payment 是否命中既有幂等会话。 */
+        /**
+         * service-payment 是否命中既有幂等会话。
+         */
         private Boolean idempotentHit;
     }
 
@@ -177,34 +252,54 @@ public final class PaymentCheckoutClientDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** 浏览器 opaque token 的 HMAC 摘要，内部服务不接收原始 token。 */
+        /**
+         * 浏览器 opaque token 的 HMAC 摘要，内部服务不接收原始 token。
+         */
         private String tokenHash;
 
-        /** 可选页面封面或主题标识，不作为安全凭据。 */
+        /**
+         * 可选页面封面或主题标识，不作为安全凭据。
+         */
         private String cover;
 
-        /** 客户端 IP 摘要，不传递原始地址。 */
+        /**
+         * 客户端 IP 摘要，不传递原始地址。
+         */
         private String clientIpHash;
 
-        /** User-Agent 摘要，不传递完整设备字符串。 */
+        /**
+         * User-Agent 摘要，不传递完整设备字符串。
+         */
         private String userAgentHash;
 
-        /** Origin 摘要，用于来源一致性审计。 */
+        /**
+         * Origin 摘要，用于来源一致性审计。
+         */
         private String originHash;
 
-        /** Referer 摘要，用于来源一致性审计。 */
+        /**
+         * Referer 摘要，用于来源一致性审计。
+         */
         private String refererHash;
 
-        /** 前端设备标识摘要，不能作为唯一认证凭据。 */
+        /**
+         * 前端设备标识摘要，不能作为唯一认证凭据。
+         */
         private String deviceIdHash;
 
-        /** 浏览器语言。 */
+        /**
+         * 浏览器语言。
+         */
         private String language;
 
-        /** 浏览器时区偏移。 */
+        /**
+         * 浏览器时区偏移。
+         */
         private String timezoneOffset;
 
-        /** 跨服务追踪号。 */
+        /**
+         * 跨服务追踪号。
+         */
         private String traceId;
     }
 
@@ -216,45 +311,59 @@ public final class PaymentCheckoutClientDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** Hosted Checkout 会话号。 */
+        /**
+         * Hosted Checkout 会话号。
+         */
         private String checkoutSessionId;
 
-        /** 付款页状态。 */
+        /**
+         * 付款页状态。
+         */
         private String pageState;
 
-        /** 可公开展示的商户资料。 */
+        /**
+         * 可公开展示的商户资料。
+         */
         private Merchant merchant;
 
-        /** 订单金额与商品快照。 */
+        /**
+         * 订单金额与商品快照。
+         */
         private Order order;
 
-        /** 当前会话允许的支付方式。 */
+        /**
+         * 当前会话允许的支付方式。
+         */
         private List<PaymentMethod> paymentMethods;
 
-        /** 有效期、重试次数和轮询配置。 */
+        /**
+         * 有效期、重试次数和轮询配置。
+         */
         private Checkout checkout;
 
-        /** 商户上送的付款人预填信息。 */
+        /**
+         * 商户上送的付款人预填信息。
+         */
         private PayerInfo payerInfo;
 
-        /** 商户上送的账单预填信息。 */
+        /**
+         * 商户上送的账单预填信息。
+         */
         private BillingInfo billingInfo;
 
-        /** 最近一次支付尝试结果；再次打开链接时直接回显。 */
+        /**
+         * 最近一次支付尝试结果；再次打开链接时直接回显。
+         */
         private PaymentResultResponse paymentResult;
 
-        /** 卡数据加密公钥元数据和一次性 nonce，仅可支付状态返回。 */
+        /**
+         * 卡数据加密公钥元数据和一次性 nonce，仅可支付状态返回。
+         */
         private CardEncryption cardEncryption;
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PayerInfo
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : payer信息嵌套数据模型，定义所属聚合内固定的字段集合和传递边界。
-     * @status : create
+     * OpenAPI 与支付核心之间传递的付款人快照。
      */
     @Data
     public static class PayerInfo implements Serializable {
@@ -374,13 +483,7 @@ public final class PaymentCheckoutClientDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingInfo
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 账单信息嵌套数据模型，定义所属聚合内固定的字段集合和传递边界。
-     * @status : create
+     * OpenAPI 与支付核心之间传递的账单联系信息快照。
      */
     @Data
     public static class BillingInfo implements Serializable {
@@ -468,49 +571,79 @@ public final class PaymentCheckoutClientDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /** 浏览器 opaque token 的 HMAC 摘要，内部服务不接收原始 token。 */
+        /**
+         * 浏览器 opaque token 的 HMAC 摘要，内部服务不接收原始 token。
+         */
         private String tokenHash;
 
-        /** Hosted Checkout 会话号。 */
+        /**
+         * Hosted Checkout 会话号。
+         */
         private String checkoutSessionId;
 
-        /** 单次支付尝试请求号，用于提交幂等。 */
+        /**
+         * 单次支付尝试请求号，用于提交幂等。
+         */
         private String attemptRequestId;
 
-        /** 付款人选择的支付方式编码。 */
+        /**
+         * 付款人选择的支付方式编码。
+         */
         private String paymentMethod;
 
-        /** 提交请求摘要，用于检测同一幂等号对应不同载荷。 */
+        /**
+         * 提交请求摘要，用于检测同一幂等号对应不同载荷。
+         */
         private String requestFingerprint;
 
-        /** 跨服务追踪号。 */
+        /**
+         * 跨服务追踪号。
+         */
         private String traceId;
 
-        /** 客户端 IP 摘要。 */
+        /**
+         * 客户端 IP 摘要。
+         */
         private String clientIpHash;
 
-        /** 3DS 渠道调用需要的真实 IP，仅允许在本次内部调用链中使用。 */
+        /**
+         * 3DS 渠道调用需要的真实 IP，仅允许在本次内部调用链中使用。
+         */
         private String payerIp;
 
-        /** User-Agent 摘要。 */
+        /**
+         * User-Agent 摘要。
+         */
         private String userAgentHash;
 
-        /** Origin 摘要。 */
+        /**
+         * Origin 摘要。
+         */
         private String originHash;
 
-        /** Referer 摘要。 */
+        /**
+         * Referer 摘要。
+         */
         private String refererHash;
 
-        /** 3DS 所需浏览器信息 JSON；不得包含完整 PAN 或 CVV。 */
+        /**
+         * 3DS 所需浏览器信息 JSON；不得包含完整 PAN 或 CVV。
+         */
         private String browserInfoJson;
 
-        /** 设备信息脱敏 JSON；原始设备采集报文不得持久化。 */
+        /**
+         * 设备信息脱敏 JSON；原始设备采集报文不得持久化。
+         */
         private String deviceInfoJson;
 
-        /** 浏览器生成的卡数据密文信封，OpenAPI 不得解密。 */
+        /**
+         * 浏览器生成的卡数据密文信封，OpenAPI 不得解密。
+         */
         private CardDataEnvelope cardDataEnvelope;
 
-        /** 账单持卡人资料，用于渠道和 3DS 校验，日志必须脱敏。 */
+        /**
+         * 账单持卡人资料，用于渠道和 3DS 校验，日志必须脱敏。
+         */
         private BillingCardHolderInfo billingCardHolderInfo;
     }
 
@@ -555,13 +688,7 @@ public final class PaymentCheckoutClientDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CardBinRequest
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 卡 BIN请求模型，位于 商户开放接口服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 收银台卡 BIN 解析内部请求，携带会话令牌摘要和受限 BIN 前缀。
      */
     @Data
     public static class CardBinRequest implements Serializable {
@@ -602,13 +729,7 @@ public final class PaymentCheckoutClientDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CardBinResponse
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 卡 BIN响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 支付核心返回的卡品牌识别结果及当前 MID 能力支持状态。
      */
     @Data
     public static class CardBinResponse implements Serializable {
@@ -668,13 +789,19 @@ public final class PaymentCheckoutClientDTOs {
          */
         private String authenticationDataJsonMasked;
 
-        /** 新 nonce 对应的卡数据密文信封。 */
+        /**
+         * 新 nonce 对应的卡数据密文信封。
+         */
         private CardDataEnvelope cardDataEnvelope;
 
-        /** 继续认证和支付所需账单资料。 */
+        /**
+         * 继续认证和支付所需账单资料。
+         */
         private BillingCardHolderInfo billingCardHolderInfo;
 
-        /** 当前浏览器环境摘要。 */
+        /**
+         * 当前浏览器环境摘要。
+         */
         private String browserInfoJson;
 
         /**
@@ -687,7 +814,9 @@ public final class PaymentCheckoutClientDTOs {
          */
         private String clientIpHash;
 
-        /** 继续 3DS 认证需要的真实 IP，仅允许在本次内部调用链中使用。 */
+        /**
+         * 继续 3DS 认证需要的真实 IP，仅允许在本次内部调用链中使用。
+         */
         private String payerIp;
 
         /**
@@ -867,13 +996,7 @@ public final class PaymentCheckoutClientDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CardEncryption
-     * @date : 2026-09-02 08:03
-     * @email : scott_x@163.com
-     * @description : 卡encryption嵌套数据模型，定义所属聚合内固定的字段集合和传递边界。
-     * @status : create
+     * 支付核心提供给浏览器的卡数据加密参数。
      */
     @Data
     public static class CardEncryption implements Serializable {
@@ -912,7 +1035,9 @@ public final class PaymentCheckoutClientDTOs {
         private String nonce;
     }
 
-    /** OpenAPI 原样转发的卡数据密文信封。 */
+    /**
+     * OpenAPI 原样转发的卡数据密文信封。
+     */
     @Getter
     @Setter
     public static class CardDataEnvelope implements Serializable {
@@ -1090,7 +1215,9 @@ public final class PaymentCheckoutClientDTOs {
          */
         private String actionType;
 
-        /** 当前 HTML 所属 3DS 阶段：INITIALIZE 为 Method，AUTHENTICATE 为 Challenge。 */
+        /**
+         * 当前 HTML 所属 3DS 阶段：INITIALIZE 为 Method，AUTHENTICATE 为 Challenge。
+         */
         private String phase;
 
         /**
@@ -1108,7 +1235,9 @@ public final class PaymentCheckoutClientDTOs {
          */
         private Integer timeoutSeconds;
 
-        /** 下一 3DS 浏览器阶段重新加密卡数据所需公钥和 nonce。 */
+        /**
+         * 下一 3DS 浏览器阶段重新加密卡数据所需公钥和 nonce。
+         */
         private CardEncryption cardEncryption;
     }
 
@@ -1160,23 +1289,35 @@ public final class PaymentCheckoutClientDTOs {
         private Integer maxIntervalSeconds;
     }
 
-    /** 收银台终态后通过浏览器表单返回商户的动作。 */
+    /**
+     * 收银台终态后通过浏览器表单返回商户的动作。
+     */
     @Data
     public static class Action implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 固定 POST，前端不得降级为 GET 跳转。 */
+        /**
+         * 固定 POST，前端不得降级为 GET 跳转。
+         */
         private String method;
-        /** 商户创建会话时提供的结果页地址。 */
+        /**
+         * 商户创建会话时提供的结果页地址。
+         */
         private String redirectUrl;
-        /** 自动提交前的倒计时秒数。 */
+        /**
+         * 自动提交前的倒计时秒数。
+         */
         private Integer delaySeconds;
-        /** 精确限定为文档 8.4 定义的九个表单字段。 */
+        /**
+         * 精确限定为文档 8.4 定义的九个表单字段。
+         */
         private FormFields formFields;
     }
 
-    /** 浏览器返回商户网站时提交的非权威交易摘要。 */
+    /**
+     * 浏览器返回商户网站时提交的非权威交易摘要。
+     */
     @Data
     public static class FormFields implements Serializable {
         private static final long serialVersionUID = 1L;

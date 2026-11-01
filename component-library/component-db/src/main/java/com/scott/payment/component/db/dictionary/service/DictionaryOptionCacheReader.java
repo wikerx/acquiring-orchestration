@@ -15,13 +15,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DictionaryOptionCacheReader
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 跨系统启用数据字典下拉快照读取器，以有限 TTL 吸收高频表单查询并从主库可靠重建
- * @status : create
+ * 跨系统启用数据字典下拉快照读取器，以有限 TTL 吸收高频表单查询并从主库可靠重建
  */
 @Service
 public class DictionaryOptionCacheReader {
@@ -43,7 +37,9 @@ public class DictionaryOptionCacheReader {
      */
     private static final int ENABLED = 1;
 
-    /** 公共数据字典数据访问组件。 */
+    /**
+     * 公共数据字典数据访问组件。
+     */
     private final SharedDictionaryDataMapper dictionaryDataMapper;
 
     /**
@@ -84,7 +80,9 @@ public class DictionaryOptionCacheReader {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    /** 将数据库记录转换为不含管理审计字段的共享快照。 */
+    /**
+     * 将数据库记录转换为不含管理审计字段的共享快照。
+     */
     private DictionaryOptionSnapshot toSnapshot(SharedDictionaryDataDO row) {
         DictionaryOptionSnapshot snapshot = new DictionaryOptionSnapshot();
         snapshot.setId(row.getId());

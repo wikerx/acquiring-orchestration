@@ -20,17 +20,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundExecutionConsumerTests
- * @date : 2026-08-21 18:30
- * @email : scott_x@163.com
- * @description : 退款执行 MQ 消费入口契约测试，覆盖完整状态机定位字段和毒消息处理
- * @status : create
+ * 退款执行 MQ 消费入口契约测试，覆盖完整状态机定位字段和毒消息处理
  */
 class RefundExecutionConsumerTests {
 
-    /** 退款执行命令必须按操作号所在 FIFO 队列顺序消费。 */
+    /**
+     * 退款执行命令必须按操作号所在 FIFO 队列顺序消费。
+     */
     @Test
     void listenerContractShouldUsePaymentTransactionFifoTopicAndOrderlyMode() {
         RocketMQMessageListener listener = RefundExecutionConsumer.class
@@ -40,7 +36,9 @@ class RefundExecutionConsumerTests {
         assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.ORDERLY);
     }
 
-    /** 完整退款执行命令应交给数据库状态机且不改变消息身份。 */
+    /**
+     * 完整退款执行命令应交给数据库状态机且不改变消息身份。
+     */
     @Test
     void shouldExecuteValidMessage() {
         RefundExecutionService executionService = mock(RefundExecutionService.class);
@@ -53,7 +51,9 @@ class RefundExecutionConsumerTests {
         verify(executionService).execute(message);
     }
 
-    /** 缺少数据库版本时必须触发 Broker 重试且不得调用渠道状态机。 */
+    /**
+     * 缺少数据库版本时必须触发 Broker 重试且不得调用渠道状态机。
+     */
     @Test
     void shouldRejectMessageWithoutExpectedVersion() {
         RefundExecutionService executionService = mock(RefundExecutionService.class);
@@ -68,7 +68,9 @@ class RefundExecutionConsumerTests {
         verify(executionService, never()).execute(org.mockito.ArgumentMatchers.any());
     }
 
-    /** 畸形 JSON 必须触发 Broker 重试且不得调用渠道状态机。 */
+    /**
+     * 畸形 JSON 必须触发 Broker 重试且不得调用渠道状态机。
+     */
     @Test
     void shouldRejectMalformedPayload() {
         RefundExecutionService executionService = mock(RefundExecutionService.class);
@@ -81,7 +83,9 @@ class RefundExecutionConsumerTests {
         verify(executionService, never()).execute(org.mockito.ArgumentMatchers.any());
     }
 
-    /** 创建最小合法退款执行命令。 */
+    /**
+     * 创建最小合法退款执行命令。
+     */
     private RefundExecutionMessage message() {
         RefundExecutionMessage message = new RefundExecutionMessage();
         message.setMessageId("REFUND-EVENT-001");

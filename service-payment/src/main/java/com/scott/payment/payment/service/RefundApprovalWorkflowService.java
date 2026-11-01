@@ -32,52 +32,28 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundApprovalWorkflowService
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 退款审批领域服务，在同一本地事务内完成审批 CAS、退款动作推进、流程审计和执行 Outbox 写入。
- * @status : create
+ * 退款审批领域服务，在同一本地事务内完成审批 CAS、退款动作推进、流程审计和执行 Outbox 写入。
  */
 @Service
 public class RefundApprovalWorkflowService {
 
     /**
      * {@code APPROVAL_ID_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String APPROVAL_ID_PREFIX = "RA";
     /**
      * {@code EXECUTION_EVENT_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String EXECUTION_EVENT_PREFIX = "RE";
     /**
      * {@code FLOW_EVENT_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String FLOW_EVENT_PREFIX = "FE";
     /**
      * {@code PAYMENT_TRANSACTION_AGGREGATE}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
     /**
@@ -91,10 +67,6 @@ public class RefundApprovalWorkflowService {
     private static final String EVENT_STATUS_INIT = "INIT";
     /**
      * 默认时间时区常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
     /**
@@ -107,10 +79,6 @@ public class RefundApprovalWorkflowService {
     private static final int INITIAL_VERSION = 0;
     /**
      * {@code NOT_DELETED}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final int NOT_DELETED = 0;
     /**
@@ -339,6 +307,9 @@ public class RefundApprovalWorkflowService {
         return true;
     }
 
+    /**
+     * 校验并获取审批。
+     */
     private TransactionRefundApprovalDO requireApproval(String approvalId) {
         TransactionRefundApprovalDO approval = approvalMapper.selectByApprovalIdForUpdate(approvalId);
         if (approval == null) {
@@ -347,6 +318,9 @@ public class RefundApprovalWorkflowService {
         return approval;
     }
 
+    /**
+     * 校验并获取待处理动作。
+     */
     private TransactionOperationDO requirePendingOperation(TransactionRefundApprovalDO approval) {
         TransactionOperationDO operation = operationMapper.selectByTransactionId(
                 approval.getRefundTransactionId(), approval.getRefundTransactionDateTime());
@@ -358,6 +332,9 @@ public class RefundApprovalWorkflowService {
         return operation;
     }
 
+    /**
+     * 校验退款审批仍处于待决策状态。
+     */
     private void validatePendingDecision(TransactionRefundApprovalDO approval,
                                          RefundApprovalDecisionCommandDTO commandDTO,
                                          LocalDateTime now) {
@@ -380,14 +357,13 @@ public class RefundApprovalWorkflowService {
     }
 
     /**
-     * 解析重复结论，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param approval 受控开关或审批结论，不得绕过对应权限和状态校验
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param targetStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @return 构造、转换或解析后的业务值
+     * 判断审批命令是否为同一请求的重复投递，并拒绝相反或迟到结论。
+     *
+     * @param approval 已持有行锁的当前审批事实
+     * @param commandDTO 携带稳定决策请求号的审批命令
+     * @param targetStatus 本次命令期望写入的审批终态
+     * @return 同一终态且请求号相同时返回既有审批事实；仍为待审批时返回 {@code null}
+     * @throws ServiceException 已有终态与本次命令不一致时抛出状态冲突
      */
     private TransactionRefundApprovalDO resolveDuplicateDecision(TransactionRefundApprovalDO approval,
                                                                   RefundApprovalDecisionCommandDTO commandDTO,
@@ -403,15 +379,13 @@ public class RefundApprovalWorkflowService {
     }
 
     /**
-     * 创建{@code saveExecutionOutbox}，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 写操作；实现必须沿用 支付核心服务 既有权限、幂等键、唯一约束和事务边界。
-     * </p>
-     * @param approval 受控开关或审批结论，不得绕过对应权限和状态校验
-     * @param operation 当前交易动作事实，包含交易身份、状态、版本和分片定位信息
-     * @param eventId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param expectedOperationVersion 交易动作预期版本，用于数据库 CAS 防止并发终态覆盖
-     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * 在审批事务内写入退款执行 Outbox，确保审批通过与异步执行事件原子提交。
+     *
+     * @param approval 已通过且持有当前事务锁的退款审批单
+     * @param operation 等待执行的退款动作事实
+     * @param eventId 退款执行事件唯一标识，同时用作消息幂等键
+     * @param expectedOperationVersion 消费者取得执行权时必须匹配的动作版本
+     * @param now 审批通过和事件创建的统一业务时间
      */
     private void saveExecutionOutbox(TransactionRefundApprovalDO approval,
                                      TransactionOperationDO operation,
@@ -463,18 +437,16 @@ public class RefundApprovalWorkflowService {
     }
 
     /**
-     * 创建{@code saveFlowEvent}，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 写操作；实现必须沿用 支付核心服务 既有权限、幂等键、唯一约束和事务边界。
-     * </p>
-     * @param approval 受控开关或审批结论，不得绕过对应权限和状态校验
-     * @param operationId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param eventType MQ 主题、标签、顺序分组或事件类型，必须符合既有消息契约
-     * @param eventStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @param content 序列化业务载荷，持久化或记录日志前必须完成敏感字段检查
-     * @param operatorType 可信认证上下文中的操作人身份或类型，用于权限校验和操作审计
-     * @param operatorId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * 保存退款审批状态变更事件，供交易时间线和审计查询使用。
+     *
+     * @param approval 本次发生状态变化的退款审批单
+     * @param operationId 关联退款动作号
+     * @param eventType 审批创建、通过、拒绝或过期事件类型
+     * @param eventStatus 本次事件执行结果
+     * @param content 不含敏感数据且长度受控的事件说明
+     * @param operatorType 发起本次变更的操作人类型
+     * @param operatorId 发起本次变更的操作人标识
+     * @param now 状态变化和事件创建的统一业务时间
      */
     private void saveFlowEvent(TransactionRefundApprovalDO approval,
                                String operationId,
@@ -507,14 +479,20 @@ public class RefundApprovalWorkflowService {
         requireSingleRow(flowEventMapper.insertLogical(event), "refund approval flow event insert failed");
     }
 
+    /**
+     * 构建退款审批策略快照。
+     */
     private String policySnapshot(String policyCode, PaymentCreateCommandDTO commandDTO) {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("policyCode", policyCode);
-        snapshot.put("refundScope", commandDTO.getRefundScope());
-        snapshot.put("requestSource", RefundRequestSourceEnum.from(commandDTO.getRequestSource()).getCode());
+        RefundApprovalPolicySnapshot snapshot = new RefundApprovalPolicySnapshot(
+                policyCode,
+                commandDTO.getRefundScope(),
+                RefundRequestSourceEnum.from(commandDTO.getRequestSource()).getCode());
         return JsonUtils.toJsonString(snapshot);
     }
 
+    /**
+     * 应用退款审批决策快照。
+     */
     private void applyDecisionSnapshot(TransactionRefundApprovalDO approval,
                                        RefundApprovalStatusEnum status,
                                        RefundApprovalDecisionCommandDTO commandDTO,
@@ -531,6 +509,9 @@ public class RefundApprovalWorkflowService {
         approval.setUpdateTime(now);
     }
 
+    /**
+     * 校验退款审批创建条件。
+     */
     private void validateApprovalCreation(PaymentCreateCommandDTO commandDTO,
                                           TransactionOrderDO sourceOrderDO,
                                           PaymentCreateResultDTO resultDTO,
@@ -545,6 +526,9 @@ public class RefundApprovalWorkflowService {
         }
     }
 
+    /**
+     * 校验退款审批决策命令。
+     */
     private void validateDecisionCommand(RefundApprovalDecisionCommandDTO commandDTO, boolean reasonRequired) {
         if (commandDTO == null
                 || !StringUtils.hasText(commandDTO.getApprovalId())
@@ -559,12 +543,18 @@ public class RefundApprovalWorkflowService {
         }
     }
 
+    /**
+     * 校验数据库操作只影响一行。
+     */
     private void requireSingleRow(int affectedRows, String message) {
         if (affectedRows != 1) {
             throw new ServiceException(ApiResultEnum.REFUND_APPROVAL_STATE_CONFLICT.getCode(), message);
         }
     }
 
+    /**
+     * 生成长度受控的失败原因。
+     */
     private String safeReason(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -573,14 +563,32 @@ public class RefundApprovalWorkflowService {
         return trimmed.length() > 512 ? trimmed.substring(0, 512) : trimmed;
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String first, String second) {
         return StringUtils.hasText(first) ? first : second;
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime localDateTime) {
         return localDateTime == null ? null : localDateTime
                 .atZone(ZoneId.of(DEFAULT_TIME_ZONE))
                 .withZoneSameInstant(ZoneOffset.UTC)
                 .toLocalDateTime();
+    }
+
+    /**
+     * 创建退款审批时固化的策略上下文。
+     *
+     * @param policyCode 命中的退款审批策略编码
+     * @param refundScope 商户请求的退款范围
+     * @param requestSource 归一化后的退款请求来源
+     */
+    private record RefundApprovalPolicySnapshot(String policyCode,
+                                                String refundScope,
+                                                String requestSource) {
     }
 }

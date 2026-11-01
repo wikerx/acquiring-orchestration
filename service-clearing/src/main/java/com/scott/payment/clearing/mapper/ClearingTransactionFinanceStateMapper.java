@@ -14,17 +14,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingTransactionFinanceStateMapper
- * @date : 2026-08-26 09:12
- * @email : scott_x@163.com
- * @description : 清分权威状态 Mapper，只提供精确分片读取和带版本条件的状态 CAS，不承载业务判断。
- * @status : create
+ * 清分权威状态 Mapper，只提供精确分片读取和带版本条件的状态 CAS，不承载业务判断。
  */
 public interface ClearingTransactionFinanceStateMapper extends BaseMapper<ClearingTransactionFinanceStateDO> {
 
-    /** 单季度管理查询，使用 transaction_date_time + id 主键游标，禁止 OFFSET。 */
+    /**
+     * 单季度管理查询，使用 transaction_date_time + id 主键游标，禁止 OFFSET。
+     */
     @Select("""
             <script>
             SELECT *
@@ -78,7 +74,9 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
             @Param("transactionId") String transactionId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
-    /** 首次终态事件到达时幂等创建动作级 finance state，唯一 transaction_id 防止重复动作状态。 */
+    /**
+     * 首次终态事件到达时幂等创建动作级 finance state，唯一 transaction_id 防止重复动作状态。
+     */
     @Insert("""
             INSERT INTO transaction_finance_state
             (finance_state_id, transaction_id, operation_id, merchant_id, source_transaction_id,
@@ -98,7 +96,9 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                        @Param("operation") ClearingTransactionOperationDO operation,
                        @Param("now") LocalDateTime now);
 
-    /** 阶段B按当前动作分片时间锁定 PROCESSING finance state。 */
+    /**
+     * 阶段B按当前动作分片时间锁定 PROCESSING finance state。
+     */
     @Select("""
             SELECT *
             FROM transaction_finance_state
@@ -207,7 +207,9 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                            @Param("summary") FinanceSummary summary,
                            @Param("now") LocalDateTime now);
 
-    /** 使用领取版本记录失败、等待源动作或人工复核状态，禁止覆盖已完成终态。 */
+    /**
+     * 使用领取版本记录失败、等待源动作或人工复核状态，禁止覆盖已完成终态。
+     */
     @Update("""
             UPDATE transaction_finance_state
             SET clearing_status = #{targetStatus},
@@ -272,7 +274,9 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                                   @Param("failureMessage") String failureMessage,
                                   @Param("now") LocalDateTime now);
 
-    /** 补偿达到重试上限时以版本 CAS 进入人工复核，禁止继续发布延时消息。 */
+    /**
+     * 补偿达到重试上限时以版本 CAS 进入人工复核，禁止继续发布延时消息。
+     */
     @Update("""
             UPDATE transaction_finance_state
             SET clearing_status = 'MANUAL_REVIEW',
@@ -301,7 +305,9 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                                    @Param("failureMessage") String failureMessage,
                                    @Param("now") LocalDateTime now);
 
-    /** 人工重试以预期版本从失败、等待或人工复核状态重新安排一次受控延时消息。 */
+    /**
+     * 人工重试以预期版本从失败、等待或人工复核状态重新安排一次受控延时消息。
+     */
     @Update("""
             UPDATE transaction_finance_state
             SET clearing_status = 'FAILED',
@@ -328,7 +334,9 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                             @Param("reason") String reason,
                             @Param("now") LocalDateTime now);
 
-    /** 将未完成且无活动租约的动作升级到人工复核，完成态和已结算状态不可覆盖。 */
+    /**
+     * 将未完成且无活动租约的动作升级到人工复核，完成态和已结算状态不可覆盖。
+     */
     @Update("""
             UPDATE transaction_finance_state
             SET clearing_status = 'MANUAL_REVIEW',

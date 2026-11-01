@@ -37,13 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementResultCalculationServiceTest
- * @date : 2026-08-26 23:55
- * @email : scott_x@163.com
- * @description : 验证统一批次汇率下本金、跨币种费用限额和保证金结果分离，最终仅形成 CALCULATED。
- * @status : create
+ * 验证统一批次汇率下本金、跨币种费用限额和保证金结果分离，最终仅形成 CALCULATED。
  */
 class DefaultSettlementResultCalculationServiceTest {
 
@@ -58,7 +52,9 @@ class DefaultSettlementResultCalculationServiceTest {
         service = new DefaultSettlementResultCalculationService(batchMapper, resultMapper);
     }
 
-    /** EUR 百分比加 USD 固定费命中 USD 最低费，保证金独立换算且 TRACE 不进入汇总。 */
+    /**
+     * EUR 百分比加 USD 固定费命中 USD 最低费，保证金独立换算且 TRACE 不进入汇总。
+     */
     @Test
     void shouldCalculateFeeGroupReserveAndStopAtCalculated() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 0);
@@ -107,7 +103,9 @@ class DefaultSettlementResultCalculationServiceTest {
         verify(batchMapper).markCalculated(batch.getSettlementBatchNo(), "worker-1", 6L, now);
     }
 
-    /** 人工预审正式重算指纹不一致时必须抛出不可重试稳定错误，禁止进入 CALCULATED。 */
+    /**
+     * 人工预审正式重算指纹不一致时必须抛出不可重试稳定错误，禁止进入 CALCULATED。
+     */
     @Test
     void shouldRejectFormalResultWhenApprovedFingerprintChanges() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 0);

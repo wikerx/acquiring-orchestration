@@ -9,13 +9,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationalMetricsMapperContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证运维聚合 SQL 只读且始终携带单季度半开分片范围。
- * @status : create
+ * 验证运维聚合 SQL 只读且始终携带单季度半开分片范围。
  */
 class ClearingOperationalMetricsMapperContractTest {
 
@@ -27,7 +21,9 @@ class ClearingOperationalMetricsMapperContractTest {
                 LocalDateTime.class, LocalDateTime.class);
     }
 
-    /** 保证金负债 Gauge 必须覆盖所有正余额状态，不能漏掉未来调整态中的剩余负债。 */
+    /**
+     * 保证金负债 Gauge 必须覆盖所有正余额状态，不能漏掉未来调整态中的剩余负债。
+     */
     @Test
     void reserveMetricsShouldAggregateEveryPositiveRemainingBalance() throws Exception {
         Method method = ClearingOperationalMetricsMapper.class.getMethod(

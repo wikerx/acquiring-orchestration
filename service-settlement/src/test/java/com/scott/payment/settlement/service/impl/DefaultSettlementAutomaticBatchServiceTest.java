@@ -25,13 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementAutomaticBatchServiceTest
- * @date : 2026-08-26 22:10
- * @email : scott_x@163.com
- * @description : 验证自动日批使用商户业务时区和日切生成确定性请求键，并在建批后完成候选认领封批。
- * @status : create
+ * 验证自动日批使用商户业务时区和日切生成确定性请求键，并在建批后完成候选认领封批。
  */
 class DefaultSettlementAutomaticBatchServiceTest {
 
@@ -54,7 +48,9 @@ class DefaultSettlementAutomaticBatchServiceTest {
                 profileMapper, automaticPostService, reviewOrderService);
     }
 
-    /** 上海零点日切在 09:00 已成熟，应创建当天唯一常规批次。 */
+    /**
+     * 上海零点日切在 09:00 已成熟，应创建当天唯一常规批次。
+     */
     @Test
     void shouldCreateDeterministicMaturedDailyBatchAndClaimCandidates() {
         Instant now = Instant.parse("2026-08-26T01:00:00Z");
@@ -70,7 +66,9 @@ class DefaultSettlementAutomaticBatchServiceTest {
                 LocalDateTime.of(2026, 8, 26, 1, 0));
     }
 
-    /** 候选结算日期晚于当前成熟业务日时不得提前建批。 */
+    /**
+     * 候选结算日期晚于当前成熟业务日时不得提前建批。
+     */
     @Test
     void shouldSkipCandidatesThatAreNotEligibleOnMaturedBusinessDate() {
         Instant now = Instant.parse("2026-08-26T01:00:00Z");
@@ -84,7 +82,9 @@ class DefaultSettlementAutomaticBatchServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
-    /** 保证金释放来源必须进入独立释放批次，不能混入常规交易日批。 */
+    /**
+     * 保证金释放来源必须进入独立释放批次，不能混入常规交易日批。
+     */
     @Test
     void shouldCreateReserveReleaseBatchForReleaseGroup() {
         Instant now = Instant.parse("2026-08-26T01:00:00Z");
@@ -100,7 +100,9 @@ class DefaultSettlementAutomaticBatchServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
-    /** 已复核保证金调整必须生成独立调整批次且不引用原结算批。 */
+    /**
+     * 已复核保证金调整必须生成独立调整批次且不引用原结算批。
+     */
     @Test
     void shouldCreateIndependentAdjustmentBatchForAdjustmentGroup() {
         Instant now = Instant.parse("2026-08-26T01:00:00Z");
@@ -116,7 +118,9 @@ class DefaultSettlementAutomaticBatchServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
-    /** 自动预审档案应由系统锁定候选并生成待审批单，不得直接创建正式批次。 */
+    /**
+     * 自动预审档案应由系统锁定候选并生成待审批单，不得直接创建正式批次。
+     */
     @Test
     void shouldCreateSystemReviewWithoutPostingForAutoReviewProfile() {
         Instant now = Instant.parse("2026-08-26T01:00:00Z");
@@ -151,7 +155,9 @@ class DefaultSettlementAutomaticBatchServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
-    /** 自动预审候选被并发占用时不得虚增已处理分组数。 */
+    /**
+     * 自动预审候选被并发占用时不得虚增已处理分组数。
+     */
     @Test
     void shouldNotCountAutoReviewGroupWhenNoCandidateRemainsReady() {
         Instant now = Instant.parse("2026-08-26T01:00:00Z");

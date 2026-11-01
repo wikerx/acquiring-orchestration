@@ -33,6 +33,23 @@ class OpenApiCallbackSecuritySupportTests {
     private static final String CHANNEL_CODE = "TEST_PROVIDER";
     private static final byte[] RAW_BODY = "{\"status\":\"SUCCESS\"}".getBytes(StandardCharsets.UTF_8);
 
+    /**
+     * 未显式配置维护令牌时必须拒绝旧开发默认值，避免环境漏配后暴露重试入口。
+     */
+    @Test
+    void shouldFailClosedWhenNotifyRetryTokenIsNotConfigured() {
+        OpenApiCallbackSecuritySupport support = support(
+                properties(), new CapturingProtocol(ChannelCallbackAuthentication.REQUIRED, false),
+                (channel, hint) -> "secret");
+        MockHttpServletRequest request = request();
+        request.addHeader(OpenApiCallbackSecuritySupport.NOTIFY_RETRY_TOKEN_HEADER,
+                "dev-notify-retry-token");
+
+        assertThatThrownBy(() -> support.verifyNotifyRetryToken(request))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("invalid");
+    }
+
     @Test
     void shouldPassExactBodyAndAllHeaderValuesToProviderProtocol() {
         CapturingProtocol protocol = new CapturingProtocol(ChannelCallbackAuthentication.REQUIRED, false);

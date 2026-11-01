@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataInternalClientConfig
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 内部补偿客户端配置，为 service-job 提供直连和服务发现两类有界超时 HTTP 客户端
- * @status : create
+ * service-data 内部补偿客户端配置，为 service-job 提供直连和服务发现两类有界超时 HTTP 客户端
  */
 @Configuration
 @EnableConfigurationProperties(DataInternalClientProperties.class)

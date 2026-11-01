@@ -5,13 +5,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationRetryOutboxMapper
- * @date : 2026-08-06 12:36
- * @email : scott_x@163.com
- * @description : 自动商户通知重试事件 Mapper，只负责向同分片 transaction_event_outbox 写入消息意图
- * @status : create
+ * 自动商户通知重试事件 Mapper，只负责向同分片 transaction_event_outbox 写入消息意图。
  */
 public interface DataMerchantNotificationRetryOutboxMapper {
 

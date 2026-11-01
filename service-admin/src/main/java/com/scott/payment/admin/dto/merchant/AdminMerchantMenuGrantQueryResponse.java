@@ -9,13 +9,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantMenuGrantQueryResponse
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户菜单授权查询响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 管理端商户菜单授权查询响应模型，用于运营后台，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  */
 @Data
 public class AdminMerchantMenuGrantQueryResponse implements Serializable {

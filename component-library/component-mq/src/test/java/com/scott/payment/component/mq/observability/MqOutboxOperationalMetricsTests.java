@@ -9,13 +9,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqOutboxOperationalMetricsTests
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 验证 MQ Outbox Gauge、批次饱和 Counter 和固定低基数标签。
- * @status : create
+ * 验证 MQ Outbox Gauge、批次饱和 Counter 和固定低基数标签。
  */
 class MqOutboxOperationalMetricsTests {
 

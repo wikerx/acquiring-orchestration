@@ -29,13 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiAccessPolicyCacheServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 访问策略缓存代理测试。
- * @status : create
+ * 商户 OpenAPI 访问策略缓存代理测试。
  */
 class MerchantOpenApiAccessPolicyCacheServiceTests {
 

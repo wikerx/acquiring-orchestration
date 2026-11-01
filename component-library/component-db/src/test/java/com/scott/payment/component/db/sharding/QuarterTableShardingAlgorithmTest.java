@@ -17,13 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : QuarterTableShardingAlgorithmTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 验证季度算法的精确、范围、边界、缺节点与 JVM 默认时区无关性。
- * @status : create
+ * 验证季度算法的精确、范围、边界、缺节点与 JVM 默认时区无关性。
  */
 class QuarterTableShardingAlgorithmTest {
 

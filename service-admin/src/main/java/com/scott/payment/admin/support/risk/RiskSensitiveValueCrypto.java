@@ -14,13 +14,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskSensitiveValueCrypto
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 风控管理端敏感名单值加解密组件，仅用于编辑授权回显完整值，不参与实时交易风控匹配。
- * @status : create
+ * 风控管理端敏感名单值加解密组件，仅用于编辑授权回显完整值，不参与实时交易风控匹配。
  */
 @Component
 public class RiskSensitiveValueCrypto {
@@ -97,6 +91,9 @@ public class RiskSensitiveValueCrypto {
         }
     }
 
+    /**
+     * 从配置密钥材料构造用于风险敏感值加解密的密钥。
+     */
     private byte[] secretKey() throws Exception {
         String seed = System.getProperty("payment.risk.secret", System.getenv().getOrDefault("PAYMENT_RISK_SECRET", "local-risk-secret-change-me"));
         return MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));

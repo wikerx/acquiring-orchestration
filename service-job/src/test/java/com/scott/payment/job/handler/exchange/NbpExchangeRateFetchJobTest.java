@@ -15,13 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NbpExchangeRateFetchJobTest
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 验证 NBP 定时任务固定调用 NBP Provider，同时保留 dryRun 等通用任务参数。
- * @status : create
+ * 验证 NBP 定时任务固定调用 NBP Provider，同时保留 dryRun 等通用任务参数。
  */
 class NbpExchangeRateFetchJobTest {
 

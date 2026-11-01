@@ -10,19 +10,18 @@ import java.util.HexFormat;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuntimeValueNormalizerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控运行时值归一化契约测试。
- * @status : create
+ * 风控运行时值归一化契约测试。
  */
 class RiskRuntimeValueNormalizerTests {
 
-    /** 被测归一化器，所有用例验证原始敏感值不会进入匹配摘要或展示值。 */
+    /**
+     * 被测归一化器，所有用例验证原始敏感值不会进入匹配摘要或展示值。
+     */
     private final RiskRuntimeValueNormalizer normalizer = new RiskRuntimeValueNormalizer();
 
+    /**
+     * 验证卡号指纹稳定且查询值不保留原始 PAN。
+     */
     @Test
     void shouldGenerateStableCardFingerprintWithoutRetainingPan() {
         String pan = "4111111111111234";
@@ -35,6 +34,9 @@ class RiskRuntimeValueNormalizerTests {
         assertThat(lookupValue.getMatchValueMasked()).doesNotContain(pan);
     }
 
+    /**
+     * 验证普通文本摘要与管理端归一化规则保持一致。
+     */
     @Test
     void shouldAlignSimpleTextHashWithAdminNormalizer() {
         RiskRuntimeLookupValue lookupValue = normalizer.text("  Example Trading Limited  ", true);
@@ -44,6 +46,9 @@ class RiskRuntimeValueNormalizerTests {
         assertThat(lookupValue.getMatchValueMasked()).doesNotContain("Example Trading Limited");
     }
 
+    /**
+     * 验证邮编匹配摘要忽略空格和连字符差异。
+     */
     @Test
     void shouldIgnoreSpacesAndHyphensWhenNormalizingPostalCode() {
         RiskRuntimeLookupValue lookupValue = normalizer.postalCode(" sw1a- 1aa ");
@@ -52,6 +57,9 @@ class RiskRuntimeValueNormalizerTests {
         assertThat(lookupValue.getMatchValueHash()).isEqualTo(sha256("SW1A1AA"));
     }
 
+    /**
+     * 验证频控键使用规范化 IP 的摘要而不是原始地址。
+     */
     @Test
     void shouldHashCanonicalIpForFrequencyKeys() {
         RiskRuntimeLookupValue lookupValue = normalizer.ip("010.000.000.001");
@@ -61,6 +69,9 @@ class RiskRuntimeValueNormalizerTests {
         assertThat(lookupValue.getMatchValueHash()).doesNotContain(lookupValue.getRawValue());
     }
 
+    /**
+     * 验证国家、省州和城市按层级地区匹配规则归一化。
+     */
     @Test
     void shouldNormalizeCountryStateAndCityForHierarchicalRegionMatching() {
         RiskRuntimeLookupValue lookupValue = normalizer.region(
@@ -74,6 +85,9 @@ class RiskRuntimeValueNormalizerTests {
         assertThat(lookupValue.getMatchValueMasked()).isEqualTo("BRB/Saint Michael/Bridgetown");
     }
 
+    /**
+     * 计算测试期望值使用的 SHA-256 十六进制摘要。
+     */
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

@@ -1,6 +1,5 @@
 package com.scott.payment.openapi;
 
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
@@ -12,13 +11,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantClientRequestWithoutDatabaseTests
- * @date : 2026-06-02 21:35
- * @email : scott_x@163.com
- * @description : 不连接数据库的商户请求封装测试，使用固定密钥模拟商户加密请求并模拟 OpenAPI 服务端解包
- * @status : create
+ * 不连接数据库的商户请求封装测试，使用固定密钥模拟商户加密请求并模拟 OpenAPI 服务端解包
  */
 @Slf4j
 class MerchantClientRequestWithoutDatabaseTests {
@@ -73,7 +66,8 @@ class MerchantClientRequestWithoutDatabaseTests {
     @Test
     void shouldBuildMerchantEncryptedHttpRequestWithoutDatabase() {
         String plainRequestJson = MerchantOpenApiTestSupport.authorizationPlainText(MERCHANT_ID, TRADE_NO);
-        log.info("明文请求参数脱敏：{}", SensitiveDataMaskUtils.maskJson(plainRequestJson));
+        log.info("明文请求参数摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(plainRequestJson, keyMaterialFactory));
 
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
@@ -98,7 +92,8 @@ class MerchantClientRequestWithoutDatabaseTests {
         log.info("商户侧固定密钥摘要-merchantKey指纹：{}，平台公钥指纹：{}",
                 keyMaterialFactory.fingerprint(MERCHANT_KEY),
                 keyMaterialFactory.fingerprint(PLATFORM_PUBLIC_KEY_X509_BASE64));
-        log.info("商户侧明文请求脱敏：{}", SensitiveDataMaskUtils.maskJson(plainRequestJson));
+        log.info("商户侧明文请求摘要：{}",
+                MerchantOpenApiTestSupport.safePayloadSummary(plainRequestJson, keyMaterialFactory));
         log.info("商户侧HTTP请求参数摘要：{}",
                 MerchantOpenApiTestSupport.safeHttpCallSummary(authorization, httpRequestBody, keyMaterialFactory));
 
@@ -113,9 +108,9 @@ class MerchantClientRequestWithoutDatabaseTests {
         assertThat(claims.getMerchantId()).isEqualTo(MERCHANT_ID);
         assertThat(claims.getJwtId()).isEqualTo(TRADE_NO);
         assertThat(serverPlainText).isEqualTo(plainRequestJson);
-        log.info("模拟OpenAPI服务端验签解密成功-商户号：{}，jti：{}，解密后请求脱敏：{}",
+        log.info("模拟OpenAPI服务端验签解密成功-商户号：{}，jti摘要：{}，解密后请求摘要：{}",
                 claims.getMerchantId(),
-                claims.getJwtId(),
-                SensitiveDataMaskUtils.maskJson(serverPlainText));
+                keyMaterialFactory.fingerprint(claims.getJwtId()),
+                MerchantOpenApiTestSupport.safePayloadSummary(serverPlainText, keyMaterialFactory));
     }
 }

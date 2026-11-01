@@ -6,7 +6,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
-/** 内部手动交易或保证金结算预览、后台生成和进度查询契约。 */
+/**
+ * 内部手动交易或保证金结算预览、后台生成和进度查询契约。
+ */
 public final class SettlementManualReviewModels {
 
     private SettlementManualReviewModels() {

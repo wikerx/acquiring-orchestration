@@ -35,15 +35,25 @@ import java.util.regex.Pattern;
 @Service
 public class DefaultPaymentAuthenticationRecordService implements PaymentAuthenticationRecordService {
 
-    /** 无时区交易时间的业务解释时区。 */
+    /**
+     * 无时区交易时间的业务解释时区。
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
-    /** 当前审计记录的认证协议类型。 */
+    /**
+     * 当前审计记录的认证协议类型。
+     */
     private static final String AUTHENTICATION_TYPE = "3DS";
-    /** 表示认证结果由平台渠道适配器获得，而非商户直接提供。 */
+    /**
+     * 表示认证结果由平台渠道适配器获得，而非商户直接提供。
+     */
     private static final String AUTHENTICATION_SOURCE = "CHANNEL";
-    /** 认证结果码字段最大长度，超长内容在持久化前截断。 */
+    /**
+     * 认证结果码字段最大长度，超长内容在持久化前截断。
+     */
     private static final int RESULT_CODE_MAX_LENGTH = 64;
-    /** 脱敏诊断信息最大长度，避免渠道异常正文无限进入审计表。 */
+    /**
+     * 脱敏诊断信息最大长度，避免渠道异常正文无限进入审计表。
+     */
     private static final int RESULT_MESSAGE_MAX_LENGTH = 512;
     private static final Pattern LONG_DIGIT_SEQUENCE = Pattern.compile("(?<![0-9])[0-9]{10,19}(?![0-9])");
     private static final Pattern SENSITIVE_QUERY_PARAMETER = Pattern.compile(
@@ -52,6 +62,11 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
 
     private final TransactionAuthenticationInfoMapper mapper;
 
+    /**
+     * 创建支付认证审计服务。
+     *
+     * @param mapper 认证事实数据访问组件
+     */
     public DefaultPaymentAuthenticationRecordService(TransactionAuthenticationInfoMapper mapper) {
         this.mapper = mapper;
     }
@@ -119,6 +134,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 "THREE_DS_AUTHENTICATION_TIMEOUT");
     }
 
+    /**
+     * 持久化 3DS 认证阶段及受控渠道证据。
+     */
     private void persist(ChannelThreeDsAuthenticationRequest request,
                          ChannelThreeDsAuthenticationResponse response,
                          ChannelThreeDsPhase phase,
@@ -161,6 +179,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         mapper.upsertPhase(row);
     }
 
+    /**
+     * 校验并获取身份。
+     */
     private void requireIdentity(ChannelThreeDsAuthenticationRequest request, ChannelThreeDsPhase phase) {
         if (request == null || !StringUtils.hasText(request.getTransactionId())
                 || request.getTransactionDateTime() == null || phase == null) {
@@ -168,6 +189,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         }
     }
 
+    /**
+     * 生成 3DS 认证信息标识。
+     */
     private String authenticationInfoId(ChannelThreeDsAuthenticationRequest request,
                                         ChannelThreeDsPhase phase) {
         return sha256Hex(String.join("|",
@@ -177,6 +201,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 phase.name()));
     }
 
+    /**
+     * 解析 3DS 认证状态。
+     */
     private String authenticationStatus(ChannelThreeDsStatus status) {
         if (ChannelThreeDsStatus.PASSED.equals(status)) {
             return "AUTHENTICATED";
@@ -187,6 +214,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return "ATTEMPTED";
     }
 
+    /**
+     * 解析 3DS 挑战状态。
+     */
     private String challengeStatus(ChannelThreeDsPhase phase, ChannelThreeDsStatus status) {
         if (ChannelThreeDsStatus.CHALLENGE_REQUIRED.equals(status)) {
             return "REQUIRED";
@@ -204,6 +234,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return null;
     }
 
+    /**
+     * 计算 3DS 跳转地址摘要。
+     */
     private String redirectHash(ChannelThreeDsAuthenticationRequest request,
                                 ChannelThreeDsAuthenticationResponse response) {
         String redirect = firstText(response == null ? null : response.getRedirectUrl(),
@@ -211,12 +244,18 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return StringUtils.hasText(redirect) ? sha256Hex(redirect) : null;
     }
 
+    /**
+     * 根据 3DS 状态生成受控结果码。
+     */
     private String resultCode(ChannelThreeDsStatus status, String failureCode) {
         String value = StringUtils.hasText(failureCode) ? failureCode : status.name();
         String safe = value.replaceAll("[^A-Za-z0-9_.:-]", "_");
         return safe.length() <= RESULT_CODE_MAX_LENGTH ? safe : safe.substring(0, RESULT_CODE_MAX_LENGTH);
     }
 
+    /**
+     * 根据 3DS 状态生成受控结果说明。
+     */
     private String resultMessage(ChannelThreeDsStatus status,
                                  ChannelThreeDsAuthenticationResponse response) {
         if (ChannelThreeDsStatus.FAILED.equals(status)
@@ -233,6 +272,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         };
     }
 
+    /**
+     * 构建 3DS 认证扩展审计 JSON。
+     */
     private String extraJson(ChannelThreeDsAuthenticationRequest request,
                              ChannelThreeDsAuthenticationResponse response,
                              ChannelThreeDsPhase phase,
@@ -253,16 +295,25 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return JsonUtils.toJsonString(summary);
     }
 
+    /**
+     * 读取 3DS 渠道响应扩展字段。
+     */
     private String extensionValue(ChannelThreeDsAuthenticationResponse response, String key) {
         return response == null || response.getExtension() == null ? null : response.getExtension().get(key);
     }
 
+    /**
+     * 仅在文本非空时写入映射。
+     */
     private void putIfText(Map<String, String> target, String key, String value) {
         if (StringUtils.hasText(value)) {
             target.put(key, value);
         }
     }
 
+    /**
+     * 清理并截断渠道协议字段。
+     */
     private String safeProtocolField(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -271,6 +322,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return safe.length() <= maxLength ? safe : safe.substring(0, maxLength);
     }
 
+    /**
+     * 清理诊断信息中的敏感查询参数并限制长度。
+     */
     private String safeDiagnosticMessage(String value) {
         String safe = value.replaceAll("[\\r\\n\\t]+", " ");
         safe = SENSITIVE_QUERY_PARAMETER.matcher(safe).replaceAll("$1***");
@@ -280,6 +334,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 ? safe : safe.substring(0, RESULT_MESSAGE_MAX_LENGTH);
     }
 
+    /**
+     * 清理并限制渠道返回码长度。
+     */
     private String safeCode(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -288,15 +345,24 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return safe.length() <= maxLength ? safe : safe.substring(0, maxLength);
     }
 
+    /**
+     * 判断 3DS 认证是否具备责任转移证据。
+     */
     private boolean hasLiabilityShift(ChannelThreeDsAuthenticationResponse response) {
         return response != null && (StringUtils.hasText(response.getEci())
                 || StringUtils.hasText(response.getCavv()));
     }
 
+    /**
+     * 判断是否终态。
+     */
     private boolean isTerminal(ChannelThreeDsStatus status) {
         return ChannelThreeDsStatus.PASSED.equals(status) || ChannelThreeDsStatus.FAILED.equals(status);
     }
 
+    /**
+     * 根据当前 3DS 状态解析超时阶段。
+     */
     private ChannelThreeDsPhase timeoutPhase(String currentStatus) {
         if (ChannelThreeDsStatus.CHALLENGE_REQUIRED.name().equals(currentStatus)) {
             return ChannelThreeDsPhase.VERIFY;
@@ -307,11 +373,17 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return ChannelThreeDsPhase.INITIALIZE;
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime) {
         return transactionDateTime.atZone(ZoneId.of(DEFAULT_TIME_ZONE))
                 .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -321,6 +393,9 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         return null;
     }
 
+    /**
+     * 计算文本的 SHA-256 十六进制摘要。
+     */
     private String sha256Hex(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

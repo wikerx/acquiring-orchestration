@@ -23,30 +23,34 @@ import java.util.Objects;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantKeyMetadataCacheReader
- * @date : 2026-08-01 15:05
- * @email : scott_x@163.com
- * @description : 从主库加载当前密钥非敏感字段并维护 merchant:keyMeta 永久缓存，避免复制延迟回写旧安全版本
- * @status : create
+ * 从主库加载当前密钥非敏感字段并维护 merchant:keyMeta 永久缓存，避免复制延迟回写旧安全版本
  */
 @Service
 public class MerchantKeyMetadataCacheReader {
 
-    /** 数据库未删除标识。 */
+    /**
+     * 数据库未删除标识。
+     */
     private static final int NOT_DELETED = 0;
 
-    /** 数据库启用标识。 */
+    /**
+     * 数据库启用标识。
+     */
     private static final int ENABLED = 1;
 
-    /** 商户 JWT 密钥数据访问入口。 */
+    /**
+     * 商户 JWT 密钥数据访问入口。
+     */
     private final BaseMerchantJwtKeyMapper jwtKeyMapper;
 
-    /** 平台请求体密钥数据访问入口。 */
+    /**
+     * 平台请求体密钥数据访问入口。
+     */
     private final BasePlatformPayloadKeyMapper platformPayloadKeyMapper;
 
-    /** 商户响应密钥数据访问入口。 */
+    /**
+     * 商户响应密钥数据访问入口。
+     */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
 
     /**
@@ -104,7 +108,9 @@ public class MerchantKeyMetadataCacheReader {
         return load(merchantId);
     }
 
-    /** 从三类当前启用密钥记录构造不含密钥正文的版本快照。 */
+    /**
+     * 从三类当前启用密钥记录构造不含密钥正文的版本快照。
+     */
     private MerchantKeyMetadata load(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         BaseMerchantJwtKeyDO jwtKey = selectJwtKey(merchantId, now);
@@ -140,7 +146,9 @@ public class MerchantKeyMetadataCacheReader {
         return metadata;
     }
 
-    /** 查询当前启用 JWT 密钥的非敏感字段。 */
+    /**
+     * 查询当前启用 JWT 密钥的非敏感字段。
+     */
     private BaseMerchantJwtKeyDO selectJwtKey(String merchantId, LocalDateTime now) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>query()
                 .select("id", "merchant_id", "key_version", "algorithm", "expires_seconds",
@@ -154,7 +162,9 @@ public class MerchantKeyMetadataCacheReader {
                 .last("LIMIT 1"));
     }
 
-    /** 查询当前启用平台载荷密钥的非敏感字段。 */
+    /**
+     * 查询当前启用平台载荷密钥的非敏感字段。
+     */
     private BasePlatformPayloadKeyDO selectPlatformKey(String merchantId) {
         return platformPayloadKeyMapper.selectOne(Wrappers.<BasePlatformPayloadKeyDO>query()
                 .select("id", "merchant_id", "algorithm", "key_size", "gmt_modified")
@@ -164,7 +174,9 @@ public class MerchantKeyMetadataCacheReader {
                 .last("LIMIT 1"));
     }
 
-    /** 查询当前启用商户响应密钥的非敏感字段。 */
+    /**
+     * 查询当前启用商户响应密钥的非敏感字段。
+     */
     private BaseMerchantResponseKeyDO selectResponseKey(String merchantId) {
         return responseKeyMapper.selectOne(Wrappers.<BaseMerchantResponseKeyDO>query()
                 .select("id", "merchant_id", "algorithm", "key_size", "gmt_modified")

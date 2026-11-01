@@ -26,13 +26,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementReversalQueryService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 直接读取 transaction 逻辑数据源的冲正单分页和详情。
- * @status : create
+ * 直接读取 transaction 逻辑数据源的冲正单分页和详情。
  */
 @Service
 public class JdbcAdminSettlementReversalQueryService implements AdminSettlementReversalQueryService {
@@ -67,6 +61,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
 
+    /**
+     * 创建管理端结算冲正查询服务。
+     */
     @Autowired
     public JdbcAdminSettlementReversalQueryService(DataSource dataSource,
                                                    TransactionLogicalReadExecutor readExecutor,
@@ -75,6 +72,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         this(factory.create(dataSource, shardingProperties), readExecutor, shardingProperties);
     }
 
+    /**
+     * 创建带查询预算的管理端结算冲正查询服务。
+     */
     public JdbcAdminSettlementReversalQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                                    TransactionLogicalReadExecutor readExecutor,
                                                    TransactionShardingProperties shardingProperties) {
@@ -84,7 +84,7 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
     }
 
     /**
-     * 查询{@code search}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * 按管理数据范围分页查询业务记录。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
      * </p>
@@ -126,6 +126,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         detail(reversalOrderNo, dataScope);
     }
 
+    /**
+     * 按安全分页参数查询当前业务记录。
+     */
     private PageResult<ReversalSummary> page(ReversalSearchRequest query, AdminMerchantDataScope scope) {
         if (scope.empty()) return PageResult.of(0, query.getPageNo(), query.getPageSize(), List.of());
         StringBuilder where = new StringBuilder("WHERE submitted_time >= :beginTime AND submitted_time < :endTime\n");
@@ -151,6 +154,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
+    /**
+     * 查询本地。
+     */
     private ReversalDetailResponse detailLocal(String orderNo, AdminMerchantDataScope scope) {
         if (scope.empty()) throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         MapSqlParameterSource parameters = new MapSqlParameterSource("orderNo", orderNo)
@@ -182,6 +188,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return response;
     }
 
+    /**
+     * 规范化输入值。
+     */
     private ReversalSearchRequest normalize(ReversalSearchRequest request) {
         if (request == null || request.getBeginSubmittedDate() == null || request.getEndSubmittedDate() == null
                 || request.getBeginSubmittedDate().isAfter(request.getEndSubmittedDate())
@@ -206,6 +215,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return request;
     }
 
+    /**
+     * 向当前构建结果追加非空字段。
+     */
     private void append(StringBuilder where, MapSqlParameterSource parameters,
                         String column, String parameter, String value) {
         if (value != null) {
@@ -214,6 +226,9 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         }
     }
 
+    /**
+     * 校验并获取订单号。
+     */
     private String requireOrderNo(String value) {
         String normalized = trim(value);
         if (normalized == null || !normalized.matches("SRO\\d{8}-\\d{8}")) {
@@ -222,15 +237,24 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         return normalized;
     }
 
+    /**
+     * 校验并获取范围。
+     */
     private AdminMerchantDataScope requireScope(AdminMerchantDataScope scope) {
         if (scope == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         return scope;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 封装结算冲正申请和复核的不可变审计快照。
+     */
     @Data
     private static class ReversalAuditSnapshot {
         /**

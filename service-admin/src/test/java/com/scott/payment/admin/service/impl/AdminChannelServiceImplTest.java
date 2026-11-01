@@ -51,13 +51,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelServiceImplTest
- * @date : 2026-07-03 16:10
- * @email : scott_x@163.com
- * @description : admin渠道服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * admin渠道服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminChannelServiceImplTest {
@@ -93,7 +87,9 @@ class AdminChannelServiceImplTest {
     @Mock
     private SysDictDataMapper dictDataMapper;
 
-    /** 商户路由永久快照可靠失效协调器。 */
+    /**
+     * 商户路由永久快照可靠失效协调器。
+     */
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
@@ -115,7 +111,9 @@ class AdminChannelServiceImplTest {
         );
     }
 
-    /** 删除渠道限额前必须先登记该渠道全部绑定商户的路由快照失效。 */
+    /**
+     * 删除渠道限额前必须先登记该渠道全部绑定商户的路由快照失效。
+     */
     @Test
     void shouldPrepareMerchantRouteInvalidationBeforeDeletingLimit() {
         when(limitRuleMapper.selectOne(any())).thenReturn(existingLimit("SINGLE_MAX", "100.00"));

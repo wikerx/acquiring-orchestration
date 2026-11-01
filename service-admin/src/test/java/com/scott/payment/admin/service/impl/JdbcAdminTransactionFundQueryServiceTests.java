@@ -22,17 +22,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminTransactionFundQueryServiceTests
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 管理端交易资金查询测试，验证副本读作用域、资金动作范围、结算状态和标签币种隔离。
- * @status : create
+ * 管理端交易资金查询测试，验证副本读作用域、资金动作范围、结算状态和标签币种隔离。
  */
 class JdbcAdminTransactionFundQueryServiceTests {
 
-    /** 成功且未结算的正向和逆向动作应按标签币种计算净额，其他动作和商户必须排除。 */
+    /**
+     * 成功且未结算的正向和逆向动作应按标签币种计算净额，其他动作和商户必须排除。
+     */
     @Test
     void shouldAggregateOnlySuccessfulUnsettledFundActionsByLabelCurrency() {
         JdbcDataSource dataSource = dataSource("admin-pending-balance");
@@ -58,7 +54,9 @@ class JdbcAdminTransactionFundQueryServiceTests {
         verify(readExecutor, never()).readPrimary(any());
     }
 
-    /** 保证金清分生成后立即计入；释放候选只有最终入账后才从原币种余额移除。 */
+    /**
+     * 保证金清分生成后立即计入；释放候选只有最终入账后才从原币种余额移除。
+     */
     @Test
     void shouldAggregateReserveUntilReserveSettlementIsPosted() {
         JdbcDataSource dataSource = dataSource("admin-reserve-balance");
@@ -84,7 +82,9 @@ class JdbcAdminTransactionFundQueryServiceTests {
                 org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("14.000000")));
     }
 
-    /** 历史成功资金动作即使已经结算，也必须阻止结算币种被直接修改。 */
+    /**
+     * 历史成功资金动作即使已经结算，也必须阻止结算币种被直接修改。
+     */
     @Test
     void shouldDetectHistoricalSuccessfulFundActivity() {
         JdbcDataSource dataSource = dataSource("admin-fund-activity");

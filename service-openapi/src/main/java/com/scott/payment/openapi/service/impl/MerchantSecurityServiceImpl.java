@@ -46,13 +46,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityServiceImpl
- * @date : 2026-05-30 09:37
- * @email : scott_x@163.com
- * @description : 商户安全服务实现，位于 商户开放接口服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 管理商户 JWT 密钥、平台请求解密密钥和商户响应公钥，并协调密钥轮换后的缓存失效。
  */
 @Primary
 @Service
@@ -148,16 +142,24 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
-    /** Admin、Merchant Portal、OpenAPI 与支付服务共用的完整商户资料缓存；密钥材料不在该缓存中。 */
+    /**
+     * Admin、Merchant Portal、OpenAPI 与支付服务共用的完整商户资料缓存；密钥材料不在该缓存中。
+     */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
-    /** 只保存密钥 ID、算法、时间和 revision 的永久缓存；不保存任何密钥正文。 */
+    /**
+     * 只保存密钥 ID、算法、时间和 revision 的永久缓存；不保存任何密钥正文。
+     */
     private final MerchantKeyMetadataCacheService merchantKeyMetadataCacheService;
 
-    /** 在写事务提交前建立 pending 门禁和 Outbox，可靠删除跨服务永久旧缓存。 */
+    /**
+     * 在写事务提交前建立 pending 门禁和 Outbox，可靠删除跨服务永久旧缓存。
+     */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** OpenAPI 单实例短时敏感密钥缓存；实际密钥材料不会写入 Redis。 */
+    /**
+     * OpenAPI 单实例短时敏感密钥缓存；实际密钥材料不会写入 Redis。
+     */
     private final OpenApiMerchantSecretCache merchantSecretCache;
 
     /**

@@ -25,30 +25,38 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailDeliveryServiceTests
- * @date : 2026-08-02 23:50
- * @email : scott_x@163.com
- * @description : 验证 Admin 邮件消费者以数据库 CAS 吸收重复消息并按持久化状态推进成功或退避重试
- * @status : create
+ * 验证 Admin 邮件消费者以数据库 CAS 吸收重复消息并按持久化状态推进成功或退避重试
  */
 class AdminEmailDeliveryServiceTests {
 
-    /** 邮件记录 Mapper。 */
+    /**
+     * 邮件记录 Mapper。
+     */
     private EmailSendRecordMapper recordMapper;
-    /** 发件账户 Mapper。 */
+    /**
+     * 发件账户 Mapper。
+     */
     private EmailAccountMapper accountMapper;
-    /** SMTP 发送适配器。 */
+    /**
+     * SMTP 发送适配器。
+     */
     private AdminSmtpEmailSender smtpEmailSender;
-    /** 密文解密组件。 */
+    /**
+     * 密文解密组件。
+     */
     private EmailPayloadCrypto payloadCrypto;
-    /** 被测投递服务。 */
+    /**
+     * 被测投递服务。
+     */
     private AdminEmailDeliveryService deliveryService;
-    /** 可靠 Outbox 发布器。 */
+    /**
+     * 可靠 Outbox 发布器。
+     */
     private ReliableMqPublisher reliableMqPublisher;
 
-    /** 创建隔离的 Mock 依赖。 */
+    /**
+     * 创建隔离的 Mock 依赖。
+     */
     @BeforeEach
     void setUp() {
         recordMapper = mock(EmailSendRecordMapper.class);
@@ -67,7 +75,9 @@ class AdminEmailDeliveryServiceTests {
                 reliableMqPublisher);
     }
 
-    /** 重复到达的成功终态消息不得再次调用 SMTP。 */
+    /**
+     * 重复到达的成功终态消息不得再次调用 SMTP。
+     */
     @Test
     void shouldIgnoreDuplicateMessageAfterSuccess() {
         EmailSendRecordDO record = record(EmailDeliveryStatus.SUCCESS);
@@ -79,7 +89,9 @@ class AdminEmailDeliveryServiceTests {
         verify(smtpEmailSender, never()).send(any(), any(), any(), any(Boolean.class));
     }
 
-    /** 其它应用的定位消息不得触发 Admin 记录查询或 SMTP 调用。 */
+    /**
+     * 其它应用的定位消息不得触发 Admin 记录查询或 SMTP 调用。
+     */
     @Test
     void shouldIgnoreForeignApplicationMessage() {
         EmailDeliveryMessage message = message();
@@ -91,7 +103,9 @@ class AdminEmailDeliveryServiceTests {
         verify(smtpEmailSender, never()).send(any(), any(), any(), any(Boolean.class));
     }
 
-    /** 待发送记录只有 CAS 抢占成功后才允许调用 SMTP 并进入成功终态。 */
+    /**
+     * 待发送记录只有 CAS 抢占成功后才允许调用 SMTP 并进入成功终态。
+     */
     @Test
     void shouldClaimPendingRecordAndMarkSuccess() {
         EmailSendRecordDO record = record(EmailDeliveryStatus.PENDING);
@@ -114,7 +128,9 @@ class AdminEmailDeliveryServiceTests {
         verify(recordMapper, never()).markDeliveryFailure(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
-    /** SMTP 已成功时，成功终态持久化异常不得误写为 SMTP 发送失败。 */
+    /**
+     * SMTP 已成功时，成功终态持久化异常不得误写为 SMTP 发送失败。
+     */
     @Test
     void shouldNotMarkDeliveryFailureWhenSuccessPersistenceFails() {
         EmailSendRecordDO record = record(EmailDeliveryStatus.PENDING);
@@ -136,7 +152,9 @@ class AdminEmailDeliveryServiceTests {
         verify(recordMapper, never()).markDeliveryFailure(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
-    /** SMTP 异常只推进 RETRY_WAIT/CLOSED，不允许无条件覆盖其它消费者结果。 */
+    /**
+     * SMTP 异常只推进 RETRY_WAIT/CLOSED，不允许无条件覆盖其它消费者结果。
+     */
     @Test
     void shouldPersistRetryAfterSmtpFailure() {
         EmailSendRecordDO record = record(EmailDeliveryStatus.PENDING);
@@ -162,7 +180,9 @@ class AdminEmailDeliveryServiceTests {
         verify(recordMapper, never()).markDeliverySuccess(any(), any(), any(), any(), any());
     }
 
-    /** 超时预算超过恢复窗口时不得启动 SMTP，避免发送中记录被恢复任务重复抢占。 */
+    /**
+     * 超时预算超过恢复窗口时不得启动 SMTP，避免发送中记录被恢复任务重复抢占。
+     */
     @Test
     void shouldRejectSmtpTimeoutBudgetThatCanOverlapRecovery() {
         EmailSendRecordDO record = record(EmailDeliveryStatus.PENDING);
@@ -185,7 +205,9 @@ class AdminEmailDeliveryServiceTests {
                 eq("EMAIL_SEND_FAILED"), eq("IllegalStateException"));
     }
 
-    /** 到期记录必须先 CAS 回待发送，再写入只含定位字段的新 Outbox。 */
+    /**
+     * 到期记录必须先 CAS 回待发送，再写入只含定位字段的新 Outbox。
+     */
     @Test
     void shouldRequeueDueRecordAndPublishLocatorOnly() {
         EmailSendRecordDO record = record(EmailDeliveryStatus.RETRY_WAIT);
@@ -208,7 +230,9 @@ class AdminEmailDeliveryServiceTests {
                 .containsExactly(10L, "EMAIL-10", "ADMIN");
     }
 
-    /** 构造最小投递消息。 */
+    /**
+     * 构造最小投递消息。
+     */
     private EmailDeliveryMessage message() {
         EmailDeliveryMessage message = new EmailDeliveryMessage();
         message.setRecordId(10L);
@@ -218,7 +242,9 @@ class AdminEmailDeliveryServiceTests {
         return message;
     }
 
-    /** 构造最小邮件发送记录。 */
+    /**
+     * 构造最小邮件发送记录。
+     */
     private EmailSendRecordDO record(EmailDeliveryStatus status) {
         EmailSendRecordDO record = new EmailSendRecordDO();
         record.setId(10L);

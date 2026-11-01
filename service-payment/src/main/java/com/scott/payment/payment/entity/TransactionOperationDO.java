@@ -12,13 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionOperationDO
- * @date : 2026-07-14 17:35
- * @email : scott_x@163.com
- * @description : 交易动作单实体，位于 service-payment 持久化层，保存授权、请款、退款、撤销等每一次交易动作的状态和渠道摘要。
- * @status : create
+ * 交易动作单实体，位于 service-payment 持久化层，保存授权、请款、退款、撤销等每一次交易动作的状态和渠道摘要。
  */
 @Data
 @TableName("transaction_operation")
@@ -211,13 +205,19 @@ public class TransactionOperationDO implements Serializable {
      */
     private BigDecimal settlementAmount;
 
-    /** 1 单位动作交易币种兑换的结算币种数量。 */
+    /**
+     * 1 单位动作交易币种兑换的结算币种数量。
+     */
     private BigDecimal settlementRate;
 
-    /** 动作最终结算业务日期。 */
+    /**
+     * 动作最终结算业务日期。
+     */
     private LocalDate settlementDate;
 
-    /** 动作最近一次结算或冲正批次号。 */
+    /**
+     * 动作最近一次结算或冲正批次号。
+     */
     private String settlementBatchNo;
 
     /**

@@ -16,13 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqOutboxOperationalMetrics
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 通用和交易 MQ Outbox 的低基数 Micrometer 指标汇聚器，不允许使用商户号、交易号、事件号或异常正文作为标签。
- * @status : create
+ * 通用和交易 MQ Outbox 的低基数 Micrometer 指标汇聚器，不允许使用商户号、交易号、事件号或异常正文作为标签。
  */
 @Component
 public class MqOutboxOperationalMetrics {
@@ -94,7 +88,9 @@ public class MqOutboxOperationalMetrics {
     private final Map<String, Counter> saturated = new ConcurrentHashMap<>();
     private final Map<String, Timer> relayTimers = new ConcurrentHashMap<>();
 
-    /** 创建可选 Micrometer 指标汇聚器。 */
+    /**
+     * 创建可选 Micrometer 指标汇聚器。
+     */
     @Autowired
     public MqOutboxOperationalMetrics(Optional<MeterRegistry> meterRegistry) {
         this.meterRegistry = meterRegistry.orElse(null);
@@ -102,12 +98,16 @@ public class MqOutboxOperationalMetrics {
         registerOutbox(TRANSACTION_OUTBOX);
     }
 
-    /** 创建不注册指标的实例，供不启动 Spring 容器的单元测试使用。 */
+    /**
+     * 创建不注册指标的实例，供不启动 Spring 容器的单元测试使用。
+     */
     public static MqOutboxOperationalMetrics noop() {
         return new MqOutboxOperationalMetrics(Optional.empty());
     }
 
-    /** 更新通用 Outbox 当前状态快照。 */
+    /**
+     * 更新通用 Outbox 当前状态快照。
+     */
     public void updateReliable(long init,
                                long processing,
                                long retryWait,
@@ -118,7 +118,9 @@ public class MqOutboxOperationalMetrics {
                 closedCount, oldestPendingTime, now);
     }
 
-    /** 更新跨全部已发布季度汇总后的交易 Outbox 当前状态快照。 */
+    /**
+     * 更新跨全部已发布季度汇总后的交易 Outbox 当前状态快照。
+     */
     public void updateTransaction(long init,
                                   long processing,
                                   long failed,
@@ -129,7 +131,9 @@ public class MqOutboxOperationalMetrics {
                 closedCount, oldestPendingTime, now);
     }
 
-    /** 批次达到查询上限时累计饱和次数。 */
+    /**
+     * 批次达到查询上限时累计饱和次数。
+     */
     public void recordBatchSize(String outboxType, int selected, int batchSize) {
         if (selected >= Math.max(batchSize, 1)) {
             Counter counter = saturated.get(outboxType);
@@ -139,7 +143,9 @@ public class MqOutboxOperationalMetrics {
         }
     }
 
-    /** 记录 Relay 批次耗时及固定结果标签。 */
+    /**
+     * 记录 Relay 批次耗时及固定结果标签。
+     */
     public void recordRelayDuration(String outboxType, String outcome, long durationNanos) {
         if (meterRegistry == null) {
             return;

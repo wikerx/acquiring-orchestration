@@ -45,18 +45,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantFormOptionsCacheContractTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 商户表单组合公共 MCC、国家和币种缓存的边界契约测试
- * @status : update
+ * 商户表单组合公共 MCC、国家和币种缓存的边界契约测试
  */
 @Slf4j
 class AdminMerchantFormOptionsCacheContractTests {
 
-    /** 商户表单只组合公共快照且不创建聚合缓存，未命中重建入口显式使用主库。 */
+    /**
+     * 商户表单只组合公共快照且不创建聚合缓存，未命中重建入口显式使用主库。
+     */
     @Test
     void shouldComposePublicCachesWithoutAdminAggregateCache() throws Exception {
         Method method = AdminMerchantInfoServiceImpl.class.getMethod("getFormOptions");
@@ -71,7 +67,9 @@ class AdminMerchantFormOptionsCacheContractTests {
                 .containsEntry(PaymentCacheNames.ISO_CURRENCY, Duration.ZERO);
     }
 
-    /** 公共 MCC 快照必须从主库重建，避免变更后由从库延迟回填旧值。 */
+    /**
+     * 公共 MCC 快照必须从主库重建，避免变更后由从库延迟回填旧值。
+     */
     @Test
     void shouldRebuildMccOptionsFromMaster() throws Exception {
         Method method = MccOptionCacheReader.class.getMethod("listOptions");
@@ -81,7 +79,9 @@ class AdminMerchantFormOptionsCacheContractTests {
         assertThat(dataSource.value()).isEqualTo(DataSourceName.MASTER);
     }
 
-    /** MCC 管理服务必须显式依赖可靠失效器，写方法不再使用事务内直接 CacheEvict。 */
+    /**
+     * MCC 管理服务必须显式依赖可靠失效器，写方法不再使用事务内直接 CacheEvict。
+     */
     @Test
     void shouldUseReliableMccInvalidatorForEveryMutation() throws Exception {
         Constructor<?> constructor = AdminBaseMccApplicationService.class.getConstructors()[0];
@@ -95,7 +95,9 @@ class AdminMerchantFormOptionsCacheContractTests {
         assertMutation("deleteCode", MccRequests.MccDeleteRequest.class);
     }
 
-    /** 公共 MCC 快照必须能够通过受控 Redis 类型白名单往返序列化。 */
+    /**
+     * 公共 MCC 快照必须能够通过受控 Redis 类型白名单往返序列化。
+     */
     @Test
     void shouldRoundTripMccSnapshotThroughRedisSerializer() {
         MccOptionSnapshot leaf = option("5999", "5999 - Miscellaneous Retail Stores");
@@ -111,7 +113,9 @@ class AdminMerchantFormOptionsCacheContractTests {
                 .satisfies(item -> assertThat(item.getValue()).isEqualTo("5999"));
     }
 
-    /** 公共 MCC 快照必须写入统一短 Key，并使用无 TTL 的字符串写入方法。 */
+    /**
+     * 公共 MCC 快照必须写入统一短 Key，并使用无 TTL 的字符串写入方法。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldWriteMccSnapshotToPermanentConciseKey() {
@@ -156,7 +160,9 @@ class AdminMerchantFormOptionsCacheContractTests {
         log.info("MCC 公共缓存物理键测试完成，结果: 使用无 TTL 的 acquiring:dev:mcc:options:all");
     }
 
-    /** 校验 MCC 写入口的主库、事务和无直接缓存删除声明。 */
+    /**
+     * 校验 MCC 写入口的主库、事务和无直接缓存删除声明。
+     */
     private void assertMutation(String methodName, Class<?>... parameterTypes) throws Exception {
         Method method = AdminBaseMccApplicationService.class.getMethod(methodName, parameterTypes);
         DS dataSource = AnnotatedElementUtils.findMergedAnnotation(method, DS.class);
@@ -169,7 +175,9 @@ class AdminMerchantFormOptionsCacheContractTests {
         assertThat(AnnotatedElementUtils.findMergedAnnotation(method, CacheEvict.class)).isNull();
     }
 
-    /** 创建 MCC 缓存测试节点。 */
+    /**
+     * 创建 MCC 缓存测试节点。
+     */
     private MccOptionSnapshot option(String value, String label) {
         MccOptionSnapshot option = new MccOptionSnapshot();
         option.setValue(value);
@@ -177,7 +185,9 @@ class AdminMerchantFormOptionsCacheContractTests {
         return option;
     }
 
-    /** 构造启用的 MCC 一级分类测试记录。 */
+    /**
+     * 构造启用的 MCC 一级分类测试记录。
+     */
     private SharedMccLevel1DO level1Row() {
         SharedMccLevel1DO row = new SharedMccLevel1DO();
         row.setId(1L);
@@ -187,7 +197,9 @@ class AdminMerchantFormOptionsCacheContractTests {
         return row;
     }
 
-    /** 构造启用的 MCC 二级分类测试记录。 */
+    /**
+     * 构造启用的 MCC 二级分类测试记录。
+     */
     private SharedMccLevel2DO level2Row() {
         SharedMccLevel2DO row = new SharedMccLevel2DO();
         row.setId(2L);
@@ -198,7 +210,9 @@ class AdminMerchantFormOptionsCacheContractTests {
         return row;
     }
 
-    /** 构造启用的四位 MCC 测试记录。 */
+    /**
+     * 构造启用的四位 MCC 测试记录。
+     */
     private SharedMccCodeDO codeRow() {
         SharedMccCodeDO row = new SharedMccCodeDO();
         row.setLevel2Id(2L);

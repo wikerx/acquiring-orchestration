@@ -19,13 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailRecordController
- * @date : 2026-07-04 16:11
- * @email : scott_x@163.com
- * @description : admin邮件记录 HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
- * @status : create
+ * 管理端邮件发送记录 HTTP 控制器，用于运营后台，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  */
 @RestController
 @RequestMapping("/admin/email/records")
@@ -36,6 +30,11 @@ public class AdminEmailRecordController {
      */
     private final AdminEmailApplicationService emailApplicationService;
 
+    /**
+     * 创建邮件发送记录查询控制器。
+     *
+     * @param emailApplicationService 邮件管理应用服务
+     */
     public AdminEmailRecordController(AdminEmailApplicationService emailApplicationService) {
         this.emailApplicationService = emailApplicationService;
     }

@@ -12,13 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTriggerScanner
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务触发扫描器
- * @status : create
+ * 任务触发扫描器
  */
 @Component
 public class JobTriggerScanner {

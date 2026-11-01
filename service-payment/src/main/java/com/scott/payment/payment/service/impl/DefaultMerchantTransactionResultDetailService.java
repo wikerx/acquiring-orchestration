@@ -27,7 +27,9 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
     private final TransactionAuthenticationInfoMapper authenticationInfoMapper;
     private final TransactionFinanceStateMapper financeStateMapper;
 
-    /** 创建商户交易结果详情服务。 */
+    /**
+     * 创建商户交易结果详情服务。
+     */
     public DefaultMerchantTransactionResultDetailService(
             TransactionAuthenticationInfoMapper authenticationInfoMapper,
             TransactionFinanceStateMapper financeStateMapper) {
@@ -35,7 +37,11 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         this.financeStateMapper = financeStateMapper;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 加载商户可见的 3DS 认证摘要和交易资金状态。
+     *
+     * <p>仅投影公开协议允许的字段，不返回 CAVV、渠道认证原文或内部清结算证据。</p>
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public MerchantTransactionResultDetailDTO load(String transactionId, LocalDateTime transactionDateTime) {
@@ -49,6 +55,9 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         return target;
     }
 
+    /**
+     * 填充商户可见的 3DS 结果。
+     */
     private void fillThreeDs(MerchantTransactionResultDetailDTO target,
                              TransactionAuthenticationInfoDO source) {
         if (source == null) {
@@ -66,6 +75,9 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         target.setThreeDsInfo(threeDs);
     }
 
+    /**
+     * 转换为商户可见的 3DS 状态。
+     */
     private String toMerchantThreeDsStatus(TransactionAuthenticationInfoDO source) {
         if ("AUTHENTICATED".equals(source.getAuthenticationStatus())) {
             return "Y";
@@ -76,6 +88,9 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         return Integer.valueOf(1).equals(source.getChallengeRequired()) ? "C" : "U";
     }
 
+    /**
+     * 填充商户可见资金字段。
+     */
     private void fillFinance(MerchantTransactionResultDetailDTO target,
                              TransactionFinanceStateDO source) {
         if (source == null) {

@@ -4,8 +4,6 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
-import com.scott.payment.component.mq.message.RiskAuditHitMessage;
-import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
@@ -20,6 +18,8 @@ import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
 import com.scott.payment.risk.repository.RiskListRuntimeRepository;
 import com.scott.payment.risk.service.RiskEvaluationService;
+import com.scott.payment.risk.service.RiskEvaluationAuditService;
+import com.scott.payment.risk.service.RiskDecisionResolver;
 import com.scott.payment.risk.service.RiskRuntimeValueNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,9 +31,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -43,14 +41,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRiskEvaluationService
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 默认实时风控评估实现，按固定阶段编排名单、AML、累计限额、频率和 3DS 规则，
+ * 默认实时风控评估实现，按固定阶段编排名单、AML、累计限额、频率和 3DS 规则，
  * 对每个已执行节点生成脱敏审计明细，并在后续节点阻断或异常时回滚未确认的累计限额预占。
- * @status : create
  */
 @Service
 @Slf4j
@@ -61,7 +53,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private static final String RISK_RECORD_PREFIX = "RK";
 
-    /** 支付核心内部生成的 Hosted Checkout 来源，商户 OpenAPI 不允许控制该值。 */
+    /**
+     * 支付核心内部生成的 Hosted Checkout 来源，商户 OpenAPI 不允许控制该值。
+     */
     private static final String REQUEST_SOURCE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
 
     /**
@@ -69,40 +63,39 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private static final int BUILT_IN_RULE_COUNT = 5;
 
-    /** 不要求额外处置的低风险等级。 */
+    /**
+     * 不要求额外处置的低风险等级。
+     */
     private static final String RISK_LEVEL_LOW = "LOW";
 
-    /** 通常进入复核或 3DS 挑战的中风险等级。 */
-    private static final String RISK_LEVEL_MEDIUM = "MEDIUM";
-
-    /** 通常触发阻断或人工复核的高风险等级。 */
+    /**
+     * 参数校验失败使用的高风险等级。
+     */
     private static final String RISK_LEVEL_HIGH = "HIGH";
 
-    /** 黑白名单仲裁中优先级最高的严重风险等级。 */
-    private static final String RISK_LEVEL_CRITICAL = "CRITICAL";
-
-    /** 规则查询值与启用规则实际匹配。 */
+    /**
+     * 规则查询值与启用规则实际匹配。
+     */
     private static final String MATCH_HIT = "HIT";
 
-    /** 启用规则存在但当前查询值未匹配。 */
+    /**
+     * 启用规则存在但当前查询值未匹配。
+     */
     private static final String MATCH_MISS = "MISS";
 
-    /** 规则已执行且计数或金额仍在允许范围内。 */
+    /**
+     * 规则已执行且计数或金额仍在允许范围内。
+     */
     private static final String MATCH_PASS = "PASS";
 
-    /** 规则明细允许评估继续。 */
-    private static final String EFFECT_ALLOW = "ALLOW";
-
-    /** 规则明细要求终止评估并拒绝交易。 */
+    /**
+     * 规则明细要求终止评估并拒绝交易。
+     */
     private static final String EFFECT_BLOCK = "BLOCK";
 
-    /** 规则明细要求转人工复核。 */
-    private static final String EFFECT_REVIEW = "REVIEW";
-
-    /** 规则明细要求执行 3DS 挑战。 */
-    private static final String EFFECT_CHALLENGE = "CHALLENGE";
-
-    /** 未知动作对评估流程不产生已声明影响。 */
+    /**
+     * 未知动作对评估流程不产生已声明影响。
+     */
     private static final String EFFECT_NONE = "NONE";
 
     private static final Stage STAGE_MERCHANT_IP_WHITELIST = new Stage(
@@ -121,19 +114,34 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
 
     private static final Stage STAGE_THREE_DS = new Stage("THREE_DS", "3DS规则", 70);
 
-    /** 提供名单、金额限额、频率和 3DS 运行时规则。 */
+    /**
+     * 提供名单、金额限额、频率和 3DS 运行时规则。
+     */
     private final RiskListRuntimeRepository riskListRuntimeRepository;
 
-    /** 将敏感输入转换为脱敏、哈希或区间查询值。 */
+    /**
+     * 将敏感输入转换为脱敏、哈希或区间查询值。
+     */
     private final RiskRuntimeValueNormalizer valueNormalizer;
 
-    /** 在决策完成后发布评估主记录和逐节点脱敏明细。 */
-    private final RiskAuditRecordPublisher auditRecordPublisher;
+    /**
+     * 在决策完成后转换并发布评估主记录和逐节点脱敏明细。
+     */
+    private final RiskEvaluationAuditService auditService;
 
-    /** 控制运行时规则、并发边界、缓存与预占生命周期。 */
+    /**
+     * 统一解析规则动作、风险等级和跳过原因。
+     */
+    private final RiskDecisionResolver decisionResolver;
+
+    /**
+     * 控制运行时规则、并发边界、缓存与预占生命周期。
+     */
     private final RiskEvaluationProperties properties;
 
-    /** 执行无状态只读规则组的专用执行器；累计限额和频控预占不得提交到该执行器。 */
+    /**
+     * 执行无状态只读规则组的专用执行器；累计限额和频控预占不得提交到该执行器。
+     */
     private final Executor readOnlyEvaluationExecutor;
 
     /**
@@ -155,24 +163,41 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                         @Qualifier("riskReadOnlyEvaluationExecutor") Executor readOnlyEvaluationExecutor) {
         this.riskListRuntimeRepository = riskListRuntimeRepository;
         this.valueNormalizer = valueNormalizer;
-        this.auditRecordPublisher = auditRecordPublisherProvider.getIfAvailable();
+        this.auditService = new RiskEvaluationAuditService(auditRecordPublisherProvider.getIfAvailable());
+        this.decisionResolver = new RiskDecisionResolver();
         this.properties = properties;
         this.readOnlyEvaluationExecutor = readOnlyEvaluationExecutor;
     }
 
+    /**
+     * 创建使用同步只读执行器的隔离测试实例。
+     *
+     * @param riskListRuntimeRepository 风控运行时仓储
+     * @param auditRecordPublisher 可空的审计发布器
+     * @param properties 风控运行配置
+     */
     DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
                                  RiskAuditRecordPublisher auditRecordPublisher,
                                  RiskEvaluationProperties properties) {
         this(riskListRuntimeRepository, auditRecordPublisher, properties, Runnable::run);
     }
 
+    /**
+     * 创建可注入只读执行器的隔离测试实例。
+     *
+     * @param riskListRuntimeRepository 风控运行时仓储
+     * @param auditRecordPublisher 可空的审计发布器
+     * @param properties 风控运行配置；为空时使用默认配置
+     * @param readOnlyEvaluationExecutor 只读规则执行器；为空时同步执行
+     */
     DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
                                  RiskAuditRecordPublisher auditRecordPublisher,
                                  RiskEvaluationProperties properties,
                                  Executor readOnlyEvaluationExecutor) {
         this.riskListRuntimeRepository = riskListRuntimeRepository;
         this.valueNormalizer = new RiskRuntimeValueNormalizer();
-        this.auditRecordPublisher = auditRecordPublisher;
+        this.auditService = new RiskEvaluationAuditService(auditRecordPublisher);
+        this.decisionResolver = new RiskDecisionResolver();
         this.properties = properties == null ? new RiskEvaluationProperties() : properties;
         this.readOnlyEvaluationExecutor = readOnlyEvaluationExecutor == null ? Runnable::run : readOnlyEvaluationExecutor;
     }
@@ -187,7 +212,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     public RiskPaymentEvaluateResultDTO evaluatePayment(RiskPaymentEvaluateRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
         String riskRecordNo = PaymentOrderNoGenerator.nextOrderNo(RISK_RECORD_PREFIX);
-        log.info("event: RISK_EVALUATION_START stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {} ingressClientIpHash: {} payerIpHash: {} sourceUrl: {}",
+        log.info("风控评估开始, event: RISK_EVALUATION_START, stage: ACCEPT, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, amount: {}, currency: {}, ruleCount: {}, ingressClientIpHash: {}, payerIpHash: {}, sourceUrlHash: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -199,23 +224,23 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 BUILT_IN_RULE_COUNT,
                 requestDTO == null ? null : digestIp(requestDTO.getIngressClientIp()),
                 requestDTO == null ? null : digestIp(requestDTO.getPayerIp()),
-                maskUrl(requestDTO == null ? null : requestDTO.getSourceUrl()));
+                digestSourceUrl(requestDTO == null ? null : requestDTO.getSourceUrl()));
         RiskEvaluationOutcome outcome = evaluate(requestDTO, riskRecordNo);
         RiskPaymentEvaluateResultDTO resultDTO = outcome.getResult();
-        publishAudit(requestDTO, outcome);
+        auditService.publish(requestDTO, outcome);
         RiskListMatch firstHit = outcome.getHits().stream()
                 .filter(RiskListMatch::actualHit)
                 .findFirst()
                 .orElse(null);
         // 非 PASS 决策必须归因到真正终止评估的规则；PASS 场景仍保留首条允许命中，便于审计规则覆盖情况。
-        RiskListMatch decisiveHit = firstBlockingDetail(outcome.getHits()).orElse(firstHit);
+        RiskListMatch decisiveHit = decisionResolver.firstBlockingDetail(outcome.getHits()).orElse(firstHit);
         String hitRuleId = decisiveHit == null || decisiveHit.getRuleId() == null
                 ? "NONE"
                 : String.valueOf(decisiveHit.getRuleId());
         String hitRuleType = decisiveHit == null
                 ? "NO_RULE_HIT"
                 : decisiveHit.getModuleType() + ":" + decisiveHit.getFunctionCode();
-        log.info("event: RISK_EVALUATION_END stage=DECISION traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} amount: {} currency: {} ruleCount: {} hitRuleId: {} hitRuleType: {} decision: {} rejectReasonCode: {} durationMs: {}",
+        log.info("风控评估完成, event: RISK_EVALUATION_END, stage: DECISION, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, amount: {}, currency: {}, ruleCount: {}, hitRuleId: {}, hitRuleType: {}, decision: {}, rejectReasonCode: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -275,7 +300,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             sourceUrlRule.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_HIT)));
             if (sourceUrlRule.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(sourceUrlRule.get().getDecisionAction())) {
                 return RiskEvaluationOutcome.of(
-                        buildResult(resolveDecision(sourceUrlRule.get(), RiskDecisionEnum.REVIEW),
+                        buildResult(decisionResolver.resolveDecision(sourceUrlRule.get(), RiskDecisionEnum.REVIEW),
                                 RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
                         details);
             }
@@ -287,10 +312,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 ? evaluateAmlChecks(requestDTO, context)
                 : readOnlyEvaluation.amlDetails();
         details.addAll(amlDetails);
-        Optional<RiskListMatch> amlBlockingDetail = firstBlockingDetail(amlDetails);
+        Optional<RiskListMatch> amlBlockingDetail = decisionResolver.firstBlockingDetail(amlDetails);
         if (amlBlockingDetail.isPresent()) {
             return RiskEvaluationOutcome.of(
-                    buildResult(resolveDecision(amlBlockingDetail.get(), RiskDecisionEnum.REVIEW),
+                    buildResult(decisionResolver.resolveDecision(amlBlockingDetail.get(), RiskDecisionEnum.REVIEW),
                             RiskReasonCodeEnum.AML_HIT, riskRecordNo),
                     details);
         }
@@ -300,7 +325,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         Optional<RiskListMatch> listBlockHit = evaluateBlackWhiteArbitration(blackWhiteEvaluation, details);
         if (listBlockHit.isPresent()) {
             return RiskEvaluationOutcome.of(
-                    buildResult(resolveDecision(listBlockHit.get(), RiskDecisionEnum.REJECT),
+                    buildResult(decisionResolver.resolveDecision(listBlockHit.get(), RiskDecisionEnum.REJECT),
                             RiskReasonCodeEnum.BLACKLIST_HIT, riskRecordNo),
                     details);
         }
@@ -311,7 +336,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         limitHit.ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_LIMIT, MATCH_HIT)));
         if (limitHit.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(limitHit.get().getDecisionAction())) {
             return RiskEvaluationOutcome.of(
-                    buildResult(resolveDecision(limitHit.get(), RiskDecisionEnum.REVIEW),
+                    buildResult(decisionResolver.resolveDecision(limitHit.get(), RiskDecisionEnum.REVIEW),
                             RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
                     details);
         }
@@ -321,11 +346,12 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 .map(this::stageCumulativeLimit)
                 .toList();
         details.addAll(cumulativeLimitDetails);
-        Optional<RiskListMatch> cumulativeLimitBlock = firstBlockingDetail(cumulativeLimitDetails);
+        Optional<RiskListMatch> cumulativeLimitBlock = decisionResolver.firstBlockingDetail(cumulativeLimitDetails);
         if (cumulativeLimitBlock.isPresent()) {
             rollbackMerchantLimitReservations(cumulativeLimitEvaluation);
             return RiskEvaluationOutcome.of(
-                    buildResult(resolveDecision(cumulativeLimitBlock.get(), RiskDecisionEnum.REVIEW),
+                    buildResult(decisionResolver.resolveDecision(
+                            cumulativeLimitBlock.get(), RiskDecisionEnum.REVIEW),
                             RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
                     details);
         }
@@ -343,19 +369,22 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                     ))
                     .toList();
             details.addAll(frequencyDetails);
-            Optional<RiskListMatch> frequencyHit = firstBlockingDetail(frequencyDetails);
+            Optional<RiskListMatch> frequencyHit = decisionResolver.firstBlockingDetail(frequencyDetails);
             if (frequencyHit.isPresent()
                     && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(frequencyHit.get().getDecisionAction())) {
                 rollbackMerchantLimitReservations(cumulativeLimitEvaluation);
                 return RiskEvaluationOutcome.of(
-                        buildResult(resolveDecision(frequencyHit.get(), RiskDecisionEnum.REVIEW),
+                        buildResult(decisionResolver.resolveDecision(
+                                frequencyHit.get(), RiskDecisionEnum.REVIEW),
                                 RiskReasonCodeEnum.FREQUENCY_LIMIT_HIT, riskRecordNo),
                         details);
             }
             if (frequencyDetails.isEmpty() && hasActiveFrequencyRule(requestDTO)) {
                 details.add(checkpoint(STAGE_FREQUENCY, MATCH_PASS, RiskDecisionEnum.PASS, "本笔交易未触发交易频率限定，放行"));
             }
-            Optional<RiskListMatch> threeDsRule = findThreeDsRule(requestDTO, highestRiskLevel(details));
+            Optional<RiskListMatch> threeDsRule = findThreeDsRule(
+                    requestDTO,
+                    decisionResolver.highestRiskLevel(details));
             threeDsRule.ifPresent(match -> details.add(stage(match, STAGE_THREE_DS, MATCH_HIT)));
             if (threeDsRule.isPresent()
                     && RiskDecisionEnum.REQUIRE_3DS.getCode().equalsIgnoreCase(threeDsRule.get().getDecisionAction())
@@ -374,12 +403,12 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 releaseFrequencySuccessReservations(requestDTO);
             }
         }
-        boolean explicitlyAllowed = hasExplicitAllow(details);
+        boolean explicitlyAllowed = decisionResolver.hasExplicitAllow(details);
         RiskPaymentEvaluateResultDTO resultDTO = explicitlyAllowed
                 ? buildResult(RiskDecisionEnum.PASS, RiskReasonCodeEnum.NONE, riskRecordNo)
                 : buildResult(
                         RiskDecisionEnum.SKIP,
-                        resolveSkipReason(details),
+                        decisionResolver.resolveSkipReason(details),
                         riskRecordNo);
         resultDTO.setMerchantLimitReserved(
                 cumulativeLimitEvaluation.lifecycleManaged()
@@ -660,12 +689,18 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         List<RiskListMatch> blacklistMatches = blacklistDetails.stream()
                 .filter(RiskListMatch::actualHit)
                 .toList();
-        List<RiskListMatch> strongWhitelists = byBand(whitelistMatches, RiskBand.STRONG);
-        List<RiskListMatch> blacklistA = byBand(blacklistMatches, RiskBand.STRONG);
-        List<RiskListMatch> priorityWhitelists = byBand(whitelistMatches, RiskBand.PRIORITY);
-        List<RiskListMatch> blacklistB = byBand(blacklistMatches, RiskBand.PRIORITY);
-        List<RiskListMatch> weakWhitelists = byBand(whitelistMatches, RiskBand.WEAK);
-        List<RiskListMatch> blacklistC = byBand(blacklistMatches, RiskBand.WEAK);
+        List<RiskListMatch> strongWhitelists = byBand(
+                whitelistMatches, RiskDecisionResolver.RiskBand.STRONG);
+        List<RiskListMatch> blacklistA = byBand(
+                blacklistMatches, RiskDecisionResolver.RiskBand.STRONG);
+        List<RiskListMatch> priorityWhitelists = byBand(
+                whitelistMatches, RiskDecisionResolver.RiskBand.PRIORITY);
+        List<RiskListMatch> blacklistB = byBand(
+                blacklistMatches, RiskDecisionResolver.RiskBand.PRIORITY);
+        List<RiskListMatch> weakWhitelists = byBand(
+                whitelistMatches, RiskDecisionResolver.RiskBand.WEAK);
+        List<RiskListMatch> blacklistC = byBand(
+                blacklistMatches, RiskDecisionResolver.RiskBand.WEAK);
         if (!strongWhitelists.isEmpty()) {
             return Optional.empty();
         }
@@ -828,7 +863,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      * @return 交给内部接口异常处理器的失败关闭异常
      */
     private ServiceException readOnlyEvaluationUnavailable(String failureType, Throwable cause) {
-        log.error("event: RISK_READ_ONLY_EVALUATION_FAILED stage=READ_ONLY_PARALLEL traceId: {} failureType: {} exceptionType: {} timeoutMillis: {}",
+        log.error("只读风控评估失败, event: RISK_READ_ONLY_EVALUATION_FAILED, stage: READ_ONLY_PARALLEL, traceId: {}, failureType: {}, exceptionType: {}, timeoutMillis: {}",
                 TraceContext.getTraceId(),
                 failureType,
                 cause == null ? "Unknown" : cause.getClass().getSimpleName(),
@@ -876,7 +911,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 STAGE_MERCHANT_LIMIT.name(),
                 STAGE_MERCHANT_LIMIT.order(),
                 matchResult,
-                decisionEffect(match)
+                decisionResolver.decisionEffect(match)
         );
     }
 
@@ -989,9 +1024,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     /**
      * 按风险等级仲裁带筛选实际命中的名单明细。
      */
-    private List<RiskListMatch> byBand(List<RiskListMatch> matches, RiskBand band) {
+    private List<RiskListMatch> byBand(List<RiskListMatch> matches,
+                                       RiskDecisionResolver.RiskBand band) {
         return matches.stream()
-                .filter(match -> riskBand(match.getRiskLevel()) == band)
+                .filter(match -> decisionResolver.riskBand(match.getRiskLevel()) == band)
                 .toList();
     }
 
@@ -1016,7 +1052,12 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         int stageOrder = STAGE_BLACK_WHITE.code().equals(stage.code())
                 ? blackWhiteStageOrder(staged)
                 : stage.order();
-        staged.markStage(stage.code(), stage.name(), stageOrder, matchResult, decisionEffect(staged));
+        staged.markStage(
+                stage.code(),
+                stage.name(),
+                stageOrder,
+                matchResult,
+                decisionResolver.decisionEffect(staged));
         if (!StringUtils.hasText(staged.getReasonCode())) {
             staged.setReasonCode(stageReasonCode(staged, stage, matchResult).getCode());
         }
@@ -1051,7 +1092,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             return RiskReasonCodeEnum.FREQUENCY_LIMIT_HIT;
         }
         if (STAGE_THREE_DS.equals(stage)) {
-            RiskDecisionEnum decision = resolveDecision(detail, RiskDecisionEnum.PASS);
+            RiskDecisionEnum decision = decisionResolver.resolveDecision(detail, RiskDecisionEnum.PASS);
             if (decision == RiskDecisionEnum.REQUIRE_3DS) {
                 return RiskReasonCodeEnum.THREE_DS_REQUIRED;
             }
@@ -1059,7 +1100,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 return RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED;
             }
         }
-        RiskDecisionEnum decision = resolveDecision(detail, RiskDecisionEnum.PASS);
+        RiskDecisionEnum decision = decisionResolver.resolveDecision(detail, RiskDecisionEnum.PASS);
         return decision == RiskDecisionEnum.PASS
                 ? RiskReasonCodeEnum.NONE
                 : RiskReasonCodeEnum.RULE_HIT;
@@ -1119,29 +1160,11 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private int blackWhiteStageOrder(RiskListMatch detail) {
         boolean whitelist = detail != null && "WHITE".equalsIgnoreCase(detail.getModuleType());
-        return switch (riskBand(detail == null ? null : detail.getRiskLevel())) {
+        return switch (decisionResolver.riskBand(detail == null ? null : detail.getRiskLevel())) {
             case STRONG -> whitelist ? 41 : 42;
             case PRIORITY -> whitelist ? 43 : 44;
             case WEAK -> whitelist ? 45 : 46;
         };
-    }
-
-    /**
-     * 按阶段既定顺序返回首条需要终止评估且动作非 PASS 的明细。
-     */
-    private Optional<RiskListMatch> firstBlockingDetail(List<RiskListMatch> details) {
-        return details.stream()
-                .filter(this::requiresEvaluationStop)
-                .filter(detail -> !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(detail.getDecisionAction()))
-                .findFirst();
-    }
-
-    /**
-     * 判断明细是否为实际命中或基础设施错误，二者均不得被静默忽略。
-     */
-    private boolean requiresEvaluationStop(RiskListMatch detail) {
-        return detail != null
-                && (detail.actualHit() || "ERROR".equalsIgnoreCase(detail.getMatchResult()));
     }
 
     /**
@@ -1157,7 +1180,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 : detail.getFunctionCode();
         String prefix = element + "：" + value + " ";
         if (MATCH_MISS.equalsIgnoreCase(matchResult)) {
-            RiskDecisionEnum missDecision = resolveDecision(detail, RiskDecisionEnum.PASS);
+            RiskDecisionEnum missDecision = decisionResolver.resolveDecision(
+                    detail, RiskDecisionEnum.PASS);
             if (missDecision == RiskDecisionEnum.REJECT) {
                 return prefix + "不在" + functionName + "中，单节点拦截";
             }
@@ -1169,7 +1193,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             }
             return prefix + "未命中" + functionName + "，跳过该项检查";
         }
-        RiskDecisionEnum decision = resolveDecision(detail, RiskDecisionEnum.PASS);
+        RiskDecisionEnum decision = decisionResolver.resolveDecision(detail, RiskDecisionEnum.PASS);
         return switch (decision) {
             case REJECT -> prefix + "触发" + functionName + "，单节点拦截";
             case REVIEW -> prefix + "触发" + functionName + "，进入人工复核";
@@ -1285,23 +1309,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
-     * 将规则动作映射为流程影响：放行、阻断、复核、挑战或未知。
-     */
-    private String decisionEffect(RiskListMatch match) {
-        RiskDecisionEnum decisionEnum = resolveDecision(match, RiskDecisionEnum.PASS);
-        if (RiskDecisionEnum.REJECT == decisionEnum) {
-            return EFFECT_BLOCK;
-        }
-        if (RiskDecisionEnum.REVIEW == decisionEnum) {
-            return EFFECT_REVIEW;
-        }
-        if (RiskDecisionEnum.REQUIRE_3DS == decisionEnum) {
-            return EFFECT_CHALLENGE;
-        }
-        return RiskDecisionEnum.PASS == decisionEnum ? EFFECT_ALLOW : EFFECT_NONE;
-    }
-
-    /**
      * 通过卡 BIN 解析发卡行国家并再次规范化为国家查询值。
      *
      * @return 国家查询值；仓储未装配或 BIN 无记录时返回 {@code null}
@@ -1332,67 +1339,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
-     * 将规则动作解析为统一决策枚举，并兼容历史 {@code FORCE_3DS} 动作。
-     *
-     * @return 已知统一决策；动作缺失或未知时返回调用方指定默认值
-     */
-    private RiskDecisionEnum resolveDecision(RiskListMatch match, RiskDecisionEnum defaultDecision) {
-        if (match == null || !StringUtils.hasText(match.getDecisionAction())) {
-            return defaultDecision;
-        }
-        String action = match.getDecisionAction().trim().toUpperCase(Locale.ROOT);
-        if (RiskDecisionEnum.REJECT.getCode().equals(action)) {
-            return RiskDecisionEnum.REJECT;
-        }
-        if (RiskDecisionEnum.REVIEW.getCode().equals(action)) {
-            return RiskDecisionEnum.REVIEW;
-        }
-        if (RiskDecisionEnum.REQUIRE_3DS.getCode().equals(action) || "FORCE_3DS".equals(action)) {
-            return RiskDecisionEnum.REQUIRE_3DS;
-        }
-        if (RiskDecisionEnum.SKIP.getCode().equals(action)) {
-            return RiskDecisionEnum.SKIP;
-        }
-        return RiskDecisionEnum.PASS.getCode().equals(action) ? RiskDecisionEnum.PASS : defaultDecision;
-    }
-
-    /**
-     * 判断是否存在明确允许交易继续的规则结果。
-     */
-    private boolean hasExplicitAllow(List<RiskListMatch> details) {
-        return details.stream().anyMatch(detail -> detail != null
-                && RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(detail.getDecisionAction())
-                && (detail.actualHit() || MATCH_PASS.equalsIgnoreCase(detail.getMatchResult())));
-    }
-
-    /**
-     * 根据已审计的跳过原因选择稳定的最终原因码。
-     */
-    private RiskReasonCodeEnum resolveSkipReason(List<RiskListMatch> details) {
-        if (hasReason(details, RiskReasonCodeEnum.NO_MATCH)) {
-            return RiskReasonCodeEnum.NO_MATCH;
-        }
-        if (hasReason(details, RiskReasonCodeEnum.INPUT_MISSING)) {
-            return RiskReasonCodeEnum.INPUT_MISSING;
-        }
-        if (hasReason(details, RiskReasonCodeEnum.NOT_CONFIGURED)) {
-            return RiskReasonCodeEnum.NOT_CONFIGURED;
-        }
-        if (hasReason(details, RiskReasonCodeEnum.NOT_ENABLED)) {
-            return RiskReasonCodeEnum.NOT_ENABLED;
-        }
-        return RiskReasonCodeEnum.NO_APPLICABLE_RULE;
-    }
-
-    /**
-     * 判断审计明细中是否包含指定稳定原因码。
-     */
-    private boolean hasReason(List<RiskListMatch> details, RiskReasonCodeEnum reasonCode) {
-        return details.stream().anyMatch(detail -> detail != null
-                && reasonCode.getCode().equalsIgnoreCase(detail.getReasonCode()));
-    }
-
-    /**
      * 选择交易国家规则的主国家，优先使用账单国家，其次使用子商户国家。
      */
     private String primaryCountry(RiskPaymentEvaluateRequestDTO requestDTO) {
@@ -1402,21 +1348,33 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return requestDTO.getSubMerchantCountryCode();
     }
 
+    /**
+     * 将可选 IP 转换为可记录日志的不可逆摘要。
+     *
+     * @param value 原始 IP
+     * @return SHA-256 摘要，输入为空时返回 {@code null}
+     */
     private String digestIp(String value) {
         return StringUtils.hasText(value) ? RedisKeyDigest.sha256(value.trim()) : null;
     }
 
-    /** Return an audit label that preserves whether the transaction country came from billing or sub-merchant data. */
+    /**
+     * 根据国家来源选择账单国家或交易国家审计标签。
+     */
     private String tradeCountryAuditElement(RiskPaymentEvaluateRequestDTO requestDTO) {
         return hasText(requestDTO.getBillingCountry()) ? "billingCountry" : "tradeCountry";
     }
 
-    /** Check one optional risk input without converting missing personal data into an EMPTY lookup. */
+    /**
+     * 判断单个可选风控输入是否包含有效文本。
+     */
     private boolean hasText(String value) {
         return StringUtils.hasText(value);
     }
 
-    /** Check whether a composite address dimension has at least one merchant-provided component. */
+    /**
+     * 判断组合地址维度是否至少包含一个商户上送字段。
+     */
     private boolean hasAnyText(String... values) {
         if (values == null) {
             return false;
@@ -1430,130 +1388,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
-     * 计算已执行节点中的最高风险等级，供后续 3DS 规则判断。
-     */
-    private String highestRiskLevel(List<RiskListMatch> hits) {
-        return hits.stream()
-                .map(RiskListMatch::getRiskLevel)
-                .filter(StringUtils::hasText)
-                .max(Comparator.comparingInt(this::riskWeight))
-                .orElse(RISK_LEVEL_LOW);
-    }
-
-    /**
-     * 将风险等级映射为可比较权重。
-     *
-     * @return CRITICAL 为 4、HIGH 为 3、MEDIUM 为 2，其余为 1
-     */
-    private int riskWeight(String riskLevel) {
-        if (!StringUtils.hasText(riskLevel)) {
-            return 1;
-        }
-        return switch (riskLevel.trim().toUpperCase(Locale.ROOT)) {
-            case RISK_LEVEL_CRITICAL -> 4;
-            case RISK_LEVEL_HIGH -> 3;
-            case RISK_LEVEL_MEDIUM -> 2;
-            default -> 1;
-        };
-    }
-
-    /**
-     * 将风险等级归入黑白名单的强、优先或弱仲裁带。
-     */
-    private RiskBand riskBand(String riskLevel) {
-        int weight = riskWeight(riskLevel);
-        if (weight >= 4) {
-            return RiskBand.STRONG;
-        }
-        if (weight >= 3) {
-            return RiskBand.PRIORITY;
-        }
-        return RiskBand.WEAK;
-    }
-
-    /**
-     * 将最终决策和全部脱敏节点明细发布到可靠审计仓储。
-     *
-     * <p>发布器未装配时兼容测试环境跳过；消息不包含完整卡号、CVV 或密钥。</p>
-     */
-    private void publishAudit(RiskPaymentEvaluateRequestDTO requestDTO, RiskEvaluationOutcome outcome) {
-        if (auditRecordPublisher == null || requestDTO == null || outcome == null || outcome.getResult() == null) {
-            return;
-        }
-        RiskEvaluationAuditMessage message = new RiskEvaluationAuditMessage();
-        message.setRiskRecordNo(outcome.getResult().getRiskRecordNo());
-        message.setMerchantId(requestDTO.getMerchantId());
-        message.setMerchantOrderNo(requestDTO.getMerchantOrderNo());
-        message.setPaymentOrderNo(requestDTO.getTransactionId());
-        message.setTransactionAmount(requestDTO.getAmount());
-        message.setTransactionCurrency(requestDTO.getCurrency());
-        message.setRiskLevel(highestRiskLevel(outcome.getHits()));
-        message.setDecisionResult(outcome.getResult().getDecision());
-        message.setDecisionReasonCode(outcome.getResult().getReasonCode());
-        message.setDecisionReason(outcome.getResult().getReasonMessage());
-        message.setHitCount(hitCount(outcome.getHits(), outcome.getResult().getDecision()));
-        message.setEvaluationTime(outcome.getResult().getDecisionTime());
-        message.setHits(outcome.getHits().stream().map(this::toAuditHitMessage).toList());
-        auditRecordPublisher.publish(message);
-    }
-
-    /**
-     * 将 Risk 内部命中模型转换为跨服务 MQ DTO，阻止消费者依赖 Risk 领域包。
-     *
-     * @param match 已完成脱敏的风控执行明细
-     * @return 仅包含审计字段的 MQ 命中明细
-     */
-    private RiskAuditHitMessage toAuditHitMessage(RiskListMatch match) {
-        RiskAuditHitMessage message = new RiskAuditHitMessage();
-        message.setRuleId(match.getRuleId());
-        message.setModuleType(match.getModuleType());
-        message.setFunctionCode(match.getFunctionCode());
-        message.setFunctionName(match.getFunctionName());
-        message.setHitElement(match.getHitElement());
-        message.setHitValueMasked(match.getHitValueMasked());
-        message.setRiskLevel(match.getRiskLevel());
-        message.setDecisionAction(match.getDecisionAction());
-        message.setReasonCode(match.getReasonCode());
-        message.setDecisionReason(match.getDecisionReason());
-        message.setTimeWindowSeconds(match.getTimeWindowSeconds());
-        message.setThresholdCount(match.getThresholdCount());
-        message.setElementsJson(match.getElementsJson());
-        message.setCurrentCount(match.getCurrentCount());
-        message.setAmountLimit(match.getAmountLimit());
-        message.setCurrentAmount(match.getCurrentAmount());
-        message.setStageCode(match.getStageCode());
-        message.setStageName(match.getStageName());
-        message.setStageOrder(match.getStageOrder());
-        message.setMatchResult(match.getMatchResult());
-        message.setDecisionEffect(match.getDecisionEffect());
-        return message;
-    }
-
-    /**
-     * 统计最终 PASS 决策中实际触发但产生放行效果的规则数量。
-     *
-     * @return 非 PASS 决策或无明细时返回零
-     */
-    private int hitCount(List<RiskListMatch> matches, String finalDecision) {
-        if (!RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(finalDecision)
-                || matches == null || matches.isEmpty()) {
-            return 0;
-        }
-        return (int) matches.stream()
-                .filter(this::countsAsTriggeredRule)
-                .count();
-    }
-
-    /**
-     * 判断命中明细是否属于最终放行决策中的有效触发规则。
-     */
-    private boolean countsAsTriggeredRule(RiskListMatch match) {
-        return match != null
-                && match.actualHit()
-                && EFFECT_ALLOW.equalsIgnoreCase(match.getDecisionEffect());
-    }
-
-    /**
      * 使用单调时钟计算本次评估耗时。
      */
     private long elapsedMillis(long startNanos) {
@@ -1561,22 +1395,21 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
-     * 脱敏来源 URL 查询参数。
+     * 将来源 URL 转换为可用于日志关联的不可逆摘要。
      *
      * @param sourceUrl 风控输入的来源 URL
-     * @return 可写入日志的 URL 摘要
+     * @return SHA-256 摘要，输入为空时返回 {@code null}
      */
-    private String maskUrl(String sourceUrl) {
-        if (!StringUtils.hasText(sourceUrl)) {
-            return null;
-        }
-        int queryIndex = sourceUrl.indexOf('?');
-        if (queryIndex < 0) {
-            return sourceUrl;
-        }
-        return sourceUrl.substring(0, queryIndex) + "?...";
+    private String digestSourceUrl(String sourceUrl) {
+        return StringUtils.hasText(sourceUrl) ? RedisKeyDigest.sha256(sourceUrl.trim()) : null;
     }
 
+    /**
+     * 校验风控评估最小请求契约。
+     *
+     * @param requestDTO 支付风控请求
+     * @return 缺少商户、订单、币种或有效正金额时返回 {@code true}
+     */
     private boolean isInvalid(RiskPaymentEvaluateRequestDTO requestDTO) {
         return requestDTO == null
                 || !StringUtils.hasText(requestDTO.getMerchantId())
@@ -1618,6 +1451,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return resultDTO;
     }
 
+    /**
+     * 表示可延迟执行并返回单条可选规则的只读查询。
+     */
     @FunctionalInterface
     private interface SupplierWithOptional {
         /**
@@ -1628,6 +1464,11 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         Optional<RiskListMatch> get();
     }
 
+    /**
+     * 汇总一次评估使用的全部规范化查询值和商户功能快照。
+     *
+     * <p>原始敏感输入在创建上下文前完成规范化和脱敏，后续规则不得重新读取原始值。</p>
+     */
     private record LookupContext(RiskRuntimeLookupValue cardNoLookup,
                                  RiskRuntimeLookupValue cardFingerprintLookup,
                                  RiskRuntimeLookupValue cardBinLookup,
@@ -1672,42 +1513,58 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  Set<RiskListFunction> enabledMerchantFunctions) {
     }
 
-    /** 三个独立只读规则组完成后交给请求线程确定性汇总的结果。 */
+    /**
+     * 三个独立只读规则组完成后交给请求线程确定性汇总的结果。
+     */
     private record ReadOnlyEvaluation(List<RiskListMatch> amlDetails,
                                       BlackWhiteEvaluation blackWhiteEvaluation,
                                       MerchantLimitReadOnlyEvaluation merchantLimitEvaluation) {
     }
 
-    /** 白名单与黑名单查询明细，列表顺序与规则声明顺序一致。 */
+    /**
+     * 白名单与黑名单查询明细，列表顺序与规则声明顺序一致。
+     */
     private record BlackWhiteEvaluation(List<RiskListMatch> whitelistDetails,
                                         List<RiskListMatch> blacklistDetails) {
     }
 
-    /** 单笔限额命中和启用状态，不包含累计限额预占结果。 */
+    /**
+     * 单笔限额命中和启用状态，不包含累计限额预占结果。
+     */
     private record MerchantLimitReadOnlyEvaluation(Optional<RiskListMatch> limitHit,
                                                    boolean activeMerchantLimitRule) {
     }
 
+    /**
+     * 描述风控阶段的稳定编码、名称和执行顺序。
+     *
+     * @param code 稳定阶段编码
+     * @param name 中文阶段名称
+     * @param order 固定执行顺序
+     */
     private record Stage(String code, String name, int order) {
     }
 
+    /**
+     * 描述一次名单功能检查及其脱敏审计元素。
+     *
+     * @param function 名单功能
+     * @param lookupValue 已规范化查询值
+     * @param auditElement 审计明细使用的元素名称
+     */
     private record ListCheck(RiskListFunction function,
                              RiskRuntimeLookupValue lookupValue,
                              String auditElement) {
 
+        /**
+         * 使用名单功能编码作为默认审计元素。
+         *
+         * @param function 名单功能
+         * @param lookupValue 已规范化查询值
+         */
         private ListCheck(RiskListFunction function, RiskRuntimeLookupValue lookupValue) {
             this(function, lookupValue, function.getFunctionCode());
         }
     }
 
-    private enum RiskBand {
-        /** CRITICAL 风险带，在仲裁中最先处理。 */
-        STRONG,
-
-        /** HIGH 风险带，优先级低于强风险带、高于弱风险带。 */
-        PRIORITY,
-
-        /** MEDIUM、LOW 或未知等级使用的兜底风险带。 */
-        WEAK
-    }
 }

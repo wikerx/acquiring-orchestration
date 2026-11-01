@@ -9,13 +9,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqResourceInitializer
- * @date : 2026-06-20 22:54
- * @email : scott_x@163.com
- * @description : 声明式 RocketMQ 资源初始化器
- * @status : create
+ * 声明式 RocketMQ 资源初始化器
  */
 @Slf4j
 public class RocketMqResourceInitializer {

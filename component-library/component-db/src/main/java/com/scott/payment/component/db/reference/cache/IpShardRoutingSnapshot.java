@@ -22,13 +22,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpShardRoutingSnapshot
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : IP 分片路由的本地不可变快照，从 SLAVE 预加载少量路由元数据，使普通冷查询只访问一次动态数据表
- * @status : create
+ * IP 分片路由的本地不可变快照，从 SLAVE 预加载少量路由元数据，使普通冷查询只访问一次动态数据表
  */
 @Service
 public class IpShardRoutingSnapshot {
@@ -87,7 +81,9 @@ public class IpShardRoutingSnapshot {
         );
     }
 
-    /** 返回当前路由版本，供精确 IP 缓存隔离数据版本。 */
+    /**
+     * 返回当前路由版本，供精确 IP 缓存隔离数据版本。
+     */
     public String currentVersion() {
         return state.get().version();
     }

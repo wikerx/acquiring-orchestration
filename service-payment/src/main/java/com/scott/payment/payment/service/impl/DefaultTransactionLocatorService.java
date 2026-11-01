@@ -32,10 +32,14 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
 
     private final TransactionLocatorMapper transactionLocatorMapper;
 
-    /** 可选 Redis 读缓存；不可用时保持固定表查询行为。 */
+    /**
+     * 可选 Redis 读缓存；不可用时保持固定表查询行为。
+     */
     private final Optional<RedisStringService> redisStringService;
 
-    /** Redis Key 规范配置。 */
+    /**
+     * Redis Key 规范配置。
+     */
     private final PaymentRedisProperties redisProperties;
 
     /**
@@ -52,7 +56,9 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
         this.redisProperties = redisProperties;
     }
 
-    /** 纯 Mapper 单元测试和无 Redis 独立环境使用的兼容构造器。 */
+    /**
+     * 纯 Mapper 单元测试和无 Redis 独立环境使用的兼容构造器。
+     */
     DefaultTransactionLocatorService(TransactionLocatorMapper transactionLocatorMapper) {
         this(transactionLocatorMapper, Optional.empty(), new PaymentRedisProperties());
     }
@@ -108,7 +114,9 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
         transactionInfo.setRootTransactionDateTime(locator.getRootTransactionDateTime());
     }
 
-    /** 商户不匹配和记录不存在统一返回订单不存在，避免交易标识枚举。 */
+    /**
+     * 商户不匹配和记录不存在统一返回订单不存在，避免交易标识枚举。
+     */
     private void validateMerchantOrder(PaymentCreateCommandDTO commandDTO, TransactionLocatorDO locator) {
         if (locator == null
                 || !commandDTO.getMerchantId().equals(locator.getMerchantId())
@@ -119,6 +127,9 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
         }
     }
 
+    /**
+     * 按平台交易号查询交易记录。
+     */
     private TransactionLocatorDO findByTransactionId(String merchantId, String transactionId) {
         String key = locatorKey("transaction", merchantId, transactionId);
         TransactionLocatorDO cached = read(key);
@@ -130,6 +141,9 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
         return loaded;
     }
 
+    /**
+     * 按商户订单号查询根交易。
+     */
     private TransactionLocatorDO findRootByMerchantOrder(String merchantId, String merchantOrderNo) {
         String key = locatorKey("merchant-order", merchantId, merchantOrderNo);
         TransactionLocatorDO cached = read(key);
@@ -141,7 +155,9 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
         return loaded;
     }
 
-    /** 缓存只保存定位字段 JSON，读取失败时删除坏值并回源固定表。 */
+    /**
+     * 缓存只保存定位字段 JSON，读取失败时删除坏值并回源固定表。
+     */
     private TransactionLocatorDO read(String key) {
         if (redisStringService.isEmpty()) {
             return null;
@@ -163,7 +179,9 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
         }
     }
 
-    /** 不缓存未命中定位，避免交易创建与立即查询竞态。 */
+    /**
+     * 不缓存未命中定位，避免交易创建与立即查询竞态。
+     */
     private void write(String key, TransactionLocatorDO locator) {
         if (locator == null || redisStringService.isEmpty()) {
             return;
@@ -180,6 +198,9 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
         }
     }
 
+    /**
+     * 构建交易定位缓存键。
+     */
     private String locatorKey(String variant, String merchantId, String businessId) {
         return redisProperties.businessKey(
                 "payment",

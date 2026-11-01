@@ -27,18 +27,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileServiceImplTests
- * @date : 2026-08-01 12:00
- * @email : scott_x@163.com
- * @description : 商户主体资料共享缓存读取与 MASTER 更新后完整缓存刷新行为测试
- * @status : create
+ * 商户主体资料共享缓存读取与 MASTER 更新后完整缓存刷新行为测试
  */
 @Slf4j
 class MerchantProfileServiceImplTests {
 
-    /** 初始化 MyBatis-Plus Lambda 字段元数据，使纯单元测试可构造类型安全查询条件。 */
+    /**
+     * 初始化 MyBatis-Plus Lambda 字段元数据，使纯单元测试可构造类型安全查询条件。
+     */
     @BeforeEach
     void initializeTableMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -115,14 +111,18 @@ class MerchantProfileServiceImplTests {
         log.info("商户主体资料自助更新完成，结果: 主库更新后提交完整共享缓存资料");
     }
 
-    /** 创建服务测试实例。 */
+    /**
+     * 创建服务测试实例。
+     */
     private MerchantProfileServiceImpl service(BaseMerchantInfoMapper mapper,
                                                MerchantRuntimeProfileCacheService cacheService,
                                                ManagedCacheInvalidationCoordinator coordinator) {
         return new MerchantProfileServiceImpl(mapper, cacheService, coordinator);
     }
 
-    /** 构造共享缓存中的非敏感商户资料。 */
+    /**
+     * 构造共享缓存中的非敏感商户资料。
+     */
     private MerchantRuntimeProfile runtimeProfile() {
         MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
         profile.setId(1L);
@@ -150,7 +150,9 @@ class MerchantProfileServiceImplTests {
         return profile;
     }
 
-    /** 构造写事务更新前读取的完整商户主库记录。 */
+    /**
+     * 构造写事务更新前读取的完整商户主库记录。
+     */
     private BaseMerchantInfoDO sensitiveFields() {
         BaseMerchantInfoDO row = new BaseMerchantInfoDO();
         row.setId(1L);
@@ -163,7 +165,9 @@ class MerchantProfileServiceImplTests {
         return row;
     }
 
-    /** 构造更新后从主库读取的完整商户资料。 */
+    /**
+     * 构造更新后从主库读取的完整商户资料。
+     */
     private BaseMerchantInfoDO fullRow() {
         BaseMerchantInfoDO row = sensitiveFields();
         MerchantRuntimeProfile profile = runtimeProfile();

@@ -19,27 +19,29 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPayloadDecoder
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Payload Decoder 解码组件，位于 商户开放接口服务，解析加密或外部协议报文，转换为内部 DTO 并保持异常边界清晰。
- * @status : create
+ * 使用商户专属平台私钥解密 OpenAPI 请求 data，并将明文转换为注解声明的请求类型。
  */
 @Component
 public class OpenApiPayloadDecoder {
 
-    /** 国家查询对外开放的业务字段，其它字段必须拒绝，避免未知条件被忽略。 */
+    /**
+     * 国家查询对外开放的业务字段，其它字段必须拒绝，避免未知条件被忽略。
+     */
     private static final Set<String> COUNTRY_QUERY_FIELDS = Set.of("alpha2", "alpha3", "numeric");
 
-    /** 币种查询对外开放的业务字段，其它字段必须拒绝，避免未知条件被忽略。 */
+    /**
+     * 币种查询对外开放的业务字段，其它字段必须拒绝，避免未知条件被忽略。
+     */
     private static final Set<String> CURRENCY_QUERY_FIELDS = Set.of("alphabeticCode", "numericCode");
 
-    /** IP 查询只允许提交一个 IP 字面量字段。 */
+    /**
+     * IP 查询只允许提交一个 IP 字面量字段。
+     */
     private static final Set<String> IP_QUERY_FIELDS = Set.of("ipAddress");
 
-    /** Card BIN 查询只允许提交一个 BIN 字段。 */
+    /**
+     * Card BIN 查询只允许提交一个 BIN 字段。
+     */
     private static final Set<String> CARD_BIN_QUERY_FIELDS = Set.of("cardBin");
 
     /**
@@ -184,7 +186,9 @@ public class OpenApiPayloadDecoder {
         return request;
     }
 
-    /** 将 IP 查询 JSON 严格转换为单字段请求，未知字段和非字符串值均在校验前拒绝。 */
+    /**
+     * 将 IP 查询 JSON 严格转换为单字段请求，未知字段和非字符串值均在校验前拒绝。
+     */
     private IpLookupRequestDTO parseIpQuery(String plainText) {
         Map<?, ?> values = parseStrictStringObject(plainText, IP_QUERY_FIELDS);
         IpLookupRequestDTO request = new IpLookupRequestDTO();
@@ -192,7 +196,9 @@ public class OpenApiPayloadDecoder {
         return request;
     }
 
-    /** 将 Card BIN 查询 JSON 严格转换为单字段请求，避免调用方提交的额外数据被静默忽略。 */
+    /**
+     * 将 Card BIN 查询 JSON 严格转换为单字段请求，避免调用方提交的额外数据被静默忽略。
+     */
     private CardBinLookupRequestDTO parseCardBinQuery(String plainText) {
         Map<?, ?> values = parseStrictStringObject(plainText, CARD_BIN_QUERY_FIELDS);
         CardBinLookupRequestDTO request = new CardBinLookupRequestDTO();

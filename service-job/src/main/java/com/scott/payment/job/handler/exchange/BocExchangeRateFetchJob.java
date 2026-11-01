@@ -12,13 +12,7 @@ import com.scott.payment.job.exchange.service.ExchangeRateFetchService;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BocExchangeRateFetchJob
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : Boc Exchange Rate Fetch Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
- * @status : create
+ * Boc Exchange Rate Fetch Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
  */
 @Component
 public class BocExchangeRateFetchJob implements JobHandler {

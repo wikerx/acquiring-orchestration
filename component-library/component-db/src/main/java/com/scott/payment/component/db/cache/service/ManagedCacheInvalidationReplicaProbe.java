@@ -8,18 +8,14 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ManagedCacheInvalidationReplicaProbe
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : 永久缓存失效事件的从库可见性探针，在独立只读事务中确认业务提交已复制后再允许删除缓存
- * @status : create
+ * 永久缓存失效事件的从库可见性探针，在独立只读事务中确认业务提交已复制后再允许删除缓存
  */
 @Service
 public class ManagedCacheInvalidationReplicaProbe {
 
-    /** 缓存失效 Outbox 数据访问组件。 */
+    /**
+     * 缓存失效 Outbox 数据访问组件。
+     */
     private final ManagedCacheInvalidationOutboxMapper outboxMapper;
 
     /**

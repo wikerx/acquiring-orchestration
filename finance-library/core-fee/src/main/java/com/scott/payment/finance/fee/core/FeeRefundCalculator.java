@@ -17,13 +17,7 @@ import static com.scott.payment.finance.fee.model.FeeRefundCalculationModels.Fee
 import static com.scott.payment.finance.fee.model.FeeRefundCalculationModels.FeeRefundPolicy.PROPORTIONAL;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeRefundCalculator
- * @date : 2026-08-25 19:35
- * @email : scott_x@163.com
- * @description : 按原支付固化策略返还原实际收费组件，逐组件控制币种精度和累计返还上限。
- * @status : create
+ * 按原支付固化策略返还原实际收费组件，逐组件控制币种精度和累计返还上限。
  */
 public class FeeRefundCalculator {
 

@@ -15,26 +15,30 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantCallbackJwtSigner
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 签发平台到商户的短时 HS256 回调 JWT，不记录或返回任何密钥摘要。
- * @status : create
+ * 签发平台到商户的短时 HS256 回调 JWT，不记录或返回任何密钥摘要。
  */
 public class MerchantCallbackJwtSigner {
 
-    /** 平台回调 JWT 签发者。 */
+    /**
+     * 平台回调 JWT 签发者。
+     */
     private static final String ISSUER = "platform";
-    /** 商户回调 JWT 固定受众。 */
+    /**
+     * 商户回调 JWT 固定受众。
+     */
     private static final String AUDIENCE = "merchant-callback";
-    /** HS256 密钥最小字节数。 */
+    /**
+     * HS256 密钥最小字节数。
+     */
     private static final int MIN_SECRET_BYTES = 32;
-    /** 回调密文 SHA-256 十六进制摘要格式。 */
+    /**
+     * 回调密文 SHA-256 十六进制摘要格式。
+     */
     private static final Pattern SHA256_HEX_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
-    /** 无状态 HMAC-SHA256 签名器，不保存商户密钥。 */
+    /**
+     * 无状态 HMAC-SHA256 签名器，不保存商户密钥。
+     */
     private final HmacSha256Signer signer = new HmacSha256Signer();
 
     /**

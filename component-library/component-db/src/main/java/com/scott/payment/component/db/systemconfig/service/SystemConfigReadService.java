@@ -10,22 +10,20 @@ import org.springframework.util.StringUtils;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemConfigReadService
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : 跨服务系统参数统一读取门面，协调永久缓存、失效门禁和主库降级
- * @status : create
+ * 跨服务系统参数统一读取门面，协调永久缓存、失效门禁和主库降级
  */
 @Slf4j
 @Service
 public class SystemConfigReadService {
 
-    /** 变更进行中时阻止读取永久旧缓存。 */
+    /**
+     * 变更进行中时阻止读取永久旧缓存。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
-    /** 提供受 Spring 代理的缓存读取和强制主库回源入口。 */
+    /**
+     * 提供受 Spring 代理的缓存读取和强制主库回源入口。
+     */
     private final SystemConfigCacheReader cacheReader;
 
     /**

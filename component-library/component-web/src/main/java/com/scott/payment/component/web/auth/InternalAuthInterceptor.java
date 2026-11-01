@@ -21,13 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalAuthInterceptor
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 内部管理类接口登录态与权限拦截器
- * @status : create
+ * 内部管理类接口登录态与权限拦截器
  */
 public class InternalAuthInterceptor implements HandlerInterceptor {
 

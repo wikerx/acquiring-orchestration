@@ -4,13 +4,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPayloadKeyProvider
- * @date : 2026-05-29 21:45
- * @email : scott_x@163.com
- * @description : OpenAPI 报文加密 RSA 密钥提供接口
- * @status : create
+ * OpenAPI 报文加密 RSA 密钥提供接口
  */
 public interface OpenApiPayloadKeyProvider {
 

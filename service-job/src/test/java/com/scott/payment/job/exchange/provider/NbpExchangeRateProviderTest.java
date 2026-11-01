@@ -17,13 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NbpExchangeRateProviderTest
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 验证 NBP Provider 通过 HTTP 获取 Table C JSON，并输出统一原始汇率模型。
- * @status : create
+ * 验证 NBP Provider 通过 HTTP 获取 Table C JSON，并输出统一原始汇率模型。
  */
 class NbpExchangeRateProviderTest {
 

@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskResponse
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务定义响应 DTO
- * @status : create
+ * 管理后台任务定义响应 DTO
  *
  * <p>用于任务配置列表与详情展示，承载任务调度配置、重试配置和最近运行状态摘要。</p>
  */

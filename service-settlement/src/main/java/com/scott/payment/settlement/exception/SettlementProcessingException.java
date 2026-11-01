@@ -3,13 +3,7 @@ package com.scott.payment.settlement.exception;
 import com.scott.payment.settlement.domain.model.SettlementFailureStage;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementProcessingException
- * @date : 2026-08-26 23:10
- * @email : scott_x@163.com
- * @description : 结算批次受控失败，携带稳定错误码、失败阶段和是否允许数据库补偿重试。
- * @status : create
+ * 结算批次受控失败，携带稳定错误码、失败阶段和是否允许数据库补偿重试。
  */
 public class SettlementProcessingException extends RuntimeException {
 
@@ -57,17 +51,23 @@ public class SettlementProcessingException extends RuntimeException {
         this.retryable = retryable;
     }
 
-    /** @return 失败阶段 */
+    /**
+     * @return 失败阶段
+     */
     public SettlementFailureStage getStage() {
         return stage;
     }
 
-    /** @return 稳定失败码 */
+    /**
+     * @return 稳定失败码
+     */
     public String getFailureCode() {
         return failureCode;
     }
 
-    /** @return 是否允许自动重试 */
+    /**
+     * @return 是否允许自动重试
+     */
     public boolean isRetryable() {
         return retryable;
     }

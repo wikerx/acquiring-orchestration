@@ -23,13 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReversalController
- * @date : 2026-09-01 22:50
- * @email : scott_x@163.com
- * @description : Admin 结算冲正查询、申请和 Maker-Checker 复核入口；可信操作人由应用层解析后通过内部鉴权调用 settlement 服务。
- * @status : update
+ * Admin 结算冲正查询、申请和 Maker-Checker 复核入口；可信操作人由应用层解析后通过内部鉴权调用 settlement 服务。
  */
 @RestController
 @RequestMapping("/admin/settlement/reversal-orders")
@@ -37,6 +31,11 @@ public class AdminSettlementReversalController {
 
     private final AdminSettlementReversalApplicationService applicationService;
 
+    /**
+     * 创建结算冲正申请与复核控制器。
+     *
+     * @param applicationService 结算冲正应用服务
+     */
     public AdminSettlementReversalController(AdminSettlementReversalApplicationService applicationService) {
         this.applicationService = applicationService;
     }

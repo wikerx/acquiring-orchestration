@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionAmountChangeLogMapper
- * @date : 2026-07-14 19:46
- * @email : scott_x@163.com
- * @description : 交易金额变动日志 Mapper，位于 service-payment 数据访问层，仅访问 transaction_amount_change_log 逻辑表。
- * @status : create
+ * 交易金额变动日志 Mapper，位于 service-payment 数据访问层，仅访问 transaction_amount_change_log 逻辑表。
  */
 public interface TransactionAmountChangeLogMapper extends BaseMapper<TransactionAmountChangeLogDO> {
 

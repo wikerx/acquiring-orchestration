@@ -23,13 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionTerminalClearingConsumerTest
- * @date : 2026-08-26 16:40
- * @email : scott_x@163.com
- * @description : 验证交易终态消费者使用顺序消费并把完整动作身份交给清分应用编排。
- * @status : create
+ * 验证交易终态消费者使用顺序消费并把完整动作身份交给清分应用编排。
  */
 class TransactionTerminalClearingConsumerTest {
 
@@ -64,7 +58,9 @@ class TransactionTerminalClearingConsumerTest {
         assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.ORDERLY);
     }
 
-    /** 畸形 JSON 不记录原文，只按固定来源和原因累计拒绝指标并触发 Broker 重试。 */
+    /**
+     * 畸形 JSON 不记录原文，只按固定来源和原因累计拒绝指标并触发 Broker 重试。
+     */
     @Test
     void malformedPayloadShouldRecordLowCardinalityMetric() {
         ClearingOperationalMetrics metrics = mock(ClearingOperationalMetrics.class);

@@ -26,18 +26,14 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorWorkbenchApplicationService
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : 管理端系统监控工作台用例编排服务，保持 Controller 与监控查询实现解耦，并统一暴露告警处理用例。
- * @status : create
+ * 管理端系统监控工作台用例编排服务，保持 Controller 与监控查询实现解耦，并统一暴露告警处理用例。
  */
 @Service
 public class AdminMonitorWorkbenchApplicationService {
 
-    /** 系统监控工作台领域服务。 */
+    /**
+     * 系统监控工作台领域服务。
+     */
     private final AdminMonitorWorkbenchService monitorWorkbenchService;
 
     /**

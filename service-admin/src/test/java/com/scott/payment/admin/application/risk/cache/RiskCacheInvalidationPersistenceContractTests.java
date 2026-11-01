@@ -9,13 +9,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskCacheInvalidationPersistenceContractTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控缓存失效 outbox 数据库契约测试。
- * @status : create
+ * 风控缓存失效 outbox 数据库契约测试。
  */
 class RiskCacheInvalidationPersistenceContractTests {
 

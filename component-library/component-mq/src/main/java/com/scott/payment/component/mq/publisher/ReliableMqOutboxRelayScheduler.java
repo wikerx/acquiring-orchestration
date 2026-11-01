@@ -6,24 +6,24 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReliableMqOutboxRelayScheduler
- * @date : 2026-08-02 22:20
- * @email : scott_x@163.com
- * @description : 非交易可靠 MQ Outbox 补偿调度器，独立调度到期投递、超时恢复和指标刷新
- * @status : create
+ * 非交易可靠 MQ Outbox 补偿调度器，独立调度到期投递、超时恢复和指标刷新
  */
 @Slf4j
 @Component
 public class ReliableMqOutboxRelayScheduler {
 
-    /** Relay 服务。 */
+    /**
+     * Relay 服务。
+     */
     private final ReliableMqOutboxRelayService relayService;
-    /** Outbox 配置。 */
+    /**
+     * Outbox 配置。
+     */
     private final ReliableMqOutboxProperties properties;
 
-    /** 创建补偿调度器。 */
+    /**
+     * 创建补偿调度器。
+     */
     public ReliableMqOutboxRelayScheduler(ReliableMqOutboxRelayService relayService,
                                           ReliableMqOutboxProperties properties) {
         this.relayService = relayService;
@@ -72,7 +72,9 @@ public class ReliableMqOutboxRelayScheduler {
         }
     }
 
-    /** 低频刷新通用 Outbox 数据库状态 Gauge，避免每秒执行聚合查询。 */
+    /**
+     * 低频刷新通用 Outbox 数据库状态 Gauge，避免每秒执行聚合查询。
+     */
     @Scheduled(
             initialDelayString = "${acquiring.mq.outbox.metrics-initial-delay-ms:30000}",
             fixedDelayString = "${acquiring.mq.outbox.metrics-delay-ms:60000}")
@@ -88,7 +90,9 @@ public class ReliableMqOutboxRelayScheduler {
         }
     }
 
-    /** 全局开关和服务职责开关均开启时，当前实例才执行数据库补偿任务。 */
+    /**
+     * 全局开关和服务职责开关均开启时，当前实例才执行数据库补偿任务。
+     */
     private boolean isRelayEnabled() {
         return properties.isRelayEnabled() && properties.isServiceRelayEnabled();
     }

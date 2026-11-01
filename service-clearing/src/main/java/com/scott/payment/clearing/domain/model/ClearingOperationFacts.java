@@ -4,13 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationFacts
- * @date : 2026-08-26 09:12
- * @email : scott_x@163.com
- * @description : 清分应用层使用的动作事实快照；只承载数据库权威交易身份、终态、金额和分片时间，不携带持卡人数据。
- * @status : create
+ * 清分应用层使用的动作事实快照；只承载数据库权威交易身份、终态、金额和分片时间，不携带持卡人数据。
  * @param transactionId 动作级平台交易号
  * @param operationId 生命周期关联号
  * @param sourceTransactionId 退款、请款或冲正来源动作号

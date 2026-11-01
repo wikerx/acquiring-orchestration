@@ -8,17 +8,13 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionFinanceStateMapper
- * @date : 2026-08-14 13:45
- * @email : scott_x@163.com
- * @description : 交易财务状态 Mapper，仅按平台交易号和真实分片时间访问逻辑表。
- * @status : create
+ * 交易财务状态 Mapper，仅按平台交易号和真实分片时间访问逻辑表。
  */
 public interface TransactionFinanceStateMapper extends BaseMapper<TransactionFinanceStateDO> {
 
-    /** 按当前交易动作读取已经形成的财务状态。 */
+    /**
+     * 按当前交易动作读取已经形成的财务状态。
+     */
     @Select("""
             SELECT *
             FROM transaction_finance_state

@@ -33,54 +33,68 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOnboardingServiceTest
- * @date : 2026-09-14 19:15
- * @email : scott_x@163.com
- * @description : 商户开户状态机单元测试，覆盖草稿初始化、审核决策和激活门禁
- * @status : create
+ * 商户开户状态机单元测试，覆盖草稿初始化、审核决策和激活门禁
  */
 @Slf4j
 @ExtendWith(MockitoExtension.class)
 class MerchantOnboardingServiceTest {
 
-    /** 商户相关人员数据访问替身。 */
+    /**
+     * 商户相关人员数据访问替身。
+     */
     @Mock
     private MerchantRelatedPersonMapper relatedPersonMapper;
 
-    /** 合规资料元数据访问替身。 */
+    /**
+     * 合规资料元数据访问替身。
+     */
     @Mock
     private BizDocumentMapper documentMapper;
 
-    /** 审核不可变记录数据访问替身。 */
+    /**
+     * 审核不可变记录数据访问替身。
+     */
     @Mock
     private MerchantReviewRecordMapper reviewRecordMapper;
 
-    /** 商户费率方案数据访问替身。 */
+    /**
+     * 商户费率方案数据访问替身。
+     */
     @Mock
     private FeePlanMapper feePlanMapper;
 
-    /** 商户渠道绑定数据访问替身。 */
+    /**
+     * 商户渠道绑定数据访问替身。
+     */
     @Mock
     private MerchantChannelMidBindingMapper channelMidBindingMapper;
 
-    /** 相关人员敏感字段加密替身。 */
+    /**
+     * 相关人员敏感字段加密替身。
+     */
     @Mock
     private MerchantProfileSensitiveCrypto sensitiveCrypto;
 
-    /** 商户主账号开户替身。 */
+    /**
+     * 商户主账号开户替身。
+     */
     @Mock
     private AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService;
 
-    /** 商户资金账户开户替身。 */
+    /**
+     * 商户资金账户开户替身。
+     */
     @Mock
     private AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
 
-    /** 被测商户开户领域服务。 */
+    /**
+     * 被测商户开户领域服务。
+     */
     private MerchantOnboardingService service;
 
-    /** 初始化 MyBatis-Plus 元数据和被测服务。 */
+    /**
+     * 初始化 MyBatis-Plus 元数据和被测服务。
+     */
     @BeforeEach
     void setUp() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -101,7 +115,9 @@ class MerchantOnboardingServiceTest {
                 fundAccountProvisioningService);
     }
 
-    /** 新商户必须以冻结草稿开始，不能在创建时直接成为运行态。 */
+    /**
+     * 新商户必须以冻结草稿开始，不能在创建时直接成为运行态。
+     */
     @Test
     void shouldInitializeMerchantAsFrozenDraft() {
         log.info("测试商户草稿初始化，关键输入: 后台新增商户");
@@ -118,7 +134,9 @@ class MerchantOnboardingServiceTest {
         log.info("商户草稿初始化完成，结果: 冻结、未提交审核、未满足激活条件");
     }
 
-    /** 审核通过只改变审核状态，内部配置不完整时不能提前标记为可激活。 */
+    /**
+     * 审核通过只改变审核状态，内部配置不完整时不能提前标记为可激活。
+     */
     @Test
     void shouldKeepActivationNotReadyWhenReviewPassesWithoutConfiguration() {
         log.info("测试商户审核通过状态，关键输入: decision=PASS, 未配置费率和渠道");
@@ -137,7 +155,9 @@ class MerchantOnboardingServiceTest {
         log.info("商户审核通过状态完成，结果: 审核通过但激活仍被内部配置门禁阻止");
     }
 
-    /** 未通过审核时激活必须失败，且不得产生账号或资金账户副作用。 */
+    /**
+     * 未通过审核时激活必须失败，且不得产生账号或资金账户副作用。
+     */
     @Test
     void shouldRejectActivationBeforeReviewPasses() {
         log.info("测试商户激活审核门禁，关键输入: reviewStatus=PENDING");
@@ -151,7 +171,9 @@ class MerchantOnboardingServiceTest {
         log.info("商户激活审核门禁完成，结果: 未通过审核不创建账号和资金账户");
     }
 
-    /** 审核、MCC、结算币种、风险、费率和渠道均就绪后才能完成激活。 */
+    /**
+     * 审核、MCC、结算币种、风险、费率和渠道均就绪后才能完成激活。
+     */
     @Test
     void shouldActivateMerchantAfterAllReadinessChecksPass() {
         log.info("测试商户完整激活，关键输入: 审核、费率和渠道均已就绪");
@@ -175,7 +197,9 @@ class MerchantOnboardingServiceTest {
         log.info("商户完整激活完成，结果: 账号和资金账户按顺序幂等开户并进入运行态");
     }
 
-    /** 已激活商户详情不应再次显示激活前配置问题。 */
+    /**
+     * 已激活商户详情不应再次显示激活前配置问题。
+     */
     @Test
     void shouldNotRecalculateReadinessForActiveMerchant() {
         log.info("测试已激活商户详情就绪状态，关键输入: activationStatus=ACTIVE");
@@ -194,7 +218,9 @@ class MerchantOnboardingServiceTest {
         log.info("已激活商户详情就绪状态完成，结果: 不再重复执行激活门禁或展示阻塞项");
     }
 
-    /** 联系人资料未补齐时不得提交审核，草稿状态和审核记录均保持不变。 */
+    /**
+     * 联系人资料未补齐时不得提交审核，草稿状态和审核记录均保持不变。
+     */
     @Test
     void shouldRejectReviewSubmissionWithoutContactDetails() {
         log.info("测试商户提交审核联系人门禁，关键输入: 联系人姓名和邮箱为空");
@@ -212,7 +238,9 @@ class MerchantOnboardingServiceTest {
         log.info("商户提交审核联系人门禁完成，结果: 不完整草稿未进入待审核状态");
     }
 
-    /** 详情接口必须返回稳定问题编码，避免把中文展示文案固化到国际化接口契约。 */
+    /**
+     * 详情接口必须返回稳定问题编码，避免把中文展示文案固化到国际化接口契约。
+     */
     @Test
     void shouldExposeStableReadinessIssueCodes() {
         log.info("测试商户详情就绪问题编码，关键输入: 未补齐开户资料的冻结草稿");
@@ -229,7 +257,9 @@ class MerchantOnboardingServiceTest {
         log.info("商户详情就绪问题编码完成，结果: DTO 仅返回稳定编码供前端国际化展示");
     }
 
-    /** 完整国际电话号码已包含国家区号，不应再要求历史拆分字段。 */
+    /**
+     * 完整国际电话号码已包含国家区号，不应再要求历史拆分字段。
+     */
     @Test
     void shouldAcceptCompleteContactPhoneWithoutLegacyCountryCode() {
         log.info("测试完整国际电话号码门禁，关键输入: contactPhone 已包含国家区号");
@@ -246,7 +276,9 @@ class MerchantOnboardingServiceTest {
         log.info("完整国际电话号码门禁完成，结果: 不再要求独立电话国家区号");
     }
 
-    /** 构造待审核商户，避免测试包含任何真实商户或联系信息。 */
+    /**
+     * 构造待审核商户，避免测试包含任何真实商户或联系信息。
+     */
     private BaseMerchantInfoDO pendingMerchant() {
         BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
         merchant.setMerchantId("MTEST0001");

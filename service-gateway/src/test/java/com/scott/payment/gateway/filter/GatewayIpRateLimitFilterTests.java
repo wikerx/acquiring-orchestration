@@ -23,7 +23,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证 Gateway IP 限流作用域、统一 429 响应和预检请求豁免。 */
+/**
+ * 验证 Gateway IP 限流作用域、统一 429 响应和预检请求豁免。
+ */
 class GatewayIpRateLimitFilterTests {
 
     @Test

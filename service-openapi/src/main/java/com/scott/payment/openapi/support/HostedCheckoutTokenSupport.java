@@ -13,13 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutTokenSupport
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout token 摘要支撑。
- * @status : create
+ * Hosted Checkout token 摘要支撑。
  */
 public final class HostedCheckoutTokenSupport {
 
@@ -28,6 +22,9 @@ public final class HostedCheckoutTokenSupport {
      */
     public static final String TOKEN_HASH_ALG = "HMAC_SHA256";
 
+    /**
+     * 令牌摘要工具类不允许实例化。
+     */
     private HostedCheckoutTokenSupport() {
     }
 

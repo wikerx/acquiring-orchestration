@@ -2,6 +2,7 @@ package com.scott.payment.clearing.application;
 
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.CompletionCommand;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.CompletionResult;
+import com.scott.payment.clearing.domain.model.ClearingCompletionModels.LocatorFacts;
 import com.scott.payment.clearing.domain.model.ClearingOperationFacts;
 import com.scott.payment.clearing.domain.service.ClearingEventValidator;
 import com.scott.payment.clearing.domain.state.ClearingFailureCodeEnum;
@@ -15,11 +16,24 @@ import com.scott.payment.clearing.service.ClearingPreparationService;
 import com.scott.payment.clearing.support.ClearingOperationalMetrics;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeMode;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeRuleSnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeCurrencyPolicy;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeRuleConfigurationSnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeVersionSnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.PercentageBasis;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.RefundFeeReturnPolicy;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveBasis;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReservePolicySnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveRefundPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,13 +44,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingProcessingApplicationServiceTest
- * @date : 2026-08-26 16:20
- * @email : scott_x@163.com
- * @description : 验证清分应用编排只ACK已完成和受控失败，未知技术异常与租约竞争继续交给RocketMQ原生重试。
- * @status : create
+ * 验证清分应用编排只确认已完成和受控失败，未知技术异常与租约竞争继续交给 RocketMQ 原生重试。
  */
 class ClearingProcessingApplicationServiceTest {
 
@@ -66,12 +74,9 @@ class ClearingProcessingApplicationServiceTest {
     @Test
     void acquiredMessageShouldPrepareAndComplete() {
         PaymentTransactionEventMessage message = message();
-        ClearingClaimResult claim = mock(ClearingClaimResult.class);
-        CompletionCommand command = mock(CompletionCommand.class);
         ClearingOperationFacts operation = operation();
-        when(claim.acquired()).thenReturn(true);
-        when(claim.outcome()).thenReturn(ClearingClaimResult.Outcome.ACQUIRED);
-        when(claim.operation()).thenReturn(operation);
+        ClearingClaimResult claim = acquiredClaim(operation);
+        CompletionCommand command = completionCommand(message, claim);
         when(persistenceService.claim(message, "worker-1", NOW_UTC)).thenReturn(claim);
         when(preparationService.prepare(message, claim, "worker-1")).thenReturn(command);
         when(completionService.complete(command, NOW_UTC))
@@ -91,11 +96,9 @@ class ClearingProcessingApplicationServiceTest {
     @Test
     void controlledFailureShouldBePersistedAndAcknowledged() {
         PaymentTransactionEventMessage message = message();
-        ClearingClaimResult claim = mock(ClearingClaimResult.class);
+        ClearingClaimResult claim = acquiredClaim(operation());
         ClearingProcessingException failure = new ClearingProcessingException(
                 ClearingFailureCodeEnum.SOURCE_CLEARING_PENDING, "source clearing is pending");
-        when(claim.acquired()).thenReturn(true);
-        when(claim.outcome()).thenReturn(ClearingClaimResult.Outcome.ACQUIRED);
         when(persistenceService.claim(message, "worker-1", NOW_UTC)).thenReturn(claim);
         when(preparationService.prepare(message, claim, "worker-1")).thenThrow(failure);
         when(failureService.recordFailure(message, claim, "worker-1", failure, NOW_UTC))
@@ -112,10 +115,8 @@ class ClearingProcessingApplicationServiceTest {
     @Test
     void unknownFailureShouldPropagateForNativeRocketMqRetry() {
         PaymentTransactionEventMessage message = message();
-        ClearingClaimResult claim = mock(ClearingClaimResult.class);
+        ClearingClaimResult claim = acquiredClaim(operation());
         IllegalStateException databaseFailure = new IllegalStateException("database unavailable");
-        when(claim.acquired()).thenReturn(true);
-        when(claim.outcome()).thenReturn(ClearingClaimResult.Outcome.ACQUIRED);
         when(persistenceService.claim(message, "worker-1", NOW_UTC)).thenReturn(claim);
         when(preparationService.prepare(message, claim, "worker-1")).thenThrow(databaseFailure);
 
@@ -174,6 +175,49 @@ class ClearingProcessingApplicationServiceTest {
 
         assertThat(result).isEqualTo(ClearingProcessingResult.MANUAL_REVIEW_ACKNOWLEDGED);
         verify(preparationService, never()).prepare(message, claim, "worker-1");
+    }
+
+    /**
+     * 构造已取得阶段 A 租约的真实领取结果，避免模拟不可变领域值对象。
+     */
+    private ClearingClaimResult acquiredClaim(ClearingOperationFacts operation) {
+        return new ClearingClaimResult(
+                ClearingClaimResult.Outcome.ACQUIRED, "FS-1", 0, 3, operation);
+    }
+
+    /**
+     * 使用当前消息、领取事实和合法冻结费用版本构造阶段 B 命令。
+     */
+    private CompletionCommand completionCommand(PaymentTransactionEventMessage message,
+                                                ClearingClaimResult claim) {
+        ClearingOperationFacts operation = claim.operation();
+        LocatorFacts locator = new LocatorFacts(
+                operation.transactionId(), operation.operationId(), operation.transactionId(),
+                operation.merchantId(), operation.merchantOrderNo(), operation.transactionType(),
+                operation.transactionDateTime(), operation.transactionDateTime());
+        return new CompletionCommand(
+                message, claim, "worker-1", feeSnapshot(operation.transactionDateTime()), locator,
+                "BANK_CARD", "VISA", Set.of(), null,
+                operation.transactionDateTime().toLocalDate(), null);
+    }
+
+    /**
+     * 构造通过领域校验的零费用、零保证金冻结版本。
+     */
+    private FeeVersionSnapshot feeSnapshot(LocalDateTime pricingLockTime) {
+        FeeRuleSnapshot calculation = new FeeRuleSnapshot(
+                101L, FeeMode.STANDARD, BigDecimal.ZERO, null, null, null, null);
+        FeeRuleConfigurationSnapshot rule = new FeeRuleConfigurationSnapshot(
+                101L, "TRANSACTION_FEE", "PAYMENT", "BANK_CARD", "VISA",
+                "NONE", "SUCCESS", calculation, List.of());
+        ReservePolicySnapshot reserve = new ReservePolicySnapshot(
+                BigDecimal.ZERO, ReserveBasis.LABEL_AMOUNT, "D", 1,
+                ReserveRefundPolicy.PROPORTIONAL_RETURN);
+        return new FeeVersionSnapshot(
+                5, "M-1", 10L, 11L, 1, pricingLockTime, "USD",
+                PercentageBasis.LABEL_AMOUNT, FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS,
+                RoundingMode.HALF_UP, reserve, RefundFeeReturnPolicy.NONE,
+                List.of(rule), "0".repeat(64));
     }
 
     @Test

@@ -32,13 +32,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HttpTrafficLoggingFilter
- * @date : 2026-07-26 16:45
- * @email : scott_x@163.com
- * @description : Servlet HTTP 请求响应摘要日志过滤器，位于 component-web 公共 Web 层，为各微服务输出统一的请求体、响应体长度、指纹和脱敏摘要。
- * @status : create
+ * Servlet HTTP 请求响应摘要日志过滤器，位于 component-web 公共 Web 层，为各微服务输出统一的请求体、响应体长度、指纹和脱敏摘要。
  */
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)

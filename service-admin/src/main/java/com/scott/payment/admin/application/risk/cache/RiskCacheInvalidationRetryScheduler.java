@@ -5,22 +5,20 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskCacheInvalidationRetryScheduler
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 定时补偿未成功发布的风控规则缓存失效事件。
- * @status : create
+ * 定时补偿未成功发布的风控规则缓存失效事件。
  */
 @Slf4j
 @Component
 public class RiskCacheInvalidationRetryScheduler {
 
-    /** 单次调度最多处理的到期 Outbox 事件数。 */
+    /**
+     * 单次调度最多处理的到期 Outbox 事件数。
+     */
     private static final int BATCH_SIZE = 100;
 
-    /** 在独立事务中提交 generation 并更新 Outbox 状态的中继服务。 */
+    /**
+     * 在独立事务中提交 generation 并更新 Outbox 状态的中继服务。
+     */
     private final RiskCacheInvalidationRelayService relayService;
 
     /**

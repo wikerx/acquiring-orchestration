@@ -11,13 +11,7 @@ import com.scott.payment.component.job.executor.JobHandlerDescriptor;
 import org.mapstruct.Mapper;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerConverter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务调度对象转换器，位于 service-job 转换层；负责调度任务、运行日志、执行节点和处理器选项的普通字段映射。
- * @status : create
+ * 任务调度对象转换器，位于 service-job 转换层；负责调度任务、运行日志、执行节点和处理器选项的普通字段映射。
  */
 @Mapper(componentModel = "spring")
 public interface JobSchedulerConverter {

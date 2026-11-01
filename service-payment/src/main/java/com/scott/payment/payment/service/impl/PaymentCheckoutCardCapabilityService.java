@@ -37,7 +37,9 @@ public class PaymentCheckoutCardCapabilityService {
     private static final List<String> ALL_CARD_BRANDS = List.of(
             "VISA", "MASTERCARD", "AMEX", "JCB", "MAESTRO", "UNIONPAY", "DISCOVER", "DINERS_CLUB",
             "CARTES_BANCAIRES", "EFTPOS_AUSTRALIA", "INTERAC");
-    /** 发卡国家进入交易快照前必须是 ISO 3166-1 Alpha-3 大写代码。 */
+    /**
+     * 发卡国家进入交易快照前必须是 ISO 3166-1 Alpha-3 大写代码。
+     */
     private static final Pattern ISO_ALPHA_3_PATTERN = Pattern.compile("[A-Z]{3}");
 
     private final MerchantRouteProfileCacheService routeProfileCacheService;
@@ -192,12 +194,17 @@ public class PaymentCheckoutCardCapabilityService {
         }
     }
 
-    /** 交易快照只接受三位字母国家代码，避免统计维度混入 Alpha-2 或国家名称。 */
+    /**
+     * 交易快照只接受三位字母国家代码，避免统计维度混入 Alpha-2 或国家名称。
+     */
     private String normalizeIssuerCountryAlpha3(String value) {
         String normalized = normalize(value);
         return ISO_ALPHA_3_PATTERN.matcher(normalized).matches() ? normalized : null;
     }
 
+    /**
+     * 判断配置是否处于有效状态。
+     */
     private boolean active(MerchantRouteProfile.RouteOption option, LocalDateTime now) {
         return Integer.valueOf(1).equals(option.getBindingStatus())
                 && Integer.valueOf(1).equals(option.getMidStatus())
@@ -209,10 +216,16 @@ public class PaymentCheckoutCardCapabilityService {
                 && "ACQUIRING".equals(normalize(option.getBusinessType()));
     }
 
+    /**
+     * 判断卡 BIN 是否位于配置区间。
+     */
     private boolean inWindow(LocalDateTime now, LocalDateTime start, LocalDateTime end) {
         return (start == null || !now.isBefore(start)) && (end == null || now.isBefore(end));
     }
 
+    /**
+     * 判断请求支付方式是否允许当前能力。
+     */
     private boolean requestedMethodAllows(List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> requested,
                                           String method,
                                           String channel) {
@@ -223,6 +236,9 @@ public class PaymentCheckoutCardCapabilityService {
                 && (!StringUtils.hasText(item.getChannelCode()) || normalize(channel).equals(normalize(item.getChannelCode()))));
     }
 
+    /**
+     * 计算请求卡品牌与渠道卡品牌的交集。
+     */
     private Set<String> intersectRequestedBrands(List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> requested,
                                                  String method,
                                                  String channel,
@@ -248,6 +264,9 @@ public class PaymentCheckoutCardCapabilityService {
         return intersection;
     }
 
+    /**
+     * 解析渠道能力范围值集合。
+     */
     private Set<String> scopeValues(String scope) {
         if (!StringUtils.hasText(scope) || "ALL".equalsIgnoreCase(scope.trim())) {
             return new LinkedHashSet<>(ALL_CARD_BRANDS);
@@ -260,6 +279,9 @@ public class PaymentCheckoutCardCapabilityService {
         return values;
     }
 
+    /**
+     * 判断配置范围是否允许当前交易。
+     */
     private boolean scopeAllows(String scope, String value) {
         if (!StringUtils.hasText(scope) || "ALL".equalsIgnoreCase(scope.trim())) {
             return true;
@@ -267,6 +289,9 @@ public class PaymentCheckoutCardCapabilityService {
         return Arrays.stream(scope.split(",")).map(this::normalize).anyMatch(normalize(value)::equals);
     }
 
+    /**
+     * 规范化卡品牌编码。
+     */
     private String normalizeCardBrand(String value) {
         String normalized = normalize(value).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
@@ -279,10 +304,16 @@ public class PaymentCheckoutCardCapabilityService {
         };
     }
 
+    /**
+     * 提取文本中的数字字符。
+     */
     private String digits(String value) {
         return value == null ? "" : value.replaceAll("\\D", "");
     }
 
+    /**
+     * 规范化卡品牌能力匹配值。
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }

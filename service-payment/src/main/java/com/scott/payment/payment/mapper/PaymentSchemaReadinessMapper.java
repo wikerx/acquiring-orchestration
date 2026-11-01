@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentSchemaReadinessMapper
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 支付数据库契约只读 Mapper，检查交易动作逻辑表和现有月分表的接入 IP 审计字段。
- * @status : create
+ * 支付数据库契约只读 Mapper，检查交易动作逻辑表和现有月分表的接入 IP 审计字段。
  */
 public interface PaymentSchemaReadinessMapper {
 

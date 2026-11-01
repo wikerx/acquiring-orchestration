@@ -50,13 +50,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantPrimaryAccountProvisioningServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证管理端新增商户时创建待激活主账号并发送一次性邮箱激活通知。
- * @status : create
+ * 验证管理端新增商户时创建待激活主账号并发送一次性邮箱激活通知。
  */
 class AdminMerchantPrimaryAccountProvisioningServiceTests {
 

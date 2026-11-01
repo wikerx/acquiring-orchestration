@@ -24,13 +24,7 @@ import java.util.Objects;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiMerchantKeyMaterialService
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : openAPI商户密钥材料服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * openAPI商户密钥材料服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public class OpenApiMerchantKeyMaterialService {
 
@@ -559,7 +553,9 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
-    /** 查询最新 JWT 记录，包括已停用记录，供显式启停操作使用。 */
+    /**
+     * 查询最新 JWT 记录，包括已停用记录，供显式启停操作使用。
+     */
     private BaseMerchantJwtKeyDO selectLatestJwtKey(String merchantId) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
                 .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)

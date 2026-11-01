@@ -3,13 +3,7 @@ package com.scott.payment.risk.domain.state;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskReasonCodeEnum
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 风控原因编码枚举，位于 风控服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 风控原因编码枚举，位于 风控服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  */
 @Getter
 public enum RiskReasonCodeEnum {
@@ -109,6 +103,12 @@ public enum RiskReasonCodeEnum {
      */
     private final String message;
 
+    /**
+     * 定义稳定原因码及其内部诊断描述。
+     *
+     * @param code 风控结果、审计记录和服务异常共同使用的原因码
+     * @param message 不包含敏感交易数据的内部诊断描述
+     */
     RiskReasonCodeEnum(String code, String message) {
         this.code = code;
         this.message = message;

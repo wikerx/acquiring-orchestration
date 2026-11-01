@@ -42,13 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAutomaticProcessingApplicationServiceTest
- * @date : 2026-08-26 23:58
- * @email : scott_x@163.com
- * @description : 验证服务启动后的候选准备、数据库租约、完整计算编排及独立失败补偿路径。
- * @status : create
+ * 验证服务启动后的候选准备、数据库租约、完整计算编排及独立失败补偿路径。
  */
 class SettlementAutomaticProcessingApplicationServiceTest {
 
@@ -84,7 +78,9 @@ class SettlementAutomaticProcessingApplicationServiceTest {
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
-    /** 准备任务应有界清空候选页并使用同一绝对时间创建最近成熟日批。 */
+    /**
+     * 准备任务应有界清空候选页并使用同一绝对时间创建最近成熟日批。
+     */
     @Test
     void shouldActivateCandidatesAndPrepareMaturedBatches() {
         when(activationService.activateEligibleCandidates(200, NOW_UTC)).thenReturn(200, 3);
@@ -99,7 +95,9 @@ class SettlementAutomaticProcessingApplicationServiceTest {
         verify(automaticBatchService).createAndClaimMaturedBatches(NOW);
     }
 
-    /** 取得租约后必须依次读取清分事实、复用或锁定矩阵并落结果，且不触发失败补偿。 */
+    /**
+     * 取得租约后必须依次读取清分事实、复用或锁定矩阵并落结果，且不触发失败补偿。
+     */
     @Test
     void shouldProcessOneLeasedBatchThroughCalculatedResult() {
         SettlementBatchDO batch = batch();
@@ -122,7 +120,9 @@ class SettlementAutomaticProcessingApplicationServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
-    /** 阶段异常必须交给独立失败服务记录，当前轮不得继续锁汇率或计算结果。 */
+    /**
+     * 阶段异常必须交给独立失败服务记录，当前轮不得继续锁汇率或计算结果。
+     */
     @Test
     void shouldRecordStageFailureWithoutContinuingPipeline() {
         SettlementBatchDO batch = batch();
@@ -145,7 +145,9 @@ class SettlementAutomaticProcessingApplicationServiceTest {
                 org.mockito.ArgumentMatchers.any());
     }
 
-    /** CALCULATED 批次取得新租约后应直接资金入账，禁止重复锁汇率或重算。 */
+    /**
+     * CALCULATED 批次取得新租约后应直接资金入账，禁止重复锁汇率或重算。
+     */
     @Test
     void shouldPostCalculatedBatchWithoutRecalculation() {
         SettlementBatchDO batch = batch();
@@ -162,7 +164,9 @@ class SettlementAutomaticProcessingApplicationServiceTest {
         verify(resultService, never()).calculateAndPersist(any(), any(), any(), anyString(), any());
     }
 
-    /** 没有可租用批次时应立即结束，不读取清分事实。 */
+    /**
+     * 没有可租用批次时应立即结束，不读取清分事实。
+     */
     @Test
     void shouldStopWhenNoBatchIsAvailable() {
         when(leaseService.acquireNext("worker-1", NOW_UTC, NOW_UTC.plusMinutes(5)))

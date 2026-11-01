@@ -29,18 +29,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminTransactionAnalyticsQueryServiceTests
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 管理端交易分析查询口径测试，验证首笔交易、终态成功率、币种分组和 31 天扫描边界。
- * @status : create
+ * 管理端交易分析查询口径测试，验证首笔交易、终态成功率、币种分组和 31 天扫描边界。
  */
 @Slf4j
 class JdbcAdminTransactionAnalyticsQueryServiceTests {
 
-    /** 管理端总览必须使用首笔交易口径，并将处理中状态排除在成功率分母之外。 */
+    /**
+     * 管理端总览必须使用首笔交易口径，并将处理中状态排除在成功率分母之外。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void overviewShouldUseFirstOperationTerminalRateAndCurrencyGrouping() throws Exception {
@@ -86,7 +82,9 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
         log.info("结果：成功率为80.00%，处理中2笔未进入终态分母，金额和支付工具SQL均使用兼容严格模式的分组");
     }
 
-    /** 多商户、支付品牌和查询时区必须转换为受控 SQL 条件及存储时区参数。 */
+    /**
+     * 多商户、支付品牌和查询时区必须转换为受控 SQL 条件及存储时区参数。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void overviewShouldBindMerchantListPaymentBrandAndQueryTimezone() throws Exception {
@@ -126,7 +124,9 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
         log.info("结果：多商户去重后绑定2项，UTC时间转换为Asia/Shanghai存储时间，支付品牌为VISA");
     }
 
-    /** 失败分析必须使用终态失败率，并将稳定失败原因码归入后台类别。 */
+    /**
+     * 失败分析必须使用终态失败率，并将稳定失败原因码归入后台类别。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void failuresShouldCalculateTerminalRateAndClassifyReasons() throws Exception {
@@ -167,7 +167,9 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
                 assertThat(reason.getPercentage()).isEqualByComparingTo("100.00"));
     }
 
-    /** 渠道表现必须排除勾兑请求，且非终态请求不进入渠道成功率分母。 */
+    /**
+     * 渠道表现必须排除勾兑请求，且非终态请求不进入渠道成功率分母。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void channelPerformanceShouldExcludeMatchingAndInFlightFromTerminalRate() throws Exception {
@@ -201,7 +203,9 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
                 "r.request_status IN ('SUCCESS', 'FAILED') AND r.platform_success = 0");
     }
 
-    /** 3DS分析必须将同一交易多个认证阶段聚合为一行，并保持成功优先于失败。 */
+    /**
+     * 3DS分析必须将同一交易多个认证阶段聚合为一行，并保持成功优先于失败。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void threeDsShouldDeduplicateStagesAndPreferAuthenticatedStatus() throws Exception {
@@ -238,7 +242,9 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
                 assertThat(sql).contains("GROUP BY a.transaction_id, a.transaction_date_time"));
     }
 
-    /** 3DS分析只接受支付、授权和预授权，二次交易类型必须在执行SQL前被拒绝。 */
+    /**
+     * 3DS分析只接受支付、授权和预授权，二次交易类型必须在执行SQL前被拒绝。
+     */
     @Test
     void threeDsShouldRejectFollowUpTransactionTypesBeforeSql() {
         for (String transactionType : List.of("REFUND", "VOID", "CAPTURE")) {
@@ -257,7 +263,9 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
         }
     }
 
-    /** 超过 31 天的分析请求必须在执行 SQL 前失败。 */
+    /**
+     * 超过 31 天的分析请求必须在执行 SQL 前失败。
+     */
     @Test
     void overviewShouldRejectRangeLongerThanThirtyOneDaysBeforeSql() {
         log.info("用例：验证管理端交易分析拒绝超过31天的查询范围");
@@ -274,7 +282,9 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
         log.info("结果：超范围请求在数据库访问前被拒绝");
     }
 
-    /** 非法查询时区必须在执行 SQL 前失败。 */
+    /**
+     * 非法查询时区必须在执行 SQL 前失败。
+     */
     @Test
     void overviewShouldRejectInvalidTimezoneBeforeSql() {
         log.info("用例：验证非法查询时区在数据库访问前被拒绝");

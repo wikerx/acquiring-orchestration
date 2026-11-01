@@ -30,31 +30,17 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTierPeriodReplayTransactionService
- * @date : 2026-08-26 19:35
- * @email : scott_x@163.com
- * @description : 以累计行锁、结算候选冻结和双人复核原子准备整月阶梯重放；任一不可逆事实会整体转人工复核。
- * @status : create
+ * 以累计行锁、结算候选冻结和双人复核原子准备整月阶梯重放；任一不可逆事实会整体转人工复核。
  */
 @Service
 public class DefaultTierPeriodReplayTransactionService implements TierPeriodReplayTransactionService {
 
     /**
-     * 等待审核常量，统一 {@code DefaultTierPeriodReplayTransactionService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 期间重放申请已提交但尚未通过双人复核的状态。
      */
     private static final String PENDING_REVIEW = "PENDING_REVIEW";
     /**
-     * {@code MANUAL_REVIEW}常量，统一 {@code DefaultTierPeriodReplayTransactionService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 期间内存在已结算或不完整事实，自动重放被阻断的状态。
      */
     private static final String MANUAL_REVIEW = "MANUAL_REVIEW";
 
@@ -62,6 +48,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
     private final ClearingFeeTierAccumulatorMapper accumulatorMapper;
     private final ClearingSettlementCandidateMapper candidateMapper;
 
+    /**
+     * 创建期间重放事务服务，并注入控制表、阶梯累计和结算候选数据访问对象。
+     */
     public DefaultTierPeriodReplayTransactionService(ClearingTierPeriodReplayMapper replayMapper,
                                                      ClearingFeeTierAccumulatorMapper accumulatorMapper,
                                                      ClearingSettlementCandidateMapper candidateMapper) {
@@ -70,7 +59,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         this.candidateMapper = candidateMapper;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 批准阶梯期间重放申请，冻结规则集合并将任务推进到可执行状态。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -129,7 +120,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return new ReplayResult(replay.getReplayNo(), "RUNNING", items.size(), 0, preparingVersion + 1);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 拒绝阶梯期间重放申请并持久化复核人及拒绝原因。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -146,7 +139,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return new ReplayResult(replay.getReplayNo(), "REJECTED", 0, 0, replay.getVersion() + 1);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 记录单个重放项失败；根据重试次数安排下次执行或转人工处理。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -185,7 +180,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
                 replay.getCompletedCount() == null ? 0 : replay.getCompletedCount(), replay.getVersion() + 1);
     }
 
-    /** 加锁读取唯一待复核申请并校验版本及 Maker-Checker 约束。 */
+    /**
+     * 加锁读取唯一待复核申请并校验版本及 Maker-Checker 约束。
+     */
     private ClearingTierPeriodReplayDO lockReviewable(ReviewCommand command) {
         ClearingTierPeriodReplayDO replay = replayMapper.selectForUpdate(command.replayNo());
         if (replay == null || !PENDING_REVIEW.equals(replay.getReplayStatus())
@@ -211,7 +208,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return stable;
     }
 
-    /** 目标阶梯规则集合必须与费用版本内累计事实闭包一致，禁止只重放部分规则。 */
+    /**
+     * 目标阶梯规则集合必须与费用版本内累计事实闭包一致，禁止只重放部分规则。
+     */
     private void validateAccumulatorClosure(List<Long> ruleIds,
                                             List<ClearingFeeTierAccumulatorDO> accumulators) {
         if (accumulators == null || accumulators.size() != ruleIds.size()) {
@@ -229,6 +228,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         }
     }
 
+    /**
+     * 检查期间内清分事实的完整性、唯一性和未结算状态，返回固定拒绝原因。
+     */
     private String periodGateError(List<ClearingTierPeriodReplayItemFactsDO> facts) {
         if (facts == null || facts.isEmpty()) {
             return "EMPTY_PERIOD";
@@ -276,7 +278,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
                 item.getFinanceStateId() + "|" + item.getClearingRevision()));
     }
 
-    /** 将按清分完成时间和交易号冻结的事实转换为不可跳序重放项。 */
+    /**
+     * 将按清分完成时间和交易号冻结的事实转换为不可跳序重放项。
+     */
     private List<ClearingTierPeriodReplayItemDO> replayItems(
             String replayNo, List<ClearingTierPeriodReplayItemFactsDO> facts, LocalDateTime now) {
         List<ClearingTierPeriodReplayItemDO> rows = new ArrayList<>(facts.size());
@@ -301,7 +305,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return rows;
     }
 
-    /** 对外只保存稳定错误分类，不把异常堆栈写入人工复核消息。 */
+    /**
+     * 对外只保存稳定错误分类，不把异常堆栈写入人工复核消息。
+     */
     private String manualMessage(String errorCode) {
         return switch (errorCode) {
             case "EMPTY_PERIOD" -> "no completed clearing actions exist in the requested tier period";
@@ -312,7 +318,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         };
     }
 
-    /** 复核决定、版本、复核人和时间必须完整且与调用分支一致。 */
+    /**
+     * 复核决定、版本、复核人和时间必须完整且与调用分支一致。
+     */
     private void validateReview(ReviewCommand command, ReviewDecision expected, LocalDateTime now) {
         if (command == null || !StringUtils.hasText(command.replayNo())
                 || command.expectedRequestVersion() < 0 || command.decision() != expected
@@ -323,6 +331,9 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         normalized(command.reviewComment(), "review comment", 400);
     }
 
+    /**
+     * 规范化复核审计文本，并拒绝空值和超长内容。
+     */
     private String normalized(String value, String field, int maxLength) {
         if (!StringUtils.hasText(value) || value.trim().length() > maxLength) {
             throw new IllegalArgumentException(field + " is missing or too long");
@@ -330,10 +341,16 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return value.trim();
     }
 
+    /**
+     * 要求单行条件写精确命中一行。
+     */
     private void requireOne(int affectedRows, String operation) {
         requireRows(affectedRows, 1, operation);
     }
 
+    /**
+     * 要求批量条件写命中预期行数，避免重放控制和候选状态部分更新。
+     */
     private void requireRows(int affectedRows, int expectedRows, String operation) {
         if (affectedRows != expectedRows) {
             throw new IllegalStateException(operation + " did not affect the expected rows");

@@ -38,13 +38,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminTransactionApplicationServiceTests
- * @date : 2026-07-14 23:59
- * @email : scott_x@163.com
- * @description : 管理后台交易应用服务单元测试，验证退款、撤销等后台动作只编排内部请求，不直接修改交易事实表。
- * @status : create
+ * 管理后台交易应用服务单元测试，验证退款、撤销等后台动作只编排内部请求，不直接修改交易事实表。
  */
 class AdminTransactionApplicationServiceTests {
 
@@ -53,7 +47,9 @@ class AdminTransactionApplicationServiceTests {
     private static final LocalDateTime ROOT_TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 4, 10, 9, 15, 30);
 
-    /** 弹窗额度必须扣除处理中退款，失败和已成功动作不得重复扣减。 */
+    /**
+     * 弹窗额度必须扣除处理中退款，失败和已成功动作不得重复扣减。
+     */
     @Test
     void refundContextShouldExcludePendingRefundsAndUseLabelCurrency() {
         AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
@@ -80,7 +76,9 @@ class AdminTransactionApplicationServiceTests {
         verifyNoInteractions(payment);
     }
 
-    /** 可退金额为零时不制造最小额度；日元与三位辅币按 ISO 精度显示。 */
+    /**
+     * 可退金额为零时不制造最小额度；日元与三位辅币按 ISO 精度显示。
+     */
     @Test
     void refundContextShouldHandleZeroBalanceAndCurrencyPrecision() {
         AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
@@ -101,7 +99,9 @@ class AdminTransactionApplicationServiceTests {
         assertThat(service.refundContext("TX-REFUND", actionRequest()).availableRefundAmount()).isZero();
     }
 
-    /** 两端入口都必须拦截 OTHER 的空白说明，且不得调用支付核心。 */
+    /**
+     * 两端入口都必须拦截 OTHER 的空白说明，且不得调用支付核心。
+     */
     @Test
     void refundShouldRejectOtherWithoutDetailsBeforeCallingPayment() {
         AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
@@ -117,7 +117,9 @@ class AdminTransactionApplicationServiceTests {
         verifyNoInteractions(payment);
     }
 
-    /** 带编码的部分退款原因和说明必须传入现有支付核心审计字段。 */
+    /**
+     * 带编码的部分退款原因和说明必须传入现有支付核心审计字段。
+     */
     @Test
     void refundShouldForwardStructuredReasonAndPreserveRequestId() {
         AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
@@ -176,7 +178,9 @@ class AdminTransactionApplicationServiceTests {
         verifyNoInteractions(paymentInternalClient);
     }
 
-    /** 授权完成后的资金捕获必须保持 CAPTURE 平台动作语义。 */
+    /**
+     * 授权完成后的资金捕获必须保持 CAPTURE 平台动作语义。
+     */
     @Test
     void captureShouldCallCaptureCommandForAuthorization() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
@@ -198,7 +202,9 @@ class AdminTransactionApplicationServiceTests {
                 .isEqualTo("TX-AUTH-001");
     }
 
-    /** 预授权完成必须调用独立命令，使动作单落 PRE_AUTH_COMPLETION 而不是 CAPTURE。 */
+    /**
+     * 预授权完成必须调用独立命令，使动作单落 PRE_AUTH_COMPLETION 而不是 CAPTURE。
+     */
     @Test
     void preAuthCompletionShouldCallDedicatedCommand() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);

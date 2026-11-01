@@ -6,13 +6,7 @@ import org.springframework.util.StringUtils;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ProcessorNodeIdentity
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 支付处理节点审计快照，只读取部署系统显式注入的实例、主机和 Pod IP，不执行本机网卡探测。
- * @status : create
+ * 支付处理节点审计快照，只读取部署系统显式注入的实例、主机和 Pod IP，不执行本机网卡探测。
  */
 public record ProcessorNodeIdentity(
         boolean persistenceEnabled,
@@ -58,6 +52,9 @@ public record ProcessorNodeIdentity(
                 limit(hostName, 128), privateIp);
     }
 
+    /**
+     * 规范化部署节点 IP。
+     */
     private static String normalizeIp(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -69,15 +66,24 @@ public record ProcessorNodeIdentity(
         }
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private static String firstText(String first, String fallback) {
         String value = trimToNull(first);
         return value == null ? trimToNull(fallback) : value;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private static String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 限制审计字段的最大长度。
+     */
     private static String limit(String value, int maxLength) {
         return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
     }

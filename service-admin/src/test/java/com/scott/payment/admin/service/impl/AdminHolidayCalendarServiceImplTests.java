@@ -30,17 +30,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminHolidayCalendarServiceImplTests
- * @date : 2026-08-18 20:20
- * @email : scott_x@163.com
- * @description : 结算节假日日历服务测试，覆盖空月视图、闰年初始化、年度确认及缓存失效契约。
- * @status : create
+ * 结算节假日日历服务测试，覆盖空月视图、闰年初始化、年度确认及缓存失效契约。
  */
 class AdminHolidayCalendarServiceImplTests {
 
-    /** 初始化 MyBatis-Plus Lambda 查询所需的实体字段元数据。 */
+    /**
+     * 初始化 MyBatis-Plus Lambda 查询所需的实体字段元数据。
+     */
     @BeforeEach
     void setUpTableMetadata() {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
@@ -49,7 +45,9 @@ class AdminHolidayCalendarServiceImplTests {
         TableInfoHelper.initTableInfo(assistant, CalendarDayDO.class);
     }
 
-    /** 未初始化年度必须返回可直接渲染的空月视图。 */
+    /**
+     * 未初始化年度必须返回可直接渲染的空月视图。
+     */
     @Test
     void shouldReturnEmptyMonthWhenYearIsNotInitialized() {
         Fixture fixture = new Fixture();
@@ -61,7 +59,9 @@ class AdminHolidayCalendarServiceImplTests {
         assertThat(response.getDays()).isEmpty();
     }
 
-    /** 闰年初始化必须生成完整 366 天，并按周末设置默认日期类型。 */
+    /**
+     * 闰年初始化必须生成完整 366 天，并按周末设置默认日期类型。
+     */
     @Test
     void shouldInitializeEveryDayOfLeapYear() {
         Fixture fixture = new Fixture();
@@ -94,7 +94,9 @@ class AdminHolidayCalendarServiceImplTests {
                                 ? "HOLIDAY" : "WORKDAY"));
     }
 
-    /** 日期完整的草稿年度确认后必须成为可供 T+N 使用的生效日历。 */
+    /**
+     * 日期完整的草稿年度确认后必须成为可供 T+N 使用的生效日历。
+     */
     @Test
     void shouldActivateCompleteCalendarYear() {
         Fixture fixture = new Fixture();
@@ -110,7 +112,9 @@ class AdminHolidayCalendarServiceImplTests {
         verify(fixture.yearMapper).updateById(calendarYear);
     }
 
-    /** 月查询必须使用规范键、门禁策略和主库可靠重建。 */
+    /**
+     * 月查询必须使用规范键、门禁策略和主库可靠重建。
+     */
     @Test
     void shouldDeclareGuardedHolidayMonthCache() throws Exception {
         Method reader = AdminHolidayCalendarServiceImpl.class.getMethod("getMonth", int.class, int.class);
@@ -124,7 +128,9 @@ class AdminHolidayCalendarServiceImplTests {
                 .isEqualTo("@holidayCalendarCachePolicy.isCacheReadAllowed(#p0, #p1)");
     }
 
-    /** 初始化和确认改变整年状态，必须精确失效该年度十二个月键。 */
+    /**
+     * 初始化和确认改变整年状态，必须精确失效该年度十二个月键。
+     */
     @Test
     void shouldInvalidateAllMonthsAfterYearInitializationAndConfirmation() {
         Fixture initializeFixture = new Fixture();

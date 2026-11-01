@@ -4,13 +4,7 @@ import com.scott.payment.component.core.id.GlobalIdConstants;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisGlobalIdProperties
- * @date : 2026-06-25 10:37
- * @email : scott_x@163.com
- * @description : 绑定全局 ID 生成模式、Redis 状态 Key、序列容量和受控恢复下限
- * @status : create
+ * 绑定全局 ID 生成模式、Redis 状态 Key、序列容量和受控恢复下限
  */
 @ConfigurationProperties(prefix = "payment.global-id")
 public class RedisGlobalIdProperties {

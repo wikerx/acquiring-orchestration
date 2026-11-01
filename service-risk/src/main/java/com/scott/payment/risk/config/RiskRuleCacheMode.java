@@ -1,13 +1,7 @@
 package com.scott.payment.risk.config;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuleCacheMode
- * @date : 2026-07-31 15:40
- * @email : scott_x@163.com
- * @description : 风控名单与规则缓存迁移模式，控制旧请求级缓存和完整常驻快照的决策关系
- * @status : create
+ * 风控名单与规则缓存迁移模式，控制旧请求级缓存和完整常驻快照的决策关系
  */
 public enum RiskRuleCacheMode {
 

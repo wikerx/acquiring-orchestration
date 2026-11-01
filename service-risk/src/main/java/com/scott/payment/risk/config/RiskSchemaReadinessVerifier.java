@@ -12,21 +12,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskSchemaReadinessVerifier
- * @date : 2026-10-17 00:00
- * @email : scott_x@163.com
- * @description : 风控服务启动门禁，在接收交易前验证实时规则和审计所需数据库对象完整；缺失时失败关闭并提示迁移文件。
- * @status : create
+ * 风控服务启动门禁，在接收交易前验证实时规则和审计所需数据库对象完整；缺失时失败关闭并提示迁移文件。
  */
 @Component
 public class RiskSchemaReadinessVerifier implements SmartInitializingSingleton {
 
-    /** 需要由运维评审并执行的数据库迁移草案。 */
+    /**
+     * 需要由运维评审并执行的数据库迁移草案。
+     */
     static final String MIGRATION_FILE = "docs/sql/20261017_02_risk_merchant_function_config_migration_draft.sql";
 
-    /** 按表声明运行时强依赖列，使用稳定顺序生成可读启动错误。 */
+    /**
+     * 按表声明运行时强依赖列，使用稳定顺序生成可读启动错误。
+     */
     private static final Map<String, Set<String>> REQUIRED_COLUMNS = requiredColumns();
 
     private final RiskSchemaReadinessMapper readinessMapper;
@@ -59,6 +57,12 @@ public class RiskSchemaReadinessVerifier implements SmartInitializingSingleton {
         }
     }
 
+    /**
+     * 按稳定表列清单计算启动前缺失的数据库对象。
+     *
+     * @param present information_schema 已确认存在的表列标识
+     * @return 按声明顺序排列的缺表和缺列说明
+     */
     private List<String> missingObjects(Set<String> present) {
         List<String> missing = new ArrayList<>();
         REQUIRED_COLUMNS.forEach((table, columns) -> {
@@ -74,6 +78,11 @@ public class RiskSchemaReadinessVerifier implements SmartInitializingSingleton {
         return missing;
     }
 
+    /**
+     * 声明风控运行时启动所需的最小数据库契约。
+     *
+     * @return 保持稳定顺序的表列清单
+     */
     private static Map<String, Set<String>> requiredColumns() {
         Map<String, Set<String>> required = new LinkedHashMap<>();
         required.put("risk_merchant_function_config",

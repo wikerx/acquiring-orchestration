@@ -15,8 +15,12 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.MetricSummary;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ProviderCapability;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.SecurityStatisticsResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TimeRangeQuery;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TraceResponse;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TraceSearchQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.admin.service.monitor.AdminRuntimeMonitorSampler;
 import com.scott.payment.admin.service.monitor.MonitorSensitiveTextSanitizer;
@@ -57,15 +61,45 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminMonitorWorkbenchServiceTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : JDBC 系统监控聚合、能力声明、查询口径和告警状态更新回归测试。
- * @status : create
+ * JDBC 系统监控聚合、能力声明、查询口径和告警状态更新回归测试。
  */
 class JdbcAdminMonitorWorkbenchServiceTest {
+
+    @Test
+    void shouldKeepChannelInteractionWithoutHttpStatusUnknown() {
+        NamedParameterJdbcTemplate jdbcTemplate = monitorJdbcTemplate();
+        TransactionQueryJdbcTemplateFactory factory = monitorJdbcTemplateFactory(jdbcTemplate);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 9, 13, 10, 0);
+        when(jdbcTemplate.queryForList(contains("FROM transaction_locator"), any(MapSqlParameterSource.class)))
+                .thenReturn(List.of(Map.of(
+                        "transaction_id", "TX-UNKNOWN",
+                        "transaction_date_time", transactionTime,
+                        "root_transaction_date_time", transactionTime)));
+
+        TransactionOrderResponse order = new TransactionOrderResponse();
+        order.setLatestTransactionId("TX-UNKNOWN");
+        order.setTransactionDateTime(transactionTime);
+        TransactionDetailResponse detail = new TransactionDetailResponse();
+        detail.setOrder(order);
+        detail.setChannelInteractionLogs(List.of(Map.of(
+                "interaction_log_id", "INTERACTION-1",
+                "transaction_id", "TX-UNKNOWN",
+                "channel_code", "TEST",
+                "interaction_type", "REQUEST",
+                "interaction_time", transactionTime)));
+        AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
+        when(transactionQueryService.detail("TX-UNKNOWN", transactionTime, transactionTime)).thenReturn(detail);
+        JdbcAdminMonitorWorkbenchService service = createService(
+                jdbcTemplate, factory, mock(RocketMqAdminMonitorProvider.class), transactionQueryService);
+        TraceSearchQuery query = new TraceSearchQuery();
+        query.setTransactionId("TX-UNKNOWN");
+
+        TraceResponse response = service.searchTrace(query);
+
+        assertThat(response.getEvents()).singleElement()
+                .extracting(item -> item.getResult())
+                .isEqualTo("UNKNOWN");
+    }
 
     @Test
     void shouldExposeRocketMqProviderCapabilityFromLiveSnapshot() {
@@ -761,6 +795,14 @@ class JdbcAdminMonitorWorkbenchServiceTest {
     private JdbcAdminMonitorWorkbenchService createService(NamedParameterJdbcTemplate jdbcTemplate,
                                                             TransactionQueryJdbcTemplateFactory factory,
                                                             RocketMqAdminMonitorProvider rocketMqAdminMonitorProvider) {
+        return createService(jdbcTemplate, factory, rocketMqAdminMonitorProvider,
+                mock(AdminTransactionQueryService.class));
+    }
+
+    private JdbcAdminMonitorWorkbenchService createService(NamedParameterJdbcTemplate jdbcTemplate,
+                                                            TransactionQueryJdbcTemplateFactory factory,
+                                                            RocketMqAdminMonitorProvider rocketMqAdminMonitorProvider,
+                                                            AdminTransactionQueryService transactionQueryService) {
         TransactionLogicalReadExecutor readExecutor = mock(TransactionLogicalReadExecutor.class);
         doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(0)).get())
                 .when(readExecutor).read(any());
@@ -772,7 +814,7 @@ class JdbcAdminMonitorWorkbenchServiceTest {
                 new MonitorTimeRangeNormalizer(),
                 mock(AdminRuntimeMonitorSampler.class),
                 mock(DiscoveryClient.class),
-                mock(AdminTransactionQueryService.class),
+                transactionQueryService,
                 mock(AdminMonitorCacheApplicationService.class),
                 mock(AdminMonitorDatasourceApplicationService.class),
                 new MonitorSensitiveTextSanitizer(),

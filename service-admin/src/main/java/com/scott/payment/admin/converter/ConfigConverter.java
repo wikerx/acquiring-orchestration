@@ -8,13 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ConfigConverter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 系统参数配置对象转换器，位于 service-admin 转换层；只负责配置 DO、DTO 与导出行之间的普通字段映射。
- * @status : create
+ * 系统参数配置对象转换器，位于 service-admin 转换层；只负责配置 DO、DTO 与导出行之间的普通字段映射。
  */
 @Mapper(componentModel = "spring")
 public interface ConfigConverter {

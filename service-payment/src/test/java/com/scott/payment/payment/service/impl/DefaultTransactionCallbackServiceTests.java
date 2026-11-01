@@ -43,13 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionCallbackServiceTests
- * @date : 2026-07-14 22:00
- * @email : scott_x@163.com
- * @description : 渠道回调服务单元测试，验证 MPGS 回调按 order.id 与 transaction.id 定位动作并推进平台状态。
- * @status : create
+ * 渠道回调服务单元测试，验证 MPGS 回调按 order.id 与 transaction.id 定位动作并推进平台状态。
  */
 class DefaultTransactionCallbackServiceTests {
 
@@ -116,7 +110,9 @@ class DefaultTransactionCallbackServiceTests {
                 .isEqualTo("20261031000000000000101");
     }
 
-    /** 渠道回调正文属于不可信敏感数据，日志只允许记录长度和不可逆摘要。 */
+    /**
+     * 渠道回调正文属于不可信敏感数据，日志只允许记录长度和不可逆摘要。
+     */
     @Test
     void shouldLogCallbackBodyMetadataWithoutRawPayload() {
         TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
@@ -389,7 +385,9 @@ class DefaultTransactionCallbackServiceTests {
                 eq("CAPTURED"), eq("CAPTURED"), eq("CAPTURED"));
     }
 
-    /** 未通过入口验签的事件不得进入 Inbox Worker，更不得写回调业务表或推进交易状态。 */
+    /**
+     * 未通过入口验签的事件不得进入 Inbox Worker，更不得写回调业务表或推进交易状态。
+     */
     @Test
     void shouldRejectUnsafeCallbackWithoutChangingTransactionStatus() {
         TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);

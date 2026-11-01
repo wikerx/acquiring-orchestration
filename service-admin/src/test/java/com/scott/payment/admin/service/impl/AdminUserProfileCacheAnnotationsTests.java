@@ -14,13 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserProfileCacheAnnotationsTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证低频后台用户资料不引入跨模块永久缓存和失效链。
- * @status : create
+ * 验证低频后台用户资料不引入跨模块永久缓存和失效链。
  */
 class AdminUserProfileCacheAnnotationsTests {
 

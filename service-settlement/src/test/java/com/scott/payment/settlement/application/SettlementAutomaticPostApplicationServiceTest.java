@@ -23,13 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAutomaticPostApplicationServiceTest
- * @date : 2026-09-02 18:30
- * @email : scott_x@163.com
- * @description : 验证自动正式结算先锁定日切窗口内的真实候选，再执行幂等建批、认领和空批次审计兜底。
- * @status : create
+ * 验证自动正式结算先锁定日切窗口内的真实候选，再执行幂等建批、认领和空批次审计兜底。
  */
 class SettlementAutomaticPostApplicationServiceTest {
 
@@ -49,7 +43,9 @@ class SettlementAutomaticPostApplicationServiceTest {
                 candidateMapper, batchCreationService, bulkClaimService, batchCommandService);
     }
 
-    /** 日切窗口内没有真实可认领候选时不得创建零候选正式批次。 */
+    /**
+     * 日切窗口内没有真实可认领候选时不得创建零候选正式批次。
+     */
     @Test
     void shouldSkipBatchCreationWhenNoCandidateIsClaimableInCutoffWindow() {
         SettlementBatchGroupDO group = group();
@@ -70,7 +66,9 @@ class SettlementAutomaticPostApplicationServiceTest {
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }
 
-    /** 自动批次幂等键必须引用已锁定候选的主键和版本，避免复用历史空批次身份。 */
+    /**
+     * 自动批次幂等键必须引用已锁定候选的主键和版本，避免复用历史空批次身份。
+     */
     @Test
     void shouldCreateAndClaimUsingLockedCandidateIdentity() {
         SettlementBatchGroupDO group = group();
@@ -105,7 +103,9 @@ class SettlementAutomaticPostApplicationServiceTest {
         verify(bulkClaimService).claimAndSeal("SB20260902-00000003", operationTime);
     }
 
-    /** 极端竞态下认领结果仍为空时，批次必须走正式取消状态机并写入可信系统审计。 */
+    /**
+     * 极端竞态下认领结果仍为空时，批次必须走正式取消状态机并写入可信系统审计。
+     */
     @Test
     void shouldCancelUnexpectedEmptyBatchWithTrustedSystemAudit() {
         SettlementBatchGroupDO group = group();

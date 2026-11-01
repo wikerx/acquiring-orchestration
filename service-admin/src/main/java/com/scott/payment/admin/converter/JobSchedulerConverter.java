@@ -8,13 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerConverter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务调度对象转换器，位于 service-admin 转换层；负责后台请求、service-job 内部请求和导出行之间的字段映射。
- * @status : create
+ * 管理后台任务调度对象转换器，位于 service-admin 转换层；负责后台请求、service-job 内部请求和导出行之间的字段映射。
  */
 @Mapper(componentModel = "spring")
 public interface JobSchedulerConverter {

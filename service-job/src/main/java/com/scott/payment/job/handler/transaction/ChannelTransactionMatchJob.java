@@ -22,13 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelTransactionMatchJob
- * @date : 2026-07-19 22:40
- * @email : scott_x@163.com
- * @description : 渠道交易查询勾兑任务，位于 service-job 任务处理层，按 transaction_date_time 定位分表并触发 service-payment 查询渠道终态；任务本身不决定资金状态。
- * @status : create
+ * 渠道交易查询勾兑任务，位于 service-job 任务处理层，按 transaction_date_time 定位分表并触发 service-payment 查询渠道终态；任务本身不决定资金状态。
  */
 @Component
 @Slf4j

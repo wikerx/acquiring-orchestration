@@ -40,45 +40,55 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantKeyMetadataInvalidationTests
- * @date : 2026-08-01 15:20
- * @email : scott_x@163.com
- * @description : 验证管理端密钥初始化、维护和删除在密钥表写入前登记 merchant:keyMeta 可靠失效意图
- * @status : create
+ * 验证管理端密钥初始化、维护和删除在密钥表写入前登记 merchant:keyMeta 可靠失效意图
  */
 @ExtendWith(MockitoExtension.class)
 class AdminMerchantKeyMetadataInvalidationTests {
 
-    /** 商户基础资料数据访问组件。 */
+    /**
+     * 商户基础资料数据访问组件。
+     */
     @Mock
     private BaseMerchantInfoMapper merchantInfoMapper;
 
-    /** 商户 JWT 密钥数据访问组件。 */
+    /**
+     * 商户 JWT 密钥数据访问组件。
+     */
     @Mock
     private BaseMerchantJwtKeyMapper jwtKeyMapper;
 
-    /** 平台请求体密钥数据访问组件。 */
+    /**
+     * 平台请求体密钥数据访问组件。
+     */
     @Mock
     private BasePlatformPayloadKeyMapper platformPayloadKeyMapper;
 
-    /** 商户响应密钥数据访问组件。 */
+    /**
+     * 商户响应密钥数据访问组件。
+     */
     @Mock
     private BaseMerchantResponseKeyMapper responseKeyMapper;
 
-    /** 密钥材料生成组件。 */
+    /**
+     * 密钥材料生成组件。
+     */
     @Mock
     private OpenApiKeyMaterialFactory keyMaterialFactory;
 
-    /** 永久缓存事务型可靠失效协调器。 */
+    /**
+     * 永久缓存事务型可靠失效协调器。
+     */
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** 待验证的管理端商户领域服务。 */
+    /**
+     * 待验证的管理端商户领域服务。
+     */
     private AdminMerchantInfoServiceImpl service;
 
-    /** 创建仅包含当前测试所需依赖的服务实例。 */
+    /**
+     * 创建仅包含当前测试所需依赖的服务实例。
+     */
     @BeforeEach
     void setUp() {
         initializeTableInfo(BaseMerchantInfoDO.class);
@@ -167,7 +177,9 @@ class AdminMerchantKeyMetadataInvalidationTests {
         order.verify(responseKeyMapper).update(any(), any());
     }
 
-    /** 构造当前测试使用的未删除商户。 */
+    /**
+     * 构造当前测试使用的未删除商户。
+     */
     private BaseMerchantInfoDO merchant() {
         BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
         merchant.setId(1L);
@@ -177,7 +189,9 @@ class AdminMerchantKeyMetadataInvalidationTests {
         return merchant;
     }
 
-    /** 构造不进入日志和 Redis 的测试 RSA 材料。 */
+    /**
+     * 构造不进入日志和 Redis 的测试 RSA 材料。
+     */
     private RsaKeyMaterial rsa(String owner) {
         return new RsaKeyMaterial(
                 "200045",
@@ -190,7 +204,9 @@ class AdminMerchantKeyMetadataInvalidationTests {
         );
     }
 
-    /** 为无 Spring 容器的单元测试初始化 MyBatis-Plus Lambda 列缓存。 */
+    /**
+     * 为无 Spring 容器的单元测试初始化 MyBatis-Plus Lambda 列缓存。
+     */
     private void initializeTableInfo(Class<?> entityType) {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         assistant.setCurrentNamespace(getClass().getName() + "." + entityType.getSimpleName());

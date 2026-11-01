@@ -9,13 +9,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminInternalAuthWebMvcConfig
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : service-admin 内部接口 HMAC 鉴权配置，保护商户访问配置查询与提交边界。
- * @status : create
+ * service-admin 内部接口 HMAC 鉴权配置，保护商户访问配置查询与提交边界。
  */
 @Configuration
 @EnableConfigurationProperties(InternalServiceAuthProperties.class)
@@ -23,7 +17,9 @@ public class AdminInternalAuthWebMvcConfig implements WebMvcConfigurer {
 
     private final InternalServiceAuthProperties properties;
 
-    /** Redis nonce 防重放守卫。 */
+    /**
+     * Redis nonce 防重放守卫。
+     */
     private final InternalRequestReplayGuard replayGuard;
 
     /**
@@ -39,7 +35,9 @@ public class AdminInternalAuthWebMvcConfig implements WebMvcConfigurer {
         this.replayGuard = replayGuard;
     }
 
-    /** 注册全部 /internal/** 路径的签名拦截器。 */
+    /**
+     * 注册全部 /internal/** 路径的签名拦截器。
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new InternalServiceAuthInterceptor(properties, replayGuard))

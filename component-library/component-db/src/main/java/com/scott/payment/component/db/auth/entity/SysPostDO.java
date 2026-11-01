@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysPostDO
- * @date : 2026-06-12 20:00
- * @email : scott_x@163.com
- * @description : 岗位数据库实体，对应 sys_post 表
- * @status : create
+ * 岗位数据库实体，对应 sys_post 表
  */
 @Data
 @TableName("sys_post")

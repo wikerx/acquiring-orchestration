@@ -15,18 +15,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : LoginAuditEventOutboxListenerTests
- * @date : 2026-08-02 22:35
- * @email : scott_x@163.com
- * @description : 登录认证事件到可靠 MQ 契约的映射测试
- * @status : create
+ * 登录认证事件到可靠 MQ 契约的映射测试
  */
 @Slf4j
 class LoginAuditEventOutboxListenerTests {
 
-    /** 登录失败事件应保留稳定消息号和审计字段，且进入独立 Outbox。 */
+    /**
+     * 登录失败事件应保留稳定消息号和审计字段，且进入独立 Outbox。
+     */
     @Test
     void shouldPublishLoginAuditThroughIndependentOutbox() {
         log.info("测试登录审计事件入Outbox，关键输入: MERCHANT密码错误");

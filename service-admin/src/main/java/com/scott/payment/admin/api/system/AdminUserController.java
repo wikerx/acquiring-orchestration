@@ -33,13 +33,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserController
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台用户管理控制器
- * @status : create
+ * 管理后台用户管理控制器
  *
  * <p>Controller 仅接收参数、校验权限并调用
  * {@link AdminUserApplicationService}，用户、角色和密码规则均下沉到应用层及领域服务。</p>
@@ -167,7 +161,9 @@ public class AdminUserController {
         return success();
     }
 
-    /** 发送或重发后台账号激活、邮箱变更验证邮件。 */
+    /**
+     * 发送或重发后台账号激活、邮箱变更验证邮件。
+     */
     @PostMapping("/email-verification/send")
     @RequiresPermission("system:user:emailVerify")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,

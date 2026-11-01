@@ -19,13 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantKeyMetadataCacheReaderTests
- * @date : 2026-08-01 15:05
- * @email : scott_x@163.com
- * @description : 验证 merchant:keyMeta 只保存密钥版本元数据，并生成可驱动 OpenAPI 本地密钥缓存切换的稳定 revision
- * @status : create
+ * 验证 merchant:keyMeta 只保存密钥版本元数据，并生成可驱动 OpenAPI 本地密钥缓存切换的稳定 revision
  */
 @Slf4j
 class MerchantKeyMetadataCacheReaderTests {
@@ -62,7 +56,9 @@ class MerchantKeyMetadataCacheReaderTests {
         log.info("商户密钥元数据缓存验证完成，结果: revision 已生成且缓存值不含任何密钥正文");
     }
 
-    /** 构造包含敏感原值的 JWT 数据库记录，验证读取器只选择元数据字段。 */
+    /**
+     * 构造包含敏感原值的 JWT 数据库记录，验证读取器只选择元数据字段。
+     */
     private BaseMerchantJwtKeyDO jwtKey() {
         BaseMerchantJwtKeyDO row = new BaseMerchantJwtKeyDO();
         row.setId(11L);
@@ -77,7 +73,9 @@ class MerchantKeyMetadataCacheReaderTests {
         return row;
     }
 
-    /** 构造平台载荷密钥数据库记录。 */
+    /**
+     * 构造平台载荷密钥数据库记录。
+     */
     private BasePlatformPayloadKeyDO platformKey() {
         BasePlatformPayloadKeyDO row = new BasePlatformPayloadKeyDO();
         row.setId(12L);
@@ -89,7 +87,9 @@ class MerchantKeyMetadataCacheReaderTests {
         return row;
     }
 
-    /** 构造商户响应密钥数据库记录。 */
+    /**
+     * 构造商户响应密钥数据库记录。
+     */
     private BaseMerchantResponseKeyDO responseKey() {
         BaseMerchantResponseKeyDO row = new BaseMerchantResponseKeyDO();
         row.setId(13L);

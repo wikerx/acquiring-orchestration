@@ -19,7 +19,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 最近密码历史策略的持久化与复用防护测试。 */
+/**
+ * 最近密码历史策略的持久化与复用防护测试。
+ */
 class DefaultAccountPasswordHistoryServiceTest {
 
     private final SysAccountPasswordHistoryMapper historyMapper = mock(SysAccountPasswordHistoryMapper.class);

@@ -17,13 +17,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : NbpExchangeRateJsonParser
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 解析波兰国家银行 Table C JSON，将外币兑 PLN 的官方 bid/ask 映射为平台即期买入价和即期卖出价。
- * @status : create
+ * 解析波兰国家银行 Table C JSON，将外币兑 PLN 的官方 bid/ask 映射为平台即期买入价和即期卖出价。
  */
 @Component
 public class NbpExchangeRateJsonParser {
@@ -140,13 +134,19 @@ public class NbpExchangeRateJsonParser {
     @Data
     private static class NbpTableResponse {
 
-        /** 报价表类型，当前只接受 C。 */
+        /**
+         * 报价表类型，当前只接受 C。
+         */
         private String table;
 
-        /** 汇率生效日期，格式 yyyy-MM-dd。 */
+        /**
+         * 汇率生效日期，格式 yyyy-MM-dd。
+         */
         private String effectiveDate;
 
-        /** 当日外币兑 PLN 买卖报价。 */
+        /**
+         * 当日外币兑 PLN 买卖报价。
+         */
         private List<NbpRateResponse> rates;
     }
 
@@ -156,16 +156,24 @@ public class NbpExchangeRateJsonParser {
     @Data
     private static class NbpRateResponse {
 
-        /** NBP 返回的币种名称。 */
+        /**
+         * NBP 返回的币种名称。
+         */
         private String currency;
 
-        /** ISO 4217 三位币种代码。 */
+        /**
+         * ISO 4217 三位币种代码。
+         */
         private String code;
 
-        /** NBP 买入价，单位为 PLN/一单位外币。 */
+        /**
+         * NBP 买入价，单位为 PLN/一单位外币。
+         */
         private BigDecimal bid;
 
-        /** NBP 卖出价，单位为 PLN/一单位外币。 */
+        /**
+         * NBP 卖出价，单位为 PLN/一单位外币。
+         */
         private BigDecimal ask;
     }
 }

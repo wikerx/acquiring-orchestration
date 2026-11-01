@@ -7,13 +7,7 @@ import com.scott.payment.risk.service.MerchantLimitReservationLifecycleCoordinat
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantLimitReservationApplicationService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户累计限额预占内部用例编排。
- * @status : create
+ * 商户累计限额预占内部用例编排。
  */
 @Service
 public class MerchantLimitReservationApplicationService {

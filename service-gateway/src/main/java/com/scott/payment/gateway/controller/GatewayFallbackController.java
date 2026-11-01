@@ -10,13 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayFallbackController
- * @date : 2026-05-29 23:35
- * @email : scott_x@163.com
- * @description : 网关兜底响应控制器，用于统一处理未命中路由的非法请求
- * @status : create
+ * 网关兜底响应控制器，用于统一处理未命中路由的非法请求
  */
 @RestController
 public class GatewayFallbackController {

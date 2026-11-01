@@ -7,20 +7,16 @@ import java.math.RoundingMode;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ReserveCalculationModels
- * @date : 2026-08-25 19:30
- * @email : scott_x@163.com
- * @description : 定义标签币种保证金扣留、返还、到期释放和差额调整的不可变计算契约，不包含汇率、结算币种或资金账户状态。
- * @status : create
+ * 定义标签币种保证金扣留、返还、到期释放和差额调整的不可变计算契约，不包含汇率、结算币种或资金账户状态。
  */
 public final class ReserveCalculationModels {
 
     private ReserveCalculationModels() {
     }
 
-    /** 保证金清分事实类型。 */
+    /**
+     * 保证金清分事实类型。
+     */
     public enum ReserveActionType {
         /**
          * HOLD 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -46,7 +42,9 @@ public final class ReserveCalculationModels {
         ADJUSTMENT
     }
 
-    /** 保证金差额调整方向；DEBIT增加商户保证金负债，CREDIT减少商户保证金负债。 */
+    /**
+     * 保证金差额调整方向；DEBIT增加商户保证金负债，CREDIT减少商户保证金负债。
+     */
     public enum ReserveAdjustmentDirection {
         /**
          * DEBIT 枚举值，表示当前枚举定义中的一个受控业务取值。

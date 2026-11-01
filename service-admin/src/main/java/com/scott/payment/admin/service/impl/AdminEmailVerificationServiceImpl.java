@@ -55,48 +55,223 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminEmailVerificationServiceImpl
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 管理账号邮箱验证服务实现；使用哈希验证码、短期一次性令牌、行锁状态机和双层限流完成账号激活及邮箱变更验证。
- * @status : create
+ * 管理账号邮箱验证服务实现；使用哈希验证码、短期一次性令牌、行锁状态机和双层限流完成账号激活及邮箱变更验证。
  */
 @Slf4j
 @Service
 public class AdminEmailVerificationServiceImpl implements AdminEmailVerificationService {
 
+    /**
+     * 状态等待常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_PENDING = "PENDING";
+    /**
+     * {@code STATE_VERIFIED}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_VERIFIED = "VERIFIED";
+    /**
+     * {@code STATE_COMPLETED}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_COMPLETED = "COMPLETED";
+    /**
+     * {@code STATE_EXPIRED}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_EXPIRED = "EXPIRED";
+    /**
+     * {@code STATE_LOCKED}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_LOCKED = "LOCKED";
+    /**
+     * {@code STATE_SUPERSEDED}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_SUPERSEDED = "SUPERSEDED";
+    /**
+     * 状态拦截常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_BLOCKED = "BLOCKED";
+    /**
+     * {@code NEXT_SET_PASSWORD}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NEXT_SET_PASSWORD = "SET_PASSWORD";
+    /**
+     * {@code NEXT_COMPLETED}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NEXT_COMPLETED = "COMPLETED";
-    /** 邮件验证码固定在 30 分钟后过期。 */
+    /**
+     * 邮件验证码固定在 30 分钟后过期。
+     */
     private static final int EMAIL_CODE_TTL_SECONDS = 30 * 60;
-    /** 邮箱验证通过后的首次设密令牌仅保留五分钟。 */
+    /**
+     * 邮箱验证通过后的首次设密令牌仅保留五分钟。
+     */
     private static final int ACTION_TOKEN_TTL_SECONDS = 5 * 60;
-    /** 开发阶段允许充分手工验收，同时仍以高熵验证码和限流阻断自动爆破。 */
+    /**
+     * 开发阶段允许充分手工验收，同时仍以高熵验证码和限流阻断自动爆破。
+     */
     private static final int MAX_VERIFY_ATTEMPTS = 50;
+    /**
+     * {@code ACCOUNT_REQUESTS_PER_HOUR}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * </p>
+     */
     private static final int ACCOUNT_REQUESTS_PER_HOUR = 50;
+    /**
+     * {@code IP_REQUESTS_PER_HOUR}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * </p>
+     */
     private static final int IP_REQUESTS_PER_HOUR = 200;
+    /**
+     * {@code RESEND_COOLDOWN_SECONDS}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int RESEND_COOLDOWN_SECONDS = 6;
+    /**
+     * {@code MAX_USER_AGENT_LENGTH}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_USER_AGENT_LENGTH = 500;
+    /**
+     * {@code RATE_SCOPE_COOLDOWN}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_COOLDOWN = "adminEmailVerificationCooldown";
+    /**
+     * 汇率范围账号常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_ACCOUNT = "adminEmailVerificationAccount";
+    /**
+     * {@code RATE_SCOPE_IP}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_IP = "adminEmailVerificationIp";
+    /**
+     * {@code RATE_SCOPE_VERIFY_IP}常量，统一 {@code AdminEmailVerificationServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_SCOPE_VERIFY_IP = "adminEmailVerificationVerifyIp";
+    /**
+     * {@code TEMPLATE_ACTIVATION}，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TEMPLATE_ACTIVATION = "ADMIN_ACCOUNT_ACTIVATION";
+    /**
+     * {@code TEMPLATE_EMAIL_VERIFICATION}，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TEMPLATE_EMAIL_VERIFICATION = "ADMIN_EMAIL_VERIFICATION";
+    /**
+     * 邮件时间格式化器，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+     * <p>
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final DateTimeFormatter EMAIL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    /**
+     * {@code CODE_DIGITS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_DIGITS = "23456789";
+    /**
+     * {@code CODE_LOWERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
+    /**
+     * {@code CODE_UPPERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    /**
+     * {@code CODE_CHARACTERS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CODE_CHARACTERS = CODE_DIGITS + CODE_LOWERCASE + CODE_UPPERCASE;
+    /**
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final SysAppMapper appMapper;
@@ -109,7 +284,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
     private final RedisSlidingWindowRateLimiter rateLimiter;
     private final AccountPasswordHistoryService passwordHistoryService;
 
-    /** 创建邮箱验证服务并注入账号、请求、邮件和限流能力。 */
+    /**
+     * 创建邮箱验证服务并注入账号、请求、邮件和限流能力。
+     */
     public AdminEmailVerificationServiceImpl(SysAppMapper appMapper,
                                              SysAccountMapper accountMapper,
                                              SysUserMapper userMapper,
@@ -177,7 +354,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         sendVerificationEmailAfterCommit(account, row, emailCode, targetEmail);
     }
 
-    /** 校验一次性邮件验证码；普通验证直接完成，新账号激活则签发短期首次设密令牌。 */
+    /**
+     * 校验一次性邮件验证码；普通验证直接完成，新账号激活则签发短期首次设密令牌。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = EmailVerificationException.class)
@@ -248,7 +427,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return verifyResponse(NEXT_COMPLETED, null, 0, "Email verification completed.");
     }
 
-    /** 原子消费首次设密令牌并激活账号，随后注销该账号可能存在的全部旧会话。 */
+    /**
+     * 原子消费首次设密令牌并激活账号，随后注销该账号可能存在的全部旧会话。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, noRollbackFor = EmailVerificationException.class)
@@ -310,6 +491,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return response;
     }
 
+    /**
+     * 校验验证码签发用途受支持。
+     */
     private void validateIssuePurpose(SysAccountDO account, String purpose) {
         if (!Set.of(PURPOSE_ACCOUNT_ACTIVATION, PURPOSE_EMAIL_VERIFICATION, PURPOSE_EMAIL_CHANGE).contains(purpose)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "email verification purpose is invalid");
@@ -338,6 +522,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         }
     }
 
+    /**
+     * 校验并返回允许的状态目标值。
+     */
     private boolean validTarget(SysEmailVerificationRequestDO row, SysAccountDO account) {
         return account != null
                 && Objects.equals(account.getAppId(), row.getAppId())
@@ -347,11 +534,16 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
                 row.getEmailFingerprint());
     }
 
-    /** 邮箱变更验证指向待确认邮箱，其余流程使用当前正式邮箱。 */
+    /**
+     * 邮箱变更验证指向待确认邮箱，其余流程使用当前正式邮箱。
+     */
     private String verificationTargetEmail(SysAccountDO account, String purpose) {
         return PURPOSE_EMAIL_CHANGE.equals(purpose) ? account.getPendingEmail() : account.getEmail();
     }
 
+    /**
+     * 查询并校验已启用的管理端应用。
+     */
     private SysAppDO requireAdminApp() {
         SysAppDO app = appMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_ADMIN)
@@ -364,6 +556,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return app;
     }
 
+    /**
+     * 校验并获取账户。
+     */
     private SysAccountDO requireAccount(Long appId, Long accountId) {
         SysAccountDO account = accountId == null ? null : accountMapper.selectOne(
                 Wrappers.<SysAccountDO>lambdaQuery()
@@ -377,6 +572,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return account;
     }
 
+    /**
+     * 加锁查询邮箱验证请求，并校验请求存在。
+     */
     private SysEmailVerificationRequestDO requireLockedRequest(String requestId) {
         SysEmailVerificationRequestDO row = requestMapper.selectByRequestNoForUpdate(requestId);
         if (row == null) {
@@ -386,6 +584,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return row;
     }
 
+    /**
+     * 执行验证码签发接口限流。
+     */
     private void enforceIssueRateLimit(Long appId, Long accountId, String ip, LocalDateTime now) {
         String accountIdentity = appId + ":" + accountId;
         enforceDistributedRateLimit(RATE_SCOPE_COOLDOWN, accountIdentity, 1,
@@ -412,10 +613,16 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         }
     }
 
+    /**
+     * 执行验证码校验接口限流。
+     */
     private void enforceVerifyRateLimit(String ip) {
         enforceDistributedRateLimit(RATE_SCOPE_VERIFY_IP, ip, IP_REQUESTS_PER_HOUR, Duration.ofHours(1));
     }
 
+    /**
+     * 使用分布式滑动窗口执行邮箱验证码接口限流。
+     */
     private void enforceDistributedRateLimit(String scope, String identity, int limit, Duration window) {
         SlidingWindowRateLimitResult result = rateLimiter.tryAcquire(scope, identity, limit, window);
         if (!result.allowed()) {
@@ -423,11 +630,17 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         }
     }
 
+    /**
+     * 构建请求频率超限异常。
+     */
     private ServiceException tooManyRequests() {
         return new ServiceException(ApiResultEnum.TOO_MANY_REQUESTS.getCode(),
                 "Too many requests. Please retry later.");
     }
 
+    /**
+     * 在事务提交后发送验证码邮件。
+     */
     private void sendVerificationEmailAfterCommit(SysAccountDO account,
                                                   SysEmailVerificationRequestDO row,
                                                   String emailCode,
@@ -438,6 +651,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 task.run();
@@ -445,6 +661,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         });
     }
 
+    /**
+     * 发送账户验证码邮件。
+     */
     private void sendVerificationEmail(SysAccountDO account,
                                        SysEmailVerificationRequestDO row,
                                        String emailCode,
@@ -478,6 +697,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         }
     }
 
+    /**
+     * 构建邮件验证码确认地址。
+     */
     private String verificationUrl(String requestNo) {
         Map<String, String> values = configService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
         String baseUrl = values.get(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL);
@@ -492,12 +714,18 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
                 .toUriString();
     }
 
+    /**
+     * 构建账户安全通知邮件内容。
+     */
     private String securityNotice(String locale) {
         return "en-US".equals(normalizeLocale(locale))
                 ? "If you did not request this change, ignore this email and contact another administrator."
                 : "如非本人或授权管理员发起，请忽略本邮件并联系其他管理员。";
     }
 
+    /**
+     * 构建验证码校验响应。
+     */
     private EmailVerificationVerifyResponse verifyResponse(String nextStep, String actionToken,
                                                            int expireSeconds, String message) {
         EmailVerificationVerifyResponse response = new EmailVerificationVerifyResponse();
@@ -508,6 +736,9 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return response;
     }
 
+    /**
+     * 生成邮件验证码并限制字符范围。
+     */
     private String generateEmailCode() {
         char[] code = new char[6];
         code[0] = randomCharacter(CODE_DIGITS);
@@ -525,10 +756,16 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return new String(code);
     }
 
+    /**
+     * 生成验证码允许字符集中的随机字符。
+     */
     private char randomCharacter(String candidates) {
         return candidates.charAt(SECURE_RANDOM.nextInt(candidates.length()));
     }
 
+    /**
+     * 计算邮件发送内容指纹用于幂等控制。
+     */
     private String emailFingerprint(String email) {
         String normalized = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
         try {
@@ -544,12 +781,18 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         }
     }
 
+    /**
+     * 使用常量时间比较安全令牌摘要。
+     */
     private boolean tokenMatches(String token, String expectedHash) {
         return StringUtils.hasText(token) && StringUtils.hasText(expectedHash)
                 && MessageDigest.isEqual(LoginTokenUtils.hashToken(token).getBytes(StandardCharsets.UTF_8),
                 expectedHash.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 将仍处于待验证或已验证状态的过期请求标记为已过期。
+     */
     private void markExpiredIfNecessary(SysEmailVerificationRequestDO row, LocalDateTime now) {
         if (STATE_PENDING.equals(row.getState()) || STATE_VERIFIED.equals(row.getState())) {
             row.setState(STATE_EXPIRED);
@@ -558,24 +801,39 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         }
     }
 
+    /**
+     * 将邮箱验证请求标记为锁定并更新修改时间。
+     */
     private void markLocked(SysEmailVerificationRequestDO row, LocalDateTime now) {
         row.setState(STATE_LOCKED);
         row.setUpdatedAt(now);
         requestMapper.updateById(row);
     }
 
+    /**
+     * 判断安全令牌是否已过期。
+     */
     private boolean expired(LocalDateTime expireAt, LocalDateTime now) {
         return expireAt == null || !expireAt.isAfter(now);
     }
 
+    /**
+     * 规范化邮件语言标签，未指定时使用管理端默认语言。
+     */
     private String normalizeLocale(String locale) {
         return "en-US".equals(locale) ? "en-US" : "zh-CN";
     }
 
+    /**
+     * 规范化部署节点 IP。
+     */
     private String normalizeIp(String ip) {
         return StringUtils.hasText(ip) ? truncate(ip, 64) : "unknown";
     }
 
+    /**
+     * 按持久化字段上限截断文本。
+     */
     private String truncate(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -584,26 +842,43 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength);
     }
 
+    /**
+     * 将可为空的整数转换为非空计数值。
+     */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
 
+    /**
+     * 将可为空的数据库计数转换为非空长整型值。
+     */
     private long value(Long count) {
         return count == null ? 0L : count;
     }
 
+    /**
+     * 校验并返回大于零的数值。
+     */
     private boolean positive(Long count) {
         return value(count) > 0L;
     }
 
+    /**
+     * 构建验证码校验失败异常。
+     */
     private EmailVerificationException verificationFailed() {
         return new EmailVerificationException();
     }
 
-    /** 验证失败必须提交失败次数或终态，同时向匿名调用方返回统一提示。 */
+    /**
+     * 验证失败必须提交失败次数或终态，同时向匿名调用方返回统一提示。
+     */
     private static final class EmailVerificationException extends ServiceException {
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 阻止仅提供静态能力的类型被实例化。
+         */
         private EmailVerificationException() {
             super(ApiResultEnum.UNAUTHORIZED.getCode(), "Verification failed or expired.");
         }

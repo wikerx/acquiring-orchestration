@@ -17,13 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelMatchAbnormalInternalController
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : Payment 勾兑异常内部命令接口，仅供受签名保护的 Admin 服务提交领取、重查和非资金终态处置命令。
- * @status : create
+ * Payment 勾兑异常内部命令接口，仅供受签名保护的 Admin 服务提交领取、重查和非资金终态处置命令。
  */
 @RestController
 @RequestMapping("/internal/payment/channel-match/abnormalities")

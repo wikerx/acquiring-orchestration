@@ -37,13 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisCacheAutoConfiguration
- * @date : 2026-07-30 22:05
- * @email : scott_x@163.com
- * @description : 支付系统 Redis Cache 自动配置，集中注册业务读模型生命周期、统一序列化、故障降级和独立 miss marker 存储
- * @status : update
+ * 支付系统 Redis Cache 自动配置，集中注册业务读模型生命周期、统一序列化、故障降级和独立 miss marker 存储
  */
 @Slf4j
 @AutoConfiguration(after = RedisAutoConfiguration.class)

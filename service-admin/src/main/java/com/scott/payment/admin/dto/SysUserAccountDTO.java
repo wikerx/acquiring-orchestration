@@ -7,13 +7,7 @@ import java.util.List;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserAccountDTO
- * @date : 2026-06-07 08:26
- * @email : scott_x@163.com
- * @description : Admin 系统用户账号 DTO，承载账号基础信息、组织归属、角色和登录安全状态。
- * @status : create
+ * Admin 系统用户账号 DTO，承载账号基础信息、组织归属、角色和登录安全状态。
  */
 @Data
 public class SysUserAccountDTO {

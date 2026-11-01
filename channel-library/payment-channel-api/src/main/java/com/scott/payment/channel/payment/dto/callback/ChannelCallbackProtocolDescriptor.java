@@ -8,13 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackProtocolDescriptor
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 不可变渠道回调协议描述，位于 payment-channel-api DTO 层，在进入渠道代码前约束 HTTP 方法、Content-Type、场景、正文大小和认证姿态。
- * @status : create
+ * 不可变渠道回调协议描述，位于 payment-channel-api DTO 层，在进入渠道代码前约束 HTTP 方法、Content-Type、场景、正文大小和认证姿态。
  */
 public record ChannelCallbackProtocolDescriptor(Set<String> methods,
                                                 Set<String> contentTypes,
@@ -40,17 +34,23 @@ public record ChannelCallbackProtocolDescriptor(Set<String> methods,
         }
     }
 
-    /** 判断请求方法是否属于渠道显式允许集合。 */
+    /**
+     * 判断请求方法是否属于渠道显式允许集合。
+     */
     public boolean supportsMethod(String method) {
         return method != null && methods.contains(method.trim().toLowerCase(Locale.ROOT));
     }
 
-    /** 判断公网回调入口场景是否由该渠道协议支持。 */
+    /**
+     * 判断公网回调入口场景是否由该渠道协议支持。
+     */
     public boolean supportsScene(ChannelCallbackScene scene) {
         return scene != null && scenes.contains(scene);
     }
 
-    /** 忽略 Content-Type 参数后校验媒体类型；空集合表示渠道不限制媒体类型。 */
+    /**
+     * 忽略 Content-Type 参数后校验媒体类型；空集合表示渠道不限制媒体类型。
+     */
     public boolean supportsContentType(String contentType) {
         if (contentTypes.isEmpty()) {
             return true;

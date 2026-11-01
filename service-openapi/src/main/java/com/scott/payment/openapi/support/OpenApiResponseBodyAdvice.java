@@ -36,19 +36,15 @@ import java.util.HexFormat;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiResponseBodyAdvice
- * @date : 2026-06-02 11:14
- * @email : scott_x@163.com
- * @description : Open API Response Body Advice MVC 扩展组件，位于 商户开放接口服务，在请求体读取或响应写出阶段执行解密、加密、校验、摘要记录和上下文回填。
- * @status : create
+ * 在商户 OpenAPI 响应写出前使用商户公钥加密 data，并记录不可逆响应摘要。
  */
 @Slf4j
 @RestControllerAdvice
 public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
 
-    /** 将 OpenAPI 响应中的交易时间统一解释为季度路由使用的数据库时区。 */
+    /**
+     * 将 OpenAPI 响应中的交易时间统一解释为季度路由使用的数据库时区。
+     */
     private static final ZoneId TRANSACTION_DATABASE_ZONE = ZoneId.of("Asia/Shanghai");
 
     /**

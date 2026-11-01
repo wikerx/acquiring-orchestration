@@ -9,16 +9,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MccEntities
- * @date : 2026-06-27 16:49
- * @email : scott_x@163.com
- * @description : MCC Entities 聚合类型，位于 运营后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * MCC Entities 聚合类型，用于运营后台，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class MccEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private MccEntities() {
     }
 

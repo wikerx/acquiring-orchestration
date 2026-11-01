@@ -34,13 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFundAccountApplicationService
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 管理端资金账户、余额明细导出、充值和扣减审批应用服务。
- * @status : create
+ * 管理端资金账户、余额明细导出、充值和扣减审批应用服务。
  */
 @Service
 public class AdminFundAccountApplicationService {
@@ -323,41 +317,55 @@ public class AdminFundAccountApplicationService {
                         + ", rechargeStatus=" + query.getRechargeStatus(), response);
     }
 
-    /** 分页查询账户扣减申请及审批状态。 */
+    /**
+     * 分页查询账户扣减申请及审批状态。
+     */
     public PageResult<FundDeductionResponse> pageDeductions(FundDeductionQuery query) {
         return accountService.pageDeductions(query);
     }
 
-    /** 查询账户扣减申请详情。 */
+    /**
+     * 查询账户扣减申请详情。
+     */
     public FundDeductionResponse getDeduction(Long id) {
         return accountService.getDeduction(id);
     }
 
-    /** 使用当前登录账号创建待审核账户扣减申请。 */
+    /**
+     * 使用当前登录账号创建待审核账户扣减申请。
+     */
     public FundDeductionResponse createDeduction(FundDeductionCreateRequest request) {
         Operator operator = currentOperator();
         return accountService.createDeduction(request, operator.id(), operator.name(), operator.loginAccount());
     }
 
-    /** 使用当前登录账号审核账户扣减申请。 */
+    /**
+     * 使用当前登录账号审核账户扣减申请。
+     */
     public FundDeductionResponse auditDeduction(Long id, String comment) {
         Operator operator = currentOperator();
         return accountService.auditDeduction(id, comment, operator.id(), operator.name(), operator.loginAccount());
     }
 
-    /** 使用当前登录账号复核账户扣减申请并原子入账。 */
+    /**
+     * 使用当前登录账号复核账户扣减申请并原子入账。
+     */
     public FundDeductionResponse recheckDeduction(Long id, String comment) {
         Operator operator = currentOperator();
         return accountService.recheckDeduction(id, comment, operator.id(), operator.name(), operator.loginAccount());
     }
 
-    /** 使用当前登录账号驳回账户扣减申请。 */
+    /**
+     * 使用当前登录账号驳回账户扣减申请。
+     */
     public FundDeductionResponse rejectDeduction(Long id, String comment) {
         Operator operator = currentOperator();
         return accountService.rejectDeduction(id, comment, operator.id(), operator.name(), operator.loginAccount());
     }
 
-    /** 按筛选条件导出全部账户扣减申请及审批信息。 */
+    /**
+     * 按筛选条件导出全部账户扣减申请及审批信息。
+     */
     public void exportDeductions(FundDeductionQuery request, HttpServletResponse response) {
         FundDeductionQuery query = request == null ? new FundDeductionQuery() : request;
         exportPaged("excel.fund.deductionTitle", FundDeductionExportRow.class,
@@ -371,7 +379,9 @@ public class AdminFundAccountApplicationService {
                         + ", deductionStatus=" + query.getDeductionStatus(), response);
     }
 
-    /** 将账户基础信息映射为导出行，不触发派生余额查询。 */
+    /**
+     * 将账户基础信息映射为导出行，不触发派生余额查询。
+     */
     private FundAccountExportRow toExportRow(FundAccountResponse source) {
         FundAccountExportRow row = new FundAccountExportRow();
         row.setAccountNo(source.getAccountNo());
@@ -385,7 +395,9 @@ public class AdminFundAccountApplicationService {
         return row;
     }
 
-    /** 将不可变余额流水映射为核对导出行。 */
+    /**
+     * 将不可变余额流水映射为核对导出行。
+     */
     private FundLedgerExportRow toLedgerExportRow(FundLedgerResponse source) {
         FundLedgerExportRow row = new FundLedgerExportRow();
         row.setLedgerNo(source.getLedgerNo());
@@ -413,7 +425,9 @@ public class AdminFundAccountApplicationService {
         return row;
     }
 
-    /** 使用当前登录账号提交带账户期望版本保护的状态变更。 */
+    /**
+     * 使用当前登录账号提交带账户期望版本保护的状态变更。
+     */
     private FundAccountResponse changeAccountStatus(Long id,
                                                     FundAccountStatusRequest request,
                                                     String targetStatus) {
@@ -422,7 +436,9 @@ public class AdminFundAccountApplicationService {
                 request.getReason(), operator.id(), operator.name());
     }
 
-    /** 将充值申请和审批快照映射为导出行。 */
+    /**
+     * 将充值申请和审批快照映射为导出行。
+     */
     private FundRechargeExportRow toRechargeExportRow(FundRechargeResponse source) {
         FundRechargeExportRow row = new FundRechargeExportRow();
         row.setRechargeNo(source.getRechargeNo());
@@ -444,7 +460,9 @@ public class AdminFundAccountApplicationService {
         return row;
     }
 
-    /** 将扣减申请和完整审批快照映射为导出行。 */
+    /**
+     * 将扣减申请和完整审批快照映射为导出行。
+     */
     private FundDeductionExportRow toDeductionExportRow(FundDeductionResponse source) {
         FundDeductionExportRow row = new FundDeductionExportRow();
         row.setDeductionNo(source.getDeductionNo());
@@ -467,7 +485,9 @@ public class AdminFundAccountApplicationService {
         return row;
     }
 
-    /** 分页拉取导出数据，避免一次性加载全部资金明细到内存。 */
+    /**
+     * 分页拉取导出数据，避免一次性加载全部资金明细到内存。
+     */
     private <T> void exportPaged(String titleKey,
                                  Class<T> rowClass,
                                  java.util.function.IntFunction<java.util.List<T>> pageLoader,
@@ -490,12 +510,16 @@ public class AdminFundAccountApplicationService {
                 .build(), response);
     }
 
-    /** 返回当前登录操作人名称快照，用于导出审计。 */
+    /**
+     * 返回当前登录操作人名称快照，用于导出审计。
+     */
     private String currentOperatorName() {
         return currentOperator().name();
     }
 
-    /** 读取完整登录账号上下文；缺少主键或登录名时拒绝资金操作。 */
+    /**
+     * 读取完整登录账号上下文；缺少主键或登录名时拒绝资金操作。
+     */
     private Operator currentOperator() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAccountId() == null
@@ -507,6 +531,9 @@ public class AdminFundAccountApplicationService {
         return new Operator(account.getAccountId(), name, account.getLoginAccount());
     }
 
+    /**
+     * 封装可信操作人的账户主键、姓名和登录账号。
+     */
     private record Operator(Long id, String name, String loginAccount) {
     }
 }

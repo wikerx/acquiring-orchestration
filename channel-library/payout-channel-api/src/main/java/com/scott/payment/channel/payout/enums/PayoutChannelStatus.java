@@ -3,13 +3,7 @@ package com.scott.payment.channel.payout.enums;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutChannelStatus
- * @date : 2026-08-12 00:00
- * @email : scott_x@163.com
- * @description : Provider 原始状态映射后的统一代付状态，不等同于 service-payout 平台状态机状态。
- * @status : create
+ * Provider 原始状态映射后的统一代付状态，不等同于 service-payout 平台状态机状态。
  */
 @Getter
 public enum PayoutChannelStatus {

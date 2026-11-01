@@ -6,13 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateInternalRequest
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreateinternal请求模型，位于 调度任务服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
- * @status : create
+ * 分表表precreateinternal请求模型，位于 调度任务服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  */
 @Data
 public class ShardingTablePreCreateInternalRequest {

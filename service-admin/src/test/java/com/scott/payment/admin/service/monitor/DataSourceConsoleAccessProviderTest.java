@@ -12,13 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataSourceConsoleAccessProviderTest
- * @date : 2026-09-14 12:30
- * @email : scott_x@163.com
- * @description : Druid 外部控制台地址校验、本地连接池类型识别和配置状态测试。
- * @status : create
+ * Druid 外部控制台地址校验、本地连接池类型识别和配置状态测试。
  */
 class DataSourceConsoleAccessProviderTest {
 

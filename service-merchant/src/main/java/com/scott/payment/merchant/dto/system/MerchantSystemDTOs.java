@@ -13,13 +13,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSystemDTOs
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : Merchant System DTOs 聚合类型，位于 商户后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * Merchant System DTOs 聚合类型，位于 商户后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class MerchantSystemDTOs {
 
@@ -27,13 +21,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : IdsRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : ID请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * ID请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
      */
     @Data
     public static class IdsRequest {
@@ -49,13 +37,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : StatusRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : Status Request 状态变更请求模型，位于 商户后台服务，承载启停、冻结、审核或处理状态更新所需字段。
-     * @status : create
+     * Status Request 状态变更请求模型，位于 商户后台服务，承载启停、冻结、审核或处理状态更新所需字段。
      */
     @Data
     public static class StatusRequest {
@@ -71,13 +53,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : DeptQueryRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 部门查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
-     * @status : create
+     * 部门查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -98,13 +74,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : DeptSaveRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 部门写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 部门写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class DeptSaveRequest {
@@ -176,13 +146,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : DeptDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户部门展示 DTO，承载部门层级、负责人、状态和审计时间等管理页面字段。
-     * @status : create
+     * 商户部门展示 DTO，承载部门层级、负责人、状态和审计时间等管理页面字段。
      */
     @Data
     public static class DeptDTO {
@@ -289,13 +253,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PostQueryRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 岗位查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
-     * @status : create
+     * 岗位查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -316,13 +274,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PostSaveRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 岗位写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 岗位写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class PostSaveRequest {
@@ -366,13 +318,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PostDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户岗位展示 DTO，承载岗位编码、名称、排序和启停状态。
-     * @status : create
+     * 商户岗位展示 DTO，承载岗位编码、名称、排序和启停状态。
      */
     @Data
     public static class PostDTO {
@@ -442,13 +388,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountQueryRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 账号查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
-     * @status : create
+     * 账号查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -477,13 +417,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountBaseSaveRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 账号基础信息写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 账号基础信息写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class AccountBaseSaveRequest {
@@ -527,18 +461,14 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountSaveRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 账号写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 账号写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class AccountSaveRequest extends AccountBaseSaveRequest {
-        /** 激活邮件语言，目前支持 zh-CN 和 en-US。 */
+        /**
+         * 激活邮件语言，目前支持 zh-CN 和 en-US。
+         */
         @Pattern(regexp = "^(zh-CN|en-US)?$", message = "locale is invalid")
         private String locale;
         /**
@@ -571,29 +501,19 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountResetPasswordRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 账号重置password请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 账号重置password请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
      */
     @Data
     public static class AccountResetPasswordRequest {
-        /** 重置邮件语言，目前支持 zh-CN 和 en-US。 */
+        /**
+         * 重置邮件语言，目前支持 zh-CN 和 en-US。
+         */
         @Pattern(regexp = "^(zh-CN|en-US)?$", message = "locale is invalid")
         private String locale;
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户账号展示 DTO，聚合登录账号、人员信息、组织归属、角色和 MFA 状态。
-     * @status : create
+     * 商户账号展示 DTO，聚合登录账号、人员信息、组织归属、角色和 MFA 状态。
      */
     @Data
     public static class AccountDTO {
@@ -649,15 +569,25 @@ public final class MerchantSystemDTOs {
          * 商户管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
          */
         private String email;
-        /** 待验证的新邮箱；验证完成前正式邮箱保持不变。 */
+        /**
+         * 待验证的新邮箱；验证完成前正式邮箱保持不变。
+         */
         private String pendingEmail;
-        /** 账号激活状态：PENDING_ACTIVATION、ACTIVE。 */
+        /**
+         * 账号激活状态：PENDING_ACTIVATION、ACTIVE。
+         */
         private String activationStatus;
-        /** 账号激活完成时间。 */
+        /**
+         * 账号激活完成时间。
+         */
         private LocalDateTime activatedAt;
-        /** 当前正式邮箱验证完成时间；为空表示未验证。 */
+        /**
+         * 当前正式邮箱验证完成时间；为空表示未验证。
+         */
         private LocalDateTime emailVerifiedAt;
-        /** 当前正式邮箱验证状态：PENDING、VERIFIED。 */
+        /**
+         * 当前正式邮箱验证状态：PENDING、VERIFIED。
+         */
         private String emailVerificationStatus;
         /**
          * 状态，表示当前记录在业务流程中的处理状态。
@@ -760,13 +690,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountMfaActionRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 账号MFA动作请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 账号MFA动作请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
      */
     @Data
     public static class AccountMfaActionRequest {
@@ -779,13 +703,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountMfaExemptRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 账号MFAexempt请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
-     * @status : create
+     * 账号MFAexempt请求模型，位于 商户后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -797,13 +715,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AccountMfaStatusResponse
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 账号MFA状态响应模型，位于 商户后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
-     * @status : create
+     * 账号MFA状态响应模型，位于 商户后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      */
     @Data
     public static class AccountMfaStatusResponse {
@@ -842,13 +754,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RoleQueryRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 角色查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
-     * @status : create
+     * 角色查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -897,13 +803,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RoleSaveRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 角色写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 角色写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class RoleSaveRequest {
@@ -977,13 +877,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RoleDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户角色展示 DTO，承载角色编码、数据范围、状态和授权摘要。
-     * @status : create
+     * 商户角色展示 DTO，承载角色编码、数据范围、状态和授权摘要。
      */
     @Data
     public static class RoleDTO {
@@ -1073,13 +967,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RoleMenuAuthDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户角色菜单授权 DTO，返回已授权菜单主键和可展示菜单明细。
-     * @status : create
+     * 商户角色菜单授权 DTO，返回已授权菜单主键和可展示菜单明细。
      */
     @Data
     public static class RoleMenuAuthDTO {
@@ -1112,13 +1000,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RolePermissionAuthDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户角色权限授权 DTO，返回已授权权限主键和权限明细。
-     * @status : create
+     * 商户角色权限授权 DTO，返回已授权权限主键和权限明细。
      */
     @Data
     public static class RolePermissionAuthDTO {
@@ -1151,13 +1033,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RoleGrantTreeSaveRequest
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 角色授权树写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
-     * @status : create
+     * 角色授权树写操作请求模型，位于 商户后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
      */
     @Data
     public static class RoleGrantTreeSaveRequest {
@@ -1182,13 +1058,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : RoleGrantTreeDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户角色统一授权树 DTO，将目录、菜单、按钮和权限节点按父子关系返回。
-     * @status : create
+     * 商户角色统一授权树 DTO，将目录、菜单、按钮和权限节点按父子关系返回。
      */
     @Data
     public static class RoleGrantTreeDTO {
@@ -1238,13 +1108,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : AuthGrantNodeDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户授权树节点 DTO，记录节点类型、父节点、选中状态及其子节点。
-     * @status : create
+     * 商户授权树节点 DTO，记录节点类型、父节点、选中状态及其子节点。
      */
     @Data
     public static class AuthGrantNodeDTO {
@@ -1316,13 +1180,7 @@ public final class MerchantSystemDTOs {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : PermissionDTO
-     * @date : 2026-06-23 12:55
-     * @email : scott_x@163.com
-     * @description : 商户可分配权限 DTO，承载权限编码、名称、分组和所属菜单信息。
-     * @status : create
+     * 商户可分配权限 DTO，承载权限编码、名称、分组和所属菜单信息。
      */
     @Data
     public static class PermissionDTO {

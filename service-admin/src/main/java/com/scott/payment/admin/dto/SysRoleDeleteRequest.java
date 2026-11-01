@@ -6,13 +6,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysRoleDeleteRequest
- * @date : 2026-06-07 00:00
- * @email : scott_x@163.com
- * @description : 管理后台角色删除请求 DTO
- * @status : create
+ * 管理后台角色删除请求 DTO
  *
  * <p>用于删除指定角色，仅承载目标角色主键。</p>
  */

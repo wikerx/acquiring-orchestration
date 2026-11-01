@@ -2,8 +2,13 @@ package com.scott.payment.admin.service.impl;
 
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionContactInfoResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
@@ -71,30 +76,20 @@ import java.util.function.Supplier;
 public class JdbcAdminTransactionQueryService implements AdminTransactionQueryService {
 
     /**
-     * 交易订单表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易生命周期主单逻辑表名。
      */
     private static final String TRANSACTION_ORDER_TABLE = "transaction_order";
     /**
-     * 交易动作表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易动作逻辑表名。
      */
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
     /**
-     * 交易支付方式信息表，表示支付方式、通知方式或调用方式。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易支付方式快照逻辑表名。
      */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
-    /** 主单查询稳定显式投影，避免分片元数据刷新期间 SELECT * 产生列序错读。 */
+    /**
+     * 主单查询稳定显式投影，避免分片元数据刷新期间 SELECT * 产生列序错读。
+     */
     private static final String ORDER_QUERY_COLUMNS = """
             operation_id, root_transaction_id, latest_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, merchant_website, payment_method, payment_brand,
@@ -108,7 +103,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             settlement_status, reconciliation_status, accounting_status, channel_match_status,
             channel_code, channel_order_no, transaction_date_time, transaction_time_zone
             """;
-    /** 动作查询稳定显式投影，完整返回交易汇率和最终结算快照。 */
+    /**
+     * 动作查询稳定显式投影，完整返回交易汇率和最终结算快照。
+     */
     private static final String OPERATION_QUERY_COLUMNS = """
             o.operation_id, o.transaction_id, o.source_transaction_id, o.merchant_id,
             o.merchant_order_no, o.merchant_order_id, o.operation_sequence,
@@ -123,110 +120,103 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             o.channel_match_status, o.transaction_date_time, o.operation_time, o.request_source,
             o.ingress_client_ip
             """;
-    /** 付款人、账单和收货信息均按交易时间路由到季度分片。 */
+    /**
+     * 付款人、账单和收货信息均按交易时间路由到季度分片。
+     */
     private static final String TRANSACTION_PAYER_INFO_TABLE = "transaction_payer_info";
     /**
-     * 交易账单信息表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易账单联系人快照逻辑表名。
      */
     private static final String TRANSACTION_BILLING_INFO_TABLE = "transaction_billing_info";
     /**
-     * {@code TRANSACTION_SHIPPING_INFO_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易收货联系人快照逻辑表名。
      */
     private static final String TRANSACTION_SHIPPING_INFO_TABLE = "transaction_shipping_info";
     /**
-     * {@code ACCESS_TYPE_DIRECT_API}，用于区分 {@code JdbcAdminTransactionQueryService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户直连接口接入类型。
      */
     private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
     /**
-     * {@code ACCESS_TYPE_HOSTED_CHECKOUT}，用于区分 {@code JdbcAdminTransactionQueryService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 托管收银台接入类型。
      */
     private static final String ACCESS_TYPE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /**
-     * {@code TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 渠道 HTTP 交互日志逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE = "transaction_channel_interaction_log";
     /**
-     * 交易渠道回调表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-     * </p>
+     * 渠道回调业务处理记录逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_CALLBACK_TABLE = "transaction_channel_callback";
     /**
-     * {@code TRANSACTION_STATUS_HISTORY_TABLE}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 交易状态变更历史逻辑表名。
      */
     private static final String TRANSACTION_STATUS_HISTORY_TABLE = "transaction_status_history";
     /**
-     * {@code TRANSACTION_FLOW_EVENT_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 交易流程事件逻辑表名。
      */
     private static final String TRANSACTION_FLOW_EVENT_TABLE = "transaction_flow_event";
     /**
-     * 交易金额变更日志表，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
+     * 交易生命周期金额变更日志逻辑表名。
      */
     private static final String TRANSACTION_AMOUNT_CHANGE_LOG_TABLE = "transaction_amount_change_log";
     /**
-     * 交易渠道请求表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * </p>
+     * 渠道请求业务记录逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_REQUEST_TABLE = "transaction_channel_request";
     /**
-     * 交易渠道回调日志表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-     * </p>
+     * 渠道回调原文日志逻辑表名。
      */
     private static final String TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE = "transaction_channel_callback_log";
     /**
-     * 交易商户通知表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户通知任务逻辑表名。
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
 
-    /** 管理端通知详情投影，明确排除包含完整回调地址的 notify_config_snapshot_json。 */
+    /**
+     * 管理端渠道交互日志显式投影，只返回已脱敏的 HTTP 报文和状态诊断字段。
+     */
+    private static final String TRANSACTION_CHANNEL_LOG_ADMIN_PROJECTION = """
+            l.id, l.interaction_log_id, l.request_id, l.transaction_id, l.operation_id,
+            l.channel_code, l.interaction_type, l.http_method, l.request_url_masked, l.http_status,
+            l.request_header_json_masked, l.request_body_json_masked,
+            l.response_header_json_masked, l.response_body_json_masked,
+            l.exception_type, l.exception_message, l.duration_millis, l.trace_id,
+            l.interaction_time, l.transaction_date_time, l.transaction_utc_time,
+            l.transaction_time_zone, l.create_time,
+            COALESCE(r.transaction_type, o.transaction_type) AS transaction_type,
+            r.request_status AS request_status,
+            r.gateway_result AS gateway_result,
+            r.gateway_code AS gateway_code,
+            r.acquirer_code AS acquirer_code,
+            r.acquirer_message AS acquirer_message,
+            r.channel_status AS channel_trade_status,
+            COALESCE(r.channel_order_no, o.channel_order_no) AS channel_order_no,
+            COALESCE(r.channel_transaction_id, o.channel_transaction_id) AS channel_transaction_id,
+            COALESCE(r.platform_result_code, o.transaction_status) AS platform_result_code,
+            r.platform_fail_reason AS platform_fail_reason,
+            COALESCE(r.acquirer_code, r.gateway_code, o.channel_response_code) AS channel_response_code,
+            COALESCE(r.acquirer_message, o.channel_response_message, r.platform_fail_reason)
+                AS channel_response_message
+            """;
+
+    /**
+     * 管理端渠道回调记录显式投影，固定回调状态和状态推进字段的接口契约。
+     */
+    private static final String TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION = """
+            id, callback_id, callback_log_id, transaction_id, operation_id,
+            channel_code, channel_order_no, channel_transaction_id,
+            callback_type, channel_event_type, callback_status, idempotency_key,
+            signature_valid, ip_allowed, parsed_transaction_status,
+            previous_transaction_status, target_transaction_status,
+            process_result, fail_reason, callback_received_time, processed_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone,
+            version, deleted, create_time, update_time
+            """;
+
+    /**
+     * 管理端商户通知安全投影，排除完整回调地址、明文通知载荷和历史配置快照。
+     */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION = """
             id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
             notify_type, event_type, notify_status, notify_config_version,
@@ -235,30 +225,34 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             transaction_date_time, transaction_utc_time, transaction_time_zone,
             version, deleted, create_time, update_time
             """;
+
     /**
-     * 交易商户通知日志表常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 管理端商户通知投递日志显式投影，只返回脱敏请求、响应和投递结果。
+     */
+    private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION = """
+            id, notify_log_id, notify_id, callback_event_id, delivery_mode,
+            transaction_id, operation_id, merchant_id, attempt_no, target_url_hash,
+            http_status, request_header_json_masked, request_body_json_masked,
+            response_body_json_masked, success, error_message, notify_time,
+            duration_millis, transaction_date_time, transaction_utc_time,
+            transaction_time_zone, create_time
+            """;
+    /**
+     * 商户通知单次投递日志逻辑表名。
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE = "transaction_merchant_notification_log";
     /**
-     * {@code TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE}常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 商户 OpenAPI 交互日志逻辑表名。
      */
     private static final String TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE = "transaction_merchant_api_interaction_log";
     /**
-     * 默认查询时间时区常量，统一 {@code JdbcAdminTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 管理端未指定查询时区时使用的默认 IANA 时区。
      */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
+
+    /**
+     * 包含 {@code deleted} 字段、查询时必须过滤软删除记录的交易逻辑表。
+     */
     private static final Set<String> SOFT_DELETE_LOGICAL_TABLES = Set.of(
             TRANSACTION_ORDER_TABLE,
             TRANSACTION_OPERATION_TABLE,
@@ -267,12 +261,21 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             TRANSACTION_MERCHANT_NOTIFICATION_TABLE
     );
 
+    /**
+     * 交易查询专用命名参数 JDBC 模板。
+     */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /** 在 transaction 逻辑数据源上执行普通读和强一致读。 */
+    /**
+     * 在 transaction 逻辑数据源上执行普通读和强一致读。
+     */
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
-    /** 单次同步查询允许返回的最大记录数。 */
+    /**
+     * 单次同步查询允许返回的最大记录数。
+     */
     private final int maxResultRows;
-    /** 当前版本已登记物理节点中的最早季度，用于受控批量定位生命周期主单。 */
+    /**
+     * 当前版本已登记物理节点中的最早季度，用于受控批量定位生命周期主单。
+     */
     private final LocalDateTime registeredNodeBegin;
 
     /**
@@ -280,6 +283,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      */
     private final AdminRiskTimelineQueryService riskTimelineQueryService;
 
+    /**
+     * 创建测试或本地调用使用的管理端交易查询服务。
+     *
+     * @param jdbcTemplate 命名参数 JDBC 模板
+     * @param riskTimelineQueryService 风控时间轴查询服务
+     */
     public JdbcAdminTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                             AdminRiskTimelineQueryService riskTimelineQueryService) {
         this(jdbcTemplate, riskTimelineQueryService, new TransactionLogicalReadExecutor(),
@@ -357,6 +366,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return executeRead(false, () -> searchOrdersNormalized(safeQuery));
     }
 
+    /**
+     * 分页查询并规范化交易订单摘要。
+     */
     private TransactionOrderSearchResponse searchOrdersNormalized(TransactionPageQuery safeQuery) {
         TransactionOrderSummaryResponse summary = orderSummary(safeQuery);
         long offset = offset(safeQuery);
@@ -504,7 +516,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return detail;
     }
 
-    /** 历史首次成功动作没有金额日志；用已持久化的根动作事实补齐详情展示。 */
+    /**
+     * 历史首次成功动作没有金额日志；用已持久化的根动作事实补齐详情展示。
+     */
     static List<Map<String, Object>> withInitialAmountChange(TransactionOrderResponse order,
                                                                List<TransactionOperationResponse> operations,
                                                                List<Map<String, Object>> statusHistory,
@@ -558,7 +572,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return result;
     }
 
-    /** 按交易号和精确分片时间读取持卡人账单信息，不返回表主键、哈希和审计字段。 */
+    /**
+     * 按交易号和精确分片时间读取持卡人账单信息，不返回表主键、哈希和审计字段。
+     */
     private TransactionContactInfoResponse selectBillingCardHolderInfo(String transactionId,
                                                                         LocalDateTime transactionDateTime) {
         List<TransactionContactInfoResponse> rows = jdbcTemplate.query("""
@@ -574,7 +590,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 按交易号和精确分片时间读取付款人信息，不返回检索哈希和内部标识。 */
+    /**
+     * 按交易号和精确分片时间读取付款人信息，不返回检索哈希和内部标识。
+     */
     private TransactionPayerInfoResponse selectPayerInfo(String transactionId,
                                                           LocalDateTime transactionDateTime) {
         List<TransactionPayerInfoResponse> rows = jdbcTemplate.query("""
@@ -589,7 +607,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 按交易号和精确分片时间读取收货信息，不返回表主键和审计字段。 */
+    /**
+     * 按交易号和精确分片时间读取收货信息，不返回表主键和审计字段。
+     */
     private TransactionContactInfoResponse selectShippingInfo(String transactionId,
                                                                LocalDateTime transactionDateTime) {
         List<TransactionContactInfoResponse> rows = jdbcTemplate.query("""
@@ -603,7 +623,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 构造交易附属信息精确分片查询参数。 */
+    /**
+     * 构造交易附属信息精确分片查询参数。
+     */
     private MapSqlParameterSource partyInfoParams(String transactionId,
                                                   LocalDateTime transactionDateTime) {
         return new MapSqlParameterSource()
@@ -611,7 +633,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("transactionDateTime", transactionDateTime);
     }
 
-    /** 映射账单和收货联系人业务字段。 */
+    /**
+     * 映射账单和收货联系人业务字段。
+     */
     private RowMapper<TransactionContactInfoResponse> contactInfoMapper() {
         return (resultSet, rowNumber) -> {
             TransactionContactInfoResponse response = new TransactionContactInfoResponse();
@@ -620,7 +644,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
-    /** 映射付款人业务字段及浏览器上下文。 */
+    /**
+     * 映射付款人业务字段及浏览器上下文。
+     */
     private RowMapper<TransactionPayerInfoResponse> payerInfoMapper() {
         return (resultSet, rowNumber) -> {
             TransactionPayerInfoResponse response = new TransactionPayerInfoResponse();
@@ -639,7 +665,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
-    /** 填充账单、付款人和收货信息共享的身份、联系方式及地址字段。 */
+    /**
+     * 填充账单、付款人和收货信息共享的身份、联系方式及地址字段。
+     */
     private void fillContactInfo(TransactionContactInfoResponse response,
                                  ResultSet resultSet) throws SQLException {
         response.setFirstName(resultSet.getString("first_name"));
@@ -660,7 +688,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 渠道交互日志分页结果
      */
     @Override
-    public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
+    public PageResult<ChannelInteractionLogResponse> pageChannelLogs(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = normalize(query);
         if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             return emptyPage(safeQuery);
@@ -675,14 +703,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return ShardingSphere 归并后的渠道回调分页结果
      */
     @Override
-    public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
+    public PageResult<ChannelCallbackResponse> pageChannelCallbacks(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = normalize(query);
         if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             return emptyPage(safeQuery);
         }
         return executeRead(false,
-                () -> pageMaps(TRANSACTION_CHANNEL_CALLBACK_TABLE, channelCallbackWhereSql(safeQuery),
-                        channelCallbackParams(safeQuery), safeQuery));
+                () -> pageRecords(
+                        TRANSACTION_CHANNEL_CALLBACK_TABLE,
+                        TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION,
+                        channelCallbackWhereSql(safeQuery),
+                        channelCallbackParams(safeQuery),
+                        safeQuery,
+                        channelCallbackMapper()));
     }
 
     /**
@@ -692,14 +725,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return ShardingSphere 归并后的商户通知分页结果
      */
     @Override
-    public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
+    public PageResult<MerchantNotificationResponse> pageMerchantNotifications(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = normalize(query);
         if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             return emptyPage(safeQuery);
         }
         return executeRead(false,
-                () -> pageMaps(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, merchantNotificationWhereSql(safeQuery),
-                        merchantNotificationParams(safeQuery), safeQuery));
+                () -> pageRecords(
+                        TRANSACTION_MERCHANT_NOTIFICATION_TABLE,
+                        TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION,
+                        merchantNotificationWhereSql(safeQuery),
+                        merchantNotificationParams(safeQuery),
+                        safeQuery,
+                        merchantNotificationMapper()));
     }
 
     /**
@@ -710,8 +748,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 包含脱敏任务快照和按尝试次数排序日志的详情视图
      */
     @Override
-    public Map<String, Object> merchantNotificationDetail(String notifyId,
-                                                          LocalDateTime transactionDateTime) {
+    public MerchantNotificationDetailResponse merchantNotificationDetail(
+            String notifyId,
+            LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(notifyId) || transactionDateTime == null) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID);
         }
@@ -719,35 +758,38 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             MapSqlParameterSource params = new MapSqlParameterSource()
                     .addValue("notifyId", notifyId.trim())
                     .addValue("transactionDateTime", transactionDateTime);
-            List<Map<String, Object>> notifications = toCamelCaseRows(jdbcTemplate.queryForList("""
+            List<MerchantNotificationResponse> notifications = jdbcTemplate.query("""
                     SELECT %s
                     FROM transaction_merchant_notification
                     WHERE notify_id = :notifyId
                       AND transaction_date_time = :transactionDateTime
                       AND deleted = 0
                     LIMIT 1
-                    """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION), params));
+                    """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION),
+                    params,
+                    merchantNotificationMapper());
             if (notifications.isEmpty()) {
                 throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
             }
-            List<Map<String, Object>> deliveryLogs = toCamelCaseRows(jdbcTemplate.queryForList("""
-                    SELECT *
+            List<MerchantNotificationDeliveryLogResponse> deliveryLogs = jdbcTemplate.query("""
+                    SELECT %s
                     FROM transaction_merchant_notification_log
                     WHERE notify_id = :notifyId
                       AND transaction_date_time = :transactionDateTime
                     ORDER BY attempt_no ASC, id ASC
                     LIMIT 100
-                    """, params));
-            decorateMerchantNotificationLogRows(deliveryLogs);
-            Map<String, Object> detail = new LinkedHashMap<>();
-            detail.put("notification", notifications.get(0));
-            detail.put("deliveryLogs", deliveryLogs);
+                    """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION),
+                    params,
+                    merchantNotificationDeliveryLogMapper());
+            MerchantNotificationDetailResponse detail = new MerchantNotificationDetailResponse();
+            detail.setNotification(notifications.get(0));
+            detail.setDeliveryLogs(deliveryLogs);
             return detail;
         });
     }
 
     /**
-     * {@inheritDoc}
+     * 判断指定交易是否存在可重试的终态商户通知记录。
      */
     @Override
     public boolean existsRetryableTerminalMerchantNotification(String transactionId,
@@ -801,18 +843,42 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
-    private PageResult<Map<String, Object>> pageMaps(String logicalTable, String whereSql, MapSqlParameterSource params, PageRequest query) {
+    /**
+     * 按固定字段投影和行映射器分页查询交易附属记录。
+     *
+     * @param logicalTable 交易逻辑表名
+     * @param projection 管理端允许返回的字段投影
+     * @param whereSql 已使用命名参数的筛选片段
+     * @param params 查询参数
+     * @param query 分页条件
+     * @param rowMapper 强类型行映射器
+     * @param <T> 响应记录类型
+     * @return 当前页强类型记录
+     */
+    private <T> PageResult<T> pageRecords(String logicalTable,
+                                          String projection,
+                                          String whereSql,
+                                          MapSqlParameterSource params,
+                                          PageRequest query,
+                                          RowMapper<T> rowMapper) {
         long offset = offset(query);
         long limit = query.safePageSize();
         boolean softDeleteTable = hasSoftDeleteColumn(logicalTable);
         long total = countMaps(logicalTable, whereSql, params, softDeleteTable);
-        List<Map<String, Object>> rows = offset < total
-                ? selectMaps(logicalTable, whereSql, params, offset, limit, softDeleteTable)
+        List<T> rows = offset < total
+                ? selectRecords(logicalTable, projection, whereSql, params, offset, limit,
+                        softDeleteTable, rowMapper)
                 : List.of();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
     }
 
-    private PageResult<Map<String, Object>> pageChannelLogsNormalized(ChannelLogQuery query) {
+    /**
+     * 分页查询并规范化渠道交互日志。
+     *
+     * @param query 已补齐时间范围的渠道日志查询
+     * @return 包含渠道状态诊断字段的交互日志分页
+     */
+    private PageResult<ChannelInteractionLogResponse> pageChannelLogsNormalized(ChannelLogQuery query) {
         long offset = offset(query);
         long limit = query.safePageSize();
         long total = countChannelLogs(
@@ -820,7 +886,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 TRANSACTION_CHANNEL_REQUEST_TABLE,
                 TRANSACTION_OPERATION_TABLE,
                 query);
-        List<Map<String, Object>> rows = offset < total
+        List<ChannelInteractionLogResponse> rows = offset < total
                 ? selectChannelLogs(
                         TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE,
                         TRANSACTION_CHANNEL_REQUEST_TABLE,
@@ -832,6 +898,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
     }
 
+    /**
+     * 统计带软删除条件的交易记录数量，并将数据库空值转换为零。
+     *
+     * @param table 交易逻辑表名
+     * @param whereSql 查询筛选片段
+     * @param params 查询参数
+     * @return 命中记录数
+     */
     private long count(String table, String whereSql, MapSqlParameterSource params) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -842,6 +916,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
+    /**
+     * 统计交易附属表记录数量，按表结构决定是否过滤软删除数据。
+     *
+     * @param table 交易逻辑表名
+     * @param whereSql 查询筛选片段
+     * @param params 查询参数
+     * @param softDeleteTable 当前表是否包含软删除字段
+     * @return 命中记录数
+     */
     private long countMaps(String table, String whereSql, MapSqlParameterSource params, boolean softDeleteTable) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -852,19 +935,50 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
-    private List<Map<String, Object>> selectMaps(String table, String whereSql, MapSqlParameterSource params,
-                                                 long offset, long limit, boolean softDeleteTable) {
+    /**
+     * 使用显式字段投影读取一页交易附属记录。
+     *
+     * @param table 交易逻辑表名
+     * @param projection 管理端允许返回的字段投影
+     * @param whereSql 查询筛选片段
+     * @param params 查询参数
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @param softDeleteTable 当前表是否包含软删除字段
+     * @param rowMapper 强类型行映射器
+     * @param <T> 响应记录类型
+     * @return 按交易时间倒序排列的记录
+     */
+    private <T> List<T> selectRecords(String table,
+                                      String projection,
+                                      String whereSql,
+                                      MapSqlParameterSource params,
+                                      long offset,
+                                      long limit,
+                                      boolean softDeleteTable,
+                                      RowMapper<T> rowMapper) {
         MapSqlParameterSource pageParams = copy(params).addValue("offset", offset).addValue("limit", limit);
-        return toCamelCaseRows(jdbcTemplate.queryForList("""
-                SELECT *
+        return jdbcTemplate.query("""
+                SELECT %s
                 FROM %s
                 WHERE %s
                 %s
                 ORDER BY transaction_date_time DESC, id DESC
                 LIMIT :offset, :limit
-                """.formatted(table, softDeleteCondition(softDeleteTable), whereSql), pageParams));
+                """.formatted(projection, table, softDeleteCondition(softDeleteTable), whereSql),
+                pageParams,
+                rowMapper);
     }
 
+    /**
+     * 统计渠道交互日志数量。
+     *
+     * @param table 渠道交互日志逻辑表
+     * @param requestTable 渠道请求逻辑表
+     * @param operationTable 交易动作逻辑表
+     * @param query 渠道日志筛选条件
+     * @return 命中日志数
+     */
     private long countChannelLogs(String table, String requestTable, String operationTable, ChannelLogQuery query) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -878,30 +992,28 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
-    private List<Map<String, Object>> selectChannelLogs(String table,
-                                                        String requestTable,
-                                                        String operationTable,
-                                                        ChannelLogQuery query,
-                                                        long offset,
-                                                        long limit) {
+    /**
+     * 查询渠道交互日志，并关联渠道请求与交易动作补齐统一返回码和状态字段。
+     *
+     * @param table 渠道交互日志逻辑表
+     * @param requestTable 渠道请求逻辑表
+     * @param operationTable 交易动作逻辑表
+     * @param query 渠道日志筛选条件
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @return 渠道交互日志
+     */
+    private List<ChannelInteractionLogResponse> selectChannelLogs(String table,
+                                                                  String requestTable,
+                                                                  String operationTable,
+                                                                  ChannelLogQuery query,
+                                                                  long offset,
+                                                                  long limit) {
         MapSqlParameterSource params = channelLogParams(query)
                 .addValue("offset", offset)
                 .addValue("limit", limit);
-        return toCamelCaseRows(jdbcTemplate.queryForList("""
-                SELECT l.*,
-                       COALESCE(r.transaction_type, o.transaction_type) AS transaction_type,
-                       r.request_status AS request_status,
-                       r.gateway_result AS gateway_result,
-                       r.gateway_code AS gateway_code,
-                       r.acquirer_code AS acquirer_code,
-                       r.acquirer_message AS acquirer_message,
-                       r.channel_status AS channel_trade_status,
-                       COALESCE(r.channel_order_no, o.channel_order_no) AS channel_order_no,
-                       COALESCE(r.channel_transaction_id, o.channel_transaction_id) AS channel_transaction_id,
-                       COALESCE(r.platform_result_code, o.transaction_status) AS platform_result_code,
-                       r.platform_fail_reason AS platform_fail_reason,
-                       COALESCE(r.acquirer_code, r.gateway_code, o.channel_response_code) AS channel_response_code,
-                       COALESCE(r.acquirer_message, o.channel_response_message, r.platform_fail_reason) AS channel_response_message
+        return jdbcTemplate.query("""
+                SELECT %s
                 FROM %s l
                 LEFT JOIN %s r ON r.request_id = l.request_id AND r.deleted = 0
                 LEFT JOIN %s o ON o.transaction_id = l.transaction_id AND o.deleted = 0
@@ -910,9 +1022,21 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 %s
                 ORDER BY l.interaction_time DESC, l.id DESC
                 LIMIT :offset, :limit
-                """.formatted(table, requestTable, operationTable, channelLogWhereSql(query)), params));
+                """.formatted(TRANSACTION_CHANNEL_LOG_ADMIN_PROJECTION,
+                        table, requestTable, operationTable, channelLogWhereSql(query)),
+                params,
+                channelInteractionLogMapper());
     }
 
+    /**
+     * 查询一页交易生命周期主单。
+     *
+     * @param table 交易主单逻辑表
+     * @param query 主单筛选条件
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @return 交易生命周期主单
+     */
     private List<TransactionOrderResponse> selectOrders(String table, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = orderParams(query).addValue("offset", offset).addValue("limit", limit);
         return jdbcTemplate.query("""
@@ -925,6 +1049,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 """.formatted(ORDER_QUERY_COLUMNS, table, orderWhereSql(query)), params, orderMapper());
     }
 
+    /**
+     * 统计符合筛选条件的交易动作数量。
+     *
+     * @param table 交易动作逻辑表
+     * @param paymentTable 支付方式快照逻辑表
+     * @param query 动作筛选条件
+     * @return 命中动作数
+     */
     private long countOperations(String table, String paymentTable, TransactionPageQuery query) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -935,6 +1067,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return count == null ? 0L : count;
     }
 
+    /**
+     * 查询一页交易动作并关联支付方式快照。
+     *
+     * @param table 交易动作逻辑表
+     * @param paymentTable 支付方式快照逻辑表
+     * @param query 动作筛选条件
+     * @param offset 分页偏移量
+     * @param limit 单页记录上限
+     * @return 交易动作记录
+     */
     private List<TransactionOperationResponse> selectOperations(String table, String paymentTable, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = operationParams(query).addValue("offset", offset).addValue("limit", limit);
         return jdbcTemplate.query("""
@@ -1045,7 +1187,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 statusByTransactionId.get(row.getTransactionId())));
     }
 
-    /** 按生命周期操作号批量补齐主单 3DS 标识。 */
+    /**
+     * 按生命周期操作号批量补齐主单 3DS 标识。
+     */
     private void enrichOrderThreeDs(List<TransactionOrderResponse> rows) {
         if (rows == null || rows.isEmpty()) {
             return;
@@ -1058,7 +1202,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
     }
 
-    /** 按生命周期操作号批量补齐动作单 3DS 标识。 */
+    /**
+     * 按生命周期操作号批量补齐动作单 3DS 标识。
+     */
     private void enrichOperationThreeDs(List<TransactionOperationResponse> rows) {
         Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
                 .map(TransactionOperationResponse::getOperationId)
@@ -1100,7 +1246,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return result;
     }
 
-    /** 批量识别历史收银台交易，避免为每条动作单单独查询。 */
+    /**
+     * 批量识别历史收银台交易，避免为每条动作单单独查询。
+     */
     private void enrichAccessTypes(List<TransactionOperationResponse> rows) {
         List<String> unresolvedTransactionIds = rows.stream()
                 .filter(row -> !ACCESS_TYPE_HOSTED_CHECKOUT.equals(row.getAccessType()))
@@ -1168,6 +1316,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return accumulator.toResponse();
     }
 
+    /**
+     * 将交易订单转换为管理端摘要。
+     */
     private TransactionOrderSummaryResponse orderSummary(TransactionPageQuery query) {
         OrderSummaryAccumulator accumulator = new OrderSummaryAccumulator();
         jdbcTemplate.query("""
@@ -1205,6 +1356,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return accumulator.toResponse();
     }
 
+    /**
+     * 构建交易订单查询条件 SQL。
+     */
     private String orderWhereSql(TransactionPageQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND merchant_id = :merchantId");
@@ -1222,6 +1376,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建交易动作查询条件 SQL。
+     */
     private String operationWhereSql(TransactionPageQuery query, String paymentTable) {
         StringBuilder sql = new StringBuilder(" AND o.transaction_date_time >= :beginTime AND o.transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND o.merchant_id = :merchantId");
@@ -1253,6 +1410,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建渠道交互日志查询条件 SQL。
+     */
     private String channelLogWhereSql(ChannelLogQuery query) {
         StringBuilder sql = new StringBuilder();
         append(sql, query.getChannelCode(), "AND l.channel_code = :channelCode");
@@ -1269,6 +1429,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建渠道回调查询条件 SQL。
+     */
     private String channelCallbackWhereSql(ChannelCallbackQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getChannelCode(), "AND channel_code = :channelCode");
@@ -1279,6 +1442,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 构建商户通知查询条件 SQL。
+     */
     private String merchantNotificationWhereSql(MerchantNotificationQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND merchant_id = :merchantId");
@@ -1287,12 +1453,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return sql.toString();
     }
 
+    /**
+     * 向当前构建结果追加非空字段。
+     */
     private void append(StringBuilder sql, String value, String fragment) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(fragment);
         }
     }
 
+    /**
+     * 构建交易订单查询参数。
+     */
     private MapSqlParameterSource orderParams(TransactionPageQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("merchantId", query.getMerchantId())
@@ -1309,6 +1481,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("settlementStatus", query.getSettlementStatus());
     }
 
+    /**
+     * 构建交易动作查询参数。
+     */
     private MapSqlParameterSource operationParams(TransactionPageQuery query) {
         return orderParams(query)
                 .addValue("sourceTransactionId", query.getSourceTransactionId())
@@ -1318,6 +1493,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("cardBinLike", StringUtils.hasText(query.getCardBin()) ? query.getCardBin() + "%" : null);
     }
 
+    /**
+     * 构建渠道交互日志查询参数。
+     */
     private MapSqlParameterSource channelLogParams(ChannelLogQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("channelCode", query.getChannelCode())
@@ -1327,6 +1505,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("interactionType", query.getInteractionType());
     }
 
+    /**
+     * 构建渠道回调查询参数。
+     */
     private MapSqlParameterSource channelCallbackParams(ChannelCallbackQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("channelCode", query.getChannelCode())
@@ -1336,6 +1517,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("callbackStatus", query.getCallbackStatus());
     }
 
+    /**
+     * 构建商户通知查询参数。
+     */
     private MapSqlParameterSource merchantNotificationParams(MerchantNotificationQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
                 .addValue("merchantId", query.getMerchantId())
@@ -1343,10 +1527,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("notifyStatus", query.getNotifyStatus());
     }
 
+    /**
+     * 构建交易查询基础 SQL 参数。
+     */
     private MapSqlParameterSource baseParams(LocalDateTime beginTime, LocalDateTime endTime) {
         return new MapSqlParameterSource().addValue("beginTime", beginTime).addValue("endTime", exclusiveEnd(endTime));
     }
 
+    /**
+     * 规范化输入值。
+     */
     private TransactionPageQuery normalize(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         fillDefaultTimeRange(safeQuery);
@@ -1354,6 +1544,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
+    /**
+     * 规范化输入值。
+     */
     private ChannelLogQuery normalize(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = query == null ? new ChannelLogQuery() : query;
         QueryTimeRange range = normalizeQueryTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime(), safeQuery.getQueryTimeZone());
@@ -1363,6 +1556,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
+    /**
+     * 规范化输入值。
+     */
     private ChannelCallbackQuery normalize(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = query == null ? new ChannelCallbackQuery() : query;
         QueryTimeRange range = normalizeQueryTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime(), safeQuery.getQueryTimeZone());
@@ -1372,6 +1568,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
+    /**
+     * 规范化输入值。
+     */
     private MerchantNotificationQuery normalize(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = query == null ? new MerchantNotificationQuery() : query;
         QueryTimeRange range = normalizeQueryTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime(), safeQuery.getQueryTimeZone());
@@ -1381,12 +1580,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return applyResultRowBudget(safeQuery);
     }
 
-    /** 将所有管理端交易分页请求收敛到版本化规则声明的单次结果行数上限。 */
+    /**
+     * 将所有管理端交易分页请求收敛到版本化规则声明的单次结果行数上限。
+     */
     private <T extends PageRequest> T applyResultRowBudget(T query) {
         query.setPageSize((int) Math.min(query.safePageSize(), maxResultRows));
         return query;
     }
 
+    /**
+     * 规范化交易查询时间范围并回填存储时区值。
+     */
     private void fillDefaultTimeRange(TransactionPageQuery query) {
         QueryTimeRange range = normalizeQueryTimeRange(query.getBeginTime(), query.getEndTime(), query.getQueryTimeZone());
         query.setBeginTime(range.beginTime());
@@ -1394,6 +1598,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         query.setQueryTimeZone(range.queryTimeZone());
     }
 
+    /**
+     * 将管理端查询时间转换到交易存储时区并限制在有效节点范围内。
+     */
     private QueryTimeRange normalizeQueryTimeRange(LocalDateTime beginTime, LocalDateTime endTime, String queryTimeZone) {
         ZoneId queryZone = resolveQueryZone(queryTimeZone);
         LocalDateTime safeEnd = endTime == null ? LocalDateTime.now(queryZone) : endTime;
@@ -1410,14 +1617,26 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 queryZone.getId());
     }
 
+    /**
+     * 判断规范化后的查询时间范围是否为空。
+     */
     private boolean isEmptyTimeRange(LocalDateTime beginTime, LocalDateTime endTime) {
         return beginTime != null && endTime != null && beginTime.isAfter(endTime);
     }
 
+    /**
+     * 构建保持分页参数的空分页结果。
+     */
     private <T> PageResult<T> emptyPage(PageRequest query) {
         return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
     }
 
+    /**
+     * 解析管理端查询时区，空值使用默认时区，非法时区返回参数错误。
+     *
+     * @param queryTimeZone IANA 时区或受支持的 UTC/GMT 偏移写法
+     * @return 已校验的时区
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : DEFAULT_QUERY_TIME_ZONE;
         try {
@@ -1427,6 +1646,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
+    /**
+     * 规范化并校验时区标识。
+     */
     private String normalizeZoneId(String zone) {
         String normalized = zone == null ? DEFAULT_QUERY_TIME_ZONE : zone.trim();
         String upper = normalized.toUpperCase(Locale.ROOT);
@@ -1447,11 +1669,22 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return normalized;
     }
 
+    /**
+     * 在保持同一时间点的前提下将本地时间从源时区换算到目标时区。
+     *
+     * @param sourceTime 源时区本地时间
+     * @param sourceZone 源时区
+     * @param targetZone 目标时区
+     * @return 目标时区本地时间
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         ZonedDateTime source = sourceTime.atZone(sourceZone);
         return source.withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
+    /**
+     * 规范化商户响应编码。
+     */
     private void normalizeMerchantResponseCode(TransactionPageQuery query) {
         if (!StringUtils.hasText(query.getMerchantResponseCode())) {
             return;
@@ -1468,6 +1701,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         query.setTransactionStatus(mappedStatus);
     }
 
+    /**
+     * 将受支持的商户响应编码映射为平台交易状态筛选值。
+     */
     private String resolveStatusByMerchantResponseCode(String code) {
         if (!StringUtils.hasText(code)) {
             return null;
@@ -1494,6 +1730,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return null;
     }
 
+    /**
+     * 创建订单映射器。
+     */
     private RowMapper<TransactionOrderResponse> orderMapper() {
         return (rs, rowNum) -> {
             TransactionOrderResponse row = new TransactionOrderResponse();
@@ -1548,6 +1787,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
+    /**
+     * 创建动作映射器。
+     */
     private RowMapper<TransactionOperationResponse> operationMapper(boolean joinedPaymentInfo) {
         return (rs, rowNum) -> {
             TransactionOperationResponse row = new TransactionOperationResponse();
@@ -1605,13 +1847,183 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
-    /** 将支付核心可信请求来源映射为管理端接入类型。 */
+    /**
+     * 将支付核心可信请求来源映射为管理端接入类型。
+     */
     private String resolveAccessType(String requestSource) {
         return ACCESS_TYPE_HOSTED_CHECKOUT.equalsIgnoreCase(requestSource)
                 ? ACCESS_TYPE_HOSTED_CHECKOUT
                 : ACCESS_TYPE_DIRECT_API;
     }
 
+    /**
+     * 映射管理端渠道交互日志及其关联的渠道请求结果。
+     *
+     * @return 渠道交互日志行映射器
+     */
+    private RowMapper<ChannelInteractionLogResponse> channelInteractionLogMapper() {
+        return (resultSet, rowNumber) -> {
+            ChannelInteractionLogResponse response = new ChannelInteractionLogResponse();
+            response.setId(resultSet.getString("id"));
+            response.setInteractionLogId(resultSet.getString("interaction_log_id"));
+            response.setRequestId(resultSet.getString("request_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setChannelCode(resultSet.getString("channel_code"));
+            response.setInteractionType(resultSet.getString("interaction_type"));
+            response.setHttpMethod(resultSet.getString("http_method"));
+            response.setRequestUrlMasked(resultSet.getString("request_url_masked"));
+            response.setHttpStatus(nullableInt(resultSet, "http_status"));
+            response.setRequestHeaderJsonMasked(resultSet.getString("request_header_json_masked"));
+            response.setRequestBodyJsonMasked(resultSet.getString("request_body_json_masked"));
+            response.setResponseHeaderJsonMasked(resultSet.getString("response_header_json_masked"));
+            response.setResponseBodyJsonMasked(resultSet.getString("response_body_json_masked"));
+            response.setExceptionType(resultSet.getString("exception_type"));
+            response.setExceptionMessage(resultSet.getString("exception_message"));
+            response.setDurationMillis(nullableInt(resultSet, "duration_millis"));
+            response.setTraceId(resultSet.getString("trace_id"));
+            response.setInteractionTime(localDateTime(resultSet, "interaction_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            response.setTransactionType(resultSet.getString("transaction_type"));
+            response.setRequestStatus(resultSet.getString("request_status"));
+            response.setGatewayResult(resultSet.getString("gateway_result"));
+            response.setGatewayCode(resultSet.getString("gateway_code"));
+            response.setAcquirerCode(resultSet.getString("acquirer_code"));
+            response.setAcquirerMessage(resultSet.getString("acquirer_message"));
+            response.setChannelTradeStatus(resultSet.getString("channel_trade_status"));
+            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
+            response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setPlatformResultCode(resultSet.getString("platform_result_code"));
+            response.setPlatformFailReason(resultSet.getString("platform_fail_reason"));
+            response.setChannelResponseCode(resultSet.getString("channel_response_code"));
+            response.setChannelResponseMessage(resultSet.getString("channel_response_message"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射管理端渠道回调处理记录。
+     *
+     * @return 渠道回调记录行映射器
+     */
+    private RowMapper<ChannelCallbackResponse> channelCallbackMapper() {
+        return (resultSet, rowNumber) -> {
+            ChannelCallbackResponse response = new ChannelCallbackResponse();
+            response.setId(resultSet.getString("id"));
+            response.setCallbackId(resultSet.getString("callback_id"));
+            response.setCallbackLogId(resultSet.getString("callback_log_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setChannelCode(resultSet.getString("channel_code"));
+            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
+            response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setCallbackType(resultSet.getString("callback_type"));
+            response.setChannelEventType(resultSet.getString("channel_event_type"));
+            response.setCallbackStatus(resultSet.getString("callback_status"));
+            response.setIdempotencyKey(resultSet.getString("idempotency_key"));
+            response.setSignatureValid(nullableBoolean(resultSet, "signature_valid"));
+            response.setIpAllowed(nullableBoolean(resultSet, "ip_allowed"));
+            response.setParsedTransactionStatus(resultSet.getString("parsed_transaction_status"));
+            response.setPreviousTransactionStatus(resultSet.getString("previous_transaction_status"));
+            response.setTargetTransactionStatus(resultSet.getString("target_transaction_status"));
+            response.setProcessResult(resultSet.getString("process_result"));
+            response.setFailReason(resultSet.getString("fail_reason"));
+            response.setCallbackReceivedTime(localDateTime(resultSet, "callback_received_time"));
+            response.setProcessedTime(localDateTime(resultSet, "processed_time"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setVersion(nullableInt(resultSet, "version"));
+            response.setDeleted(nullableBoolean(resultSet, "deleted"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            response.setUpdateTime(localDateTime(resultSet, "update_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射管理端商户通知任务，并确保完整回调地址和明文载荷不进入响应对象。
+     *
+     * @return 商户通知任务行映射器
+     */
+    private RowMapper<MerchantNotificationResponse> merchantNotificationMapper() {
+        return (resultSet, rowNumber) -> {
+            MerchantNotificationResponse response = new MerchantNotificationResponse();
+            response.setId(resultSet.getString("id"));
+            response.setNotifyId(resultSet.getString("notify_id"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setMerchantId(resultSet.getString("merchant_id"));
+            response.setMerchantOrderNo(resultSet.getString("merchant_order_no"));
+            response.setNotifyType(resultSet.getString("notify_type"));
+            response.setEventType(resultSet.getString("event_type"));
+            response.setNotifyStatus(resultSet.getString("notify_status"));
+            response.setNotifyConfigVersion(resultSet.getString("notify_config_version"));
+            response.setTargetUrlHash(resultSet.getString("target_url_hash"));
+            response.setTargetUrlMasked(resultSet.getString("target_url_masked"));
+            response.setPayloadJsonMasked(resultSet.getString("payload_json_masked"));
+            response.setSignType(resultSet.getString("sign_type"));
+            response.setLastAttemptNo(nullableInt(resultSet, "last_attempt_no"));
+            response.setMaxRetryCount(nullableInt(resultSet, "max_retry_count"));
+            response.setNextRetryTime(localDateTime(resultSet, "next_retry_time"));
+            response.setSuccessTime(localDateTime(resultSet, "success_time"));
+            response.setFailReason(resultSet.getString("fail_reason"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            response.setVersion(nullableInt(resultSet, "version"));
+            response.setDeleted(nullableBoolean(resultSet, "deleted"));
+            response.setCreateTime(localDateTime(resultSet, "create_time"));
+            response.setUpdateTime(localDateTime(resultSet, "update_time"));
+            return response;
+        };
+    }
+
+    /**
+     * 映射商户通知单次投递日志，并补齐固定的 HTTP 方法和响应完成时间。
+     *
+     * @return 商户通知投递日志行映射器
+     */
+    private RowMapper<MerchantNotificationDeliveryLogResponse> merchantNotificationDeliveryLogMapper() {
+        return (resultSet, rowNumber) -> {
+            MerchantNotificationDeliveryLogResponse response = new MerchantNotificationDeliveryLogResponse();
+            response.setId(resultSet.getString("id"));
+            response.setNotifyLogId(resultSet.getString("notify_log_id"));
+            response.setNotifyId(resultSet.getString("notify_id"));
+            response.setCallbackEventId(resultSet.getString("callback_event_id"));
+            response.setDeliveryMode(resultSet.getString("delivery_mode"));
+            response.setTransactionId(resultSet.getString("transaction_id"));
+            response.setOperationId(resultSet.getString("operation_id"));
+            response.setMerchantId(resultSet.getString("merchant_id"));
+            response.setAttemptNo(nullableInt(resultSet, "attempt_no"));
+            response.setTargetUrlHash(resultSet.getString("target_url_hash"));
+            response.setHttpStatus(nullableInt(resultSet, "http_status"));
+            response.setRequestHeaderJsonMasked(resultSet.getString("request_header_json_masked"));
+            response.setRequestBodyJsonMasked(resultSet.getString("request_body_json_masked"));
+            response.setResponseBodyJsonMasked(resultSet.getString("response_body_json_masked"));
+            response.setSuccess(nullableBoolean(resultSet, "success"));
+            response.setErrorMessage(resultSet.getString("error_message"));
+            response.setNotifyTime(localDateTime(resultSet, "notify_time"));
+            response.setDurationMillis(nullableInt(resultSet, "duration_millis"));
+            response.setTransactionDateTime(localDateTime(resultSet, "transaction_date_time"));
+            response.setTransactionUtcTime(localDateTime(resultSet, "transaction_utc_time"));
+            response.setTransactionTimeZone(resultSet.getString("transaction_time_zone"));
+            LocalDateTime responseTime = localDateTime(resultSet, "create_time");
+            response.setCreateTime(responseTime);
+            response.setHttpMethod("POST");
+            response.setResponseTime(responseTime);
+            return response;
+        };
+    }
+
+    /**
+     * 映射按状态、支付方式或币种聚合的交易统计行。
+     *
+     * @return 交易统计行映射器
+     */
     private RowMapper<SummaryRow> summaryMapper() {
         return (rs, rowNum) -> new SummaryRow(
                 getStringIfExists(rs, "transaction_status"),
@@ -1623,7 +2035,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 rs.getBigDecimal("amount"));
     }
 
-    /** ISO 4217 辅币位属于标签币种，无法识别时保留为空，禁止静默按两位小数展示。 */
+    /**
+     * ISO 4217 辅币位属于标签币种，无法识别时保留为空，禁止静默按两位小数展示。
+     */
     private static Integer resolveLabelCurrencyExponent(String currency) {
         return IsoCurrencyResolver.resolve(currency)
                 .map(info -> info.defaultFractionDigits())
@@ -1631,6 +2045,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .orElse(null);
     }
 
+    /**
+     * 按平台交易号和精确分片时间查询单个交易动作。
+     *
+     * @param table 交易动作逻辑表
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 交易分片时间
+     * @return 交易动作，不存在时返回 {@code null}
+     */
     private TransactionOperationResponse selectOperationByTransactionId(String table,
                                                                          String transactionId,
                                                                          LocalDateTime transactionDateTime) {
@@ -1654,6 +2076,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * 按生命周期动作号和精确分片时间查询交易主单。
+     *
+     * @param table 交易主单逻辑表
+     * @param operationId 生命周期动作号
+     * @param transactionDateTime 交易分片时间
+     * @return 交易主单，不存在时返回 {@code null}
+     */
     private TransactionOrderResponse selectOrderByOperationId(String table,
                                                                String operationId,
                                                                LocalDateTime transactionDateTime) {
@@ -1670,6 +2100,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * 按生命周期动作号查询已登记时间范围内的全部交易动作。
+     *
+     * @param operationId 生命周期动作号
+     * @param beginTime 查询开始时间
+     * @param endTime 查询结束时间
+     * @return 按动作序号和动作时间排列的交易动作
+     */
     private List<TransactionOperationResponse> selectOperationsByOperationId(String operationId, LocalDateTime beginTime, LocalDateTime endTime) {
         return jdbcTemplate.query("""
                     SELECT %s,
@@ -1692,6 +2130,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                             .addValue("endTime", exclusiveEnd(endTime)), operationMapper(true));
     }
 
+    /**
+     * 按生命周期动作号读取详情页所需的动态附属记录。
+     *
+     * <p>详情抽屉需要合并多种日志表，字段集合随表类型变化，因此该内部聚合边界保留 Map；
+     * 商户通知表仍强制使用安全字段投影。</p>
+     *
+     * @param logicalTable 附属记录逻辑表
+     * @param beginTime 查询开始时间
+     * @param endTime 查询结束时间
+     * @param operationId 生命周期动作号
+     * @return lowerCamelCase 字段名的附属记录
+     */
     private List<Map<String, Object>> selectMapsByOperationId(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime, String operationId) {
         boolean softDeleteTable = hasSoftDeleteColumn(logicalTable);
         MapSqlParameterSource params = baseParams(beginTime, endTime).addValue("operationId", operationId);
@@ -1714,7 +2164,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rows;
     }
 
-    /** 补齐商户通知投递日志的固定协议字段和 HTTP 响应完成时间。 */
+    /**
+     * 补齐商户通知投递日志的固定协议字段和 HTTP 响应完成时间。
+     */
     private void decorateMerchantNotificationLogRows(List<Map<String, Object>> rows) {
         rows.forEach(row -> {
             row.put("httpMethod", "POST");
@@ -1723,7 +2175,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         });
     }
 
-    /** 返回管理端详情允许读取的字段投影。 */
+    /**
+     * 返回管理端详情允许读取的字段投影。
+     */
     private String adminDetailProjection(String logicalTable) {
         return TRANSACTION_MERCHANT_NOTIFICATION_TABLE.equals(logicalTable)
                 ? TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION
@@ -1739,7 +2193,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 : transactionLogicalReadExecutor.read(query);
     }
 
-    /** 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。 */
+    /**
+     * 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。
+     */
     private LocalDateTime exclusiveEnd(LocalDateTime endTime) {
         LocalDateTime actualEnd = endTime == null ? LocalDateTime.now() : endTime;
         return actualEnd.plusNanos(1_000_000L);
@@ -1765,15 +2221,24 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return softDeleteTable ? "deleted = 0" : "1 = 1";
     }
 
+    /**
+     * 根据页码和页大小计算安全偏移量。
+     */
     private long offset(PageRequest query) {
         return (query.safePageNo() - 1) * query.safePageSize();
     }
 
+    /**
+     * 读取时间值。
+     */
     private LocalDateTime timeValue(MapSqlParameterSource params, String key) {
         Object value = params.getValue(key);
         return value instanceof LocalDateTime localDateTime ? localDateTime : null;
     }
 
+    /**
+     * 复制当前业务对象的可修改字段。
+     */
     private MapSqlParameterSource copy(MapSqlParameterSource source) {
         MapSqlParameterSource target = new MapSqlParameterSource();
         for (String name : source.getValues().keySet()) {
@@ -1857,15 +2322,37 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return builder.toString();
     }
 
+    /**
+     * 将动态字段安全转换为可空整数。
+     */
     private Integer nullableInt(ResultSet rs, String column) throws SQLException {
         int value = rs.getInt(column);
         return rs.wasNull() ? null : value;
     }
 
+    /**
+     * 读取数据库可空布尔标志。
+     *
+     * @param resultSet 当前查询结果集
+     * @param column 数据库列名
+     * @return 数据库值为空时返回 {@code null}，否则返回布尔值
+     * @throws SQLException 读取结果集失败时抛出
+     */
+    private Boolean nullableBoolean(ResultSet resultSet, String column) throws SQLException {
+        boolean value = resultSet.getBoolean(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    /**
+     * 解析本地日期时间。
+     */
     private LocalDateTime localDateTime(ResultSet rs, String column) throws SQLException {
         return rs.getTimestamp(column) == null ? null : rs.getTimestamp(column).toLocalDateTime();
     }
 
+    /**
+     * 返回默认汇率。
+     */
     private BigDecimal defaultRate(BigDecimal rate) {
         return rate == null ? new BigDecimal("1.00000000") : rate;
     }
@@ -1935,7 +2422,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return parameters;
     }
 
-    /** 将非空白候选值规范化后加入内部模板参数，空值不会覆盖已有参数。 */
+    /**
+     * 将非空白候选值规范化后加入内部模板参数，空值不会覆盖已有参数。
+     */
     private void putIfText(Map<String, String> target, String key, String value) {
         if (StringUtils.hasText(value)) {
             target.put(key, value.trim());
@@ -1953,6 +2442,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
+    /**
+     * 读取存在时的高精度金额字段。
+     */
     private BigDecimal getBigDecimalIfExists(ResultSet rs, String column) {
         try {
             return rs.getBigDecimal(column);
@@ -1961,7 +2453,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
-    /** 将最早已登记季度转换为 ShardingSphere 可路由的半开范围起点。 */
+    /**
+     * 将最早已登记季度转换为 ShardingSphere 可路由的半开范围起点。
+     */
     private static LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
         return physicalNodes == null ? LocalDateTime.of(1970, 1, 1, 0, 0)
                 : physicalNodes.stream()
@@ -1974,9 +2468,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .orElse(LocalDateTime.of(1970, 1, 1, 0, 0));
     }
 
+    /**
+     * 封装规范化后的查询开始和结束时间。
+     */
     private record QueryTimeRange(LocalDateTime beginTime, LocalDateTime endTime, String queryTimeZone) {
     }
 
+    /**
+     * 封装交易统计摘要查询行。
+     */
     private record SummaryRow(String transactionStatus,
                               String paymentMethod,
                               String paymentBrand,
@@ -1986,6 +2486,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                               BigDecimal amount) {
     }
 
+    /**
+     * 封装交易订单摘要及其聚合字段。
+     */
     private record OrderSummaryRow(String currency,
                                    Integer currencyExponent,
                                    long totalCount,
@@ -1999,7 +2502,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                                    BigDecimal failedAmount) {
     }
 
-    /** 汇总单次分币种查询结果，避免为四类订单指标重复扫描交易主单。 */
+    /**
+     * 汇总单次分币种查询结果，避免为四类订单指标重复扫描交易主单。
+     */
     private static final class OrderSummaryAccumulator {
 
         private long totalCount;
@@ -2012,6 +2517,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         private final List<TransactionAmountSummaryResponse> capturedAmounts = new ArrayList<>();
         private final List<TransactionAmountSummaryResponse> failedAmounts = new ArrayList<>();
 
+        /**
+         * 向当前统计结果累加有效值。
+         */
         private void add(OrderSummaryRow row) {
             totalCount += row.totalCount();
             successCount += row.successCount();
@@ -2032,6 +2540,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             }
         }
 
+        /**
+         * 读取并校验高精度金额。
+         */
         private TransactionAmountSummaryResponse amount(String currency,
                                                         Integer currencyExponent,
                                                         BigDecimal value) {
@@ -2042,6 +2553,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             return response;
         }
 
+        /**
+         * 将生命周期主单统计累加结果组装为接口响应。
+         *
+         * @return 生命周期主单统计响应
+         */
         private TransactionOrderSummaryResponse toResponse() {
             TransactionOrderSummaryResponse response = new TransactionOrderSummaryResponse();
             response.setTotalCount(totalCount);
@@ -2057,23 +2573,45 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
+    /**
+     * 封装交易统计摘要的累加状态。
+     */
     private static final class SummaryAccumulator {
 
-        /** 当前筛选条件命中的交易操作单数量。 */
+        /**
+         * 当前筛选条件命中的交易操作单数量。
+         */
         private long totalCount;
-        /** 当前筛选条件中成功的交易操作单数量。 */
+        /**
+         * 当前筛选条件中成功的交易操作单数量。
+         */
         private long successCount;
-        /** 当前筛选条件中失败的交易操作单数量。 */
+        /**
+         * 当前筛选条件中失败的交易操作单数量。
+         */
         private long failedCount;
-        /** 按标签币种归集的全部标签金额，禁止跨币种相加。 */
+        /**
+         * 按标签币种归集的全部标签金额，禁止跨币种相加。
+         */
         private final Map<String, TransactionAmountSummaryResponse> amounts = new LinkedHashMap<>();
-        /** 按标签币种归集的成功交易标签金额。 */
+        /**
+         * 按标签币种归集的成功交易标签金额。
+         */
         private final Map<String, TransactionAmountSummaryResponse> successAmounts = new LinkedHashMap<>();
-        /** 按标签币种归集的失败交易标签金额。 */
+        /**
+         * 按标签币种归集的失败交易标签金额。
+         */
         private final Map<String, TransactionAmountSummaryResponse> failedAmounts = new LinkedHashMap<>();
-        /** 按支付方式和支付品牌分组，并在每组内按标签币种归集金额。 */
+        /**
+         * 按支付方式和支付品牌分组，并在每组内按标签币种归集金额。
+         */
         private final Map<String, TransactionPaymentMethodSummaryResponse> payments = new LinkedHashMap<>();
 
+        /**
+         * 将一条动作统计行累加到总数及对应交易状态的金额分组。
+         *
+         * @param row 动作统计行
+         */
         private void addAmount(SummaryRow row) {
             totalCount += row.count();
             addAmount(amounts, row);
@@ -2087,6 +2625,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             }
         }
 
+        /**
+         * 按支付方式、支付品牌和币种累加交易笔数及金额。
+         *
+         * @param row 支付方式统计行
+         */
         private void addPayment(SummaryRow row) {
             String key = (row.paymentMethod() == null ? "UNKNOWN" : row.paymentMethod()) + "|" + (row.paymentBrand() == null ? "" : row.paymentBrand());
             TransactionPaymentMethodSummaryResponse payment = payments.computeIfAbsent(key, ignored -> {
@@ -2103,6 +2646,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             payment.setAmountSummaries(new ArrayList<>(map.values()));
         }
 
+        /**
+         * 将统计行金额累加到指定币种分组。
+         *
+         * @param map 币种金额分组
+         * @param row 动作统计行
+         */
         private void addAmount(Map<String, TransactionAmountSummaryResponse> map, SummaryRow row) {
             TransactionAmountSummaryResponse amount = map.computeIfAbsent(row.currency(), ignored -> {
                 TransactionAmountSummaryResponse response = new TransactionAmountSummaryResponse();
@@ -2114,6 +2663,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             amount.setAmount(amount.getAmount().add(row.amount() == null ? BigDecimal.ZERO : row.amount()));
         }
 
+        /**
+         * 将交易动作统计累加结果组装为接口响应。
+         *
+         * @return 交易动作统计响应
+         */
         private TransactionOperationSummaryResponse toResponse() {
             TransactionOperationSummaryResponse response = new TransactionOperationSummaryResponse();
             response.setTotalCount(totalCount);

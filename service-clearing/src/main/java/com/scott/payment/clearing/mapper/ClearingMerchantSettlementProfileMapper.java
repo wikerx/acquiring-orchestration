@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingMerchantSettlementProfileMapper
- * @date : 2026-08-26 18:36
- * @email : scott_x@163.com
- * @description : 只读活动结算档案的目标币种，供保证金释放生成候选；不读取汇率、不认领批次、不写账户。
- * @status : create
+ * 只读活动结算档案的目标币种，供保证金释放生成候选；不读取汇率、不认领批次、不写账户。
  */
 public interface ClearingMerchantSettlementProfileMapper {
 

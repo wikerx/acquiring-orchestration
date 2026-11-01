@@ -4,13 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysDictDataSaveRequest
- * @date : 2026-06-19 22:18
- * @email : scott_x@163.com
- * @description : 管理后台字典项保存请求 DTO
- * @status : create
+ * 管理后台字典项保存请求 DTO
  *
  * <p>用于字典项新增和更新，字典项必须绑定已有的 dictType，
  * 同一个页面上下文中不应随意切换所属字典类型。</p>

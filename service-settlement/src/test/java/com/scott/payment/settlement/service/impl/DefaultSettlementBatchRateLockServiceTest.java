@@ -31,13 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementBatchRateLockServiceTest
- * @date : 2026-08-26 23:55
- * @email : scott_x@163.com
- * @description : 验证批次汇率完整追加回读、状态 CAS，以及已有部分矩阵绝不重新解析或补写。
- * @status : create
+ * 验证批次汇率完整追加回读、状态 CAS，以及已有部分矩阵绝不重新解析或补写。
  */
 class DefaultSettlementBatchRateLockServiceTest {
 
@@ -54,7 +48,9 @@ class DefaultSettlementBatchRateLockServiceTest {
         service = new DefaultSettlementBatchRateLockService(batchMapper, rateMapper, resolutionService);
     }
 
-    /** 空矩阵必须一次解析并完整回读，随后才能进入 RATE_LOCKED。 */
+    /**
+     * 空矩阵必须一次解析并完整回读，随后才能进入 RATE_LOCKED。
+     */
     @Test
     void shouldInsertReadBackAndLockCompleteMatrix() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 0);
@@ -89,7 +85,9 @@ class DefaultSettlementBatchRateLockServiceTest {
         verify(batchMapper).markRateLocked(batch.getSettlementBatchNo(), "worker-1", 4L, now);
     }
 
-    /** 已存在任意但不完整的矩阵必须进入人工复核语义，禁止使用新的估值时间补齐。 */
+    /**
+     * 已存在任意但不完整的矩阵必须进入人工复核语义，禁止使用新的估值时间补齐。
+     */
     @Test
     void shouldRejectPartialStoredMatrixWithoutResolvingAgain() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 0);

@@ -8,13 +8,7 @@ import com.scott.payment.component.core.model.PageResult;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSecurityInterceptEventService
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 安全拦截事件后台服务接口，位于 service-admin 服务层，负责脱敏安全事件查询和人工处理状态维护。
- * @status : create
+ * 安全拦截事件后台服务接口，位于 service-admin 服务层，负责脱敏安全事件查询和人工处理状态维护。
  */
 public interface AdminSecurityInterceptEventService {
 

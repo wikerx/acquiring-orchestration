@@ -6,13 +6,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundApprovalResultDTO
- * @date : 2026-08-06 15:30
- * @email : scott_x@163.com
- * @description : Payment 内部退款审批结果，仅返回 Admin 刷新当前行所需的审批事实。
- * @status : create
+ * Payment 内部退款审批结果，仅返回 Admin 刷新当前行所需的审批事实。
  */
 @Data
 public class RefundApprovalResultDTO implements Serializable {
@@ -29,10 +23,6 @@ public class RefundApprovalResultDTO implements Serializable {
     private String approvalId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
      */
     private String refundTransactionId;
     /**

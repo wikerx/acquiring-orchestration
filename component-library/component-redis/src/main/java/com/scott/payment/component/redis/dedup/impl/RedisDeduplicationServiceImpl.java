@@ -17,13 +17,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisDeduplicationServiceImpl
- * @date : 2026-05-31 22:10
- * @email : scott_x@163.com
- * @description : Redis 去重服务实现
- * @status : create
+ * Redis 去重服务实现
  */
 @Service
 @ConditionalOnBean(StringRedisTemplate.class)

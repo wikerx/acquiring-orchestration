@@ -15,13 +15,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminOperLogServiceImplTests
- * @date : 2026-07-30 18:35
- * @email : scott_x@163.com
- * @description : 验证管理端操作日志只把有业务幂等键的唯一冲突视为 MQ 重复消费
- * @status : create
+ * 验证管理端操作日志只把有业务幂等键的唯一冲突视为 MQ 重复消费
  */
 @Slf4j
 class AdminOperLogServiceImplTests {

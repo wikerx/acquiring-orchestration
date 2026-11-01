@@ -16,13 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import static com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentResponseFactory.from;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPaymentController
- * @date : 2026-07-14 12:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 一步支付 V1 控制器，仅暴露支付接口并统一走加密、验签和防重放链路。
- * @status : create
+ * 商户 OpenAPI 一步支付 V1 控制器，仅暴露支付接口并统一走加密、验签和防重放链路。
  */
 @ApiVersion(apiVersion = 1)
 @RestController

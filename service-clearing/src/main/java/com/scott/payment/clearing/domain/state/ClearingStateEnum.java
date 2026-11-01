@@ -4,30 +4,40 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingStateEnum
- * @date : 2026-08-26 08:28
- * @email : scott_x@163.com
- * @description : 动作级清分权威状态机；CLEARED和NOT_REQUIRED终态不可逆，人工复核只允许显式人工重试。
- * @status : create
+ * 动作级清分权威状态机；CLEARED和NOT_REQUIRED终态不可逆，人工复核只允许显式人工重试。
  */
 public enum ClearingStateEnum {
-    /** 尚未接收可处理的终态事件。 */
+    /**
+     * 尚未接收可处理的终态事件。
+     */
     NOT_CLEARED,
-    /** 已接收终态事件并等待领取。 */
+    /**
+     * 已接收终态事件并等待领取。
+     */
     PENDING,
-    /** 已由一个实例持有有期限的处理租约。 */
+    /**
+     * 已由一个实例持有有期限的处理租约。
+     */
     PROCESSING,
-    /** 源支付、请款、结算费用结果或保证金事实尚未完成。 */
+    /**
+     * 源支付、请款、结算费用结果或保证金事实尚未完成。
+     */
     WAITING_SOURCE,
-    /** 可重试技术或数据可见性失败。 */
+    /**
+     * 可重试技术或数据可见性失败。
+     */
     FAILED,
-    /** 配置冲突、金额风险或重试耗尽，需人工处理。 */
+    /**
+     * 配置冲突、金额风险或重试耗尽，需人工处理。
+     */
     MANUAL_REVIEW,
-    /** 已形成当前修订全部交易与保证金清分事实。 */
+    /**
+     * 已形成当前修订全部交易与保证金清分事实。
+     */
     CLEARED,
-    /** 经规则确认本动作不产生任何清分事实。 */
+    /**
+     * 经规则确认本动作不产生任何清分事实。
+     */
     NOT_REQUIRED;
 
     /**
@@ -47,11 +57,18 @@ public enum ClearingStateEnum {
         return automaticTargets().contains(target);
     }
 
-    /** @return 是否为不可逆清分完成状态 */
+    /**
+     * 判断当前状态是否为不可逆的清分完成终态。
+     *
+     * @return 是否为不可逆清分完成状态
+     */
     public boolean isCompletedTerminal() {
         return this == CLEARED || this == NOT_REQUIRED;
     }
 
+    /**
+     * 返回当前状态在自动处理来源下允许到达的目标状态集合。
+     */
     private Set<ClearingStateEnum> automaticTargets() {
         return switch (this) {
             case NOT_CLEARED -> EnumSet.of(PENDING);

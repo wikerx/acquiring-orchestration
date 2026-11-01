@@ -14,9 +14,20 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 大批量手动交易或保证金结算预审的冻结范围、进度和候选游标数据访问。 */
+/**
+ * 大批量手动交易或保证金结算预审的冻结范围、进度和候选游标数据访问。
+ */
 public interface SettlementManualReviewTaskMapper {
 
+    /**
+     * 查询资料；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param profileId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             SELECT profile.id AS settlement_profile_id, profile.merchant_id,
                    profile.settlement_account_id, account.account_no AS settlement_account_no,
@@ -48,6 +59,11 @@ public interface SettlementManualReviewTaskMapper {
     SettlementManualReviewProfileDO selectProfile(@Param("profileId") Long profileId,
                                                    @Param("merchantId") String merchantId);
 
+    /**
+     * 统计{@code countActiveByProfile}，返回分页、扫描或报表汇总所需的数量结果。
+     * @param profileId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Select("""
             SELECT COUNT(1)
             FROM settlement_manual_review_task
@@ -56,6 +72,15 @@ public interface SettlementManualReviewTaskMapper {
             """)
     int countActiveByProfile(@Param("profileId") Long profileId);
 
+    /**
+     * 查询{@code selectBlockingManualReviewBatch}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param profileId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param reviewType 待检查的普通交易或保证金释放预审类型
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             SELECT *
             FROM settlement_batch
@@ -69,6 +94,15 @@ public interface SettlementManualReviewTaskMapper {
     SettlementBatchDO selectBlockingManualReviewBatch(@Param("profileId") Long profileId,
                                                        @Param("reviewType") String reviewType);
 
+    /**
+     * 查询{@code selectLastPostedCutoffEnd}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param profileId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param reviewType 用于隔离普通交易和保证金释放批次的预审类型
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             SELECT COALESCE(MAX(cutoff_end_time), TIMESTAMP('1970-01-01 00:00:00'))
             FROM settlement_batch
@@ -79,6 +113,21 @@ public interface SettlementManualReviewTaskMapper {
     LocalDateTime selectLastPostedCutoffEnd(@Param("profileId") Long profileId,
                                             @Param("reviewType") String reviewType);
 
+    /**
+     * 查询{@code selectSnapshotMaxCandidateId}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param profileId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param targetCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param businessDate 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param cutoffEndTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param reviewType 普通交易或保证金释放预审类型
+     * @param paymentType 可选支付业务类型筛选条件
+     * @param paymentMethod 可选支付方式筛选条件
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             <script>
             SELECT candidate.id
@@ -129,6 +178,22 @@ public interface SettlementManualReviewTaskMapper {
                                       @Param("paymentType") String paymentType,
                                       @Param("paymentMethod") String paymentMethod);
 
+    /**
+     * 查询{@code selectPreviewLines}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param profileId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param targetCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param businessDate 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param cutoffEndTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param maxCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param reviewType 普通交易或保证金释放预审类型
+     * @param paymentType 可选支付业务类型筛选条件
+     * @param paymentMethod 可选支付方式筛选条件
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             <script>
             SELECT preview.*
@@ -228,6 +293,14 @@ public interface SettlementManualReviewTaskMapper {
             @Param("paymentType") String paymentType,
             @Param("paymentMethod") String paymentMethod);
 
+    /**
+     * 创建{@code insertIdempotent}，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 写操作；实现必须沿用 结算服务 既有权限、幂等键、唯一约束和事务边界。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 写入、更新或删除后的处理结果
+     */
     @Insert("""
             INSERT INTO settlement_manual_review_task
             (task_no, request_key, review_order_no, review_type, merchant_id, settlement_profile_id,
@@ -253,18 +326,58 @@ public interface SettlementManualReviewTaskMapper {
             """)
     int insertIdempotent(SettlementManualReviewTaskDO row);
 
+    /**
+     * 查询{@code selectByRequestKeyForUpdate}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param requestKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("SELECT * FROM settlement_manual_review_task WHERE request_key = #{requestKey} LIMIT 1 FOR UPDATE")
     SettlementManualReviewTaskDO selectByRequestKeyForUpdate(@Param("requestKey") String requestKey);
 
+    /**
+     * 查询{@code selectByTaskNo}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param taskNo 可恢复手动结算任务号
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("SELECT * FROM settlement_manual_review_task WHERE task_no = #{taskNo} LIMIT 1")
     SettlementManualReviewTaskDO selectByTaskNo(@Param("taskNo") String taskNo);
 
+    /**
+     * 查询{@code selectByTaskNoForUpdate}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param taskNo 待加锁读取的手动结算任务号
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("SELECT * FROM settlement_manual_review_task WHERE task_no = #{taskNo} LIMIT 1 FOR UPDATE")
     SettlementManualReviewTaskDO selectByTaskNoForUpdate(@Param("taskNo") String taskNo);
 
+    /**
+     * 查询按提交请求密钥；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param requestKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("SELECT * FROM settlement_manual_review_task WHERE submit_request_key = #{requestKey} LIMIT 1")
     SettlementManualReviewTaskDO selectBySubmitRequestKey(@Param("requestKey") String requestKey);
 
+    /**
+     * 使用提交幂等键和预期版本将预览任务推进到待处理状态。
+     * @param taskNo 待启动的手动结算任务号
+     * @param requestKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param expectedVersion 调用方读取到的任务版本，防止并发启动覆盖
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET submit_request_key = #{requestKey}, task_status = 'QUEUED', next_retry_time = #{now},
@@ -274,6 +387,14 @@ public interface SettlementManualReviewTaskMapper {
     int start(@Param("taskNo") String taskNo, @Param("requestKey") String requestKey,
               @Param("expectedVersion") long expectedVersion, @Param("now") LocalDateTime now);
 
+    /**
+     * 查询{@code selectNextDueForUpdate}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             SELECT * FROM settlement_manual_review_task
             WHERE task_status IN ('QUEUED', 'PROCESSING', 'CANCELLING')
@@ -283,6 +404,15 @@ public interface SettlementManualReviewTaskMapper {
             """)
     SettlementManualReviewTaskDO selectNextDueForUpdate(@Param("now") LocalDateTime now);
 
+    /**
+     * 通过版本和过期租约条件领取到期任务，取消中的任务保持补偿状态。
+     * @param taskNo 待领取的手动结算任务号
+     * @param version 乐观锁预期版本，防止并发节点重复领取
+     * @param owner 当前任务租约持有者
+     * @param deadline 本次处理租约截止时间
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET task_status = CASE WHEN task_status = 'CANCELLING' THEN 'CANCELLING' ELSE 'PROCESSING' END,
@@ -296,6 +426,15 @@ public interface SettlementManualReviewTaskMapper {
                        @Param("owner") String owner, @Param("deadline") LocalDateTime deadline,
                        @Param("now") LocalDateTime now);
 
+    /**
+     * 查询{@code selectNextCandidatesForUpdate}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param task 已加锁读取的任务快照，限定候选范围和处理游标
+     * @param limit 分页或扫描窗口参数，用于限制单次查询范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             <script>
             SELECT candidate.*
@@ -337,6 +476,14 @@ public interface SettlementManualReviewTaskMapper {
     List<SettlementCandidateDO> selectNextCandidatesForUpdate(
             @Param("task") SettlementManualReviewTaskDO task, @Param("limit") int limit);
 
+    /**
+     * 查询{@code selectCurrencies}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 结算服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param task 任务快照，限定候选范围和所需币种集合
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     @Select("""
             <script>
             SELECT currency, MAX(currency_exponent) AS currency_exponent
@@ -413,6 +560,16 @@ public interface SettlementManualReviewTaskMapper {
             """)
     List<SettlementManualReviewCurrencyDO> selectCurrencies(@Param("task") SettlementManualReviewTaskDO task);
 
+    /**
+     * 提交本段候选锁定进度并释放节点租约；仅当前 owner 和版本匹配时更新。
+     * @param taskNo 正在处理的手动结算任务号
+     * @param version 乐观锁预期版本
+     * @param owner 当前任务租约持有者
+     * @param count 本段成功锁定的候选数量
+     * @param lastCandidateId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET processed_candidate_count = processed_candidate_count + #{count},
@@ -427,6 +584,13 @@ public interface SettlementManualReviewTaskMapper {
                 @Param("owner") String owner, @Param("count") int count,
                 @Param("lastCandidateId") long lastCandidateId, @Param("now") LocalDateTime now);
 
+    /**
+     * 在锁定数量与快照候选数量一致时进入结果固化阶段。
+     * @param taskNo 待固化结果的手动结算任务号
+     * @param version 乐观锁预期版本
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET task_status = 'FINALIZING', processing_owner = NULL, processing_deadline = NULL,
@@ -437,6 +601,13 @@ public interface SettlementManualReviewTaskMapper {
     int markFinalizing(@Param("taskNo") String taskNo, @Param("version") long version,
                        @Param("now") LocalDateTime now);
 
+    /**
+     * 将完成结果固化的任务推进到完成终态。
+     * @param taskNo 待完成的手动结算任务号
+     * @param version 乐观锁预期版本
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET task_status = 'COMPLETED', completed_time = #{now}, processing_owner = NULL,
@@ -446,6 +617,15 @@ public interface SettlementManualReviewTaskMapper {
     int markCompleted(@Param("taskNo") String taskNo, @Param("version") long version,
                       @Param("now") LocalDateTime now);
 
+    /**
+     * 对没有候选锁定副作用的失败任务直接写入失败终态。
+     * @param taskNo 待终止的手动结算任务号
+     * @param version 乐观锁预期版本
+     * @param failureCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param failureMessage 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET task_status = 'FAILED', retry_count = retry_count + 1,
@@ -460,6 +640,16 @@ public interface SettlementManualReviewTaskMapper {
                    @Param("failureMessage") String failureMessage,
                    @Param("now") LocalDateTime now);
 
+    /**
+     * 记录可重试失败并将任务重新排入指定执行时间。
+     * @param taskNo 待重新调度的手动结算任务号
+     * @param version 乐观锁预期版本
+     * @param failureCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param failureMessage 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param nextRetryTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET task_status = 'QUEUED', retry_count = retry_count + 1,
@@ -475,6 +665,15 @@ public interface SettlementManualReviewTaskMapper {
                    @Param("nextRetryTime") LocalDateTime nextRetryTime,
                    @Param("now") LocalDateTime now);
 
+    /**
+     * 将已有候选锁定副作用的失败任务转入补偿状态，等待释放候选。
+     * @param taskNo 待补偿的手动结算任务号
+     * @param version 乐观锁预期版本
+     * @param failureCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param failureMessage 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET task_status = 'CANCELLING', retry_count = retry_count + 1,
@@ -489,6 +688,14 @@ public interface SettlementManualReviewTaskMapper {
                                  @Param("failureMessage") String failureMessage,
                                  @Param("now") LocalDateTime now);
 
+    /**
+     * 在候选释放完成后将补偿任务推进到失败终态。
+     * @param taskNo 已完成候选释放的手动结算任务号
+     * @param version 乐观锁预期版本
+     * @param owner 当前补偿任务租约持有者
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Update("""
             UPDATE settlement_manual_review_task
             SET task_status = 'FAILED', completed_time = #{now}, processing_owner = NULL,

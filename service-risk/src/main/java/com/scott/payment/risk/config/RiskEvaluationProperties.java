@@ -4,13 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationProperties
- * @date : 2026-07-30 23:05
- * @email : scott_x@163.com
- * @description : 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界
- * @status : update
+ * 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界
  */
 @Data
 @ConfigurationProperties(prefix = "risk.evaluation")

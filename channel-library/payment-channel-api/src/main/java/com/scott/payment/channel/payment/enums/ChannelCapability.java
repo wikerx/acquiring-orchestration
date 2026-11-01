@@ -3,13 +3,7 @@ package com.scott.payment.channel.payment.enums;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCapability
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道capability枚举，位于 渠道适配库，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
- * @status : create
+ * 渠道capability枚举，位于 渠道适配库，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  */
 @Getter
 public enum ChannelCapability {

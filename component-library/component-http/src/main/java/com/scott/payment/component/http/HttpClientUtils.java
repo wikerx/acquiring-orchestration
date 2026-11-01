@@ -9,13 +9,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HttpClientUtils
- * @date : 2026-05-28 11:25
- * @email : scott_x@163.com
- * @description : Hutool HTTP 请求工具
- * @status : create
+ * Hutool HTTP 请求工具
  */
 public final class HttpClientUtils {
 

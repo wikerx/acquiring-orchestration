@@ -8,7 +8,9 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 全额释放保证金状态修复和只读后检合同。 */
+/**
+ * 全额释放保证金状态修复和只读后检合同。
+ */
 class SettlementReserveStatusRepairSqlContractTest {
 
     @Test

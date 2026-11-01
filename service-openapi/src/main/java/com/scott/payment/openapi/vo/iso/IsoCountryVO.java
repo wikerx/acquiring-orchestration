@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCountryVO
- * @date : 2026-06-03 15:08
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 国家地区响应参数
- * @status : create
+ * 商户 OpenAPI 国家地区响应参数
  */
 @Data
 public class IsoCountryVO implements Serializable {

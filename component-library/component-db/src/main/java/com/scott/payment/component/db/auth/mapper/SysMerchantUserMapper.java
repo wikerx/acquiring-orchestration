@@ -6,13 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysMerchantUserMapper
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : Sys Merchant User Mapper 映射组件，位于 公共组件库，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
- * @status : create
+ * Sys Merchant User Mapper 映射组件，位于 公共组件库，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  */
 @Mapper
 public interface SysMerchantUserMapper extends BaseMapper<SysMerchantUserDO> {

@@ -25,20 +25,16 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutGatewayIngressFilterTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Gateway 为收银台路由覆盖外部伪造头并签发可信入口凭证。
- * @status : create
+ * 验证 Gateway 为收银台路由覆盖外部伪造头并签发可信入口凭证。
  */
 class CheckoutGatewayIngressFilterTests {
 
     private static final long NOW = 1786176000000L;
     private static final String SECRET = "0123456789abcdef0123456789abcdef";
 
-    /** 受保护请求必须覆盖客户端伪造头并生成可由下游验证的签名。 */
+    /**
+     * 受保护请求必须覆盖客户端伪造头并生成可由下游验证的签名。
+     */
     @Test
     void shouldReplaceSpoofedHeadersWithGatewaySignature() {
         CheckoutGatewayIngressFilter filter = filter(SECRET);
@@ -107,7 +103,9 @@ class CheckoutGatewayIngressFilterTests {
                 "198.51.100.21", SECRET), signature);
     }
 
-    /** 空正文也必须替换为可安全转发的 Publisher，避免下游再次订阅已消费的 Servlet 请求流。 */
+    /**
+     * 空正文也必须替换为可安全转发的 Publisher，避免下游再次订阅已消费的 Servlet 请求流。
+     */
     @Test
     void shouldReplayEmptyProtectedBodyWithoutResubscribingOriginalBody() {
         AtomicInteger subscriptions = new AtomicInteger();
@@ -161,7 +159,9 @@ class CheckoutGatewayIngressFilterTests {
                 exchange.getResponse().getBodyAsString().block());
     }
 
-    /** 非收银台路由不签名，但仍清除客户端伪造的内部入口头。 */
+    /**
+     * 非收银台路由不签名，但仍清除客户端伪造的内部入口头。
+     */
     @Test
     void shouldStripSpoofedHeadersOutsideCheckoutRoutes() {
         CheckoutGatewayIngressFilter filter = filter(SECRET);
@@ -180,7 +180,9 @@ class CheckoutGatewayIngressFilterTests {
         assertNull(forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CALLER));
     }
 
-    /** 管理端和商户端路由也必须由 Gateway 覆盖内部头并签名。 */
+    /**
+     * 管理端和商户端路由也必须由 Gateway 覆盖内部头并签名。
+     */
     @Test
     void shouldSignPortalRouteWithServerResolvedClientIp() {
         CheckoutGatewayIngressFilter filter = filter(SECRET);
@@ -202,7 +204,9 @@ class CheckoutGatewayIngressFilterTests {
                 forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CALLER));
     }
 
-    /** 收银台入口未配置强密钥时必须由 Gateway 失败关闭。 */
+    /**
+     * 收银台入口未配置强密钥时必须由 Gateway 失败关闭。
+     */
     @Test
     void shouldFailClosedWhenGatewaySecretIsMissing() {
         CheckoutGatewayIngressFilter filter = filter("");

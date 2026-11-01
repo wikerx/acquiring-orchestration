@@ -75,7 +75,9 @@ class PaymentChannelCallbackProtocolRegistryTests {
                                 .isEqualTo(ChannelCallbackVerificationException.Reason.ALGORITHM_UNSUPPORTED));
     }
 
-    /** 无签名渠道在主动查询确认链路落地前必须失败关闭，不能仅凭回调正文推进交易。 */
+    /**
+     * 无签名渠道在主动查询确认链路落地前必须失败关闭，不能仅凭回调正文推进交易。
+     */
     @Test
     void shouldFailClosedForUnsignedProtocolUntilActiveQueryIsImplemented() {
         PaymentChannelCallbackProtocolRegistry registry =

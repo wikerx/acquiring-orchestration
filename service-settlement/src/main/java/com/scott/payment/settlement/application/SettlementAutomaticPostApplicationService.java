@@ -33,13 +33,21 @@ public class SettlementAutomaticPostApplicationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(
             SettlementAutomaticPostApplicationService.class);
 
-    /** 结算候选主库 Mapper；用于在正式建批前锁定真实 READY 锚点，字段不含敏感信息。 */
+    /**
+     * 结算候选主库 Mapper；用于在正式建批前锁定真实 READY 锚点，字段不含敏感信息。
+     */
     private final SettlementCandidateMapper candidateMapper;
-    /** 结算批次创建领域服务；由数据库请求唯一键和日序列保证批次身份幂等。 */
+    /**
+     * 结算批次创建领域服务；由数据库请求唯一键和日序列保证批次身份幂等。
+     */
     private final SettlementBatchCreationService batchCreationService;
-    /** 批量候选认领服务；在同一 transaction 主库事务中执行候选 CAS 和封批。 */
+    /**
+     * 批量候选认领服务；在同一 transaction 主库事务中执行候选 CAS 和封批。
+     */
     private final SettlementCandidateBulkClaimService bulkClaimService;
-    /** 批次状态命令编排；仅用于极端空认领兜底取消并记录系统操作审计。 */
+    /**
+     * 批次状态命令编排；仅用于极端空认领兜底取消并记录系统操作审计。
+     */
     private final SettlementBatchCommandApplicationService batchCommandService;
 
     /**
@@ -151,7 +159,9 @@ public class SettlementAutomaticPostApplicationService {
                 + ":" + businessDate + ":" + anchorId + ":V" + anchorVersion;
     }
 
-    /** 要求自动正式批次锚点候选主键有效。 */
+    /**
+     * 要求自动正式批次锚点候选主键有效。
+     */
     private long requireAnchor(Long value) {
         if (value == null || value <= 0) {
             throw new IllegalStateException("settlement automatic post anchor candidate id is invalid");
@@ -159,7 +169,9 @@ public class SettlementAutomaticPostApplicationService {
         return value;
     }
 
-    /** 要求自动正式批次锚点携带非负 CAS 版本。 */
+    /**
+     * 要求自动正式批次锚点携带非负 CAS 版本。
+     */
     private long requireVersion(Long value) {
         if (value == null || value < 0) {
             throw new IllegalStateException("settlement automatic post anchor candidate version is invalid");
@@ -167,7 +179,9 @@ public class SettlementAutomaticPostApplicationService {
         return value;
     }
 
-    /** 校验目标币种 exponent 在平台支持范围内。 */
+    /**
+     * 校验目标币种 exponent 在平台支持范围内。
+     */
     private int requireExponent(Integer value) {
         if (value == null || value < 0 || value > 8) {
             throw new IllegalStateException("settlement automatic post target currency exponent is invalid");

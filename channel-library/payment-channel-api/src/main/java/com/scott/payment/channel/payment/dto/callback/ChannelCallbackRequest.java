@@ -7,13 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelCallbackRequest
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 渠道回调统一请求，位于 payment-channel-api DTO 层，用于承载渠道回调原文、请求头和来源信息；原文进入日志或落库前必须加密或脱敏。
- * @status : create
+ * 渠道回调统一请求，位于 payment-channel-api DTO 层，用于承载渠道回调原文、请求头和来源信息；原文进入日志或落库前必须加密或脱敏。
  */
 @Data
 public class ChannelCallbackRequest implements Serializable {

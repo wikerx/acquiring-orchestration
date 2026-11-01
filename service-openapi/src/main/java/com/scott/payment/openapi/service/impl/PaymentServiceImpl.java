@@ -35,13 +35,7 @@ import java.net.URI;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentServiceImpl
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 支付交易服务实现，位于 商户开放接口服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 编排商户支付类请求转换、内部支付调用和公开结果投影，不直接修改支付核心状态。
  */
 @Service
 @Slf4j
@@ -66,11 +60,6 @@ public class PaymentServiceImpl implements PaymentService {
      * 浏览器 User-Agent 请求头。
      */
     private static final String USER_AGENT = "User-Agent";
-
-    /**
-     * 日志摘要最大字符数。
-     */
-    private static final int MAX_LOG_SUMMARY_LENGTH = 1600;
 
     /**
      * 这里仅用于日志输出目标服务和路径；实际调用契约由 PaymentInternalRestClient 执行。
@@ -152,7 +141,9 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
-    /** 商户回调地址环境安全策略。 */
+    /**
+     * 商户回调地址环境安全策略。
+     */
     private final HostedCheckoutUrlPolicy urlPolicy;
 
     /**
@@ -390,14 +381,14 @@ public class PaymentServiceImpl implements PaymentService {
         PaymentCreateClientRequestDTO clientRequestDTO = toPaymentClientRequest(encryptedData, requestDTO, OpenApiPaymentOperationEnum.QUERY);
         logOpenApiPaymentSubmitStart(encryptedData, requestDTO, OpenApiPaymentOperationEnum.QUERY, clientRequestDTO);
         PaymentQueryVO responseVO = converter.toPaymentQueryVO(requestDTO, paymentInternalClient.query(clientRequestDTO));
-        log.info("OpenAPI交易查询提交完成, event: OPENAPI_PAYMENT_SUBMIT_END, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, sourceTransactionId: {}, transactionType: {}, responseSummary: {}, durationMs: {}",
+        log.info("OpenAPI交易查询提交完成, event: OPENAPI_PAYMENT_SUBMIT_END, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, sourceTransactionId: {}, transactionType: {}, responsePayloadMetadata: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                 requestContext.getRequiredMerchantId(),
                 resolveMerchantOrderNo(requestDTO),
                 requestDTO == null || requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getSourceTransactionId(),
                 OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
-                responseSummary(responseVO),
+                payloadMetadata(responseVO),
                 elapsedMillis(startNanos));
         return responseVO;
     }
@@ -484,8 +475,8 @@ public class PaymentServiceImpl implements PaymentService {
     /**
      * 记录 OpenAPI 进入 payment 调用前的配置和请求摘要。
      * <p>
-     * 日志覆盖商户号、订单号、交易类型、金额币种、目标服务地址、请求密文指纹和明文脱敏摘要；
-     * 不输出完整密文、卡号、CVV、JWT 或内部服务签名密钥。
+     * 日志覆盖商户号、订单号、交易类型、金额币种、目标服务地址、请求密文指纹和请求对象元数据；
+     * 不输出完整密文、解密后的业务字段、卡号、CVV、JWT 或内部服务签名密钥。
      * </p>
      * @param encryptedData 商户请求 data 密文或请求体
      * @param requestDTO 解密后的商户请求
@@ -498,7 +489,7 @@ public class PaymentServiceImpl implements PaymentService {
                                               PaymentCreateClientRequestDTO clientRequestDTO) {
         String targetUrl = paymentTargetUrl(operation);
         URI targetUri = targetUrl == null ? null : URI.create(targetUrl);
-        log.info("OpenAPI交易提交开始, event: OPENAPI_PAYMENT_SUBMIT_START, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, merchantOrderId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, targetService: {}, targetPath: {}, requestFingerprint: {}, cipherMasked: {}, openApiPath: {}, apiVersion: {}, interfaceType: {}, requestSource: {}, cipherRequestSummary: {}, plainRequestSummary: {}",
+        log.info("OpenAPI交易提交开始, event: OPENAPI_PAYMENT_SUBMIT_START, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, merchantOrderId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, targetService: {}, targetPath: {}, requestFingerprint: {}, cipherMasked: {}, openApiPath: {}, apiVersion: {}, interfaceType: {}, requestSource: {}, cipherRequestSummary: {}, requestPayloadMetadata: {}",
                 TraceContext.getTraceId(),
                 operation.getTransactionType(),
                 requestContext.getRequiredMerchantId(),
@@ -517,7 +508,7 @@ public class PaymentServiceImpl implements PaymentService {
                 requestAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
                 requestSourceSummary(clientRequestDTO),
                 requestAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY),
-                plainRequestSummary(requestDTO));
+                payloadMetadata(requestDTO));
     }
 
     /**
@@ -533,7 +524,7 @@ public class PaymentServiceImpl implements PaymentService {
                                             PaymentCreateVO responseVO,
                                             long startNanos) {
         PaymentCreateVO.TransactionInfoVO transactionInfo = responseVO == null ? null : responseVO.getTransactionInfo();
-        log.info("OpenAPI交易提交完成, event: OPENAPI_PAYMENT_SUBMIT_END, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, sourceTransactionId: {}, transactionType: {}, platformStatus: {}, responseSummary: {}, durationMs: {}",
+        log.info("OpenAPI交易提交完成, event: OPENAPI_PAYMENT_SUBMIT_END, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, sourceTransactionId: {}, transactionType: {}, platformStatus: {}, responsePayloadMetadata: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 operation.getTransactionType(),
                 requestContext.getRequiredMerchantId(),
@@ -542,7 +533,7 @@ public class PaymentServiceImpl implements PaymentService {
                 transactionInfo == null ? null : transactionInfo.getSourceTransactionId(),
                 transactionInfo == null ? operation.getTransactionType() : transactionInfo.getTransactionType(),
                 responseVO == null ? null : responseVO.getStatus(),
-                responseSummary(responseVO),
+                payloadMetadata(responseVO),
                 elapsedMillis(startNanos));
     }
 
@@ -585,6 +576,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     /**
      * 拼接日志展示用 service-payment URL，真实调用入口仍由内部客户端按服务发现处理。
+     *
+     * @param path service-payment 内部接口路径
+     * @return 日志展示使用的完整服务地址
      */
     private String servicePaymentUrl(String path) {
         return SERVICE_PAYMENT_BASE_URL + path;
@@ -597,14 +591,15 @@ public class PaymentServiceImpl implements PaymentService {
      * @return 请求来源摘要 JSON
      */
     private String requestSourceSummary(PaymentCreateClientRequestDTO clientRequestDTO) {
-        java.util.Map<String, Object> summary = new java.util.LinkedHashMap<>();
         if (clientRequestDTO != null) {
-            summary.put("openApiRequestPath", clientRequestDTO.getOpenApiRequestPath());
-            summary.put("openApiRequestTime", clientRequestDTO.getOpenApiRequestTime());
-            summary.put("ingressClientIpHash", fingerprint(clientRequestDTO.getIngressClientIp()));
-            summary.put("payerIpHash", fingerprint(clientRequestDTO.getPayerIp()));
-            summary.put("sourceUrl", maskUrl(clientRequestDTO.getSourceUrl()));
-            summary.put("userAgent", truncate(clientRequestDTO.getUserAgent(), 160));
+            RequestSourceDiagnosticSummary summary = new RequestSourceDiagnosticSummary(
+                    clientRequestDTO.getOpenApiRequestPath(),
+                    clientRequestDTO.getOpenApiRequestTime(),
+                    fingerprint(clientRequestDTO.getIngressClientIp()),
+                    fingerprint(clientRequestDTO.getPayerIp()),
+                    fingerprint(clientRequestDTO.getSourceUrl()),
+                    fingerprint(clientRequestDTO.getUserAgent())
+            );
             return JsonUtils.toJsonString(summary);
         }
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -614,12 +609,16 @@ public class PaymentServiceImpl implements PaymentService {
         HttpServletRequest request = attributes.getRequest();
         Object headerAttribute = request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         OpenApiRequestHeaderDTO headerDTO = headerAttribute instanceof OpenApiRequestHeaderDTO value ? value : null;
-        summary.put("openApiRequestPath", resolveRequestPath());
-        summary.put("ingressClientIpHash", fingerprint(headerDTO == null ? null : headerDTO.getClientIp()));
-        summary.put("sourceUrl", maskUrl(StringUtils.hasText(request.getHeader(ORIGIN))
-                ? request.getHeader(ORIGIN)
-                : request.getHeader(REFERER)));
-        summary.put("userAgent", truncate(request.getHeader(USER_AGENT), 160));
+        RequestSourceDiagnosticSummary summary = new RequestSourceDiagnosticSummary(
+                resolveRequestPath(),
+                null,
+                fingerprint(headerDTO == null ? null : headerDTO.getClientIp()),
+                null,
+                fingerprint(StringUtils.hasText(request.getHeader(ORIGIN))
+                        ? request.getHeader(ORIGIN)
+                        : request.getHeader(REFERER)),
+                fingerprint(request.getHeader(USER_AGENT))
+        );
         return JsonUtils.toJsonString(summary);
     }
 
@@ -635,23 +634,22 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * 生成商户请求明文脱敏摘要。
+     * 生成不包含商户业务字段的请求对象元数据。
      *
      * @param requestDTO 解密后的商户请求
-     * @return 脱敏摘要
+     * @return 对象类型、JSON 长度和不可逆摘要
      */
-    private String plainRequestSummary(ApiMerchantPaymentRequestDTO requestDTO) {
-        return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO)), MAX_LOG_SUMMARY_LENGTH);
-    }
-
-    /**
-     * 生成响应脱敏摘要。
-     *
-     * @param responseVO OpenAPI 响应对象
-     * @return 脱敏摘要
-     */
-    private String responseSummary(Object responseVO) {
-        return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(responseVO)), MAX_LOG_SUMMARY_LENGTH);
+    private String payloadMetadata(Object requestDTO) {
+        if (requestDTO == null) {
+            return null;
+        }
+        String json = JsonUtils.toJsonString(requestDTO);
+        PayloadDiagnosticMetadata metadata = new PayloadDiagnosticMetadata(
+                requestDTO.getClass().getSimpleName(),
+                json.length(),
+                fingerprint(json)
+        );
+        return JsonUtils.toJsonString(metadata);
     }
 
     /**
@@ -741,7 +739,12 @@ public class PaymentServiceImpl implements PaymentService {
                 : request.getHeader(USER_AGENT));
     }
 
-    /** 对日志中的 IP 等可识别值生成不可逆摘要，空值不生成固定摘要。 */
+    /**
+     * 对日志中的 IP 等可识别值生成不可逆摘要，空值不生成固定摘要。
+     *
+     * @param value 待摘要的可识别文本
+     * @return 不可逆摘要；输入为空时返回 null
+     */
     private String fingerprint(String value) {
         return StringUtils.hasText(value) ? keyMaterialFactory.fingerprint(value.trim()) : null;
     }
@@ -749,7 +752,7 @@ public class PaymentServiceImpl implements PaymentService {
     /**
      * 解析当前 OpenAPI 请求路径，用于后台商户请求日志定位接口入口。
      *
-     * @return 请求 URI，无法获取上下文时返回 null
+     * @return 不含查询参数的请求 URI，无法获取上下文时返回 null
      */
     private String resolveRequestPath() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -757,27 +760,7 @@ public class PaymentServiceImpl implements PaymentService {
             return null;
         }
         HttpServletRequest request = attributes.getRequest();
-        String queryString = request.getQueryString();
-        return StringUtils.hasText(queryString) ? request.getRequestURI() + "?" + queryString : request.getRequestURI();
-    }
-
-    /**
-     * 脱敏 URL 查询参数。
-     * <p>
-     * OpenAPI 日志只保留 URL scheme、host、path 和查询参数名，不输出 callbackUrl 或来源地址中的 query 值。
-     * </p>
-     * @param url 原始 URL
-     * @return 脱敏 URL
-     */
-    private String maskUrl(String url) {
-        if (!StringUtils.hasText(url)) {
-            return null;
-        }
-        int queryIndex = url.indexOf('?');
-        if (queryIndex < 0) {
-            return url;
-        }
-        return url.substring(0, queryIndex) + "?...";
+        return request.getRequestURI();
     }
 
     /**
@@ -788,20 +771,6 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
-    }
-
-    /**
-     * 截断日志摘要。
-     *
-     * @param value 原始文本
-     * @param maxLength 最大长度
-     * @return 截断后文本
-     */
-    private String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength) + "...";
     }
 
     /**
@@ -819,6 +788,35 @@ public class PaymentServiceImpl implements PaymentService {
             return "***";
         }
         return normalized.substring(0, 8) + "***" + normalized.substring(normalized.length() - 8);
+    }
+
+    /**
+     * 承载 OpenAPI 请求来源的不可逆诊断字段，不保存客户端原始网络标识。
+     *
+     * @param openApiRequestPath OpenAPI 请求路径
+     * @param openApiRequestTime OpenAPI 接收时间
+     * @param ingressClientIpHash 入口客户端 IP 摘要
+     * @param payerIpHash 付款方 IP 摘要
+     * @param sourceUrlHash 来源页面摘要
+     * @param userAgentHash User-Agent 摘要
+     */
+    private record RequestSourceDiagnosticSummary(
+            String openApiRequestPath,
+            LocalDateTime openApiRequestTime,
+            String ingressClientIpHash,
+            String payerIpHash,
+            String sourceUrlHash,
+            String userAgentHash) {
+    }
+
+    /**
+     * 承载解密后请求对象的不可逆元数据，不保存商户业务字段值。
+     *
+     * @param payloadType 请求对象类型
+     * @param jsonLength 序列化字符数
+     * @param jsonDigest 序列化内容摘要
+     */
+    private record PayloadDiagnosticMetadata(String payloadType, int jsonLength, String jsonDigest) {
     }
 
 }

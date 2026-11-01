@@ -10,13 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementCandidateMapper
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 结算候选 Mapper；锁定清分交接行、核验依赖并以 READY、真实模式、配置和版本条件独占认领。
- * @status : create
+ * 结算候选 Mapper；锁定清分交接行、核验依赖并以 READY、真实模式、配置和版本条件独占认领。
  */
 public interface SettlementCandidateMapper {
 
@@ -128,14 +122,15 @@ public interface SettlementCandidateMapper {
               AND NOT EXISTS (
                     SELECT 1
                     FROM settlement_candidate_dependency dependency
-                    INNER JOIN settlement_candidate required_candidate
-                            ON required_candidate.id = dependency.depends_on_candidate_id
+                    LEFT JOIN settlement_candidate required_candidate
+                           ON required_candidate.id = dependency.depends_on_candidate_id
                     WHERE dependency.candidate_id = candidate.id
-                      AND NOT (
-                            required_candidate.candidate_status = 'POSTED'
-                            OR (required_candidate.candidate_status = 'CLAIMED'
-                                AND required_candidate.settlement_batch_no = #{settlementBatchNo})
-                      )
+                      AND (required_candidate.id IS NULL
+                           OR NOT (
+                                required_candidate.candidate_status = 'POSTED'
+                                OR (required_candidate.candidate_status = 'CLAIMED'
+                                    AND required_candidate.settlement_batch_no = #{settlementBatchNo})
+                           ))
               )
             ORDER BY candidate.id ASC
             LIMIT #{limit}
@@ -190,10 +185,11 @@ public interface SettlementCandidateMapper {
               AND NOT EXISTS (
                     SELECT 1
                     FROM settlement_candidate_dependency dependency
-                    INNER JOIN settlement_candidate required_candidate
-                            ON required_candidate.id = dependency.depends_on_candidate_id
+                    LEFT JOIN settlement_candidate required_candidate
+                           ON required_candidate.id = dependency.depends_on_candidate_id
                     WHERE dependency.candidate_id = candidate.id
-                      AND required_candidate.candidate_status != 'POSTED'
+                      AND (required_candidate.id IS NULL
+                           OR required_candidate.candidate_status != 'POSTED')
               )
             ORDER BY candidate.id ASC
             LIMIT 1
@@ -209,7 +205,9 @@ public interface SettlementCandidateMapper {
             @Param("businessDate") java.time.LocalDate businessDate,
             @Param("cutoffEndTime") LocalDateTime cutoffEndTime);
 
-    /** 按主键升序锁定人工选择的候选，所有校验和 CAS 均在同一主库事务内完成。 */
+    /**
+     * 按主键升序锁定人工选择的候选，所有校验和 CAS 均在同一主库事务内完成。
+     */
     @Select("""
             <script>
             SELECT *
@@ -224,7 +222,9 @@ public interface SettlementCandidateMapper {
             """)
     List<SettlementCandidateDO> selectByIdsForUpdate(@Param("candidateIds") List<Long> candidateIds);
 
-    /** 将页面携带版本的同维度 READY 候选原子锁入预审单。 */
+    /**
+     * 将页面携带版本的同维度 READY 候选原子锁入预审单。
+     */
     @Update("""
             <script>
             UPDATE settlement_candidate
@@ -254,7 +254,9 @@ public interface SettlementCandidateMapper {
                       @Param("settlementProfileId") Long settlementProfileId,
                       @Param("lockedTime") LocalDateTime lockedTime);
 
-    /** 审批通过时将仍被该预审单独占的候选消费为正式批次认领。 */
+    /**
+     * 审批通过时将仍被该预审单独占的候选消费为正式批次认领。
+     */
     @Update("""
             <script>
             UPDATE settlement_candidate
@@ -280,7 +282,9 @@ public interface SettlementCandidateMapper {
                           @Param("settlementBatchNo") String settlementBatchNo,
                           @Param("claimedTime") LocalDateTime claimedTime);
 
-    /** 拒绝、取消或过期只释放仍属于该预审单且版本未变化的候选。 */
+    /**
+     * 拒绝、取消或过期只释放仍属于该预审单且版本未变化的候选。
+     */
     @Update("""
             <script>
             UPDATE settlement_candidate
@@ -305,43 +309,55 @@ public interface SettlementCandidateMapper {
                           @Param("reviewOrderNo") String reviewOrderNo,
                           @Param("releasedTime") LocalDateTime releasedTime);
 
-    /** 预审候选的依赖必须已入账，或与依赖方一起进入同一预审单。 */
+    /**
+     * 预审候选的依赖必须已入账，或与依赖方一起进入同一预审单。
+     */
     @Select("""
             <script>
             SELECT COUNT(1)
             FROM settlement_candidate_dependency dependency
-            INNER JOIN settlement_candidate required_candidate
-                    ON required_candidate.id = dependency.depends_on_candidate_id
+            LEFT JOIN settlement_candidate required_candidate
+                   ON required_candidate.id = dependency.depends_on_candidate_id
             WHERE dependency.candidate_id IN
             <foreach collection="candidateIds" item="candidateId" open="(" separator="," close=")">
                 #{candidateId}
             </foreach>
-              AND required_candidate.candidate_status != 'POSTED'
-              AND required_candidate.id NOT IN
+              AND (required_candidate.id IS NULL
+                   OR (required_candidate.candidate_status != 'POSTED'
+                       AND required_candidate.id NOT IN
             <foreach collection="candidateIds" item="candidateId" open="(" separator="," close=")">
                 #{candidateId}
             </foreach>
+                   ))
             </script>
             """)
     long countUnresolvedReviewDependencies(@Param("candidateIds") List<Long> candidateIds);
 
+    /**
+     * 统计{@code countUnresolvedDependenciesOutsideReview}，返回分页、扫描或报表汇总所需的数量结果。
+     * @param reviewOrderNo 结算预审单号或冲正单号，用于定位唯一业务单据
+     * @return 当前方法计算的数量、版本或状态数值
+     */
     @Select("""
             SELECT COUNT(1)
             FROM settlement_candidate_dependency dependency
-            INNER JOIN settlement_candidate required_candidate
-                    ON required_candidate.id = dependency.depends_on_candidate_id
+            LEFT JOIN settlement_candidate required_candidate
+                   ON required_candidate.id = dependency.depends_on_candidate_id
             INNER JOIN settlement_review_candidate selected
                     ON selected.candidate_id = dependency.candidate_id
                    AND selected.review_order_no = #{reviewOrderNo}
             LEFT JOIN settlement_review_candidate required_selected
                    ON required_selected.candidate_id = dependency.depends_on_candidate_id
                   AND required_selected.review_order_no = #{reviewOrderNo}
-            WHERE required_candidate.candidate_status != 'POSTED'
-              AND required_selected.id IS NULL
+            WHERE required_candidate.id IS NULL
+               OR (required_candidate.candidate_status != 'POSTED'
+                   AND required_selected.id IS NULL)
             """)
     long countUnresolvedDependenciesOutsideReview(@Param("reviewOrderNo") String reviewOrderNo);
 
-    /** 批量认领已锁定候选；每个 OR 分支都校验主键、version、配置和真实 READY 状态。 */
+    /**
+     * 批量认领已锁定候选；每个 OR 分支都校验主键、version、配置和真实 READY 状态。
+     */
     @Update("""
             <script>
             UPDATE settlement_candidate
@@ -371,7 +387,9 @@ public interface SettlementCandidateMapper {
                    @Param("settlementProfileId") Long settlementProfileId,
                    @Param("claimedTime") LocalDateTime claimedTime);
 
-    /** 按候选主键锁行，锁顺序固定在批次锁之后。 */
+    /**
+     * 按候选主键锁行，锁顺序固定在批次锁之后。
+     */
     @Select("""
             SELECT *
             FROM settlement_candidate
@@ -387,14 +405,15 @@ public interface SettlementCandidateMapper {
     @Select("""
             SELECT COUNT(1)
             FROM settlement_candidate_dependency dependency
-            INNER JOIN settlement_candidate required_candidate
-                    ON required_candidate.id = dependency.depends_on_candidate_id
+            LEFT JOIN settlement_candidate required_candidate
+                   ON required_candidate.id = dependency.depends_on_candidate_id
             WHERE dependency.candidate_id = #{candidateId}
-              AND NOT (
-                    required_candidate.candidate_status = 'POSTED'
-                    OR (required_candidate.candidate_status = 'CLAIMED'
-                        AND required_candidate.settlement_batch_no = #{settlementBatchNo})
-                  )
+              AND (required_candidate.id IS NULL
+                   OR NOT (
+                        required_candidate.candidate_status = 'POSTED'
+                        OR (required_candidate.candidate_status = 'CLAIMED'
+                            AND required_candidate.settlement_batch_no = #{settlementBatchNo})
+                   ))
             """)
     long countUnresolvedDependencies(@Param("candidateId") Long candidateId,
                                      @Param("settlementBatchNo") String settlementBatchNo);
@@ -423,7 +442,9 @@ public interface SettlementCandidateMapper {
               @Param("expectedVersion") Long expectedVersion,
               @Param("claimedTime") LocalDateTime claimedTime);
 
-    /** 批次进入人工复核时只迁移该批仍为 CLAIMED 的候选，保留批次归属和审计链。 */
+    /**
+     * 批次进入人工复核时只迁移该批仍为 CLAIMED 的候选，保留批次归属和审计链。
+     */
     @Update("""
             UPDATE settlement_candidate
             SET candidate_status = 'MANUAL_REVIEW',
@@ -436,7 +457,9 @@ public interface SettlementCandidateMapper {
     int markBatchManualReview(@Param("settlementBatchNo") String settlementBatchNo,
                               @Param("now") LocalDateTime now);
 
-    /** 人工批准重试汇率锁定时恢复本批全部人工复核候选，不改变批次归属。 */
+    /**
+     * 人工批准重试汇率锁定时恢复本批全部人工复核候选，不改变批次归属。
+     */
     @Update("""
             UPDATE settlement_candidate
             SET candidate_status = 'CLAIMED',
@@ -449,7 +472,9 @@ public interface SettlementCandidateMapper {
     int restoreManualReviewBatch(@Param("settlementBatchNo") String settlementBatchNo,
                                  @Param("now") LocalDateTime now);
 
-    /** 资金提交后将本批全部 CLAIMED 候选原子迁移到 POSTED。 */
+    /**
+     * 资金提交后将本批全部 CLAIMED 候选原子迁移到 POSTED。
+     */
     @Update("""
             UPDATE settlement_candidate
             SET candidate_status = 'POSTED',
@@ -463,7 +488,9 @@ public interface SettlementCandidateMapper {
     int markBatchPosted(@Param("settlementBatchNo") String settlementBatchNo,
                         @Param("now") LocalDateTime now);
 
-    /** 入账前取消后将本批 CLAIMED 候选释放为 READY，保留清分修订不变。 */
+    /**
+     * 入账前取消后将本批 CLAIMED 候选释放为 READY，保留清分修订不变。
+     */
     @Update("""
             UPDATE settlement_candidate
             SET candidate_status = 'READY',

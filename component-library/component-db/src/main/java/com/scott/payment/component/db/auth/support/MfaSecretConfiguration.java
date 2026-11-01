@@ -8,21 +8,19 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MfaSecretConfiguration
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : MFA 主密钥启动门禁，位于认证数据支撑层；只对持有 MFA 数据的 Admin/Merchant 服务强制校验环境密钥并初始化加密组件。
- * @status : create
+ * MFA 主密钥启动门禁，位于认证数据支撑层；只对持有 MFA 数据的 Admin/Merchant 服务强制校验环境密钥并初始化加密组件。
  */
 @Configuration(proxyBeanMethods = false)
 public class MfaSecretConfiguration implements InitializingBean {
 
-    /** 需要在启动阶段完成 MFA 主密钥初始化的固定服务身份；非敏感且不可为空。 */
+    /**
+     * 需要在启动阶段完成 MFA 主密钥初始化的固定服务身份；非敏感且不可为空。
+     */
     private static final Set<String> MFA_SERVICE_NAMES = Set.of("service-admin", "service-merchant");
 
-    /** Spring 运行环境，只读取服务身份、活动 profile 和 MFA 密钥配置；对象不可为空。 */
+    /**
+     * Spring 运行环境，只读取服务身份、活动 profile 和 MFA 密钥配置；对象不可为空。
+     */
     private final Environment environment;
 
     /**
@@ -34,6 +32,10 @@ public class MfaSecretConfiguration implements InitializingBean {
         this.environment = environment;
     }
 
+    /**
+     * 在启用 MFA 的服务启动时校验密钥配置，阻止缺少或使用弱默认密钥的实例接收流量。
+     * 非 MFA 服务不执行该校验，避免公共数据库组件要求无关服务配置认证密钥。
+     */
     @Override
     public void afterPropertiesSet() {
         if (!MFA_SERVICE_NAMES.contains(environment.getProperty("spring.application.name", ""))) {

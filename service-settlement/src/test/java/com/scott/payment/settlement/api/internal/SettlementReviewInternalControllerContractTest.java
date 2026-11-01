@@ -35,13 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewInternalControllerContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证预审命令只暴露在版本化内部边界并完整接收可信操作人快照。
- * @status : create
+ * 验证预审命令只暴露在版本化内部边界并完整接收可信操作人快照。
  */
 class SettlementReviewInternalControllerContractTest {
 

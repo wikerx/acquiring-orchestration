@@ -13,10 +13,16 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 验证风控 Mapper 注解 SQL 参数均显式声明 MyBatis 参数名。
+ */
 class RiskRuntimeMapperParameterContractTests {
 
     private static final Pattern SQL_PARAMETER = Pattern.compile("[#$]\\{\\s*([A-Za-z_][A-Za-z0-9_]*)");
 
+    /**
+     * 验证每个注解 SQL 方法参数都使用 Param 注解固定绑定名称。
+     */
     @Test
     void shouldDeclareEveryAnnotatedSqlParameterWithMyBatisParam() {
         for (Method method : RiskRuntimeMapper.class.getDeclaredMethods()) {

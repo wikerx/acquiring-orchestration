@@ -9,13 +9,70 @@ package com.scott.payment.component.core.openapi.result;
  */
 public final class OpenApiTransactionResultProjector {
 
+    /**
+     * {@code CHANNEL_RESULT_UNKNOWN}常量，统一 {@code OpenApiTransactionResultProjector} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CHANNEL_RESULT_UNKNOWN = "CHANNEL_RESULT_UNKNOWN";
+    /**
+     * {@code CHANNEL_DECLINED}常量，统一 {@code OpenApiTransactionResultProjector} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CHANNEL_DECLINED = "CHANNEL_DECLINED";
+    /**
+     * {@code RISK_REJECTED}常量，统一 {@code OpenApiTransactionResultProjector} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RISK_REJECTED = "RISK_REJECTED";
+    /**
+     * {@code STATE_TRANSITION_DENIED}常量，统一 {@code OpenApiTransactionResultProjector} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String STATE_TRANSITION_DENIED = "STATE_TRANSITION_DENIED";
+    /**
+     * 渠道请求失败常量，统一 {@code OpenApiTransactionResultProjector} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * </p>
+     */
     private static final String CHANNEL_REQUEST_FAILED = "CHANNEL_REQUEST_FAILED";
+    /**
+     * {@code CHANNEL_REQUEST_NOT_SENT}常量，统一 {@code OpenApiTransactionResultProjector} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * </p>
+     */
     private static final String CHANNEL_REQUEST_NOT_SENT = "CHANNEL_REQUEST_NOT_SENT";
+    /**
+     * 渠道超时常量，统一 {@code OpenApiTransactionResultProjector} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CHANNEL_TIMEOUT = "CHANNEL_TIMEOUT";
+    /**
+     * {@code CHANNEL_RESPONSE_INVALID}，用于定位 {@code OpenApiTransactionResultProjector} 关联的上游配置、渠道、账号、角色或业务记录。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
+     * </p>
+     */
     private static final String CHANNEL_RESPONSE_INVALID = "CHANNEL_RESPONSE_INVALID";
 
     private OpenApiTransactionResultProjector() {
@@ -111,7 +168,9 @@ public final class OpenApiTransactionResultProjector {
                 OpenApiResultCode.CHANNEL_CALL_UNCONFIRMED.getMessage());
     }
 
-    /** 构造不携带失败原因的正常交易状态投影。 */
+    /**
+     * 构造不携带失败原因的正常交易状态投影。
+     */
     private static OpenApiTransactionProjection successful(OpenApiResultCode resultCode) {
         return new OpenApiTransactionProjection(resultCode, null, null);
     }

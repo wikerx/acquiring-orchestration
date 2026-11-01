@@ -7,13 +7,7 @@ import com.scott.payment.settlement.entity.SettlementBatchDO;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchRateLockService
- * @date : 2026-08-26 23:20
- * @email : scott_x@163.com
- * @description : 结算批次完整汇率矩阵锁定边界；已有矩阵只允许完整复用，禁止部分补算和覆盖。
- * @status : create
+ * 结算批次完整汇率矩阵锁定边界；已有矩阵只允许完整复用，禁止部分补算和覆盖。
  */
 public interface SettlementBatchRateLockService {
 

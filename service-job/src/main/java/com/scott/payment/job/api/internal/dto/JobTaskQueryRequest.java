@@ -5,13 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskQueryRequest
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务任务Query请求对象
- * @status : create
+ * 任务任务Query请求对象
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

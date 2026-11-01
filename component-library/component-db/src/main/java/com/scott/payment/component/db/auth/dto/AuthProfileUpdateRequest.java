@@ -9,13 +9,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AuthProfileUpdateRequest
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 当前登录账号个人资料更新请求，位于 component-db 认证传输层，仅允许修改本人昵称、手机号和邮箱。
- * @status : create
+ * 当前登录账号个人资料更新请求，位于 component-db 认证传输层，仅允许修改本人昵称、手机号和邮箱。
  */
 @Data
 public class AuthProfileUpdateRequest implements Serializable {

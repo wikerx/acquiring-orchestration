@@ -28,21 +28,35 @@ import java.util.regex.Pattern;
 @Service
 public class DefaultTransactionQueryCacheService implements TransactionQueryCacheService {
 
-    /** 查询结果基础 TTL 为三天。 */
+    /**
+     * 查询结果基础 TTL 为三天。
+     */
     static final long BASE_TTL_SECONDS = Duration.ofDays(3).toSeconds();
-    /** 最多增加一天随机抖动，避免同批缓存集中失效。 */
+    /**
+     * 最多增加一天随机抖动，避免同批缓存集中失效。
+     */
     static final long MAX_JITTER_SECONDS = Duration.ofDays(1).toSeconds();
-    /** generation 比查询缓存多保留一天，确保旧代际不会在结果过期前重新生效。 */
+    /**
+     * generation 比查询缓存多保留一天，确保旧代际不会在结果过期前重新生效。
+     */
     static final Duration GENERATION_TTL = Duration.ofDays(5);
 
-    /** 缓存结构变更时升级版本，避免新旧 JSON 契约共用同一 Key。 */
+    /**
+     * 缓存结构变更时升级版本，避免新旧 JSON 契约共用同一 Key。
+     */
     private static final String CACHE_SCHEMA_VERSION = "v1";
-    /** 尚未发生失效操作的订单使用初始代际。 */
+    /**
+     * 尚未发生失效操作的订单使用初始代际。
+     */
     private static final String INITIAL_GENERATION = "0";
-    /** 未指定平台交易号时，缓存商户订单维度的查询结果。 */
+    /**
+     * 未指定平台交易号时，缓存商户订单维度的查询结果。
+     */
     private static final String ORDER_QUERY_VARIANT = "order";
 
-    /** 禁止任何请求嵌套对象把卡认证字段带入明文查询缓存。 */
+    /**
+     * 禁止任何请求嵌套对象把卡认证字段带入明文查询缓存。
+     */
     private static final Pattern FORBIDDEN_CARD_FIELD = Pattern.compile(
             "(?i)\"(?:cardNo|cardNumber|securityCode|cvv|cvc|expirationMonth|expirationYear|expiryMonth|expiryYear)\"\\s*:"
     );
@@ -62,7 +76,11 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         this.redisProperties = redisProperties;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按商户订单和查询代次读取交易缓存，未命中时回源数据库。
+     *
+     * <p>数据库回源期间若代次发生变化则放弃回填，避免状态变更后的旧结果重新进入缓存。</p>
+     */
     @Override
     public PaymentQueryResultDTO getOrLoad(PaymentCreateCommandDTO commandDTO,
                                            Supplier<PaymentQueryResultDTO> databaseLoader) {
@@ -87,7 +105,9 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         return loaded;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 原子推进商户订单查询代次，使此前生成的交易查询缓存立即失效。
+     */
     @Override
     public boolean advanceGeneration(String merchantId, String merchantOrderNo) {
         if (!StringUtils.hasText(merchantId)
@@ -108,7 +128,9 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         }
     }
 
-    /** Redis 读取、类型或 JSON 异常只造成缓存未命中。 */
+    /**
+     * Redis 读取、类型或 JSON 异常只造成缓存未命中。
+     */
     private PaymentQueryResultDTO read(RedisStringService redis, String cacheKey) {
         try {
             Object value = redis.get(cacheKey);
@@ -128,7 +150,9 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         }
     }
 
-    /** 仅当加载前后 generation 相同且 JSON 不含卡认证字段时回填。 */
+    /**
+     * 仅当加载前后 generation 相同且 JSON 不含卡认证字段时回填。
+     */
     private void writeIfGenerationUnchanged(RedisStringService redis,
                                             PaymentCreateCommandDTO commandDTO,
                                             String expectedGeneration,
@@ -156,7 +180,9 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         }
     }
 
-    /** 读取当前订单 generation；不存在使用零，Redis 异常返回 null 触发数据库降级。 */
+    /**
+     * 读取当前订单 generation；不存在使用零，Redis 异常返回 null 触发数据库降级。
+     */
     private String currentGeneration(RedisStringService redis, String merchantId, String merchantOrderNo) {
         try {
             Object value = redis.get(generationKey(merchantId, merchantOrderNo));
@@ -168,6 +194,9 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         }
     }
 
+    /**
+     * 构建交易查询缓存键。
+     */
     private String queryCacheKey(PaymentCreateCommandDTO commandDTO, String generation) {
         String transactionId = commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getTransactionId();
@@ -184,6 +213,9 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         );
     }
 
+    /**
+     * 构建代次键。
+     */
     private String generationKey(String merchantId, String merchantOrderNo) {
         return redisProperties.businessKey(
                 "payment",
@@ -194,12 +226,18 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         );
     }
 
+    /**
+     * 判断交易查询结果是否允许写入缓存。
+     */
     private boolean cacheable(PaymentCreateCommandDTO commandDTO) {
         return commandDTO != null
                 && StringUtils.hasText(commandDTO.getMerchantId())
                 && StringUtils.hasText(commandDTO.getMerchantOrderNo());
     }
 
+    /**
+     * 计算带随机抖动的交易缓存过期时间。
+     */
     static Duration jitteredTransactionTtl() {
         long jitterSeconds = ThreadLocalRandom.current().nextLong(MAX_JITTER_SECONDS + 1L);
         return Duration.ofSeconds(BASE_TTL_SECONDS + jitterSeconds);

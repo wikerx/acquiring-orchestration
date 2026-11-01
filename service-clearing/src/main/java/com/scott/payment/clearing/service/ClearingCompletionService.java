@@ -6,13 +6,7 @@ import com.scott.payment.clearing.domain.model.ClearingCompletionModels.Completi
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingCompletionService
- * @date : 2026-08-26 12:00
- * @email : scott_x@163.com
- * @description : 清分 Stage B 原子提交边界，在 transaction 复合数据源同一事务中写入明细、状态、幂等和 Outbox。
- * @status : create
+ * 清分 Stage B 原子提交边界，在 transaction 复合数据源同一事务中写入明细、状态、幂等和 Outbox。
  */
 public interface ClearingCompletionService {
 

@@ -9,17 +9,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementRateQuoteMapper
- * @date : 2026-08-26 22:40
- * @email : scott_x@163.com
- * @description : 批量读取结算币种对直接和反向有效业务汇率及来源排序，禁止逐币种 N+1 查询和缺失汇率兜底。
- * @status : create
+ * 批量读取结算币种对直接和反向有效业务汇率及来源排序，禁止逐币种 N+1 查询和缺失汇率兜底。
  */
 public interface SettlementRateQuoteMapper {
 
-    /** 每个标准币种对在同一 SQL 中同时查询直接和反向报价。 */
+    /**
+     * 每个标准币种对在同一 SQL 中同时查询直接和反向报价。
+     */
     @Select("""
             <script>
             SELECT rate.id,

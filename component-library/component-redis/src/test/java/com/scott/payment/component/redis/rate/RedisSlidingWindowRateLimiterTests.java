@@ -14,7 +14,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 验证同步滑动窗口在 Redis 故障时执行明确配置的降级策略。 */
+/**
+ * 验证同步滑动窗口在 Redis 故障时执行明确配置的降级策略。
+ */
 class RedisSlidingWindowRateLimiterTests {
 
     @Test

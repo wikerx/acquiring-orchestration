@@ -4,13 +4,7 @@ import com.scott.payment.risk.api.internal.dto.RiskThreeDsPolicyRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskThreeDsPolicyResultDTO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskThreeDsPolicyService
- * @date : 2026-08-11 00:00
- * @email : scott_x@163.com
- * @description : 路由后 3DS 策略只读服务契约，与会产生预占副作用的完整支付风控评估隔离。
- * @status : create
+ * 路由后 3DS 策略只读服务契约，与会产生预占副作用的完整支付风控评估隔离。
  */
 public interface RiskThreeDsPolicyService {
 

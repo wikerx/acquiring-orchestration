@@ -60,31 +60,49 @@ import java.util.Objects;
 @Service
 public class DefaultRefundTransactionPreparationService implements RefundTransactionPreparationService {
 
-    /** 渠道请求记录号前缀；准备阶段持久化后供超时恢复、查询和回调关联。 */
+    /**
+     * 渠道请求记录号前缀；准备阶段持久化后供超时恢复、查询和回调关联。
+     */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
-    /** 平台侧渠道退款号前缀；审批后执行和失败重试必须复用同一编号。 */
+    /**
+     * 平台侧渠道退款号前缀；审批后执行和失败重试必须复用同一编号。
+     */
     private static final String CHANNEL_TRANSACTION_ID_PREFIX = "CH";
 
-    /** 交易动作幂等作用域，防止与其他业务域的同名幂等键冲突。 */
+    /**
+     * 交易动作幂等作用域，防止与其他业务域的同名幂等键冲突。
+     */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
-    /** 未显式提供交易时区时用于生成 UTC 分片时间的业务默认时区。 */
+    /**
+     * 未显式提供交易时区时用于生成 UTC 分片时间的业务默认时区。
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
-    /** Outbox 聚合类型，同一支付生命周期按 operationId 保持事件关联。 */
+    /**
+     * Outbox 聚合类型，同一支付生命周期按 operationId 保持事件关联。
+     */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
 
-    /** Outbox 初始状态，表示退款事实已落库但事件尚未成功投递。 */
+    /**
+     * Outbox 初始状态，表示退款事实已落库但事件尚未成功投递。
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
 
-    /** Outbox 最大自动投递次数，超过上限后转人工处置。 */
+    /**
+     * Outbox 最大自动投递次数，超过上限后转人工处置。
+     */
     private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
 
-    /** 新增记录的乐观锁初始版本。 */
+    /**
+     * 新增记录的乐观锁初始版本。
+     */
     private static final int INITIAL_VERSION = 0;
 
-    /** 新增记录的逻辑未删除标识。 */
+    /**
+     * 新增记录的逻辑未删除标识。
+     */
     private static final int NOT_DELETED = 0;
 
     private final IsoDictionaryService isoDictionaryService;
@@ -99,15 +117,34 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
 
     private final TransactionStateMachineService transactionStateMachineService;
 
-    /** 退款范围金额规则，严格区分原始本金全退和退完当前剩余额度。 */
+    /**
+     * 退款范围金额规则，严格区分原始本金全退和退完当前剩余额度。
+     */
     private final RefundScopeService refundScopeService;
 
-    /** 退款审批策略解释服务，默认 NONE 保持现有同步行为。 */
+    /**
+     * 退款审批策略解释服务，默认 NONE 保持现有同步行为。
+     */
     private final RefundApprovalPolicyService refundApprovalPolicyService;
 
-    /** 退款审批工作流；只有策略命中时才创建普通审批表记录。 */
+    /**
+     * 退款审批工作流；只有策略命中时才创建普通审批表记录。
+     */
     private final RefundApprovalWorkflowService refundApprovalWorkflowService;
 
+    /**
+     * 创建退款本地准备服务。
+     *
+     * @param isoDictionaryService 币种辅币位字典
+     * @param paymentChannelRouteService 原交易渠道和原 MID 恢复服务
+     * @param transactionIdempotencyService 动作幂等服务
+     * @param transactionEventOutboxService 可靠交易事件服务
+     * @param transactionRecordService 交易事实持久化服务
+     * @param transactionStateMachineService 退款金额和状态规则服务
+     * @param refundScopeService 全额、部分和剩余全额退款范围服务
+     * @param refundApprovalPolicyService 退款审批策略解释服务
+     * @param refundApprovalWorkflowService 退款审批事实和执行 Outbox 服务
+     */
     @Autowired
     public DefaultRefundTransactionPreparationService(IsoDictionaryService isoDictionaryService,
                                                       PaymentChannelRouteService paymentChannelRouteService,
@@ -298,6 +335,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
     }
 
+    /**
+     * 读取并校验原交易主单。
+     */
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         String sourceTransactionId = transactionInfoDTO.getSourceTransactionId();
@@ -311,7 +351,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return sourceOrderDO;
     }
 
-    /** 锁定原交易主单，串行化退款、请款和撤销对可退金额及生命周期状态的竞争。 */
+    /**
+     * 锁定原交易主单，串行化退款、请款和撤销对可退金额及生命周期状态的竞争。
+     */
     private TransactionOrderDO lockSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null
                 || !StringUtils.hasText(sourceOrderDO.getOperationId())
@@ -338,7 +380,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return pendingRefundAmount;
     }
 
-    /** 汇总同一生命周期内所有非终态退款金额，金额单位始终为原交易币种。 */
+    /**
+     * 汇总同一生命周期内所有非终态退款金额，金额单位始终为原交易币种。
+     */
     private BigDecimal sumNonTerminalRefundAmount(PaymentCreateCommandDTO commandDTO,
                                                   TransactionOrderDO sourceOrderDO,
                                                   LocalDateTime now) {
@@ -352,7 +396,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    /** 拒绝存在处理中撤销动作的原交易，避免退款和撤销同时消耗或释放资金状态。 */
+    /**
+     * 拒绝存在处理中撤销动作的原交易，避免退款和撤销同时消耗或释放资金状态。
+     */
     private void validateNoNonTerminalVoid(PaymentCreateCommandDTO commandDTO,
                                            TransactionOrderDO sourceOrderDO,
                                            LocalDateTime now) {
@@ -370,6 +416,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 "source transaction has a pending void action");
     }
 
+    /**
+     * 返回两个时间中的较晚值。
+     */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
             return second;
@@ -380,7 +429,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return first.isAfter(second) ? first : second;
     }
 
-    /** 仅在请求指纹一致且原记录已有交易号时复用退款幂等结果。 */
+    /**
+     * 仅在请求指纹一致且原记录已有交易号时复用退款幂等结果。
+     */
     private PaymentCreateResultDTO resolveDuplicateRefund(PaymentCreateCommandDTO commandDTO,
                                                           TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getRequestFingerprint())
@@ -395,7 +446,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return toDuplicateResult(record);
     }
 
-    /** 对原交易、退款范围、金额、币种和商户操作号生成稳定退款请求指纹。 */
+    /**
+     * 对原交易、退款范围、金额、币种和商户操作号生成稳定退款请求指纹。
+     */
     private String canonicalRefundRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                      TransactionOrderDO sourceOrderDO) {
         String sourceTransactionId = commandDTO.getTransactionInfo() == null
@@ -417,12 +470,16 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return sha256(canonical);
     }
 
-    /** 指纹文本统一去除首尾空白并转大写，避免大小写差异绕过幂等冲突检测。 */
+    /**
+     * 指纹文本统一去除首尾空白并转大写，避免大小写差异绕过幂等冲突检测。
+     */
     private String normalizeFingerprintText(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
-    /** 指纹金额去除无意义尾零，使等值退款金额命中同一幂等请求。 */
+    /**
+     * 指纹金额去除无意义尾零，使等值退款金额命中同一幂等请求。
+     */
     private String normalizeFingerprintAmount(BigDecimal amount) {
         if (amount == null) {
             return "";
@@ -430,6 +487,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return amount.stripTrailingZeros().toPlainString();
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String source) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -466,7 +526,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         commandDTO.setEdcEnabled(0);
     }
 
-    /** 按本次展示币种、请求币种、原交易展示币种、原交易币种的顺序解析商户展示币种。 */
+    /**
+     * 按本次展示币种、请求币种、原交易展示币种、原交易币种的顺序解析商户展示币种。
+     */
     private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
         if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
             return normalizeCurrency(commandDTO.getLabelCurrency());
@@ -480,7 +542,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return sourceOrderDO.getTransactionCurrency();
     }
 
-    /** 可选商户订单号一旦提供就必须与原交易一致，防止跨订单引用同一退款源交易。 */
+    /**
+     * 可选商户订单号一旦提供就必须与原交易一致，防止跨订单引用同一退款源交易。
+     */
     private void validateRefundMerchantOrderNo(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
         if (!StringUtils.hasText(commandDTO.getMerchantOrderNo())) {
             return;
@@ -490,6 +554,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         }
     }
 
+    /**
+     * 构建退款结果。
+     */
     private PaymentCreateResultDTO buildRefundResult(PaymentCreateCommandDTO commandDTO,
                                                      TransactionOrderDO sourceOrderDO,
                                                      String transactionId) {
@@ -507,6 +574,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return resultDTO;
     }
 
+    /**
+     * 构建渠道请求并补齐冻结路由身份。
+     */
     private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
                                                                   TransactionOrderDO sourceOrderDO) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
@@ -516,6 +586,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return prepared;
     }
 
+    /**
+     * 构建待提交的渠道调用结果。
+     */
     private PaymentChannelInvokeResultDTO buildPreparedInvokeResult(PaymentCreateCommandDTO commandDTO,
                                                                     PaymentRouteResultDTO routeResultDTO,
                                                                     String operationId,
@@ -548,7 +621,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return invokeResultDTO;
     }
 
-    /** 在审批或渠道调用前持久化退款动作及请求事实，供额度占用、查询和幂等重放使用。 */
+    /**
+     * 在审批或渠道调用前持久化退款动作及请求事实，供额度占用、查询和幂等重放使用。
+     */
     private void recordRefundPreparedFact(PaymentCreateCommandDTO commandDTO,
                                           TransactionOrderDO sourceOrderDO,
                                           PaymentRouteResultDTO routeResultDTO,
@@ -565,7 +640,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         transactionRecordService.recordFollowUpTransaction(recordDTO);
     }
 
-    /** 将退款创建事件写入原交易生命周期的 FIFO Outbox，审批等待状态也必须可审计。 */
+    /**
+     * 将退款创建事件写入原交易生命周期的 FIFO Outbox，审批等待状态也必须可审计。
+     */
     private void saveTransactionCreatedEvent(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId(resultDTO.getTransactionId());
@@ -608,7 +685,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         transactionEventOutboxService.save(eventDO);
     }
 
-    /** 保存退款准备或待审批结果快照，重复请求不得再次占用退款额度或调用渠道。 */
+    /**
+     * 保存退款准备或待审批结果快照，重复请求不得再次占用退款额度或调用渠道。
+     */
     private void completeIdempotency(String idempotencyKey, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         transactionIdempotencyService.complete(
                 TRANSACTION_OPERATION_SCOPE,
@@ -621,6 +700,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 JsonUtils.toJsonString(resultDTO));
     }
 
+    /**
+     * 构建幂等重复请求的返回结果。
+     */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
@@ -643,7 +725,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return resultDTO;
     }
 
-    /** 使用原交易累计金额与本次退款事实补全商户响应，不暴露渠道原始敏感载荷。 */
+    /**
+     * 使用原交易累计金额与本次退款事实补全商户响应，不暴露渠道原始敏感载荷。
+     */
     private void enrichRefundResult(PaymentCreateCommandDTO commandDTO,
                                     TransactionOrderDO sourceOrderDO,
                                     PaymentRouteResultDTO routeResultDTO,
@@ -674,6 +758,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
     }
 
+    /**
+     * 解析商户可见授权金额。
+     */
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
             return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
@@ -681,6 +768,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return sourceOrderDO.getAuthorizedAmount();
     }
 
+    /**
+     * 解析商户可见已请款金额。
+     */
     private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
             return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
@@ -688,6 +778,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return sourceOrderDO.getCapturedAmount();
     }
 
+    /**
+     * 返回首个正金额。
+     */
     private BigDecimal firstPositive(BigDecimal first, BigDecimal second) {
         if (first != null && first.compareTo(BigDecimal.ZERO) > 0) {
             return first;
@@ -695,7 +788,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return second;
     }
 
-    /** 后续动作优先使用本次回调地址，未提供时继承交易信息中的原回调地址。 */
+    /**
+     * 后续动作优先使用本次回调地址，未提供时继承交易信息中的原回调地址。
+     */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
             return commandDTO.getCallbackUrl();
@@ -706,10 +801,16 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return null;
     }
 
+    /**
+     * 补充商户可见响应字段。
+     */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
         PaymentOpenApiResultSupport.applyMerchantProjection(resultDTO);
     }
 
+    /**
+     * 返回首个非空文本。
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -722,13 +823,18 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return null;
     }
 
+    /**
+     * 解析渠道订单号。
+     */
     private String resolveChannelOrderNo(TransactionOrderDO sourceOrderDO) {
         return StringUtils.hasText(sourceOrderDO.getRootTransactionId())
                 ? sourceOrderDO.getRootTransactionId()
                 : sourceOrderDO.getLatestTransactionId();
     }
 
-    /** 按原交易币种的 ISO 4217 精度精确转换最小货币单位，超精度退款金额直接失败。 */
+    /**
+     * 按原交易币种的 ISO 4217 精度精确转换最小货币单位，超精度退款金额直接失败。
+     */
     private Long toMinorAmount(BigDecimal amount, String currency) {
         try {
             return isoDictionaryService.toMinorUnit(amount, currency);
@@ -737,6 +843,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         }
     }
 
+    /**
+     * 解析币种辅币位数。
+     */
     private int resolveCurrencyExponent(String currency) {
         IsoCurrencyInfo currencyInfo = isoDictionaryService.getCurrency(currency)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency can not be resolved"));
@@ -746,14 +855,23 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return currencyInfo.defaultFractionDigits();
     }
 
+    /**
+     * 规范化币种。
+     */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 返回无换汇场景的单位交易汇率。
+     */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
+    /**
+     * 转换为响应中的子商户信息。
+     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -776,6 +894,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         return isEmptySubMerchantInfo(target) ? null : target;
     }
 
+    /**
+     * 判断子商户信息是否为空。
+     */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || java.util.stream.Stream.of(
                 value.getSubId(),
@@ -794,6 +915,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 value.getChargeType()).allMatch(item -> !StringUtils.hasText(item));
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();

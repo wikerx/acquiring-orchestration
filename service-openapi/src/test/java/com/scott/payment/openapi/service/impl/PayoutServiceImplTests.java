@@ -19,13 +19,7 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutServiceImplTests
- * @date : 2026-10-17 14:40
- * @email : scott_x@163.com
- * @description : 验证 OpenAPI 代付请求始终转发至 service-payout，禁止生成本地模拟代付单。
- * @status : create
+ * 验证 OpenAPI 代付请求始终转发至 service-payout，禁止生成本地模拟代付单。
  */
 class PayoutServiceImplTests {
 

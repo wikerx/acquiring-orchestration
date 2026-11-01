@@ -42,13 +42,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionApplicationService
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : 商户交易应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 商户交易应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class MerchantTransactionApplicationService {
@@ -57,11 +51,30 @@ public class MerchantTransactionApplicationService {
      * 内部分页拉取大小。
      */
     private static final int EXPORT_PAGE_SIZE = 500;
-    /** 退款预览沿用支付核心非终态退款查询的状态口径。 */
+    /**
+     * 退款预览沿用支付核心非终态退款查询的状态口径。
+     */
     private static final Set<String> REFUND_IN_PROGRESS_STATUSES = Set.of("PROCESSING", "PENDING");
+    /**
+     * 退款动作类型，用于区分 {@code MerchantTransactionApplicationService} 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String REFUND_OPERATION_TYPE = "REFUND";
+    /**
+     * 成功状态，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String SUCCESS_STATUS = "SUCCESS";
-    /** 异常退出后 Redis 并发租约的最长自恢复时间。 */
+    /**
+     * 异常退出后 Redis 并发租约的最长自恢复时间。
+     */
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
 
     /**
@@ -74,7 +87,9 @@ public class MerchantTransactionApplicationService {
      */
     private static final String MERCHANT_CAPTURE_ORDER_ID_PREFIX = "MCHCP";
 
-    /** 商户后台预授权完成动作幂等号前缀。 */
+    /**
+     * 商户后台预授权完成动作幂等号前缀。
+     */
     private static final String MERCHANT_PRE_AUTH_COMPLETION_ORDER_ID_PREFIX = "MCHPA";
 
     /**
@@ -97,7 +112,9 @@ public class MerchantTransactionApplicationService {
      */
     private static final Set<String> CAPTURE_SOURCE_TYPES = Set.of("AUTHORIZATION");
 
-    /** 可作为预授权完成来源的动作类型。 */
+    /**
+     * 可作为预授权完成来源的动作类型。
+     */
     private static final Set<String> PRE_AUTH_COMPLETION_SOURCE_TYPES = Set.of("PRE_AUTHORIZATION");
 
     /**
@@ -113,9 +130,13 @@ public class MerchantTransactionApplicationService {
     private final PaymentInternalClient paymentInternalClient;
 
     private final MerchantTransactionQueryService transactionQueryService;
-    /** 交易查询和同步导出资源预算。 */
+    /**
+     * 交易查询和同步导出资源预算。
+     */
     private final TransactionShardingProperties shardingProperties;
-    /** 跨实例限制同一商户账号并发导出的 Redis 租约服务。 */
+    /**
+     * 跨实例限制同一商户账号并发导出的 Redis 租约服务。
+     */
     private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
     /**
@@ -380,7 +401,9 @@ public class MerchantTransactionApplicationService {
         return query;
     }
 
-    /** 按页读取当前商户交易并直接写入响应流，不在内存中聚合全部导出数据。 */
+    /**
+     * 按页读取当前商户交易并直接写入响应流，不在内存中聚合全部导出数据。
+     */
     private void writeOperationPages(PrintWriter writer,
                                      String merchantId,
                                      TransactionPageQuery sourceQuery,
@@ -401,7 +424,9 @@ public class MerchantTransactionApplicationService {
         }
     }
 
-    /** 在同一商户账号的集群级并发预算内执行一次同步交易导出。 */
+    /**
+     * 在同一商户账号的集群级并发预算内执行一次同步交易导出。
+     */
     private void runExport(String merchantId, String operator, Runnable action) {
         boolean acquired = exportConcurrencyLimiter.execute(
                 "transaction",
@@ -417,7 +442,9 @@ public class MerchantTransactionApplicationService {
         }
     }
 
-    /** 返回商户与账号组合身份；Redis Key 构造器只保存该值的 SHA-256 摘要。 */
+    /**
+     * 返回商户与账号组合身份；Redis Key 构造器只保存该值的 SHA-256 摘要。
+     */
     private String exportIdentity(String merchantId, String operator) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         String accountIdentity = account != null && account.getAccountId() != null
@@ -509,7 +536,9 @@ public class MerchantTransactionApplicationService {
         return requestDTO;
     }
 
-    /** 返回审批审计使用的稳定商户申请人显示名。 */
+    /**
+     * 返回审批审计使用的稳定商户申请人显示名。
+     */
     private String resolveApplicantName(InternalAuthAccount account, String fallback) {
         if (account == null) {
             return fallback;
@@ -533,7 +562,9 @@ public class MerchantTransactionApplicationService {
         return request.getTransactionDateTime();
     }
 
-    /** 校验商户动作携带的生命周期根主单分片时间。 */
+    /**
+     * 校验商户动作携带的生命周期根主单分片时间。
+     */
     private LocalDateTime requiredRootTransactionDateTime(TransactionActionRequest request) {
         if (request == null || request.getRootTransactionDateTime() == null) {
             throw new ApiException(ApiResultEnum.PARAM_MISSING, "rootTransactionDateTime is required");
@@ -582,7 +613,9 @@ public class MerchantTransactionApplicationService {
                 refundLabelAmount(source, available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
     }
 
-    /** 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。 */
+    /**
+     * 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。
+     */
     private BigDecimal refundLabelAmount(TransactionOperationResponse source, BigDecimal amount,
                                          int digits, RoundingMode roundingMode) {
         if (source.getLabelAmount() != null && source.getTransactionAmount() != null

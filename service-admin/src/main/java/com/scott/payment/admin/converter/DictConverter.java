@@ -12,13 +12,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DictConverter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 数据字典对象转换器，位于 service-admin 转换层；负责字典 DO、DTO 与导出行之间的普通字段映射。
- * @status : create
+ * 数据字典对象转换器，位于 service-admin 转换层；负责字典 DO、DTO 与导出行之间的普通字段映射。
  */
 @Mapper
 public interface DictConverter {
@@ -51,6 +45,17 @@ public interface DictConverter {
      */
     SysDictDataDTO toDataDTO(SysDictDataDO entity);
 
+    /**
+     * 将字典数据实体转换为管理端响应 DTO。
+     *
+     * <p>公共字典快照不包含管理备注和审计时间，这些字段在下拉查询响应中保持为空。</p>
+     *
+     * @param snapshot 公共字典选项快照
+     * @return 字典数据 DTO
+     */
+    @Mapping(target = "remark", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     SysDictDataDTO toDataDTO(DictionaryOptionSnapshot snapshot);
 
     /**

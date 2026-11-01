@@ -1,27 +1,22 @@
 package com.scott.payment.admin.api.base;
 
 import com.scott.payment.admin.application.base.AdminBaseCountryApplicationService;
+import com.scott.payment.admin.dto.base.IsoCountryDTOs.Response;
+import com.scott.payment.admin.dto.base.IsoCountryDTOs.SaveRequest;
+import com.scott.payment.admin.dto.base.IsoStatusUpdateRequest;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseCountryController
- * @date : 2026-06-19 21:05
- * @email : scott_x@163.com
- * @description : 管理后台国家地区管理控制器
- * @status : create
+ * 管理后台国家地区管理控制器
  *
  * <p>国家/地区管理接口入口，负责 ISO 3166 国家地区资料的参数接收、权限校验和 HTTP 映射，
  * 具体业务编排与数据处理由应用服务层完成。</p>
@@ -49,7 +44,7 @@ public class AdminBaseCountryController {
      */
     @GetMapping("/list")
     @RequiresPermission("base:country:list")
-    public CommonResult<PageResult<IsoCountryDO>> list(
+    public CommonResult<PageResult<Response>> list(
             @RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
             @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -66,7 +61,7 @@ public class AdminBaseCountryController {
      */
     @GetMapping("/{id}")
     @RequiresPermission("base:country:query")
-    public CommonResult<IsoCountryDO> detail(@PathVariable("id") Long id) {
+    public CommonResult<Response> detail(@PathVariable("id") Long id) {
         return success(adminBaseCountryApplicationService.getCountry(id));
     }
 
@@ -85,42 +80,44 @@ public class AdminBaseCountryController {
     /**
      * 创建 ISO 国家/地区资料，代码唯一性由应用服务校验。
      *
-     * @param row 国家/地区资料
+     * @param request 国家/地区保存请求
      * @return 创建后的记录
      */
     @PostMapping
     @RequiresPermission("base:country:add")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.CREATE, operation = "新增国家地区")
-    public CommonResult<IsoCountryDO> create(@RequestBody IsoCountryDO row) {
-        return success(adminBaseCountryApplicationService.createCountry(row));
+    public CommonResult<Response> create(@Valid @RequestBody SaveRequest request) {
+        return success(adminBaseCountryApplicationService.createCountry(request));
     }
 
     /**
      * 更新指定国家/地区资料并触发 ISO 字典缓存失效。
      *
      * @param id 国家/地区记录主键
-     * @param input 更新内容
+     * @param request 更新内容
      * @return 更新后的记录
      */
     @PutMapping("/{id}")
     @RequiresPermission("base:country:edit")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "编辑国家地区")
-    public CommonResult<IsoCountryDO> update(@PathVariable("id") Long id, @RequestBody IsoCountryDO input) {
-        return adminBaseCountryApplicationService.updateCountry(id, input);
+    public CommonResult<Response> update(@PathVariable("id") Long id,
+                                         @Valid @RequestBody SaveRequest request) {
+        return adminBaseCountryApplicationService.updateCountry(id, request);
     }
 
     /**
      * 切换国家/地区启停状态并刷新 ISO 字典缓存。
      *
      * @param id 国家/地区记录主键
-     * @param body 包含目标 status 的请求体
+     * @param request 目标启停状态
      * @return 更新后的记录
      */
     @PutMapping("/{id}/status")
     @RequiresPermission("base:country:changeStatus")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "切换国家地区状态")
-    public CommonResult<IsoCountryDO> changeStatus(@PathVariable("id") Long id, @RequestBody Map<String, Integer> body) {
-        return adminBaseCountryApplicationService.updateStatus(id, body);
+    public CommonResult<Response> changeStatus(@PathVariable("id") Long id,
+                                               @Valid @RequestBody IsoStatusUpdateRequest request) {
+        return adminBaseCountryApplicationService.updateStatus(id, request);
     }
 
     /**

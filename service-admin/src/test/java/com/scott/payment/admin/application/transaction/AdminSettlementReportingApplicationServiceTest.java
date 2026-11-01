@@ -37,13 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReportingApplicationServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证结算报表分页导出在每页加载时重新解析可信 Admin 账号和商户数据范围。
- * @status : create
+ * 验证结算报表分页导出在每页加载时重新解析可信 Admin 账号和商户数据范围。
  */
 class AdminSettlementReportingApplicationServiceTest {
 

@@ -6,20 +6,16 @@ import com.scott.payment.payment.service.TransactionCallbackInboxService;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionCallbackInboxApplicationService
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 渠道回调 Inbox 应用服务，位于 service-payment 应用层，作为内部 HTTP 入口与可靠受理服务之间的唯一编排边界。
- * @status : create
+ * 渠道回调 Inbox 应用服务，位于 service-payment 应用层，作为内部 HTTP 入口与可靠受理服务之间的唯一编排边界。
  */
 @Service
 public class TransactionCallbackInboxApplicationService {
 
     private final TransactionCallbackInboxService inboxService;
 
-    /** 创建渠道回调 Inbox 应用服务。 */
+    /**
+     * 创建渠道回调 Inbox 应用服务。
+     */
     public TransactionCallbackInboxApplicationService(TransactionCallbackInboxService inboxService) {
         this.inboxService = inboxService;
     }

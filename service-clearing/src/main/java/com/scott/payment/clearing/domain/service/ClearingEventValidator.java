@@ -10,13 +10,7 @@ import org.springframework.util.StringUtils;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingEventValidator
- * @date : 2026-08-26 08:28
- * @email : scott_x@163.com
- * @description : 校验清分消息的业务身份和分片键；消息状态只作审计提示，数据库动作事实仍是终态权威来源。
- * @status : create
+ * 校验清分消息的业务身份和分片键；消息状态只作审计提示，数据库动作事实仍是终态权威来源。
  */
 @Component
 public class ClearingEventValidator {
@@ -48,7 +42,9 @@ public class ClearingEventValidator {
         }
     }
 
-    /** 延时重试消息必须携带原失败修订和重试序号，避免过期消息重新领取最新状态。 */
+    /**
+     * 延时重试消息必须携带原失败修订和重试序号，避免过期消息重新领取最新状态。
+     */
     private void validateRetryControl(PaymentTransactionEventMessage message) {
         if (!(message instanceof ClearingRetryDueMessage retryMessage)
                 || !StringUtils.hasText(retryMessage.getSourceEventNo())
@@ -70,6 +66,9 @@ public class ClearingEventValidator {
         }
     }
 
+    /**
+     * 校验消息身份字段包含非空文本。
+     */
     private void requireText(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
             throw new IllegalArgumentException(fieldName + " is required");

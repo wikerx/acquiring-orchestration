@@ -11,13 +11,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCurrencyResolver
- * @date : 2026-06-02 15:55
- * @email : scott_x@163.com
- * @description : ISO 4217 币种识别与金额辅币位工具，支持三字母码、三数字码、英文名、中文名识别
- * @status : update
+ * ISO 4217 币种识别与金额辅币位工具，支持三字母码、三数字码、英文名、中文名识别
  */
 public final class IsoCurrencyResolver {
 

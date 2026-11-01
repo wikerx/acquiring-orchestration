@@ -21,13 +21,10 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataMerchantNotificationConfig
- * @date : 2026-08-01 16:00
- * @email : scott_x@163.com
- * @description : service-data 商户通知 HTTP 配置，提供禁用系统代理且具有有界连接和读取超时的独立客户端
- * @status : create
+ * 配置 service-data 商户通知协议组件和独立 HTTP 客户端。
+ *
+ * <p>客户端禁用系统代理、自动重试、重定向和 Cookie，并在实际建连使用的 DNS 解析结果上
+ * 再次执行公网边界校验，防止商户回调绕过出站策略。</p>
  */
 @Configuration
 @EnableConfigurationProperties(DataMerchantNotificationProperties.class)
@@ -72,7 +69,13 @@ public class DataMerchantNotificationConfig {
         return traceCustomizer.customize(new RestTemplate(requestFactory));
     }
 
-    /** 创建由 Spring 负责关闭的商户回调连接池客户端。 */
+    /**
+     * 创建由 Spring 负责关闭的商户回调连接池客户端。
+     *
+     * @param targetValidator 回调 URL 和实际建连地址校验器
+     * @param properties 商户通知连接、读取和恢复参数
+     * @return 禁止自动重试、重定向、系统代理和 Cookie 的专用 HTTP 客户端
+     */
     @Bean(name = "dataMerchantNotificationHttpClient", destroyMethod = "close")
     public CloseableHttpClient dataMerchantNotificationHttpClient(
             MerchantCallbackTargetValidator targetValidator,

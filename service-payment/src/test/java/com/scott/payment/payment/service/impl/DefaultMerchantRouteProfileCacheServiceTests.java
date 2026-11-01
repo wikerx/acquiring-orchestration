@@ -10,17 +10,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantRouteProfileCacheServiceTests
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证商户路由永久缓存的失效门禁、generation 联动和结构版本升级
- * @status : create
+ * 验证商户路由永久缓存的失效门禁、generation 联动和结构版本升级
  */
 class DefaultMerchantRouteProfileCacheServiceTests {
 
-    /** 旧 Redis 快照缺少新增能力字段时必须从主库重建并覆盖原 Key。 */
+    /**
+     * 旧 Redis 快照缺少新增能力字段时必须从主库重建并覆盖原 Key。
+     */
     @Test
     void shouldRefreshLegacyRouteProfileSchema() {
         MerchantRouteProfileCacheReader cacheReader = mock(MerchantRouteProfileCacheReader.class);

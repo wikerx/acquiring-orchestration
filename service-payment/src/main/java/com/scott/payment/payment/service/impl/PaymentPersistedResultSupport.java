@@ -19,6 +19,9 @@ import org.springframework.util.StringUtils;
  */
 final class PaymentPersistedResultSupport {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private PaymentPersistedResultSupport() {
     }
 
@@ -99,14 +102,18 @@ final class PaymentPersistedResultSupport {
         return result;
     }
 
-    /** 按权威动作事实生成商户安全投影，不使用渠道原始文案。 */
+    /**
+     * 按权威动作事实生成商户安全投影，不使用渠道原始文案。
+     */
     private static OpenApiTransactionProjection project(TransactionOperationDO operation) {
         return OpenApiTransactionResultProjector.project(
                 operation.getTransactionStatus(), operation.getProcessStage(), operation.getFailReasonCode(),
                 operation.getPendingReasonCode(), null);
     }
 
-    /** 按幂等响应快照生成商户安全投影。 */
+    /**
+     * 按幂等响应快照生成商户安全投影。
+     */
     private static OpenApiTransactionProjection project(PaymentCreateResultDTO result) {
         return OpenApiTransactionResultProjector.project(
                 result.getStatus(), result.getProcessStage(), result.getFailReasonCode(),

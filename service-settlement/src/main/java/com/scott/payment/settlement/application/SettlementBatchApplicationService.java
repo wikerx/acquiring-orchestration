@@ -9,13 +9,7 @@ import com.scott.payment.settlement.service.SettlementCandidateClaimService;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchApplicationService
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 结算批次用例编排入口；只调用明确领域服务，不直接访问 Mapper 或执行金额和汇率计算。
- * @status : create
+ * 结算批次用例编排入口；只调用明确领域服务，不直接访问 Mapper 或执行金额和汇率计算。
  */
 @Service
 public class SettlementBatchApplicationService {

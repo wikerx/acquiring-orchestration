@@ -9,20 +9,16 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementCalculationModels
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 定义批次原币种金额换汇和跨币种费用组限额求值的不可变输入输出，不重新计算清分费用组件。
- * @status : create
+ * 定义批次原币种金额换汇和跨币种费用组限额求值的不可变输入输出，不重新计算清分费用组件。
  */
 public final class SettlementCalculationModels {
 
     private SettlementCalculationModels() {
     }
 
-    /** 商户视角的目标净额方向。 */
+    /**
+     * 商户视角的目标净额方向。
+     */
     public enum AmountDirection {
         /**
          * CREDIT 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -34,7 +30,9 @@ public final class SettlementCalculationModels {
         DEBIT
     }
 
-    /** 清分费用原子组件类型；限额调整仅由结算结果生成，不作为输入。 */
+    /**
+     * 清分费用原子组件类型；限额调整仅由结算结果生成，不作为输入。
+     */
     public enum FeeComponentKind {
         /**
          * PERCENTAGE 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -46,7 +44,9 @@ public final class SettlementCalculationModels {
         FIXED
     }
 
-    /** 结算统一求值后命中的费用边界。 */
+    /**
+     * 结算统一求值后命中的费用边界。
+     */
     public enum AppliedLimit {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。

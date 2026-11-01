@@ -10,13 +10,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SensitiveFieldCipher
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : AES-GCM 字段级加密工具，密文同时具备机密性和完整性保护。
- * @status : create
+ * AES-GCM 字段级加密工具，密文同时具备机密性和完整性保护。
  */
 public final class SensitiveFieldCipher {
 

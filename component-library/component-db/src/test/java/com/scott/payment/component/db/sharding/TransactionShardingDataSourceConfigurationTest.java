@@ -24,13 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionShardingDataSourceConfigurationTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 验证交易复合数据源在 Spring 容器中的注册、事务边界和底层连接池生命周期。
- * @status : create
+ * 验证交易复合数据源在 Spring 容器中的注册、事务边界和底层连接池生命周期。
  */
 class TransactionShardingDataSourceConfigurationTest {
 
@@ -182,7 +176,9 @@ class TransactionShardingDataSourceConfigurationTest {
             super(List.of(provider));
         }
 
-        /** 模拟 transaction 别名注册失败，用于验证新建复合数据源会释放底层连接池。 */
+        /**
+         * 模拟 transaction 别名注册失败，用于验证新建复合数据源会释放底层连接池。
+         */
         @Override
         public synchronized void addDataSource(String name, DataSource dataSource) {
             if (DataSourceName.TRANSACTION.equals(name)) {

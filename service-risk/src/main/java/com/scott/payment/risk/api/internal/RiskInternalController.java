@@ -19,13 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskInternalController
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 风控内部服务接口，位于 service-risk 接口层，为 service-payment 提供路由前实时风控评估。
- * @status : create
+ * 风控内部服务接口，位于 service-risk 接口层，为 service-payment 提供路由前实时风控评估。
  */
 @RestController
 @RequestMapping("/internal/risk")
@@ -36,10 +30,14 @@ public class RiskInternalController {
      */
     private final RiskEvaluationApplicationService riskEvaluationApplicationService;
 
-    /** 累计限额预占确认、取消和对账应用服务。 */
+    /**
+     * 累计限额预占确认、取消和对账应用服务。
+     */
     private final MerchantLimitReservationApplicationService reservationApplicationService;
 
-    /** 路由后 3DS 策略只读应用服务。 */
+    /**
+     * 路由后 3DS 策略只读应用服务。
+     */
     private final RiskThreeDsPolicyApplicationService threeDsPolicyApplicationService;
 
     /**

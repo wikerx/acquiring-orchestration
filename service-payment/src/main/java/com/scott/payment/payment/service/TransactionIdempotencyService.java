@@ -7,13 +7,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionIdempotencyService
- * @date : 2026-07-12 18:20
- * @email : scott_x@163.com
- * @description : 交易幂等服务，位于 service-payment 服务层，负责用数据库唯一约束兜底资金类请求重复提交。
- * @status : create
+ * 交易幂等服务，位于 service-payment 服务层，负责用数据库唯一约束兜底资金类请求重复提交。
  */
 public interface TransactionIdempotencyService {
 
@@ -43,12 +37,10 @@ public interface TransactionIdempotencyService {
     }
 
     /**
-     * 解析{@code normalizeKeyPart}，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
+     * 规范化幂等键组成部分，避免大小写和首尾空白产生不同业务键。
+     *
+     * @param value 商户号或商户订单号组成部分，空值按空字符串处理
+     * @return 去除首尾空白并转换为大写的稳定键片段
      */
     private static String normalizeKeyPart(String value) {
         return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);

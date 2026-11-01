@@ -10,8 +10,10 @@ import com.scott.payment.clearing.domain.model.ClearingCompletionModels.FinanceS
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.LocatorFacts;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.SourceContext;
 import com.scott.payment.clearing.domain.model.ClearingOperationFacts;
+import com.scott.payment.clearing.domain.model.SettlementCandidateDependencyPlan;
 import com.scott.payment.clearing.domain.state.ClearingFailureCodeEnum;
 import com.scott.payment.clearing.domain.state.ClearingStateEnum;
+import com.scott.payment.clearing.domain.state.SettlementCandidateDependencyType;
 import com.scott.payment.clearing.domain.service.ClearingFeeRuleMatcher;
 import com.scott.payment.clearing.dto.ClearingFeeTierAccumulatorDelta;
 import com.scott.payment.clearing.entity.ClearingFeeTierAccumulatorDO;
@@ -98,48 +100,95 @@ import java.util.Set;
 @Service
 public class DefaultClearingCompletionService implements ClearingCompletionService {
 
-    /** 成功消费幂等键前缀；后缀使用源事件号，数据库唯一键提供最终防重。 */
+    /**
+     * 成功消费幂等键前缀；后缀使用源事件号，数据库唯一键提供最终防重。
+     */
     private static final String IDEMPOTENCY_KEY_PREFIX = "service-clearing-transaction-status:";
-    /** 当前清分修订明细的有效状态。 */
+    /**
+     * 当前清分修订明细的有效状态。
+     */
     private static final String ACTIVE = "ACTIVE";
-    /** Outbox 初始状态；发布器只能在事务提交后推进投递状态。 */
+    /**
+     * Outbox 初始状态；发布器只能在事务提交后推进投递状态。
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
-    /** 需要回溯原交易费用和保证金事实的退款动作类型。 */
+    /**
+     * 需要回溯原交易费用和保证金事实的退款动作类型。
+     */
     private static final String REFUND = "REFUND";
-    /** 只有成功退款才允许生成返费和保证金返还事实。 */
+    /**
+     * 只有成功退款才允许生成返费和保证金返还事实。
+     */
     private static final String SUCCESS = "SUCCESS";
-    /** 财务中间值使用 DECIMAL128，最终舍入仅在冻结规则规定的业务边界发生。 */
+    /**
+     * 必须等待源资金候选入账的后续交易类型。
+     */
+    private static final Set<String> SOURCE_FINANCIAL_DEPENDENCY_TYPES =
+            Set.of("REFUND", "REVERSAL", "CHARGEBACK", "REPRESENTMENT");
+    /**
+     * 财务中间值使用 DECIMAL128，最终舍入仅在冻结规则规定的业务边界发生。
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
-    /** 月度阶梯累计期间键，必须与重放控制表的 {@code yyyyMM} 契约一致。 */
+    /**
+     * 月度阶梯累计期间键，必须与重放控制表的 {@code yyyyMM} 契约一致。
+     */
     private static final DateTimeFormatter TIER_PERIOD_FORMATTER = DateTimeFormatter.ofPattern("yyyyMM");
 
-    /** 锁定并完成动作级清分权威状态。 */
+    /**
+     * 锁定并完成动作级清分权威状态。
+     */
     private final ClearingTransactionFinanceStateMapper financeStateMapper;
-    /** 持久化本金与费用原子事实。 */
+    /**
+     * 持久化本金与费用原子事实。
+     */
     private final ClearingTransactionDetailMapper detailMapper;
-    /** 持久化独立保证金事实和并发状态。 */
+    /**
+     * 持久化独立保证金事实和并发状态。
+     */
     private final ClearingReserveMapper reserveMapper;
-    /** 串行化月累计阶梯计费事实。 */
+    /**
+     * 串行化月累计阶梯计费事实。
+     */
     private final ClearingFeeTierAccumulatorMapper tierAccumulatorMapper;
-    /** 读取退款 locator 等生命周期上下文。 */
+    /**
+     * 读取退款 locator 等生命周期上下文。
+     */
     private final ClearingTransactionContextMapper contextMapper;
-    /** 统一 CAS 更新动作和生命周期清分查询投影。 */
+    /**
+     * 统一 CAS 更新动作和生命周期清分查询投影。
+     */
     private final ClearingProjectionService projectionService;
-    /** 与清分事实同事务写入 MQ 成功消费幂等。 */
+    /**
+     * 与清分事实同事务写入 MQ 成功消费幂等。
+     */
     private final ClearingTransactionIdempotencyMapper idempotencyMapper;
-    /** 与清分事实同事务写入可靠完成事件。 */
+    /**
+     * 与清分事实同事务写入可靠完成事件。
+     */
     private final ClearingTransactionEventOutboxMapper outboxMapper;
-    /** 使用已锁定阶梯事实运行无外部依赖的金额计算。 */
+    /**
+     * 使用已锁定阶梯事实运行无外部依赖的金额计算。
+     */
     private final ClearingCalculationService calculationService;
-    /** 生成明细、保证金状态和事件的全局业务编号。 */
+    /**
+     * 生成明细、保证金状态和事件的全局业务编号。
+     */
     private final GlobalIdGenerator idGenerator;
-    /** 形成清分修订级影子结算候选，不执行认领或余额入账。 */
+    /**
+     * 形成清分修订级影子结算候选，不执行认领或余额入账。
+     */
     private final ClearingSettlementCandidateService candidateService;
-    /** 成功提交后关闭同一交易分片上的活动清分异常案件。 */
+    /**
+     * 成功提交后关闭同一交易分片上的活动清分异常案件。
+     */
     private final ClearingAnomalyService anomalyService;
-    /** 阶梯锁等待等不含业务标识的运行指标。 */
+    /**
+     * 阶梯锁等待等不含业务标识的运行指标。
+     */
     private final ClearingOperationalMetrics metrics;
-    /** 阶梯期间重放门禁、稳定下一项和事务内游标。 */
+    /**
+     * 阶梯期间重放门禁、稳定下一项和事务内游标。
+     */
     private final ClearingTierPeriodReplayMapper tierReplayMapper;
 
     /**
@@ -239,7 +288,8 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         persistCompletionOutbox(command, targetStatus, revision, now);
         if (ClearingStateEnum.CLEARED.name().equals(targetStatus)) {
             candidateService.create(state.getFinanceStateId(), revision, operation,
-                    command.feeSnapshot().settlementCurrency(), command.settlementEligibleDate(), now);
+                    command.feeSnapshot().settlementCurrency(), command.settlementEligibleDate(),
+                    dependencyPlan(command, calculation), now);
         }
         anomalyService.resolve(operation.transactionId(), operation.transactionDateTime(),
                 state.getFinanceStateId() + ":" + revision, now);
@@ -308,7 +358,8 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 expectedRevision, summary, now), "finance state recalculation CAS");
         if (ClearingStateEnum.CLEARED.name().equals(targetStatus)) {
             candidateService.replace(state.getFinanceStateId(), expectedRevision, revision, operation,
-                    command.feeSnapshot().settlementCurrency(), command.settlementEligibleDate(), now);
+                    command.feeSnapshot().settlementCurrency(), command.settlementEligibleDate(),
+                    dependencyPlan(command, calculation), now);
         } else {
             throw new IllegalStateException(
                     "recalculation cannot remove all financial facts; use a reviewed adjustment action");
@@ -386,7 +437,8 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 operation.transactionId(), operation.transactionDateTime(), expectedVersion,
                 expectedRevision, summary, now), "tier replay finance state CAS");
         candidateService.replaceReplayHeld(state.getFinanceStateId(), expectedRevision, revision, operation,
-                command.feeSnapshot().settlementCurrency(), command.settlementEligibleDate(), now);
+                command.feeSnapshot().settlementCurrency(), command.settlementEligibleDate(),
+                dependencyPlan(command, calculation), now);
         persistCompletionOutbox(command, targetStatus, revision, now);
         anomalyService.resolve(operation.transactionId(), operation.transactionDateTime(),
                 state.getFinanceStateId() + ":" + revision, now);
@@ -399,7 +451,41 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return new CompletionResult(targetStatus, revision, details.size(), 0);
     }
 
-    /** 阶梯重放项必须仍匹配冻结申请、动作身份、修订和未结算门禁。 */
+    /**
+     * 根据当前资金事实构造后续候选对源清分候选的不可变依赖。
+     *
+     * <p>退款始终等待源本金和保证金扣留完成；发生费用返还时再增加源费用结果依赖。
+     * 拒付、二次请款和冲正至少等待源本金结果。授权、请款等其他动作不创建依赖。</p>
+     *
+     * @param command 当前清分提交命令
+     * @param calculation 当前修订的资金计算结果
+     * @return 同事务写入的候选依赖计划
+     */
+    private SettlementCandidateDependencyPlan dependencyPlan(CompletionCommand command,
+                                                              ClearingCalculationResult calculation) {
+        SourceContext source = command.source();
+        String transactionType = command.claim().operation().transactionType();
+        if (source == null || !SOURCE_FINANCIAL_DEPENDENCY_TYPES.contains(transactionType)) {
+            return SettlementCandidateDependencyPlan.none();
+        }
+        Set<SettlementCandidateDependencyType> types = new LinkedHashSet<>();
+        types.add(SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED);
+        if (REFUND.equals(transactionType)
+                || calculation.reserve() != null
+                && calculation.reserve().actionType() == ReserveActionType.RETURN) {
+            types.add(SettlementCandidateDependencyType.RESERVE_HOLD_POSTED);
+        }
+        if (calculation.feeRefund() != null && !calculation.feeRefund().components().isEmpty()) {
+            types.add(SettlementCandidateDependencyType.SOURCE_FEE_RESULT_POSTED);
+        }
+        return new SettlementCandidateDependencyPlan(
+                source.financeStateId(), source.clearingRevision(), source.operation().transactionId(),
+                source.operation().merchantId(), types);
+    }
+
+    /**
+     * 阶梯重放项必须仍匹配冻结申请、动作身份、修订和未结算门禁。
+     */
     private void validateTierReplayIdentity(CompletionCommand command,
                                             ClearingTierPeriodReplayDO replay,
                                             ClearingTierPeriodReplayItemDO item,
@@ -424,7 +510,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 单笔重算只能基于未结算的当前有效修订和调用方预期版本。 */
+    /**
+     * 单笔重算只能基于未结算的当前有效修订和调用方预期版本。
+     */
     private void validateRecalculationState(CompletionCommand command,
                                             ClearingTransactionFinanceStateDO state,
                                             int expectedVersion,
@@ -444,7 +532,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 校验 Stage B 所需的完整命令、已领取租约和统一业务时间。 */
+    /**
+     * 校验 Stage B 所需的完整命令、已领取租约和统一业务时间。
+     */
     private void requireCommand(CompletionCommand command, LocalDateTime now) {
         if (command == null || now == null || command.claim() == null || !command.claim().acquired()
                 || command.claim().operation() == null || command.feeSnapshot() == null
@@ -453,7 +543,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** Stage B 提交必须仍持有 Stage A 领取的 PROCESSING owner、版本和有效租约。 */
+    /**
+     * Stage B 提交必须仍持有 Stage A 领取的 PROCESSING owner、版本和有效租约。
+     */
     private void validateLease(CompletionCommand command,
                                ClearingTransactionFinanceStateDO state,
                                LocalDateTime now) {
@@ -542,7 +634,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 sourceFeeGroups, reserveState);
     }
 
-    /** 退款来源必须是同商户、同生命周期且已完成清分的原支付动作。 */
+    /**
+     * 退款来源必须是同商户、同生命周期且已完成清分的原支付动作。
+     */
     private SourceContext validateRefundSource(CompletionCommand command) {
         ClearingOperationFacts refund = command.claim().operation();
         SourceContext source = command.source();
@@ -561,7 +655,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return source;
     }
 
-    /** 原支付 finance state 必须与源动作、快照和当前有效修订一致。 */
+    /**
+     * 原支付 finance state 必须与源动作、快照和当前有效修订一致。
+     */
     private void validateSourceFinanceState(SourceContext source,
                                             ClearingTransactionFinanceStateDO state) {
         boolean completed = false;
@@ -582,7 +678,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 按 locator 精确读取生命周期退款动作，禁止跨季度猜测或重复统计。 */
+    /**
+     * 按 locator 精确读取生命周期退款动作，禁止跨季度猜测或重复统计。
+     */
     private List<LocatorFacts> refundLocators(CompletionCommand command, SourceContext source) {
         ClearingOperationFacts refund = command.claim().operation();
         List<ClearingTransactionLocatorDO> rows = contextMapper.selectRefundLocators(
@@ -618,7 +716,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return List.copyOf(result);
     }
 
-    /** 以已完成退款清分事实累计标签金额，作为本次返费比例分摊前值。 */
+    /**
+     * 以已完成退款清分事实累计标签金额，作为本次返费比例分摊前值。
+     */
     private BigDecimal refundedLabelAmountBefore(CompletionCommand command,
                                                  SourceContext source,
                                                  List<LocatorFacts> locators,
@@ -646,7 +746,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return total;
     }
 
-    /** 每条历史退款事实必须同源支付、同标签币种且金额为正。 */
+    /**
+     * 每条历史退款事实必须同源支付、同标签币种且金额为正。
+     */
     private void validateRefundFact(CompletionCommand command,
                                     SourceContext source,
                                     Map<String, LocalDateTime> locatorTimes,
@@ -662,7 +764,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 按原收费组重建可返费用组件，禁止用当前费用配置重新计算原收费。 */
+    /**
+     * 按原收费组重建可返费用组件，禁止用当前费用配置重新计算原收费。
+     */
     private Map<String, SourceFeeGroup> sourceFeeGroups(CompletionCommand command,
                                                        SourceContext source,
                                                        ClearingTransactionFinanceStateDO sourceState,
@@ -726,7 +830,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return Collections.unmodifiableMap(new LinkedHashMap<>(result));
     }
 
-    /** 原费用明细必须属于源动作当前修订，并保留原币种和规则快照。 */
+    /**
+     * 原费用明细必须属于源动作当前修订，并保留原币种和规则快照。
+     */
     private void validateSourceFeeDetail(SourceContext source,
                                          ClearingTransactionFinanceStateDO sourceState,
                                          ClearingTransactionDetailDO row) {
@@ -746,7 +852,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 存在待结算汇率限额的原费用时暂停返费，避免使用未锁定换汇结果。 */
+    /**
+     * 存在待结算汇率限额的原费用时暂停返费，避免使用未锁定换汇结果。
+     */
     private boolean pendingSettlementRate(List<ClearingTransactionDetailDO> rows) {
         Set<String> currencies = new LinkedHashSet<>();
         rows.forEach(row -> currencies.add(row.getCurrency() + ":" + row.getCurrencyExponent()));
@@ -759,7 +867,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return hasUsdBoundary && rows.stream().anyMatch(row -> !"USD".equals(row.getCurrency()));
     }
 
-    /** 按源清分明细号和币种累计已返费用，阻止多次退款超额返还。 */
+    /**
+     * 按源清分明细号和币种累计已返费用，阻止多次退款超额返还。
+     */
     private Map<String, RefundedFeeFact> refundedFeeAmounts(List<ClearingTransactionDetailDO> facts) {
         Map<String, RefundedFeeFact> result = new LinkedHashMap<>();
         if (facts == null) {
@@ -790,7 +900,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return result;
     }
 
-    /** 原保证金状态必须与 HOLD 快照、币种、金额恒等式和版本一致。 */
+    /**
+     * 原保证金状态必须与 HOLD 快照、币种、金额恒等式和版本一致。
+     */
     private void validateReserveState(SourceContext source,
                                       ClearingTransactionFinanceStateDO sourceState,
                                       ClearingReserveStateDO state,
@@ -829,7 +941,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 将冻结配置枚举映射为 finance-library 返费策略，不接受未知值。 */
+    /**
+     * 将冻结配置枚举映射为 finance-library 返费策略，不接受未知值。
+     */
     private FeeRefundPolicy refundPolicy(RefundFeeReturnPolicy policy) {
         if (policy == null) {
             throw failure(ClearingFailureCodeEnum.FEE_SNAPSHOT_HASH_MISMATCH,
@@ -838,7 +952,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return FeeRefundPolicy.valueOf(policy.name());
     }
 
-    /** 使用动作冻结的币种指数构造标签金额，禁止默认所有币种均为两位小数。 */
+    /**
+     * 使用动作冻结的币种指数构造标签金额，禁止默认所有币种均为两位小数。
+     */
     private Money labelMoney(ClearingOperationFacts operation) {
         if (operation.labelAmount() == null || operation.labelAmount().signum() < 0
                 || !StringUtils.hasText(operation.labelCurrency()) || operation.currencyExponent() == null) {
@@ -848,7 +964,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return new Money(operation.labelAmount(), operation.labelCurrency(), operation.currencyExponent());
     }
 
-    /** 从原 HOLD 事实读取标签币种扣留金额，不使用查询摘要字段替代。 */
+    /**
+     * 从原 HOLD 事实读取标签币种扣留金额，不使用查询摘要字段替代。
+     */
     private BigDecimal originalReserveHoldAmount(SourceContext source) {
         return source.operation().labelAmount()
                 .multiply(source.feeSnapshot().reserve().reserveRate(), CALCULATION_CONTEXT)
@@ -856,17 +974,23 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 .setScale(source.operation().currencyExponent(), source.feeSnapshot().roundingMode());
     }
 
-    /** 按原保证金状态的币种和指数恢复金额，供退款返还上限计算使用。 */
+    /**
+     * 按原保证金状态的币种和指数恢复金额，供退款返还上限计算使用。
+     */
     private Money money(BigDecimal amount, ClearingReserveStateDO state) {
         return new Money(amount, state.getReserveCurrency(), state.getReserveCurrencyExponent());
     }
 
-    /** 按规则 ID 排序初始化并加锁全部阶梯累计行，避免多规则并发死锁。 */
+    /**
+     * 按规则 ID 排序初始化并加锁全部阶梯累计行，避免多规则并发死锁。
+     */
     private Map<Long, LockedTier> lockTiers(CompletionCommand command, LocalDateTime now) {
         return lockTiers(command, now, true);
     }
 
-    /** 使用重放冻结的累计基线锁定规则闭包，禁止只更新部分阶梯。 */
+    /**
+     * 使用重放冻结的累计基线锁定规则闭包，禁止只更新部分阶梯。
+     */
     private Map<Long, LockedTier> lockTiers(CompletionCommand command,
                                            LocalDateTime now,
                                            boolean enforceReplayGate) {
@@ -946,7 +1070,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return result;
     }
 
-    /** 阶梯 AMOUNT 指标只接受已经冻结的 USD 归一金额。 */
+    /**
+     * 阶梯 AMOUNT 指标只接受已经冻结的 USD 归一金额。
+     */
     private BigDecimal currentUsdAmount(ClearingOperationFacts operation) {
         if ("USD".equals(operation.labelCurrency()) && operation.labelAmount() != null) {
             return validatedUsdTierAmount(operation.labelAmount());
@@ -961,7 +1087,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 "USD amount tier requires a frozen transaction USD fact; clearing must not infer an FX rate");
     }
 
-    /** USD 阶梯累计金额必须非负并保持高精度，不能过早按展示精度舍入。 */
+    /**
+     * USD 阶梯累计金额必须非负并保持高精度，不能过早按展示精度舍入。
+     */
     private BigDecimal validatedUsdTierAmount(BigDecimal amount) {
         if (amount.signum() < 0 || amount.stripTrailingZeros().scale() > 2) {
             throw failure(ClearingFailureCodeEnum.AMOUNT_INVALID,
@@ -970,7 +1098,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return amount;
     }
 
-    /** 清分明细成功写入后以批量版本 CAS 推进全部命中阶梯累计。 */
+    /**
+     * 清分明细成功写入后以批量版本 CAS 推进全部命中阶梯累计。
+     */
     private void applyTierDeltas(CompletionCommand command,
                                  int revision,
                                  ClearingCalculationResult calculation,
@@ -1046,7 +1176,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return List.copyOf(rows);
     }
 
-    /** 构造交易本金原币种事实；本金方向由计算结果决定，不与费用净额合并。 */
+    /**
+     * 构造交易本金原币种事实；本金方向由计算结果决定，不与费用净额合并。
+     */
     private ClearingTransactionDetailDO principalDetail(CompletionCommand command,
                                                         String financeStateId,
                                                         int revision,
@@ -1078,7 +1210,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return row;
     }
 
-    /** 将一个费用组件固化为不可变原币种明细，保留标签百分比和 USD 固定费口径。 */
+    /**
+     * 将一个费用组件固化为不可变原币种明细，保留标签百分比和 USD 固定费口径。
+     */
     private ClearingTransactionDetailDO feeDetail(CompletionCommand command,
                                                   String financeStateId,
                                                   int revision,
@@ -1130,7 +1264,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return row;
     }
 
-    /** 返费明细引用原收费行并保留原币种，不重新应用当前规则或汇率。 */
+    /**
+     * 返费明细引用原收费行并保留原币种，不重新应用当前规则或汇率。
+     */
     private ClearingTransactionDetailDO feeReversalDetail(CompletionCommand command,
                                                            String financeStateId,
                                                            int revision,
@@ -1179,7 +1315,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return row;
     }
 
-    /** 构造所有清分明细共享的动作身份、修订和审计字段。 */
+    /**
+     * 构造所有清分明细共享的动作身份、修订和审计字段。
+     */
     private ClearingTransactionDetailDO baseDetail(CompletionCommand command,
                                                    String financeStateId,
                                                    int revision,
@@ -1210,7 +1348,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return row;
     }
 
-    /** 将计费时使用的阶梯 before/delta/after 事实写入明细审计快照。 */
+    /**
+     * 将计费时使用的阶梯 before/delta/after 事实写入明细审计快照。
+     */
     private void applyTierSnapshot(ClearingTransactionDetailDO row,
                                    FeeRuleConfigurationSnapshot rule,
                                    TierContext tier,
@@ -1228,7 +1368,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         row.setTierAmountUsdAfter(tier.amountUsdBefore().add(tier.currentAmountUsd(), CALCULATION_CONTEXT));
     }
 
-    /** 原支付保证金 HOLD 明细和并发状态在 Stage B 同一事务持久化。 */
+    /**
+     * 原支付保证金 HOLD 明细和并发状态在 Stage B 同一事务持久化。
+     */
     private int persistReserve(CompletionCommand command,
                                String financeStateId,
                                int revision,
@@ -1255,7 +1397,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return 1;
     }
 
-    /** 退款保证金 RETURN 明细与原状态版本 CAS 在同一事务提交。 */
+    /**
+     * 退款保证金 RETURN 明细与原状态版本 CAS 在同一事务提交。
+     */
     private int persistReserveReturn(CompletionCommand command,
                                      String financeStateId,
                                      int revision,
@@ -1281,7 +1425,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return 1;
     }
 
-    /** 构造标签币种 HOLD 原子事实，不包含汇率或结算目标金额。 */
+    /**
+     * 构造标签币种 HOLD 原子事实，不包含汇率或结算目标金额。
+     */
     private ClearingReserveDetailDO reserveHoldDetail(CompletionCommand command,
                                                       String financeStateId,
                                                       int revision,
@@ -1327,7 +1473,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return row;
     }
 
-    /** 构造引用原 HOLD 的标签币种 RETURN 原子事实。 */
+    /**
+     * 构造引用原 HOLD 的标签币种 RETURN 原子事实。
+     */
     private ClearingReserveDetailDO reserveReturnDetail(CompletionCommand command,
                                                         String financeStateId,
                                                         int revision,
@@ -1378,7 +1526,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return row;
     }
 
-    /** 从 HOLD 结果构造原支付保证金并发状态，初始资金恒等式必须成立。 */
+    /**
+     * 从 HOLD 结果构造原支付保证金并发状态，初始资金恒等式必须成立。
+     */
     private ClearingReserveStateDO reserveState(CompletionCommand command,
                                                 String financeStateId,
                                                 ReserveCalculationResult reserve,
@@ -1416,7 +1566,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return row;
     }
 
-    /** 将冻结保证金配置、舍入模式和哈希写入独立明细。 */
+    /**
+     * 将冻结保证金配置、舍入模式和哈希写入独立明细。
+     */
     private void applyReserveSnapshot(ClearingReserveDetailDO row, FeeVersionSnapshot snapshot) {
         row.setFeePlanId(snapshot.feePlanId());
         row.setFeePlanVersionId(snapshot.feePlanVersionId());
@@ -1497,7 +1649,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return direction == EntryDirection.CREDIT ? amount.amount() : amount.amount().negate();
     }
 
-    /** 按指定币种汇总原子费用组件；不同币种不得直接相加。 */
+    /**
+     * 按指定币种汇总原子费用组件；不同币种不得直接相加。
+     */
     private BigDecimal feeAmount(ClearingCalculationResult result,
                                  String currency,
                                  EntryDirection direction) {
@@ -1509,7 +1663,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 .reduce(BigDecimal.ZERO, (left, right) -> left.add(right, CALCULATION_CONTEXT));
     }
 
-    /** 按原收费币种汇总返费组件；不存在时返回零而非跨币种折算。 */
+    /**
+     * 按原收费币种汇总返费组件；不存在时返回零而非跨币种折算。
+     */
     private BigDecimal feeReversalAmount(ClearingCalculationResult result, String currency) {
         if (result.feeRefund() == null) {
             return BigDecimal.ZERO;
@@ -1520,21 +1676,23 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 .reduce(BigDecimal.ZERO, (left, right) -> left.add(right, CALCULATION_CONTEXT));
     }
 
-    /** 按保证金动作类型读取标签币种金额。 */
+    /**
+     * 按保证金动作类型读取标签币种金额。
+     */
     private BigDecimal reserveAmount(ReserveCalculationResult reserve, ReserveActionType actionType) {
         return reserve != null && reserve.actionType() == actionType ? reserve.amount().amount() : null;
     }
 
-    /** 与全部清分事实同事务写入成功消费幂等，数据库唯一键是最终防线。 */
+    /**
+     * 与全部清分事实同事务写入成功消费幂等，数据库唯一键是最终防线。
+     */
     private void persistSuccessIdempotency(CompletionCommand command,
                                            String targetStatus,
                                            int revision,
                                            LocalDateTime now) {
         ClearingOperationFacts operation = command.claim().operation();
-        String resultSnapshot = JsonUtils.toJsonString(Map.of(
-                "financeStateId", command.claim().financeStateId(),
-                "clearingStatus", targetStatus,
-                "clearingRevision", revision));
+        String resultSnapshot = JsonUtils.toJsonString(new SuccessfulConsumptionSnapshot(
+                command.claim().financeStateId(), targetStatus, revision));
         requireOne(idempotencyMapper.insertSuccessfulConsumption(
                 IDEMPOTENCY_KEY_PREFIX + command.message().getMessageId(), operation.merchantId(),
                 operation.merchantOrderNo(), operation.transactionType(), operation.transactionId(),
@@ -1542,7 +1700,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 operation.transactionTimeZone(), resultSnapshot, null, now), "clearing success idempotency insert");
     }
 
-    /** 与清分状态、明细和幂等同事务写入完成 Outbox，事务外发布顺序消息。 */
+    /**
+     * 与清分状态、明细和幂等同事务写入完成 Outbox，事务外发布顺序消息。
+     */
     private void persistCompletionOutbox(CompletionCommand command,
                                          String targetStatus,
                                          int revision,
@@ -1593,7 +1753,9 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         requireOne(outboxMapper.insertLogical(outbox), "clearing completion outbox insert");
     }
 
-    /** 将上游动作版本转换为 CAS 必填值，缺失版本时拒绝继续提交。 */
+    /**
+     * 将上游动作版本转换为 CAS 必填值，缺失版本时拒绝继续提交。
+     */
     private int requiredVersion(Integer version) {
         if (version == null || version < 0) {
             throw failure(ClearingFailureCodeEnum.TRANSACTION_VERSION_CONFLICT,
@@ -1602,17 +1764,23 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return version;
     }
 
-    /** 提取 Money 十进制主单位金额，空值用于表示该资金组件不存在。 */
+    /**
+     * 提取 Money 十进制主单位金额，空值用于表示该资金组件不存在。
+     */
     private BigDecimal amount(Money value) {
         return value == null ? null : value.amount();
     }
 
-    /** 金额汇总时把“组件不存在”视为零，不改变已有金额的 scale 和精度。 */
+    /**
+     * 金额汇总时把“组件不存在”视为零，不改变已有金额的 scale 和精度。
+     */
     private BigDecimal value(BigDecimal amount) {
         return amount == null ? BigDecimal.ZERO : amount;
     }
 
-    /** 生成人工审计可读的冻结公式说明，不参与后续金额反算。 */
+    /**
+     * 生成人工审计可读的冻结公式说明，不参与后续金额反算。
+     */
     private String formula(FeeComponent component) {
         return switch (component.componentType()) {
             case PERCENTAGE -> "fee = round(label amount * frozen percentage rate / 100)";
@@ -1636,12 +1804,16 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 要求单行写操作精确命中一行，否则按并发冲突回滚。 */
+    /**
+     * 要求单行写操作精确命中一行，否则按并发冲突回滚。
+     */
     private void requireOne(int affectedRows, String operation) {
         requireRows(affectedRows, 1, operation);
     }
 
-    /** 要求批量写操作命中预期行数，避免静默产生不完整财务事实。 */
+    /**
+     * 要求批量写操作命中预期行数，避免静默产生不完整财务事实。
+     */
     private void requireRows(int affectedRows, int expectedRows, String operation) {
         if (affectedRows != expectedRows) {
             throw failure(ClearingFailureCodeEnum.CLEARING_CAS_CONFLICT,
@@ -1649,43 +1821,70 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         }
     }
 
-    /** 使用稳定失败码构造可由应用层受控落库的清分异常。 */
+    /**
+     * 使用稳定失败码构造可由应用层受控落库的清分异常。
+     */
     private ClearingProcessingException failure(ClearingFailureCodeEnum code, String message) {
         return new ClearingProcessingException(code, message);
     }
 
-    /** 已加锁的阶梯累计行、计算上下文及期间键。 */
+    /**
+     * 已加锁的阶梯累计行、计算上下文及期间键。
+     */
     private record LockedTier(ClearingFeeTierAccumulatorDO row,
                               TierContext context,
                               String periodKey) {
     }
 
-    /** 原收费分组及历史已返金额，用于按冻结策略计算本次可返上限。 */
+    /**
+     * 原收费分组及历史已返金额，用于按冻结策略计算本次可返上限。
+     */
     private record SourceFeeGroup(ClearingTransactionDetailDO representative,
                                   Money originalChargedAmount,
                                   Money refundedAmountBefore) {
 
+        /**
+         * 将原收费分组转换为返费计算器需要的不可变组件。
+         */
         private RefundableFeeComponent refundableComponent() {
             return new RefundableFeeComponent(representative.getClearingDetailNo(),
                     originalChargedAmount, refundedAmountBefore);
         }
     }
 
-    /** 已完成返费事实的币种、指数和累计金额。 */
+    /**
+     * 已完成返费事实的币种、指数和累计金额。
+     */
     private record RefundedFeeFact(String currency, Integer exponent, BigDecimal amount) {
     }
 
-    /** 退款阶段锁定并验证后的返费、保证金返还和源事实上下文。 */
+    /**
+     * 成功消费幂等记录保存的最小清分结果，不包含金额、费用配置或支付敏感信息。
+     */
+    private record SuccessfulConsumptionSnapshot(String financeStateId,
+                                                  String clearingStatus,
+                                                  int clearingRevision) {
+    }
+
+    /**
+     * 退款阶段锁定并验证后的返费、保证金返还和源事实上下文。
+     */
     private record RefundStageContext(FeeRefundCommand feeRefundCommand,
                                       ReserveReturnCommand reserveReturnCommand,
                                       Map<String, SourceFeeGroup> sourceFeeGroups,
                                       ClearingReserveStateDO reserveState) {
 
+        /**
+         * 固化退款阶段的源收费分组，防止后续处理修改已验证的退款输入。
+         */
         private RefundStageContext {
             sourceFeeGroups = sourceFeeGroups == null ? Map.of()
                     : Collections.unmodifiableMap(new LinkedHashMap<>(sourceFeeGroups));
         }
 
+        /**
+         * 创建不涉及返费或保证金返还的空退款上下文。
+         */
         private static RefundStageContext empty() {
             return new RefundStageContext(null, null, Map.of(), null);
         }

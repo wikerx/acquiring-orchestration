@@ -9,17 +9,13 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementProfileMapper
- * @date : 2026-08-26 22:10
- * @email : scott_x@163.com
- * @description : 商户结算档案只读 Mapper，按候选已冻结档案聚合待建日批维度，不承担档案维护或费用配置查询。
- * @status : create
+ * 商户结算档案只读 Mapper，按候选已冻结档案聚合待建日批维度，不承担档案维护或费用配置查询。
  */
 public interface MerchantSettlementProfileMapper {
 
-    /** 锁定人工预审引用的冻结档案，并同时验证目标账户仍为 NORMAL。 */
+    /**
+     * 锁定人工预审引用的冻结档案，并同时验证目标账户仍为 NORMAL。
+     */
     @Select("""
             SELECT profile.*
             FROM merchant_settlement_profile profile
@@ -88,7 +84,9 @@ public interface MerchantSettlementProfileMapper {
             """)
     List<SettlementBatchGroupDO> selectReadyBatchGroups(@Param("limit") int limit);
 
-    /** 读取一个自动预审单可锁定的稳定候选页；最终独占仍由预审事务中的版本 CAS 完成。 */
+    /**
+     * 读取一个自动预审单可锁定的稳定候选页；最终独占仍由预审事务中的版本 CAS 完成。
+     */
     @Select("""
             SELECT candidate.*
             FROM settlement_candidate candidate

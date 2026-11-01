@@ -1,13 +1,7 @@
 package com.scott.payment.component.redis.identity;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisIdentityService
- * @date : 2026-05-31 22:08
- * @email : scott_x@163.com
- * @description : Redis 分布式业务标识生成服务
- * @status : create
+ * Redis 分布式业务标识生成服务
  */
 public interface RedisIdentityService {
 

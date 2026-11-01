@@ -1,65 +1,93 @@
 package com.scott.payment.component.mq.constant;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqTag
- * @date : 2026-08-01 14:50
- * @email : scott_x@163.com
- * @description : 跨生产者与消费者共享的 RocketMQ Tag 常量，防止服务间使用不一致的路由标签
- * @status : create
+ * 跨生产者与消费者共享的 RocketMQ Tag 常量，防止服务间使用不一致的路由标签
  */
 public final class MqTag {
 
-    /** 交易创建事件标签。 */
+    /**
+     * 交易创建事件标签。
+     */
     public static final String TRANSACTION_CREATED = "TRANSACTION_CREATED";
 
-    /** 渠道回调完成并推进交易状态的事件标签。 */
+    /**
+     * 渠道回调完成并推进交易状态的事件标签。
+     */
     public static final String TRANSACTION_CALLBACK_PROCESSED = "TRANSACTION_CALLBACK_PROCESSED";
 
-    /** 同步渠道结果或主动查询推进交易状态的事件标签。 */
+    /**
+     * 同步渠道结果或主动查询推进交易状态的事件标签。
+     */
     public static final String TRANSACTION_STATUS_CHANGED = "TRANSACTION_STATUS_CHANGED";
 
-    /** 交易动作清分完成并可刷新查询投影的事件标签。 */
+    /**
+     * 交易动作清分完成并可刷新查询投影的事件标签。
+     */
     public static final String TRANSACTION_CLEARING_COMPLETED = "TRANSACTION_CLEARING_COMPLETED";
 
-    /** 交易动作结算资金提交完成并可刷新查询投影的事件标签。 */
+    /**
+     * 交易动作结算资金提交完成并可刷新查询投影的事件标签。
+     */
     public static final String TRANSACTION_SETTLEMENT_COMPLETED = "TRANSACTION_SETTLEMENT_COMPLETED";
 
-    /** 交易动作已入账结算被资金冲正并可刷新查询投影的事件标签。 */
+    /**
+     * 交易动作已入账结算被资金冲正并可刷新查询投影的事件标签。
+     */
     public static final String TRANSACTION_SETTLEMENT_REVERSED = "TRANSACTION_SETTLEMENT_REVERSED";
 
-    /** 清分失败等待期结束后重新进入处理的定时消息标签。 */
+    /**
+     * 清分失败等待期结束后重新进入处理的定时消息标签。
+     */
     public static final String TRANSACTION_CLEARING_RETRY_DUE = "TRANSACTION_CLEARING_RETRY_DUE";
 
-    /** 风控评估审计消息标签。 */
+    /**
+     * 风控评估审计消息标签。
+     */
     public static final String RISK_EVALUATION_AUDIT = "risk-evaluation-audit";
 
-    /** OpenAPI 安全拦截审计消息标签。 */
+    /**
+     * OpenAPI 安全拦截审计消息标签。
+     */
     public static final String SECURITY_INTERCEPT_AUDIT = "security-intercept-audit";
 
-    /** 登录成功与失败审计消息标签。 */
+    /**
+     * 登录成功与失败审计消息标签。
+     */
     public static final String LOGIN_AUDIT = "login-audit";
 
-    /** Admin 业务邮件投递标签。 */
+    /**
+     * Admin 业务邮件投递标签。
+     */
     public static final String ADMIN_EMAIL_DELIVERY = "admin-email-delivery";
 
-    /** Merchant 业务邮件投递标签。 */
+    /**
+     * Merchant 业务邮件投递标签。
+     */
     public static final String MERCHANT_EMAIL_DELIVERY = "merchant-email-delivery";
 
-    /** 管理后台人工重发商户终态回调标签。 */
+    /**
+     * 管理后台人工重发商户终态回调标签。
+     */
     public static final String MERCHANT_NOTIFICATION_RETRY_REQUESTED = "MERCHANT_NOTIFICATION_RETRY_REQUESTED";
 
-    /** 自动商户通知重试到期标签。 */
+    /**
+     * 自动商户通知重试到期标签。
+     */
     public static final String MERCHANT_NOTIFICATION_RETRY_DUE = "MERCHANT_NOTIFICATION_RETRY_DUE";
 
-    /** 退款审批通过后的渠道执行请求标签。 */
+    /**
+     * 退款审批通过后的渠道执行请求标签。
+     */
     public static final String REFUND_EXECUTION_REQUESTED = "REFUND_EXECUTION_REQUESTED";
 
-    /** 收银台卡资料密文入库标签。 */
+    /**
+     * 收银台卡资料密文入库标签。
+     */
     public static final String CHECKOUT_CARD_VAULT_STORE = "CHECKOUT_CARD_VAULT_STORE";
 
-    /** Card BIN 全局 generation 变更标签。 */
+    /**
+     * Card BIN 全局 generation 变更标签。
+     */
     public static final String CARD_BIN_CACHE_CHANGED = "CARD_BIN_CACHE_CHANGED";
 
     private MqTag() {

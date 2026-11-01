@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysLoginSessionDO
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 登录会话数据库实体
- * @status : create
+ * 登录会话数据库实体
  */
 @Data
 @TableName("sys_login_session")

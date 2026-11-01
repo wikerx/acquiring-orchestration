@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskClientConfig
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : service-risk 内部调用配置，位于 service-payment 配置层，提供直连和服务发现两类 RestTemplate。
- * @status : create
+ * service-risk 内部调用配置，位于 service-payment 配置层，提供直连和服务发现两类 RestTemplate。
  */
 @Configuration
 @EnableConfigurationProperties(RiskClientProperties.class)
@@ -54,8 +48,8 @@ public class RiskClientConfig {
                                                      RiskClientProperties properties) {
         properties.validate();
         return builder
-                .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+                .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .readTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .additionalInterceptors(traceInterceptor)
                 .build();
     }

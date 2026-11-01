@@ -19,17 +19,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayRouteConfigTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证四类收银台公网路径都由 service-gateway 显式路由。
- * @status : create
+ * 验证四类收银台公网路径都由 service-gateway 显式路由。
  */
 class GatewayRouteConfigTests {
 
-    /** 商户建单、付款人 API、公开配置和健康入口必须分别命中明确路由。 */
+    /**
+     * 商户建单、付款人 API、公开配置和健康入口必须分别命中明确路由。
+     */
     @Test
     void shouldRouteEveryCheckoutBackendIngress() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
@@ -64,7 +60,9 @@ class GatewayRouteConfigTests {
         }
     }
 
-    /** 未命中的商户 OpenAPI 路径必须进入专用 V1.3 兜底，不得落入内部系统旧码响应。 */
+    /**
+     * 未命中的商户 OpenAPI 路径必须进入专用 V1.3 兜底，不得落入内部系统旧码响应。
+     */
     @Test
     void shouldRouteUnmatchedOpenApiPathToV13Fallback() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {

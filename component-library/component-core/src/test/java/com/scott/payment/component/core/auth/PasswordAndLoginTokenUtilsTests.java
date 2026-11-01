@@ -5,13 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PasswordAndLoginTokenUtilsTests
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 密码哈希与登录 token 工具测试
- * @status : create
+ * 密码哈希与登录 token 工具测试
  */
 class PasswordAndLoginTokenUtilsTests {
 

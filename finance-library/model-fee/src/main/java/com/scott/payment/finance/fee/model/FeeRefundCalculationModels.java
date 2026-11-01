@@ -11,20 +11,16 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeRefundCalculationModels
- * @date : 2026-08-25 19:35
- * @email : scott_x@163.com
- * @description : 定义退款时按原实际收费组件返还费用的不可变契约，各组件保持原收费事实币种且不执行汇率换算。
- * @status : create
+ * 定义退款时按原实际收费组件返还费用的不可变契约，各组件保持原收费事实币种且不执行汇率换算。
  */
 public final class FeeRefundCalculationModels {
 
     private FeeRefundCalculationModels() {
     }
 
-    /** 原交易费用返还策略。 */
+    /**
+     * 原交易费用返还策略。
+     */
     public enum FeeRefundPolicy {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。

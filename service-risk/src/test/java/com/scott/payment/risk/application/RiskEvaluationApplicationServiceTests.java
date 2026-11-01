@@ -13,16 +13,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskEvaluationApplicationServiceTests
- * @date : 2026-07-12 22:43
- * @email : scott_x@163.com
- * @description : 风控evaluation应用服务，位于 风控服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 风控evaluation应用服务，位于 风控服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 class RiskEvaluationApplicationServiceTests {
 
+    /**
+     * 验证应用服务原样委派支付风控评估请求和结果。
+     */
     @Test
     void shouldDelegatePaymentRiskEvaluation() {
         RiskEvaluationService evaluationService = mock(RiskEvaluationService.class);

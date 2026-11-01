@@ -4,23 +4,23 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayRequestIdSupport
- * @date : 2026-10-26 00:00
- * @email : scott_x@163.com
- * @description : 校验供 Gateway 审计日志使用的外部 X-Request-Id；只允许短业务标识，防止日志注入和无界字段。
- * @status : create
+ * 校验供 Gateway 审计日志使用的外部 X-Request-Id；只允许短业务标识，防止日志注入和无界字段。
  */
 public final class GatewayRequestIdSupport {
 
-    /** SDK 与 Gateway 约定的单次 HTTP 尝试标识 Header。 */
+    /**
+     * SDK 与 Gateway 约定的单次 HTTP 尝试标识 Header。
+     */
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
 
-    /** 非法或缺失请求号的固定日志占位值，避免记录未经校验的外部输入。 */
+    /**
+     * 非法或缺失请求号的固定日志占位值，避免记录未经校验的外部输入。
+     */
     private static final String UNKNOWN_REQUEST_ID = "unknown";
 
-    /** 日志可接受的最大请求号长度，与当前 UUID 及平台短标识兼容。 */
+    /**
+     * 日志可接受的最大请求号长度，与当前 UUID 及平台短标识兼容。
+     */
     private static final int MAX_REQUEST_ID_LENGTH = 64;
 
     private GatewayRequestIdSupport() {

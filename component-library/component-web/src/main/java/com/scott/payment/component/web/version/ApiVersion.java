@@ -6,13 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiVersion
- * @date : 2026-05-28 18:16
- * @email : scott_x@163.com
- * @description : REST API 版本标识注解
- * @status : create
+ * REST API 版本标识注解
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)

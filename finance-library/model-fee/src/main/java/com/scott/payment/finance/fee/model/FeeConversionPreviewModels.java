@@ -11,13 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConversionPreviewModels
- * @date : 2026-08-25 19:40
- * @email : scott_x@163.com
- * @description : 定义管理后台跨币种费用预览契约；汇率由调用方显式提供，不能作为清分结果或结算批次事实使用。
- * @status : create
+ * 定义管理后台跨币种费用预览契约；汇率由调用方显式提供，不能作为清分结果或结算批次事实使用。
  */
 public final class FeeConversionPreviewModels {
 

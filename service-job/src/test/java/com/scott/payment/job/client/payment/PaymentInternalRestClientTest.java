@@ -27,18 +27,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalRestClientTest
- * @date : 2026-08-20 21:20
- * @email : scott_x@163.com
- * @description : 校验支付超时关单内部客户端的查询参数、服务发现路由和 HMAC 路径签名契约
- * @status : create
+ * 校验支付超时关单内部客户端的查询参数、服务发现路由和 HMAC 路径签名契约
  */
 @Slf4j
 class PaymentInternalRestClientTest {
 
-    /** limit 必须同时进入查询参数和内部签名原文，防止内部请求参数被替换。 */
+    /**
+     * limit 必须同时进入查询参数和内部签名原文，防止内部请求参数被替换。
+     */
     @Test
     void shouldSignTimeoutCloseRequestWithUriPathOnly() {
         log.info("用例开始：校验超时关单内部请求携带 limit 查询参数且签名绑定完整请求目标");
@@ -83,7 +79,9 @@ class PaymentInternalRestClientTest {
         log.info("用例结果：limit=120 已进入查询参数和签名原文");
     }
 
-    /** 下游错误正文可能包含敏感字段，不得挂到跨服务异常 cause。 */
+    /**
+     * 下游错误正文可能包含敏感字段，不得挂到跨服务异常 cause。
+     */
     @Test
     void shouldNotPropagateDownstreamResponseBodyInExceptionCause() {
         RestTemplate directRestTemplate = mock(RestTemplate.class);

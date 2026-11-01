@@ -15,6 +15,9 @@ import com.scott.payment.payment.entity.TransactionOperationDO;
  */
 final class PaymentOpenApiResultSupport {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private PaymentOpenApiResultSupport() {
     }
 
@@ -39,7 +42,9 @@ final class PaymentOpenApiResultSupport {
         }
     }
 
-    /** 按内部响应中的状态、阶段和受控原因生成 V1.3 交易结果。 */
+    /**
+     * 按内部响应中的状态、阶段和受控原因生成 V1.3 交易结果。
+     */
     static OpenApiTransactionProjection project(PaymentCreateResultDTO resultDTO) {
         if (resultDTO == null) {
             return OpenApiTransactionResultProjector.project(null, null, null, null, null);
@@ -49,7 +54,9 @@ final class PaymentOpenApiResultSupport {
                 resultDTO.getPendingReasonCode(), resultDTO.getMerchantResponseCode());
     }
 
-    /** 按持久化动作事实生成 V1.3 交易结果，旧商户码不参与渠道归责。 */
+    /**
+     * 按持久化动作事实生成 V1.3 交易结果，旧商户码不参与渠道归责。
+     */
     static OpenApiTransactionProjection project(TransactionOperationDO operationDO) {
         if (operationDO == null) {
             return OpenApiTransactionResultProjector.project(null, null, null, null, null);

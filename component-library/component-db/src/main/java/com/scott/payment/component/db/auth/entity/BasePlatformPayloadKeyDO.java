@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : BasePlatformPayloadKeyDO
- * @date : 2026-06-13 17:17
- * @email : scott_x@163.com
- * @description : 基础平台报文密钥持久化模型，位于 公共组件库，映射数据库中的业务事实、状态、版本和审计字段，不作为外部接口模型。
- * @status : create
+ * 基础平台报文密钥持久化模型，位于 公共组件库，映射数据库中的业务事实、状态、版本和审计字段，不作为外部接口模型。
  */
 @Data
 @TableName("base_platform_payload_key")

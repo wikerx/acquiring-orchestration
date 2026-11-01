@@ -8,13 +8,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRedisEnvironmentGuardAutoConfigurationTests
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : Redis 环境前缀启动门禁测试，覆盖受保护环境、开发环境和跨环境误配置。
- * @status : create
+ * Redis 环境前缀启动门禁测试，覆盖受保护环境、开发环境和跨环境误配置。
  */
 @Slf4j
 class PaymentRedisEnvironmentGuardAutoConfigurationTests {

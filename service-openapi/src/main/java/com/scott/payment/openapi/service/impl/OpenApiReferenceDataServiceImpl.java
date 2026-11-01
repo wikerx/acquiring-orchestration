@@ -12,21 +12,19 @@ import com.scott.payment.openapi.vo.reference.IpLookupVO;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiReferenceDataServiceImpl
- * @date : 2026-08-11 15:44
- * @email : scott_x@163.com
- * @description : 商户基础数据检索服务实现，经受控缓存读取归属结果并隔离数据库内部字段
- * @status : create
+ * 商户基础数据检索服务实现，经受控缓存读取归属结果并隔离数据库内部字段
  */
 @Service
 public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataService {
 
-    /** 商户基础数据缓存读层；缓存故障时查询从库。 */
+    /**
+     * 商户基础数据缓存读层；缓存故障时查询从库。
+     */
     private final OpenApiReferenceDataCacheReader cacheReader;
 
-    /** 公共结果到 OpenAPI VO 的字段转换器，不允许为空。 */
+    /**
+     * 公共结果到 OpenAPI VO 的字段转换器，不允许为空。
+     */
     private final OpenApiReferenceDataConverter converter;
 
     /**

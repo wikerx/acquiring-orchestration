@@ -7,19 +7,17 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingGovernanceResponseSerializationTest
- * @date : 2026-08-02 00:00
- * @email : scott_x@163.com
- * @description : 验证分表治理主键和季度号段以 JSON 字符串返回，避免 JavaScript 安全整数精度损失。
- * @status : create
+ * 验证分表治理主键和季度号段以 JSON 字符串返回，避免 JavaScript 安全整数精度损失。
  */
 class ShardingGovernanceResponseSerializationTest {
 
-    /** 超出 JavaScript Number 安全整数范围的 18 位治理样本值。 */
+    /**
+     * 超出 JavaScript Number 安全整数范围的 18 位治理样本值。
+     */
     private static final long UNSAFE_INTEGER = 202_604_999_999_999_999L;
-    /** 直接验证 DTO Jackson 注解的隔离序列化器。 */
+    /**
+     * 直接验证 DTO Jackson 注解的隔离序列化器。
+     */
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test

@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 Job 调用 Data、Payment 时使用固定 service-job 身份和独立强密钥。 */
+/**
+ * 验证 Job 调用 Data、Payment 时使用固定 service-job 身份和独立强密钥。
+ */
 class InternalClientCredentialPropertiesTest {
 
     @Test

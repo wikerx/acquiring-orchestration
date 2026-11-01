@@ -70,13 +70,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelAlertServiceImpl
- * @date : 2026-07-17 00:00
- * @email : scott_x@163.com
- * @description : 渠道预警管理服务实现，负责后台规则配置、事件确认和邮件通知日志查询，不执行交易统计或路由熔断。
- * @status : create
+ * 渠道预警管理服务实现，负责后台规则配置、事件确认和邮件通知日志查询，不执行交易统计或路由熔断。
  */
 @Service
 public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
@@ -107,50 +101,26 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
     private static final int DISABLED = 0;
     /**
      * {@code ALL}常量，统一 {@code AdminChannelAlertServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ALL = "ALL";
     /**
      * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String EMAIL = "EMAIL";
     /**
      * {@code BANK_CARD}常量，统一 {@code AdminChannelAlertServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String BANK_CARD = "BANK_CARD";
     /**
      * {@code ADMIN_APP_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ADMIN_APP_CODE = "ADMIN";
     /**
      * 默认邮件语言区域，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DEFAULT_EMAIL_LOCALE = "zh-CN";
     /**
      * 默认邮件场景，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DEFAULT_EMAIL_SCENE = "CHANNEL_ALERT";
     /**
@@ -164,18 +134,10 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
     private static final String EVENT_STATUS_ACKNOWLEDGED = "ACKNOWLEDGED";
     /**
      * 规则编码前缀，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String RULE_CODE_PREFIX = "CAR";
     /**
      * 规则分组编码前缀，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String RULE_GROUP_CODE_PREFIX = "CARG";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,63}$");
@@ -608,6 +570,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 .orderByDesc(ChannelAlertEventDO::getId);
     }
 
+    /**
+     * 构建渠道告警通知日志的分页查询条件。
+     */
     private LambdaQueryWrapper<ChannelAlertNotifyLogDO> buildNotifyLogQuery(ChannelAlertNotifyLogQuery query) {
         return Wrappers.<ChannelAlertNotifyLogDO>lambdaQuery()
                 .eq(ChannelAlertNotifyLogDO::getDeleted, NOT_DELETED)
@@ -623,6 +588,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 .orderByDesc(ChannelAlertNotifyLogDO::getId);
     }
 
+    /**
+     * 校验规则请求。
+     */
     private void validateRuleRequest(ChannelAlertRuleSaveRequest request, Long excludeId) {
         if (request == null) {
             throw badRequest("预警规则请求不能为空");
@@ -648,6 +616,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         ensureRuleUnique(request, excludeId);
     }
 
+    /**
+     * 校验渠道告警规则批量保存请求。
+     */
     private BatchRuleContext validateBatchRequest(ChannelAlertRuleBatchSaveRequest request) {
         if (request == null) {
             throw badRequest("预警规则请求不能为空");
@@ -695,6 +666,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return new BatchRuleContext(resolveRuleDimension(request));
     }
 
+    /**
+     * 校验告警阈值与指标类型匹配。
+     */
     private void validateThreshold(String ruleType, ChannelAlertRuleSaveRequest request) {
         String thresholdType = RULE_TYPE_THRESHOLD.get(ruleType);
         if ("COUNT".equals(thresholdType)) {
@@ -720,11 +694,17 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         }
     }
 
+    /**
+     * 校验业务规则维度不存在重复配置。
+     */
     private void ensureRuleUnique(ChannelAlertRuleSaveRequest request, Long excludeId) {
         Set<Long> excludeIds = excludeId == null ? Collections.emptySet() : Set.of(excludeId);
         ensureRuleUnique(request, excludeIds);
     }
 
+    /**
+     * 校验业务规则维度不存在重复配置。
+     */
     private void ensureRuleUnique(ChannelAlertRuleSaveRequest request, Set<Long> excludeIds) {
         Long count = ruleMapper.selectCount(Wrappers.<ChannelAlertRuleDO>lambdaQuery()
                 .eq(ChannelAlertRuleDO::getDeleted, NOT_DELETED)
@@ -739,6 +719,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         }
     }
 
+    /**
+     * 校验渠道配置项属于同一能力维度。
+     */
     private void ensureSameDimension(ChannelAlertRuleDO origin, ChannelAlertRuleBatchSaveRequest request) {
         if (!Objects.equals(origin.getChannelId(), request.getChannelId())
                 || !Objects.equals(origin.getBusinessType(), normalizeCode(request.getBusinessType()))
@@ -747,6 +730,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         }
     }
 
+    /**
+     * 转换为单条请求。
+     */
     private ChannelAlertRuleSaveRequest toSingleRequest(ChannelAlertRuleBatchSaveRequest request,
                                                         ChannelAlertRuleItem item,
                                                         RuleDimension dimension) {
@@ -775,6 +761,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return singleRequest;
     }
 
+    /**
+     * 解析告警规则的渠道和支付维度。
+     */
     private RuleDimension resolveRuleDimension(ChannelAlertRuleBatchSaveRequest request) {
         List<PaymentMethodOption> paymentOptions = loadPaymentMethodOptions(request.getChannelId(), request.getBusinessType());
         String requestedPaymentMethod = defaultScope(request.getPaymentMethod());
@@ -792,6 +781,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return new RuleDimension(requestedPaymentMethod, ALL);
     }
 
+    /**
+     * 解析卡品牌范围。
+     */
     private String resolveCardBrandScope(PaymentMethodOption payment, List<String> requestedCardBrands) {
         List<String> supportedBrands = payment.getCardBrands() == null ? Collections.emptyList() : payment.getCardBrands();
         if (supportedBrands.isEmpty()) {
@@ -815,6 +807,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return String.join(",", selectedBrands);
     }
 
+    /**
+     * 加载与原规则使用相同监控维度的渠道告警规则。
+     */
     private List<ChannelAlertRuleDO> loadDimensionRules(ChannelAlertRuleDO origin) {
         LambdaQueryWrapper<ChannelAlertRuleDO> wrapper = Wrappers.<ChannelAlertRuleDO>lambdaQuery()
                 .eq(ChannelAlertRuleDO::getDeleted, NOT_DELETED);
@@ -832,6 +827,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 .orderByDesc(ChannelAlertRuleDO::getUpdateTime));
     }
 
+    /**
+     * 将维度规则实体转换为告警规则响应。
+     */
     private ChannelAlertRuleDimensionResponse toDimensionResponse(ChannelAlertRuleDO origin, List<ChannelAlertRuleDO> rows) {
         List<ChannelAlertRuleDO> items = rows == null || rows.isEmpty() ? List.of(origin) : rows;
         ChannelAlertRuleDO first = items.get(0);
@@ -857,6 +855,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return response;
     }
 
+    /**
+     * 解析渠道支持的收单或代付业务类型。
+     */
     private List<String> supportedBusinessTypes(ChannelInfoDO channel) {
         List<String> values = new ArrayList<>();
         if (channel.getSupportAcquiring() != null && channel.getSupportAcquiring() == ENABLED) {
@@ -868,6 +869,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return values;
     }
 
+    /**
+     * 加载渠道支持的支付方式选项。
+     */
     private List<PaymentMethodOption> loadPaymentMethodOptions(Long channelId, String businessType) {
         List<ChannelPaymentCapabilityDO> capabilities = capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -896,6 +900,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return new ArrayList<>(optionMap.values());
     }
 
+    /**
+     * 按渠道能力主键批量加载已配置的卡品牌编码。
+     */
     private Map<Long, List<String>> loadCapabilityCardBrands(List<ChannelPaymentCapabilityDO> capabilities) {
         List<Long> capabilityIds = capabilities.stream()
                 .filter(item -> BANK_CARD.equals(item.getPaymentMethod()))
@@ -915,6 +922,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                         Collectors.mapping(ChannelCapabilityCardBrandDO::getCardBrand, Collectors.toList())));
     }
 
+    /**
+     * 按登录账号、姓名或邮箱查询可用的告警收件人选项。
+     */
     private List<UserEmailOption> loadUserEmailOptions(String keyword) {
         SysAppDO app = sysAppMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, ADMIN_APP_CODE)
@@ -971,6 +981,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return new ArrayList<>(emailMap.values());
     }
 
+    /**
+     * 按真实姓名查询启用用户主键。
+     */
     private List<Long> loadUserIdsByRealName(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return Collections.emptyList();
@@ -985,6 +998,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 .toList();
     }
 
+    /**
+     * 查询当前后台应用可用的邮件模板选项。
+     */
     private List<EmailTemplateOption> loadEmailTemplateOptions(String keyword) {
         String query = trimToNull(keyword);
         LambdaQueryWrapper<EmailTemplateDO> wrapper = Wrappers.<EmailTemplateDO>lambdaQuery()
@@ -1015,6 +1031,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return options;
     }
 
+    /**
+     * 将邮件模板转换为告警配置选项。
+     */
     private EmailTemplateOption toEmailTemplateOption(EmailTemplateDO row) {
         EmailTemplateOption option = new EmailTemplateOption();
         option.setId(row.getId());
@@ -1025,10 +1044,16 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return option;
     }
 
+    /**
+     * 构建告警规则维度组合的稳定去重键。
+     */
     private String ruleComboKey(String paymentMethod, String cardBrand, String ruleType) {
         return defaultScope(paymentMethod) + ":" + defaultScope(cardBrand) + ":" + normalizeCode(ruleType);
     }
 
+    /**
+     * 填充规则。
+     */
     private void fillRule(ChannelAlertRuleDO row, ChannelAlertRuleSaveRequest request, ChannelInfoDO channel, LocalDateTime now) {
         row.setRuleName(trim(request.getRuleName()));
         row.setChannelId(channel.getId());
@@ -1057,6 +1082,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         row.setUpdateTime(now);
     }
 
+    /**
+     * 校验并获取规则。
+     */
     private ChannelAlertRuleDO requireRule(Long id) {
         if (id == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "id is required");
@@ -1070,6 +1098,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return row;
     }
 
+    /**
+     * 校验并获取事件。
+     */
     private ChannelAlertEventDO requireEvent(Long id) {
         if (id == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "id is required");
@@ -1083,6 +1114,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return row;
     }
 
+    /**
+     * 校验并获取渠道。
+     */
     private ChannelInfoDO requireChannel(Long channelId) {
         if (channelId == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "channelId is required");
@@ -1096,6 +1130,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return row;
     }
 
+    /**
+     * 转换为规则响应。
+     */
     private ChannelAlertRuleResponse toRuleResponse(ChannelAlertRuleDO row) {
         ChannelAlertRuleResponse response = new ChannelAlertRuleResponse();
         response.setId(row.getId());
@@ -1132,6 +1169,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return response;
     }
 
+    /**
+     * 转换为事件响应。
+     */
     private ChannelAlertEventResponse toEventResponse(ChannelAlertEventDO row) {
         ChannelAlertEventResponse response = new ChannelAlertEventResponse();
         response.setId(row.getId());
@@ -1172,6 +1212,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return response;
     }
 
+    /**
+     * 将告警通知日志实体转换为管理端响应。
+     */
     private ChannelAlertNotifyLogResponse toNotifyLogResponse(ChannelAlertNotifyLogDO row) {
         ChannelAlertNotifyLogResponse response = new ChannelAlertNotifyLogResponse();
         response.setId(row.getId());
@@ -1195,6 +1238,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return response;
     }
 
+    /**
+     * 查询渠道编码对应的展示名称。
+     */
     private String channelName(Long channelId) {
         if (channelId == null) {
             return "";
@@ -1206,10 +1252,16 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return StringUtils.hasText(channel.getChannelCnName()) ? channel.getChannelCnName() : channel.getChannelEnName();
     }
 
+    /**
+     * 判断渠道告警配置未被软删除。
+     */
     private boolean isNotDeleted(Long deleted) {
         return deleted != null && deleted.longValue() == NOT_DELETED;
     }
 
+    /**
+     * 校验并规范化告警收件人邮箱。
+     */
     private void validateEmails(String emails, boolean required) {
         if (!StringUtils.hasText(emails)) {
             if (required) {
@@ -1225,6 +1277,9 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         }
     }
 
+    /**
+     * 规范化告警收件人邮箱列表并去重。
+     */
     private String normalizeEmails(String emails) {
         if (!StringUtils.hasText(emails)) {
             return null;
@@ -1236,10 +1291,16 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 .toList());
     }
 
+    /**
+     * 返回默认范围。
+     */
     private String defaultScope(String value) {
         return StringUtils.hasText(value) ? normalizeCode(value) : ALL;
     }
 
+    /**
+     * 将分隔文本解析为去重范围值集合。
+     */
     private List<String> splitScopeValues(String value) {
         if (!StringUtils.hasText(value)) {
             return List.of(ALL);
@@ -1251,30 +1312,51 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 .toList();
     }
 
+    /**
+     * 规范化渠道或平台编码。
+     */
     private String normalizeCode(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 规范化可选编码。
+     */
     private String normalizeOptionalCode(String value) {
         return StringUtils.hasText(value) ? normalizeCode(value) : null;
     }
 
+    /**
+     * 在文本为空时返回默认值。
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
+    /**
+     * 规范化状态。
+     */
     private Integer normalizeStatus(Integer status) {
         return status != null && status == ENABLED ? ENABLED : DISABLED;
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -1289,13 +1371,22 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
         return "system";
     }
 
+    /**
+     * 构建参数校验失败异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
+    /**
+     * 封装批量告警规则保存所需的共享上下文。
+     */
     private record BatchRuleContext(RuleDimension dimension) {
     }
 
+    /**
+     * 封装渠道告警规则维度及其匹配值。
+     */
     private record RuleDimension(String paymentMethod, String cardBrand) {
     }
 }

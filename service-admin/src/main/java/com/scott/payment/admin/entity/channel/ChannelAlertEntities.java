@@ -9,16 +9,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelAlertEntities
- * @date : 2026-07-17 00:00
- * @email : scott_x@163.com
- * @description : 渠道预警管理实体集合，位于 service-admin 数据实体层，仅保存后台配置、预警事件和邮件通知日志。
- * @status : create
+ * 渠道预警管理实体集合，位于 service-admin 数据实体层，仅保存后台配置、预警事件和邮件通知日志。
  */
 public final class ChannelAlertEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private ChannelAlertEntities() {
     }
 

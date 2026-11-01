@@ -13,13 +13,7 @@ import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeRespons
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFundAccountService
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 管理端资金账户、余额流水、充值和扣减审批服务契约。
- * @status : create
+ * 管理端资金账户、余额流水、充值和扣减审批服务契约。
  */
 public interface AdminFundAccountService {
     /**

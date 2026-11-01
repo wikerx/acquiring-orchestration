@@ -13,23 +13,28 @@ import com.scott.payment.clearing.service.FeeConfigurationSnapshotService;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeVersionSnapshot;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeMode;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeRuleSnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeCurrencyPolicy;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeRuleConfigurationSnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.PercentageBasis;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.RefundFeeReturnPolicy;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveBasis;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReservePolicySnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveRefundPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingPreparationServiceTest
- * @date : 2026-08-26 10:55
- * @email : scott_x@163.com
- * @description : 验证清分事务外准备使用 locator 的真实根分片时间，并只加载确切费用版本和非敏感支付维度。
- * @status : create
+ * 验证清分事务外准备使用 locator 的真实根分片时间，并只加载确切费用版本和非敏感支付维度。
  */
 class DefaultClearingPreparationServiceTest {
 
@@ -82,8 +87,7 @@ class DefaultClearingPreparationServiceTest {
         method.setPaymentMethod("BANK_CARD");
         method.setPaymentBrand("VISA");
         method.setThreeDsIndicator("Y");
-        FeeVersionSnapshot snapshot = mock(FeeVersionSnapshot.class);
-        when(snapshot.reserve()).thenReturn(null);
+        FeeVersionSnapshot snapshot = feeSnapshot(time);
         when(contextMapper.selectLocator("M-1", "TX-2")).thenReturn(locator);
         when(contextMapper.selectPaymentMethod("TX-ROOT", rootTime)).thenReturn(method);
         when(contextMapper.existsInternalRiskCall("TX-2", time)).thenReturn(true);
@@ -111,5 +115,24 @@ class DefaultClearingPreparationServiceTest {
         row.setTransactionDateTime(transactionTime);
         row.setRootTransactionDateTime(rootTime);
         return row;
+    }
+
+    /**
+     * 构造零保证金费率的真实费用快照，避免测试依赖 final record 模拟能力。
+     */
+    private FeeVersionSnapshot feeSnapshot(LocalDateTime pricingLockTime) {
+        FeeRuleSnapshot calculation = new FeeRuleSnapshot(
+                101L, FeeMode.STANDARD, BigDecimal.ZERO, null, null, null, null);
+        FeeRuleConfigurationSnapshot rule = new FeeRuleConfigurationSnapshot(
+                101L, "TRANSACTION_FEE", "PAYMENT", "BANK_CARD", "VISA",
+                "NONE", "SUCCESS", calculation, List.of());
+        ReservePolicySnapshot reserve = new ReservePolicySnapshot(
+                BigDecimal.ZERO, ReserveBasis.LABEL_AMOUNT, "D", 1,
+                ReserveRefundPolicy.PROPORTIONAL_RETURN);
+        return new FeeVersionSnapshot(
+                5, "M-1", 10L, 11L, 1, pricingLockTime, "USD",
+                PercentageBasis.LABEL_AMOUNT, FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS,
+                RoundingMode.HALF_UP, reserve, RefundFeeReturnPolicy.NONE,
+                List.of(rule), "0".repeat(64));
     }
 }

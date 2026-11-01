@@ -18,17 +18,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemConfigCacheReaderTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 系统参数 Cacheable 代理和数据库快照映射测试。
- * @status : create
+ * 系统参数 Cacheable 代理和数据库快照映射测试。
  */
 class SystemConfigCacheReaderTests {
 
-    /** 缓存入口必须使用统一 Cache Name、原始配置键并强制回源主库。 */
+    /**
+     * 缓存入口必须使用统一 Cache Name、原始配置键并强制回源主库。
+     */
     @Test
     void shouldDeclarePersistentSystemConfigCacheContract() throws NoSuchMethodException {
         Method method = SystemConfigCacheReader.class.getMethod("findCached", String.class);
@@ -43,7 +39,9 @@ class SystemConfigCacheReaderTests {
         assertThat(dataSource.value()).isEqualTo(DataSourceName.MASTER);
     }
 
-    /** 数据库未删除记录必须完整转换为跨服务缓存快照。 */
+    /**
+     * 数据库未删除记录必须完整转换为跨服务缓存快照。
+     */
     @Test
     void shouldMapDatabaseRowToSharedSnapshot() {
         SystemConfigMapper mapper = mock(SystemConfigMapper.class);

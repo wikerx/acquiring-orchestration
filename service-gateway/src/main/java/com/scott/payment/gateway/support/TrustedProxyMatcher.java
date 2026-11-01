@@ -7,13 +7,7 @@ import java.net.UnknownHostException;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TrustedProxyMatcher
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : Gateway 可信代理 CIDR 匹配器，同时支持 IPv4 和 IPv6 且不解析域名
- * @status : create
+ * Gateway 可信代理 CIDR 匹配器，同时支持 IPv4 和 IPv6 且不解析域名
  */
 public class TrustedProxyMatcher {
 
@@ -23,7 +17,9 @@ public class TrustedProxyMatcher {
         this.blocks = cidrs == null ? List.of() : cidrs.stream().map(this::parse).toList();
     }
 
-    /** 判断规范化 IP 是否属于任一可信代理网段。 */
+    /**
+     * 判断规范化 IP 是否属于任一可信代理网段。
+     */
     public boolean matches(String ipAddress) {
         if (blocks.isEmpty()) {
             return false;
@@ -32,7 +28,9 @@ public class TrustedProxyMatcher {
         return blocks.stream().anyMatch(block -> block.matches(address));
     }
 
-    /** 返回规范化后的精确 IP；非法内容直接抛出，调用方应忽略整条不可信转发链。 */
+    /**
+     * 返回规范化后的精确 IP；非法内容直接抛出，调用方应忽略整条不可信转发链。
+     */
     public String normalize(String ipAddress) {
         return IpAddressNormalizer.normalizeExact(ipAddress).ipValue();
     }

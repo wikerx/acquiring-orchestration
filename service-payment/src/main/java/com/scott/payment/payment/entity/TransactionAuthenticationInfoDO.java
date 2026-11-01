@@ -9,13 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionAuthenticationInfoDO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 交易认证审计实体。仅保存 3DS 协议和状态摘要，不保存 CAVV、原始报文或浏览器认证材料。
- * @status : create
+ * 交易认证审计实体。仅保存 3DS 协议和状态摘要，不保存 CAVV、原始报文或浏览器认证材料。
  */
 @Data
 @TableName("transaction_authentication_info")
@@ -25,10 +19,6 @@ public class TransactionAuthenticationInfoDO implements Serializable {
 
     /**
      * {@code TransactionAuthenticationInfoDO} 数据库主键，用于唯一标识当前记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -42,20 +32,10 @@ public class TransactionAuthenticationInfoDO implements Serializable {
     private String authenticationInfoId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与 operationId、merchantOrderNo 共同定位一笔平台交易。
-     * </p>
      */
     private String transactionId;
     /**
      * 平台操作号，由支付核心生成，用于定位一次授权、请款、退款、撤销或回调处理动作。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与 transactionId、transactionType 共同定位一次交易动作。
-     * </p>
      */
     private String operationId;
     /**
@@ -77,10 +57,6 @@ public class TransactionAuthenticationInfoDO implements Serializable {
     private String authenticationStatus;
     /**
      * 持久化的认证来源，用于还原当前记录的业务事实。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String authenticationSource;
     /**
@@ -93,50 +69,26 @@ public class TransactionAuthenticationInfoDO implements Serializable {
     private String threeDsVersion;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String threeDsTransactionId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String threeDsServerTransactionId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String acsTransactionId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String dsTransactionId;
     /**
      * 持久化的{@code eci}，用于还原当前记录的业务事实。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String eci;
     /**
      * {@code cavv}，表示卡组织或 3DS 认证链路使用的安全认证值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String cavv;
     /**
@@ -149,18 +101,10 @@ public class TransactionAuthenticationInfoDO implements Serializable {
     private String xid;
     /**
      * 持久化的{@code liabilityShift}，用于还原当前记录的业务事实。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private Integer liabilityShift;
     /**
      * 持久化的{@code challengeRequired}，用于还原当前记录的业务事实。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private Integer challengeRequired;
     /**
@@ -174,10 +118,6 @@ public class TransactionAuthenticationInfoDO implements Serializable {
     private String challengeStatus;
     /**
      * {@code authenticationRedirectUrlHash}，表示回调、通知、来源站点或远程接口地址。
-     * <p>
-     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和协议由调用方校验；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String authenticationRedirectUrlHash;
     /**
@@ -190,68 +130,34 @@ public class TransactionAuthenticationInfoDO implements Serializable {
     private String authenticationResultCode;
     /**
      * 持久化的认证结果说明，用于还原当前记录的业务事实。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String authenticationResultMessage;
     /**
      * 持久化的认证时间，用于还原当前记录的业务事实。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private LocalDateTime authenticationTime;
     /**
      * 持久化的{@code authenticationExtraJson}，用于还原当前记录的业务事实。
-     * <p>
-     * 单位：无；格式：JSON 字符串或结构化对象；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：内容必须先脱敏再进入日志；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String authenticationExtraJson;
     /**
      * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private LocalDateTime transactionDateTime;
     /**
      * 交易受理时刻对应的 UTC 时间，用于跨时区排序和对账。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private LocalDateTime transactionUtcTime;
     /**
      * 交易业务时区，使用 IANA 时区标识解释本地交易时间。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String transactionTimeZone;
     /**
      * 记录创建时刻，持久化精度为毫秒。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
-     * </p>
      */
     private LocalDateTime createTime;
     /**
      * 记录最后更新时间，持久化精度为毫秒。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
-     * </p>
      */
     private LocalDateTime updateTime;
 }

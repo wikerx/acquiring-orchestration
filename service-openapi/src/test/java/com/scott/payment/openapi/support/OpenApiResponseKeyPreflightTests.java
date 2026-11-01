@@ -21,17 +21,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiResponseKeyPreflightTests
- * @date : 2026-10-26 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 响应公钥前置门禁测试，确保密钥问题在调用支付核心之前失败。
- * @status : create
+ * OpenAPI 响应公钥前置门禁测试，确保密钥问题在调用支付核心之前失败。
  */
 class OpenApiResponseKeyPreflightTests {
 
-    /** 验证通过后必须把同一把响应公钥绑定到请求上下文，供响应加密直接复用。 */
+    /**
+     * 验证通过后必须把同一把响应公钥绑定到请求上下文，供响应加密直接复用。
+     */
     @Test
     void shouldBindValidatedResponsePublicKeyToRequest() throws Exception {
         Fixture fixture = fixture();
@@ -45,7 +41,9 @@ class OpenApiResponseKeyPreflightTests {
                 .isSameAs(publicKey);
     }
 
-    /** 已认证商户缺少响应公钥时返回 C2002，不能继续进入业务控制器。 */
+    /**
+     * 已认证商户缺少响应公钥时返回 C2002，不能继续进入业务控制器。
+     */
     @Test
     void shouldRejectMissingMerchantResponseKey() throws Exception {
         Fixture fixture = fixture();
@@ -61,7 +59,9 @@ class OpenApiResponseKeyPreflightTests {
                         .isEqualTo(OpenApiResultCode.MERCHANT_RESPONSE_KEY_MISSING.getCode()));
     }
 
-    /** 密钥存储或解析异常属于平台故障，公开响应不得伪装成商户配置缺失。 */
+    /**
+     * 密钥存储或解析异常属于平台故障，公开响应不得伪装成商户配置缺失。
+     */
     @Test
     void shouldMapUnexpectedKeyLookupFailureToSystemError() throws Exception {
         Fixture fixture = fixture();

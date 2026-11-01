@@ -6,13 +6,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionQueryCacheService
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 交易查询缓存服务，位于 service-payment 服务层，以数据库查询结果为事实源并提供可降级的订单级 Redis 读模型。
- * @status : create
+ * 交易查询缓存服务，位于 service-payment 服务层，以数据库查询结果为事实源并提供可降级的订单级 Redis 读模型。
  */
 public interface TransactionQueryCacheService {
 

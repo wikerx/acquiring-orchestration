@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionLifecycleContext
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单交易生命周期上下文，位于 service-payment 领域模型层，用于关联同一原始交易下授权、请款、退款、拒付等不同交易动作。
- * @status : create
+ * 收单交易生命周期上下文，位于 service-payment 领域模型层，用于关联同一原始交易下授权、请款、退款、拒付等不同交易动作。
  */
 @Data
 public class TransactionLifecycleContext implements Serializable {

@@ -49,19 +49,35 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandida
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateSearchRequest;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementApplicationService
- * @date : 2026-08-26 21:20
- * @email : scott_x@163.com
- * @description : Admin 结算管理用例编排；列表和详情调用本地只读查询，取消绑定可信操作人后调用结算服务。
- * @status : create
+ * Admin 结算管理用例编排；列表和详情调用本地只读查询，取消绑定可信操作人后调用结算服务。
  */
 @Service
 public class AdminSettlementApplicationService {
 
+    /**
+     * {@code TRANSACTION_BATCH_DOMAIN}，表示远程服务主机、商户域名或渠道访问域名。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TRANSACTION_BATCH_DOMAIN = "TRANSACTION";
+    /**
+     * {@code RESERVE_BATCH_DOMAIN}，表示远程服务主机、商户域名或渠道访问域名。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RESERVE_BATCH_DOMAIN = "RESERVE";
+    /**
+     * {@code TRANSACTION_BATCH_TYPES}，用于区分 {@code AdminSettlementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：集合或键值映射；不允许为空；非敏感字段。
+     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
+     * </p>
+     */
     private static final Set<String> TRANSACTION_BATCH_TYPES = Set.of("REGULAR");
     private static final Set<String> RESERVE_BATCH_TYPES = Set.of("RESERVE_RELEASE", "ADJUSTMENT");
 
@@ -70,6 +86,9 @@ public class AdminSettlementApplicationService {
     private final AdminMerchantDataScopeResolver dataScopeResolver;
     private final AdminSettlementReviewQueryService reviewQueryService;
 
+    /**
+     * 创建管理端结算应用服务。
+     */
     @Autowired
     public AdminSettlementApplicationService(SettlementInternalClient client,
                                              AdminSettlementQueryService queryService,
@@ -81,6 +100,9 @@ public class AdminSettlementApplicationService {
         this.reviewQueryService = reviewQueryService;
     }
 
+    /**
+     * 创建支持清分联动的管理端结算应用服务。
+     */
     public AdminSettlementApplicationService(SettlementInternalClient client,
                                              AdminSettlementQueryService queryService,
                                              AdminMerchantDataScopeResolver dataScopeResolver) {
@@ -98,16 +120,23 @@ public class AdminSettlementApplicationService {
         return searchInCurrentScope(request);
     }
 
-    /** 查询交易结算工作台中的正式批次，服务端固定为 REGULAR，拒绝跨域批次类型。 */
+    /**
+     * 查询交易结算工作台中的正式批次，服务端固定为 REGULAR，拒绝跨域批次类型。
+     */
     public PageResult<BatchSummary> searchTransactionBatches(BatchSearchRequest request) {
         return searchByDomain(request, TRANSACTION_BATCH_DOMAIN, TRANSACTION_BATCH_TYPES);
     }
 
-    /** 查询保证金结算工作台中的正式批次，服务端固定为释放或调整批次。 */
+    /**
+     * 查询保证金结算工作台中的正式批次，服务端固定为释放或调整批次。
+     */
     public PageResult<BatchSummary> searchReserveBatches(BatchSearchRequest request) {
         return searchByDomain(request, RESERVE_BATCH_DOMAIN, RESERVE_BATCH_TYPES);
     }
 
+    /**
+     * 按结算业务域查询批次列表。
+     */
     private PageResult<BatchSummary> searchByDomain(BatchSearchRequest request,
                                                     String domain,
                                                     Set<String> allowedBatchTypes) {
@@ -123,6 +152,9 @@ public class AdminSettlementApplicationService {
         return searchInCurrentScope(request);
     }
 
+    /**
+     * 校验结算批次查询时间窗未超过安全上限。
+     */
     private void validateBatchSearchWindow(BatchSearchRequest request) {
         if (request == null || request.getBeginBusinessDate() == null
                 || request.getEndBusinessDate() == null
@@ -133,11 +165,17 @@ public class AdminSettlementApplicationService {
         }
     }
 
+    /**
+     * 查询在当前范围。
+     */
     private PageResult<BatchSummary> searchInCurrentScope(BatchSearchRequest request) {
         InternalAuthAccount account = currentAdminAccount();
         return queryService.search(request, dataScopeResolver.resolve(account));
     }
 
+    /**
+     * 去除文本空白并规范化为大写编码。
+     */
     private String normalizedUpper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
@@ -154,7 +192,9 @@ public class AdminSettlementApplicationService {
         return queryService.detail(settlementBatchNo.trim(), dataScopeResolver.resolve(account));
     }
 
-    /** 下载正式结算凭证前重新应用当前 Admin 商户数据范围。 */
+    /**
+     * 下载正式结算凭证前重新应用当前 Admin 商户数据范围。
+     */
     public BatchDetailResponse voucher(String settlementBatchNo) {
         requireBatchNo(settlementBatchNo);
         InternalAuthAccount account = currentAdminAccount();
@@ -180,7 +220,9 @@ public class AdminSettlementApplicationService {
         return client.cancel(settlementBatchNo.trim(), command(request, account, servletRequest));
     }
 
-    /** 校验数据范围后注入可信操作人并恢复汇率锁定重试耗尽批次。 */
+    /**
+     * 校验数据范围后注入可信操作人并恢复汇率锁定重试耗尽批次。
+     */
     public BatchCommandResponse retry(String settlementBatchNo,
                                       BatchCommandRequest request,
                                       HttpServletRequest servletRequest) {
@@ -255,12 +297,16 @@ public class AdminSettlementApplicationService {
         return reviewQueries().reviewDetail(reviewOrderNo.trim(), currentDataScope());
     }
 
-    /** 下载预审凭证前重新执行相同的数据范围校验。 */
+    /**
+     * 下载预审凭证前重新执行相同的数据范围校验。
+     */
     public ReviewDetailResponse reviewVoucher(String reviewOrderNo) {
         return reviewDetail(reviewOrderNo);
     }
 
-    /** 大预审单候选明细使用标准分页，不随详情一次返回。 */
+    /**
+     * 大预审单候选明细使用标准分页，不随详情一次返回。
+     */
     public PageResult<ReviewCandidateLine> reviewCandidates(
             String reviewOrderNo,
             ReviewCandidateSearchRequest request) {
@@ -281,7 +327,9 @@ public class AdminSettlementApplicationService {
         return submitReview(request, servletRequest);
     }
 
-    /** 创建服务端冻结的全量交易结算预览，不接受页面候选 ID 列表。 */
+    /**
+     * 创建服务端冻结的全量交易结算预览，不接受页面候选 ID 列表。
+     */
     public ManualReviewTaskResponse previewManualTransactionReview(
             ManualReviewPreviewRequest request,
             HttpServletRequest servletRequest) {
@@ -307,7 +355,9 @@ public class AdminSettlementApplicationService {
         return client.previewManualReview(internal);
     }
 
-    /** 将冻结预览提交后台异步生成，操作人可离开页面后再按任务号查看进度。 */
+    /**
+     * 将冻结预览提交后台异步生成，操作人可离开页面后再按任务号查看进度。
+     */
     public ManualReviewTaskResponse startManualTransactionReview(
             String taskNo,
             ManualReviewStartRequest request) {
@@ -323,14 +373,18 @@ public class AdminSettlementApplicationService {
         return client.startManualReview(taskNo.trim(), internal);
     }
 
-    /** 查询服务端冻结范围、只读结算周期和后台任务进度。 */
+    /**
+     * 查询服务端冻结范围、只读结算周期和后台任务进度。
+     */
     public ManualReviewTaskResponse manualTransactionReviewTask(String taskNo) {
         requireManualTaskNo(taskNo);
         reviewQueries().requireManualTaskAccess(taskNo.trim(), "REGULAR", currentDataScope());
         return client.getManualReviewTask(taskNo.trim());
     }
 
-    /** 创建服务端冻结的全量到期保证金释放预览，不接受页面候选 ID 列表。 */
+    /**
+     * 创建服务端冻结的全量到期保证金释放预览，不接受页面候选 ID 列表。
+     */
     public ManualReviewTaskResponse previewManualReserveReview(
             ManualReviewPreviewRequest request,
             HttpServletRequest servletRequest) {
@@ -356,7 +410,9 @@ public class AdminSettlementApplicationService {
         return client.previewManualReserveReview(internal);
     }
 
-    /** 将冻结的保证金释放预览提交后台异步生成。 */
+    /**
+     * 将冻结的保证金释放预览提交后台异步生成。
+     */
     public ManualReviewTaskResponse startManualReserveReview(
             String taskNo,
             ManualReviewStartRequest request) {
@@ -373,7 +429,9 @@ public class AdminSettlementApplicationService {
         return client.startManualReserveReview(taskNo.trim(), internal);
     }
 
-    /** 查询保证金释放预览、独立释放周期快照和后台任务进度。 */
+    /**
+     * 查询保证金释放预览、独立释放周期快照和后台任务进度。
+     */
     public ManualReviewTaskResponse manualReserveReviewTask(String taskNo) {
         requireManualTaskNo(taskNo);
         reviewQueries().requireManualTaskAccess(
@@ -426,7 +484,9 @@ public class AdminSettlementApplicationService {
         return client.decideReview(reviewOrderNo.trim(), internal);
     }
 
-    /** 大批量 MANUAL_ASYNC 预审单使用可恢复后台决策任务。 */
+    /**
+     * 大批量 MANUAL_ASYNC 预审单使用可恢复后台决策任务。
+     */
     public ReviewDecisionTaskResponse submitReviewDecisionTask(
             String reviewOrderNo,
             String decision,
@@ -451,13 +511,18 @@ public class AdminSettlementApplicationService {
         return client.submitReviewDecisionTask(reviewOrderNo.trim(), internal);
     }
 
+    /**
+     * 查询并校验结算预审决策任务。
+     */
     public ReviewDecisionTaskResponse reviewDecisionTask(String taskNo) {
         requireDecisionTaskNo(taskNo);
         reviewQueries().requireDecisionTaskAccess(taskNo.trim(), currentDataScope());
         return client.getReviewDecisionTask(taskNo.trim());
     }
 
-    /** 校验任务数据范围后注入可信操作人，原地恢复可恢复的失败决策任务。 */
+    /**
+     * 校验任务数据范围后注入可信操作人，原地恢复可恢复的失败决策任务。
+     */
     public ReviewDecisionTaskResponse resumeReviewDecisionTask(
             String taskNo,
             ReviewDecisionTaskResumeRequest request,
@@ -480,6 +545,9 @@ public class AdminSettlementApplicationService {
         return client.resumeReviewDecisionTask(taskNo.trim(), internal);
     }
 
+    /**
+     * 提交结算预审决策并返回任务结果。
+     */
     private ReviewCommandResponse submitReview(ReviewSubmitRequest request,
                                                HttpServletRequest servletRequest) {
         InternalAuthAccount account = currentAdminAccount();
@@ -524,7 +592,9 @@ public class AdminSettlementApplicationService {
         }
     }
 
-    /** 将当前可信登录账号、角色快照和客户端环境注入预审 Maker 命令。 */
+    /**
+     * 将当前可信登录账号、角色快照和客户端环境注入预审 Maker 命令。
+     */
     private void enrichOperator(InternalReviewSubmitRequest command,
                                 InternalAuthAccount account,
                                 HttpServletRequest request) {
@@ -536,7 +606,9 @@ public class AdminSettlementApplicationService {
         command.setOperationTime(LocalDateTime.now());
     }
 
-    /** 将当前可信登录账号、角色快照和客户端环境注入预审 Checker 命令。 */
+    /**
+     * 将当前可信登录账号、角色快照和客户端环境注入预审 Checker 命令。
+     */
     private void enrichOperator(InternalReviewDecisionRequest command,
                                 InternalAuthAccount account,
                                 HttpServletRequest request) {
@@ -548,6 +620,9 @@ public class AdminSettlementApplicationService {
         command.setOperationTime(LocalDateTime.now());
     }
 
+    /**
+     * 补充操作人。
+     */
     private void enrichOperator(InternalReviewDecisionTaskResumeRequest command,
                                 InternalAuthAccount account,
                                 HttpServletRequest request) {
@@ -559,6 +634,9 @@ public class AdminSettlementApplicationService {
         command.setOperationTime(LocalDateTime.now());
     }
 
+    /**
+     * 补充操作人。
+     */
     private void enrichOperator(InternalManualReviewPreviewRequest command,
                                 InternalAuthAccount account,
                                 HttpServletRequest request) {
@@ -570,6 +648,9 @@ public class AdminSettlementApplicationService {
         command.setOperationTime(LocalDateTime.now());
     }
 
+    /**
+     * 构建当前角色权限快照。
+     */
     private String roleSnapshot(InternalAuthAccount account) {
         String snapshot = account.getRoles() == null ? "" : account.getRoles().stream()
                 .filter(StringUtils::hasText).map(String::trim).distinct().sorted(Comparator.naturalOrder())
@@ -577,6 +658,9 @@ public class AdminSettlementApplicationService {
         return snapshot.isBlank() ? "UNASSIGNED" : snapshot;
     }
 
+    /**
+     * 从可信代理链中解析客户端 IP。
+     */
     private String clientIp(HttpServletRequest request) {
         if (request == null) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
@@ -586,6 +670,9 @@ public class AdminSettlementApplicationService {
         return value;
     }
 
+    /**
+     * 提取并限制客户端 User-Agent 审计字段。
+     */
     private String userAgent(HttpServletRequest request) {
         String value = request == null ? null : request.getHeader("User-Agent");
         if (!StringUtils.hasText(value)) return "UNKNOWN";
@@ -593,12 +680,17 @@ public class AdminSettlementApplicationService {
         return value.length() <= 500 ? value : value.substring(0, 500);
     }
 
-    /** @return 当前可信 Admin 账号实时解析出的商户数据范围。 */
+    /**
+     * @return 当前可信 Admin 账号实时解析出的商户数据范围。
+     */
     private AdminMerchantDataScope currentDataScope() {
         InternalAuthAccount account = currentAdminAccount();
         return dataScopeResolver.resolve(account);
     }
 
+    /**
+     * 构建结算预审批量查询条件。
+     */
     private AdminSettlementReviewQueryService reviewQueries() {
         if (reviewQueryService == null) {
             throw new IllegalStateException("admin settlement review query service is unavailable");
@@ -606,12 +698,18 @@ public class AdminSettlementApplicationService {
         return reviewQueryService;
     }
 
+    /**
+     * 校验并获取复核号。
+     */
     private void requireReviewNo(String value) {
         if (!StringUtils.hasText(value) || !value.trim().matches("SO\\d{8}-\\d{8}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 构建清分内部管理命令。
+     */
     private InternalBatchCommandRequest command(BatchCommandRequest request,
                                                 InternalAuthAccount account,
                                                 HttpServletRequest servletRequest) {
@@ -632,37 +730,58 @@ public class AdminSettlementApplicationService {
         return command;
     }
 
+    /**
+     * 校验结算批次号是否符合平台编号格式。
+     */
     private void requireBatchNo(String value) {
         if (!StringUtils.hasText(value) || !value.trim().matches("SB\\d{8}-\\d{8}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 读取并校验手动结算任务号。
+     */
     private void requireManualTaskNo(String value) {
         if (!StringUtils.hasText(value) || !value.trim().matches("MT[0-9a-f]{32}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 规范化并校验异步决策任务号。
+     */
     private void requireDecisionTaskNo(String value) {
         if (!StringUtils.hasText(value) || !value.trim().matches("DT[0-9a-f]{32}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 读取并规范化可选业务编码。
+     */
     private boolean optionalCode(String value, int maxLength) {
         return !StringUtils.hasText(value)
                 || value.trim().length() <= maxLength && value.trim().matches("[A-Za-z0-9_.:-]+" );
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 返回首个非空业务文本。
+     */
     private boolean validText(String value, int maxLength) {
         return StringUtils.hasText(value) && value.trim().length() <= maxLength;
     }
 
+    /**
+     * 读取并校验当前管理端认证账户。
+     */
     private InternalAuthAccount currentAdminAccount() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAppId() == null || account.getAccountId() == null

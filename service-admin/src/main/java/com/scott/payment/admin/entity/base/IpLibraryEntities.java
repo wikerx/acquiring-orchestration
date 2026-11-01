@@ -8,16 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IpLibraryEntities
- * @date : 2026-07-05 00:34
- * @email : scott_x@163.com
- * @description : IP Library Entities 聚合类型，位于 运营后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
- * @status : create
+ * IP Library Entities 聚合类型，用于运营后台，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
  */
 public final class IpLibraryEntities {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private IpLibraryEntities() {
     }
 

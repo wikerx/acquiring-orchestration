@@ -6,13 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysEmailVerificationRequestMapper
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 账号邮箱验证请求数据访问接口；消费验证码和动作令牌时使用行锁保证单次状态流转。
- * @status : create
+ * 账号邮箱验证请求数据访问接口；消费验证码和动作令牌时使用行锁保证单次状态流转。
  */
 public interface SysEmailVerificationRequestMapper extends BaseMapper<SysEmailVerificationRequestDO> {
 

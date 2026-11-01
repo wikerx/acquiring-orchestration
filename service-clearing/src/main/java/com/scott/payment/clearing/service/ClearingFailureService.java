@@ -8,13 +8,7 @@ import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingFailureService
- * @date : 2026-08-26 16:00
- * @email : scott_x@163.com
- * @description : 清分受控失败的独立事务边界，原子提交失败状态与可选延时 Outbox；未知技术异常不由该边界吞掉。
- * @status : create
+ * 清分受控失败的独立事务边界，原子提交失败状态与可选延时 Outbox；未知技术异常不由该边界吞掉。
  */
 public interface ClearingFailureService {
 

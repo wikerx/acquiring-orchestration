@@ -12,22 +12,20 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : S3ObjectStorageService
- * @date : 2026-09-14 19:10
- * @email : scott_x@163.com
- * @description : S3 API 对象存储实现，业务层无需感知当前连接 MinIO 还是 AWS S3
- * @status : create
+ * S3 API 对象存储实现，业务层无需感知当前连接 MinIO 还是 AWS S3
  */
 @Service
 @ConditionalOnProperty(prefix = "acquiring.object-storage", name = "enabled", havingValue = "true")
 public class S3ObjectStorageService implements ObjectStorageService {
 
-    /** S3 同步客户端；启用对象存储时由配置类创建，不允许为空。 */
+    /**
+     * S3 同步客户端；启用对象存储时由配置类创建，不允许为空。
+     */
     private final S3Client s3Client;
 
-    /** Bucket、端点和供应商配置；不允许为空，其中访问凭证属于敏感信息。 */
+    /**
+     * Bucket、端点和供应商配置；不允许为空，其中访问凭证属于敏感信息。
+     */
     private final ObjectStorageProperties properties;
 
     /**

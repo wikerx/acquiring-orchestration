@@ -17,10 +17,14 @@ import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Redis Set 去重原子写入与返回语义测试。 */
+/**
+ * Redis Set 去重原子写入与返回语义测试。
+ */
 class RedisDeduplicationServiceImplTests {
 
-    /** 首次写入应原子设置 TTL，并继续返回非重复。 */
+    /**
+     * 首次写入应原子设置 TTL，并继续返回非重复。
+     */
     @Test
     void shouldReturnNotDuplicateWhenScriptAddsMember() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -42,7 +46,9 @@ class RedisDeduplicationServiceImplTests {
         verify(redisTemplate, never()).opsForSet();
     }
 
-    /** 已存在成员应继续返回重复，且由脚本决定不刷新 TTL。 */
+    /**
+     * 已存在成员应继续返回重复，且由脚本决定不刷新 TTL。
+     */
     @Test
     void shouldReturnDuplicateWhenScriptFindsExistingMember() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -57,7 +63,9 @@ class RedisDeduplicationServiceImplTests {
         assertThat(service.checkAndAdd("dedup:key", "value-1", Duration.ofSeconds(30))).isTrue();
     }
 
-    /** 未配置有效 TTL 时仍应完成去重写入，但向脚本传入零表示不设置过期。 */
+    /**
+     * 未配置有效 TTL 时仍应完成去重写入，但向脚本传入零表示不设置过期。
+     */
     @Test
     void shouldPreserveNonExpiringSetBehaviorWhenTtlIsMissing() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -72,7 +80,9 @@ class RedisDeduplicationServiceImplTests {
         assertThat(service.checkAndAdd("dedup:key", "value-1", null)).isFalse();
     }
 
-    /** Redis 未返回结果时保持旧的保守语义，按重复处理。 */
+    /**
+     * Redis 未返回结果时保持旧的保守语义，按重复处理。
+     */
     @Test
     void shouldTreatMissingRedisResultAsDuplicate() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);

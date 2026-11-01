@@ -15,13 +15,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewT
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalClient
- * @date : 2026-08-26 21:20
- * @email : scott_x@163.com
- * @description : service-settlement 结算命令内部客户端边界，隔离 Admin 应用层与 HTTP/HMAC 细节。
- * @status : create
+ * service-settlement 结算命令内部客户端边界，隔离 Admin 应用层与 HTTP/HMAC 细节。
  */
 public interface SettlementInternalClient {
 
@@ -34,7 +28,9 @@ public interface SettlementInternalClient {
      */
     BatchCommandResponse cancel(String settlementBatchNo, InternalBatchCommandRequest request);
 
-    /** 发送仅限汇率锁定重试耗尽场景的人工恢复命令。 */
+    /**
+     * 发送仅限汇率锁定重试耗尽场景的人工恢复命令。
+     */
     BatchCommandResponse retry(String settlementBatchNo, InternalBatchCommandRequest request);
 
     /**
@@ -54,23 +50,50 @@ public interface SettlementInternalClient {
      */
     ReviewCommandResponse decideReview(String reviewOrderNo, InternalReviewDecisionRequest request);
 
+    /**
+     * 创建手动交易结算预审的只读预览。
+     */
     ManualReviewTaskResponse previewManualReview(InternalManualReviewPreviewRequest request);
 
+    /**
+     * 启动手动交易结算预审任务。
+     */
     ManualReviewTaskResponse startManualReview(String taskNo, ManualReviewStartRequest request);
 
+    /**
+     * 查询手动交易结算预审任务。
+     */
     ManualReviewTaskResponse getManualReviewTask(String taskNo);
 
+    /**
+     * 创建手动保证金结算预审的只读预览。
+     */
     ManualReviewTaskResponse previewManualReserveReview(InternalManualReviewPreviewRequest request);
 
+    /**
+     * 启动手动保证金结算预审任务。
+     */
     ManualReviewTaskResponse startManualReserveReview(String taskNo, ManualReviewStartRequest request);
 
+    /**
+     * 查询手动保证金结算预审任务。
+     */
     ManualReviewTaskResponse getManualReserveReviewTask(String taskNo);
 
+    /**
+     * 提交可恢复的结算预审异步决策任务。
+     */
     ReviewDecisionTaskResponse submitReviewDecisionTask(
             String reviewOrderNo, InternalReviewDecisionRequest request);
 
+    /**
+     * 查询结算复核异步决策任务。
+     */
     ReviewDecisionTaskResponse getReviewDecisionTask(String taskNo);
 
+    /**
+     * 恢复可重试的结算预审决策任务。
+     */
     ReviewDecisionTaskResponse resumeReviewDecisionTask(
             String taskNo, InternalReviewDecisionTaskResumeRequest request);
 

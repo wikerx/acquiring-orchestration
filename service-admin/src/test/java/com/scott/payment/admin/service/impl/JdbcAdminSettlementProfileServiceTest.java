@@ -26,13 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminSettlementProfileServiceTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证结算档案的本地分页、商户数据范围和乐观锁更新。
- * @status : create
+ * 验证结算档案的本地分页、商户数据范围和乐观锁更新。
  */
 class JdbcAdminSettlementProfileServiceTest {
 

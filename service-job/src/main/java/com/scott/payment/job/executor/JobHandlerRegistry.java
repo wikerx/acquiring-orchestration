@@ -13,13 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobHandlerRegistry
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务处理器注册中心
- * @status : create
+ * 任务处理器注册中心
  */
 @Component
 public class JobHandlerRegistry {

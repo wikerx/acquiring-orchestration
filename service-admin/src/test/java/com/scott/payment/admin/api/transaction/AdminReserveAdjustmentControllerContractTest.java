@@ -8,13 +8,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminReserveAdjustmentControllerContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证保证金调整提交与复核不能共用同一权限。
- * @status : create
+ * 验证保证金调整提交与复核不能共用同一权限。
  */
 class AdminReserveAdjustmentControllerContractTest {
 

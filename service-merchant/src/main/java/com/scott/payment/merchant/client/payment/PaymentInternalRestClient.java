@@ -25,13 +25,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalRestClient
- * @date : 2026-07-19 00:00
- * @email : scott_x@163.com
- * @description : service-payment 内部 REST 客户端，位于 service-merchant 客户端层，为商户后台退款等状态变更动作封装 HMAC 签名和统一响应解包。
- * @status : create
+ * service-payment 内部 REST 客户端，位于 service-merchant 客户端层，为商户后台退款等状态变更动作封装 HMAC 签名和统一响应解包。
  */
 @Service
 @Slf4j
@@ -62,16 +56,24 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
 
-    /** 商户发起请款时调用的支付核心内部接口。 */
+    /**
+     * 商户发起请款时调用的支付核心内部接口。
+     */
     private static final String CAPTURE_PATH = "/internal/payment/capture";
 
-    /** 商户发起预授权完成时调用的支付核心内部接口。 */
+    /**
+     * 商户发起预授权完成时调用的支付核心内部接口。
+     */
     private static final String PRE_AUTH_COMPLETION_PATH = "/internal/payment/pre-auth-completion";
 
-    /** 商户发起退款时调用的支付核心内部接口。 */
+    /**
+     * 商户发起退款时调用的支付核心内部接口。
+     */
     private static final String REFUND_PATH = "/internal/payment/refund";
 
-    /** 商户发起撤销时调用的支付核心内部接口。 */
+    /**
+     * 商户发起撤销时调用的支付核心内部接口。
+     */
     private static final String VOID_PATH = "/internal/payment/void";
 
     private final RestTemplate directRestTemplate;

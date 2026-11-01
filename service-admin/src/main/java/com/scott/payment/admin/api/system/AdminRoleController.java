@@ -29,13 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRoleController
- * @date : 2026-06-07 00:00
- * @email : scott_x@163.com
- * @description : 管理后台角色管理控制器
- * @status : create
+ * 管理后台角色管理控制器
  */
 @RestController
 @RequestMapping("/admin/system/roles")

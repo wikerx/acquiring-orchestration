@@ -5,13 +5,7 @@ import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AccountPasswordHistoryService
- * @date : 2026-10-15 00:00
- * @email : scott_x@163.com
- * @description : 账号密码复用防护服务，统一校验当前密码和最近四条历史，并冻结被替换的旧哈希材料。
- * @status : create
+ * 账号密码复用防护服务，统一校验当前密码和最近四条历史，并冻结被替换的旧哈希材料。
  */
 public interface AccountPasswordHistoryService {
 

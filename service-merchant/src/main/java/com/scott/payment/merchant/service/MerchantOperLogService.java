@@ -7,13 +7,7 @@ import com.scott.payment.merchant.dto.SysOperLogRecordRequest;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOperLogService
- * @date : 2026-06-20 10:46
- * @email : scott_x@163.com
- * @description : 商户oper日志服务契约，位于 商户后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * 商户oper日志服务契约，位于 商户后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public interface MerchantOperLogService {
 

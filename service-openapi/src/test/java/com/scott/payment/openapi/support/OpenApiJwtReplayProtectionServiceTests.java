@@ -26,13 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiJwtReplayProtectionServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : OpenAPI JWT 防重放 Redis 行为测试。
- * @status : create
+ * OpenAPI JWT 防重放 Redis 行为测试。
  */
 class OpenApiJwtReplayProtectionServiceTests {
 
@@ -49,6 +43,19 @@ class OpenApiJwtReplayProtectionServiceTests {
                             .hasRootCauseInstanceOf(IllegalStateException.class)
                             .hasRootCauseMessage("OpenAPI JWT replay protection requires StringRedisTemplate");
                 });
+    }
+
+    /**
+     * 未配置防重放开关时应默认失败关闭，防止部署漏配导致 JWT 可重放。
+     */
+    @Test
+    void shouldRequireReplayProtectionByDefault() {
+        contextRunner.run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure())
+                    .hasRootCauseInstanceOf(IllegalStateException.class)
+                    .hasRootCauseMessage("OpenAPI JWT replay protection requires StringRedisTemplate");
+        });
     }
 
     @Test
@@ -259,7 +266,7 @@ class OpenApiJwtReplayProtectionServiceTests {
         @Bean
         OpenApiJwtReplayProtectionService replayProtectionService(
                 ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-                @Value("${openapi.security.replay.required:false}") boolean replayRequired,
+                @Value("${openapi.security.replay.required:true}") boolean replayRequired,
                 PaymentRedisProperties redisProperties) {
             return new OpenApiJwtReplayProtectionService(
                     stringRedisTemplateProvider,

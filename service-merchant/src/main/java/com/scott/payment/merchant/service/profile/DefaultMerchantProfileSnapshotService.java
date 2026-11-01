@@ -28,17 +28,18 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantProfileSnapshotService
- * @date : 2026-09-21 09:30
- * @email : scott_x@163.com
- * @description : 商户正式资料快照实现，负责高风险主档和相关人员的一致读取与原子替换
- * @status : create
+ * 商户正式资料快照实现，负责高风险主档和相关人员的一致读取与原子替换
  */
 @Service
 public class DefaultMerchantProfileSnapshotService implements MerchantProfileSnapshotService {
 
+    /**
+     * {@code NOT_DELETED}常量，统一 {@code DefaultMerchantProfileSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int NOT_DELETED = 0;
 
     private final BaseMerchantInfoMapper merchantInfoMapper;
@@ -46,7 +47,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
     private final MerchantProfileProperties properties;
 
-    /** 创建商户正式资料快照服务。 */
+    /**
+     * 创建商户正式资料快照服务。
+     */
     public DefaultMerchantProfileSnapshotService(
             BaseMerchantInfoMapper merchantInfoMapper,
             SharedMerchantRelatedPersonMapper relatedPersonMapper,
@@ -58,7 +61,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         this.properties = properties;
     }
 
-    /** 从主库读取当前正式高风险资料，证件号仅返回脱敏值。 */
+    /**
+     * 从主库读取当前正式高风险资料，证件号仅返回脱敏值。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     public MerchantProfileChangeDTOs.ProfileSnapshot loadCurrent(String merchantId) {
@@ -75,7 +80,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         return snapshot;
     }
 
-    /** 原子应用审核通过的高风险资料，不覆盖联系人、语言、时区等即时维护字段。 */
+    /**
+     * 原子应用审核通过的高风险资料，不覆盖联系人、语言、时区等即时维护字段。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -152,7 +159,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         replaceRelatedPersons(merchant.getMerchantId(), snapshot.getRelatedPersons(), now);
     }
 
-    /** 软删除旧人员并插入审核快照人员，未重新输入证件号时复用原密文。 */
+    /**
+     * 软删除旧人员并插入审核快照人员，未重新输入证件号时复用原密文。
+     */
     private void replaceRelatedPersons(String merchantId,
                                        List<MerchantProfileChangeDTOs.RelatedPerson> persons,
                                        LocalDateTime now) {

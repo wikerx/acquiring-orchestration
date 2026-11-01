@@ -12,13 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityCacheInvalidationRetrySchedulerTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户安全缓存失效重试调度测试。
- * @status : create
+ * 商户安全缓存失效重试调度测试。
  */
 class MerchantSecurityCacheInvalidationRetrySchedulerTests {
 

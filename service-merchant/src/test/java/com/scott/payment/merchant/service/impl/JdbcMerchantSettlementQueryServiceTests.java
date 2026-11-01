@@ -30,13 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantSettlementQueryServiceTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Merchant 结算 JDBC 查询的商户隔离和真实明细口径测试。
- * @status : create
+ * Merchant 结算 JDBC 查询的商户隔离和真实明细口径测试。
  */
 class JdbcMerchantSettlementQueryServiceTests {
 
@@ -333,7 +327,9 @@ class JdbcMerchantSettlementQueryServiceTests {
                 "candidate.source_transaction_id = :transactionId");
     }
 
-    /** 交易逐笔明细必须透传源币种和目标币种 exponent，页面不能默认所有币种均为两位小数。 */
+    /**
+     * 交易逐笔明细必须透传源币种和目标币种 exponent，页面不能默认所有币种均为两位小数。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void transactionSearchShouldExposeCurrencyExponents() {
@@ -355,7 +351,9 @@ class JdbcMerchantSettlementQueryServiceTests {
                 "item.target_currency_exponent");
     }
 
-    /** 批次账单必须同时暴露去重交易笔数、结算项目数和唯一净入账金额。 */
+    /**
+     * 批次账单必须同时暴露去重交易笔数、结算项目数和唯一净入账金额。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void batchSearchShouldExposeOperationalCountsAndNetPosting() {

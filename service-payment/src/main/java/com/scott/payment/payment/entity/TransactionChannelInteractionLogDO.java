@@ -9,13 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelInteractionLogDO
- * @date : 2026-07-14 19:32
- * @email : scott_x@163.com
- * @description : 渠道交互日志实体，位于 service-payment 持久化层，保存渠道请求、响应和异常的脱敏 JSON 审计日志。
- * @status : create
+ * 渠道交互日志实体，位于 service-payment 持久化层，保存渠道请求、响应和异常的脱敏 JSON 审计日志。
  */
 @Data
 @TableName("transaction_channel_interaction_log")

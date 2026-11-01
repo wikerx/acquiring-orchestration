@@ -42,13 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoDictionaryServiceImpl
- * @date : 2026-06-03 14:35
- * @email : scott_x@163.com
- * @description : ISO 国家地区与币种基础字典公共查询服务实现，提供数据库权威数据的常驻 Redis 读模型
- * @status : update
+ * ISO 国家地区与币种基础字典公共查询服务实现，提供数据库权威数据的常驻 Redis 读模型
  */
 @Slf4j
 @Service
@@ -79,23 +73,54 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private static final String CURRENCY_CACHE_BUSINESS = "currency";
 
-    /** 币种展示快照版本；升级展示结构时使用新业务键，避免反序列化旧值。 */
+    /**
+     * 币种展示快照版本；升级展示结构时使用新业务键，避免反序列化旧值。
+     */
     private static final String CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY = "presentation-v1";
 
-    /** 受管 ISO 快照的固定业务键。 */
+    /**
+     * 受管 ISO 快照的固定业务键。
+     */
     private static final String SNAPSHOT_BUSINESS_KEY = "all";
 
-    /** 按标准代码精确查询的固定 Redis Hash 业务键。 */
+    /**
+     * 按标准代码精确查询的固定 Redis Hash 业务键。
+     */
     private static final String CODE_INDEX_BUSINESS_KEY = "codes";
 
-    /** 代码 Hash 完整性标记；与全部别名在同一个 HSET 命令中写入。 */
+    /**
+     * 代码 Hash 完整性标记；与全部别名在同一个 HSET 命令中写入。
+     */
     private static final String CODE_INDEX_READY_FIELD = "__READY__";
 
-    /** 当前代码 Hash 载荷版本。 */
+    /**
+     * 当前代码 Hash 载荷版本。
+     */
     private static final String CODE_INDEX_VERSION = "v1";
 
+    /**
+     * {@code ALPHA2_FIELD_PREFIX}常量，统一 {@code IsoDictionaryServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ALPHA2_FIELD_PREFIX = "A2:";
+    /**
+     * {@code ALPHA3_FIELD_PREFIX}常量，统一 {@code IsoDictionaryServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ALPHA3_FIELD_PREFIX = "A3:";
+    /**
+     * {@code NUMERIC_FIELD_PREFIX}常量，统一 {@code IsoDictionaryServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NUMERIC_FIELD_PREFIX = "N:";
 
     /**
@@ -118,10 +143,14 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private final PaymentRedisKeyResolver keyResolver;
 
-    /** 永久缓存失效门禁；未启用 Redis 组件时允许为空并直接回源数据库。 */
+    /**
+     * 永久缓存失效门禁；未启用 Redis 组件时允许为空并直接回源数据库。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
-    /** 事务缓存可靠失效协调器；独立使用 component-db 时允许为空。 */
+    /**
+     * 事务缓存可靠失效协调器；独立使用 component-db 时允许为空。
+     */
     private final ManagedCacheInvalidationCoordinator invalidationCoordinator;
 
     /**
@@ -521,21 +550,27 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         return currencies;
     }
 
-    /** 写入国家全量快照；管理端变更尚未复制完成时跳过永久缓存写入。 */
+    /**
+     * 写入国家全量快照；管理端变更尚未复制完成时跳过永久缓存写入。
+     */
     private void writeCountrySnapshot(List<IsoCountryInfo> countries, String snapshotKey) {
         if (isCacheWriteAllowed(PaymentCacheNames.ISO_COUNTRY, SNAPSHOT_BUSINESS_KEY)) {
             writeCache(snapshotKey, countries);
         }
     }
 
-    /** 写入币种全量快照；管理端变更尚未复制完成时跳过永久缓存写入。 */
+    /**
+     * 写入币种全量快照；管理端变更尚未复制完成时跳过永久缓存写入。
+     */
     private void writeCurrencySnapshot(List<IsoCurrencyInfo> currencies, String snapshotKey) {
         if (isCacheWriteAllowed(PaymentCacheNames.ISO_CURRENCY, SNAPSHOT_BUSINESS_KEY)) {
             writeCache(snapshotKey, currencies);
         }
     }
 
-    /** 使用完整国家快照重建固定代码 Hash。 */
+    /**
+     * 使用完整国家快照重建固定代码 Hash。
+     */
     private void writeCountryCodeIndex(List<IsoCountryInfo> countries) {
         if (!isCodeIndexWriteAllowed(PaymentCacheNames.ISO_COUNTRY)) {
             return;
@@ -550,7 +585,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
     }
 
-    /** 使用完整币种快照重建固定代码 Hash。 */
+    /**
+     * 使用完整币种快照重建固定代码 Hash。
+     */
     private void writeCurrencyCodeIndex(List<IsoCurrencyInfo> currencies) {
         if (!isCodeIndexWriteAllowed(PaymentCacheNames.ISO_CURRENCY)) {
             return;
@@ -625,7 +662,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
     }
 
-    /** 写入不带 TTL 的完整代码 Hash；先删除旧版本字段，防止已移除代码残留。 */
+    /**
+     * 写入不带 TTL 的完整代码 Hash；先删除旧版本字段，防止已移除代码残留。
+     */
     private boolean writeCodeCache(String cacheKey, Map<String, String> aliases, String dictionary) {
         if (stringRedisTemplate == null || !StringUtils.hasText(cacheKey)) {
             return false;
@@ -642,7 +681,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
     }
 
-    /** 为本次国家查询构造一次 HMGET 所需字段，顺序与请求条件保持稳定。 */
+    /**
+     * 为本次国家查询构造一次 HMGET 所需字段，顺序与请求条件保持稳定。
+     */
     private List<Object> countryCodeFields(String alpha2, String alpha3, String numeric) {
         List<Object> fields = new ArrayList<>(4);
         fields.add(CODE_INDEX_READY_FIELD);
@@ -652,7 +693,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         return List.copyOf(fields);
     }
 
-    /** 为本次币种查询构造一次 HMGET 所需字段。 */
+    /**
+     * 为本次币种查询构造一次 HMGET 所需字段。
+     */
     private List<Object> currencyCodeFields(String alphabeticCode, String numericCode) {
         List<Object> fields = new ArrayList<>(3);
         fields.add(CODE_INDEX_READY_FIELD);
@@ -667,7 +710,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
     }
 
-    /** 从完整国家记录建立 alpha-2、alpha-3 和 numeric 三类固定别名。 */
+    /**
+     * 从完整国家记录建立 alpha-2、alpha-3 和 numeric 三类固定别名。
+     */
     private Map<String, String> countryAliases(List<IsoCountryInfo> countries) {
         Map<String, String> aliases = new LinkedHashMap<>();
         for (IsoCountryInfo country : countries) {
@@ -680,7 +725,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         return aliases;
     }
 
-    /** 从完整币种记录建立 alphabetic 和 numeric 两类固定别名。 */
+    /**
+     * 从完整币种记录建立 alphabetic 和 numeric 两类固定别名。
+     */
     private Map<String, String> currencyAliases(List<IsoCurrencyInfo> currencies) {
         Map<String, String> aliases = new LinkedHashMap<>();
         for (IsoCurrencyInfo currency : currencies) {
@@ -698,7 +745,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
     }
 
-    /** 对从库重建结果应用与 Hash 查询一致的国家代码 AND 语义。 */
+    /**
+     * 对从库重建结果应用与 Hash 查询一致的国家代码 AND 语义。
+     */
     private List<IsoCountryInfo> filterCountriesByCodes(List<IsoCountryInfo> countries,
                                                         String alpha2,
                                                         String alpha3,
@@ -710,7 +759,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 .toList();
     }
 
-    /** 对从库重建结果应用与 Hash 查询一致的币种代码 AND 语义。 */
+    /**
+     * 对从库重建结果应用与 Hash 查询一致的币种代码 AND 语义。
+     */
     private List<IsoCurrencyInfo> filterCurrenciesByCodes(List<IsoCurrencyInfo> currencies,
                                                           String alphabeticCode,
                                                           String numericCode) {
@@ -721,7 +772,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 .toList();
     }
 
-    /** Redis 不可用时按全部已提供国家代码执行一次精确从库查询。 */
+    /**
+     * Redis 不可用时按全部已提供国家代码执行一次精确从库查询。
+     */
     private List<IsoCountryInfo> loadCountriesByCodesFromDatabase(String alpha2,
                                                                  String alpha3,
                                                                  String numeric) {
@@ -737,7 +790,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 .toList());
     }
 
-    /** Redis 不可用时按全部已提供币种代码执行一次精确从库查询。 */
+    /**
+     * Redis 不可用时按全部已提供币种代码执行一次精确从库查询。
+     */
     private List<IsoCurrencyInfo> loadCurrenciesByCodesFromDatabase(String alphabeticCode,
                                                                    String numericCode) {
         LambdaQueryWrapper<IsoCurrencyDO> queryWrapper = new LambdaQueryWrapper<IsoCurrencyDO>()
@@ -752,7 +807,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 .toList());
     }
 
-    /** 统一处理 ISO 从库读取异常，禁止数据库故障时返回内置伪数据。 */
+    /**
+     * 统一处理 ISO 从库读取异常，禁止数据库故障时返回内置伪数据。
+     */
     private <T> List<T> loadDatabaseValues(Supplier<List<T>> databaseLoader) {
         try {
             List<T> values = databaseLoader.get();
@@ -1098,7 +1155,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         );
     }
 
-    /** 转换币种数据库实体为界面展示信息。 */
+    /**
+     * 转换币种数据库实体为界面展示信息。
+     */
     private IsoCurrencyPresentationInfo toCurrencyPresentationInfo(IsoCurrencyDO currencyDO) {
         return new IsoCurrencyPresentationInfo(
                 currencyDO.getAlpha3Code(),
@@ -1221,9 +1280,23 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 .toUpperCase(Locale.ROOT);
     }
 
-    /** 固定代码 Hash 的读取状态。 */
+    /**
+     * 固定代码 Hash 的读取状态。
+     */
     private enum CodeCacheReadStatus {
+        /**
+         * PRESENT 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         PRESENT,
+        /**
+         * MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         MISSING,
         UNAVAILABLE
     }
@@ -1246,14 +1319,30 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
     }
 
-    /** Redis 快照读取状态，PRESENT 状态允许携带合法空列表。 */
+    /**
+     * Redis 快照读取状态，PRESENT 状态允许携带合法空列表。
+     */
     private enum CacheReadStatus {
+        /**
+         * PRESENT 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         PRESENT,
+        /**
+         * MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         MISSING,
         UNAVAILABLE
     }
 
-    /** 缓存读取值与状态，避免用空列表同时表示“缓存不存在”和“已缓存空结果”。 */
+    /**
+     * 缓存读取值与状态，避免用空列表同时表示“缓存不存在”和“已缓存空结果”。
+     */
     private record CacheReadResult<T>(CacheReadStatus status, List<T> values) {
 
         private static <T> CacheReadResult<T> present(List<T> values) {

@@ -6,13 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysPostExportRow
- * @date : 2026-06-19 23:50
- * @email : scott_x@163.com
- * @description : 岗位导出行对象
- * @status : create
+ * 岗位导出行对象
  */
 @Data
 public class SysPostExportRow {

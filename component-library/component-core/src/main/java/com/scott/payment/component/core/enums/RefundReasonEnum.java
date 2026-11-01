@@ -4,25 +4,85 @@ import com.scott.payment.component.core.exception.ApiException;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundReasonEnum
- * @date : 2026-09-27 18:00
- * @email : scott_x@163.com
- * @description : 管理端和商户端共用的退款原因契约，校验原因编码和补充说明并生成现有审计字段；不改变支付核心或渠道协议。
- * @status : create
+ * 管理端和商户端共用的退款原因契约，校验原因编码和补充说明并生成现有审计字段；不改变支付核心或渠道协议。
  */
 public enum RefundReasonEnum {
+    /**
+     * CUSTOMER CANCELLED 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     CUSTOMER_CANCELLED("客户取消订单", "Customer cancelled order"),
+    /**
+     * DUPLICATE PAYMENT 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     DUPLICATE_PAYMENT("重复支付", "Duplicate payment"),
+    /**
+     * PRODUCT UNAVAILABLE 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     PRODUCT_UNAVAILABLE("商品缺货或服务无法提供", "Product or service unavailable"),
+    /**
+     * QUALITY ISSUE 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     QUALITY_ISSUE("商品质量或服务质量问题", "Product or service quality issue"),
+    /**
+     * NOT AS DESCRIBED 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     NOT_AS_DESCRIBED("商品或服务与描述不符", "Product or service not as described"),
+    /**
+     * PARTIAL RETURN 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     PARTIAL_RETURN("部分商品退货", "Partial return of goods"),
+    /**
+     * PARTIAL CANCELLATION 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     PARTIAL_CANCELLATION("部分商品取消或缺货", "Partial cancellation or stock shortage"),
+    /**
+     * UNUSED SERVICE 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     UNUSED_SERVICE("部分服务未使用或提前终止", "Unused service or early termination"),
+    /**
+     * PRICE ADJUSTMENT 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     PRICE_ADJUSTMENT("优惠补退或价格差额退还", "Discount or price adjustment"),
+    /**
+     * AGREED COMPENSATION 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     AGREED_COMPENSATION("协商补偿退款", "Agreed compensation"),
+    /**
+     * OTHER 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     OTHER("其他", "Other");
 
     private final String chineseLabel;
@@ -70,7 +130,9 @@ public enum RefundReasonEnum {
         return notes.isEmpty() ? label : label + " - " + notes;
     }
 
-    /** 与浏览器 trim 保持一致，拒绝仅含不换行空格或 Unicode 空白的说明。 */
+    /**
+     * 与浏览器 trim 保持一致，拒绝仅含不换行空格或 Unicode 空白的说明。
+     */
     private static String stripWhitespace(String value) {
         return value == null ? "" : value.replaceAll("(?U)^[\\s\\x{FEFF}]+|[\\s\\x{FEFF}]+$", "");
     }

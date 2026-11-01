@@ -5,13 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingStateMachineTest
- * @date : 2026-08-26 08:25
- * @email : scott_x@163.com
- * @description : 验证清分权威状态的单向流转、终态不可逆和人工复核显式重试边界。
- * @status : create
+ * 验证清分权威状态的单向流转、终态不可逆和人工复核显式重试边界。
  */
 class ClearingStateMachineTest {
 

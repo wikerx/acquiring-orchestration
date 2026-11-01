@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingCompensationRequest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 清分补偿 Job 参数；默认 DRY_RUN，显式指定 SHADOW_WRITE 才写影子恢复。
- * @status : create
+ * 清分补偿 Job 参数；默认 DRY_RUN，显式指定 SHADOW_WRITE 才写影子恢复。
  */
 @Data
 public class ClearingCompensationRequest {

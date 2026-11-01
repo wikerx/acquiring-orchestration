@@ -47,17 +47,29 @@ import java.util.Objects;
 @Service
 public class DefaultMerchantTransactionSnapshotService implements MerchantTransactionSnapshotService {
 
-    /** 无时区交易时间的业务解释时区。 */
+    /**
+     * 无时区交易时间的业务解释时区。
+     */
     private static final String TIME_ZONE = "Asia/Shanghai";
-    /** 账单快照业务号前缀。 */
+    /**
+     * 账单快照业务号前缀。
+     */
     private static final String BILLING_PREFIX = "TBI";
-    /** 商户与费用配置快照业务号前缀。 */
+    /**
+     * 商户与费用配置快照业务号前缀。
+     */
     private static final String MERCHANT_PREFIX = "TMS";
-    /** 付款人快照业务号前缀。 */
+    /**
+     * 付款人快照业务号前缀。
+     */
     private static final String PAYER_PREFIX = "TPI";
-    /** 收货信息快照业务号前缀。 */
+    /**
+     * 收货信息快照业务号前缀。
+     */
     private static final String SHIPPING_PREFIX = "TSI";
-    /** 商品明细快照业务号前缀。 */
+    /**
+     * 商品明细快照业务号前缀。
+     */
     private static final String PRODUCT_PREFIX = "TGI";
 
     private final TransactionBillingInfoMapper billingInfoMapper;
@@ -189,6 +201,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         return snapshot;
     }
 
+    /**
+     * 记录交易商户快照。
+     */
     private void recordMerchant(PaymentCreateCommandDTO commandDTO,
                                 PaymentCreateResultDTO resultDTO,
                                 LocalDateTime now) {
@@ -218,6 +233,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         merchantSnapshotMapper.insert(target);
     }
 
+    /**
+     * 记录交易账单信息。
+     */
     private void recordBilling(PaymentCreateCommandDTO commandDTO,
                                PaymentCreateResultDTO resultDTO,
                                LocalDateTime now) {
@@ -240,6 +258,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         billingInfoMapper.insert(target);
     }
 
+    /**
+     * 记录交易付款人信息。
+     */
     private void recordPayer(PaymentCreateCommandDTO commandDTO,
                              PaymentCreateResultDTO resultDTO,
                              LocalDateTime now) {
@@ -272,6 +293,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         payerInfoMapper.insert(target);
     }
 
+    /**
+     * 记录交易收货信息。
+     */
     private void recordShipping(PaymentCreateCommandDTO commandDTO,
                                 PaymentCreateResultDTO resultDTO,
                                 LocalDateTime now) {
@@ -294,6 +318,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         shippingInfoMapper.insert(target);
     }
 
+    /**
+     * 记录交易商品信息。
+     */
     private void recordGoods(PaymentCreateCommandDTO commandDTO,
                              PaymentCreateResultDTO resultDTO,
                              LocalDateTime now) {
@@ -317,6 +344,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         }
     }
 
+    /**
+     * 转换为账单信息快照。
+     */
     private PaymentCreateCommandDTO.BillingCardHolderInfoDTO toBilling(TransactionBillingInfoDO source) {
         if (source == null) {
             return null;
@@ -335,6 +365,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         return target;
     }
 
+    /**
+     * 转换为收货信息快照。
+     */
     private PaymentCreateCommandDTO.ShippingInfoDTO toShipping(TransactionShippingInfoDO source) {
         if (source == null) {
             return null;
@@ -352,6 +385,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         return target;
     }
 
+    /**
+     * 转换为付款人快照。
+     */
     private PaymentCreateCommandDTO.PayerInfoDTO toPayer(TransactionPayerInfoDO source) {
         if (source == null) {
             return null;
@@ -378,6 +414,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         return target;
     }
 
+    /**
+     * 转换为子商户快照。
+     */
     private PaymentCreateCommandDTO.SubMerchantInfoDTO toSubMerchant(TransactionMerchantSnapshotDO source) {
         if (source == null || !StringUtils.hasText(source.getSubMerchantInfoJson())) {
             return null;
@@ -385,6 +424,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         return JsonUtils.parseObject(source.getSubMerchantInfoJson(), PaymentCreateCommandDTO.SubMerchantInfoDTO.class);
     }
 
+    /**
+     * 转换为商品快照。
+     */
     private PaymentCreateCommandDTO.GoodsInfoDTO toGoods(TransactionProductItemDO source) {
         PaymentCreateCommandDTO.GoodsInfoDTO target = new PaymentCreateCommandDTO.GoodsInfoDTO();
         target.setName(source.getProductName());
@@ -394,6 +436,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         return target;
     }
 
+    /**
+     * 填充平台及渠道交易身份。
+     */
     private void fillIdentity(TransactionBillingInfoDO target,
                               PaymentCreateCommandDTO commandDTO,
                               PaymentCreateResultDTO resultDTO,
@@ -403,6 +448,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         fillTimes(target, commandDTO.getTransactionDateTime(), now);
     }
 
+    /**
+     * 填充平台及渠道交易身份。
+     */
     private void fillIdentity(TransactionPayerInfoDO target,
                               PaymentCreateCommandDTO commandDTO,
                               PaymentCreateResultDTO resultDTO,
@@ -416,6 +464,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         target.setUpdateTime(now);
     }
 
+    /**
+     * 填充平台及渠道交易身份。
+     */
     private void fillIdentity(TransactionShippingInfoDO target,
                               PaymentCreateCommandDTO commandDTO,
                               PaymentCreateResultDTO resultDTO,
@@ -429,6 +480,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         target.setUpdateTime(now);
     }
 
+    /**
+     * 填充平台及渠道交易身份。
+     */
     private void fillIdentity(TransactionProductItemDO target,
                               PaymentCreateCommandDTO commandDTO,
                               PaymentCreateResultDTO resultDTO,
@@ -442,6 +496,9 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         target.setUpdateTime(now);
     }
 
+    /**
+     * 填充交易时间审计字段。
+     */
     private void fillTimes(TransactionBillingInfoDO target,
                            LocalDateTime transactionDateTime,
                            LocalDateTime now) {
@@ -452,10 +509,16 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         target.setUpdateTime(now);
     }
 
+    /**
+     * 将业务时间转换为 UTC 时间。
+     */
     private LocalDateTime toUtc(LocalDateTime value) {
         return value.atZone(ZoneId.of(TIME_ZONE)).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
+    /**
+     * 计算文本的 SHA-256 摘要。
+     */
     private String sha256(String value) {
         if (!StringUtils.hasText(value)) {
             return null;

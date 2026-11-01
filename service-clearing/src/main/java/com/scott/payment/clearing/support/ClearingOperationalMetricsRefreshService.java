@@ -21,32 +21,17 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingOperationalMetricsRefreshService
- * @date : 2026-08-27 19:46
- * @email : scott_x@163.com
- * @description : 逐个已发布季度读取清分积压和保证金负债，并在全部查询成功后原子刷新 Gauge。 Redis 不参与该链路，任一季度失败时保留上一轮完整指标。
- * @status : update
+ * 逐个已发布季度读取清分积压和保证金负债，并在全部查询成功后原子刷新 Gauge。 Redis 不参与该链路，任一季度失败时保留上一轮完整指标。
  */
 @Service
 public class ClearingOperationalMetricsRefreshService {
 
     /**
-     * 物理节点常量，统一 {@code ClearingOperationalMetricsRefreshService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 已发布交易分片后缀格式：四位年份、分隔零和一位自然季度。
      */
     private static final Pattern PHYSICAL_NODE = Pattern.compile("\\d{4}0[1-4]");
     /**
-     * ISO币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
+     * 限制保证金余额指标只按三位大写 ISO 币种聚合。
      */
     private static final Pattern ISO_CURRENCY = Pattern.compile("[A-Z]{3}");
 
@@ -55,7 +40,9 @@ public class ClearingOperationalMetricsRefreshService {
     private final ClearingOperationalMetrics metrics;
     private final Clock clock;
 
-    /** 创建使用 UTC 运维时间和固定交易路由时区的生产刷新服务。 */
+    /**
+     * 创建使用 UTC 运维时间和固定交易路由时区的生产刷新服务。
+     */
     @Autowired
     public ClearingOperationalMetricsRefreshService(ClearingOperationalMetricsMapper mapper,
                                                      TransactionShardingProperties shardingProperties,
@@ -63,7 +50,9 @@ public class ClearingOperationalMetricsRefreshService {
         this(mapper, shardingProperties, metrics, Clock.systemUTC());
     }
 
-    /** 包级构造器允许测试固定时钟，不改变生产时区。 */
+    /**
+     * 包级构造器允许测试固定时钟，不改变生产时区。
+     */
     ClearingOperationalMetricsRefreshService(ClearingOperationalMetricsMapper mapper,
                                               TransactionShardingProperties shardingProperties,
                                               ClearingOperationalMetrics metrics,
@@ -74,7 +63,9 @@ public class ClearingOperationalMetricsRefreshService {
         this.clock = clock;
     }
 
-    /** 遍历不晚于当前季度的全部已发布节点，成功后一次性发布聚合结果。 */
+    /**
+     * 遍历不晚于当前季度的全部已发布节点，成功后一次性发布聚合结果。
+     */
     @DS(DataSourceName.TRANSACTION)
     public void refresh() {
         try {
@@ -106,7 +97,9 @@ public class ClearingOperationalMetricsRefreshService {
         }
     }
 
-    /** 只遍历数据库治理表声明已发布的季度，不猜测或广播未来分片。 */
+    /**
+     * 只遍历数据库治理表声明已发布的季度，不猜测或广播未来分片。
+     */
     private List<LocalDateTime> publishedQuarters() {
         return shardingProperties.getPhysicalNodes().stream()
                 .map(this::quarterAnchor)
@@ -115,6 +108,9 @@ public class ClearingOperationalMetricsRefreshService {
                 .toList();
     }
 
+    /**
+     * 跨已发布季度汇总待处理数量，并保留各状态最老任务的最大等待时长。
+     */
     private void aggregatePending(List<ClearingPendingMetricsDO> rows,
                                   Map<String, Long> counts,
                                   Map<String, Long> oldestSeconds) {
@@ -132,7 +128,9 @@ public class ClearingOperationalMetricsRefreshService {
         }
     }
 
-    /** 按 ISO 币种累加剩余保证金，禁止跨币种合并成单一金额。 */
+    /**
+     * 按 ISO 币种累加剩余保证金，禁止跨币种合并成单一金额。
+     */
     private void aggregateReserve(List<ClearingReserveRemainingMetricsDO> rows,
                                   Map<String, BigDecimal> amounts) {
         if (rows == null) {
@@ -150,6 +148,9 @@ public class ClearingOperationalMetricsRefreshService {
         }
     }
 
+    /**
+     * 将治理表声明的 yyyyQQ 物理节点后缀转换为季度起点。
+     */
     private LocalDateTime quarterAnchor(String suffix) {
         if (suffix == null || !PHYSICAL_NODE.matcher(suffix).matches()) {
             throw new IllegalStateException("transaction sharding physical node suffix must use yyyyQQ");
@@ -159,11 +160,17 @@ public class ClearingOperationalMetricsRefreshService {
         return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
+    /**
+     * 将任意分片时间归一到所属自然季度起点。
+     */
     private LocalDateTime quarterAnchor(LocalDateTime value) {
         int firstMonth = ((value.getMonthValue() - 1) / 3) * 3 + 1;
         return LocalDateTime.of(value.getYear(), firstMonth, 1, 0, 0);
     }
 
+    /**
+     * 返回有效的非负指标值，数据库返回空值或负数时中止本轮刷新。
+     */
     private long nonNegative(Long value) {
         if (value == null || value < 0) {
             throw new IllegalStateException("clearing pending metrics value must be non-negative");

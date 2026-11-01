@@ -67,13 +67,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminFeeServiceImpl
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 费用配置核心服务，保证模板复制隔离、版本串行分配、双人复核和审核时即时生效。
- * @status : create
+ * 费用配置核心服务，保证模板复制隔离、版本串行分配、双人复核和审核时即时生效。
  */
 @Service
 public class AdminFeeServiceImpl implements AdminFeeService {
@@ -88,186 +82,94 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private static final long NOT_DELETED = 0L;
     /**
      * 模板，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String TEMPLATE = "TEMPLATE";
     /**
      * 商户常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String MERCHANT = "MERCHANT";
     /**
      * 草稿常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DRAFT = "DRAFT";
     /**
      * 等待审核常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String PENDING_REVIEW = "PENDING_REVIEW";
     /**
      * {@code ACTIVE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ACTIVE = "ACTIVE";
     /**
      * {@code REJECTED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String REJECTED = "REJECTED";
     /**
      * {@code SUPERSEDED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SUPERSEDED = "SUPERSEDED";
     /**
      * {@code ALL}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ALL = "ALL";
     /**
      * {@code BANK_CARD}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String BANK_CARD = "BANK_CARD";
     /**
      * 交易费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String TRANSACTION_FEE = "TRANSACTION_FEE";
     /**
      * 风控费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String RISK_FEE = "RISK_FEE";
     /**
      * {@code DISPUTE_FEE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DISPUTE_FEE = "DISPUTE_FEE";
     /**
      * 结算处理中费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SETTLEMENT_PROCESSING_FEE = "SETTLEMENT_PROCESSING_FEE";
     /**
      * {@code SETTLEMENT_FX_FEE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SETTLEMENT_FX_FEE = "SETTLEMENT_FX_FEE";
     /**
      * {@code SETTLEMENT_FX_FEE_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SETTLEMENT_FX_FEE_NAME = "结算货币兑换费";
     /**
      * {@code NONE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String NONE = "NONE";
     /**
      * 费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String FEE = "FEE";
     /**
      * 保证金常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String RESERVE = "RESERVE";
     /**
      * {@code CALCULATED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CALCULATED = "CALCULATED";
     /**
      * {@code NOT_APPLICABLE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String NOT_APPLICABLE = "NOT_APPLICABLE";
     /**
      * {@code NOT_CONFIGURED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String NOT_CONFIGURED = "NOT_CONFIGURED";
     /**
      * {@code DETAIL_COMPLETE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DETAIL_COMPLETE = "COMPLETE";
     /**
      * {@code DETAIL_LEGACY_INCOMPLETE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DETAIL_LEGACY_INCOMPLETE = "LEGACY_INCOMPLETE";
     private static final Set<String> RISK_SERVICE_TYPES = Set.of("INTERNAL", "EXTERNAL", "THREE_DS");
@@ -308,7 +210,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private final AdminMerchantSettlementCurrencyService merchantSettlementCurrencyService;
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** 构造费用配置服务。 */
+    /**
+     * 构造费用配置服务。
+     */
     public AdminFeeServiceImpl(FeePlanMapper planMapper,
                                FeePlanVersionMapper versionMapper,
                                FeeRuleMapper ruleMapper,
@@ -333,7 +237,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询费用模板及其当前生效版本摘要。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FeePlanSummaryResponse> pageTemplates(FeePlanQuery request) {
@@ -353,14 +259,18 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询费用模板、版本和规则详情。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public FeePlanDetailResponse getTemplate(Long id) {
         return getPlanDetail(requirePlan(id, TEMPLATE));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 创建费用模板及首个草稿版本，尚不对交易生效。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -388,7 +298,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return getPlanDetail(plan);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 基于当前生效版本创建新的费用模板草稿版本。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -409,7 +321,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return getPlanDetail(plan);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 更新费用模板草稿，禁止修改审核中或已生效版本。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -437,7 +351,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return getPlanDetail(plan);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 提交费用模板草稿进入双人复核流程。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -461,7 +377,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return getPlanDetail(plan);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 由原提交人撤回待审核模板版本并恢复为草稿。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -484,7 +402,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return getPlanDetail(plan);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 启用或停用已有生效版本的费用模板。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -504,7 +424,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 归档无工作版本的费用模板，归档后不可继续配置。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -515,7 +437,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         touchPlan(plan, operatorName);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询商户费用方案，并补充未配置商户的状态。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FeePlanSummaryResponse> pageMerchantFees(FeePlanQuery request) {
@@ -549,7 +473,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 查询指定商户当前费用方案、版本和规则详情。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public FeePlanDetailResponse getMerchantFee(String merchantId) {
@@ -568,7 +494,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 为商户创建独立或基于模板的待审核费用版本。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -622,7 +550,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询待复核费用版本及提交人信息。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FeeReviewResponse> pageReviews(FeePlanQuery request) {
@@ -634,7 +564,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                         .eq(FeePlanVersionDO::getDeleted, NOT_DELETED)
                         .orderByAsc(FeePlanVersionDO::getSubmitTime));
         Set<Long> planIds = page.getRecords().stream().map(FeePlanVersionDO::getPlanId).collect(Collectors.toSet());
-        Map<Long, FeePlanDO> plans = planIds.isEmpty() ? Map.of() : planMapper.selectBatchIds(planIds).stream()
+        Map<Long, FeePlanDO> plans = planIds.isEmpty() ? Map.of() : planMapper.selectByIds(planIds).stream()
                 .collect(Collectors.toMap(FeePlanDO::getId, Function.identity()));
         Map<String, String> merchantNames = merchantNames(plans.values().stream()
                 .map(FeePlanDO::getMerchantId).filter(Objects::nonNull).collect(Collectors.toSet()));
@@ -643,7 +573,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 由不同操作人批准费用版本，替换当前版本并刷新费用缓存。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -696,7 +628,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return getPlanDetail(plan);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 由不同操作人拒绝费用版本，并保留明确审核原因。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -721,7 +655,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return getPlanDetail(requirePlan(version.getPlanId(), null));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 使用当前生效费用版本模拟计算费用和滚动保证金，不写入真实账务。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -842,7 +778,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return new CalculatedFeeDetail(detail, calculated);
     }
 
-    /** 匹配版本级结算货币兑换费；未配置时返回空，由明细状态明确说明。 */
+    /**
+     * 匹配版本级结算货币兑换费；未配置时返回空，由明细状态明确说明。
+     */
     private CalculatedFeeDetail calculateOptionalSettlementFxFeeDetail(FeeSimulationRequest sourceRequest,
                                                                        FeePlanVersionDO version,
                                                                        BigDecimal labelToUsdRate) {
@@ -867,6 +805,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return new CalculatedFeeDetail(detail, calculated);
     }
 
+    /**
+     * 将费用计算结果转换为管理端明细响应。
+     */
     private FeeSimulationDetailResponse toCalculatedDetail(String feeCategory,
                                                            String riskServiceType,
                                                            FeeRuleDO rule,
@@ -888,7 +829,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return detail;
     }
 
-    /** 按费用分类、风控服务和交易维度解析唯一适用规则。 */
+    /**
+     * 按费用分类、风控服务和交易维度解析唯一适用规则。
+     */
     private FeeRuleDO resolveSimulationRule(Long versionId,
                                             FeeSimulationRequest request,
                                             String feeCategory,
@@ -900,6 +843,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return rule;
     }
 
+    /**
+     * 按模拟请求条件查找当前费用版本中优先级最高的匹配规则。
+     */
     private FeeRuleDO findSimulationRule(Long versionId,
                                          FeeSimulationRequest request,
                                          String feeCategory,
@@ -931,7 +877,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 .orElse(null);
     }
 
-    /** 结算货币兑换费是版本级规则，不参与交易类型、支付类型和支付方式匹配。 */
+    /**
+     * 结算货币兑换费是版本级规则，不参与交易类型、支付类型和支付方式匹配。
+     */
     private FeeRuleDO findSettlementFxRule(Long versionId) {
         return ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
                         .eq(FeeRuleDO::getPlanVersionId, versionId)
@@ -946,7 +894,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 .orElse(null);
     }
 
-    /** 兼容旧版单选字段，并按选择顺序去重、校验风控服务。 */
+    /**
+     * 兼容旧版单选字段，并按选择顺序去重、校验风控服务。
+     */
     private List<String> selectedRiskServiceTypes(FeeSimulationRequest request, String feeCategory) {
         List<String> requested = request.getRiskServiceTypes();
         if (requested == null || requested.isEmpty()) {
@@ -965,7 +915,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return new ArrayList<>(normalized);
     }
 
-    /** 为单项计算复制输入，避免在聚合编排中修改原始请求。 */
+    /**
+     * 为单项计算复制输入，避免在聚合编排中修改原始请求。
+     */
     private FeeSimulationRequest copySimulationRequest(FeeSimulationRequest source,
                                                        String feeCategory,
                                                        String riskServiceType) {
@@ -983,7 +935,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return target;
     }
 
-    /** 使用 DECIMAL128 汇总各项费用，保证金只取基础费用计算结果。 */
+    /**
+     * 使用 DECIMAL128 汇总各项费用，保证金只取基础费用计算结果。
+     */
     private FeeSimulationResponse aggregateSimulationResponse(List<CalculatedFeeDetail> calculatedDetails) {
         if (calculatedDetails.isEmpty()) {
             throw invalid("费用试算至少需要一项费用");
@@ -1030,6 +984,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 组装交易状态及失败原因详情。
+     */
     private FeeSimulationDetailResponse statusDetail(String feeCategory, String calculationStatus) {
         FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
         detail.setItemType(FEE);
@@ -1041,6 +998,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return detail;
     }
 
+    /**
+     * 查询并组装保证金结算明细。
+     */
     private FeeSimulationDetailResponse reserveDetail(FeeSimulationRequest request,
                                                       FeeSimulationResponse response) {
         FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
@@ -1067,15 +1027,23 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return detail;
     }
 
+    /**
+     * 将金额按受控精度转换为展示文本。
+     */
     private String decimalText(BigDecimal value) {
         return zero(value).setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
+    /**
+     * 将汇率转换为不丢精度的展示文本。
+     */
     private String rateText(BigDecimal value) {
         return zero(value).stripTrailingZeros().toPlainString();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 分页查询费用模拟记录及其计算快照。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FeeSimulationRecordResponse> pageSimulationRecords(FeeSimulationRecordQuery request) {
@@ -1118,6 +1086,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                         .toList());
     }
 
+    /**
+     * 创建商户计划。
+     */
     private FeePlanDO createMerchantPlan(BaseMerchantInfoDO merchant,
                                          MerchantFeeVersionSaveRequest request,
                                          String operatorName) {
@@ -1140,6 +1111,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return plan;
     }
 
+    /**
+     * 根据管理端请求创建费用方案版本及完整规则快照。
+     */
     private FeePlanVersionDO createRequestedVersion(FeePlanDO plan,
                                                     FeeVersionSaveRequest request,
                                                     String changeType,
@@ -1189,6 +1163,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         version.setUpdateTime(now);
     }
 
+    /**
+     * 从模板版本复制配置并创建待审核费用版本。
+     */
     private FeePlanVersionDO createCopiedVersion(FeePlanDO plan,
                                                  FeePlanDO template,
                                                  FeePlanVersionDO source,
@@ -1217,6 +1194,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return version;
     }
 
+    /**
+     * 构建费用方案基础版本记录。
+     */
     private FeePlanVersionDO baseVersion(FeePlanDO plan,
                                          String changeType,
                                          String changeReason,
@@ -1265,6 +1245,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 .eq(FeeRuleDO::getPlanVersionId, versionId));
     }
 
+    /**
+     * 将请求中的费用规则和阶梯明细写入指定版本。
+     */
     private void insertRequestedRules(Long versionId, List<FeeRuleRequest> requests, LocalDateTime now) {
         for (FeeRuleRequest request : requests) {
             FeeRuleDO rule = new FeeRuleDO();
@@ -1307,6 +1290,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 将来源版本的费用规则和阶梯明细复制到目标版本。
+     */
     private void copyRules(Long sourceVersionId, Long targetVersionId, LocalDateTime now) {
         List<FeeRuleDO> sourceRules = ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
                 .eq(FeeRuleDO::getPlanVersionId, sourceVersionId)
@@ -1336,6 +1322,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 校验版本请求。
+     */
     private void validateVersionRequest(FeeVersionSaveRequest request,
                                         boolean changeReasonRequired,
                                         String defaultChangeReason) {
@@ -1407,6 +1396,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 规范化费用版本变更原因并校验必填条件。
+     */
     private String normalizedChangeReason(String changeReason,
                                           boolean required,
                                           String defaultChangeReason) {
@@ -1419,6 +1411,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return defaultChangeReason;
     }
 
+    /**
+     * 校验规则。
+     */
     private void validateRule(FeeRuleRequest rule, Set<String> dimensions) {
         if (rule == null) {
             throw invalid("费用规则不能为空");
@@ -1670,6 +1665,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return name.length() <= 128 ? name : name.substring(0, 128);
     }
 
+    /**
+     * 校验阶梯费率区间连续、边界合法且金额配置有效。
+     */
     private void validateTiers(List<FeeRuleTierRequest> tiers, String metric) {
         if (tiers == null || tiers.isEmpty()) {
             throw invalid("阶梯费率至少需要一个档位");
@@ -1704,6 +1702,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 校验百分比、固定费用及最低最高费用的金额关系。
+     */
     private void validateAmounts(BigDecimal percentage,
                                  BigDecimal fixed,
                                  BigDecimal minimum,
@@ -1719,6 +1720,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 规范化阶梯费用频率日期。
+     */
     private Integer normalizedFrequencyDay(String frequencyValue, Integer day) {
         String frequency = upper(frequencyValue);
         if (!Set.of("DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY").contains(frequency)) {
@@ -1734,6 +1738,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return day;
     }
 
+    /**
+     * 将费用方案状态筛选条件应用到商户查询。
+     */
     private void applyMerchantFeeStatusFilter(LambdaQueryWrapper<BaseMerchantInfoDO> wrapper,
                                               List<FeePlanDO> plans,
                                               String statusValue) {
@@ -1757,6 +1764,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 获取计划详情。
+     */
     private FeePlanDetailResponse getPlanDetail(FeePlanDO plan) {
         FeePlanDetailResponse response = new FeePlanDetailResponse();
         copySummary(toSummary(plan), response);
@@ -1774,6 +1784,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 转换为版本。
+     */
     private FeeVersionResponse toVersion(FeePlanVersionDO version, List<FeeRuleResponse> rules) {
         FeeVersionResponse response = new FeeVersionResponse();
         response.setId(version.getId());
@@ -1872,6 +1885,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return result;
     }
 
+    /**
+     * 构建旧版费用规则的稳定去重键。
+     */
     private LegacyRuleKey legacyRuleKey(FeeRuleDO rule, List<FeeRuleTierDO> tiers) {
         List<FeeTierSignature> tierSignatures = tiers.stream().map(tier -> new FeeTierSignature(
                 canonicalDecimal(tier.getLowerBound()), canonicalDecimal(tier.getUpperBound()),
@@ -1885,6 +1901,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 rule.getSortNo(), rule.getRemark(), tierSignatures);
     }
 
+    /**
+     * 判断费用规则维度组合是否完整。
+     */
     private boolean isCompleteDimensionProduct(List<FeeRuleDO> rules) {
         LinkedHashSet<String> transactionTypes = new LinkedHashSet<>();
         LinkedHashSet<String> paymentTypes = new LinkedHashSet<>();
@@ -1923,6 +1942,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return actual.equals(expected);
     }
 
+    /**
+     * 将费用规则实体转换为可计算的逻辑规则。
+     */
     private FeeRuleResponse toLogicalRule(List<FeeRuleDO> rules,
                                           Map<Long, List<FeeRuleTierDO>> tiersByRule) {
         FeeRuleDO first = rules.get(0);
@@ -1937,15 +1959,24 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 按原始顺序提取费用规则中不重复的维度值。
+     */
     private List<String> distinctRuleValues(List<FeeRuleDO> rules, Function<FeeRuleDO, String> extractor) {
         return rules.stream().map(extractor).filter(StringUtils::hasText)
                 .collect(Collectors.toCollection(LinkedHashSet::new)).stream().toList();
     }
 
+    /**
+     * 将金额转换为不含多余尾零的规范十进制文本。
+     */
     private String canonicalDecimal(BigDecimal value) {
         return value == null ? null : value.stripTrailingZeros().toPlainString();
     }
 
+    /**
+     * 转换为规则。
+     */
     private FeeRuleResponse toRule(FeeRuleDO rule, List<FeeRuleTierDO> tiers) {
         FeeRuleResponse response = new FeeRuleResponse();
         response.setId(rule.getId());
@@ -1969,6 +2000,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 将费用阶梯实体转换为计算阶梯模型。
+     */
     private FeeRuleTierResponse toTier(FeeRuleTierDO tier) {
         FeeRuleTierResponse response = new FeeRuleTierResponse();
         response.setId(tier.getId());
@@ -1982,6 +2016,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 转换为摘要。
+     */
     private FeePlanSummaryResponse toSummary(FeePlanDO plan) {
         FeePlanSummaryResponse response = new FeePlanSummaryResponse();
         response.setId(plan.getId());
@@ -2013,6 +2050,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 复制摘要。
+     */
     private void copySummary(FeePlanSummaryResponse source, FeePlanSummaryResponse target) {
         target.setId(source.getId());
         target.setPlanCode(source.getPlanCode());
@@ -2036,6 +2076,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         target.setUpdateTime(source.getUpdateTime());
     }
 
+    /**
+     * 转换为复核。
+     */
     private FeeReviewResponse toReview(FeePlanVersionDO version,
                                        FeePlanDO plan,
                                        Map<String, String> merchantNames) {
@@ -2057,6 +2100,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 将费用模拟结果转换为持久化记录。
+     */
     private FeeSimulationRecordDO toSimulationRecord(String simulationNo,
                                                      Long planVersionId,
                                                      FeeSimulationRequest request,
@@ -2100,6 +2146,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return record;
     }
 
+    /**
+     * 保存费用试算各明细项的不可变快照。
+     */
     private void insertSimulationDetailSnapshots(FeeSimulationRecordDO simulationRecord,
                                                  List<FeeSimulationDetailResponse> details) {
         for (FeeSimulationDetailResponse detail : details) {
@@ -2127,6 +2176,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 将费用模拟记录转换为列表响应。
+     */
     private FeeSimulationRecordResponse toSimulationRecordResponse(
             FeeSimulationRecordDO row,
             List<FeeSimulationRecordDetailDO> detailRows) {
@@ -2186,6 +2238,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 将费用模拟记录及明细转换为详情响应。
+     */
     private FeeSimulationDetailResponse toSimulationDetailResponse(FeeSimulationRecordDetailDO row) {
         FeeSimulationDetailResponse response = new FeeSimulationDetailResponse();
         response.setLineNo(row.getLineNo());
@@ -2208,6 +2263,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 构建尚未配置费用方案的商户摘要。
+     */
     private FeePlanSummaryResponse unconfiguredMerchant(BaseMerchantInfoDO merchant) {
         FeePlanSummaryResponse response = new FeePlanSummaryResponse();
         response.setMerchantId(merchant.getMerchantId());
@@ -2218,6 +2276,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return response;
     }
 
+    /**
+     * 查询费用方案当前草稿或待审核版本。
+     */
     private FeePlanVersionDO workingVersion(Long planId) {
         return versionMapper.selectOne(Wrappers.<FeePlanVersionDO>lambdaQuery()
                 .select(FeePlanVersionDO::getId, FeePlanVersionDO::getVersionNo,
@@ -2232,6 +2293,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 计算费用方案的下一个版本号。
+     */
     private int nextVersionNo(Long planId) {
         FeePlanVersionDO latest = versionMapper.selectOne(Wrappers.<FeePlanVersionDO>lambdaQuery()
                 .select(FeePlanVersionDO::getVersionNo)
@@ -2242,6 +2306,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return latest == null ? 1 : latest.getVersionNo() + 1;
     }
 
+    /**
+     * 校验费用方案当前不存在草稿或待审核版本。
+     */
     private void requireNoWorkingVersion(Long planId) {
         Long count = versionMapper.selectCount(Wrappers.<FeePlanVersionDO>lambdaQuery()
                 .eq(FeePlanVersionDO::getPlanId, planId)
@@ -2252,6 +2319,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 校验并获取计划。
+     */
     private FeePlanDO requirePlan(Long id, String expectedType) {
         FeePlanDO plan = planMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
                 .eq(FeePlanDO::getId, id)
@@ -2264,6 +2334,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return plan;
     }
 
+    /**
+     * 加锁查询费用方案，并校验方案类型符合预期。
+     */
     private FeePlanDO requireLockedPlan(Long id, String expectedType) {
         FeePlanDO plan = planMapper.selectByIdForUpdate(id);
         if (plan == null || expectedType != null && !expectedType.equals(plan.getPlanType())) {
@@ -2272,6 +2345,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return plan;
     }
 
+    /**
+     * 校验并获取版本。
+     */
     private FeePlanVersionDO requireVersion(Long id) {
         FeePlanVersionDO version = versionMapper.selectOne(Wrappers.<FeePlanVersionDO>lambdaQuery()
                 .eq(FeePlanVersionDO::getId, id)
@@ -2283,6 +2359,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return version;
     }
 
+    /**
+     * 加锁查询费用方案版本，不存在时返回业务错误。
+     */
     private FeePlanVersionDO requireLockedVersion(Long id) {
         FeePlanVersionDO version = versionMapper.selectByIdForUpdate(id);
         if (version == null) {
@@ -2291,6 +2370,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return version;
     }
 
+    /**
+     * 校验并获取商户。
+     */
     private BaseMerchantInfoDO requireMerchant(String merchantId) {
         BaseMerchantInfoDO merchant = merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
                 .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
@@ -2302,24 +2384,36 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return merchant;
     }
 
+    /**
+     * 校验并获取待处理复核。
+     */
     private void requirePendingReview(FeePlanVersionDO version) {
         if (!PENDING_REVIEW.equals(version.getVersionStatus())) {
             throw conflict("只有待审核版本可以执行该操作");
         }
     }
 
+    /**
+     * 校验费用方案版本仍处于可编辑的草稿状态。
+     */
     private void requireDraft(FeePlanVersionDO version) {
         if (!DRAFT.equals(version.getVersionStatus())) {
             throw conflict("只有草稿版本可以编辑或提交审核");
         }
     }
 
+    /**
+     * 校验并获取计划版本。
+     */
     private void requirePlanVersion(FeePlanVersionDO version, Long planId) {
         if (!Objects.equals(version.getPlanId(), planId)) {
             throw notFound("费用模板草稿不存在");
         }
     }
 
+    /**
+     * 校验费用版本复核人与提交人不同。
+     */
     private void requireDifferentReviewer(FeePlanVersionDO version, Long reviewerId, String reviewerName) {
         boolean sameId = reviewerId != null && Objects.equals(version.getSubmitById(), reviewerId);
         boolean sameNameWithoutId = reviewerId == null && Objects.equals(version.getSubmitByName(), reviewerName);
@@ -2328,16 +2422,25 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
+    /**
+     * 更新费用方案的最后操作人和修改时间。
+     */
     private void touchPlan(FeePlanDO plan, String operatorName) {
         plan.setUpdateBy(operatorName);
         plan.setUpdateTime(LocalDateTime.now());
         planMapper.updateById(plan);
     }
 
+    /**
+     * 查询商户名称用于管理端展示。
+     */
     private String merchantName(String merchantId) {
         return requireMerchant(merchantId).getMerchantName();
     }
 
+    /**
+     * 批量查询商户号对应的名称。
+     */
     private Map<String, String> merchantNames(Set<String> merchantIds) {
         if (merchantIds.isEmpty()) {
             return Map.of();
@@ -2349,6 +2452,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                         BaseMerchantInfoDO::getMerchantName, (left, right) -> left));
     }
 
+    /**
+     * 复制规则值集合。
+     */
     private void copyRuleValues(FeeRuleDO source, FeeRuleDO target) {
         target.setRuleGroupCode(source.getRuleGroupCode());
         target.setFeeCategory(source.getFeeCategory());
@@ -2369,6 +2475,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         target.setRemark(source.getRemark());
     }
 
+    /**
+     * 复制费用阶梯的计算字段。
+     */
     private void copyTierValues(FeeRuleTierDO source, FeeRuleTierDO target) {
         target.setLowerBound(source.getLowerBound());
         target.setUpperBound(source.getUpperBound());
@@ -2379,13 +2488,22 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         target.setSortNo(source.getSortNo());
     }
 
+    /**
+     * 复制摘要。
+     */
     private void copySummary(FeePlanSummaryResponse source, FeePlanDetailResponse target) {
         copySummary(source, (FeePlanSummaryResponse) target);
     }
 
+    /**
+     * 封装费用规则归组使用的稳定维度键。
+     */
     private record RuleGroupingKey(String ruleGroupCode, LegacyRuleKey legacyRuleKey) {
     }
 
+    /**
+     * 封装旧版费用规则兼容匹配键。
+     */
     private record LegacyRuleKey(String feeCategory,
                                  String ruleName,
                                  String riskServiceType,
@@ -2402,6 +2520,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                  List<FeeTierSignature> tiers) {
     }
 
+    /**
+     * 封装费用阶梯去重和比较使用的签名。
+     */
     private record FeeTierSignature(String lowerBound,
                                     String upperBound,
                                     String percentageRate,
@@ -2411,15 +2532,22 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                     Integer sortNo) {
     }
 
+    /**
+     * 封装不可再拆分的费用规则维度。
+     */
     private record AtomicRuleDimension(String transactionType, String paymentType, String paymentMethod) {
     }
 
-    /** 聚合试算中的单项明细及其完整计算上下文。 */
+    /**
+     * 聚合试算中的单项明细及其完整计算上下文。
+     */
     private record CalculatedFeeDetail(FeeSimulationDetailResponse detail,
                                        FeeSimulationResponse calculated) {
     }
 
-    /** 服务端内部原子规则，分组编码不接受外部请求赋值。 */
+    /**
+     * 服务端内部原子规则，分组编码不接受外部请求赋值。
+     */
     private static final class ExpandedFeeRuleRequest extends FeeRuleRequest {
         /**
          * 规则分组编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
@@ -2430,19 +2558,31 @@ public class AdminFeeServiceImpl implements AdminFeeService {
          */
         private final String ruleGroupCode;
 
+        /**
+         * 创建已展开并完成默认值处理的费用规则请求。
+         */
         private ExpandedFeeRuleRequest(String ruleGroupCode) {
             this.ruleGroupCode = ruleGroupCode;
         }
 
+        /**
+         * 读取并校验规则分组编码。
+         */
         private String ruleGroupCode() {
             return ruleGroupCode;
         }
     }
 
+    /**
+     * 生成全局唯一的业务编码。
+     */
     private String generateCode(String prefix) {
         return prefix + UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -2450,26 +2590,44 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 去除文本空白并规范化为大写编码。
+     */
     private String trimUpper(String value) {
         return StringUtils.hasText(value) ? upper(value) : null;
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 将空金额或计数转换为零值。
+     */
     private BigDecimal zero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 构建费用配置参数校验异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
+    /**
+     * 构建业务状态冲突异常。
+     */
     private ServiceException conflict(String message) {
         return new ServiceException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND.getCode(), message);
     }
 
+    /**
+     * 构建业务记录不存在异常。
+     */
     private ServiceException notFound(String message) {
         return new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), message);
     }

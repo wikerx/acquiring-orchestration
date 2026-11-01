@@ -6,13 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentQueryVOContractTest
- * @date : 2026-10-26 00:00
- * @email : scott_x@163.com
- * @description : 商户交易查询响应的序列化契约测试，确保结果投影所需的内部诊断字段不会随交易数组泄露。
- * @status : create
+ * 商户交易查询响应的序列化契约测试，确保结果投影所需的内部诊断字段不会随交易数组泄露。
  */
 class PaymentQueryVOContractTest {
 

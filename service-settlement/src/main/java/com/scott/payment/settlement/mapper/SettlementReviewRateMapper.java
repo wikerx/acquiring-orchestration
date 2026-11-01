@@ -8,13 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewRateMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 预审统一汇率矩阵只追加数据访问接口；审批阶段必须读取冻结直接汇率，不重新向报价源取价。
- * @status : create
+ * 预审统一汇率矩阵只追加数据访问接口；审批阶段必须读取冻结直接汇率，不重新向报价源取价。
  */
 public interface SettlementReviewRateMapper {
 

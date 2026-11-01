@@ -11,13 +11,7 @@ import java.lang.reflect.Method;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOperationalReadDataSourceContractTests
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 固定商户端字典和操作日志普通查询使用只读数据源。
- * @status : create
+ * 固定商户端字典和操作日志普通查询使用只读数据源。
  */
 class MerchantOperationalReadDataSourceContractTests {
 

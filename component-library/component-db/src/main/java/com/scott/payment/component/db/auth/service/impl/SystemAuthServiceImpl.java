@@ -99,13 +99,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemAuthServiceImpl
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统登录注册与权限服务实现
- * @status : create
+ * 管理类系统登录注册与权限服务实现
  */
 @Service
 public class SystemAuthServiceImpl implements SystemAuthService {
@@ -299,7 +293,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * Spring 领域事件发布器，用于把登录审计移出可能回滚的认证事务。
      */
     private final ApplicationEventPublisher applicationEventPublisher;
-    /** 密码历史服务，用于在账号行锁内阻止当前及最近四个密码复用。 */
+    /**
+     * 密码历史服务，用于在账号行锁内阻止当前及最近四个密码复用。
+     */
     private final AccountPasswordHistoryService accountPasswordHistoryService;
     /**
      * 创建系统登录权限服务。
@@ -1377,7 +1373,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         return AuthConstants.APP_ADMIN.equals(appCode) || AuthConstants.APP_MERCHANT.equals(appCode);
     }
 
-    /** 保存邮箱变更 MFA 失败计数和审计后抛出不会回滚这些安全状态的异常。 */
+    /**
+     * 保存邮箱变更 MFA 失败计数和审计后抛出不会回滚这些安全状态的异常。
+     */
     private void recordProfileMfaFailure(SysAppDO app,
                                          SysAccountDO account,
                                          SysAccountMfaDO mfa,
@@ -2894,7 +2892,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         return value == null ? 0 : value;
     }
 
-    /** 邮箱变更 MFA 失败异常；事务保留失败计数、锁定状态和审计日志。 */
+    /**
+     * 邮箱变更 MFA 失败异常；事务保留失败计数、锁定状态和审计日志。
+     */
     private static final class ProfileMfaVerificationException extends ServiceException {
         private ProfileMfaVerificationException(String code, String message) {
             super(code, message);

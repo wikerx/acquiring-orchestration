@@ -4,13 +4,7 @@ import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
 import com.scott.payment.merchant.dto.profile.MerchantProfileUpdateRequest;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileService
- * @date : 2026-08-01 12:00
- * @email : scott_x@163.com
- * @description : 商户主体资料领域服务，统一当前商户查询、可编辑字段更新和共享缓存可靠失效边界
- * @status : create
+ * 商户主体资料领域服务，统一当前商户查询、可编辑字段更新和共享缓存可靠失效边界
  */
 public interface MerchantProfileService {
 

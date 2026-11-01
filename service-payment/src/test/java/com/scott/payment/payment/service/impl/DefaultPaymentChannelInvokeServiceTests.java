@@ -145,7 +145,9 @@ class DefaultPaymentChannelInvokeServiceTests {
         assertThat(captor.getValue().getExtension()).containsEntry("requestId", "CR-ORIGINAL");
     }
 
-    /** 退款查询标识必须随已准备的渠道查询身份透传到渠道适配器。 */
+    /**
+     * 退款查询标识必须随已准备的渠道查询身份透传到渠道适配器。
+     */
     @Test
     void shouldPropagatePreparedRefundQueryExtension() {
         PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
@@ -210,7 +212,9 @@ class DefaultPaymentChannelInvokeServiceTests {
                 .isEqualTo(PaymentFailureReasonEnum.CHANNEL_TIMEOUT.getCode());
     }
 
-    /** 渠道异常只允许以稳定类型进入交互日志上下文，原始正文可能包含认证或卡数据。 */
+    /**
+     * 渠道异常只允许以稳定类型进入交互日志上下文，原始正文可能包含认证或卡数据。
+     */
     @Test
     void shouldKeepOnlyExceptionTypeInPersistableInvokeResult() {
         PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
@@ -271,7 +275,9 @@ class DefaultPaymentChannelInvokeServiceTests {
                 .isEqualTo(PaymentFailureReasonEnum.CHANNEL_RESPONSE_INVALID.getCode());
     }
 
-    /** 渠道已返回明确拒绝时必须记录渠道证据来源，不能归为发送前平台故障。 */
+    /**
+     * 渠道已返回明确拒绝时必须记录渠道证据来源，不能归为发送前平台故障。
+     */
     @Test
     void shouldClassifyConfirmedChannelDecline() {
         PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);

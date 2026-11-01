@@ -7,13 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantFundDeductionMapper
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 商户资金账户扣减申请数据访问组件。
- * @status : create
+ * 商户资金账户扣减申请数据访问组件。
  */
 @Mapper
 public interface MerchantFundDeductionMapper extends BaseMapper<MerchantFundDeductionDO> {

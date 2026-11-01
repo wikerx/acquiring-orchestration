@@ -9,17 +9,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantActiveFeeCachePolicyTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 商户生效费率缓存门禁读取策略测试
- * @status : create
+ * 商户生效费率缓存门禁读取策略测试
  */
 class MerchantActiveFeeCachePolicyTests {
 
-    /** 门禁明确空闲时允许读取缓存。 */
+    /**
+     * 门禁明确空闲时允许读取缓存。
+     */
     @Test
     void shouldAllowCacheReadWhenNoInvalidationIsPending() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
@@ -30,7 +26,9 @@ class MerchantActiveFeeCachePolicyTests {
                 .isTrue();
     }
 
-    /** 门禁进行中或 Redis 状态未知时必须绕过永久缓存。 */
+    /**
+     * 门禁进行中或 Redis 状态未知时必须绕过永久缓存。
+     */
     @Test
     void shouldBypassCacheForPendingOrUnknownGateState() {
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);

@@ -38,41 +38,22 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingFailureService
- * @date : 2026-08-26 16:00
- * @email : scott_x@163.com
- * @description : 清分受控失败默认实现，以 finance state 行锁和租约版本为权威，按固定阶梯生成 RocketMQ 绝对定时重试 Outbox。
- * @status : create
+ * 清分受控失败默认实现，以 finance state 行锁和租约版本为权威，按固定阶梯生成 RocketMQ 绝对定时重试 Outbox。
  */
 @Service
 @Slf4j
 public class DefaultClearingFailureService implements ClearingFailureService {
 
     /**
-     * {@code FAILURE_SUMMARY_MAX_LENGTH}常量，统一 {@code DefaultClearingFailureService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 受控失败摘要允许持久化的最大字符数，禁止保存异常堆栈和敏感请求数据。
      */
     private static final int FAILURE_SUMMARY_MAX_LENGTH = 512;
     /**
-     * {@code OUTBOX_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 自动重试事件允许持久化到 Outbox 的最大投递次数。
      */
     private static final int OUTBOX_MAX_RETRY_COUNT = 10;
     /**
-     * {@code EVENT_STATUS_INIT}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 新建 Outbox 事件尚未被发布器领取时的初始状态。
      */
     private static final String EVENT_STATUS_INIT = "INIT";
     private static final List<Long> RETRY_DELAY_MINUTES = List.of(1L, 5L, 15L, 60L, 360L);
@@ -119,7 +100,9 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         this.anomalyService = anomalyService;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 按领取版本记录受控清分失败，并在可重试时同事务写入延时 Outbox。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -157,7 +140,9 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 decision.nextRetryTime(), decision.nextRetryTime() != null);
     }
 
-    /** 失败状态提交后尽力刷新查询投影；投影延迟不得回滚已持久化失败事实。 */
+    /**
+     * 失败状态提交后尽力刷新查询投影；投影延迟不得回滚已持久化失败事实。
+     */
     private void updateFailureProjection(ClearingClaimResult claim,
                                          FailureDecision decision,
                                          LocalDateTime nowUtc) {
@@ -165,7 +150,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
             projectionService.updateResolvingLocator(
                     claim.operation(), decision.targetState(), decision.recordedCode().name(), nowUtc);
         } catch (ClearingProcessingException projectionFailure) {
-            log.warn("event: CLEARING_FAILURE_PROJECTION_DEFERRED transactionId: {} operationId: {} targetStatus: {} projectionFailureCode: {}",
+            log.warn("清分失败投影更新延后, event: CLEARING_FAILURE_PROJECTION_DEFERRED, transactionId: {}, operationId: {}, targetStatus: {}, projectionFailureCode: {}",
                     claim.operation().transactionId(), claim.operation().operationId(),
                     decision.targetState(), projectionFailure.getFailureCode());
         }
@@ -195,20 +180,26 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 nowUtc.plusMinutes(delayMinutes).truncatedTo(ChronoUnit.MILLIS));
     }
 
-    /** 将不可重试或已耗尽重试的失败收敛为人工复核终点，不再安排下次投递。 */
+    /**
+     * 将不可重试或已耗尽重试的失败收敛为人工复核终点，不再安排下次投递。
+     */
     private FailureDecision manualDecision(ClearingFailureCodeEnum code, int retryCount) {
         requireTransition(ClearingStateEnum.MANUAL_REVIEW);
         return new FailureDecision(ClearingStateEnum.MANUAL_REVIEW, code, retryCount, null);
     }
 
-    /** 自动失败流转必须经过状态机白名单，禁止直接覆盖终态。 */
+    /**
+     * 自动失败流转必须经过状态机白名单，禁止直接覆盖终态。
+     */
     private void requireTransition(ClearingStateEnum target) {
         if (!ClearingStateEnum.PROCESSING.canTransitionTo(target, ClearingTransitionOrigin.AUTOMATIC)) {
             throw new IllegalStateException("unsupported automatic clearing failure transition");
         }
     }
 
-    /** 与失败状态在同一事务写入延时 Outbox，避免先发 MQ 后提交状态。 */
+    /**
+     * 与失败状态在同一事务写入延时 Outbox，避免先发 MQ 后提交状态。
+     */
     private void persistRetryOutbox(PaymentTransactionEventMessage source,
                                     ClearingClaimResult claim,
                                     FailureDecision decision,
@@ -267,7 +258,9 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         }
     }
 
-    /** 追溯首次交易事件号，使多轮延时重试仍共享同一来源审计链。 */
+    /**
+     * 追溯首次交易事件号，使多轮延时重试仍共享同一来源审计链。
+     */
     private String sourceEventNo(PaymentTransactionEventMessage source) {
         if (source instanceof ClearingRetryDueMessage retryMessage
                 && StringUtils.hasText(retryMessage.getSourceEventNo())) {
@@ -325,7 +318,9 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         }
     }
 
-    /** 失败提交必须仍持有同一 PROCESSING owner 和版本。 */
+    /**
+     * 失败提交必须仍持有同一 PROCESSING owner 和版本。
+     */
     private void validateLease(PaymentTransactionEventMessage message,
                                ClearingClaimResult claim,
                                String processingOwner,
@@ -346,7 +341,9 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         }
     }
 
-    /** 已持久化重试次数必须为非负数，消息值不能替代数据库事实。 */
+    /**
+     * 已持久化重试次数必须为非负数，消息值不能替代数据库事实。
+     */
     private int requiredRetryCount(Integer retryCount) {
         if (retryCount == null || retryCount < 0) {
             throw new IllegalStateException("clearing failure retry count is invalid");
@@ -354,6 +351,9 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         return retryCount;
     }
 
+    /**
+     * 单次失败处置的目标状态、受控失败码、重试次数与下次执行时间。
+     */
     private record FailureDecision(ClearingStateEnum targetState,
                                    ClearingFailureCodeEnum recordedCode,
                                    int retryCount,

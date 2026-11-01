@@ -5,13 +5,7 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelTransactionStatusResolver
- * @date : 2026-07-19 22:00
- * @email : scott_x@163.com
- * @description : 渠道结果状态解析服务，位于 service-payment 服务层，用于按渠道统一状态和交易类型决定平台交易状态；不识别具体 provider 原始协议。
- * @status : create
+ * 渠道结果状态解析服务，位于 service-payment 服务层，用于按渠道统一状态和交易类型决定平台交易状态；不识别具体 provider 原始协议。
  */
 public interface ChannelTransactionStatusResolver {
 

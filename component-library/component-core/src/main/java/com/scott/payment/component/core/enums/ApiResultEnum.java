@@ -4,13 +4,7 @@ import com.scott.payment.component.core.result.IResult;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiResultEnum
- * @date : 2026-05-28 18:16
- * @email : scott_x@163.com
- * @description : 支付框架 OpenAPI 统一响应枚举
- * @status : create
+ * 支付框架 OpenAPI 统一响应枚举
  */
 
 @Getter
@@ -211,6 +205,12 @@ public enum ApiResultEnum implements IResult {
      */
     PAYMENT_CORE_CONFIG_UNAVAILABLE(
             "F500001", "Payment core configuration is unavailable"),
+
+    /**
+     * 代付核心尚未具备持久化事实、幂等状态机或可靠渠道执行能力。
+     */
+    PAYOUT_CORE_UNAVAILABLE(
+            "F500002", "Payout core is unavailable"),
 
     /**
      * 上游服务不可用或响应异常。

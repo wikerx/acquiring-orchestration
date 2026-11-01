@@ -9,13 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataRiskAuditMapper
- * @date : 2026-08-01 14:50
- * @email : scott_x@163.com
- * @description : 风控评估主审计与脱敏命中明细数据访问入口，不参与实时风控规则计算
- * @status : create
+ * 风控评估主审计与脱敏命中明细数据访问入口，不参与实时风控规则计算。
  */
 public interface DataRiskAuditMapper {
 
@@ -35,6 +29,18 @@ public interface DataRiskAuditMapper {
     /**
      * 插入风控评估主审计记录。
      *
+     * @param riskRecordNo 风控评估流水号
+     * @param merchantId 商户号
+     * @param merchantOrderNo 商户订单号
+     * @param paymentOrderNo 平台支付订单号
+     * @param transactionAmount 商户交易金额
+     * @param transactionCurrency 商户交易币种
+     * @param riskLevel 评估风险等级
+     * @param decisionResult 风控决策结果
+     * @param decisionReasonCode 决策原因码
+     * @param decisionReason 已脱敏决策原因
+     * @param hitCount 命中规则数量
+     * @param evaluationTime 风控评估时间
      * @return 成功插入的记录数
      */
     @Insert("""

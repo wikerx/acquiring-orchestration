@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelMatchResultDTO
- * @date : 2026-07-19 22:20
- * @email : scott_x@163.com
- * @description : 渠道交易查询勾兑结果，位于 service-payment 内部接口 DTO 层，用于返回定时任务本次扫描、终态确认、继续等待和查询异常数量。
- * @status : create
+ * 渠道交易查询勾兑结果，位于 service-payment 内部接口 DTO 层，用于返回定时任务本次扫描、终态确认、继续等待和查询异常数量。
  */
 @Data
 public class TransactionChannelMatchResultDTO implements Serializable {

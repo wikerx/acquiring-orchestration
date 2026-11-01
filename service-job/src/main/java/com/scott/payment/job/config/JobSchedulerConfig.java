@@ -8,13 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerConfig
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务调度配置类
- * @status : create
+ * 任务调度配置类
  */
 @Configuration
 public class JobSchedulerConfig {

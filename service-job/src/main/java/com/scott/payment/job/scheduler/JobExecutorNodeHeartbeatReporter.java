@@ -6,13 +6,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeHeartbeatReporter
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务执行器节点心跳上报器
- * @status : create
+ * 任务执行器节点心跳上报器
  */
 @Component
 public class JobExecutorNodeHeartbeatReporter {

@@ -28,13 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementCandidateClaimServiceTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 验证真实候选按批次维度独占认领、依赖门禁、影子隔离和重复调用幂等。
- * @status : create
+ * 验证真实候选按批次维度独占认领、依赖门禁、影子隔离和重复调用幂等。
  */
 @ExtendWith(MockitoExtension.class)
 class DefaultSettlementCandidateClaimServiceTest {
@@ -147,7 +141,9 @@ class DefaultSettlementCandidateClaimServiceTest {
         verify(candidateMapper, never()).claim(any(Long.class), any(), any(Long.class), any(Long.class), any());
     }
 
-    /** 保证金调整必须进入独立 ADJUSTMENT 批次，不能混入常规交易日批。 */
+    /**
+     * 保证金调整必须进入独立 ADJUSTMENT 批次，不能混入常规交易日批。
+     */
     @Test
     void shouldRejectAdjustmentCandidateFromRegularBatch() {
         SettlementBatchDO batch = batch();

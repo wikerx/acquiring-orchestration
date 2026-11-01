@@ -12,13 +12,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementEventOutboxPersistenceService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 定义结算事件 Outbox 的短事务状态边界；认领、成功和失败分别提交，MQ 网络发送期间不持有数据库锁。
- * @status : create
+ * 定义结算事件 Outbox 的短事务状态边界；认领、成功和失败分别提交，MQ 网络发送期间不持有数据库锁。
  */
 @Service
 public class SettlementEventOutboxPersistenceService {

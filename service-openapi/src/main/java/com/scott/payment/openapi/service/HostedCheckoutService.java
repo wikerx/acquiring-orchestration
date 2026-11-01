@@ -8,13 +8,7 @@ import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : Hosted Checkout 开放接口服务。
- * @status : create
+ * Hosted Checkout 开放接口服务。
  */
 public interface HostedCheckoutService {
 
@@ -43,6 +37,8 @@ public interface HostedCheckoutService {
      */
     HostedCheckoutPaymentResultVO handleThreeDsReturn(HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO);
 
-    /** 识别 BIN 卡品牌并校验商户 MID 是否支持。 */
+    /**
+     * 识别 BIN 卡品牌并校验商户 MID 是否支持。
+     */
     HostedCheckoutCardBinVO resolveCardBin(HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO);
 }

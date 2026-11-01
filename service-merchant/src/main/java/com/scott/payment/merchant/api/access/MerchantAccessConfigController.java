@@ -26,13 +26,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccessConfigController
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 商户店铺网址和 IP 白名单门户接口，从认证上下文限定商户范围，不接受客户端商户号。
- * @status : create
+ * 商户店铺网址和 IP 白名单门户接口，从认证上下文限定商户范围，不接受客户端商户号。
  */
 @RestController
 @RequestMapping("/merchant/access-config")

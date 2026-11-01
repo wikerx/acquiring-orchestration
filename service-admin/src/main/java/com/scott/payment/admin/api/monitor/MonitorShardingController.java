@@ -28,13 +28,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorShardingController
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 管理端分表治理 HTTP 入口，负责权限、参数校验、操作审计和统一响应，物理表检查与创建编排委托应用服务。
- * @status : create
+ * 管理端分表治理 HTTP 入口，负责权限、参数校验、操作审计和统一响应，物理表检查与创建编排委托应用服务。
  */
 @RestController
 @RequestMapping("/admin/monitor/sharding")

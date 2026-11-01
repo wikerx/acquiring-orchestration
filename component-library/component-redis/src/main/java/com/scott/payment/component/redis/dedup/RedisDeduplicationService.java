@@ -3,13 +3,7 @@ package com.scott.payment.component.redis.dedup;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisDeduplicationService
- * @date : 2026-05-31 22:10
- * @email : scott_x@163.com
- * @description : Redis 去重服务
- * @status : create
+ * Redis 去重服务
  */
 public interface RedisDeduplicationService {
 

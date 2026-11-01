@@ -8,13 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRateLimitConfig
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : OpenAPI 商户滑动窗口限流器装配，与 MVC 拦截器配置解耦以避免认证链 Bean 循环依赖
- * @status : create
+ * OpenAPI 商户滑动窗口限流器装配，与 MVC 拦截器配置解耦以避免认证链 Bean 循环依赖
  */
 @Configuration
 @EnableConfigurationProperties(OpenApiRateLimitProperties.class)

@@ -9,13 +9,7 @@ import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiRespon
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalClient
- * @date : 2026-05-31 21:12
- * @email : scott_x@163.com
- * @description : service-payment 内部交易调用客户端，位于 service-openapi 客户端层，为每个收单交易动作提供独立方法并封装内部签名。
- * @status : create
+ * service-payment 内部交易调用客户端，位于 service-openapi 客户端层，为每个收单交易动作提供独立方法并封装内部签名。
  */
 public interface PaymentInternalClient {
 
@@ -153,7 +147,9 @@ public interface PaymentInternalClient {
     PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
             PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO);
 
-    /** 解析收银台卡 BIN 品牌及 MID 支持状态。 */
+    /**
+     * 解析收银台卡 BIN 品牌及 MID 支持状态。
+     */
     PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
             PaymentCheckoutClientDTOs.CardBinRequest requestDTO);
 }

@@ -15,20 +15,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HolidayCalendarDTOs
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 中国大陆结算节假日日历查询、初始化、批量维护和确认模型。
- * @status : create
+ * 中国大陆结算节假日日历查询、初始化、批量维护和确认模型。
  */
 public final class HolidayCalendarDTOs {
 
+    /**
+     * 阻止仅提供静态能力的类型被实例化。
+     */
     private HolidayCalendarDTOs() {
     }
 
-    /** 年月查询条件。 */
+    /**
+     * 年月查询条件。
+     */
     @Data
     public static class CalendarMonthQuery {
         /**
@@ -53,7 +52,9 @@ public final class HolidayCalendarDTOs {
         private int month;
     }
 
-    /** 初始化指定自然年。 */
+    /**
+     * 初始化指定自然年。
+     */
     @Data
     public static class CalendarYearInitializeRequest {
         /**
@@ -68,7 +69,9 @@ public final class HolidayCalendarDTOs {
         private int year;
     }
 
-    /** 单日批量维护输入。 */
+    /**
+     * 单日批量维护输入。
+     */
     @Data
     public static class CalendarDaySaveRequest {
         /**
@@ -125,7 +128,9 @@ public final class HolidayCalendarDTOs {
         private String remark;
     }
 
-    /** 批量维护或导入输入。 */
+    /**
+     * 批量维护或导入输入。
+     */
     @Data
     public static class CalendarBatchSaveRequest {
         /**
@@ -141,7 +146,9 @@ public final class HolidayCalendarDTOs {
         private List<CalendarDaySaveRequest> days = new ArrayList<>();
     }
 
-    /** 年度状态摘要。 */
+    /**
+     * 年度状态摘要。
+     */
     @Data
     public static class CalendarYearResponse {
         /**
@@ -245,7 +252,9 @@ public final class HolidayCalendarDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 单日配置和审计信息。 */
+    /**
+     * 单日配置和审计信息。
+     */
     @Data
     public static class CalendarDayResponse {
         /**
@@ -339,7 +348,9 @@ public final class HolidayCalendarDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 月视图结果。 */
+    /**
+     * 月视图结果。
+     */
     @Data
     public static class CalendarMonthResponse {
         /**

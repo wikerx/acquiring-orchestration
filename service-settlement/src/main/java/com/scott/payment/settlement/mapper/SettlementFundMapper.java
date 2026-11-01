@@ -11,17 +11,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementFundMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 结算资金账户和流水数据访问接口；固定先锁 NORMAL 账户，再分配账户序号、追加唯一流水并以旧余额和版本 CAS 更新可用余额。
- * @status : create
+ * 结算资金账户和流水数据访问接口；固定先锁 NORMAL 账户，再分配账户序号、追加唯一流水并以旧余额和版本 CAS 更新可用余额。
  */
 public interface SettlementFundMapper {
 
-    /** 锁定结算账户，建立同账户所有资金动作的统一串行顺序。 */
+    /**
+     * 锁定结算账户，建立同账户所有资金动作的统一串行顺序。
+     */
     @Select("""
             SELECT id, account_no, merchant_id, settlement_currency, available_balance,
                    account_status, account_version
@@ -33,7 +29,9 @@ public interface SettlementFundMapper {
             """)
     MerchantFundAccountDO selectAccountForUpdate(@Param("accountId") Long accountId);
 
-    /** 账户已锁定后读取最大流水序号；唯一键继续兜底数据库并发。 */
+    /**
+     * 账户已锁定后读取最大流水序号；唯一键继续兜底数据库并发。
+     */
     @Select("""
             SELECT COALESCE(MAX(account_sequence), 0)
             FROM merchant_fund_ledger
@@ -41,7 +39,9 @@ public interface SettlementFundMapper {
             """)
     Long selectMaxAccountSequence(@Param("accountId") Long accountId);
 
-    /** 按唯一幂等键读取既有资金流水，用于命令重放校验。 */
+    /**
+     * 按唯一幂等键读取既有资金流水，用于命令重放校验。
+     */
     @Select("""
             SELECT *
             FROM merchant_fund_ledger
@@ -52,7 +52,9 @@ public interface SettlementFundMapper {
     MerchantFundLedgerDO selectLedgerByIdempotencyForUpdate(
             @Param("idempotencyKey") String idempotencyKey);
 
-    /** 追加不可变资金流水；禁止使用覆盖式幂等写。 */
+    /**
+     * 追加不可变资金流水；禁止使用覆盖式幂等写。
+     */
     @Insert("""
             INSERT INTO merchant_fund_ledger
             (ledger_no, ledger_group_no, account_id, merchant_id, business_type, summary,
@@ -73,7 +75,9 @@ public interface SettlementFundMapper {
             """)
     int insertLedger(@Param("row") MerchantFundLedgerDO row);
 
-    /** 使用锁读到的余额和版本双重 CAS 更新账户，禁止只按主键覆盖。 */
+    /**
+     * 使用锁读到的余额和版本双重 CAS 更新账户，禁止只按主键覆盖。
+     */
     @Update("""
             UPDATE merchant_fund_account
             SET available_balance = #{balanceAfter},

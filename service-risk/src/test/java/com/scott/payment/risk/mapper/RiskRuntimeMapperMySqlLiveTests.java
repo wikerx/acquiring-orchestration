@@ -17,19 +17,18 @@ import java.sql.Statement;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskRuntimeMapperMySqlLiveTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控运行时 Mapper 的真实 MySQL 表结构契约测试，默认关闭。
- * @status : create
+ * 风控运行时 Mapper 的真实 MySQL 表结构契约测试，默认关闭。
  */
 class RiskRuntimeMapperMySqlLiveTests {
 
-    /** 显式启用真实 MySQL 契约测试的系统属性，默认关闭以避免误连共享数据库。 */
+    /**
+     * 显式启用真实 MySQL 契约测试的系统属性，默认关闭以避免误连共享数据库。
+     */
     private static final String ENABLED_PROPERTY = "risk.mysql.live.enabled";
 
+    /**
+     * 验证真实 MySQL 结构能够匹配生效中的分层地区规则。
+     */
     @Test
     @EnabledIfSystemProperty(named = ENABLED_PROPERTY, matches = "true")
     void shouldMatchAnActiveHierarchicalRegionRuleAgainstTheRealSchema() throws Exception {
@@ -51,6 +50,9 @@ class RiskRuntimeMapperMySqlLiveTests {
         }
     }
 
+    /**
+     * 创建连接真实测试库并加载风控 Mapper 的 MyBatis 会话工厂。
+     */
     private SqlSessionFactory sqlSessionFactory() {
         String url = System.getProperty("risk.mysql.live.url",
                 "jdbc:mysql://127.0.0.1:3306/payment_acquiring"
@@ -93,6 +95,9 @@ class RiskRuntimeMapperMySqlLiveTests {
         return fallback;
     }
 
+    /**
+     * 从真实测试库选择一条生效地区规则作为匹配夹具。
+     */
     private RegionFixture loadActiveRegionFixture(SqlSession session) throws Exception {
         try (Statement statement = session.getConnection().createStatement();
              ResultSet resultSet = statement.executeQuery("""
@@ -123,6 +128,9 @@ class RiskRuntimeMapperMySqlLiveTests {
         }
     }
 
+    /**
+     * 保存真实地区规则测试需要的国家、省州和城市字段。
+     */
     private record RegionFixture(String merchantId,
                                  String countryAlpha3,
                                  String stateProvinceName,

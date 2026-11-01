@@ -13,18 +13,27 @@ import org.springframework.stereotype.Component;
 @Component
 public class ReserveReleaseScheduler {
 
-    /** 服务启动后等待 30 秒，避免与启动期数据库初始化争用资源。 */
+    /**
+     * 服务启动后等待 30 秒，避免与启动期数据库初始化争用资源。
+     */
     private static final long INITIAL_DELAY_MILLIS = 30_000L;
-    /** 每轮完成后等待一分钟再扫描，避免慢任务并发重入。 */
+    /**
+     * 每轮完成后等待一分钟再扫描，避免慢任务并发重入。
+     */
     private static final long FIXED_DELAY_MILLIS = 60_000L;
 
     private final ReserveReleaseScanService scanService;
 
+    /**
+     * 创建保证金释放调度器，并注入跨已发布季度的扫描服务。
+     */
     public ReserveReleaseScheduler(ReserveReleaseScanService scanService) {
         this.scanService = scanService;
     }
 
-    /** 每轮完成后等待固定一分钟，再扫描所有已发布季度的到期候选。 */
+    /**
+     * 每轮完成后等待固定一分钟，再扫描所有已发布季度的到期候选。
+     */
     @Scheduled(initialDelay = INITIAL_DELAY_MILLIS, fixedDelay = FIXED_DELAY_MILLIS)
     public void run() {
         try {

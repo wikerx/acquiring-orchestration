@@ -3,41 +3,31 @@ package com.scott.payment.payment.domain.reconciliation;
 import lombok.Getter;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelMatchAbnormalLevelEnum
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 渠道勾兑异常级别枚举，用于管理端分流案件，不参与交易状态推导。
- * @status : create
+ * 渠道勾兑异常级别枚举，用于管理端分流案件，不参与交易状态推导。
  */
 @Getter
 public enum ChannelMatchAbnormalLevelEnum {
 
     /**
-     * WARNING 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 可由后续查询继续确认的普通异常，不代表资金事实已经错误。
      */
     WARNING("WARNING"),
     /**
-     * HIGH 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 渠道与平台状态存在明显差异，需要优先人工复查。
      */
     HIGH("HIGH"),
     /**
-     * CRITICAL 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
+     * 币种或金额等资金事实不一致，需要立即阻断自动处置并人工核对。
      */
     CRITICAL("CRITICAL");
 
     private final String code;
 
+    /**
+     * 创建勾兑异常级别。
+     *
+     * @param code 持久化和接口使用的稳定级别编码
+     */
     ChannelMatchAbnormalLevelEnum(String code) {
         this.code = code;
     }

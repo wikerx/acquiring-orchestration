@@ -25,13 +25,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutGatewayIngressFilter
- * @date : 2026-08-08 00:00
- * @email : scott_x@163.com
- * @description : 收银台网关入口过滤器，清除外部伪造头并为下游业务入口签发短时 HMAC 凭证。
- * @status : create
+ * 收银台网关入口过滤器，清除外部伪造头并为下游业务入口签发短时 HMAC 凭证。
  */
 @Component
 public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {

@@ -2,13 +2,7 @@ package com.scott.payment.component.security.openapi;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiKeyAuditService
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : openAPI密钥审计服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * openAPI密钥审计服务契约，位于 公共组件库，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  */
 public class OpenApiKeyAuditService {
 

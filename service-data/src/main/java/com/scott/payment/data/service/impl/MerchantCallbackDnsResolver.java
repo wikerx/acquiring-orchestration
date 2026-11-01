@@ -5,16 +5,13 @@ import org.apache.hc.client5.http.DnsResolver;
 import java.net.InetAddress;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantCallbackDnsResolver
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : 商户回调 HTTP 客户端专用 DNS Resolver，在套接字建连使用的同一次解析上执行环境网络策略，阻断 DNS 重绑定绕过。
- * @status : create
+ * 商户回调 HTTP 客户端专用 DNS Resolver，在套接字建连使用的同一次解析上执行环境网络策略，阻断 DNS 重绑定绕过。
  */
 public class MerchantCallbackDnsResolver implements DnsResolver {
 
+    /**
+     * 回调 URL 和实际建连地址校验器。
+     */
     private final MerchantCallbackTargetValidator targetValidator;
 
     /**

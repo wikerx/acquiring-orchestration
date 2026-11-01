@@ -14,13 +14,7 @@ import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.core.auth.InternalAuthChecker;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemAuthService
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理类系统登录注册与权限服务
- * @status : create
+ * 管理类系统登录注册与权限服务
  */
 public interface SystemAuthService extends InternalAuthChecker {
 

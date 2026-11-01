@@ -6,13 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoCountryQueryRequestDTO
- * @date : 2026-06-03 15:05
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 国家地区查询参数，仅开放三种 ISO 3166-1 代码；解码入口拒绝未知字段，避免忽略条件后返回全量数据。
- * @status : update
+ * 商户 OpenAPI 国家地区查询参数，仅开放三种 ISO 3166-1 代码；解码入口拒绝未知字段，避免忽略条件后返回全量数据。
  */
 @Data
 public class IsoCountryQueryRequestDTO implements Serializable {

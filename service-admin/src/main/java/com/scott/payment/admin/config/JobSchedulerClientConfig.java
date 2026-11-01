@@ -13,13 +13,7 @@ import org.springframework.web.client.RestTemplate;
 import java.net.Proxy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerClientConfig
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 管理后台任务调度客户端配置类
- * @status : create
+ * 管理后台任务调度客户端配置类
  */
 @Configuration
 @EnableConfigurationProperties(JobSchedulerClientProperties.class)
@@ -61,8 +55,8 @@ public class JobSchedulerClientConfig {
     public RestTemplate jobSchedulerLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
                                                              TraceIdRestTemplateInterceptor traceIdRestTemplateInterceptor) {
         return restTemplateBuilder
-                .setConnectTimeout(java.time.Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
-                .setReadTimeout(java.time.Duration.ofMillis(READ_TIMEOUT_MILLIS))
+                .connectTimeout(java.time.Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
+                .readTimeout(java.time.Duration.ofMillis(READ_TIMEOUT_MILLIS))
                 .additionalInterceptors(traceIdRestTemplateInterceptor)
                 .build();
     }

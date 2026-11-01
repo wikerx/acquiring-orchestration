@@ -3,13 +3,7 @@ package com.scott.payment.settlement.dto;
 import java.math.BigDecimal;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReviewCommandResult
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 返回预审提交或终态决策后的单号、正式批次关联和冻结净额；金额按目标币种及其 ISO exponent 表达。
- * @status : create
+ * 返回预审提交或终态决策后的单号、正式批次关联和冻结净额；金额按目标币种及其 ISO exponent 表达。
  * @param reviewOrderNo 结算预审单号
  * @param reviewStatus 预审当前或终态状态
  * @param settlementBatchNo 批准后创建的正式批次号，其他状态为空

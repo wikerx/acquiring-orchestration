@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionChannelCallbackResultDTO
- * @date : 2026-07-14 22:38
- * @email : scott_x@163.com
- * @description : 渠道回调内部落库结果，位于 service-payment 内部接口 DTO 层，返回回调日志号、业务回调号和当前处理状态。
- * @status : create
+ * 渠道回调内部落库结果，位于 service-payment 内部接口 DTO 层，返回回调日志号、业务回调号和当前处理状态。
  */
 @Data
 public class TransactionChannelCallbackResultDTO implements Serializable {

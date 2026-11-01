@@ -13,32 +13,34 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DataSourceAnnotationArchitectureTest
- * @date : 2026-08-19 00:00
- * @email : scott_x@163.com
- * @description : 数据源路由注解全仓架构门禁，禁止类级路由及无法被代理的方法级路由。
- * @status : create
+ * 数据源路由注解全仓架构门禁，禁止类级路由及无法被代理的方法级路由。
  */
 class DataSourceAnnotationArchitectureTest {
 
-    /** 类级注解后允许存在其他 Spring 注解，但最终必须紧邻 Java 类型声明。 */
+    /**
+     * 类级注解后允许存在其他 Spring 注解，但最终必须紧邻 Java 类型声明。
+     */
     private static final Pattern TYPE_LEVEL_DS = Pattern.compile(
             "(?m)^\\s*@DS\\([^\\n]+\\)\\R(?:\\s*@[^\\n]+\\R)*"
                     + "\\s*(?:public\\s+)?(?:abstract\\s+|final\\s+)?"
                     + "(?:class|interface|record|enum)\\b");
 
-    /** 顶层 Java 类型声明，用于区分类中的公开代理方法和接口中的隐式公开方法。 */
+    /**
+     * 顶层 Java 类型声明，用于区分类中的公开代理方法和接口中的隐式公开方法。
+     */
     private static final Pattern TOP_LEVEL_TYPE = Pattern.compile(
             "(?m)^\\s*(?:public\\s+)?(?:abstract\\s+|final\\s+)?"
                     + "(class|interface|record|enum)\\b");
 
-    /** 方法声明的最小结构校验，覆盖多行参数和可选 throws 子句。 */
+    /**
+     * 方法声明的最小结构校验，覆盖多行参数和可选 throws 子句。
+     */
     private static final Pattern METHOD_DECLARATION = Pattern.compile(
             "(?s)^.+\\([^;{}]*\\)\\s*(?:throws\\s+[^;{]+)?[;{]$");
 
-    /** 扫描所有生产 Java 源码，阻止类级数据源路由重新进入仓库。 */
+    /**
+     * 扫描所有生产 Java 源码，阻止类级数据源路由重新进入仓库。
+     */
     @Test
     void productionTypesMustNotDeclareDataSourceRouting() throws IOException {
         Path projectRoot = findProjectRoot();
@@ -74,7 +76,9 @@ class DataSourceAnnotationArchitectureTest {
                 .isEmpty();
     }
 
-    /** 从 Maven 根目录或子模块测试目录向上定位当前多模块工程。 */
+    /**
+     * 从 Maven 根目录或子模块测试目录向上定位当前多模块工程。
+     */
     private Path findProjectRoot() {
         Path current = Path.of("").toAbsolutePath().normalize();
         while (current != null) {
@@ -88,7 +92,9 @@ class DataSourceAnnotationArchitectureTest {
         throw new IllegalStateException("acquiring-orchestration project root was not found");
     }
 
-    /** 读取单个生产源码并记录类级路由违规路径。 */
+    /**
+     * 读取单个生产源码并记录类级路由违规路径。
+     */
     private void collectViolation(Path projectRoot, Path source, List<String> violations) {
         try {
             if (TYPE_LEVEL_DS.matcher(Files.readString(source)).find()) {
@@ -126,7 +132,9 @@ class DataSourceAnnotationArchitectureTest {
         }
     }
 
-    /** 判断源码顶层声明是否为接口，接口方法无需显式书写 public。 */
+    /**
+     * 判断源码顶层声明是否为接口，接口方法无需显式书写 public。
+     */
     private boolean isTopLevelInterface(String content) {
         var matcher = TOP_LEVEL_TYPE.matcher(content);
         return matcher.find() && "interface".equals(matcher.group(1));
@@ -186,17 +194,23 @@ class DataSourceAnnotationArchitectureTest {
         return index;
     }
 
-    /** 判断已拼接文本是否到达方法声明的分号或方法体起始大括号。 */
+    /**
+     * 判断已拼接文本是否到达方法声明的分号或方法体起始大括号。
+     */
     private boolean endsDeclaration(String declaration) {
         return declaration.endsWith(";") || declaration.endsWith("{");
     }
 
-    /** 判断注解目标是否具备方法声明结构。 */
+    /**
+     * 判断注解目标是否具备方法声明结构。
+     */
     private boolean isMethodDeclaration(String declaration) {
         return METHOD_DECLARATION.matcher(declaration).matches();
     }
 
-    /** 判断类中的注解目标是否为可被 Spring AOP 代理的公开实例方法。 */
+    /**
+     * 判断类中的注解目标是否为可被 Spring AOP 代理的公开实例方法。
+     */
     private boolean isPublicInstanceMethod(String declaration) {
         return declaration.startsWith("public ") && !declaration.matches("^public\\s+static\\b.*");
     }

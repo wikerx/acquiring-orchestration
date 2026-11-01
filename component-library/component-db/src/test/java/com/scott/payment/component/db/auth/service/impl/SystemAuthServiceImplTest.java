@@ -73,13 +73,7 @@ import static org.mockito.Mockito.when;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemAuthServiceImplTest
- * @date : 2026-06-26 15:24
- * @email : scott_x@163.com
- * @description : 系统auth服务实现，位于 公共组件库，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 系统auth服务实现，位于 公共组件库，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 class SystemAuthServiceImplTest {
 
@@ -118,11 +112,17 @@ class SystemAuthServiceImplTest {
      * 商户基础资料缓存服务，用于商户端登录商户有效性校验。
      */
     private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
-    /** 登录审计事件发布器，用于验证失败审计不再依赖认证事务直接落库。 */
+    /**
+     * 登录审计事件发布器，用于验证失败审计不再依赖认证事务直接落库。
+     */
     private ApplicationEventPublisher applicationEventPublisher;
-    /** 密码历史服务，用于验证改密入口会检查并保存最近密码。 */
+    /**
+     * 密码历史服务，用于验证改密入口会检查并保存最近密码。
+     */
     private AccountPasswordHistoryService accountPasswordHistoryService;
-    /** 登录日志 Mapper，仅用于断言认证服务不再同步写审计表。 */
+    /**
+     * 登录日志 Mapper，仅用于断言认证服务不再同步写审计表。
+     */
     private SysLoginLogMapper sysLoginLogMapper;
     private SystemAuthServiceImpl systemAuthService;
 
@@ -413,7 +413,9 @@ class SystemAuthServiceImplTest {
         verify(sysLoginSessionMapper).insert(any(SysLoginSessionDO.class));
     }
 
-    /** 冻结商户必须在账号、验证码和密码校验前被拒绝登录。 */
+    /**
+     * 冻结商户必须在账号、验证码和密码校验前被拒绝登录。
+     */
     @Test
     void frozenMerchantShouldBeRejectedBeforeLoginCredentialValidation() {
         MerchantRuntimeProfile merchant = activeMerchantInfo();
@@ -433,7 +435,9 @@ class SystemAuthServiceImplTest {
         verifyNoInteractions(sysAccountMapper, sysVerifyCodeMapper);
     }
 
-    /** 冻结后即使旧会话尚未被清理，商户接口鉴权也必须立即拒绝访问。 */
+    /**
+     * 冻结后即使旧会话尚未被清理，商户接口鉴权也必须立即拒绝访问。
+     */
     @Test
     void frozenMerchantShouldBeRejectedWhenCheckingExistingSession() {
         SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
@@ -461,7 +465,9 @@ class SystemAuthServiceImplTest {
         verifyNoInteractions(sysUserMapper);
     }
 
-    /** 密码错误抛出业务异常前必须发布独立审计事件，认证事务不得直接写登录日志表。 */
+    /**
+     * 密码错误抛出业务异常前必须发布独立审计事件，认证事务不得直接写登录日志表。
+     */
     @Test
     void failedLoginShouldPublishAuditEventInsteadOfWritingLoginLogInAuthenticationTransaction() {
         String correctPassword = "Merchant@123456";

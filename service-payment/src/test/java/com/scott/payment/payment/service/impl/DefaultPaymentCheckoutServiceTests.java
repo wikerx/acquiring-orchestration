@@ -73,54 +73,74 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentCheckoutServiceTests
- * @date : 2026-08-08 15:05
- * @email : scott_x@163.com
- * @description : 验证 Hosted Checkout 会话、支付尝试、安全校验及卡品牌识别等内部业务行为
- * @status : create
+ * 验证 Hosted Checkout 会话、支付尝试、安全校验及卡品牌识别等内部业务行为
  */
 @Slf4j
 class DefaultPaymentCheckoutServiceTests {
 
-    /** Hosted Checkout 会话持久化 Mapper 测试替身。 */
+    /**
+     * Hosted Checkout 会话持久化 Mapper 测试替身。
+     */
     private PaymentCheckoutSessionMapper sessionMapper;
 
-    /** 不透明 Token 持久化 Mapper 测试替身。 */
+    /**
+     * 不透明 Token 持久化 Mapper 测试替身。
+     */
     private PaymentCheckoutTokenMapper tokenMapper;
 
-    /** 支付尝试持久化 Mapper 测试替身。 */
+    /**
+     * 支付尝试持久化 Mapper 测试替身。
+     */
     private PaymentCheckoutAttemptMapper attemptMapper;
 
-    /** Checkout 生命周期事件 Mapper 测试替身。 */
+    /**
+     * Checkout 生命周期事件 Mapper 测试替身。
+     */
     private PaymentCheckoutEventMapper eventMapper;
 
-    /** Checkout 安全审计事件 Mapper 测试替身。 */
+    /**
+     * Checkout 安全审计事件 Mapper 测试替身。
+     */
     private PaymentCheckoutSecurityEventMapper securityEventMapper;
 
-    /** 3DS 状态和返回 Token 处理服务测试替身。 */
+    /**
+     * 3DS 状态和返回 Token 处理服务测试替身。
+     */
     private PaymentCheckoutThreeDsService threeDsService;
 
-    /** 支付核心交易提交服务测试替身。 */
+    /**
+     * 支付核心交易提交服务测试替身。
+     */
     private PaymentTransactionService paymentTransactionService;
 
-    /** 3DS 认证审计服务测试替身。 */
+    /**
+     * 3DS 认证审计服务测试替身。
+     */
     private PaymentAuthenticationRecordService authenticationRecordService;
 
-    /** 立即执行回调的事务模板，避免单元测试依赖真实数据库事务。 */
+    /**
+     * 立即执行回调的事务模板，避免单元测试依赖真实数据库事务。
+     */
     private TrackingTransactionOperations transactionOperations;
 
-    /** 商户通知任务 Mapper 测试替身。 */
+    /**
+     * 商户通知任务 Mapper 测试替身。
+     */
     private TransactionMerchantNotificationMapper merchantNotificationMapper;
 
-    /** 商户通知首次五秒延时调度测试替身。 */
+    /**
+     * 商户通知首次五秒延时调度测试替身。
+     */
     private MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService;
 
-    /** Hosted Checkout TTL、重试次数和轮询间隔测试配置。 */
+    /**
+     * Hosted Checkout TTL、重试次数和轮询间隔测试配置。
+     */
     private PaymentCheckoutProperties properties;
 
-    /** 每个用例重新构建的被测服务。 */
+    /**
+     * 每个用例重新构建的被测服务。
+     */
     private DefaultPaymentCheckoutService service;
 
     @BeforeEach
@@ -205,7 +225,9 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getCheckoutUrl()).doesNotContain(tokenDO.getTokenHash());
     }
 
-    /** 内部调用即使传入更晚时间，也不能把付款提交窗口放大到 24 小时之外。 */
+    /**
+     * 内部调用即使传入更晚时间，也不能把付款提交窗口放大到 24 小时之外。
+     */
     @Test
     void shouldCapPaymentSubmissionDeadlineAtTwentyFourHours() {
         log.info("用例开始：校验内部创建命令不能把付款提交截止时间放大到 24 小时之外");
@@ -280,7 +302,9 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getSupported()).isFalse();
     }
 
-    /** 卡能力服务不可用时必须复用统一平台规则，避免兼容路径遗漏 UnionPay 等品牌。 */
+    /**
+     * 卡能力服务不可用时必须复用统一平台规则，避免兼容路径遗漏 UnionPay 等品牌。
+     */
     @Test
     void shouldUseUnifiedCardBrandRuleWhenCardCapabilityServiceIsUnavailable() {
         log.info("验证卡能力服务不可用时收银台复用统一卡品牌规则");
@@ -620,6 +644,22 @@ class DefaultPaymentCheckoutServiceTests {
         verify(merchantNotificationMapper).insertLogical(notificationCaptor.capture());
         assertThat(notificationCaptor.getValue().getNextRetryTime()).isEqualTo(now.plusSeconds(5));
         assertThat(notificationCaptor.getValue().getMaxRetryCount()).isEqualTo(5);
+        Map<String, Object> timeoutPayload = JsonUtils.parseObject(
+                notificationCaptor.getValue().getPayloadJson(), new TypeReference<>() {
+                });
+        assertThat(timeoutPayload).containsOnlyKeys(
+                "merchantInfo", "orderInfo", "transactionInfo", "checkoutSessionId");
+        assertThat(timeoutPayload).doesNotContainKeys(
+                "merchantId", "orderNo", "transactionId", "transactionStatus");
+        assertThat((Map<String, Object>) timeoutPayload.get("merchantInfo"))
+                .containsEntry("merchantId", first.getMerchantId());
+        assertThat((Map<String, Object>) timeoutPayload.get("orderInfo"))
+                .containsEntry("orderNo", first.getMerchantOrderNo());
+        assertThat((Map<String, Object>) timeoutPayload.get("transactionInfo"))
+                .containsEntry("transactionStatus", PaymentTransactionStatusEnum.FAILED.getCode())
+                .containsEntry("transactionDateTime", first.getExpireTime().toString())
+                .containsEntry("failReasonCode", "PAYMENT_TIMEOUT");
+        assertThat(timeoutPayload).containsEntry("checkoutSessionId", first.getCheckoutSessionId());
         verify(merchantNotificationInitialDeliveryService).schedule(
                 eq(notificationCaptor.getValue()), eq(0), eq(now));
         log.info("用例结果：两个候选中仅一个 CAS 成功，审计状态为 FAILED 且生成一条通知任务");
@@ -978,7 +1018,9 @@ class DefaultPaymentCheckoutServiceTests {
                 any(), any(), any(), any(), any());
     }
 
-    /** 从未点击付款的订单到达截止时间后，同样必须在创建支付尝试前被拒绝。 */
+    /**
+     * 从未点击付款的订单到达截止时间后，同样必须在创建支付尝试前被拒绝。
+     */
     @Test
     void shouldRejectFirstPaymentAttemptAfterSessionExpires() {
         log.info("用例开始：校验从未点击付款的订单在截止时间后不能创建首次支付尝试");
@@ -1628,7 +1670,9 @@ class DefaultPaymentCheckoutServiceTests {
         return resultDTO;
     }
 
-    /** 构造已经提交本地事务、尚未请求 PSP 的核心交易准备结果。 */
+    /**
+     * 构造已经提交本地事务、尚未请求 PSP 的核心交易准备结果。
+     */
     private PaymentInitialPreparationResultDTO preparedCoreTransaction(PaymentCreateCommandDTO commandDTO) {
         commandDTO.setTransactionAmount(commandDTO.getAmount());
         commandDTO.setTransactionCurrency(commandDTO.getCurrency());
@@ -1678,10 +1722,14 @@ class DefaultPaymentCheckoutServiceTests {
 
     private static class SequenceGlobalIdGenerator implements GlobalIdGenerator {
 
-        /** 仅用于测试的单调递增序列，不具备分布式唯一性。 */
+        /**
+         * 仅用于测试的单调递增序列，不具备分布式唯一性。
+         */
         private final AtomicLong sequence = new AtomicLong(2607271200000000000L);
 
-        /** 返回下一个确定性测试编号。 */
+        /**
+         * 返回下一个确定性测试编号。
+         */
         @Override
         public String nextId() {
             return Long.toString(sequence.incrementAndGet());
@@ -1690,7 +1738,9 @@ class DefaultPaymentCheckoutServiceTests {
 
     private static class TrackingTransactionOperations implements TransactionOperations {
 
-        /** 当前线程是否正在执行 checkout 本地事务回调。 */
+        /**
+         * 当前线程是否正在执行 checkout 本地事务回调。
+         */
         private boolean active;
 
         @Override
@@ -1703,7 +1753,9 @@ class DefaultPaymentCheckoutServiceTests {
             }
         }
 
-        /** 返回测试事务回调是否仍在执行。 */
+        /**
+         * 返回测试事务回调是否仍在执行。
+         */
         private boolean isActive() {
             return active;
         }

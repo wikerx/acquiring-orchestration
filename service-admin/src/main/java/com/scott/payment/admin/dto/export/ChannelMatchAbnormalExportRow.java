@@ -7,13 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelMatchAbnormalExportRow
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : Admin 勾兑异常导出行，只包含脱敏案件证据和处置状态，不导出渠道原始报文。
- * @status : create
+ * Admin 勾兑异常导出行，只包含脱敏案件证据和处置状态，不导出渠道原始报文。
  */
 @Data
 public class ChannelMatchAbnormalExportRow {

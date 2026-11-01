@@ -9,13 +9,7 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalDailySequenceMapper
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 冲正申请单号日序列数据访问接口；按 UTC 业务日期锁行并以当前值和版本 CAS 递增。
- * @status : create
+ * 冲正申请单号日序列数据访问接口；按 UTC 业务日期锁行并以当前值和版本 CAS 递增。
  */
 public interface SettlementReversalDailySequenceMapper {
 

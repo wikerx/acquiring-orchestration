@@ -18,13 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalInternalController
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 仅供 service-admin 内部签名调用的结算冲正命令入口；浏览器不得直接访问，操作人和权限上下文必须由管理服务可信注入。
- * @status : create
+ * 仅供 service-admin 内部签名调用的结算冲正命令入口；浏览器不得直接访问，操作人和权限上下文必须由管理服务可信注入。
  */
 @RestController
 @RequestMapping("/internal/settlement/v1/reversal-orders")

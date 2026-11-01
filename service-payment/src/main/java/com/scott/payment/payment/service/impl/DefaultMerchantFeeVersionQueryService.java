@@ -36,9 +36,13 @@ import java.util.Map;
 @Service
 public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersionQueryService {
 
-    /** 固定费及上下限字段当前按 USD 金额建模。 */
+    /**
+     * 固定费及上下限字段当前按 USD 金额建模。
+     */
     private static final String USD = "USD";
-    /** USD 法定辅币位数，用于构造 Money 值对象，不用于提前舍入数据库费率。 */
+    /**
+     * USD 法定辅币位数，用于构造 Money 值对象，不用于提前舍入数据库费率。
+     */
     private static final int USD_EXPONENT = 2;
 
     private final MerchantFeeVersionSnapshotMapper snapshotMapper;
@@ -52,7 +56,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         this.snapshotMapper = snapshotMapper;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 从主库读取商户当前生效的费用方案版本指针。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
@@ -60,7 +66,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         return snapshotMapper.selectActivePointer(merchantId);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 从从库读取指定费用方案版本的不可变配置明细。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
@@ -70,7 +78,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         return toConfiguration(snapshotMapper.selectVersionRows(merchantId, feePlanId, feePlanVersionId));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * 从主库读取指定费用方案版本的不可变配置明细，用于复制延迟回源。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
@@ -80,7 +90,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         return toConfiguration(snapshotMapper.selectVersionRows(merchantId, feePlanId, feePlanVersionId));
     }
 
-    /** 将一次 JOIN 的稳定行序组装为不可变费用版本，不进行金额计算或汇率读取。 */
+    /**
+     * 将一次 JOIN 的稳定行序组装为不可变费用版本，不进行金额计算或汇率读取。
+     */
     private MerchantFeeVersionConfigurationDTO toConfiguration(List<MerchantFeeVersionSnapshotRowDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return null;
@@ -124,7 +136,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         }
     }
 
-    /** 防止异常 JOIN 行把其他商户或版本内容混入同一快照。 */
+    /**
+     * 防止异常 JOIN 行把其他商户或版本内容混入同一快照。
+     */
     private void validateVersionIdentity(MerchantFeeVersionSnapshotRowDO expected,
                                          MerchantFeeVersionSnapshotRowDO actual) {
         if (!java.util.Objects.equals(expected.getMerchantId(), actual.getMerchantId())
@@ -135,6 +149,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         }
     }
 
+    /**
+     * 校验并获取正值。
+     */
     private static int requirePositive(Integer value, String fieldName) {
         if (value == null || value < 1) {
             throw new IllegalArgumentException(fieldName + " must be positive");
@@ -142,15 +159,24 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         return value;
     }
 
+    /**
+     * 解析商户费用计算模式。
+     */
     private static FeeMode feeMode(String value) {
         return FeeMode.valueOf(requiredEnum(value, "fee mode"));
     }
 
+    /**
+     * 解析阶梯计费指标。
+     */
     private static TierMetric tierMetric(String value) {
         return value == null || value.isBlank() ? null
                 : TierMetric.valueOf(requiredEnum(value, "tier metric"));
     }
 
+    /**
+     * 读取并校验必填枚举配置。
+     */
     private static String requiredEnum(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " is required");
@@ -158,18 +184,32 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
         return value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 创建美元金额值。
+     */
     private static Money usd(BigDecimal amount) {
         return amount == null ? null : new Money(amount, USD, USD_EXPONENT);
     }
 
-    /** 单条费用规则及其有序阶梯的组装状态。 */
+    /**
+     * 单条费用规则及其有序阶梯的组装状态。
+     */
     private static final class RuleAccumulator {
 
-        /** 当前规则的公共字段，取自该规则第一条 JOIN 行。 */
+        /**
+         * 当前规则的公共字段，取自该规则第一条 JOIN 行。
+         */
         private final MerchantFeeVersionSnapshotRowDO rule;
-        /** SQL 稳定顺序下收集的阶梯，顺序直接参与后续费用规则匹配。 */
+        /**
+         * SQL 稳定顺序下收集的阶梯，顺序直接参与后续费用规则匹配。
+         */
         private final List<FeeTierSnapshot> tiers = new ArrayList<>();
 
+        /**
+         * 创建单条费用规则的组装器并校验规则主键。
+         *
+         * @param rule 当前费用规则第一条有序 JOIN 行
+         */
         private RuleAccumulator(MerchantFeeVersionSnapshotRowDO rule) {
             if (rule.getFeeRuleId() == null || rule.getFeeRuleId() < 1) {
                 throw new IllegalArgumentException("fee rule id must be positive");
@@ -177,6 +217,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
             this.rule = rule;
         }
 
+        /**
+         * 向费用配置中添加阶梯规则。
+         */
         private void addTier(MerchantFeeVersionSnapshotRowDO row) {
             if (row.getFeeTierId() == null) {
                 return;
@@ -191,6 +234,9 @@ public class DefaultMerchantFeeVersionQueryService implements MerchantFeeVersion
                     usd(row.getTierMaximumAmountUsd())));
         }
 
+        /**
+         * 转换为商户交易快照。
+         */
         private FeeRuleConfigurationSnapshot toSnapshot() {
             FeeMode mode = feeMode(rule.getFeeMode());
             // STANDARD 与 TIER 的结构必须互斥，配置不完整时 Fail Closed，禁止猜测计费方式。

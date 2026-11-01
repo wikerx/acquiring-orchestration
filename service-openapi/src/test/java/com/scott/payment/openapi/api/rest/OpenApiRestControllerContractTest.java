@@ -18,13 +18,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRestControllerContractTest
- * @date : 2026-10-26 00:00
- * @email : scott_x@163.com
- * @description : 商户 /api/rest 开放接口的统一安全与响应契约测试，防止新增入口绕过验签解密或混用内部响应模型。
- * @status : create
+ * 商户 /api/rest 开放接口的统一安全与响应契约测试，防止新增入口绕过验签解密或混用内部响应模型。
  */
 class OpenApiRestControllerContractTest {
 
@@ -73,7 +67,9 @@ class OpenApiRestControllerContractTest {
                 .toList();
     }
 
-    /** 类级基础路径必须明确以 /api/rest 开头，浏览器、回调、健康检查和内部接口不属于此契约。 */
+    /**
+     * 类级基础路径必须明确以 /api/rest 开头，浏览器、回调、健康检查和内部接口不属于此契约。
+     */
     private boolean hasMerchantRestBasePath(Class<?> controllerType) {
         RequestMapping requestMapping = controllerType.getAnnotation(RequestMapping.class);
         return requestMapping != null

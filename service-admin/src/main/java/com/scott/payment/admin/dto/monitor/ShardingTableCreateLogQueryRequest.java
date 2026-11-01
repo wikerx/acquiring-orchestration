@@ -5,13 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTableCreateLogQueryRequest
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表create日志查询条件模型，位于 运营后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
- * @status : create
+ * 分表创建日志分页查询条件，支持按批次、触发类型和执行状态筛选。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

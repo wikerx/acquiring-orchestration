@@ -14,17 +14,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DictionaryOptionCacheReaderTests
- * @date : 2026-08-20 00:00
- * @email : scott_x@163.com
- * @description : 共享启用数据字典下拉缓存的固定键和主库重建契约测试
- * @status : create
+ * 共享启用数据字典下拉缓存的固定键和主库重建契约测试
  */
 class DictionaryOptionCacheReaderTests {
 
-    /** 缓存未命中时必须从主库读取，并使用字典类型与语言组成稳定业务键。 */
+    /**
+     * 缓存未命中时必须从主库读取，并使用字典类型与语言组成稳定业务键。
+     */
     @Test
     void shouldRebuildDictionaryOptionsFromMasterWithNormalizedKey() throws Exception {
         Method method = DictionaryOptionCacheReader.class.getMethod(

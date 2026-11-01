@@ -7,13 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TraceIdRestTemplateCustomizer
- * @date : 2026-07-26 15:30
- * @email : scott_x@163.com
- * @description : RestTemplate traceId 定制器，为手工创建的 HTTP 客户端统一追加 X-Trace-Id 传播拦截器。
- * @status : create
+ * RestTemplate traceId 定制器，为手工创建的 HTTP 客户端统一追加 X-Trace-Id 传播拦截器。
  */
 public class TraceIdRestTemplateCustomizer {
 

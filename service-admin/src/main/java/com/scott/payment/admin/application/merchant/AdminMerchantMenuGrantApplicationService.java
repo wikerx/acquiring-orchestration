@@ -6,13 +6,7 @@ import com.scott.payment.admin.service.AdminMerchantMenuGrantService;
 import org.springframework.stereotype.Service;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantMenuGrantApplicationService
- * @date : 2026-06-23 12:55
- * @email : scott_x@163.com
- * @description : admin商户菜单授权应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端商户菜单授权应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminMerchantMenuGrantApplicationService {

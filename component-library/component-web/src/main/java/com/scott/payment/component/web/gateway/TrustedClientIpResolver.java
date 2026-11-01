@@ -6,17 +6,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TrustedClientIpResolver
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : Servlet 服务统一可信客户端 IP 解析器；仅在 Gateway HMAC 验签成功后读取签名绑定的专用头，否则回退 TCP 对端地址。
- * @status : create
+ * Servlet 服务统一可信客户端 IP 解析器；仅在 Gateway HMAC 验签成功后读取签名绑定的专用头，否则回退 TCP 对端地址。
  */
 public final class TrustedClientIpResolver {
 
-    /** 无法获得规范 IP 时使用的非地址占位符。 */
+    /**
+     * 无法获得规范 IP 时使用的非地址占位符。
+     */
     public static final String UNKNOWN_IP = "unknown";
 
     private TrustedClientIpResolver() {
@@ -38,7 +34,9 @@ public final class TrustedClientIpResolver {
         return normalize(request.getRemoteAddr());
     }
 
-    /** @return 可信客户端 IP；无法解析时返回 {@value #UNKNOWN_IP} */
+    /**
+     * @return 可信客户端 IP；无法解析时返回 {@value #UNKNOWN_IP}
+     */
     public static String resolveOrUnknown(HttpServletRequest request) {
         String resolved = resolve(request);
         return resolved == null ? UNKNOWN_IP : resolved;

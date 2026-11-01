@@ -6,13 +6,7 @@ import java.io.Serializable;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JwtMerchantClaims
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : JWT商户claims协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * JWT商户claims协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  */
 @Data
 public class JwtMerchantClaims implements Serializable {

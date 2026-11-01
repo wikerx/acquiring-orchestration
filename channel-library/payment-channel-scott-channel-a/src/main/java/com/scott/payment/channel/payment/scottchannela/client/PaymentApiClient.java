@@ -29,9 +29,37 @@ import java.util.Map;
  **/
 public class PaymentApiClient {
 
+    /**
+     * {@code API_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final String API_PATH_PREFIX = "/api/";
+    /**
+     * 请求头商户ID，用于定位 支付API内部调用 关联的上游配置、渠道、账号、角色或业务记录。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final String HEADER_MERCHANT_ID = "X-Merchant-Id";
+    /**
+     * 请求头API密钥，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final String HEADER_API_KEY = "X-Api-Key";
+    /**
+     * 内容类型，用于区分 支付API内部调用 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final String CONTENT_TYPE = "application/json";
 
     private final ChannelProperties properties;

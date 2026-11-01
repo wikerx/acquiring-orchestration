@@ -8,13 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantIpWhitelistDO
- * @date : 2026-07-18 00:00
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单实体，位于 component-db 共享数据层，仅保存精确匹配的 IPv4/IPv6 地址。
- * @status : create
+ * 商户 OpenAPI IP 白名单实体，位于 component-db 共享数据层，仅保存精确匹配的 IPv4/IPv6 地址。
  */
 @Data
 @TableName("merchant_ip_whitelist")

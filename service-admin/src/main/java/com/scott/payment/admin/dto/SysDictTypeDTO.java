@@ -5,13 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysDictTypeDTO
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 字典类型响应 DTO
- * @status : create
+ * 字典类型响应 DTO
  */
 @Data
 public class SysDictTypeDTO {

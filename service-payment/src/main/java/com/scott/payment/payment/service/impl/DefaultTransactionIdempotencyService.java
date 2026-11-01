@@ -55,10 +55,14 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
      */
     private static final String PRE_AUTHORIZATION = "PRE_AUTHORIZATION";
 
-    /** 首次交易请求幂等范围。 */
+    /**
+     * 首次交易请求幂等范围。
+     */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
-    /** 商户订单支付流守卫范围。 */
+    /**
+     * 商户订单支付流守卫范围。
+     */
     private static final String MERCHANT_ORDER_FLOW_SCOPE = "MERCHANT_ORDER_FLOW";
 
     /**
@@ -297,6 +301,9 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
         return record;
     }
 
+    /**
+     * 规范化幂等键组成部分。
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }

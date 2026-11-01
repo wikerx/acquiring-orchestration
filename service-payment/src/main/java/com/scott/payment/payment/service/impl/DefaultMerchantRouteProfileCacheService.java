@@ -18,10 +18,14 @@ import org.springframework.util.StringUtils;
 @Service
 public class DefaultMerchantRouteProfileCacheService implements MerchantRouteProfileCacheService {
 
-    /** 路由快照缓存读取器。 */
+    /**
+     * 路由快照缓存读取器。
+     */
     private final MerchantRouteProfileCacheReader cacheReader;
 
-    /** 数据库变更至永久缓存删除完成之间的安全门禁。 */
+    /**
+     * 数据库变更至永久缓存删除完成之间的安全门禁。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
     /**
@@ -61,13 +65,17 @@ public class DefaultMerchantRouteProfileCacheService implements MerchantRoutePro
                 : cacheReader.refreshCached(normalizedMerchantId);
     }
 
-    /** 永久缓存只接受当前结构版本，旧结构在首次读取时从主库在线重建。 */
+    /**
+     * 永久缓存只接受当前结构版本，旧结构在首次读取时从主库在线重建。
+     */
     private boolean isCurrentSchema(MerchantRouteProfile profile) {
         return profile != null
                 && Integer.valueOf(MerchantRouteProfile.CURRENT_SCHEMA_VERSION).equals(profile.getSchemaVersion());
     }
 
-    /** Redis 门禁查询失败时强制绕过共享快照，防止旧渠道配置继续参与交易。 */
+    /**
+     * Redis 门禁查询失败时强制绕过共享快照，防止旧渠道配置继续参与交易。
+     */
     private boolean mustBypassCache(String merchantId) {
         try {
             return invalidationGuard.isPending(PaymentCacheNames.MERCHANT_ROUTE, merchantId);

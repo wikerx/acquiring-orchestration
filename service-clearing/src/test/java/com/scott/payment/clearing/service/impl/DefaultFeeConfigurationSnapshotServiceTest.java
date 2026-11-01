@@ -51,13 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultFeeConfigurationSnapshotServiceTest
- * @date : 2026-08-26 09:48
- * @email : scott_x@163.com
- * @description : 验证清分优先使用动作冻结费用快照，并在摘要和结构化版本身份一致时不查询当前费率或远程数据源。
- * @status : create
+ * 验证清分优先使用动作冻结费用快照，并在摘要和结构化版本身份一致时不查询当前费率或远程数据源。
  */
 class DefaultFeeConfigurationSnapshotServiceTest {
 

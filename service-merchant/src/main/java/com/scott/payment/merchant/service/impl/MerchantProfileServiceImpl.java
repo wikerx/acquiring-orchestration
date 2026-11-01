@@ -25,27 +25,29 @@ import java.time.ZoneId;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantProfileServiceImpl
- * @date : 2026-08-01 12:00
- * @email : scott_x@163.com
- * @description : 商户主体资料领域服务实现，以 base_merchant_info 为事实源并与 Admin、OpenAPI 共用 merchant:info 永久缓存
- * @status : create
+ * 商户主体资料领域服务实现，以 base_merchant_info 为事实源并与 Admin、OpenAPI 共用 merchant:info 永久缓存
  */
 @Service
 public class MerchantProfileServiceImpl implements MerchantProfileService {
 
-    /** 数据库逻辑未删除状态。 */
+    /**
+     * 数据库逻辑未删除状态。
+     */
     private static final int NOT_DELETED = 0;
 
-    /** 商户基础资料 Mapper；自助修改固定使用 MASTER。 */
+    /**
+     * 商户基础资料 Mapper；自助修改固定使用 MASTER。
+     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
-    /** Admin、Merchant Portal 和 OpenAPI 共用的商户非敏感资料缓存。 */
+    /**
+     * Admin、Merchant Portal 和 OpenAPI 共用的商户非敏感资料缓存。
+     */
     private final MerchantRuntimeProfileCacheService runtimeProfileCacheService;
 
-    /** 商户永久资料缓存的事务门禁与 Outbox 失效协调器。 */
+    /**
+     * 商户永久资料缓存的事务门禁与 Outbox 失效协调器。
+     */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
@@ -239,7 +241,9 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         return response;
     }
 
-    /** 将更新后主库完整记录转换为接口响应，不在事务提交前读取旧缓存。 */
+    /**
+     * 将更新后主库完整记录转换为接口响应，不在事务提交前读取旧缓存。
+     */
     private MerchantProfileResponse toResponse(BaseMerchantInfoDO row) {
         MerchantProfileResponse response = new MerchantProfileResponse();
         response.setMerchantId(row.getMerchantId());
@@ -309,7 +313,9 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         return profile;
     }
 
-    /** 校验并规范化认证上下文中的商户号。 */
+    /**
+     * 校验并规范化认证上下文中的商户号。
+     */
     private String requireMerchantId(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant context missing");
@@ -317,7 +323,9 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         return merchantId.trim();
     }
 
-    /** 校验必填文本并移除首尾空白。 */
+    /**
+     * 校验必填文本并移除首尾空白。
+     */
     private String requireText(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), fieldName + " is required");
@@ -325,18 +333,24 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         return value.trim();
     }
 
-    /** 将可选文本规范化为空值或去除首尾空白后的值。 */
+    /**
+     * 将可选文本规范化为空值或去除首尾空白后的值。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    /** 将可选邮箱规范化为小写，空白值统一保存为 null。 */
+    /**
+     * 将可选邮箱规范化为小写，空白值统一保存为 null。
+     */
     private String lower(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
-    /** 构造不泄露内部主键或查询细节的商户不存在异常。 */
+    /**
+     * 构造不泄露内部主键或查询细节的商户不存在异常。
+     */
     private ServiceException merchantNotFound() {
         return new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "merchant profile not found");
     }

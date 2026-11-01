@@ -13,13 +13,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantDataScopeResolverImplTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证 Admin 多角色商户范围按 ALL 优先、CUSTOM 并集、SELF 空集解析。
- * @status : create
+ * 验证 Admin 多角色商户范围按 ALL 优先、CUSTOM 并集、SELF 空集解析。
  */
 class AdminMerchantDataScopeResolverImplTest {
 

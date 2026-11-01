@@ -7,13 +7,7 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : HostedCheckoutSessionCreateVO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户创建 Hosted Checkout 会话响应，只回显文档 8.1 定义的请求快照和平台生成的 checkoutUrl。
- * @status : create
+ * 商户创建 Hosted Checkout 会话响应，只回显文档 8.1 定义的请求快照和平台生成的 checkoutUrl。
  */
 @Data
 public class HostedCheckoutSessionCreateVO implements Serializable {
@@ -86,7 +80,9 @@ public class HostedCheckoutSessionCreateVO implements Serializable {
      */
     private String checkoutUrl;
 
-    /** 创建会话请求中允许回显的交易扩展字段。 */
+    /**
+     * 创建会话请求中允许回显的交易扩展字段。
+     */
     @Data
     public static class TransactionInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;

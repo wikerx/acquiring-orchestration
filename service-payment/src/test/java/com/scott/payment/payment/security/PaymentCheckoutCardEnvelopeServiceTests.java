@@ -19,13 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutCardEnvelopeServiceTests
- * @date : 2026-08-08 15:45
- * @email : scott_x@163.com
- * @description : 验证收银台卡数据混合加密协议、AAD 绑定和一次性 nonce 防重放边界。
- * @status : create
+ * 验证收银台卡数据混合加密协议、AAD 绑定和一次性 nonce 防重放边界。
  */
 class PaymentCheckoutCardEnvelopeServiceTests {
 
@@ -45,7 +39,9 @@ class PaymentCheckoutCardEnvelopeServiceTests {
         cipher = new CheckoutCardEnvelopeCipher();
     }
 
-    /** 正确信封只允许解密一次，并返回仅驻留当前调用栈的卡对象。 */
+    /**
+     * 正确信封只允许解密一次，并返回仅驻留当前调用栈的卡对象。
+     */
     @Test
     void shouldDecryptValidEnvelopeOnlyOnce() {
         PaymentCheckoutSessionQueryResultDTO.CardEncryptionDTO metadata = service.issue(SESSION_ID);
@@ -63,7 +59,9 @@ class PaymentCheckoutCardEnvelopeServiceTests {
                 .isEqualTo(ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode());
     }
 
-    /** 修改 attemptRequestId 会导致 GCM AAD 校验失败，信封不能跨尝试复用。 */
+    /**
+     * 修改 attemptRequestId 会导致 GCM AAD 校验失败，信封不能跨尝试复用。
+     */
     @Test
     void shouldRejectEnvelopeWhenAttemptBindingIsChanged() {
         PaymentCheckoutSessionQueryResultDTO.CardEncryptionDTO metadata = service.issue(SESSION_ID);
@@ -76,7 +74,9 @@ class PaymentCheckoutCardEnvelopeServiceTests {
                 .isEqualTo(ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode());
     }
 
-    /** 生产 Bean 必须由 Spring 使用依赖构造器创建，不能退回不存在的无参构造器。 */
+    /**
+     * 生产 Bean 必须由 Spring 使用依赖构造器创建，不能退回不存在的无参构造器。
+     */
     @Test
     void shouldCreateCardEnvelopeServiceThroughSpringContext() {
         new ApplicationContextRunner()
@@ -93,7 +93,9 @@ class PaymentCheckoutCardEnvelopeServiceTests {
                         .hasSingleBean(PaymentCheckoutCardEnvelopeService.class));
     }
 
-    /** 使用下发公钥构建与浏览器相同字段结构的测试信封。 */
+    /**
+     * 使用下发公钥构建与浏览器相同字段结构的测试信封。
+     */
     private PaymentCheckoutPaymentSubmitCommandDTO.CardDataEnvelopeDTO encrypt(
             PaymentCheckoutSessionQueryResultDTO.CardEncryptionDTO metadata,
             String attemptRequestId) {

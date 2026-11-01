@@ -5,13 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOperationLogMqConfig
- * @date : 2026-06-20 01:47
- * @email : scott_x@163.com
- * @description : service-merchant 操作日志 MQ 标识配置
- * @status : create
+ * service-merchant 操作日志 MQ 标识配置
  */
 @Configuration
 public class MerchantOperationLogMqConfig {

@@ -17,13 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RefundExecutionConsumer
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 退款审批执行 MQ 消费者，仅解析非敏感执行身份并委托数据库状态机处理至少一次投递。
- * @status : create
+ * 退款审批执行 MQ 消费者，仅解析非敏感执行身份并委托数据库状态机处理至少一次投递。
  */
 @Slf4j
 @Component
@@ -39,7 +33,9 @@ public class RefundExecutionConsumer implements RocketMQListener<String> {
 
     private final RefundExecutionService refundExecutionService;
 
-    /** @param refundExecutionService 退款执行消息状态机 */
+    /**
+     * @param refundExecutionService 退款执行消息状态机
+     */
     public RefundExecutionConsumer(RefundExecutionService refundExecutionService) {
         this.refundExecutionService = refundExecutionService;
     }
@@ -53,14 +49,14 @@ public class RefundExecutionConsumer implements RocketMQListener<String> {
     public void onMessage(String payload) {
         RefundExecutionMessage message = parse(payload);
         if (!isValid(message)) {
-            log.error("event: REFUND_EXECUTION_MESSAGE_INVALID traceId: {} reason=requiredFieldMissing payloadLength: {}",
+            log.error("退款执行消息缺少必填字段, event: REFUND_EXECUTION_MESSAGE_INVALID, traceId: {}, reason: requiredFieldMissing, payloadLength: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length());
             throw new IllegalArgumentException("refund execution message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
             RefundExecutionOutcomeEnum outcome = refundExecutionService.execute(message);
-            log.info("event: REFUND_EXECUTION_MESSAGE_CONSUMED traceId: {} messageId: {} approvalId: {} transactionId: {} retryCount: {} outcome: {}",
+            log.info("退款执行消息处理完成, event: REFUND_EXECUTION_MESSAGE_CONSUMED, traceId: {}, messageId: {}, approvalId: {}, transactionId: {}, retryCount: {}, outcome: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getApprovalId(),
                     message.getRefundTransactionId(), message.getRetryCount(), outcome);
         } finally {
@@ -68,6 +64,9 @@ public class RefundExecutionConsumer implements RocketMQListener<String> {
         }
     }
 
+    /**
+     * 解析消息 JSON 并校验基础结构。
+     */
     private RefundExecutionMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
             throw new IllegalArgumentException("refund execution payload is empty");
@@ -75,13 +74,15 @@ public class RefundExecutionConsumer implements RocketMQListener<String> {
         try {
             return JsonUtils.parseObject(payload, RefundExecutionMessage.class);
         } catch (RuntimeException exception) {
-            log.error("event: REFUND_EXECUTION_MESSAGE_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("退款执行消息反序列化失败, event: REFUND_EXECUTION_MESSAGE_DESERIALIZE_FAILED, payloadLength: {}, exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
             throw new IllegalArgumentException("refund execution payload is invalid", exception);
         }
     }
 
-    /** 校验退款执行状态机所需的完整定位和版本字段。 */
+    /**
+     * 校验退款执行状态机所需的完整定位和版本字段。
+     */
     private boolean isValid(RefundExecutionMessage message) {
         return message != null
                 && StringUtils.hasText(message.getMessageId())

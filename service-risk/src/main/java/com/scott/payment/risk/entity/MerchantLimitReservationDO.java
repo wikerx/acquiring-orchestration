@@ -9,13 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantLimitReservationDO
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 商户累计限额预占持久化记录。
- * @status : create
+ * 商户累计限额预占持久化记录。
  */
 @Data
 @TableName("risk_merchant_limit_reservation")
@@ -84,33 +78,53 @@ public class MerchantLimitReservationDO implements Serializable {
      */
     private String counterMode;
 
-    /** 预占状态：PREPARING、RESERVED、CONFIRMED 或 CANCELLED。 */
+    /**
+     * 预占状态：PREPARING、RESERVED、CONFIRMED 或 CANCELLED。
+     */
     private String reservationStatus;
 
-    /** 取消或补偿原因，最长 256 个字符。 */
+    /**
+     * 取消或补偿原因，最长 256 个字符。
+     */
     private String cancelReason;
 
-    /** 非终态预占的对账截止时间，使用系统业务时区。 */
+    /**
+     * 非终态预占的对账截止时间，使用系统业务时区。
+     */
     private LocalDateTime expiresAt;
 
-    /** Redis 原子预占成功时间。 */
+    /**
+     * Redis 原子预占成功时间。
+     */
     private LocalDateTime reservedTime;
 
-    /** 预占确认到终态的时间。 */
+    /**
+     * 预占确认到终态的时间。
+     */
     private LocalDateTime confirmedTime;
 
-    /** Redis 回滚完成并取消到终态的时间。 */
+    /**
+     * Redis 回滚完成并取消到终态的时间。
+     */
     private LocalDateTime cancelledTime;
 
-    /** 乐观锁版本号，用于并发状态迁移。 */
+    /**
+     * 乐观锁版本号，用于并发状态迁移。
+     */
     private Integer version;
 
-    /** 软删除标识：0 表示有效，1 表示删除。 */
+    /**
+     * 软删除标识：0 表示有效，1 表示删除。
+     */
     private Integer deleted;
 
-    /** 记录创建时间，数据库精度为毫秒。 */
+    /**
+     * 记录创建时间，数据库精度为毫秒。
+     */
     private LocalDateTime createTime;
 
-    /** 最近状态更新时间，数据库精度为毫秒。 */
+    /**
+     * 最近状态更新时间，数据库精度为毫秒。
+     */
     private LocalDateTime updateTime;
 }

@@ -7,13 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRateLimitProperties
- * @date : 2026-10-12
- * @email : scott_x@163.com
- * @description : OpenAPI 商户维度滑动窗口限流配置
- * @status : create
+ * OpenAPI 商户维度滑动窗口限流配置
  */
 @ConfigurationProperties(prefix = "payment.openapi.rate-limit")
 public class OpenApiRateLimitProperties implements InitializingBean {
@@ -24,16 +18,24 @@ public class OpenApiRateLimitProperties implements InitializingBean {
      */
     private boolean enabled;
 
-    /** 单个商户在一个精确滚动窗口内允许通过的请求数。 */
+    /**
+     * 单个商户在一个精确滚动窗口内允许通过的请求数。
+     */
     private int maxRequests = 200;
 
-    /** 精确滚动窗口长度，配置文件支持 {@code 1m}、{@code 60s} 或 {@code PT1M}。 */
+    /**
+     * 精确滚动窗口长度，配置文件支持 {@code 1m}、{@code 60s} 或 {@code PT1M}。
+     */
     private Duration window = Duration.ofMinutes(1);
 
-    /** Redis 故障降级期间，单个 OpenAPI 实例允许保留的本地商户身份上限。 */
+    /**
+     * Redis 故障降级期间，单个 OpenAPI 实例允许保留的本地商户身份上限。
+     */
     private int localMaxIdentities = 10_000;
 
-    /** Redis 无法执行全局判定时使用本地窗口或直接拒绝请求。 */
+    /**
+     * Redis 无法执行全局判定时使用本地窗口或直接拒绝请求。
+     */
     private RateLimitFailurePolicy failurePolicy = RateLimitFailurePolicy.LOCAL_FALLBACK;
 
     /**
@@ -90,23 +92,45 @@ public class OpenApiRateLimitProperties implements InitializingBean {
         this.window = window;
     }
 
+    /**
+     * 获取 Redis 故障降级期间单实例允许保留的商户身份上限。
+     *
+     * @return 正整数身份容量
+     */
     public int getLocalMaxIdentities() {
         return localMaxIdentities;
     }
 
+    /**
+     * 设置 Redis 故障降级期间单实例商户身份容量。
+     *
+     * @param localMaxIdentities 正整数身份容量
+     */
     public void setLocalMaxIdentities(int localMaxIdentities) {
         this.localMaxIdentities = localMaxIdentities;
     }
 
+    /**
+     * 获取 Redis 无法执行全局判定时的失败策略。
+     *
+     * @return 本地降级或失败关闭策略
+     */
     public RateLimitFailurePolicy getFailurePolicy() {
         return failurePolicy;
     }
 
+    /**
+     * 设置 Redis 无法执行全局判定时的失败策略。
+     *
+     * @param failurePolicy 本地降级或失败关闭策略
+     */
     public void setFailurePolicy(RateLimitFailurePolicy failurePolicy) {
         this.failurePolicy = failurePolicy;
     }
 
-    /** 在应用启动时校验额度、窗口、本地容量和故障策略。 */
+    /**
+     * 在应用启动时校验额度、窗口、本地容量和故障策略。
+     */
     @Override
     public void afterPropertiesSet() {
         if (maxRequests <= 0 || window == null || window.isZero() || window.isNegative()

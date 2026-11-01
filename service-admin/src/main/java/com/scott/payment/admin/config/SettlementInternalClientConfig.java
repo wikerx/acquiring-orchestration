@@ -14,13 +14,7 @@ import java.net.Proxy;
 import java.time.Duration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementInternalClientConfig
- * @date : 2026-08-26 21:20
- * @email : scott_x@163.com
- * @description : 结算管理内部客户端的直连与服务发现 RestTemplate 配置，统一传递 traceId 和有界超时。
- * @status : create
+ * 结算管理内部客户端的直连与服务发现 RestTemplate 配置，统一传递 traceId 和有界超时。
  */
 @Configuration
 @EnableConfigurationProperties(SettlementInternalClientProperties.class)
@@ -58,8 +52,8 @@ public class SettlementInternalClientConfig {
                                      TraceIdRestTemplateInterceptor interceptor,
                                      SettlementInternalClientProperties properties) {
         properties.validate();
-        return builder.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+        return builder.connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .readTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .additionalInterceptors(interceptor).build();
     }
 }

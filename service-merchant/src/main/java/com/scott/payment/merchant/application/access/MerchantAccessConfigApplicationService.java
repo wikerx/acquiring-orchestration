@@ -29,13 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAccessConfigApplicationService
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 商户访问配置应用服务，编排当前认证商户的来源网址和 IP 白名单查询及待审提交。
- * @status : create
+ * 商户访问配置应用服务，编排当前认证商户的来源网址和 IP 白名单查询及待审提交。
  */
 @Service
 public class MerchantAccessConfigApplicationService {

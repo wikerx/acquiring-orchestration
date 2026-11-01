@@ -8,7 +8,9 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证保证金手动结算扩展只放宽专用任务字段并保留交易任务约束。 */
+/**
+ * 验证保证金手动结算扩展只放宽专用任务字段并保留交易任务约束。
+ */
 class SettlementManualReserveReviewSqlContractTest {
 
     @Test

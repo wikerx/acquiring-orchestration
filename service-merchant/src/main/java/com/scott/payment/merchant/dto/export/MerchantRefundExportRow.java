@@ -7,13 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRefundExportRow
- * @date : 2026-08-06 00:00
- * @email : scott_x@163.com
- * @description : 商户退款导出行，仅保留商户可见字段，不包含渠道错误、内部审批策略或 Admin 操作人。
- * @status : create
+ * 商户退款导出行，仅保留商户可见字段，不包含渠道错误、内部审批策略或 Admin 操作人。
  */
 @Data
 public class MerchantRefundExportRow {

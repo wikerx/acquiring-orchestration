@@ -29,13 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionCallbackInboxServiceTests
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 渠道回调 Inbox 服务测试，验证原子受理、数据库幂等、版本 CAS、重试封顶和超时恢复。
- * @status : create
+ * 渠道回调 Inbox 服务测试，验证原子受理、数据库幂等、版本 CAS、重试封顶和超时恢复。
  */
 class DefaultTransactionCallbackInboxServiceTests {
 
@@ -48,7 +42,9 @@ class DefaultTransactionCallbackInboxServiceTests {
         TraceContext.clear();
     }
 
-    /** 首次回调必须保存标准事件和摘要，不得把请求头或可逆正文写入 payload。 */
+    /**
+     * 首次回调必须保存标准事件和摘要，不得把请求头或可逆正文写入 payload。
+     */
     @Test
     void shouldAcceptFirstCallbackWithoutPersistingRawPayload() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
@@ -78,7 +74,9 @@ class DefaultTransactionCallbackInboxServiceTests {
         assertThat(inserted.get().getMaxRetryCount()).isEqualTo(12);
     }
 
-    /** 唯一键命中必须返回首次记录，不能生成第二个可消费事件。 */
+    /**
+     * 唯一键命中必须返回首次记录，不能生成第二个可消费事件。
+     */
     @Test
     void shouldReturnExistingRecordWhenDatabaseIdempotencyMatches() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
@@ -94,7 +92,9 @@ class DefaultTransactionCallbackInboxServiceTests {
         verify(mapper).upsertInbox(any());
     }
 
-    /** 安全结论或原始字节摘要不完整时必须失败关闭且不得访问数据库。 */
+    /**
+     * 安全结论或原始字节摘要不完整时必须失败关闭且不得访问数据库。
+     */
     @Test
     void shouldRejectUnverifiedCallbackBeforeDatabaseAccess() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
@@ -107,7 +107,9 @@ class DefaultTransactionCallbackInboxServiceTests {
         verify(mapper, never()).upsertInbox(any());
     }
 
-    /** 超长稳定事件号必须在数据库写入前失败关闭，避免字段截断或持续重试。 */
+    /**
+     * 超长稳定事件号必须在数据库写入前失败关闭，避免字段截断或持续重试。
+     */
     @Test
     void shouldRejectOversizedCallbackEventIdBeforeDatabaseAccess() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
@@ -120,7 +122,9 @@ class DefaultTransactionCallbackInboxServiceTests {
         verify(mapper, never()).upsertInbox(any());
     }
 
-    /** CAS 抢占成功后必须同步增加内存版本，供后续完成或失败更新校验所有权。 */
+    /**
+     * CAS 抢占成功后必须同步增加内存版本，供后续完成或失败更新校验所有权。
+     */
     @Test
     void shouldClaimWithVersionAndAdvanceInMemoryVersion() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
@@ -136,7 +140,9 @@ class DefaultTransactionCallbackInboxServiceTests {
         assertThat(inbox.getInboxStatus()).isEqualTo("PROCESSING");
     }
 
-    /** 普通失败按指数退避进入 RETRY，达到单条最大次数时必须进入 CLOSED 且不再安排时间。 */
+    /**
+     * 普通失败按指数退避进入 RETRY，达到单条最大次数时必须进入 CLOSED 且不再安排时间。
+     */
     @Test
     void shouldRetryThenCloseAtConfiguredMaximum() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
@@ -162,7 +168,9 @@ class DefaultTransactionCallbackInboxServiceTests {
                 1L, 9, "CLOSED", null, "IllegalArgumentException", NOW, "PROCESSING");
     }
 
-    /** Worker 崩溃遗留的 PROCESSING 记录必须由租约扫描恢复。 */
+    /**
+     * Worker 崩溃遗留的 PROCESSING 记录必须由租约扫描恢复。
+     */
     @Test
     void shouldRecoverStaleProcessingRecords() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);

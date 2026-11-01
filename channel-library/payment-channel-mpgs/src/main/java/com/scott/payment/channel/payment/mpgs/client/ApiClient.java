@@ -71,7 +71,7 @@ public class ApiClient {
     private static final String EXT_READ_TIMEOUT_SECONDS = "readTimeoutSeconds";
 
     /**
-     * {@code EXT_MPGS_MERCHANT_ID}，用于定位 {@code ApiClient} 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code EXT_MPGS_MERCHANT_ID}，用于定位 API内部调用 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
      * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。

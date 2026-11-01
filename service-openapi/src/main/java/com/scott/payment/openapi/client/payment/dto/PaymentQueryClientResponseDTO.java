@@ -10,13 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentQueryClientResponseDTO
- * @date : 2026-07-17 21:12
- * @email : scott_x@163.com
- * @description : OpenAPI 调用 service-payment 查询交易的内部响应，按商户订单聚合返回交易动作列表。
- * @status : create
+ * OpenAPI 调用 service-payment 查询交易的内部响应，按商户订单聚合返回交易动作列表。
  */
 @Data
 public class PaymentQueryClientResponseDTO implements Serializable {
@@ -53,22 +47,34 @@ public class PaymentQueryClientResponseDTO implements Serializable {
      */
     private String merchantOrderId;
 
-    /** 首次交易保存的子商户快照。 */
+    /**
+     * 首次交易保存的子商户快照。
+     */
     private PaymentCreateClientRequestDTO.SubMerchantInfoDTO subMerchantInfo;
 
-    /** 首次交易保存的商品或服务明细。 */
+    /**
+     * 首次交易保存的商品或服务明细。
+     */
     private List<PaymentCreateClientRequestDTO.GoodsInfoDTO> goodsInfo = new ArrayList<>();
 
-    /** 首次交易保存的持卡人账单信息。 */
+    /**
+     * 首次交易保存的持卡人账单信息。
+     */
     private PaymentCreateClientRequestDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 首次交易保存的付款人信息。 */
+    /**
+     * 首次交易保存的付款人信息。
+     */
     private PaymentCreateClientRequestDTO.PayerInfoDTO payerInfo;
 
-    /** 首次交易保存的收货人信息。 */
+    /**
+     * 首次交易保存的收货人信息。
+     */
     private PaymentCreateClientRequestDTO.ShippingInfoDTO shippingInfo;
 
-    /** 查询目标动作可向商户返回的 3DS 安全字段子集。 */
+    /**
+     * 查询目标动作可向商户返回的 3DS 安全字段子集。
+     */
     private PaymentCreateClientResponseDTO.ThreeDsInfoDTO threeDSInfo;
 
     /**
@@ -228,13 +234,19 @@ public class PaymentQueryClientResponseDTO implements Serializable {
      */
     private String settlementCurrency;
 
-    /** 已形成的结算换汇汇率。 */
+    /**
+     * 已形成的结算换汇汇率。
+     */
     private BigDecimal settlementRate;
 
-    /** 已形成的结算费用金额。 */
+    /**
+     * 已形成的结算费用金额。
+     */
     private BigDecimal settlementFeeAmount;
 
-    /** 已形成的费用明细。 */
+    /**
+     * 已形成的费用明细。
+     */
     private List<PaymentCreateClientResponseDTO.FeeItemDTO> feeItems = new ArrayList<>();
 
     /**
@@ -284,7 +296,9 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          */
         private String sourceTransactionId;
 
-        /** 后续动作源交易发生时间；首次交易为空。 */
+        /**
+         * 后续动作源交易发生时间；首次交易为空。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
 
@@ -315,19 +329,29 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          */
         private String transactionType;
 
-        /** 当前动作交易状态。 */
+        /**
+         * 当前动作交易状态。
+         */
         private String transactionStatus;
 
-        /** 当前动作内部处理阶段，仅用于 OpenAPI 结果投影。 */
+        /**
+         * 当前动作内部处理阶段，仅用于 OpenAPI 结果投影。
+         */
         private String processStage;
 
-        /** 支付核心受控失败原因码，不包含渠道原始码。 */
+        /**
+         * 支付核心受控失败原因码，不包含渠道原始码。
+         */
         private String failReasonCode;
 
-        /** 支付核心内部失败摘要；商户响应不得直接透传。 */
+        /**
+         * 支付核心内部失败摘要；商户响应不得直接透传。
+         */
         private String failReasonMessage;
 
-        /** 支付核心受控等待原因码，用于识别渠道结果未确认。 */
+        /**
+         * 支付核心受控等待原因码，用于识别渠道结果未确认。
+         */
         private String pendingReasonCode;
 
         /**
@@ -340,7 +364,9 @@ public class PaymentQueryClientResponseDTO implements Serializable {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
-        /** 生命周期根主单的分片时间，供商户从查询结果继续发起动作。 */
+        /**
+         * 生命周期根主单的分片时间，供商户从查询结果继续发起动作。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
@@ -413,10 +439,14 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          */
         private String merchantWebsite;
 
-        /** Hosted Checkout 结果页返回地址。 */
+        /**
+         * Hosted Checkout 结果页返回地址。
+         */
         private String redirectUrl;
 
-        /** Hosted Checkout 创建会话语言。 */
+        /**
+         * Hosted Checkout 创建会话语言。
+         */
         private String language;
     }
 }

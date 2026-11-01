@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.risk;
 
+import com.alibaba.fastjson2.TypeReference;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
@@ -66,165 +67,92 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskManagementApplicationService
- * @date : 2026-07-05 00:00
- * @email : scott_x@163.com
- * @description : 收单风控管理应用服务，负责管理端名单、规则、交易加黑和风控记录的页面编排，不参与实时交易风控决策。
- * @status : create
+ * 收单风控管理应用服务，负责管理端名单、规则、交易加黑和风控记录的页面编排，不参与实时交易风控决策。
  */
 @Service
 public class AdminRiskManagementApplicationService {
 
-    /** 风险工作台的“今日”边界统一按平台数据库业务时区计算。 */
+    /**
+     * 风控动态 JSON 对象的类型令牌，保留规则异构字段并避免原始类型转换。
+     */
+    private static final TypeReference<Map<String, Object>> STRING_OBJECT_MAP_TYPE = new TypeReference<>() {
+    };
+
+    /**
+     * 风险工作台的“今日”边界统一按平台数据库业务时区计算。
+     */
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     /**
      * 默认范围常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DEFAULT_SCOPE = "GLOBAL";
     /**
      * 默认风控等级常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DEFAULT_RISK_LEVEL = "MEDIUM";
     /**
      * 默认结论动作常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String DEFAULT_DECISION_ACTION = "REVIEW";
     /**
      * {@code VALIDITY_SUPER_LONG}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String VALIDITY_SUPER_LONG = "SUPER_LONG";
     /**
      * {@code VALIDITY_LONG}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String VALIDITY_LONG = "LONG";
     /**
      * {@code VALIDITY_LIMITED}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
      */
     private static final String VALIDITY_LIMITED = "LIMITED";
     /**
      * {@code SOURCE_MANUAL}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SOURCE_MANUAL = "MANUAL";
     /**
      * {@code SOURCE_IMPORT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SOURCE_IMPORT = "IMPORT";
     /**
      * {@code MODULE_AML}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String MODULE_AML = "AML";
     /**
      * {@code MODULE_BLACK}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String MODULE_BLACK = "BLACK";
     /**
      * {@code MODULE_WHITE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String MODULE_WHITE = "WHITE";
     /**
      * {@code MODULE_RULE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String MODULE_RULE = "RULE";
     /**
      * {@code MODULE_TRADE_BLACK}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String MODULE_TRADE_BLACK = "TRADE_BLACK";
     /**
      * {@code FUNCTION_REGION}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String FUNCTION_REGION = "region";
     /**
      * {@code FUNCTION_SOURCE_URL}，表示回调、通知、来源站点或远程接口地址。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String FUNCTION_SOURCE_URL = "sourceUrl";
     /**
      * {@code FUNCTION_MERCHANT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
      */
     private static final String FUNCTION_MERCHANT_LIMIT = "merchantLimit";
     /**
      * {@code FUNCTION_THREE_DS}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String FUNCTION_THREE_DS = "threeDs";
     /**
      * {@code FIXED_LIMIT_CURRENCY_USD}，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
      */
     private static final String FIXED_LIMIT_CURRENCY_USD = "USD";
     /**
@@ -238,59 +166,30 @@ public class AdminRiskManagementApplicationService {
     private static final int MERCHANT_LIMIT_AMOUNT_SCALE = 2;
     /**
      * {@code THREE_DS_ALL_DIMENSION}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String THREE_DS_ALL_DIMENSION = "ALL";
     /**
      * {@code THREE_DS_BANK_CARD_PAYMENT_METHOD}，表示支付方式、通知方式或调用方式。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String THREE_DS_BANK_CARD_PAYMENT_METHOD = "BANK_CARD";
     /**
      * {@code THREE_DS_DEFAULT_PAYMENT_METHOD}，表示支付方式、通知方式或调用方式。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String THREE_DS_DEFAULT_PAYMENT_METHOD = THREE_DS_ALL_DIMENSION;
     /**
      * {@code THREE_DS_RULE_TYPE_RISK}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String THREE_DS_RULE_TYPE_RISK = "RISK_STRATEGY";
     /**
      * {@code THREE_DS_AMOUNT_ALL}，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
      */
     private static final String THREE_DS_AMOUNT_ALL = "ALL";
     /**
      * {@code THREE_DS_RISK_ANY}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String THREE_DS_RISK_ANY = "ANY";
     /**
      * {@code THREE_DS_ACTION_FORCE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String THREE_DS_ACTION_FORCE = "FORCE_3DS";
     /**
@@ -312,29 +211,14 @@ public class AdminRiskManagementApplicationService {
     private static final int THREE_DS_AMOUNT_SCALE = 2;
     /**
      * {@code LIMIT_TYPE_DAILY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
      */
     private static final String LIMIT_TYPE_DAILY = "DAILY";
     /**
      * {@code LIMIT_TYPE_WEEKLY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
      */
     private static final String LIMIT_TYPE_WEEKLY = "WEEKLY";
     /**
      * {@code LIMIT_TYPE_MONTHLY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
      */
     private static final String LIMIT_TYPE_MONTHLY = "MONTHLY";
     /**
@@ -357,58 +241,30 @@ public class AdminRiskManagementApplicationService {
     private static final BigDecimal MONTHLY_LIMIT_MULTIPLIER = BigDecimal.valueOf(4);
     /**
      * {@code TRADE_BLACK_FUNCTION_SYSTEM}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String TRADE_BLACK_FUNCTION_SYSTEM = "system";
     /**
      * {@code TRADE_BLACK_DISPLAY_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String TRADE_BLACK_DISPLAY_NAME = "系统交易加黑";
     /**
      * {@code TRADE_BLACK_RELEASE_DISPLAY_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String TRADE_BLACK_RELEASE_DISPLAY_NAME = "解除系统交易加黑";
     /**
      * {@code TRADE_BLACK_ACTION_ADD}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String TRADE_BLACK_ACTION_ADD = "ADD";
     /**
      * {@code CHANGE_OPERATION_CREATE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CHANGE_OPERATION_CREATE = "CREATE";
     /**
      * {@code CHANGE_OPERATION_UPDATE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CHANGE_OPERATION_UPDATE = "UPDATE";
     /**
      * {@code CHANGE_OPERATION_DELETE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CHANGE_OPERATION_DELETE = "DELETE";
     /**
@@ -422,50 +278,26 @@ public class AdminRiskManagementApplicationService {
     private static final String CHANGE_OPERATION_STATUS = "STATUS";
     /**
      * {@code CHANGE_OPERATION_IMPORT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CHANGE_OPERATION_IMPORT = "IMPORT";
     /**
      * 变更动作批次常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CHANGE_OPERATION_BATCH = "BATCH";
     /**
      * {@code CHANGE_OPERATION_RELEASE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CHANGE_OPERATION_RELEASE = "RELEASE";
     /**
      * {@code EMPTY_DISPLAY_TEXT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String EMPTY_DISPLAY_TEXT = "-";
     /**
      * 快照展示文本常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SNAPSHOT_DISPLAY_TEXT = "查看快照";
     /**
      * {@code CONFIG_ID_DISPLAY_PREFIX}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String CONFIG_ID_DISPLAY_PREFIX = "配置ID：";
     /**
@@ -607,10 +439,14 @@ public class AdminRiskManagementApplicationService {
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     private final ExcelLocaleResolver excelLocaleResolver;
 
-    /** 商户基础资料 Mapper，用于审批通知收件人与语言读取。 */
+    /**
+     * 商户基础资料 Mapper，用于审批通知收件人与语言读取。
+     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
-    /** 商户访问配置审批邮件通知服务。 */
+    /**
+     * 商户访问配置审批邮件通知服务。
+     */
     private final MerchantAccessApprovalNotificationService approvalNotificationService;
 
     /**
@@ -1126,6 +962,9 @@ public class AdminRiskManagementApplicationService {
         return records;
     }
 
+    /**
+     * 判断 3DS 规则请求是否包含卡品牌多选值。
+     */
     private boolean hasThreeDsCardBrands(RiskDTOs.RiskRuleSaveRequest request) {
         return request != null && request.getCardBrands() != null && !request.getCardBrands().isEmpty();
     }
@@ -1493,7 +1332,9 @@ public class AdminRiskManagementApplicationService {
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), normalizedRows);
     }
 
-    /** 拒绝空区间和反向区间，防止页面误传时间后触发无意义的大范围扫描。 */
+    /**
+     * 拒绝空区间和反向区间，防止页面误传时间后触发无意义的大范围扫描。
+     */
     private void validateEvaluationTimeRange(RiskDTOs.EvaluationQueryRequest query) {
         if (query.getEvaluationStartTime() != null
                 && query.getEvaluationEndTimeExclusive() != null
@@ -1804,6 +1645,9 @@ public class AdminRiskManagementApplicationService {
         return response;
     }
 
+    /**
+     * 查询数据。
+     */
     private Map<String, Object> listData(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request, String sourceType) {
         if (isCountryListFunction(definition)) {
             normalizeCountryListRequest(request);
@@ -1847,6 +1691,9 @@ public class AdminRiskManagementApplicationService {
         return data;
     }
 
+    /**
+     * 将地区批量请求展开为国家或地区明细请求。
+     */
     private List<RiskDTOs.RiskListSaveRequest> expandCountryListRequests(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
         if (!isCountryListFunction(definition) || request.getCountryAlpha2List() == null || request.getCountryAlpha2List().isEmpty()) {
             return List.of(request);
@@ -1859,6 +1706,9 @@ public class AdminRiskManagementApplicationService {
                 .toList();
     }
 
+    /**
+     * 复制国家或地区列表请求。
+     */
     private RiskDTOs.RiskListSaveRequest copyCountryListRequest(RiskDTOs.RiskListSaveRequest source, String countryAlpha2) {
         RiskDTOs.RiskListSaveRequest target = new RiskDTOs.RiskListSaveRequest();
         target.setMerchantScope(source.getMerchantScope());
@@ -1885,6 +1735,9 @@ public class AdminRiskManagementApplicationService {
         return target;
     }
 
+    /**
+     * 规范化国家或地区列表请求。
+     */
     private void normalizeCountryListRequest(RiskDTOs.RiskListSaveRequest request) {
         String countryAlpha2 = upper(defaultIfBlank(request.getCountryAlpha2(), request.getMatchValuePlain()));
         if (!StringUtils.hasText(countryAlpha2)) {
@@ -1901,6 +1754,9 @@ public class AdminRiskManagementApplicationService {
         request.setMatchValuePlain(countryAlpha3);
     }
 
+    /**
+     * 解析地区配置中的国家或地区数据。
+     */
     private Map<String, Object> regionData(RiskDTOs.RegionSaveRequest request, String sourceType) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("merchantScope", defaultIfBlank(request.getMerchantScope(), DEFAULT_SCOPE));
@@ -1925,6 +1781,9 @@ public class AdminRiskManagementApplicationService {
         return data;
     }
 
+    /**
+     * 解析地区创建请求包含的国家或地区代码。
+     */
     private List<String> regionCreateCountryCodes(RiskDTOs.RegionSaveRequest request) {
         String regionMatchLevel = defaultIfBlank(request.getRegionMatchLevel(), "COUNTRY").toUpperCase(Locale.ROOT);
         List<String> sourceCodes = "COUNTRY".equals(regionMatchLevel) && request.getCountryAlpha2List() != null && !request.getCountryAlpha2List().isEmpty()
@@ -2428,14 +2287,13 @@ public class AdminRiskManagementApplicationService {
      * @param snapshotText 快照 JSON 字符串
      * @return 快照 Map，空字符串或非法 JSON 返回 null
      */
-    @SuppressWarnings("unchecked")
     private Map<String, Object> parseSnapshot(Object snapshotText) {
         String text = asString(snapshotText);
         if (!StringUtils.hasText(text)) {
             return null;
         }
         try {
-            return JsonUtils.parseObject(text, Map.class);
+            return JsonUtils.parseObject(text, STRING_OBJECT_MAP_TYPE);
         } catch (RuntimeException ignored) {
             return null;
         }
@@ -2512,6 +2370,9 @@ public class AdminRiskManagementApplicationService {
         return null;
     }
 
+    /**
+     * 转换为记录响应。
+     */
     private RiskDTOs.RiskRecordResponse toRecordResponse(Map<String, Object> row) {
         RiskDTOs.RiskRecordResponse response = new RiskDTOs.RiskRecordResponse();
         response.setId(asLong(row.get("id")));
@@ -2739,7 +2600,7 @@ public class AdminRiskManagementApplicationService {
         }
         String elementsJson = (String) data.get("elementsJson");
         try {
-            Map<String, Object> elements = JsonUtils.parseObject(elementsJson, Map.class);
+            Map<String, Object> elements = JsonUtils.parseObject(elementsJson, STRING_OBJECT_MAP_TYPE);
             validateRuleByFunction(definition, data, elements == null ? Map.of() : elements);
         } catch (RuntimeException exception) {
             if (exception instanceof ServiceException serviceException) {
@@ -2802,12 +2663,18 @@ public class AdminRiskManagementApplicationService {
         data.put("priority", priority);
     }
 
+    /**
+     * 校验 3DS 规则使用的受控编码。
+     */
     private void validateThreeDsCode(String label, String value, Set<String> allowedValues) {
         if (!StringUtils.hasText(value) || !allowedValues.contains(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), label + "不正确");
         }
     }
 
+    /**
+     * 校验 3DS 规则的必填匹配维度。
+     */
     private void requireThreeDsDimension(String label, String value) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请选择" + label);
@@ -2925,6 +2792,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 查询商户已配置的限额金额。
+     */
     private Map<String, BigDecimal> existingMerchantLimitAmounts(String tableName, Map<String, Object> data, Long excludeId) {
         List<Map<String, Object>> rows = riskManagementMapper.selectMerchantLimitAmounts(
                 tableName,
@@ -2944,6 +2814,9 @@ public class AdminRiskManagementApplicationService {
         return amounts;
     }
 
+    /**
+     * 根据商户限额类型选择下限或上限金额。
+     */
     private BigDecimal merchantLimitAmount(Map<String, Object> data) {
         return "SINGLE_MIN".equals(asString(data.get("limitType"))) || "SINGLE_MIN".equals(asString(data.get("limit_type")))
                 ? (BigDecimal) data.getOrDefault("amountMin", data.get("amount_min"))
@@ -3119,6 +2992,9 @@ public class AdminRiskManagementApplicationService {
         data.put("countryAlpha3", upper(asString(country.get("extra"))));
     }
 
+    /**
+     * 将二位国家或地区代码转换为三位代码。
+     */
     private String countryAlpha3FromAlpha2(String countryAlpha2) {
         if (!StringUtils.hasText(countryAlpha2)) {
             return null;
@@ -3130,6 +3006,9 @@ public class AdminRiskManagementApplicationService {
         return upper(asString(country.get("extra")));
     }
 
+    /**
+     * 规范化地区级别字段。
+     */
     private void normalizeRegionLevelFields(Map<String, Object> data) {
         String level = (String) data.get("regionMatchLevel");
         if (!List.of("COUNTRY", "STATE", "CITY").contains(level)) {
@@ -3152,6 +3031,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 解析卡品牌。
+     */
     private String resolveCardBrand(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
         if (!hasCardBrandField(definition)) {
             return trim(request.getCardBrand());
@@ -3169,6 +3051,9 @@ public class AdminRiskManagementApplicationService {
         return detectCardBrand(digits);
     }
 
+    /**
+     * 根据卡号前缀识别卡品牌。
+     */
     private String detectCardBrand(String cardNo) {
         if (cardNo.matches("^4.*")) {
             return "VISA";
@@ -3197,6 +3082,9 @@ public class AdminRiskManagementApplicationService {
         return null;
     }
 
+    /**
+     * 规范化范围。
+     */
     private void normalizeScope(Map<String, Object> data) {
         String merchantScope = defaultIfBlank((String) data.get("merchantScope"), DEFAULT_SCOPE).toUpperCase(Locale.ROOT);
         data.put("merchantScope", merchantScope);
@@ -3257,14 +3145,23 @@ public class AdminRiskManagementApplicationService {
         return !isAmlFunction(definition) && !isMerchantWhitelist(definition);
     }
 
+    /**
+     * 查询商户名称用于管理端展示。
+     */
     private String merchantName(String merchantId) {
         return StringUtils.hasText(merchantId) ? riskManagementMapper.selectMerchantName(merchantId) : null;
     }
 
+    /**
+     * 返回生效时间，未指定时使用当前时间。
+     */
     private LocalDateTime defaultEffectiveTime(LocalDateTime effectiveTime) {
         return effectiveTime == null ? LocalDateTime.now() : effectiveTime;
     }
 
+    /**
+     * 计算并填充通用风险名单有效期字段。
+     */
     private void applyValidity(Map<String, Object> data, RiskDTOs.RiskListSaveRequest request) {
         String validityType = defaultIfBlank(request.getValidityType(), VALIDITY_SUPER_LONG).toUpperCase(Locale.ROOT);
         data.put("validityType", validityType);
@@ -3288,6 +3185,9 @@ public class AdminRiskManagementApplicationService {
         data.put("expireTime", effectiveTime.plusDays(validityDays));
     }
 
+    /**
+     * 计算并填充地区风险名单有效期字段。
+     */
     private void applyRegionValidity(Map<String, Object> data, RiskDTOs.RegionSaveRequest request) {
         String validityType = defaultIfBlank(request.getValidityType(), VALIDITY_SUPER_LONG).toUpperCase(Locale.ROOT);
         data.put("validityType", validityType);
@@ -3311,6 +3211,9 @@ public class AdminRiskManagementApplicationService {
         data.put("expireTime", effectiveTime.plusDays(validityDays));
     }
 
+    /**
+     * 返回默认风控级别。
+     */
     private String defaultRiskLevel(RiskFunctionDefinition definition) {
         if ("RULE".equalsIgnoreCase(definition.getModuleType())) {
             if ("frequency".equals(definition.getFunctionCode()) || FUNCTION_MERCHANT_LIMIT.equals(definition.getFunctionCode())) {
@@ -3330,6 +3233,9 @@ public class AdminRiskManagementApplicationService {
         return DEFAULT_RISK_LEVEL;
     }
 
+    /**
+     * 返回风险决策动作，未指定时使用默认动作。
+     */
     private String defaultDecisionAction(RiskFunctionDefinition definition) {
         if ("WHITE".equalsIgnoreCase(definition.getModuleType())) {
             return "PASS";
@@ -3344,6 +3250,9 @@ public class AdminRiskManagementApplicationService {
         return DEFAULT_DECISION_ACTION;
     }
 
+    /**
+     * 清理风险变更快照中的敏感字段。
+     */
     private Map<String, Object> sanitizeSnapshot(Map<String, Object> source) {
         Map<String, Object> copy = new LinkedHashMap<>(source);
         copy.remove("match_value_cipher");
@@ -3359,6 +3268,9 @@ public class AdminRiskManagementApplicationService {
         return copy;
     }
 
+    /**
+     * 将风险配置查询结果转换为页面选项列表。
+     */
     private List<RiskDTOs.OptionItem> toOptions(List<Map<String, Object>> rows) {
         return rows.stream().map(row -> {
             RiskDTOs.OptionItem item = option(asString(row.get("label")), asString(row.get("value")), asString(row.get("extra")));
@@ -3370,6 +3282,9 @@ public class AdminRiskManagementApplicationService {
         }).toList();
     }
 
+    /**
+     * 构建管理端下拉选项。
+     */
     private RiskDTOs.OptionItem option(String label, String value, String extra) {
         RiskDTOs.OptionItem item = new RiskDTOs.OptionItem();
         item.setLabel(label);
@@ -3378,6 +3293,9 @@ public class AdminRiskManagementApplicationService {
         return item;
     }
 
+    /**
+     * 校验当前操作人具备风险功能权限。
+     */
     private void ensureFunctionPermission(RiskFunctionDefinition definition, String action) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -3393,6 +3311,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 构建风险配置导入模板示例行。
+     */
     private Map<String, Object> templateRow(RiskFunctionDefinition definition) {
         Map<String, Object> row = new LinkedHashMap<>();
         if (definition.isRegionFunction()) {
@@ -3435,14 +3356,23 @@ public class AdminRiskManagementApplicationService {
         return toCsvRow(definition, row);
     }
 
+    /**
+     * 生成风险模板示例规则名称。
+     */
     private String templateSampleRuleName() {
         return isEnglishLocale() ? "Sample Rule" : "示例规则";
     }
 
+    /**
+     * 生成风险模板示例备注。
+     */
     private String templateSampleRemark() {
         return isEnglishLocale() ? "Delete this sample row before import" : "导入时请删除示例行";
     }
 
+    /**
+     * 填充规则模板值。
+     */
     private void fillRuleTemplateValue(RiskFunctionDefinition definition, Map<String, Object> row) {
         String code = definition.getFunctionCode();
         if ("sourceUrl".equals(code)) {
@@ -3495,6 +3425,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 填充列表模板值。
+     */
     private void fillListTemplateValue(RiskFunctionDefinition definition, Map<String, Object> row) {
         String code = definition.getFunctionCode();
         row.put("matchValuePlain", "example");
@@ -3532,6 +3465,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 移除风险名单模板行中的无关字段。
+     */
     private void pruneListTemplateRow(RiskFunctionDefinition definition, Map<String, Object> row) {
         if (!hasRangeFields(definition)) {
             row.remove("matchValueStart");
@@ -3547,16 +3483,25 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 生成可追踪且唯一的风险导入批次号。
+     */
     private String importBatchNo(RiskFunctionDefinition definition) {
         return "RISK-" + definition.getModuleType() + "-" + definition.getFunctionCode() + "-" + UUID.randomUUID().toString().replace("-", "");
     }
 
+    /**
+     * 在事务提交后标记风险导入批次成功。
+     */
     private void markImportBatchSuccessAfterCommit(String batchNo, int successCount) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             importLogService.markSuccess(batchNo, successCount);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 importLogService.markSuccess(batchNo, successCount);
@@ -3590,19 +3535,31 @@ public class AdminRiskManagementApplicationService {
         return definition == RiskFunctionDefinition.RULE_SOURCE_URL;
     }
 
+    /**
+     * 判断当前功能定义是否为商户限额规则。
+     */
     private boolean isMerchantLimitRule(RiskFunctionDefinition definition) {
         return definition == RiskFunctionDefinition.RULE_MERCHANT_LIMIT;
     }
 
+    /**
+     * 判断当前功能定义是否为 3DS 规则。
+     */
     private boolean isThreeDsRule(RiskFunctionDefinition definition) {
         return FUNCTION_THREE_DS.equals(definition.getFunctionCode());
     }
 
+    /**
+     * 提取风险导入失败的稳定错误说明。
+     */
     private String importErrorMessage(RuntimeException exception) {
         String message = exception.getMessage();
         return StringUtils.hasText(message) ? message : exception.getClass().getSimpleName();
     }
 
+    /**
+     * 清理导入错误说明中的敏感信息并限制长度。
+     */
     private String sanitizeImportErrorMessage(RuntimeException exception) {
         String message = importErrorMessage(exception)
                 .replaceAll("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+", "***")
@@ -3610,6 +3567,9 @@ public class AdminRiskManagementApplicationService {
         return truncate(message, IMPORT_ERROR_MESSAGE_MAX_LENGTH);
     }
 
+    /**
+     * 清理风险导入原始行中的敏感字段。
+     */
     private String sanitizeImportRow(Map<String, String> row) {
         Map<String, String> sanitized = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : row.entrySet()) {
@@ -3618,6 +3578,9 @@ public class AdminRiskManagementApplicationService {
         return truncate(JsonUtils.toJsonString(sanitized), IMPORT_RAW_CONTENT_MAX_LENGTH);
     }
 
+    /**
+     * 判断导入列是否包含敏感数据。
+     */
     private boolean sensitiveImportColumn(String columnName) {
         String normalized = columnName == null ? "" : columnName.toLowerCase(Locale.ROOT).replace("_", "");
         return normalized.contains("matchvalue")
@@ -3637,10 +3600,16 @@ public class AdminRiskManagementApplicationService {
                 || normalized.contains("指纹");
     }
 
+    /**
+     * 读取并规范化风险配置导入行。
+     */
     private List<ImportRow> readImportRows(MultipartFile file) {
         return isExcelImportFile(file) ? readExcel(file) : readCsv(file);
     }
 
+    /**
+     * 判断上传文件是否为受支持的 Excel 格式。
+     */
     private boolean isExcelImportFile(MultipartFile file) {
         String fileName = file.getOriginalFilename();
         String contentType = file.getContentType();
@@ -3652,6 +3621,9 @@ public class AdminRiskManagementApplicationService {
                 || normalizedContentType.contains("excel");
     }
 
+    /**
+     * 读取 CSV 风险名单导入文件。
+     */
     private List<ImportRow> readCsv(MultipartFile file) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String headerLine = reader.readLine();
@@ -3680,6 +3652,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 读取 Excel 风险名单导入文件。
+     */
     private List<ImportRow> readExcel(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream(); Workbook workbook = WorkbookFactory.create(inputStream)) {
             if (workbook.getNumberOfSheets() == 0) {
@@ -3713,6 +3688,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 在限定扫描行数内查找风险名单 Excel 表头所在行。
+     */
     private int findExcelHeaderRow(Sheet sheet) {
         DataFormatter formatter = new DataFormatter();
         int maxRowIndex = Math.min(sheet.getLastRowNum(), EXCEL_IMPORT_HEADER_SCAN_ROWS - 1);
@@ -3735,6 +3713,9 @@ public class AdminRiskManagementApplicationService {
         return -1;
     }
 
+    /**
+     * 判断工作表行是否为支持的导入表头。
+     */
     private boolean isImportHeader(String header) {
         if (!StringUtils.hasText(header)) {
             return false;
@@ -3748,6 +3729,9 @@ public class AdminRiskManagementApplicationService {
         return false;
     }
 
+    /**
+     * 读取并规范化 Excel 表头。
+     */
     private List<String> excelHeaders(Row headerRow, DataFormatter formatter) {
         if (headerRow == null) {
             return List.of();
@@ -3760,6 +3744,9 @@ public class AdminRiskManagementApplicationService {
         return headers;
     }
 
+    /**
+     * 判断 Excel 行是否全部为空。
+     */
     private boolean isBlankExcelRow(Row row, int columnSize, DataFormatter formatter) {
         for (int columnIndex = 0; columnIndex < columnSize; columnIndex++) {
             if (StringUtils.hasText(excelCellText(row.getCell(columnIndex), formatter))) {
@@ -3769,10 +3756,16 @@ public class AdminRiskManagementApplicationService {
         return true;
     }
 
+    /**
+     * 读取 Excel 单元格的规范化文本。
+     */
     private String excelCellText(Cell cell, DataFormatter formatter) {
         return cell == null ? null : trim(formatter.formatCellValue(cell));
     }
 
+    /**
+     * 按 CSV 转义规则解析单行字段。
+     */
     private List<String> parseCsvLine(String line) {
         List<String> values = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -3797,6 +3790,9 @@ public class AdminRiskManagementApplicationService {
         return values;
     }
 
+    /**
+     * 转换为列表请求。
+     */
     private RiskDTOs.RiskListSaveRequest toListRequest(Map<String, String> row) {
         RiskDTOs.RiskListSaveRequest request = new RiskDTOs.RiskListSaveRequest();
         request.setMerchantScope(csvCode("merchantScope", value(row, "merchantScope")));
@@ -3822,6 +3818,9 @@ public class AdminRiskManagementApplicationService {
         return request;
     }
 
+    /**
+     * 转换为地区请求。
+     */
     private RiskDTOs.RegionSaveRequest toRegionRequest(Map<String, String> row) {
         RiskDTOs.RegionSaveRequest request = new RiskDTOs.RegionSaveRequest();
         request.setMerchantScope(csvCode("merchantScope", value(row, "merchantScope")));
@@ -3841,6 +3840,9 @@ public class AdminRiskManagementApplicationService {
         return request;
     }
 
+    /**
+     * 转换为规则请求。
+     */
     private RiskDTOs.RiskRuleSaveRequest toRuleRequest(Map<String, String> row) {
         RiskDTOs.RiskRuleSaveRequest request = new RiskDTOs.RiskRuleSaveRequest();
         request.setMerchantScope(csvCode("merchantScope", value(row, "merchantScope")));
@@ -3869,6 +3871,9 @@ public class AdminRiskManagementApplicationService {
         return request;
     }
 
+    /**
+     * 解析并填充商户风险规则的固定限额金额。
+     */
     private void applyMerchantLimitAmount(Map<String, String> row, RiskDTOs.RiskRuleSaveRequest request) {
         String limitAmount = value(row, "limitAmount");
         if (StringUtils.hasText(limitAmount)) {
@@ -3883,11 +3888,17 @@ public class AdminRiskManagementApplicationService {
         request.setCurrency(defaultIfBlank(value(row, "currency"), null));
     }
 
+    /**
+     * 从包含币种文本的单元格中提取金额。
+     */
     private BigDecimal parseAmountWithCurrency(String value) {
         List<BigDecimal> amounts = extractAmounts(value);
         return amounts.isEmpty() ? null : amounts.get(0);
     }
 
+    /**
+     * 应用3DS支付范围。
+     */
     private void applyThreeDsPaymentScope(Map<String, String> row, RiskDTOs.RiskRuleSaveRequest request) {
         String combinedScope = value(row, "paymentMethodCardBrand");
         if (StringUtils.hasText(combinedScope)) {
@@ -3900,6 +3911,9 @@ public class AdminRiskManagementApplicationService {
         request.setCardBrand(value(row, "cardBrand"));
     }
 
+    /**
+     * 解析 3DS 支付方式和卡品牌组合条件。
+     */
     private ThreeDsPaymentScope parseThreeDsPaymentScope(String value) {
         String[] parts = value.split("[/／]", 2);
         String paymentMethod = csvCode("paymentMethod", parts[0]);
@@ -3907,6 +3921,9 @@ public class AdminRiskManagementApplicationService {
         return new ThreeDsPaymentScope(paymentMethod, cardBrand);
     }
 
+    /**
+     * 将 3DS 支付范围转换为 CSV 文本。
+     */
     private String threeDsPaymentScopeForCsv(Object paymentMethodValue, Object cardBrandValue) {
         String paymentMethod = csvLabel("paymentMethod", paymentMethodValue);
         String paymentCode = csvCode("paymentMethod", paymentMethod);
@@ -3916,6 +3933,9 @@ public class AdminRiskManagementApplicationService {
         return paymentMethod + " / " + csvLabel("cardBrand", cardBrandValue);
     }
 
+    /**
+     * 将 CSV 中的 3DS 金额条件写入规则保存请求。
+     */
     private void applyThreeDsAmountCondition(Map<String, String> row, RiskDTOs.RiskRuleSaveRequest request) {
         String amountCondition = value(row, "amountCondition");
         if (StringUtils.hasText(amountCondition)) {
@@ -3932,6 +3952,9 @@ public class AdminRiskManagementApplicationService {
         request.setCurrency(value(row, "currency"));
     }
 
+    /**
+     * 解析 3DS 金额匹配类型及上下限。
+     */
     private ThreeDsAmountCondition parseThreeDsAmountCondition(String value) {
         String normalized = trim(value).replace("，", ",");
         String upper = normalized.toUpperCase(Locale.ROOT);
@@ -3950,6 +3973,9 @@ public class AdminRiskManagementApplicationService {
         return new ThreeDsAmountCondition("GE", amount, null);
     }
 
+    /**
+     * 将 3DS 金额条件转换为 CSV 文本。
+     */
     private String threeDsAmountConditionForCsv(Map<String, Object> row) {
         String preparedCondition = asString(firstValue(row, "amountCondition", "amount_condition"));
         if (StringUtils.hasText(preparedCondition)) {
@@ -3968,6 +3994,9 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 将商户限额转换为 CSV 金额文本。
+     */
     private String merchantLimitAmountForCsv(Map<String, Object> row) {
         String preparedAmount = asString(firstValue(row, "limitAmount", "limit_amount"));
         if (StringUtils.hasText(preparedAmount)) {
@@ -3981,10 +4010,16 @@ public class AdminRiskManagementApplicationService {
         return amountForCsv(asBigDecimal(amount)) + " " + currency;
     }
 
+    /**
+     * 将高精度金额转换为 CSV 文本。
+     */
     private String amountForCsv(BigDecimal amount) {
         return amount == null ? "-" : amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
+    /**
+     * 从动态配置行提取金额区间。
+     */
     private List<BigDecimal> extractAmounts(String value) {
         List<BigDecimal> amounts = new ArrayList<>();
         Matcher matcher = AMOUNT_TEXT_PATTERN.matcher(defaultIfBlank(value, ""));
@@ -3994,6 +4029,9 @@ public class AdminRiskManagementApplicationService {
         return amounts;
     }
 
+    /**
+     * 解析并填充频次风险规则的窗口和阈值策略。
+     */
     private void applyFrequencyPolicy(Map<String, String> row, RiskDTOs.RiskRuleSaveRequest request) {
         request.setTimeWindowSeconds(intValue(row, "timeWindowSeconds"));
         request.setThresholdCount(intValue(row, "thresholdCount"));
@@ -4019,6 +4057,9 @@ public class AdminRiskManagementApplicationService {
         request.setElementsJson(JsonUtils.toJsonString(policy));
     }
 
+    /**
+     * 判断导入行是否包含任一指定字段值。
+     */
     private boolean hasAnyValue(Map<String, String> row, String... keys) {
         for (String key : keys) {
             if (StringUtils.hasText(value(row, key))) {
@@ -4028,6 +4069,9 @@ public class AdminRiskManagementApplicationService {
         return false;
     }
 
+    /**
+     * 解析频控规则要素集合。
+     */
     private List<String> parseFrequencyElements(String value) {
         String text = defaultIfBlank(value, "");
         if (!StringUtils.hasText(text)) {
@@ -4042,6 +4086,9 @@ public class AdminRiskManagementApplicationService {
                 .toList();
     }
 
+    /**
+     * 将频控要素集合转换为 CSV 文本。
+     */
     private String frequencyElementSetForCsv(Map<String, Object> row) {
         Map<String, Object> policy = parseFrequencyPolicy(firstValue(row, "elementsJson", "elements_json"));
         Object elementValue = policy.get("elements");
@@ -4054,45 +4101,66 @@ public class AdminRiskManagementApplicationService {
                 .orElse("-");
     }
 
+    /**
+     * 将频控维度转换为 CSV 文本。
+     */
     private String frequencyDimensionForCsv(Map<String, Object> row) {
         return frequencyDimensionLabel(asString(parseFrequencyPolicy(firstValue(row, "elementsJson", "elements_json")).get("statisticDimension")));
     }
 
+    /**
+     * 将频控时间窗值转换为 CSV 文本。
+     */
     private Object frequencyWindowValueForCsv(Map<String, Object> row) {
         Map<String, Object> policy = parseFrequencyPolicy(firstValue(row, "elementsJson", "elements_json"));
         Integer value = asInteger(policy.get("windowValue"));
         return value == null ? frequencyWindowFromSeconds(firstValue(row, "timeWindowSeconds", "time_window_seconds")).windowValue() : value;
     }
 
+    /**
+     * 将频控时间窗单位转换为 CSV 文本。
+     */
     private String frequencyWindowUnitForCsv(Map<String, Object> row) {
         Map<String, Object> policy = parseFrequencyPolicy(firstValue(row, "elementsJson", "elements_json"));
         String unit = asString(policy.get("windowUnit"));
         return frequencyWindowUnitLabel(StringUtils.hasText(unit) ? unit : frequencyWindowFromSeconds(firstValue(row, "timeWindowSeconds", "time_window_seconds")).windowUnit());
     }
 
+    /**
+     * 将频控允许次数转换为 CSV 文本。
+     */
     private Object frequencyAllowedCountForCsv(Map<String, Object> row) {
         Object allowedCount = parseFrequencyPolicy(firstValue(row, "elementsJson", "elements_json")).get("allowedCount");
         return allowedCount == null ? firstValue(row, "thresholdCount", "threshold_count") : allowedCount;
     }
 
+    /**
+     * 将频控成功次数转换为 CSV 文本。
+     */
     private Object frequencySuccessCountForCsv(Map<String, Object> row) {
         Object successCount = parseFrequencyPolicy(firstValue(row, "elementsJson", "elements_json")).get("successCount");
         return successCount == null ? 0 : successCount;
     }
 
+    /**
+     * 解析频率规则的时间窗口和阈值配置。
+     */
     private Map<String, Object> parseFrequencyPolicy(Object value) {
         String json = asString(value);
         if (!StringUtils.hasText(json)) {
             return Map.of();
         }
         try {
-            Map<String, Object> policy = JsonUtils.parseObject(json, Map.class);
+            Map<String, Object> policy = JsonUtils.parseObject(json, STRING_OBJECT_MAP_TYPE);
             return policy == null ? Map.of() : policy;
         } catch (RuntimeException exception) {
             return Map.of();
         }
     }
 
+    /**
+     * 将秒数换算为频控时间窗值和单位。
+     */
     private FrequencyWindow frequencyWindowFromSeconds(Object value) {
         Integer seconds = asInteger(value);
         if (seconds == null || seconds <= 0) {
@@ -4107,10 +4175,16 @@ public class AdminRiskManagementApplicationService {
         return new FrequencyWindow(Math.max(seconds / 60, 1), "MINUTE");
     }
 
+    /**
+     * 移除 CSV 文本开头的字节顺序标记。
+     */
     private String stripBom(String value) {
         return value != null && !value.isEmpty() && value.charAt(0) == '\ufeff' ? value.substring(1) : value;
     }
 
+    /**
+     * 获取导入行的必填字段，并在字段缺失时返回明确错误。
+     */
     private String required(Map<String, String> row, String key) {
         String text = value(row, key);
         if (!StringUtils.hasText(text)) {
@@ -4119,6 +4193,9 @@ public class AdminRiskManagementApplicationService {
         return text;
     }
 
+    /**
+     * 按标准表头及兼容别名读取首个非空导入字段值。
+     */
     private String value(Map<String, String> row, String key) {
         String value = trim(row.get(key));
         if (StringUtils.hasText(value)) {
@@ -4133,26 +4210,41 @@ public class AdminRiskManagementApplicationService {
         return null;
     }
 
+    /**
+     * 读取可空整数值。
+     */
     private Integer intValue(Map<String, String> row, String key) {
         String text = value(row, key);
         return StringUtils.hasText(text) ? Integer.valueOf(text) : null;
     }
 
+    /**
+     * 读取状态值。
+     */
     private Integer statusValue(Map<String, String> row, String key) {
         String text = csvCode("status", value(row, key));
         return StringUtils.hasText(text) ? Integer.valueOf(text) : null;
     }
 
+    /**
+     * 读取可空高精度数值。
+     */
     private BigDecimal decimalValue(Map<String, String> row, String key) {
         String text = value(row, key);
         return StringUtils.hasText(text) ? new BigDecimal(text) : null;
     }
 
+    /**
+     * 读取本地日期时间值。
+     */
     private LocalDateTime localDateTimeValue(Map<String, String> row, String key) {
         String text = value(row, key);
         return StringUtils.hasText(text) ? LocalDateTime.parse(text.replace(" ", "T")) : null;
     }
 
+    /**
+     * 将风险查询结果写入 Excel 导出响应。
+     */
     private void writeExcel(RiskFunctionDefinition definition,
                             List<Map<String, Object>> rows,
                             String querySummary,
@@ -4160,6 +4252,9 @@ public class AdminRiskManagementApplicationService {
         writeRiskExcel(definition, rows, querySummary, "excel.risk.exportSuffix", response);
     }
 
+    /**
+     * 将风险导入模板写入 Excel 响应。
+     */
     private void writeTemplateExcel(RiskFunctionDefinition definition,
                                     List<Map<String, Object>> rows,
                                     HttpServletResponse response) {
@@ -4168,6 +4263,9 @@ public class AdminRiskManagementApplicationService {
         writeRiskExcel(definition, rows, templateHint, "excel.risk.templateSuffix", response);
     }
 
+    /**
+     * 使用统一表头、标题和说明生成风险 Excel 文件。
+     */
     private void writeRiskExcel(RiskFunctionDefinition definition,
                                 List<Map<String, Object>> rows,
                                 String querySummary,
@@ -4204,16 +4302,25 @@ public class AdminRiskManagementApplicationService {
         return definition.getFunctionName() + suffix;
     }
 
+    /**
+     * 生成导出文件使用的时间戳后缀。
+     */
     private String timestampSuffix() {
         return java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now());
     }
 
+    /**
+     * 构建 Excel 导出列集合。
+     */
     private List<ExcelDynamicColumnDefinition> excelColumns(RiskFunctionDefinition definition) {
         return csvColumns(definition).stream()
                 .map(column -> new ExcelDynamicColumnDefinition(column.key(), column.header(), excelColumnWidth(column.key()), excelColumnAlign(column.key())))
                 .toList();
     }
 
+    /**
+     * 解析 Excel 导出列宽度。
+     */
     private int excelColumnWidth(String key) {
         return switch (key) {
             case "merchantScope", "status", "riskLevel", "decisionAction", "validityType", "regionMatchLevel" -> 14;
@@ -4225,6 +4332,9 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 解析 Excel 导出列对齐方式。
+     */
     private HorizontalAlignment excelColumnAlign(String key) {
         return switch (key) {
             case "validityDays", "amountMin", "amountMax", "timeWindowSeconds", "thresholdCount", "windowValue", "maxTransactionCount", "maxSuccessCount" -> HorizontalAlignment.RIGHT;
@@ -4233,6 +4343,9 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 构建列表查询摘要。
+     */
     private String buildListQuerySummary(RiskFunctionDefinition definition, RiskDTOs.RiskListQueryRequest request) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         StringBuilder builder = new StringBuilder();
@@ -4246,6 +4359,9 @@ public class AdminRiskManagementApplicationService {
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
+    /**
+     * 构建规则查询摘要。
+     */
     private String buildRuleQuerySummary(RiskFunctionDefinition definition, RiskDTOs.RiskRuleQueryRequest request) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         StringBuilder builder = new StringBuilder();
@@ -4275,6 +4391,9 @@ public class AdminRiskManagementApplicationService {
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
+    /**
+     * 将非空查询条件追加到导出审计摘要。
+     */
     private void appendCondition(StringBuilder builder, String label, String value) {
         if (!StringUtils.hasText(value)) {
             return;
@@ -4285,10 +4404,16 @@ public class AdminRiskManagementApplicationService {
         builder.append(label).append("=").append(value.trim());
     }
 
+    /**
+     * 将风控查询结果批量转换为 CSV 导出行。
+     */
     private List<Map<String, Object>> exportRows(RiskFunctionDefinition definition, List<Map<String, Object>> rows) {
         return rows.stream().map(row -> toCsvRow(definition, row)).toList();
     }
 
+    /**
+     * 转换为 CSV 导出行数据。
+     */
     private Map<String, Object> toCsvRow(RiskFunctionDefinition definition, Map<String, Object> source) {
         Map<String, Object> row = new LinkedHashMap<>();
         for (CsvColumn column : csvColumns(definition)) {
@@ -4297,6 +4422,9 @@ public class AdminRiskManagementApplicationService {
         return row;
     }
 
+    /**
+     * 构建风险配置 CSV 导出列集合。
+     */
     private List<CsvColumn> csvColumns(RiskFunctionDefinition definition) {
         if (definition.isRuleFunction()) {
             return ruleCsvColumns(definition);
@@ -4330,6 +4458,9 @@ public class AdminRiskManagementApplicationService {
         return columns;
     }
 
+    /**
+     * 构建风险规则 CSV 导出列集合。
+     */
     private List<CsvColumn> ruleCsvColumns(RiskFunctionDefinition definition) {
         if (isSourceUrlRule(definition)) {
             return sourceUrlCsvColumns();
@@ -4371,6 +4502,9 @@ public class AdminRiskManagementApplicationService {
         return columns;
     }
 
+    /**
+     * 构建原始 URL 风险名单的 CSV 列定义。
+     */
     private List<CsvColumn> sourceUrlCsvColumns() {
         List<CsvColumn> columns = new ArrayList<>();
         columns.add(column("merchantId", csvHeader("merchantId"), "merchant_id"));
@@ -4385,6 +4519,9 @@ public class AdminRiskManagementApplicationService {
         return columns;
     }
 
+    /**
+     * 匹配并规范化风险规则 CSV 表头。
+     */
     private String ruleMatchCsvHeader(RiskFunctionDefinition definition) {
         return switch (definition.getFunctionCode()) {
             case "sourceUrl" -> csvHeader("sourceUrl");
@@ -4392,13 +4529,16 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 将频控策略转换为 CSV 文本。
+     */
     private String frequencyPolicyForCsv(Object value) {
         String json = asString(value);
         if (!StringUtils.hasText(json)) {
             return null;
         }
         try {
-            Map<String, Object> policy = JsonUtils.parseObject(json, Map.class);
+            Map<String, Object> policy = JsonUtils.parseObject(json, STRING_OBJECT_MAP_TYPE);
             if (policy == null || policy.isEmpty()) {
                 return null;
             }
@@ -4428,6 +4568,9 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
+    /**
+     * 解析频控要素展示标签。
+     */
     private String frequencyElementLabel(String value) {
         boolean english = isEnglishLocale();
         return switch (defaultIfBlank(value, "")) {
@@ -4442,6 +4585,9 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 解析频控维度展示标签。
+     */
     private String frequencyDimensionLabel(String value) {
         boolean english = isEnglishLocale();
         return switch (defaultIfBlank(value, "ANY_ELEMENT")) {
@@ -4450,6 +4596,9 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 解析频控时间窗单位展示标签。
+     */
     private String frequencyWindowUnitLabel(String value) {
         boolean english = isEnglishLocale();
         return switch (defaultIfBlank(value, "MINUTE")) {
@@ -4459,14 +4608,23 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 构建导入导出列定义。
+     */
     private CsvColumn column(String key, String header, String sourceKey) {
         return column(key, header, row -> firstValue(row, key, sourceKey));
     }
 
+    /**
+     * 构建导入导出列定义。
+     */
     private CsvColumn column(String key, String header, Function<Map<String, Object>, Object> extractor) {
         return new CsvColumn(key, header, extractor);
     }
 
+    /**
+     * 返回首个有效值。
+     */
     private Object firstValue(Map<String, Object> row, String... keys) {
         for (String key : keys) {
             Object value = row.get(key);
@@ -4477,6 +4635,9 @@ public class AdminRiskManagementApplicationService {
         return null;
     }
 
+    /**
+     * 将国家或地区代码转换为 CSV 文本。
+     */
     private String countryAlpha2ForCsv(Map<String, Object> row) {
         String alpha2 = asString(firstValue(row, "countryAlpha2", "country_alpha2"));
         if (StringUtils.hasText(alpha2)) {
@@ -4490,6 +4651,9 @@ public class AdminRiskManagementApplicationService {
         return asString(country == null ? null : country.get("value"));
     }
 
+    /**
+     * 根据风险功能选择导入值对应的 CSV 表头。
+     */
     private String matchValueCsvHeader(RiskFunctionDefinition definition) {
         String code = definition.getFunctionCode();
         if ("cardNo".equals(code) || "card".equals(code)) {
@@ -4546,6 +4710,9 @@ public class AdminRiskManagementApplicationService {
         return csvHeader("matchValuePlain");
     }
 
+    /**
+     * 构建风险配置 CSV 表头。
+     */
     private String csvHeader(String key) {
         boolean english = isEnglishLocale();
         return switch (key) {
@@ -4619,6 +4786,9 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 解析 CSV 字段的本地化标签。
+     */
     private String csvLabel(String type, Object value) {
         String text = asString(value);
         if (!StringUtils.hasText(text)) {
@@ -4745,6 +4915,9 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 解析 CSV 字段对应的稳定编码。
+     */
     private String csvCode(String type, String value) {
         String text = trim(value);
         if (!StringUtils.hasText(text)) {
@@ -4873,11 +5046,17 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 判断当前语言环境是否使用英文标签。
+     */
     private boolean isEnglishLocale() {
         Locale locale = LocaleContextHolder.getLocale();
         return locale != null && Locale.ENGLISH.getLanguage().equalsIgnoreCase(locale.getLanguage());
     }
 
+    /**
+     * 构建 CSV 表头兼容别名集合。
+     */
     private List<String> csvHeaderAliases(String key) {
         return switch (key) {
             case "merchantScope" -> List.of("生效范围", "Scope", "merchant_scope");
@@ -4936,27 +5115,45 @@ public class AdminRiskManagementApplicationService {
         };
     }
 
+    /**
+     * 封装 CSV 列编码、标签和取值规则。
+     */
     private record CsvColumn(String key, String header, Function<Map<String, Object>, Object> extractor) {
     }
 
+    /**
+     * 封装风险配置导入行及其原始行号。
+     */
     private record ImportRow(int rowNo, Map<String, String> values) {
     }
 
+    /**
+     * 判断风险功能是否包含起止范围字段。
+     */
     private boolean hasRangeFields(RiskFunctionDefinition definition) {
         String code = definition.getFunctionCode();
         return "cardBin".equals(code) || "ip".equals(code);
     }
 
+    /**
+     * 判断风险功能是否包含卡品牌字段。
+     */
     private boolean hasCardBrandField(RiskFunctionDefinition definition) {
         String code = definition.getFunctionCode();
         return "cardNo".equals(code) || "card".equals(code) || "cardBin".equals(code);
     }
 
+    /**
+     * 判断当前功能定义是否为商户白名单。
+     */
     private boolean isMerchantWhitelist(RiskFunctionDefinition definition) {
         return "WHITE".equalsIgnoreCase(definition.getModuleType())
                 && "merchant".equals(definition.getFunctionCode());
     }
 
+    /**
+     * 从卡号中提取用于 BIN 匹配的数字前缀。
+     */
     private String cardBinLookupNumber(RiskFunctionDefinition definition, String matchValue) {
         if (!"cardBin".equals(definition.getFunctionCode()) || !StringUtils.hasText(matchValue)) {
             return null;
@@ -4968,6 +5165,9 @@ public class AdminRiskManagementApplicationService {
         return rightPad(digits, 11, '0');
     }
 
+    /**
+     * 在不改变原值的前提下补齐文本长度。
+     */
     private String rightPad(String value, int length, char ch) {
         if (value.length() >= length) {
             return value;
@@ -4975,6 +5175,9 @@ public class AdminRiskManagementApplicationService {
         return value + String.valueOf(ch).repeat(length - value.length());
     }
 
+    /**
+     * 判断是否国家或地区字段。
+     */
     private boolean hasCountryFields(RiskFunctionDefinition definition) {
         String code = definition.getFunctionCode();
         return "country".equals(code)
@@ -4982,10 +5185,16 @@ public class AdminRiskManagementApplicationService {
                 || code.contains("Country");
     }
 
+    /**
+     * 判断字段是否为国家或地区数字编码。
+     */
     private boolean hasCountryNumericField(RiskFunctionDefinition definition) {
         return hasCountryFields(definition) && !isCountryListFunction(definition);
     }
 
+    /**
+     * 判断当前功能是否需要保存 IP 版本字段。
+     */
     private boolean hasIpVersionField(RiskFunctionDefinition definition) {
         return "ip".equals(definition.getFunctionCode());
     }
@@ -5000,19 +5209,31 @@ public class AdminRiskManagementApplicationService {
         return isAmlSourceUrlFunction(definition);
     }
 
+    /**
+     * 判断当前功能是否为 AML 原始 URL 名单。
+     */
     private boolean isAmlSourceUrlFunction(RiskFunctionDefinition definition) {
         return MODULE_AML.equals(definition.getModuleType()) && FUNCTION_SOURCE_URL.equals(definition.getFunctionCode());
     }
 
+    /**
+     * 判断当前功能是否属于国家或地区名单。
+     */
     private boolean isCountryListFunction(RiskFunctionDefinition definition) {
         String code = definition.getFunctionCode();
         return !definition.isRuleFunction() && ("country".equals(code) || code.endsWith("Country") || code.contains("Country"));
     }
 
+    /**
+     * 根据页码和页大小计算安全偏移量。
+     */
     private long offset(long pageNo, long pageSize) {
         return Math.max(pageNo - 1, 0) * pageSize;
     }
 
+    /**
+     * 从可信认证上下文解析当前操作人名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -5024,19 +5245,31 @@ public class AdminRiskManagementApplicationService {
         return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount() : "admin";
     }
 
+    /**
+     * 去除文本首尾空白并保留空值语义。
+     */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 将业务编码规范化为大写文本。
+     */
     private String upper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 在文本为空时返回默认值。
+     */
     private String defaultIfBlank(String value, String fallback) {
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
+    /**
+     * 按持久化字段上限截断文本。
+     */
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
@@ -5044,10 +5277,16 @@ public class AdminRiskManagementApplicationService {
         return value.substring(0, maxLength);
     }
 
+    /**
+     * 返回默认状态。
+     */
     private Integer defaultStatus(Integer status) {
         return status == null ? ENABLED : status;
     }
 
+    /**
+     * 安全拼接基础地址和请求路径。
+     */
     private String joinPath(Object... values) {
         List<String> parts = new ArrayList<>();
         for (Object value : values) {
@@ -5059,10 +5298,16 @@ public class AdminRiskManagementApplicationService {
         return String.join("/", parts);
     }
 
+    /**
+     * 将动态字段安全转换为文本。
+     */
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 将动态字段安全转换为长整数。
+     */
     private Long asLong(Object value) {
         if (value instanceof Number number) {
             return number.longValue();
@@ -5070,6 +5315,9 @@ public class AdminRiskManagementApplicationService {
         return value == null ? null : Long.parseLong(String.valueOf(value));
     }
 
+    /**
+     * 将动态字段安全转换为整数。
+     */
     private Integer asInteger(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -5077,6 +5325,9 @@ public class AdminRiskManagementApplicationService {
         return value == null ? null : Integer.parseInt(String.valueOf(value));
     }
 
+    /**
+     * 将动态字段安全转换为高精度金额。
+     */
     private BigDecimal asBigDecimal(Object value) {
         if (value instanceof BigDecimal bigDecimal) {
             return bigDecimal;
@@ -5084,6 +5335,9 @@ public class AdminRiskManagementApplicationService {
         return value == null ? null : new BigDecimal(String.valueOf(value));
     }
 
+    /**
+     * 将导入单元格解析为本地日期时间。
+     */
     private LocalDateTime asLocalDateTime(Object value) {
         if (value instanceof LocalDateTime localDateTime) {
             return localDateTime;
@@ -5097,15 +5351,27 @@ public class AdminRiskManagementApplicationService {
     public static class PageRequestAdapter extends com.scott.payment.component.core.model.PageRequest {
     }
 
+    /**
+     * 封装原始 URL 名单的协议、主机和路径部分。
+     */
     private record SourceUrlParts(String sourceUrl, String sourceHost) {
     }
 
+    /**
+     * 封装 3DS 规则适用的支付方式和卡品牌。
+     */
     private record ThreeDsPaymentScope(String paymentMethod, String cardBrand) {
     }
 
+    /**
+     * 封装 3DS 规则的金额比较条件。
+     */
     private record ThreeDsAmountCondition(String amountMatchType, BigDecimal amountMin, BigDecimal amountMax) {
     }
 
+    /**
+     * 封装频控规则的时间窗数值和单位。
+     */
     private record FrequencyWindow(int windowValue, String windowUnit) {
     }
 }

@@ -8,13 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : VerifiedChannelEvent
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 已认证渠道标准事件，位于 payment-channel-api DTO 层，只能由协议验签和解析成功后产生；支付核心不再接收原始报文进行二次猜测。
- * @status : create
+ * 已认证渠道标准事件，位于 payment-channel-api DTO 层，只能由协议验签和解析成功后产生；支付核心不再接收原始报文进行二次猜测。
  */
 public record VerifiedChannelEvent(String channelCode,
                                    String credentialHint,
@@ -36,7 +30,9 @@ public record VerifiedChannelEvent(String channelCode,
                 : Collections.unmodifiableMap(new LinkedHashMap<>(extension));
     }
 
-    /** 将既有渠道解析结果转换为不可变已认证事件。 */
+    /**
+     * 将既有渠道解析结果转换为不可变已认证事件。
+     */
     public static VerifiedChannelEvent from(ChannelCallbackResult result, String credentialHint) {
         if (result == null) {
             throw new IllegalArgumentException("verified callback result can not be null");

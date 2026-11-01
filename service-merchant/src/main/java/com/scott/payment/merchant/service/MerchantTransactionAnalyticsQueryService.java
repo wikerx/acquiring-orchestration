@@ -5,13 +5,7 @@ import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDT
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.OverviewResponse;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionAnalyticsQueryService
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 商户端交易分析只读服务契约，所有查询必须绑定认证商户号并限制返回字段为商户可见聚合信息。
- * @status : create
+ * 商户端交易分析只读服务契约，所有查询必须绑定认证商户号并限制返回字段为商户可见聚合信息。
  */
 public interface MerchantTransactionAnalyticsQueryService {
 

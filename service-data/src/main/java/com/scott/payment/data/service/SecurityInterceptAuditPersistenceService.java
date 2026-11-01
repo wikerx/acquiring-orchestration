@@ -14,18 +14,14 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SecurityInterceptAuditPersistenceService
- * @date : 2026-08-01 18:00
- * @email : scott_x@163.com
- * @description : service-data 安全拦截审计写入服务，以 event_no 数据库唯一键吸收 RocketMQ 重复投递
- * @status : create
+ * service-data 安全拦截审计写入服务，以 event_no 数据库唯一键吸收 RocketMQ 重复投递
  */
 @Service
 public class SecurityInterceptAuditPersistenceService {
 
-    /** 安全拦截事件数据访问入口。 */
+    /**
+     * 安全拦截事件数据访问入口。
+     */
     private final SecurityInterceptEventMapper eventMapper;
 
     /**
@@ -40,8 +36,8 @@ public class SecurityInterceptAuditPersistenceService {
     /**
      * 将已脱敏的安全拦截事件写入主库。
      * <p>
-     * event_no 唯一键冲突表示相同事件已成功持久化，可正常确认消费；其他数据库异常
-     * 必须上抛，由 RocketMQ 重投。
+     * 数据库唯一键冲突后必须按 eventNo 回查，确认相同事件已成功持久化才可以结束消费；
+     * 其他约束冲突和数据库异常必须上抛，由 RocketMQ 重投。
      * </p>
      *
      * @param message 已通过基础校验的安全拦截审计消息
@@ -52,7 +48,10 @@ public class SecurityInterceptAuditPersistenceService {
         try {
             eventMapper.insert(toEntity(message));
         } catch (DuplicateKeyException exception) {
-            // event_no 唯一索引是最终幂等依据，命中即表示该审计事实已持久化。
+            // 只有 eventNo 已存在时才确认重复，其他唯一键冲突不能静默丢失安全审计事实。
+            if (!existsByEventNo(message.getEventNo())) {
+                throw exception;
+            }
         }
     }
 

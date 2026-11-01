@@ -1,7 +1,10 @@
 package com.scott.payment.admin.application.system;
 
+import com.scott.payment.admin.converter.DeptConverter;
 import com.scott.payment.admin.dto.SysDeptDTO;
 import com.scott.payment.admin.dto.export.SysDeptExportRow;
+import com.scott.payment.admin.dto.system.DeptDTOs.Response;
+import com.scott.payment.admin.dto.system.DeptDTOs.SaveRequest;
 import com.scott.payment.admin.service.AdminDeptService;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
@@ -19,13 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDeptApplicationService
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台部门管理应用服务
- * @status : create
+ * 管理后台部门管理应用服务
  */
 @Service
 public class AdminDeptApplicationService {
@@ -36,6 +33,7 @@ public class AdminDeptApplicationService {
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final AdminDeptService adminDeptService;
+    private final DeptConverter deptConverter;
     private final ExcelExportService excelExportService;
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     private final ExcelLocaleResolver excelLocaleResolver;
@@ -44,13 +42,18 @@ public class AdminDeptApplicationService {
      * 创建后台部门应用服务。
      *
      * @param adminDeptService 部门领域服务
+     * @param deptConverter 部门接口模型转换器
      * @param excelExportService Excel 导出服务
+     * @param excelI18nMessageResolver Excel 国际化文案解析器
+     * @param excelLocaleResolver Excel 语言解析器
      */
     public AdminDeptApplicationService(AdminDeptService adminDeptService,
+                                       DeptConverter deptConverter,
                                        ExcelExportService excelExportService,
                                        ExcelI18nMessageResolver excelI18nMessageResolver,
                                        ExcelLocaleResolver excelLocaleResolver) {
         this.adminDeptService = adminDeptService;
+        this.deptConverter = deptConverter;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
@@ -71,8 +74,8 @@ public class AdminDeptApplicationService {
      * @param id 部门主键
      * @return 部门详情
      */
-    public SysDeptDO getDept(Long id) {
-        return adminDeptService.getDept(id);
+    public Response getDept(Long id) {
+        return deptConverter.toResponse(adminDeptService.getDept(id));
     }
 
     /**
@@ -109,22 +112,24 @@ public class AdminDeptApplicationService {
     /**
      * 新增部门。
      *
-     * @param dept 部门实体
-     * @return 保存后的部门
+     * @param request 部门保存请求
+     * @return 保存后的部门响应
      */
-    public SysDeptDO createDept(SysDeptDO dept) {
-        return adminDeptService.createDept(dept);
+    public Response createDept(SaveRequest request) {
+        SysDeptDO dept = adminDeptService.createDept(deptConverter.toEntity(request));
+        return deptConverter.toResponse(dept);
     }
 
     /**
      * 更新部门。
      *
      * @param id    部门主键
-     * @param input 更新输入
-     * @return 更新后的部门
+     * @param request 更新输入
+     * @return 更新后的部门响应
      */
-    public SysDeptDO updateDept(Long id, SysDeptDO input) {
-        return adminDeptService.updateDept(id, input);
+    public Response updateDept(Long id, SaveRequest request) {
+        SysDeptDO dept = adminDeptService.updateDept(id, deptConverter.toEntity(request));
+        return deptConverter.toResponse(dept);
     }
 
     /**

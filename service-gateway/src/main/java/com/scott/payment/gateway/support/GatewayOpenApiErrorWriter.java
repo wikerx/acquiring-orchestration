@@ -17,13 +17,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayOpenApiErrorWriter
- * @date : 2026-10-26 00:00
- * @email : scott_x@163.com
- * @description : 在 WebFlux Gateway 边界写出 OpenAPI V1.3 错误外壳，统一 HTTP 状态、traceId、缓存策略和 JSON 序列化，不处理业务异常映射。
- * @status : create
+ * 在 WebFlux Gateway 边界写出 OpenAPI V1.3 错误外壳，统一 HTTP 状态、traceId、缓存策略和 JSON 序列化，不处理业务异常映射。
  */
 @Component
 public class GatewayOpenApiErrorWriter {
@@ -76,7 +70,9 @@ public class GatewayOpenApiErrorWriter {
         return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 
-    /** Checkout 浏览器路径面向付款人，其余 Gateway OpenAPI 错误默认面向商户。 */
+    /**
+     * Checkout 浏览器路径面向付款人，其余 Gateway OpenAPI 错误默认面向商户。
+     */
     private OpenApiMessageAudience resolveAudience(ServerWebExchange exchange) {
         String path = exchange.getRequest().getURI().getRawPath();
         return path != null && (path.equals("/checkout") || path.startsWith("/checkout/"))

@@ -36,13 +36,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExchangeRateFetchServiceImpl
- * @date : 2026-07-03 19:00
- * @email : scott_x@163.com
- * @description : 汇率汇率fetch服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 汇率汇率fetch服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  */
 @Service
 public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {

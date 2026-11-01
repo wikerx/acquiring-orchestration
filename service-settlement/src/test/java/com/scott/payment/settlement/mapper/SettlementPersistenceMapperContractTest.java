@@ -14,13 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementPersistenceMapperContractTest
- * @date : 2026-08-26 20:00
- * @email : scott_x@163.com
- * @description : 锁定结算 Mapper 的参数绑定、数据库发号、批次租约、真实候选 CAS、汇率结果和审计关系边界。
- * @status : create
+ * 锁定结算 Mapper 的参数绑定、数据库发号、批次租约、真实候选 CAS、汇率结果和审计关系边界。
  */
 class SettlementPersistenceMapperContractTest {
 
@@ -45,7 +39,9 @@ class SettlementPersistenceMapperContractTest {
             SettlementFundMapper.class,
             SettlementReserveMapper.class);
 
-    /** 自动处理只读取自动档案；自动预审候选页必须稳定且不碰已被占用的候选。 */
+    /**
+     * 自动处理只读取自动档案；自动预审候选页必须稳定且不碰已被占用的候选。
+     */
     @Test
     void automaticProfileQueriesShouldRespectProcessingModeAndCandidateOwnership() {
         String groups = sql(methodNamed(MerchantSettlementProfileMapper.class, "selectReadyBatchGroups"));
@@ -76,6 +72,8 @@ class SettlementPersistenceMapperContractTest {
                 "candidate.review_order_no IS NULL",
                 "candidate.settlement_eligible_date <= #{businessDate}",
                 "candidate.create_time < #{cutoffEndTime}",
+                "LEFT JOIN settlement_candidate required_candidate",
+                "required_candidate.id IS NULL",
                 "required_candidate.candidate_status != 'POSTED'",
                 "ORDER BY candidate.id ASC",
                 "LIMIT 1",
@@ -88,7 +86,9 @@ class SettlementPersistenceMapperContractTest {
                 "candidate_status = 'READY'", "review_order_no IS NULL", "version = #{row.version}");
     }
 
-    /** 所有注解 SQL 必须使用绑定参数，禁止字符串插值。 */
+    /**
+     * 所有注解 SQL 必须使用绑定参数，禁止字符串插值。
+     */
     @Test
     void allSqlShouldUseBoundParameters() {
         MAPPER_TYPES.stream()
@@ -98,7 +98,9 @@ class SettlementPersistenceMapperContractTest {
                 .forEach(value -> assertThat(value).doesNotContain("${"));
     }
 
-    /** 真实调用 MyBatis 注解解析器，避免动态 script 结构错误只在服务启动时暴露。 */
+    /**
+     * 真实调用 MyBatis 注解解析器，避免动态 script 结构错误只在服务启动时暴露。
+     */
     @Test
     void allMapperAnnotationsShouldParseWithMyBatis() {
         Configuration configuration = new Configuration();
@@ -106,7 +108,9 @@ class SettlementPersistenceMapperContractTest {
         assertThat(configuration.getMappedStatementNames()).isNotEmpty();
     }
 
-    /** 日序列必须锁行并同时使用当前序号和版本 CAS，禁止 JVM 或 Redis 单独发号。 */
+    /**
+     * 日序列必须锁行并同时使用当前序号和版本 CAS，禁止 JVM 或 Redis 单独发号。
+     */
     @Test
     void dailySequenceShouldUseRowLockAndVersionCas() {
         String lock = sql(methodNamed(SettlementBatchDailySequenceMapper.class, "selectForUpdate"));
@@ -121,7 +125,9 @@ class SettlementPersistenceMapperContractTest {
                 "version = version + 1");
     }
 
-    /** 批次请求键必须唯一回读，候选总数和真实交易投影数必须在同一版本 CAS 中增加。 */
+    /**
+     * 批次请求键必须唯一回读，候选总数和真实交易投影数必须在同一版本 CAS 中增加。
+     */
     @Test
     void batchShouldKeepCreateIdempotencyAndCountCas() {
         String insert = sql(methodNamed(SettlementBatchMapper.class, "insertIdempotent"));
@@ -144,7 +150,9 @@ class SettlementPersistenceMapperContractTest {
                 "version = #{expectedVersion}");
     }
 
-    /** 正式批次取消必须由状态/version CAS 与只追加审计唯一键共同保护。 */
+    /**
+     * 正式批次取消必须由状态/version CAS 与只追加审计唯一键共同保护。
+     */
     @Test
     void cancellationShouldUseStateCasAndImmutableAudit() {
         assertThat(sql(methodNamed(SettlementBatchMapper.class, "cancelBeforePosting"))).contains(
@@ -164,7 +172,9 @@ class SettlementPersistenceMapperContractTest {
                 "operator_role_snapshot", "released_candidate_count");
     }
 
-    /** 人工恢复只允许汇率锁定重试耗尽状态，并由 version CAS、请求唯一键和全量候选恢复保护。 */
+    /**
+     * 人工恢复只允许汇率锁定重试耗尽状态，并由 version CAS、请求唯一键和全量候选恢复保护。
+     */
     @Test
     void recoveryShouldUseNarrowStateCasAndImmutableAudit() {
         assertThat(sql(methodNamed(SettlementBatchMapper.class, "retryExhaustedRateLocking"))).contains(
@@ -194,7 +204,9 @@ class SettlementPersistenceMapperContractTest {
                         "failure_stage_before", "restored_candidate_count", "operator_role_snapshot");
     }
 
-    /** 分段决策任务恢复必须保留进度，并以失败状态、版本和只追加审计共同保护。 */
+    /**
+     * 分段决策任务恢复必须保留进度，并以失败状态、版本和只追加审计共同保护。
+     */
     @Test
     void reviewDecisionRecoveryShouldUseStateCasAndImmutableAudit() {
         assertThat(sql(methodNamed(SettlementReviewDecisionTaskMapper.class, "resumeFailed")))
@@ -213,7 +225,9 @@ class SettlementPersistenceMapperContractTest {
                         "ON DUPLICATE KEY UPDATE id = id");
     }
 
-    /** 预审创建、终态决策和候选占用必须由唯一键及当前状态/version CAS 共同保护。 */
+    /**
+     * 预审创建、终态决策和候选占用必须由唯一键及当前状态/version CAS 共同保护。
+     */
     @Test
     void reviewMappersShouldProtectIdempotencyAndStateTransitions() {
         assertThat(sql(methodNamed(SettlementReviewOrderMapper.class, "insertIdempotent")))
@@ -240,7 +254,9 @@ class SettlementPersistenceMapperContractTest {
                 .contains("review_rate_id", "ON DUPLICATE KEY UPDATE id = id");
     }
 
-    /** 大批量人工预审必须冻结高水位并按游标分段处理，决策任务同样按分段租约恢复。 */
+    /**
+     * 大批量人工预审必须冻结高水位并按游标分段处理，决策任务同样按分段租约恢复。
+     */
     @Test
     void asynchronousReviewMappersShouldFreezeScopeAndResumeBySegment() {
         String profile = sql(methodNamed(SettlementManualReviewTaskMapper.class, "selectProfile"));
@@ -326,7 +342,9 @@ class SettlementPersistenceMapperContractTest {
                 "segment_status = 'LOCKED'", "version = #{version}");
     }
 
-    /** 保证金异步预审只允许已到期 RELEASE，并按原保证金币种汇总且不生成交易投影。 */
+    /**
+     * 保证金异步预审只允许已到期 RELEASE，并按原保证金币种汇总且不生成交易投影。
+     */
     @Test
     void reserveManualReviewShouldUseMaturedReleaseFactsAndOriginalCurrency() {
         String snapshotMaxCandidate = sql(methodNamed(
@@ -374,7 +392,9 @@ class SettlementPersistenceMapperContractTest {
         assertThat(currencies).containsOnlyOnce("<script>");
     }
 
-    /** 候选认领 SQL 必须同时保护状态、批次空值、真实模式、冻结配置和版本。 */
+    /**
+     * 候选认领 SQL 必须同时保护状态、批次空值、真实模式、冻结配置和版本。
+     */
     @Test
     void candidateClaimShouldUseAllFinancialCasGuards() {
         String claim = sql(methodNamed(SettlementCandidateMapper.class, "claim"));
@@ -398,11 +418,15 @@ class SettlementPersistenceMapperContractTest {
                 "version = version + 1");
         assertThat(dependencies).contains(
                 "settlement_candidate_dependency",
+                "LEFT JOIN settlement_candidate required_candidate",
+                "required_candidate.id IS NULL",
                 "required_candidate.candidate_status = 'POSTED'",
                 "required_candidate.settlement_batch_no = #{settlementBatchNo}");
     }
 
-    /** 关系 Mapper 禁止删除；Phase B 只允许带 CLAIMED 条件迁移到人工复核。 */
+    /**
+     * 关系 Mapper 禁止删除；Phase B 只允许带 CLAIMED 条件迁移到人工复核。
+     */
     @Test
     void relationMapperShouldRemainAppendOnly() {
         assertThat(SettlementBatchCandidateMapper.class.getDeclaredMethods())
@@ -416,7 +440,9 @@ class SettlementPersistenceMapperContractTest {
                         "settlement_batch_no = #{settlementBatchNo}");
     }
 
-    /** 每个批量清分 locator 必须同时携带交易号、精确分片时间和清分修订号。 */
+    /**
+     * 每个批量清分 locator 必须同时携带交易号、精确分片时间和清分修订号。
+     */
     @Test
     void clearingFactReadsShouldUseExactRevisionLocatorsWithoutNPlusOne() {
         for (String method : List.of("selectTransactionDetails", "selectReserveDetails")) {
@@ -429,7 +455,9 @@ class SettlementPersistenceMapperContractTest {
         }
     }
 
-    /** 汇率和结果 Mapper 只能追加或读取，重试必须通过唯一键冲突后回读身份。 */
+    /**
+     * 汇率和结果 Mapper 只能追加或读取，重试必须通过唯一键冲突后回读身份。
+     */
     @Test
     void rateAndResultMappersShouldRemainImmutableAndIdempotent() {
         for (Class<?> type : List.of(SettlementBatchRateMapper.class, SettlementResultMapper.class)) {
@@ -444,7 +472,9 @@ class SettlementPersistenceMapperContractTest {
                 .doesNotContain("LEDGER_POSTING");
     }
 
-    /** 汇率锁定和计算终点必须同时受当前状态、租约所有者、截止时间和 version CAS 保护。 */
+    /**
+     * 汇率锁定和计算终点必须同时受当前状态、租约所有者、截止时间和 version CAS 保护。
+     */
     @Test
     void phaseBTransitionsShouldUseLeaseAndVersionCas() {
         String rateLocked = sql(methodNamed(SettlementBatchMapper.class, "markRateLocked"));
@@ -462,7 +492,9 @@ class SettlementPersistenceMapperContractTest {
                 "processing_owner = NULL", "version = #{expectedVersion}");
     }
 
-    /** 保证金全部消费和冲正 CAS 必须使用包含调整累计的统一剩余责任公式。 */
+    /**
+     * 保证金全部消费和冲正 CAS 必须使用包含调整累计的统一剩余责任公式。
+     */
     @Test
     void reserveMutationsShouldUseAdjustmentAwareResponsibilityCas() {
         for (String method : List.of("applyReturn", "applyRelease", "reverseHold", "applyCreditAdjustment",
@@ -477,7 +509,9 @@ class SettlementPersistenceMapperContractTest {
         }
     }
 
-    /** MySQL 单表 UPDATE 从左到右求值，终态必须在累计金额变更前基于旧值计算。 */
+    /**
+     * MySQL 单表 UPDATE 从左到右求值，终态必须在累计金额变更前基于旧值计算。
+     */
     @Test
     void reserveTerminalStatusShouldBeAssignedBeforeCumulativeAmount() {
         assertStatusBeforeAmount("applyReturn", "returned_amount = returned_amount + #{amount}");
@@ -485,7 +519,9 @@ class SettlementPersistenceMapperContractTest {
         assertStatusBeforeAmount("reverseHold", "reversed_amount = reversed_amount + #{amount}");
     }
 
-    /** 所有结算余额 CAS 都必须再次校验正常账户，防止冻结账户执行结算或主动冲正。 */
+    /**
+     * 所有结算余额 CAS 都必须再次校验正常账户，防止冻结账户执行结算或主动冲正。
+     */
     @Test
     void fundBalanceCasShouldRequireNormalAccount() {
         assertThat(sql(methodNamed(SettlementFundMapper.class, "updateAccountBalance"))).contains(

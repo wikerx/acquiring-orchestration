@@ -7,13 +7,7 @@ import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundSearc
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRefundQueryService
- * @date : 2026-08-08 00:10
- * @email : scott_x@163.com
- * @description : 商户端退款只读查询服务，在 service-merchant 内按认证商户边界读取退款分页、统计和详情，不执行资金状态变更。
- * @status : create
+ * 商户端退款只读查询服务，在 service-merchant 内按认证商户边界读取退款分页、统计和详情，不执行资金状态变更。
  */
 public interface MerchantRefundQueryService {
 

@@ -14,7 +14,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 验证响应式滑动窗口在 Redis 故障时不会绕过配置的故障策略。 */
+/**
+ * 验证响应式滑动窗口在 Redis 故障时不会绕过配置的故障策略。
+ */
 class ReactiveRedisSlidingWindowRateLimiterTests {
 
     @Test

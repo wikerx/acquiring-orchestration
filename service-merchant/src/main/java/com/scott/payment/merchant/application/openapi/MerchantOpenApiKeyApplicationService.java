@@ -16,24 +16,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiKeyApplicationService
- * @date : 2026-08-01 13:00
- * @email : scott_x@163.com
- * @description : 商户门户 OpenAPI 密钥用例编排，统一读写数据源并将密钥轮换与共享商户缓存失效绑定到同一事务
- * @status : create
+ * 商户门户 OpenAPI 密钥用例编排，统一读写数据源并将密钥轮换与共享商户缓存失效绑定到同一事务
  */
 @Service
 public class MerchantOpenApiKeyApplicationService {
 
-    /** 密钥材料查询、导出和持久化领域能力；密钥明文不会写入 Redis。 */
+    /**
+     * 密钥材料查询、导出和持久化领域能力；密钥明文不会写入 Redis。
+     */
     private final OpenApiMerchantKeyMaterialService keyMaterialService;
 
-    /** Admin 与 Merchant Portal 共用的事务缓存失效协调器。 */
+    /**
+     * Admin 与 Merchant Portal 共用的事务缓存失效协调器。
+     */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** 密钥生命周期邮件通知。 */
+    /**
+     * 密钥生命周期邮件通知。
+     */
     private final MerchantOpenApiKeyNotificationService notificationService;
 
     /**

@@ -7,7 +7,9 @@ import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证 Gateway 下游 HTTP 超时缺失、非法或超过平台上限时失败关闭。 */
+/**
+ * 验证 Gateway 下游 HTTP 超时缺失、非法或超过平台上限时失败关闭。
+ */
 class GatewayHttpClientTimeoutPolicyTests {
 
     @Test

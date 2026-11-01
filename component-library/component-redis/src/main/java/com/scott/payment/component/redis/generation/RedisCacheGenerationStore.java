@@ -13,13 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisCacheGenerationStore
- * @date : 2026-07-30 11:12
- * @email : scott_x@163.com
- * @description : Redis 缓存代际基础存储，原子协调当前代际与发布门禁，不承载具体业务规则
- * @status : create
+ * Redis 缓存代际基础存储，原子协调当前代际与发布门禁，不承载具体业务规则
  */
 @Service
 public class RedisCacheGenerationStore {

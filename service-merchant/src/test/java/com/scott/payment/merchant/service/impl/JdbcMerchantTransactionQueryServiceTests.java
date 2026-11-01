@@ -36,17 +36,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantTransactionQueryServiceTests
- * @date : 2026-09-01 23:20
- * @email : scott_x@163.com
- * @description : 验证商户交易查询、导出分页和展示富化始终绑定可信商户身份
- * @status : create
+ * 验证商户交易查询、导出分页和展示富化始终绑定可信商户身份
  */
 class JdbcMerchantTransactionQueryServiceTests {
 
-    /** F 类描述故障来源而非交易终态，商户筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。 */
+    /**
+     * F 类描述故障来源而非交易终态，商户筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。
+     */
     @Test
     void merchantResponseCodeFilterShouldNotInferStatusFromFailureOriginCode() {
         JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(
@@ -62,7 +58,9 @@ class JdbcMerchantTransactionQueryServiceTests {
                 service, "resolveStatusByMerchantResponseCode", "T0003")).isEqualTo("FAILED");
     }
 
-    /** 商户端支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。 */
+    /**
+     * 商户端支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationSummaryShouldAggregateLabelAmountsWithLabelCurrencyExponent() throws Exception {
@@ -127,7 +125,9 @@ class JdbcMerchantTransactionQueryServiceTests {
         return resultSet;
     }
 
-    /** 商户 3DS 富化必须批量回退，并在两类查询中绑定当前商户。 */
+    /**
+     * 商户 3DS 富化必须批量回退，并在两类查询中绑定当前商户。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void threeDsEnrichmentShouldKeepMerchantBoundaryAndCheckoutFallback() {
@@ -345,7 +345,9 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(lifecycleIndexes).hasSize(1);
     }
 
-    /** 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。 */
+    /**
+     * 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationMapperShouldUsePersistedHostedCheckoutSource() throws Exception {
@@ -361,7 +363,9 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(row.getAccessType()).isEqualTo("HOSTED_CHECKOUT");
     }
 
-    /** 商户查询只返回商户安全文案，不得暴露管理端可见的渠道码、渠道名或参考号。 */
+    /**
+     * 商户查询只返回商户安全文案，不得暴露管理端可见的渠道码、渠道名或参考号。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void operationMapperShouldExposeOnlyMerchantAudienceMessage() throws Exception {
@@ -449,7 +453,9 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(amount).isEqualByComparingTo("28.50");
     }
 
-    /** 商户失败详情必须使用英文安全兜底，不能暴露平台持久化的内部风控原因。 */
+    /**
+     * 商户失败详情必须使用英文安全兜底，不能暴露平台持久化的内部风控原因。
+     */
     @Test
     void shouldNotExposePersistedRiskMessageToMerchant() {
         String message = JdbcMerchantTransactionQueryService.resolveMerchantResponseMessage(
@@ -460,7 +466,9 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(message).isEqualTo("The transaction did not complete. Check the details or contact support.");
     }
 
-    /** 渠道执行 token 只用于平台诊断，商户查询必须替换为英文安全兜底。 */
+    /**
+     * 渠道执行 token 只用于平台诊断，商户查询必须替换为英文安全兜底。
+     */
     @Test
     void shouldReplaceInternalChannelFailureTokenWithCanonicalDeclineMessage() {
         String message = JdbcMerchantTransactionQueryService.resolveMerchantResponseMessage(

@@ -27,7 +27,9 @@ public record OpenApiErrorContext(OpenApiResultPhase phase,
                                   Map<String, String> messageParameters,
                                   OpenApiResultEvidence evidence) {
 
-    /** 防止调用方在异常创建后修改模板参数，造成日志与响应投影不一致。 */
+    /**
+     * 防止调用方在异常创建后修改模板参数，造成日志与响应投影不一致。
+     */
     public OpenApiErrorContext {
         messageParameters = messageParameters == null ? Map.of() : Map.copyOf(messageParameters);
     }

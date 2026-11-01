@@ -42,13 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorCacheApplicationServiceTests
- * @date : 2026-07-30 00:00
- * @email : scott_x@163.com
- * @description : Redis 缓存监控应用服务测试，验证 SCAN、系统参数命名空间、元数据只读和分页上限。
- * @status : create
+ * Redis 缓存监控应用服务测试，验证 SCAN、系统参数命名空间、元数据只读和分页上限。
  */
 @Slf4j
 class AdminMonitorCacheApplicationServiceTests {
@@ -298,12 +292,14 @@ class AdminMonitorCacheApplicationServiceTests {
         log.info("测试单节点 Redis SCAN，关键输入: 两个配置 Key 与独立 pending Key");
         StringRedisTemplate template = mock(StringRedisTemplate.class);
         RedisConnection connection = mock(RedisConnection.class);
+        RedisKeyCommands keyCommands = mock(RedisKeyCommands.class);
         Cursor<byte[]> cursor = cursor(List.of(
                 MANAGED_PREFIX + "platform.gateway.base-url",
                 CACHE_PREFIX + "system:configPending:config-key-digest",
                 MANAGED_PREFIX + "system.name"
         ));
-        when(connection.scan(any(ScanOptions.class))).thenReturn(cursor);
+        when(connection.keyCommands()).thenReturn(keyCommands);
+        when(keyCommands.scan(any(ScanOptions.class))).thenReturn(cursor);
         when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
                 .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
         when(template.type(anyString())).thenReturn(DataType.STRING);
@@ -317,7 +313,7 @@ class AdminMonitorCacheApplicationServiceTests {
         Map<String, Object> result = service.keys(null, 1, 10);
 
         assertThat(result).containsEntry("total", 2).containsEntry("truncated", false);
-        verify(connection).scan(any(ScanOptions.class));
+        verify(keyCommands).scan(any(ScanOptions.class));
         verify(template, never()).keys(anyString());
         verify(cursor).close();
         log.info("单节点 Redis SCAN 测试完成，结果: 返回配置数据且不包含 pending Key");

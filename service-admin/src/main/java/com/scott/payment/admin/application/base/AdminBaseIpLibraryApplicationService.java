@@ -30,31 +30,17 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseIpLibraryApplicationService
- * @date : 2026-07-05 00:34
- * @email : scott_x@163.com
- * @description : admin基础iplibrary应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
- * @status : create
+ * 管理端 IP 地址库应用服务，用于运营后台，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  */
 @Service
 public class AdminBaseIpLibraryApplicationService {
 
     /**
      * {@code IPV4}常量，统一 {@code AdminBaseIpLibraryApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String IPV4 = "IPV4";
     /**
      * {@code IPV6}常量，统一 {@code AdminBaseIpLibraryApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String IPV6 = "IPV6";
     /**
@@ -195,6 +181,9 @@ public class AdminBaseIpLibraryApplicationService {
         }
     }
 
+    /**
+     * 计算 IP 地址区间覆盖的分片集合。
+     */
     private List<IpLibraryEntities.IpLibrarySplitModelDO> routeShards(String ipType, String ipNumber) {
         List<IpLibraryEntities.IpLibrarySplitModelDO> shards = splitModelMapper.selectList(
                 Wrappers.<IpLibraryEntities.IpLibrarySplitModelDO>lambdaQuery()
@@ -211,10 +200,16 @@ public class AdminBaseIpLibraryApplicationService {
                 .toList();
     }
 
+    /**
+     * 构建 IP 地址区间查询条件。
+     */
     private boolean between(BigInteger current, String start, String end) {
         return current.compareTo(new BigInteger(start)) >= 0 && current.compareTo(new BigInteger(end)) <= 0;
     }
 
+    /**
+     * 规范化并校验 IP 地址类型。
+     */
     private String normalizeIpType(String ipType, String ipAddress) {
         String normalized = trimToNull(ipType);
         if (normalized != null) {
@@ -230,6 +225,9 @@ public class AdminBaseIpLibraryApplicationService {
         return IPV4;
     }
 
+    /**
+     * 校验并返回允许访问的物理分片表名。
+     */
     private String checkedTableName(String tableName) {
         if (!ALLOWED_TABLES.contains(tableName)) {
             throw badRequest("IP 库分片表未在白名单中");
@@ -237,11 +235,17 @@ public class AdminBaseIpLibraryApplicationService {
         return tableName;
     }
 
+    /**
+     * 获取分片记录的数据版本，缺失时拒绝继续处理。
+     */
     private String requiredVersion(IpLibraryEntities.IpLibrarySplitModelDO shard) {
         return Optional.ofNullable(trimToNull(shard.getDataVersion()))
                 .orElseThrow(() -> badRequest("IP 库分片缺少生效版本"));
     }
 
+    /**
+     * 将 IP 地址库持久化记录转换为管理端响应。
+     */
     private IpLibraryDTOs.IpLibraryRecordResponse toResponse(IpLibraryEntities.IpLibraryDataRow row, String ipType) {
         IpLibraryDTOs.IpLibraryRecordResponse response = new IpLibraryDTOs.IpLibraryRecordResponse();
         response.setId(row.getId());
@@ -262,7 +266,9 @@ public class AdminBaseIpLibraryApplicationService {
         return response;
     }
 
-    /** 将公共缓存详情转换为管理端响应，并保留区间与审计字段。 */
+    /**
+     * 将公共缓存详情转换为管理端响应，并保留区间与审计字段。
+     */
     private IpLibraryDTOs.IpLibraryRecordResponse toResponse(IpLookupDetail detail) {
         if (detail == null || detail.result() == null) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
@@ -287,6 +293,9 @@ public class AdminBaseIpLibraryApplicationService {
         return response;
     }
 
+    /**
+     * 将无符号整数转换为 IP 地址文本。
+     */
     private String numberToIp(String value, String ipType) {
         BigInteger number = new BigInteger(value);
         int length = IPV4.equals(ipType) ? 4 : 16;
@@ -301,6 +310,9 @@ public class AdminBaseIpLibraryApplicationService {
         }
     }
 
+    /**
+     * 校验 IP 地址文本与地址类型一致。
+     */
     private void validateIpLiteral(String ipAddress, String ipType) {
         if (IPV4.equals(ipType)) {
             String[] segments = ipAddress.split("\\.", -1);
@@ -323,6 +335,9 @@ public class AdminBaseIpLibraryApplicationService {
         }
     }
 
+    /**
+     * 去除文本首尾空白并把空串转换为 null。
+     */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -330,6 +345,9 @@ public class AdminBaseIpLibraryApplicationService {
         return value.trim();
     }
 
+    /**
+     * 构建参数校验失败异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);
     }

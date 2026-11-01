@@ -17,21 +17,22 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CheckoutCardVaultPersistenceService
- * @date : 2026-08-08 18:00
- * @email : scott_x@163.com
- * @description : 卡资料库事务写入服务，以消息号和商户交易号唯一约束承担 MQ 最终幂等。
- * @status : create
+ * 加密并持久化 checkout 卡资料，以数据库唯一约束承担 MQ 最终幂等。
+ *
+ * <p>重复键只有在消息号、商户、交易、checkout 尝试和分片时间全部一致时才按幂等成功处理；
+ * 任一身份字段冲突都失败关闭，避免另一笔交易复用已存在的卡资料记录。</p>
  */
 @Service
 @ConditionalOnProperty(prefix = "data.card-vault", name = "enabled", havingValue = "true")
 public class CheckoutCardVaultPersistenceService {
 
-    /** 卡资料库 Mapper。 */
+    /**
+     * 卡资料库 Mapper。
+     */
     private final DataCheckoutCardVaultMapper mapper;
-    /** 字段级信封加密服务。 */
+    /**
+     * 字段级信封加密服务。
+     */
     private final DataCardVaultCryptoService cryptoService;
 
     /**
@@ -64,16 +65,25 @@ public class CheckoutCardVaultPersistenceService {
             }
             return true;
         } catch (DuplicateKeyException exception) {
-            DataCheckoutCardVaultDO existing = mapper.selectIdentity(
-                    message.getMessageId(), message.getMerchantId(), message.getTransactionId(),
+            DataCheckoutCardVaultDO messageIdentity = mapper.selectIdentityByMessageId(
+                    message.getMessageId(), message.getTransactionDateTime());
+            DataCheckoutCardVaultDO transactionIdentity = mapper.selectIdentityByMerchantTransaction(
+                    message.getMerchantId(), message.getTransactionId(),
                     message.getTransactionDateTime());
-            if (sameIdentity(existing, message)) {
+            if (allConflictingIdentitiesMatch(messageIdentity, transactionIdentity, message)) {
                 return false;
             }
             throw new IllegalStateException("card vault idempotency key conflicts with another transaction", exception);
         }
     }
 
+    /**
+     * 将传输明文转换为只包含必要展示字段和加密列的持久化记录。
+     *
+     * @param message 卡资料消息元数据
+     * @param plaintext 已校验且不含 CVV 的卡资料
+     * @return 待插入卡资料记录
+     */
     private DataCheckoutCardVaultDO buildRecord(
             CheckoutCardVaultStoreMessage message,
             DataCheckoutCardVaultTransferService.CardVaultPlaintext plaintext) {
@@ -106,18 +116,36 @@ public class CheckoutCardVaultPersistenceService {
         return record;
     }
 
+    /**
+     * 填充 PAN 的分离 GCM 密文列。
+     *
+     * @param record 目标持久化记录
+     * @param value PAN 字段信封
+     */
     private void applyPan(DataCheckoutCardVaultDO record, DataCardVaultCryptoService.FieldEnvelope value) {
         record.setPanCiphertext(value.ciphertext());
         record.setPanIv(value.iv());
         record.setPanAuthTag(value.authTag());
     }
 
+    /**
+     * 填充有效期的分离 GCM 密文列。
+     *
+     * @param record 目标持久化记录
+     * @param value 有效期字段信封
+     */
     private void applyExpiration(DataCheckoutCardVaultDO record, DataCardVaultCryptoService.FieldEnvelope value) {
         record.setExpirationCiphertext(value.ciphertext());
         record.setExpirationIv(value.iv());
         record.setExpirationAuthTag(value.authTag());
     }
 
+    /**
+     * 在商户提供持卡人姓名时填充分离 GCM 密文列。
+     *
+     * @param record 目标持久化记录
+     * @param value 持卡人姓名字段信封；未提供时为空
+     */
     private void applyCardholder(DataCheckoutCardVaultDO record, DataCardVaultCryptoService.FieldEnvelope value) {
         if (value == null) {
             return;
@@ -127,6 +155,13 @@ public class CheckoutCardVaultPersistenceService {
         record.setCardholderNameAuthTag(value.authTag());
     }
 
+    /**
+     * 判断唯一键命中的历史记录是否确为同一条业务消息。
+     *
+     * @param existing 数据库已有身份投影
+     * @param message 当前 MQ 消息
+     * @return true 表示可以按幂等重复确认
+     */
     private boolean sameIdentity(DataCheckoutCardVaultDO existing, CheckoutCardVaultStoreMessage message) {
         return existing != null
                 && Objects.equals(existing.getMessageId(), message.getMessageId())
@@ -134,5 +169,24 @@ public class CheckoutCardVaultPersistenceService {
                 && Objects.equals(existing.getCheckoutAttemptId(), message.getCheckoutAttemptId())
                 && Objects.equals(existing.getTransactionId(), message.getTransactionId())
                 && Objects.equals(existing.getTransactionDateTime(), message.getTransactionDateTime());
+    }
+
+    /**
+     * 要求两个业务唯一键命中的全部记录都与当前消息身份一致。
+     *
+     * <p>消息号和商户交易号可能分别命中不同记录；只检查任意一条会把交叉唯一键冲突误判为幂等。</p>
+     *
+     * @param messageIdentity 消息号唯一键命中的记录
+     * @param transactionIdentity 商户交易唯一键命中的记录
+     * @param message 当前 MQ 消息
+     * @return true 表示至少命中一条记录且所有命中记录均完整一致
+     */
+    private boolean allConflictingIdentitiesMatch(DataCheckoutCardVaultDO messageIdentity,
+                                                  DataCheckoutCardVaultDO transactionIdentity,
+                                                  CheckoutCardVaultStoreMessage message) {
+        boolean conflictFound = messageIdentity != null || transactionIdentity != null;
+        boolean messageKeyMatches = messageIdentity == null || sameIdentity(messageIdentity, message);
+        boolean transactionKeyMatches = transactionIdentity == null || sameIdentity(transactionIdentity, message);
+        return conflictFound && messageKeyMatches && transactionKeyMatches;
     }
 }

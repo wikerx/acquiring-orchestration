@@ -6,13 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : VerificationAndProcessing
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 开放接口验签与处理标识注解
- * @status : create
+ * 开放接口验签与处理标识注解
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

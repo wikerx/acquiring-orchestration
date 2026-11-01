@@ -13,19 +13,17 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConfigurationSnapshotModels
- * @date : 2026-08-25 23:45
- * @email : scott_x@163.com
- * @description : 定义交易动作受理时冻结的不可变费用版本契约，固定百分比标签币种与 USD 固定费/上下限口径，不包含汇率、数据库或缓存访问。
- * @status : create
+ * 定义交易动作受理时冻结的不可变费用版本契约，固定百分比标签币种与 USD 固定费/上下限口径，不包含汇率、数据库或缓存访问。
  */
 public final class FeeConfigurationSnapshotModels {
 
-    /** 当前可生产清分的费用快照结构版本。 */
+    /**
+     * 当前可生产清分的费用快照结构版本。
+     */
     public static final int CURRENT_SCHEMA_VERSION = 5;
-    /** 最低可回放历史费用快照版本。 */
+    /**
+     * 最低可回放历史费用快照版本。
+     */
     public static final int MIN_SUPPORTED_SCHEMA_VERSION = 3;
 
     /**
@@ -51,17 +49,23 @@ public final class FeeConfigurationSnapshotModels {
     private FeeConfigurationSnapshotModels() {
     }
 
-    /** 百分比费用计算基数；一期只允许动作标签金额。 */
+    /**
+     * 百分比费用计算基数；一期只允许动作标签金额。
+     */
     public enum PercentageBasis {
         LABEL_AMOUNT
     }
 
-    /** 商户费用配置的固定币种口径，不是可由 Admin 修改的配置项。 */
+    /**
+     * 商户费用配置的固定币种口径，不是可由 Admin 修改的配置项。
+     */
     public enum FeeCurrencyPolicy {
         LABEL_PERCENTAGE_USD_FIXED_LIMITS
     }
 
-    /** 退款时原交易手续费返还策略。 */
+    /**
+     * 退款时原交易手续费返还策略。
+     */
     public enum RefundFeeReturnPolicy {
         /**
          * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
@@ -80,12 +84,16 @@ public final class FeeConfigurationSnapshotModels {
         PROPORTIONAL
     }
 
-    /** 保证金计算基数；一期只允许原支付标签金额。 */
+    /**
+     * 保证金计算基数；一期只允许原支付标签金额。
+     */
     public enum ReserveBasis {
         LABEL_AMOUNT
     }
 
-    /** 退款保证金处理策略；一期按原支付比例返还。 */
+    /**
+     * 退款保证金处理策略；一期按原支付比例返还。
+     */
     public enum ReserveRefundPolicy {
         PROPORTIONAL_RETURN
     }
@@ -160,7 +168,9 @@ public final class FeeConfigurationSnapshotModels {
             Objects.requireNonNull(frequencyAnchorDate, "settlement frequency anchor date is required");
         }
 
-        /** 仅用于回放 schema v3；历史行为是交易日立即可结算。 */
+        /**
+         * 仅用于回放 schema v3；历史行为是交易日立即可结算。
+         */
         public static SettlementPolicySnapshot legacyImmediate(LocalDate anchorDate) {
             return new SettlementPolicySnapshot("D", 0, 0, "DAILY", null, anchorDate);
         }
@@ -280,7 +290,9 @@ public final class FeeConfigurationSnapshotModels {
             }
         }
 
-        /** 兼容仅关注费用计算的既有调用方；新生产快照必须显式传入结算周期。 */
+        /**
+         * 兼容仅关注费用计算的既有调用方；新生产快照必须显式传入结算周期。
+         */
         public FeeVersionSnapshot(int schemaVersion,
                                   String merchantId,
                                   Long feePlanId,

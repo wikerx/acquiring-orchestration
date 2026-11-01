@@ -13,13 +13,7 @@ import java.security.PublicKey;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityService
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 商户安全材料服务
- * @status : create
+ * OpenAPI 商户安全材料服务
  */
 public interface MerchantSecurityService extends MerchantKeyProvider, OpenApiPayloadKeyProvider {
 

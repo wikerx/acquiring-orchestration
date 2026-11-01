@@ -16,13 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperationLogMqAutoConfig
- * @date : 2026-06-20 01:32
- * @email : scott_x@163.com
- * @description : 操作日志 MQ 自动配置入口
- * @status : create
+ * 操作日志 MQ 自动配置入口
  */
 @Configuration
 @EnableConfigurationProperties({

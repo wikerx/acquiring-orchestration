@@ -17,13 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSettlementQueryService
- * @date : 2026-09-01 22:35
- * @email : scott_x@163.com
- * @description : service-merchant 基于本地交易逻辑数据源查询结算账单与逐笔明细的只读边界；每个方法都必须强制携带认证商户号。
- * @status : update
+ * service-merchant 基于本地交易逻辑数据源查询结算账单与逐笔明细的只读边界；每个方法都必须强制携带认证商户号。
  */
 public interface MerchantSettlementQueryService {
 
@@ -45,10 +39,14 @@ public interface MerchantSettlementQueryService {
      */
     BatchDetail getBatch(String merchantId, String settlementBatchNo);
 
-    /** @return 当前认证商户指定批次的完整凭证快照 */
+    /**
+     * @return 当前认证商户指定批次的完整凭证快照
+     */
     BatchDetail getVoucher(String merchantId, String settlementBatchNo);
 
-    /** @return 当前认证商户指定批次的结算汇总标准分页 */
+    /**
+     * @return 当前认证商户指定批次的结算汇总标准分页
+     */
     PageResult<SummaryLine> searchResultSummaries(String merchantId,
                                                   String settlementBatchNo,
                                                   Integer pageNo,
@@ -63,7 +61,9 @@ public interface MerchantSettlementQueryService {
      */
     PageResult<TransactionSettlement> searchTransactionItems(String merchantId, TransactionItemQuery query);
 
-    /** 分页读取当前商户正式批次内一笔交易的结算财务组件。 */
+    /**
+     * 分页读取当前商户正式批次内一笔交易的结算财务组件。
+     */
     PageResult<TransactionItem> searchTransactionComponents(String merchantId,
                                                             String settlementBatchNo,
                                                             String transactionId,

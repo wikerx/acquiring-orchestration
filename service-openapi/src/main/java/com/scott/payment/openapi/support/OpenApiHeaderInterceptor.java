@@ -23,13 +23,7 @@ import java.security.PublicKey;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiHeaderInterceptor
- * @date : 2026-05-28 16:17
- * @email : scott_x@163.com
- * @description : Open API Header Interceptor 拦截组件，位于 商户开放接口服务，处理请求链路中的 traceId、鉴权、来源信息、上下文绑定或安全校验。
- * @status : create
+ * 在商户业务控制器前完成 JWT、IP 白名单、限流、防重放和响应公钥预检。
  */
 @Component
 @Slf4j
@@ -40,7 +34,9 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
      */
     private final OpenApiRequestHeaderExtractor headerExtractor;
 
-    /** 商户安全材料服务，用于在执行业务前确认响应一定可以加密。 */
+    /**
+     * 商户安全材料服务，用于在执行业务前确认响应一定可以加密。
+     */
     private final MerchantSecurityService merchantSecurityService;
 
     /**
@@ -87,6 +83,13 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         request.setAttribute(OpenApiRequestAttributes.REQUEST_START_NANOS, startNanos);
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, apiVersion(request.getRequestURI()));
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, interfaceType(request.getRequestURI()));
+        log.info("OpenAPI请求进入, event: OPENAPI_REQUEST_ENTER, stage: ACCEPT, traceId: {}, method: {}, path: {}, queryKeys: {}, apiVersion: {}, interfaceType: {}",
+                TraceContext.getOrCreateTraceId(),
+                request.getMethod(),
+                request.getRequestURI(),
+                queryKeys(request),
+                request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE));
         OpenApiRequestHeaderDTO headerDTO = headerExtractor.extract(
                 request,
                 annotation.requiredHeaders()
@@ -128,8 +131,8 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
     /**
      * 在请求结束时输出 OpenAPI 全阶段闭环日志。
      * <p>
-     * 结束日志聚合请求头摘要、密文请求摘要、解密后明文摘要、响应明文摘要和响应密文摘要；
-     * Authorization、JWT、完整密文、卡号和安全码只允许以脱敏或摘要形式出现。
+     * 结束日志聚合请求头摘要、密文请求摘要、解密后对象元数据、响应对象元数据和响应密文摘要；
+     * Authorization、JWT、完整密文以及解密后的业务字段不得进入日志。
      * </p>
      *
      * @param request   HTTP 请求

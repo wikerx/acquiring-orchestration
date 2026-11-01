@@ -17,31 +17,35 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskCacheInvalidationRelayService
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控规则缓存失效事件发布服务。
- * @status : create
+ * 风控规则缓存失效事件发布服务。
  */
 @Slf4j
 @Service
 public class RiskCacheInvalidationRelayService {
 
-    /** generation 发布失败后的固定重试间隔，单位秒。 */
+    /**
+     * generation 发布失败后的固定重试间隔，单位秒。
+     */
     private static final long RETRY_DELAY_SECONDS = 5L;
 
-    /** 原发布凭证过期后重新申请的短期恢复门禁有效期。 */
+    /**
+     * 原发布凭证过期后重新申请的短期恢复门禁有效期。
+     */
     private static final Duration RECOVERY_GATE_TTL = Duration.ofSeconds(30);
 
-    /** 查询并以乐观锁更新风控缓存失效事件。 */
+    /**
+     * 查询并以乐观锁更新风控缓存失效事件。
+     */
     private final RiskCacheInvalidationOutboxMapper outboxMapper;
 
-    /** 负责 generation 发布凭证的申请、提交和回滚。 */
+    /**
+     * 负责 generation 发布凭证的申请、提交和回滚。
+     */
     private final RedisCacheGenerationStore generationStore;
 
-    /** 风控缓存失效 Outbox 低基数指标记录器。 */
+    /**
+     * 风控缓存失效 Outbox 低基数指标记录器。
+     */
     private final CacheInvalidationOutboxMetrics metrics;
 
     /**

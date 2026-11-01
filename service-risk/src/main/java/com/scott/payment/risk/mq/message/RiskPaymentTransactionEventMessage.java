@@ -7,13 +7,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : RiskPaymentTransactionEventMessage
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 风控消费的支付交易生命周期事件最小投影。
- * @status : create
+ * 风控消费的支付交易生命周期事件最小投影。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

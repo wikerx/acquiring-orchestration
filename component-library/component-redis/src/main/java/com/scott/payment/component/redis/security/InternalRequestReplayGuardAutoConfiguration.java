@@ -11,13 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : InternalRequestReplayGuardAutoConfiguration
- * @date : 2026-08-20 23:50
- * @email : scott_x@163.com
- * @description : 在 Redis 基础设施可用时注册内部服务 HMAC nonce 防重放实现
- * @status : create
+ * 在 Redis 基础设施可用时注册内部服务 HMAC nonce 防重放实现
  */
 @AutoConfiguration(after = RedisAutoConfiguration.class)
 @EnableConfigurationProperties(PaymentRedisProperties.class)

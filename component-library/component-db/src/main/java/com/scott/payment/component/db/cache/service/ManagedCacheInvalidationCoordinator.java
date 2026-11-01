@@ -18,31 +18,35 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ManagedCacheInvalidationCoordinator
- * @date : 2026-08-01 12:00
- * @email : scott_x@163.com
- * @description : 平台写服务共用的事务缓存失效协调器，将 pending 门禁和 Outbox 意图绑定到同一数据库事务
- * @status : create
+ * 平台写服务共用的事务缓存失效协调器，将 pending 门禁和 Outbox 意图绑定到同一数据库事务
  */
 @Slf4j
 @Service
 public class ManagedCacheInvalidationCoordinator {
 
-    /** 当前数据库事务绑定事件集合时使用的实例级资源键。 */
+    /**
+     * 当前数据库事务绑定事件集合时使用的实例级资源键。
+     */
     private final Object transactionResourceKey = new Object();
 
-    /** 在数据库提交完成前阻止旧缓存重新写回的门禁。 */
+    /**
+     * 在数据库提交完成前阻止旧缓存重新写回的门禁。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
-    /** pending 门禁异常遗留的恢复性 TTL，不替代 Outbox 重试。 */
+    /**
+     * pending 门禁异常遗留的恢复性 TTL，不替代 Outbox 重试。
+     */
     private final Duration invalidationGateTtl;
 
-    /** 在业务事务内持久化缓存失效 Outbox 意图。 */
+    /**
+     * 在业务事务内持久化缓存失效 Outbox 意图。
+     */
     private final ManagedCacheInvalidationOutboxMapper outboxMapper;
 
-    /** 数据库提交后立即尝试发布 Outbox 事件。 */
+    /**
+     * 数据库提交后立即尝试发布 Outbox 事件。
+     */
     private final ManagedCacheInvalidationRelayService relayService;
 
     /**
@@ -219,7 +223,9 @@ public class ManagedCacheInvalidationCoordinator {
         }
     }
 
-    /** 当前事务内单个缓存目标对应的 Outbox 事件和门禁租约。 */
+    /**
+     * 当前事务内单个缓存目标对应的 Outbox 事件和门禁租约。
+     */
     private record EventContext(ManagedCacheInvalidationOutboxDO event,
                                 CacheInvalidationLease lease) {
     }

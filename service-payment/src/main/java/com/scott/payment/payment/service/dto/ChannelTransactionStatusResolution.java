@@ -5,13 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ChannelTransactionStatusResolution
- * @date : 2026-07-19 22:00
- * @email : scott_x@163.com
- * @description : 渠道结果到平台交易状态的解析结果，位于 service-payment 服务 DTO 层，用于让同步响应、渠道回调和查询勾兑复用同一套状态语义；该对象不代表状态已经落库。
- * @status : create
+ * 渠道结果到平台交易状态的解析结果，位于 service-payment 服务 DTO 层，用于让同步响应、渠道回调和查询勾兑复用同一套状态语义；该对象不代表状态已经落库。
  */
 @Data
 public class ChannelTransactionStatusResolution implements Serializable {

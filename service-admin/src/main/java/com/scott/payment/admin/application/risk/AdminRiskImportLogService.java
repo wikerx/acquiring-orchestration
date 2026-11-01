@@ -6,13 +6,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRiskImportLogService
- * @date : 2026-07-10 00:00
- * @email : scott_x@163.com
- * @description : 风控导入批次日志应用服务，使用独立事务保留导入失败明细，避免业务数据回滚时丢失排查依据。
- * @status : create
+ * 风控导入批次日志应用服务，使用独立事务保留导入失败明细，避免业务数据回滚时丢失排查依据。
  */
 @Service
 public class AdminRiskImportLogService {

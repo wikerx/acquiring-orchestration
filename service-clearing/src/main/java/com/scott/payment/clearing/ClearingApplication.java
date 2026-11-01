@@ -7,13 +7,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ClearingApplication
- * @date : 2026-08-26 08:15
- * @email : scott_x@163.com
- * @description : 交易清分服务启动入口；启动时校验内部HMAC与28表交易拓扑，校验通过后自动运行消费者和指标调度。
- * @status : create
+ * 交易清分服务启动入口；启动时校验内部HMAC与28表交易拓扑，校验通过后自动运行消费者和指标调度。
  */
 @EnableScheduling
 @EnableConfigurationProperties(ClearingProperties.class)

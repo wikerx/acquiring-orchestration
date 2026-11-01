@@ -21,19 +21,15 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantTransactionAnalyticsController
- * @date : 2026-08-07 10:00
- * @email : scott_x@163.com
- * @description : 商户端交易分析接口，从认证上下文绑定商户号并返回商户可见聚合数据，不接受前端指定数据归属。
- * @status : create
+ * 商户端交易分析接口，从认证上下文绑定商户号并返回商户可见聚合数据，不接受前端指定数据归属。
  */
 @RestController
 @RequestMapping("/merchant/transactions/analytics")
 public class MerchantTransactionAnalyticsController {
 
-    /** 商户端交易分析应用服务，不允许为空。 */
+    /**
+     * 商户端交易分析应用服务，不允许为空。
+     */
     private final MerchantTransactionAnalyticsApplicationService analyticsApplicationService;
 
     /**

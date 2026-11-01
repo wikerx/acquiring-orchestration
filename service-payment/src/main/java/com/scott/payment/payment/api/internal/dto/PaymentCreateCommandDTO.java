@@ -13,13 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCreateCommandDTO
- * @date : 2026-05-31 21:00
- * @email : scott_x@163.com
- * @description : service-openapi 调用 service-payment 创建收单交易的内部请求参数，承载渠道调用、风控执行和生命周期关联所需上下文；卡号和安全码只允许内存传递，禁止日志、MQ 和落库明文保存。
- * @status : create
+ * service-openapi 调用 service-payment 创建收单交易的内部请求参数，承载渠道调用、风控执行和生命周期关联所需上下文；卡号和安全码只允许内存传递，禁止日志、MQ 和落库明文保存。
  */
 @Data
 public class PaymentCreateCommandDTO implements Serializable {
@@ -220,13 +214,19 @@ public class PaymentCreateCommandDTO implements Serializable {
      */
     private BillingCardHolderInfoDTO billingCardHolderInfo;
 
-    /** 首次交易商品或服务明细，用于生命周期快照和商户结果回显。 */
+    /**
+     * 首次交易商品或服务明细，用于生命周期快照和商户结果回显。
+     */
     private List<GoodsInfoDTO> goodsInfo;
 
-    /** 商户上送的付款人信息，用于名单、AML、IP 和地域风控。 */
+    /**
+     * 商户上送的付款人信息，用于名单、AML、IP 和地域风控。
+     */
     private PayerInfoDTO payerInfo;
 
-    /** 商户可选上送的收货人及收货地址，用于收货地址风险校验。 */
+    /**
+     * 商户可选上送的收货人及收货地址，用于收货地址风险校验。
+     */
     private ShippingInfoDTO shippingInfo;
 
     /**
@@ -239,7 +239,9 @@ public class PaymentCreateCommandDTO implements Serializable {
      */
     private ThreeDsInfoDTO threeDsInfo;
 
-    /** Hosted Checkout 已命中强制 3DS；为 true 时支付核心只接受服务端确认的 PASSED 结果。 */
+    /**
+     * Hosted Checkout 已命中强制 3DS；为 true 时支付核心只接受服务端确认的 PASSED 结果。
+     */
     private Boolean threeDsRequired;
 
     /**
@@ -278,13 +280,7 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String userAgent;
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : SubMerchantInfoDTO
-     * @date : 2026-05-31 21:00
-     * @email : scott_x@163.com
-     * @description : 支付核心命令中的子商户快照，参与路由、风控和交易事实持久化。
-     * @status : create
+     * 支付核心命令中的子商户快照，参与路由、风控和交易事实持久化。
      */
     @Data
     public static class SubMerchantInfoDTO implements Serializable {
@@ -356,19 +352,11 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         /**
          * {@code subEmail}，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String subEmail;
 
         /**
          * {@code subPhone}，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String subPhone;
 
@@ -419,13 +407,7 @@ public class PaymentCreateCommandDTO implements Serializable {
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : BillingCardHolderInfoDTO
-     * @date : 2026-05-31 21:00
-     * @email : scott_x@163.com
-     * @description : 支付核心命令中的账单持卡人信息，属于可识别数据，只允许按渠道最小需要传递并脱敏记录。
-     * @status : create
+     * 支付核心命令中的账单持卡人信息，属于可识别数据，只允许按渠道最小需要传递并脱敏记录。
      */
     @Data
     public static class BillingCardHolderInfoDTO implements Serializable {
@@ -452,69 +434,43 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         /**
          * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String phone;
 
         /**
          * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String email;
 
         /**
          * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
-         * <p>
-         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String country;
 
         /**
          * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String state;
 
         /**
          * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String city;
 
         /**
          * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String street;
 
         /**
          * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String postal;
     }
 
-    /** 商品或服务行信息，amount 表示该行总金额。 */
+    /**
+     * 商品或服务行信息，amount 表示该行总金额。
+     */
     @Data
     public static class GoodsInfoDTO implements Serializable {
 
@@ -556,7 +512,9 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String currency;
     }
 
-    /** 付款人身份、联系方式、地址和浏览器上下文。 */
+    /**
+     * 付款人身份、联系方式、地址和浏览器上下文。
+     */
     @Data
     public static class PayerInfoDTO implements Serializable {
 
@@ -588,58 +546,30 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String lastName;
         /**
          * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String phone;
         /**
          * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String email;
         /**
          * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
-         * <p>
-         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String country;
         /**
          * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String state;
         /**
          * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String city;
         /**
          * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String street;
         /**
          * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String postal;
         /**
@@ -676,7 +606,9 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String userAgent;
     }
 
-    /** 收货人及收货地址信息。 */
+    /**
+     * 收货人及收货地址信息。
+     */
     @Data
     public static class ShippingInfoDTO implements Serializable {
 
@@ -700,70 +632,36 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String lastName;
         /**
          * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String phone;
         /**
          * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String email;
         /**
          * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
-         * <p>
-         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String country;
         /**
          * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String state;
         /**
          * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String city;
         /**
          * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String street;
         /**
          * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String postal;
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : CardInfoDTO
-     * @date : 2026-05-31 21:00
-     * @email : scott_x@163.com
-     * @description : 支付核心命令中的银行卡认证信息；PAN/CVV 只允许内存传递，禁止明文落库、日志或 MQ 投递。
-     * @status : create
+     * 支付核心命令中的银行卡认证信息；PAN/CVV 只允许内存传递，禁止明文落库、日志或 MQ 投递。
      */
     @Data
     public static class CardInfoDTO implements Serializable {
@@ -798,25 +696,23 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String securityCode;
 
-        /** 卡面持卡人姓名，只允许在当前支付渠道调用链使用。 */
+        /**
+         * 卡面持卡人姓名，只允许在当前支付渠道调用链使用。
+         */
         private String cardholderName;
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : ThreeDsInfoDTO
-     * @date : 2026-05-31 21:00
-     * @email : scott_x@163.com
-     * @description : 支付核心内部命令中的 3DS 认证信息模型，仅承载当前请求上下文；认证结果必须通过交易状态机和事实表持久化。
-     * @status : create
+     * 支付核心内部命令中的 3DS 认证信息模型，仅承载当前请求上下文；认证结果必须通过交易状态机和事实表持久化。
      */
     @Data
     public static class ThreeDsInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 平台服务端确认的认证状态；资金动作只接受 PASSED。 */
+        /**
+         * 平台服务端确认的认证状态；资金动作只接受 PASSED。
+         */
         private String authenticationStatus;
 
         /**
@@ -840,10 +736,6 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String dsTransactionId;
 
@@ -865,27 +757,31 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 3DS 策略评估和后续资金动作共同使用的渠道编码。 */
+        /**
+         * 3DS 策略评估和后续资金动作共同使用的渠道编码。
+         */
         private String channelCode;
-        /** 已路由渠道主键。 */
+        /**
+         * 已路由渠道主键。
+         */
         private Long channelId;
-        /** 已路由渠道 MID 配置主键。 */
+        /**
+         * 已路由渠道 MID 配置主键。
+         */
         private Long channelMidConfigId;
 
-        /** 渠道订单号。 */
+        /**
+         * 渠道订单号。
+         */
         private String channelOrderNo;
-        /** 渠道交易号。 */
+        /**
+         * 渠道交易号。
+         */
         private String channelTransactionId;
     }
 
     /**
-     * @author : scott
-     * @version : v1.0.0
-     * @classname : TransactionInfoDTO
-     * @date : 2026-05-31 21:00
-     * @email : scott_x@163.com
-     * @description : 支付核心命令中的交易关联信息，承载来源交易、商户回调、页面跳转和语言上下文。
-     * @status : create
+     * 支付核心命令中的交易关联信息，承载来源交易、商户回调、页面跳转和语言上下文。
      */
     @Data
     public static class TransactionInfoDTO implements Serializable {
@@ -899,15 +795,12 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         /**
          * 原平台交易号，用于将请款、退款、撤销、增量授权等后续动作关联到原始交易。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 transactionId 建立后续请款、退款、撤销和原交易之间的关联。
-         * </p>
          */
         private String sourceTransactionId;
 
-        /** 生命周期首笔平台交易 ID，由 transaction_locator 内部补齐，不接受商户上送。 */
+        /**
+         * 生命周期首笔平台交易 ID，由 transaction_locator 内部补齐，不接受商户上送。
+         */
         private String rootTransactionId;
 
         /**
@@ -916,7 +809,9 @@ public class PaymentCreateCommandDTO implements Serializable {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
 
-        /** 生命周期根主单的 transaction_date_time，由调用链透传，禁止从业务编号解析。 */
+        /**
+         * 生命周期根主单的 transaction_date_time，由调用链透传，禁止从业务编号解析。
+         */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
@@ -936,11 +831,6 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         /**
          * 回调地址，表示回调、通知、来源站点或远程接口地址。
-         * <p>
-         * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：长度和协议由调用方校验；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-         * </p>
          */
         private String callbackUrl;
 
@@ -949,22 +839,24 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String merchantWebsite;
 
-        /** Hosted Checkout 结果页返回地址，仅允许加密持久化。 */
+        /**
+         * Hosted Checkout 结果页返回地址，仅允许加密持久化。
+         */
         private String redirectUrl;
 
-        /** Hosted Checkout 创建会话时指定的显示语言。 */
+        /**
+         * Hosted Checkout 创建会话时指定的显示语言。
+         */
         private String language;
 
         /**
          * 卡品牌编码，用于渠道能力匹配、路由和运营展示。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String cardBrand;
 
-        /** BIN 基础数据识别出的发卡国家/地区，优先保存 ISO Alpha-2 编码。 */
+        /**
+         * BIN 基础数据识别出的发卡国家/地区，优先保存 ISO Alpha-2 编码。
+         */
         private String issuerCountry;
     }
 

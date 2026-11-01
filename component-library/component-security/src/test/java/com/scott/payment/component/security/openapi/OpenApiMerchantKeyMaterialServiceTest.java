@@ -27,13 +27,7 @@ import static org.mockito.Mockito.when;
 
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiMerchantKeyMaterialServiceTest
- * @date : 2026-06-25 19:11
- * @email : scott_x@163.com
- * @description : Open API Merchant Key Material Service Test 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
+ * Open API Merchant Key Material Service Test 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  */
 class OpenApiMerchantKeyMaterialServiceTest {
 
@@ -44,9 +38,13 @@ class OpenApiMerchantKeyMaterialServiceTest {
      * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private BaseMerchantResponseKeyMapper responseKeyMapper;
-    /** JWT 密钥持久化依赖，用于验证启停不轮换材料。 */
+    /**
+     * JWT 密钥持久化依赖，用于验证启停不轮换材料。
+     */
     private BaseMerchantJwtKeyMapper jwtKeyMapper;
-    /** 平台请求体密钥持久化依赖。 */
+    /**
+     * 平台请求体密钥持久化依赖。
+     */
     private BasePlatformPayloadKeyMapper platformPayloadKeyMapper;
     private OpenApiMerchantKeyMaterialService materialService;
     private OpenApiMerchantOnboardingMaterial material;
@@ -83,7 +81,9 @@ class OpenApiMerchantKeyMaterialServiceTest {
         );
     }
 
-    /** 停用当前 JWT 只切换状态，不删除、轮换或替换密钥材料。 */
+    /**
+     * 停用当前 JWT 只切换状态，不删除、轮换或替换密钥材料。
+     */
     @Test
     void shouldDisableJwtKeyWithoutRotatingMaterial() {
         String originalSecret = jwtKey().getMerchantKey();
@@ -97,7 +97,9 @@ class OpenApiMerchantKeyMaterialServiceTest {
         assertThat(captor.getValue().getDeleted()).isZero();
     }
 
-    /** 重新启用 JWT 时复用原密钥并恢复新的生效窗口。 */
+    /**
+     * 重新启用 JWT 时复用原密钥并恢复新的生效窗口。
+     */
     @Test
     void shouldEnableExistingJwtKeyWithoutReplacingSecret() {
         BaseMerchantJwtKeyDO disabled = jwtKey();
@@ -116,7 +118,9 @@ class OpenApiMerchantKeyMaterialServiceTest {
         assertThat(captor.getValue().getExpireTime()).isNull();
     }
 
-    /** 停用平台请求体密钥时保留原 RSA 公私钥材料。 */
+    /**
+     * 停用平台请求体密钥时保留原 RSA 公私钥材料。
+     */
     @Test
     void shouldDisablePlatformPayloadKeyWithoutReplacingMaterial() {
         BasePlatformPayloadKeyDO original = platformKey();
@@ -131,7 +135,9 @@ class OpenApiMerchantKeyMaterialServiceTest {
         assertThat(captor.getValue().getPrivateKeyPkcs8Base64()).isEqualTo(original.getPrivateKeyPkcs8Base64());
     }
 
-    /** 停用商户响应密钥时保留原 RSA 公私钥材料。 */
+    /**
+     * 停用商户响应密钥时保留原 RSA 公私钥材料。
+     */
     @Test
     void shouldDisableMerchantResponseKeyWithoutReplacingMaterial() {
         BaseMerchantResponseKeyDO original = responseKey(true);

@@ -18,13 +18,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogInternalController
- * @date : 2026-06-19 20:30
- * @email : scott_x@163.com
- * @description : 任务运行日志内部控制器
- * @status : create
+ * 任务运行日志内部控制器
  */
 @RestController
 @RequestMapping("/internal/job/logs")

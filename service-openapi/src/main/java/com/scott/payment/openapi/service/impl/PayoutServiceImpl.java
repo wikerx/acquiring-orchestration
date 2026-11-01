@@ -13,13 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PayoutServiceImpl
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 代付交易服务实现，位于 商户开放接口服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
- * @status : create
+ * 将商户代付请求转换为内部命令并调用代付核心；OpenAPI 层不持有代付状态机和资金事实。
  */
 @Service
 public class PayoutServiceImpl implements PayoutService {

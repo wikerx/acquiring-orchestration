@@ -22,39 +22,21 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementRateResolver
- * @date : 2026-08-18 00:00
- * @email : scott_x@163.com
- * @description : 管理端费用试算结算汇率解析服务，只选择指定币种到 USD 的当前有效正向业务汇率，禁止取反向汇率倒数。
- * @status : create
+ * 管理端费用试算结算汇率解析服务，只选择指定币种到 USD 的当前有效正向业务汇率，禁止取反向汇率倒数。
  */
 @Service
 public class AdminSettlementRateResolver {
 
     /**
      * {@code USD}常量，统一 {@code AdminSettlementRateResolver} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String USD = "USD";
     /**
      * 结算汇率常量，统一 {@code AdminSettlementRateResolver} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String SETTLEMENT_RATE = "SETTLEMENT_RATE";
     /**
      * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final String ENABLED = "ENABLED";
 
@@ -127,6 +109,9 @@ public class AdminSettlementRateResolver {
                 selected.getEffectiveTime(), valuationTime);
     }
 
+    /**
+     * 创建结算汇率候选排序器。
+     */
     private Comparator<ExchangeBusinessRateDO> candidateComparator(Map<String, ExchangeRateSourceDO> sourceByCode) {
         return Comparator
                 .comparingInt((ExchangeBusinessRateDO rate) -> defaultRank(sourceByCode.get(rate.getSourceCode())))
@@ -137,14 +122,23 @@ public class AdminSettlementRateResolver {
                         Comparator.nullsLast(Comparator.reverseOrder()));
     }
 
+    /**
+     * 返回有效来源优先级，空值时使用最低优先级。
+     */
     private int defaultRank(ExchangeRateSourceDO source) {
         return source != null && Integer.valueOf(1).equals(source.getDefaultSource()) ? 0 : 1;
     }
 
+    /**
+     * 解析当前渠道配置优先级。
+     */
     private int priority(ExchangeRateSourceDO source) {
         return source == null || source.getPriority() == null ? Integer.MAX_VALUE : source.getPriority();
     }
 
+    /**
+     * 规范化币种。
+     */
     private String normalizeCurrency(String currency) {
         if (!StringUtils.hasText(currency) || currency.trim().length() != 3) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "标签币种必须为三位 ISO 4217 代码");
@@ -152,6 +146,9 @@ public class AdminSettlementRateResolver {
         return currency.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 构建汇率缺失异常。
+     */
     private ServiceException missingRate(String baseCurrency) {
         return new ServiceException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND.getCode(),
                 "未配置当前有效的 " + baseCurrency + "->USD 正向结算汇率，禁止使用反向汇率倒数");

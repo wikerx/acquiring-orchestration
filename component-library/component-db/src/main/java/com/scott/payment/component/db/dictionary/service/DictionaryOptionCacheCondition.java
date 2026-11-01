@@ -8,19 +8,15 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DictionaryOptionCacheCondition
- * @date : 2026-08-21 08:00
- * @email : scott_x@163.com
- * @description : 共享数据字典下拉缓存门禁，在字典变更事务至缓存删除完成期间阻止旧快照命中和回填
- * @status : create
+ * 共享数据字典下拉缓存门禁，在字典变更事务至缓存删除完成期间阻止旧快照命中和回填
  */
 @Slf4j
 @Component
 public class DictionaryOptionCacheCondition {
 
-    /** 缓存失效门禁；未启用 Redis 的最小运行环境中允许为空。 */
+    /**
+     * 缓存失效门禁；未启用 Redis 的最小运行环境中允许为空。
+     */
     private final CacheInvalidationGuard invalidationGuard;
 
     /**

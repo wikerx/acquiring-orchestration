@@ -11,13 +11,7 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : FeeConversionPreviewCalculator
- * @date : 2026-08-25 19:40
- * @email : scott_x@163.com
- * @description : 使用调用方提供的直接汇率生成 Admin 目标币种费用预览，不修改原清分事实也不承担批次汇率锁定职责。
- * @status : create
+ * 使用调用方提供的直接汇率生成 Admin 目标币种费用预览，不修改原清分事实也不承担批次汇率锁定职责。
  */
 public class FeeConversionPreviewCalculator {
 

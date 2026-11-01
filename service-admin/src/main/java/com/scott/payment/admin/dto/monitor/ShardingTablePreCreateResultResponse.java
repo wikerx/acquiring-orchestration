@@ -6,13 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : ShardingTablePreCreateResultResponse
- * @date : 2026-06-21 22:32
- * @email : scott_x@163.com
- * @description : 分表表precreate响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
- * @status : create
+ * 分表预创建批次响应，汇总试运行标识、时区和各物理表处理结果。
  */
 @Data
 public class ShardingTablePreCreateResultResponse {
@@ -53,22 +47,34 @@ public class ShardingTablePreCreateResultResponse {
      */
     private String currentQuarter;
 
-    /** 待人工评审的候选规则版本。 */
+    /**
+     * 待人工评审的候选规则版本。
+     */
     private String candidateRuleVersion;
 
-    /** 候选规则 SHA-256 checksum。 */
+    /**
+     * 候选规则 SHA-256 checksum。
+     */
     private String candidateRuleChecksum;
 
-    /** 仅由已建表且全量校验通过的季度组成的候选节点。 */
+    /**
+     * 仅由已建表且全量校验通过的季度组成的候选节点。
+     */
     private List<String> verifiedPhysicalNodes = new ArrayList<>();
 
-    /** 是否允许进入人工发布和滚动重启步骤。 */
+    /**
+     * 是否允许进入人工发布和滚动重启步骤。
+     */
     private Boolean publicationReady = Boolean.FALSE;
 
-    /** 阻止候选规则发布的治理原因。 */
+    /**
+     * 阻止候选规则发布的治理原因。
+     */
     private List<String> publicationBlockers = new ArrayList<>();
 
-    /** 下一步受控操作标识，不会由接口自动执行。 */
+    /**
+     * 下一步受控操作标识，不会由接口自动执行。
+     */
     private String nextAction;
 
     /**

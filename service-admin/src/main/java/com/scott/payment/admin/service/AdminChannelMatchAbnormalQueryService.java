@@ -7,13 +7,7 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Abn
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminChannelMatchAbnormalQueryService
- * @date : 2026-08-08 00:10
- * @email : scott_x@163.com
- * @description : 管理端勾兑异常只读查询服务，在 service-admin 内读取案件分页、统计和详情，案件处置命令仍由 service-payment 执行。
- * @status : create
+ * 管理端勾兑异常只读查询服务，在 service-admin 内读取案件分页、统计和详情，案件处置命令仍由 service-payment 执行。
  */
 public interface AdminChannelMatchAbnormalQueryService {
 

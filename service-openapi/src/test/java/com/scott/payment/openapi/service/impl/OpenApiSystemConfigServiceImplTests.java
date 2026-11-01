@@ -13,17 +13,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiSystemConfigServiceImplTests
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : OpenAPI 统一系统参数读取契约测试。
- * @status : create
+ * OpenAPI 统一系统参数读取契约测试。
  */
 class OpenApiSystemConfigServiceImplTests {
 
-    /** 必需参数存在时必须返回公共读取器提供的启用值。 */
+    /**
+     * 必需参数存在时必须返回公共读取器提供的启用值。
+     */
     @Test
     void shouldReturnRequiredValueFromSharedReader() {
         SystemConfigReadService readService = mock(SystemConfigReadService.class);
@@ -37,7 +33,9 @@ class OpenApiSystemConfigServiceImplTests {
         verify(readService).findEnabledValue("platform.checkout.frontend-base-url");
     }
 
-    /** 停用、删除、缺失或空值配置必须继续按必需参数缺失处理。 */
+    /**
+     * 停用、删除、缺失或空值配置必须继续按必需参数缺失处理。
+     */
     @Test
     void shouldRejectUnavailableRequiredValue() {
         SystemConfigReadService readService = mock(SystemConfigReadService.class);

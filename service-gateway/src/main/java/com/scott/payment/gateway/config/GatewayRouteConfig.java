@@ -13,13 +13,7 @@ import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayRouteConfig
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 网关路由配置，统一声明外部请求可以进入系统的路径规则
- * @status : create
+ * 网关路由配置，统一声明外部请求可以进入系统的路径规则
  */
 @Configuration
 @EnableConfigurationProperties({GatewayClientIpProperties.class, GatewayIngressProperties.class,
@@ -94,10 +88,14 @@ public class GatewayRouteConfig {
      */
     private static final String ISO_OPENAPI_PATH = "/api/rest/iso/**";
 
-    /** 商户 IP 归属查询 API 路径。 */
+    /**
+     * 商户 IP 归属查询 API 路径。
+     */
     private static final String IP_OPENAPI_PATH = "/api/rest/ip/**";
 
-    /** 商户卡 BIN 归属查询 API 路径。 */
+    /**
+     * 商户卡 BIN 归属查询 API 路径。
+     */
     private static final String CARD_BIN_OPENAPI_PATH = "/api/rest/card-bin/**";
 
     /**
@@ -145,7 +143,9 @@ public class GatewayRouteConfig {
      */
     private static final String GATEWAY_NOT_FOUND_PATH = "/gateway/fallback/not-found";
 
-    /** 商户 OpenAPI 未命中已发布路由时使用的 V1.3 专用兜底路径。 */
+    /**
+     * 商户 OpenAPI 未命中已发布路由时使用的 V1.3 专用兜底路径。
+     */
     private static final String OPENAPI_NOT_FOUND_PATH = "/gateway/fallback/openapi-not-found";
 
     /**

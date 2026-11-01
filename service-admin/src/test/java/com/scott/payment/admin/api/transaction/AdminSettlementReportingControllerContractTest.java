@@ -20,13 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminSettlementReportingControllerContractTest
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 验证结算报表查询和导出使用独立最小权限并记录操作审计。
- * @status : create
+ * 验证结算报表查询和导出使用独立最小权限并记录操作审计。
  */
 class AdminSettlementReportingControllerContractTest {
 
