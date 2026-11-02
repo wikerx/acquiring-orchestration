@@ -562,6 +562,10 @@ class JdbcAdminMonitorWorkbenchServiceTest {
         }
         assertThat(pageQueryIndex).isNotNegative();
         assertThat(executedSql.get(pageQueryIndex)).contains("LIMIT :offset, :limit");
+        assertThat(executedSql.get(pageQueryIndex))
+                .contains("FROM exchange_rate_alert_event")
+                .contains("FROM sys_job_task task")
+                .contains("ROW_NUMBER() OVER");
         assertThat(executedParams.get(pageQueryIndex).getValue("offset")).isEqualTo(20L);
         assertThat(executedParams.get(pageQueryIndex).getValue("limit")).isEqualTo(20L);
         assertThat(executedSql).allSatisfy(sql -> assertThat(sql).doesNotContain("LIMIT :limit"));
@@ -607,6 +611,156 @@ class JdbcAdminMonitorWorkbenchServiceTest {
         assertThat(response.getAlert().getOwnerName()).isEqualTo("manual-operator");
         assertThat(response.getAlert().getHandleRemark()).isEqualTo("investigating");
         assertThat(response.getAlert().getVersion()).isEqualTo(3);
+    }
+
+    /**
+     * 汇率事件进入统一告警中心后必须保留十进制字符串证据，且通用关闭动作不能覆盖来源状态机。
+     */
+    @Test
+    void shouldExposeRateAlertMetricsAndRejectGenericClose() {
+        NamedParameterJdbcTemplate jdbcTemplate = monitorJdbcTemplate();
+        TransactionQueryJdbcTemplateFactory factory = monitorJdbcTemplateFactory(jdbcTemplate);
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            if (sql.contains("FROM exchange_rate_alert_event") && sql.contains("event_status")) {
+                return List.of(Map.ofEntries(
+                        Map.entry("event_no", "ERA-1"),
+                        Map.entry("rate_type", "TRANSACTION_RATE"),
+                        Map.entry("base_currency", "EUR"),
+                        Map.entry("quote_currency", "USD"),
+                        Map.entry("alert_level", "WARNING"),
+                        Map.entry("volatility_rate", new BigDecimal("3.100000")),
+                        Map.entry("trigger_threshold", new BigDecimal("3.0000")),
+                        Map.entry("event_status", "ACKNOWLEDGED"),
+                        Map.entry("first_trigger_time", LocalDateTime.of(2026, 11, 2, 10, 0)),
+                        Map.entry("last_detected_time", LocalDateTime.of(2026, 11, 2, 10, 5))));
+            }
+            if (sql.contains("FROM exchange_rate_alert_event") && sql.contains("minimum_rate")) {
+                return List.of(Map.ofEntries(
+                        Map.entry("rate_type", "TRANSACTION_RATE"),
+                        Map.entry("base_currency", "EUR"),
+                        Map.entry("quote_currency", "USD"),
+                        Map.entry("window_minutes", 4320),
+                        Map.entry("sample_count", 3L),
+                        Map.entry("minimum_rate", new BigDecimal("1.000000000000")),
+                        Map.entry("minimum_rate_source", "BOC"),
+                        Map.entry("maximum_rate", new BigDecimal("1.031000000000")),
+                        Map.entry("maximum_rate_source", "MANUAL"),
+                        Map.entry("latest_rate", new BigDecimal("1.031000000000")),
+                        Map.entry("latest_rate_source", "MANUAL"),
+                        Map.entry("volatility_rate", new BigDecimal("3.100000")),
+                        Map.entry("maximum_volatility_rate", new BigDecimal("3.100000")),
+                        Map.entry("trigger_threshold", new BigDecimal("3.0000")),
+                        Map.entry("recovery_threshold", new BigDecimal("2.0000")),
+                        Map.entry("window_start_time", LocalDateTime.of(2026, 10, 30, 10, 5)),
+                        Map.entry("window_end_time", LocalDateTime.of(2026, 11, 2, 10, 5))));
+            }
+            return List.of();
+        });
+        JdbcAdminMonitorWorkbenchService service = createService(jdbcTemplate, factory);
+
+        AlertDetailResponse response = service.alertDetail("RATE", "ERA-1");
+
+        assertThat(response.getAlert().getSourceType()).isEqualTo("RATE");
+        assertThat(response.getAlert().getStatus()).isEqualTo("PROCESSING");
+        assertThat(response.getSourceMetrics().getMinimumRate()).isEqualTo("1");
+        assertThat(response.getSourceMetrics().getMaximumRate()).isEqualTo("1.031");
+        assertThat(response.getSourceMetrics().getVolatilityRate()).isEqualTo("3.1");
+
+        AlertActionRequest request = new AlertActionRequest();
+        request.setVersion(0);
+        assertThatThrownBy(() -> service.closeAlert("RATE", "ERA-1", request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("must be resolved by their owning source");
+    }
+
+    /**
+     * 强制汇率监控任务被停用时必须在统一告警中心显示为严重活动告警。
+     */
+    @Test
+    void shouldExposeDisabledRateMonitorJobAsCriticalAlert() {
+        NamedParameterJdbcTemplate jdbcTemplate = monitorJdbcTemplate();
+        TransactionQueryJdbcTemplateFactory factory = monitorJdbcTemplateFactory(jdbcTemplate);
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            if (sql.contains("FROM sys_job_task task") && sql.contains("AS first_run_time")) {
+                return List.of(Map.ofEntries(
+                        Map.entry("job_code", "EXCHANGE_RATE_VOLATILITY_MONITOR"),
+                        Map.entry("job_status", "DISABLED"),
+                        Map.entry("last_run_status", "FAILED"),
+                        Map.entry("run_count", 2L),
+                        Map.entry("unsuccessful_count", 2L),
+                        Map.entry("periods_overdue", 0),
+                        Map.entry("create_time", LocalDateTime.of(2026, 11, 2, 9, 0)),
+                        Map.entry("update_time", LocalDateTime.of(2026, 11, 2, 10, 0))));
+            }
+            if (sql.contains("SELECT task.status AS job_status")) {
+                return List.of(Map.of(
+                        "job_status", "DISABLED",
+                        "last_run_status", "FAILED",
+                        "run_count", 2L,
+                        "consecutive_unsuccessful_runs", 2L,
+                        "periods_overdue", 0));
+            }
+            return List.of();
+        });
+        JdbcAdminMonitorWorkbenchService service = createService(jdbcTemplate, factory);
+
+        AlertDetailResponse response = service.alertDetail(
+                "JOB", "EXCHANGE_RATE_VOLATILITY_MONITOR");
+
+        assertThat(response.getAlert().getLevel()).isEqualTo("CRITICAL");
+        assertThat(response.getAlert().getStatus()).isEqualTo("OPEN");
+        assertThat(response.getSourceMetrics().getJobStatus()).isEqualTo("DISABLED");
+        assertThat(response.getSourceMetrics().getConsecutiveUnsuccessfulRuns()).isEqualTo(2L);
+        assertThat(response.getSourceMetrics().getHealthReason()).isEqualTo("DISABLED");
+    }
+
+    /**
+     * JOB 详情必须按与列表相同的优先级区分连续失败、错过两个调度周期和健康状态。
+     */
+    @ParameterizedTest
+    @CsvSource({
+            "2,2,0,CONSECUTIVE_UNSUCCESSFUL_RUNS",
+            "1,1,1,MISSED_TWO_PERIODS",
+            "2,1,0,HEALTHY"
+    })
+    void shouldClassifyRateMonitorJobHealthReason(
+            long runCount,
+            long consecutiveUnsuccessfulRuns,
+            int periodsOverdue,
+            String expectedReason) {
+        NamedParameterJdbcTemplate jdbcTemplate = monitorJdbcTemplate();
+        TransactionQueryJdbcTemplateFactory factory = monitorJdbcTemplateFactory(jdbcTemplate);
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            if (sql.contains("FROM sys_job_task task") && sql.contains("AS first_run_time")) {
+                return List.of(Map.ofEntries(
+                        Map.entry("job_code", "EXCHANGE_RATE_VOLATILITY_MONITOR"),
+                        Map.entry("job_status", "ENABLED"),
+                        Map.entry("last_run_status", consecutiveUnsuccessfulRuns > 0 ? "FAILED" : "SUCCESS"),
+                        Map.entry("run_count", runCount),
+                        Map.entry("unsuccessful_count", consecutiveUnsuccessfulRuns),
+                        Map.entry("periods_overdue", periodsOverdue),
+                        Map.entry("create_time", LocalDateTime.of(2026, 11, 2, 9, 0)),
+                        Map.entry("update_time", LocalDateTime.of(2026, 11, 2, 10, 0))));
+            }
+            if (sql.contains("SELECT task.status AS job_status")) {
+                return List.of(Map.of(
+                        "job_status", "ENABLED",
+                        "last_run_status", consecutiveUnsuccessfulRuns > 0 ? "FAILED" : "SUCCESS",
+                        "run_count", runCount,
+                        "consecutive_unsuccessful_runs", consecutiveUnsuccessfulRuns,
+                        "periods_overdue", periodsOverdue));
+            }
+            return List.of();
+        });
+        JdbcAdminMonitorWorkbenchService service = createService(jdbcTemplate, factory);
+
+        AlertDetailResponse response = service.alertDetail(
+                "JOB", "EXCHANGE_RATE_VOLATILITY_MONITOR");
+
+        assertThat(response.getSourceMetrics().getHealthReason()).isEqualTo(expectedReason);
     }
 
     @Test

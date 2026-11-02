@@ -31,6 +31,7 @@ readonly SERVICES=(
 readonly EDGES=(
   merchant-admin
   admin-job
+  job-admin
   admin-payment
   admin-clearing
   admin-settlement
@@ -178,7 +179,7 @@ legacy_edge_data_id() {
 service_edges() {
   case "$1" in
     service-admin)
-      printf '%s\n' merchant-admin admin-job admin-payment admin-clearing admin-settlement
+      printf '%s\n' merchant-admin admin-job job-admin admin-payment admin-clearing admin-settlement gateway-checkout
       ;;
     service-checkout)
       printf '%s\n' gateway-checkout
@@ -193,10 +194,10 @@ service_edges() {
       printf '%s\n' gateway-checkout
       ;;
     service-job)
-      printf '%s\n' admin-job job-payment job-clearing job-data
+      printf '%s\n' admin-job job-admin job-payment job-clearing job-data
       ;;
     service-merchant)
-      printf '%s\n' merchant-payment
+      printf '%s\n' merchant-payment gateway-checkout
       ;;
     service-openapi)
       printf '%s\n' openapi-payment openapi-payout gateway-checkout
@@ -225,7 +226,7 @@ edge_caller() {
   case "$1" in
     merchant-admin) printf '%s' '' ;;
     admin-job|admin-payment|admin-clearing|admin-settlement) printf '%s' service-admin ;;
-    job-payment|job-clearing|job-data) printf '%s' service-job ;;
+    job-admin|job-payment|job-clearing|job-data) printf '%s' service-job ;;
     merchant-payment) printf '%s' service-merchant ;;
     openapi-payment|openapi-payout) printf '%s' service-openapi ;;
     payment-risk) printf '%s' service-payment ;;
@@ -237,18 +238,19 @@ edge_caller() {
   esac
 }
 
-# 返回验签方；gateway-checkout 同时保护 OpenAPI 和 Checkout 两个下游入口。
+# 返回验签方；gateway-checkout 同时保护门户、OpenAPI 和 Checkout 下游入口。
 edge_receivers() {
   case "$1" in
     merchant-admin) printf '%s\n' service-admin ;;
     admin-job) printf '%s\n' service-job ;;
+    job-admin) printf '%s\n' service-admin ;;
     admin-payment|job-payment|merchant-payment|openapi-payment) printf '%s\n' service-payment ;;
     admin-clearing|job-clearing) printf '%s\n' service-clearing ;;
     admin-settlement) printf '%s\n' service-settlement ;;
     job-data) printf '%s\n' service-data ;;
     openapi-payout) printf '%s\n' service-payout ;;
     payment-risk) printf '%s\n' service-risk ;;
-    gateway-checkout) printf '%s\n' service-openapi service-checkout ;;
+    gateway-checkout) printf '%s\n' service-admin service-merchant service-openapi service-checkout ;;
     *)
       printf 'Unsupported internal-auth edge: %s\n' "$1" >&2
       exit 1
@@ -595,6 +597,7 @@ edge_description() {
   case "$1" in
     merchant-admin) printf '遗留 Merchant 到 Admin 兼容接口验签，仅用于失败关闭保护。' ;;
     admin-job) printf 'Admin 调用 Job 管理命令时使用的签名与验签凭据。' ;;
+    job-admin) printf 'Job 调用 Admin 汇率波动评估命令时使用的签名与验签凭据。' ;;
     admin-payment) printf 'Admin 调用 Payment 状态变更和异常处置命令时使用的凭据。' ;;
     admin-clearing) printf 'Admin 调用 Clearing 人工清分执行与补偿命令时使用的凭据。' ;;
     admin-settlement) printf 'Admin 调用 Settlement 手工结算、审批、取消和冲正命令时使用的凭据。' ;;
@@ -605,7 +608,7 @@ edge_description() {
     openapi-payment) printf 'OpenAPI 调用 Payment 支付受理与查询内部协议时使用的凭据。' ;;
     openapi-payout) printf 'OpenAPI 调用 Payout 代付受理与查询内部协议时使用的凭据。' ;;
     payment-risk) printf 'Payment 调用 Risk 实时风控评估时使用的凭据。' ;;
-    gateway-checkout) printf 'Gateway 访问 OpenAPI 和 Checkout 托管收银台入口时使用的凭据。' ;;
+    gateway-checkout) printf 'Gateway 访问管理门户、商户门户、OpenAPI 和 Checkout 入口时使用的凭据。' ;;
     *) printf '内部服务调用边签名与验签凭据。' ;;
   esac
 }
@@ -1045,12 +1048,156 @@ verify_all_service_bundles() {
     "${#SERVICES[@]}" "${#EDGES[@]}" "$environment"
 }
 
+is_registered_edge() {
+  local requested="$1"
+  local edge
+  for edge in "${EDGES[@]}"; do
+    if [[ "$edge" == "$requested" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# 同步前允许服务暂缺新注册的调用边，但已有边仍必须结构合法、密钥合规且不能重复。
+# 最终发布内容继续由 verify_service_bundle_file 按最小权限集合做严格校验。
+verify_reconcilable_service_bundle_file() {
+  local service="$1"
+  local content_file="$2"
+  local layout
+  local marker_count
+  local edge
+  local edge_count
+  local active_secret
+  local previous_secret
+  if ! layout="$(service_auth_bundle_format "$content_file")"; then
+    printf 'Service configuration validation failed before synchronization: %s.\n' "$service" >&2
+    exit 1
+  fi
+  marker_count="$(sed 's/^[[:space:]]*//' "$content_file" | grep -Fxc "$AUTH_BUNDLE_MARKER" || true)"
+  if [[ "$marker_count" -ne 1 ]]; then
+    printf 'Managed internal-auth marker validation failed before synchronization: %s.\n' \
+      "$service" >&2
+    exit 1
+  fi
+  while IFS= read -r edge; do
+    [[ -n "$edge" ]] || continue
+    if ! is_registered_edge "$edge"; then
+      printf 'Unregistered internal-auth edge found before synchronization: %s/%s.\n' \
+        "$service" "$edge" >&2
+      exit 1
+    fi
+    if [[ "$layout" == "nested" ]]; then
+      edge_count="$(grep -c "^      ${edge}:[[:space:]]*$" "$content_file" || true)"
+    else
+      edge_count="$(grep -c "^  ${edge}:[[:space:]]*$" "$content_file" || true)"
+    fi
+    if [[ "$edge_count" -ne 1 ]]; then
+      printf 'Internal-auth edge occurrence validation failed before synchronization: %s/%s.\n' \
+        "$service" "$edge" >&2
+      exit 1
+    fi
+    active_secret="$(bundle_edge_secret_from "$content_file" "$edge" active-secret)"
+    previous_secret="$(bundle_edge_secret_from "$content_file" "$edge" previous-secret)"
+    verify_secret_value "$active_secret" "${service}/${edge} active before synchronization"
+    if [[ -n "$previous_secret" ]]; then
+      verify_secret_value "$previous_secret" "${service}/${edge} previous before synchronization"
+      if [[ "$active_secret" == "$previous_secret" ]]; then
+        printf 'Active and previous internal-auth secrets must differ: %s/%s.\n' \
+          "$service" "$edge" >&2
+        exit 1
+      fi
+    fi
+  done < <(bundle_edges_from "$content_file")
+}
+
+load_service_bundle_for_sync() {
+  local service="$1"
+  local environment="$2"
+  local namespace="$3"
+  local content_file="${work_dir}/bundle-${service}.yaml"
+  local header_file="${work_dir}/bundle-${service}.headers"
+  local fetch_status=0
+  fetch_data_id "$(service_data_id "$service" "$environment")" "$namespace" \
+    "$content_file" "$header_file" || fetch_status=$?
+  if [[ $fetch_status -eq 1 ]]; then
+    printf 'Required service DataId is missing: %s.\n' \
+      "$(service_data_id "$service" "$environment")" >&2
+    exit 1
+  elif [[ $fetch_status -ne 0 ]]; then
+    exit 1
+  fi
+  verify_reconcilable_service_bundle_file "$service" "$content_file"
+}
+
+load_all_service_bundles_for_sync() {
+  local environment="$1"
+  local namespace="$2"
+  local service
+  for service in "${SERVICES[@]}"; do
+    load_service_bundle_for_sync "$service" "$environment" "$namespace"
+  done
+}
+
+# 从参与服务的现有配置中为每条调用边选择唯一密钥来源；调用边完全缺失时只生成一次，
+# 随后由同一临时来源写入调用方和全部验签方，避免单边初始化或静默轮换既有密钥。
+prepare_reconciled_edge_sources() {
+  local edge
+  local service
+  local active_secret
+  local previous_secret
+  local expected_active
+  local expected_previous
+  local initialized
+  local reused=0
+  local generated=0
+  for edge in "${EDGES[@]}"; do
+    expected_active=""
+    expected_previous=""
+    initialized=false
+    while IFS= read -r service; do
+      [[ -n "$service" ]] || continue
+      active_secret="$(bundle_edge_secret_from \
+        "${work_dir}/bundle-${service}.yaml" "$edge" active-secret)"
+      previous_secret="$(bundle_edge_secret_from \
+        "${work_dir}/bundle-${service}.yaml" "$edge" previous-secret)"
+      [[ -n "$active_secret" ]] || continue
+      verify_secret_value "$active_secret" "${service}/${edge} active before synchronization"
+      if [[ -n "$previous_secret" ]]; then
+        verify_secret_value "$previous_secret" "${service}/${edge} previous before synchronization"
+      fi
+      if [[ "$initialized" == false ]]; then
+        expected_active="$active_secret"
+        expected_previous="$previous_secret"
+        initialized=true
+      elif [[ "$active_secret" != "$expected_active" || "$previous_secret" != "$expected_previous" ]]; then
+        printf 'Internal-auth edge values are inconsistent before synchronization: %s.\n' \
+          "$edge" >&2
+        exit 1
+      fi
+    done < <(edge_services "$edge")
+    if [[ "$initialized" == false ]]; then
+      expected_active="$(random_base64 "$SECRET_BYTES")"
+      expected_previous=""
+      generated=$((generated + 1))
+    else
+      reused=$((reused + 1))
+    fi
+    write_edge_source "${work_dir}/edge-${edge}.yaml" "$edge" \
+      "$expected_active" "$expected_previous"
+  done
+  printf 'Internal-auth synchronization sources prepared: reused=%d, generated=%d.\n' \
+    "$reused" "$generated"
+}
+
 # 服务模板只保存非敏感业务配置、内部调用边引用与受管运行时占位符。
 # 占位符必须由脚本从现有 Nacos 或一次性迁移源渲染，禁止将占位符或明文密钥提交到模板。
 validate_service_config_template() {
   local service="$1"
   local environment="$2"
   local template_file
+  local expected_edges_file="${work_dir}/template-expected-edges-${service}-$$.txt"
+  local referenced_edges_file="${work_dir}/template-referenced-edges-${service}-$$.txt"
   template_file="$(service_config_template "$service" "$environment")"
   if [[ ! -s "$template_file" ]]; then
     printf 'Required service configuration template is missing or empty: %s.\n' "$template_file" >&2
@@ -1062,6 +1209,14 @@ validate_service_config_template() {
       || grep -q 'cipher-acqaesgcm-' "$template_file"; then
     printf 'Service configuration template must not contain managed secret material: %s.\n' \
       "$template_file" >&2
+    exit 1
+  fi
+  service_edges "$service" | sort -u >"$expected_edges_file"
+  sed -n 's/.*acquiring\.internal-auth\.edges\.\([a-z0-9-]*\)\..*/\1/p' \
+    "$template_file" | sort -u >"$referenced_edges_file"
+  if ! cmp -s "$expected_edges_file" "$referenced_edges_file"; then
+    printf 'Service template internal-auth references do not match least privilege edges: %s.\n' \
+      "$service" >&2
     exit 1
   fi
   case "$service" in
@@ -1415,7 +1570,7 @@ build_synced_service_config() {
   validate_service_config_template "$service" "$environment"
   render_service_runtime_config "$service" yaml "$current_file" "$template_file" \
     "$runtime_template_file"
-  write_managed_auth_fragment_from_bundle "$service" "$current_file" "$auth_file"
+  write_managed_auth_fragment_from_edge_sources "$service" "$auth_file"
   inject_managed_auth_fragment "$runtime_template_file" "$auth_file" "$expected_file"
   : >"$validation_headers"
   verify_service_bundle_file "$service" "$expected_file" "$validation_headers"
@@ -1425,8 +1580,8 @@ prepare_synced_service_configs() {
   local environment="$1"
   local namespace="$2"
   local service
-  load_all_service_bundles "$environment" "$namespace"
-  verify_loaded_edge_consistency
+  load_all_service_bundles_for_sync "$environment" "$namespace"
+  prepare_reconciled_edge_sources
   for service in "${SERVICES[@]}"; do
     build_synced_service_config "$service" "$environment"
   done

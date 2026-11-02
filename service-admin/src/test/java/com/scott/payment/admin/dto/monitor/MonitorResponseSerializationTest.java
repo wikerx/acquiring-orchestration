@@ -124,4 +124,22 @@ class MonitorResponseSerializationTest {
         assertThat(json.has("channelCode")).isFalse();
         assertThat(json.has("source_layer")).isFalse();
     }
+
+    /**
+     * 汇率告警指标必须保持十进制字符串，并沿用统一告警历史 snake_case 契约。
+     */
+    @Test
+    void rateAlertMetricsShouldSerializeDecimalValuesAsStrings() {
+        AlertSourceMetrics metrics = new AlertSourceMetrics();
+        metrics.setRateType("TRANSACTION_RATE");
+        metrics.setMinimumRate("1.000000000001");
+        metrics.setVolatilityRate("3.100001");
+
+        JsonNode json = objectMapper.valueToTree(metrics);
+
+        assertThat(json.path("rate_type").asText()).isEqualTo("TRANSACTION_RATE");
+        assertThat(json.path("minimum_rate").isTextual()).isTrue();
+        assertThat(json.path("minimum_rate").asText()).isEqualTo("1.000000000001");
+        assertThat(json.path("volatility_rate").asText()).isEqualTo("3.100001");
+    }
 }

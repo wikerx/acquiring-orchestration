@@ -86,6 +86,7 @@ acquiring:
 | --- | --- | --- | --- |
 | `merchant-admin` | 已停用的兼容边界 | `service-admin` | 仅保护仍保留的旧 `/internal/merchant/**` 接口，不作为商户后台正常查询链路 |
 | `admin-job` | `service-admin` | `service-job` | 后台任务管理命令；同时保留可信登录操作人的 RBAC 上下文 |
+| `job-admin` | `service-job` | `service-admin` | 汇率波动幂等评估命令；仅允许固定评估路径 |
 | `admin-payment` | `service-admin` | `service-payment` | 后台支付状态变更、审批和异常处置命令 |
 | `admin-clearing` | `service-admin` | `service-clearing` | 人工清分执行与补偿命令；管理页面查询仍由 Admin 本地数据源完成 |
 | `admin-settlement` | `service-admin` | `service-settlement` | 手工结算、预审、审批、拒绝、取消和冲正命令 |
@@ -96,7 +97,7 @@ acquiring:
 | `openapi-payment` | `service-openapi` | `service-payment` | 商户支付受理和查询内部协议 |
 | `openapi-payout` | `service-openapi` | `service-payout` | 商户代付受理和查询内部协议 |
 | `payment-risk` | `service-payment` | `service-risk` | 支付实时风控评估 |
-| `gateway-checkout` | `service-gateway` | `service-openapi`、`service-checkout` | Hosted Checkout 入口签名 |
+| `gateway-checkout` | `service-gateway` | `service-admin`、`service-merchant`、`service-openapi`、`service-checkout` | 管理/商户门户、OpenAPI 与 Hosted Checkout 入口签名 |
 
 每个服务只能读取自己的服务 DataId。UAT/生产必须为服务创建独立 Nacos 用户和角色，按完整服务 DataId、
 `DEFAULT_GROUP` 和环境 namespace 授予只读权限；发布账号另行授予写权限，应用账号不得拥有写权限。发布脚本会校验
@@ -167,6 +168,8 @@ UAT、生产和 sample 必须在各自 namespace 中提供独立 Risk/MFA 密钥
 `scripts/manage-nacos-internal-auth.sh` 不打印密钥。`migrate` 负责把历史 cipher 配置迁到普通服务 DataId；
 `plan-service-configs` 只读检查业务模板与当前 Nacos 的差异；`sync-service-configs` 在显式确认后备份 12 份现有配置，
 用仓库模板替换业务段并原样保留受控密钥段。脚本会在发布前后验证同一调用边在各参与服务中的 active/previous 值一致。
+当代码注册了新的真实调用边而现有服务 DataId 尚未包含该边时，计划和同步会复用全部既有边密钥，
+仅为完全缺失的新边生成一次随机密钥并同时写入调用方与验签方；已有边不一致、弱密钥、未知边或重复边仍会失败关闭。
 
 dev 业务配置同步示例：
 
@@ -243,19 +246,20 @@ CONFIRM_DELETE_LEGACY_CONFIGS=YES \
 回滚时只允许在已批准的短期窗口恢复上一版本 DataId，并同步回滚调用方和验签方；不得关闭 HMAC、扩大
 `allowed-paths`、把内部路径加入 whitelist，或恢复全局共享弱密钥。
 
-## Hosted Checkout Gateway 入口
+## Gateway 统一入口
 
 `/api/rest/checkout/**`、`/checkout/api/**`、`/checkout/config/**` 和 `/checkout/health`
 只允许通过 `service-gateway` 访问。Gateway 会清除客户端伪造的入口头，并使用
-`gateway-checkout` edge 的 `active-secret` 生成短时 HMAC-SHA256 签名；`service-openapi` 和
-`service-checkout` 在控制器前完成验签。同一密钥分别进入 Gateway、OpenAPI、Checkout 三个服务的原有服务 DataId，
+`gateway-checkout` edge 的 `active-secret` 生成短时 HMAC-SHA256 签名；`service-admin`、
+`service-merchant`、`service-openapi` 和 `service-checkout` 按各环境的受保护路径在控制器前完成验签。
+同一密钥分别进入 Gateway 和四个真实验签服务的原有服务 DataId，
 发布脚本负责一致性校验，仓库不提供开发默认密钥。
 
 滚动发布顺序：
 
-1. 先迁移并验证 Gateway、OpenAPI、Checkout 三个普通服务 DataId，确保调用边密钥一致。
+1. 先迁移并验证 Gateway、Admin、Merchant、OpenAPI、Checkout 五个普通服务 DataId，确保调用边密钥一致。
 2. 先部署 `service-gateway`，确认转发请求已经携带新签名头。
-3. 再部署 `service-openapi` 和 `service-checkout`，启用下游直连拒绝。
+3. 再部署 `service-admin`、`service-merchant`、`service-openapi` 和 `service-checkout`，按环境启用下游直连拒绝。
 4. 最后通过网络策略、安全组或容器 Service 类型禁止公网直接访问下游端口；WAF 只指向 Gateway。
 
 密钥缺失或少于 32 个字符时，收银台入口返回 503 并失败关闭，不允许降级为直连。

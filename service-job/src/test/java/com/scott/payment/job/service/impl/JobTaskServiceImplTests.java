@@ -3,6 +3,7 @@ package com.scott.payment.job.service.impl;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.job.executor.JobHandlerRegistry;
+import com.scott.payment.job.api.internal.dto.JobTaskSaveRequest;
 import com.scott.payment.job.entity.SysJobTaskDO;
 import com.scott.payment.job.mapper.SysJobTaskMapper;
 import com.scott.payment.job.service.JobTaskTimingService;
@@ -23,6 +24,37 @@ import static org.mockito.Mockito.when;
  * 任务终态写入和持锁节点隔离测试。
  */
 class JobTaskServiceImplTests {
+
+    @Test
+    void deleteTaskShouldRejectExchangeRateVolatilitySystemTask() {
+        SysJobTaskMapper mapper = mock(SysJobTaskMapper.class);
+        SysJobTaskDO task = task(21L);
+        task.setJobCode("EXCHANGE_RATE_VOLATILITY_MONITOR");
+        when(mapper.selectById(21L)).thenReturn(task);
+        JobTaskServiceImpl service = new JobTaskServiceImpl(
+                mapper, mock(JobTaskTimingService.class), mock(JobHandlerRegistry.class));
+
+        assertThatThrownBy(() -> service.deleteTask(21L, "operator"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("system job task cannot be deleted");
+    }
+
+    @Test
+    void updateTaskShouldRejectSystemHandlerReplacement() {
+        SysJobTaskMapper mapper = mock(SysJobTaskMapper.class);
+        SysJobTaskDO task = task(22L);
+        task.setJobCode("EXCHANGE_RATE_VOLATILITY_MONITOR");
+        task.setHandlerCode("exchangeRateVolatilityMonitorJob");
+        when(mapper.selectById(22L)).thenReturn(task);
+        JobTaskServiceImpl service = new JobTaskServiceImpl(
+                mapper, mock(JobTaskTimingService.class), mock(JobHandlerRegistry.class));
+        JobTaskSaveRequest request = systemTaskRequest();
+        request.setHandlerCode("anotherHandler");
+
+        assertThatThrownBy(() -> service.updateTask(22L, request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("system job handler cannot be changed");
+    }
 
     @Test
     void disableTaskShouldPersistNullNextTriggerTimeWithoutTouchingLease() {
@@ -127,5 +159,23 @@ class JobTaskServiceImplTests {
         task.setLockOwner("job-node");
         task.setLockUntil(LocalDateTime.of(2026, 8, 3, 5, 5));
         return task;
+    }
+
+    private JobTaskSaveRequest systemTaskRequest() {
+        JobTaskSaveRequest request = new JobTaskSaveRequest();
+        request.setJobCode("EXCHANGE_RATE_VOLATILITY_MONITOR");
+        request.setJobName("汇率波动监控");
+        request.setJobGroup("exchange");
+        request.setHandlerCode("exchangeRateVolatilityMonitorJob");
+        request.setSchedulerMode("DISTRIBUTED");
+        request.setTriggerMode("CRON");
+        request.setMisfireStrategy("FIRE_ONCE_NOW");
+        request.setTimeoutSeconds(300);
+        request.setRetryCount(2);
+        request.setRetryIntervalSeconds(60);
+        request.setAllowConcurrent(0);
+        request.setStatus("ENABLED");
+        request.setOperator("operator");
+        return request;
     }
 }

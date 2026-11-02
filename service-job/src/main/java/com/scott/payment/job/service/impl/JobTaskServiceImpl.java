@@ -32,6 +32,12 @@ import java.util.List;
 @Service
 public class JobTaskServiceImpl implements JobTaskService {
 
+    /** 汇率波动监控系统任务编码，禁止删除或改变系统身份。 */
+    private static final String RATE_VOLATILITY_MONITOR_JOB_CODE = "EXCHANGE_RATE_VOLATILITY_MONITOR";
+
+    /** 汇率波动监控固定处理器编码。 */
+    private static final String RATE_VOLATILITY_MONITOR_HANDLER_CODE = "exchangeRateVolatilityMonitorJob";
+
     /**
      * 未逻辑删除标识，用于任务定义查询和唯一性校验。
      */
@@ -125,6 +131,7 @@ public class JobTaskServiceImpl implements JobTaskService {
     public SysJobTaskDO updateTask(Long taskId, JobTaskSaveRequest request) {
         validateRequest(request);
         SysJobTaskDO task = getRequiredTask(taskId);
+        validateSystemTaskUpdate(task, request);
         if (existsByJobCode(request.getJobCode(), taskId)) {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "jobCode already exists");
         }
@@ -169,6 +176,10 @@ public class JobTaskServiceImpl implements JobTaskService {
     @Override
     public void deleteTask(Long taskId, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
+        if (RATE_VOLATILITY_MONITOR_JOB_CODE.equals(task.getJobCode())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
+                    "system job task cannot be deleted");
+        }
         task.setDeleted(1);
         task.setStatus(JobStatusEnum.DISABLED.name());
         task.setUpdateBy(operator);
@@ -306,6 +317,26 @@ public class JobTaskServiceImpl implements JobTaskService {
         JobSchedulerModeEnum.valueOf(request.getSchedulerMode());
         if (StringUtils.hasText(request.getCronExpression())) {
             jobTaskTimingService.calculateNextTriggerTime(buildPreviewTask(request), LocalDateTime.now());
+        }
+    }
+
+    /**
+     * 锁定系统任务编码和处理器，其他运行参数仍由管理端维护。
+     *
+     * @param currentTask 数据库中的系统任务
+     * @param request 更新请求
+     */
+    private void validateSystemTaskUpdate(SysJobTaskDO currentTask, JobTaskSaveRequest request) {
+        if (!RATE_VOLATILITY_MONITOR_JOB_CODE.equals(currentTask.getJobCode())) {
+            return;
+        }
+        if (!RATE_VOLATILITY_MONITOR_JOB_CODE.equals(request.getJobCode())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
+                    "system job code cannot be changed");
+        }
+        if (!RATE_VOLATILITY_MONITOR_HANDLER_CODE.equals(request.getHandlerCode())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
+                    "system job handler cannot be changed");
         }
     }
 

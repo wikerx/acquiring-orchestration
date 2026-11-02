@@ -1315,7 +1315,10 @@ public final class MonitorWorkbenchDTOs {
     }
 
     /**
-     * 告警来源的安全指标快照；渠道和安全事件共用该模型，未适用字段不返回。
+     * 告警来源的安全指标快照。
+     *
+     * <p>渠道、安全拦截、汇率波动和系统任务健康告警共用该稀疏模型，未适用字段不返回。
+     * 汇率及百分比字段使用十进制字符串，避免管理端把资金相关精度转换成二进制浮点数。</p>
      */
     @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -1390,6 +1393,63 @@ public final class MonitorWorkbenchDTOs {
 
         @JsonProperty("event_time")
         private LocalDateTime eventTime;
+
+        @JsonProperty("rate_type")
+        private String rateType;
+
+        @JsonProperty("base_currency")
+        private String baseCurrency;
+
+        @JsonProperty("quote_currency")
+        private String quoteCurrency;
+
+        @JsonProperty("minimum_rate")
+        private String minimumRate;
+
+        @JsonProperty("minimum_rate_source")
+        private String minimumRateSource;
+
+        @JsonProperty("maximum_rate")
+        private String maximumRate;
+
+        @JsonProperty("maximum_rate_source")
+        private String maximumRateSource;
+
+        @JsonProperty("latest_rate")
+        private String latestRate;
+
+        @JsonProperty("latest_rate_source")
+        private String latestRateSource;
+
+        @JsonProperty("volatility_rate")
+        private String volatilityRate;
+
+        @JsonProperty("maximum_volatility_rate")
+        private String maximumVolatilityRate;
+
+        @JsonProperty("trigger_threshold")
+        private String triggerThreshold;
+
+        @JsonProperty("recovery_threshold")
+        private String recoveryThreshold;
+
+        @JsonProperty("job_status")
+        private String jobStatus;
+
+        @JsonProperty("last_run_status")
+        private String lastRunStatus;
+
+        @JsonProperty("consecutive_unsuccessful_runs")
+        private Long consecutiveUnsuccessfulRuns;
+
+        @JsonProperty("last_trigger_time")
+        private LocalDateTime lastTriggerTime;
+
+        @JsonProperty("next_trigger_time")
+        private LocalDateTime nextTriggerTime;
+
+        @JsonProperty("health_reason")
+        private String healthReason;
     }
 
     /**

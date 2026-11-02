@@ -139,6 +139,14 @@ internal-service:
   auth:
     # enabled 安全门禁固定在本地 application.yml；此处只维护调用方凭据、权限路径和防重放时间窗。
     callers:
+      service-job:
+        # 参数说明：Job 调用 Admin 汇率波动评估命令时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.job-admin.active-secret}
+        # 参数说明：Job-Admin 密钥滚动轮换期间接受的上一版密钥；平时为空。
+        previous-secret: ${acquiring.internal-auth.edges.job-admin.previous-secret:}
+        allowed-paths:
+          # 路径说明：只允许汇率波动幂等评估命令，禁止扩大到其他管理接口。
+          - /internal/admin/exchange/alerts/evaluate
       service-merchant:
         # 参数说明：遗留 Merchant 到 Admin 兼容接口的当前验签密钥；正常商户查询不得走该远程链路。
         active-secret: ${acquiring.internal-auth.edges.merchant-admin.active-secret}
