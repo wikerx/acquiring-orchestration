@@ -60,6 +60,10 @@ final class MfaSecretKeyPolicy {
             SECURE_RANDOM.nextBytes(randomSecret);
             return Base64.getUrlEncoder().withoutPadding().encodeToString(randomSecret);
         }
+        if (hasOnlyProfile(activeProfiles, "dev")) {
+            throw new IllegalStateException("payment.mfa.secret must be configured with at least 32 bytes; "
+                    + "configure it in the current service Nacos DataId for local dev");
+        }
         throw new IllegalStateException("payment.mfa.secret must be configured with at least 32 bytes");
     }
 
@@ -127,10 +131,21 @@ final class MfaSecretKeyPolicy {
      * @return 仅含 test 时返回 true
      */
     private static boolean hasOnlyTestProfile(String[] activeProfiles) {
+        return hasOnlyProfile(activeProfiles, "test");
+    }
+
+    /**
+     * 判断是否严格只启用了指定环境。
+     *
+     * @param activeProfiles 当前活动环境
+     * @param expectedProfile 期望的唯一环境
+     * @return 环境唯一且匹配时返回 true
+     */
+    private static boolean hasOnlyProfile(String[] activeProfiles, String expectedProfile) {
         if (activeProfiles == null || activeProfiles.length != 1) {
             return false;
         }
         String profile = activeProfiles[0];
-        return profile != null && "test".equals(profile.trim().toLowerCase(Locale.ROOT));
+        return profile != null && expectedProfile.equals(profile.trim().toLowerCase(Locale.ROOT));
     }
 }

@@ -211,19 +211,16 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         CodeCacheReadResult<IsoCountryInfo> cacheRead = readCodeCache(
                 cacheKey, fields, IsoCountryInfo.class, "COUNTRY");
         if (cacheRead.status() == CodeCacheReadStatus.PRESENT) {
-            log.debug("ISO 代码缓存命中, event: ISO_CODE_CACHE_HIT, dictionary: COUNTRY, "
-                            + "criteriaCount: {}, matched: {}",
+            log.debug("ISO 代码缓存命中, event: ISO_CODE_CACHE_HIT, dictionary: COUNTRY, criteriaCount: {}, matched: {}",
                     fields.size() - 1, !cacheRead.values().isEmpty());
             return cacheRead.values();
         }
         if (cacheRead.status() == CodeCacheReadStatus.UNAVAILABLE) {
-            log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
-                    + "dictionary: COUNTRY, reason: REDIS_UNAVAILABLE");
+            log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, dictionary: COUNTRY, reason: REDIS_UNAVAILABLE");
             return loadCountriesByCodesFromDatabase(alpha2, alpha3, numeric);
         }
 
-        log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
-                + "dictionary: COUNTRY, reason: INDEX_NOT_READY");
+        log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, dictionary: COUNTRY, reason: INDEX_NOT_READY");
         // 代码索引缺失时优先复用全量快照；只有两个缓存都不存在时才扫描一次从库。
         List<IsoCountryInfo> countries = loadCountriesForCodeIndex();
         return filterCountriesByCodes(countries, alpha2, alpha3, numeric);
@@ -345,19 +342,16 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         CodeCacheReadResult<IsoCurrencyInfo> cacheRead = readCodeCache(
                 cacheKey, fields, IsoCurrencyInfo.class, "CURRENCY");
         if (cacheRead.status() == CodeCacheReadStatus.PRESENT) {
-            log.debug("ISO 代码缓存命中, event: ISO_CODE_CACHE_HIT, dictionary: CURRENCY, "
-                            + "criteriaCount: {}, matched: {}",
+            log.debug("ISO 代码缓存命中, event: ISO_CODE_CACHE_HIT, dictionary: CURRENCY, criteriaCount: {}, matched: {}",
                     fields.size() - 1, !cacheRead.values().isEmpty());
             return cacheRead.values();
         }
         if (cacheRead.status() == CodeCacheReadStatus.UNAVAILABLE) {
-            log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
-                    + "dictionary: CURRENCY, reason: REDIS_UNAVAILABLE");
+            log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, dictionary: CURRENCY, reason: REDIS_UNAVAILABLE");
             return loadCurrenciesByCodesFromDatabase(alphabeticCode, numericCode);
         }
 
-        log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
-                + "dictionary: CURRENCY, reason: INDEX_NOT_READY");
+        log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, dictionary: CURRENCY, reason: INDEX_NOT_READY");
         // 代码索引缺失时优先复用全量快照；只有两个缓存都不存在时才扫描一次从库。
         List<IsoCurrencyInfo> currencies = loadCurrenciesForCodeIndex();
         return filterCurrenciesByCodes(currencies, alphabeticCode, numericCode);
@@ -568,8 +562,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 newCacheKey(COUNTRY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY),
                 aliases,
                 "COUNTRY")) {
-            log.debug("ISO 代码缓存重建完成, event: ISO_CODE_CACHE_REBUILT, dictionary: COUNTRY, "
-                            + "recordCount: {}, aliasCount: {}",
+            log.debug("ISO 代码缓存重建完成, event: ISO_CODE_CACHE_REBUILT, dictionary: COUNTRY, recordCount: {}, aliasCount: {}",
                     countries.size(), aliases.size() - 1);
         }
     }
@@ -586,8 +579,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 newCacheKey(CURRENCY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY),
                 aliases,
                 "CURRENCY")) {
-            log.debug("ISO 代码缓存重建完成, event: ISO_CODE_CACHE_REBUILT, dictionary: CURRENCY, "
-                            + "recordCount: {}, aliasCount: {}",
+            log.debug("ISO 代码缓存重建完成, event: ISO_CODE_CACHE_REBUILT, dictionary: CURRENCY, recordCount: {}, aliasCount: {}",
                     currencies.size(), aliases.size() - 1);
         }
     }
@@ -617,8 +609,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         try {
             cachedValues = stringRedisTemplate.opsForHash().multiGet(cacheKey, fields);
         } catch (RuntimeException exception) {
-            log.warn("ISO 代码 Hash 读取失败, event: ISO_CODE_HASH_READ_FAILED, "
-                            + "dictionary: {}, exceptionType: {}",
+            log.warn("ISO 代码 Hash 读取失败, event: ISO_CODE_HASH_READ_FAILED, dictionary: {}, exceptionType: {}",
                     dictionary, exception.getClass().getSimpleName());
             return CodeCacheReadResult.unavailable();
         }
@@ -647,8 +638,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                     : CodeCacheReadResult.present(List.of(resolved));
         } catch (RuntimeException exception) {
             // 损坏载荷不能作为权威未命中；下一次从库全量加载会替换整个固定 Hash。
-            log.warn("ISO 代码 Hash 载荷无效并回源数据库, event: ISO_CODE_HASH_PAYLOAD_INVALID, "
-                            + "dictionary: {}, exceptionType: {}",
+            log.warn("ISO 代码 Hash 载荷无效并回源数据库, event: ISO_CODE_HASH_PAYLOAD_INVALID, dictionary: {}, exceptionType: {}",
                     dictionary, exception.getClass().getSimpleName());
             return CodeCacheReadResult.missing();
         }
@@ -667,8 +657,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             stringRedisTemplate.opsForHash().putAll(cacheKey, aliases);
             return true;
         } catch (RuntimeException exception) {
-            log.warn("ISO 代码 Hash 写入失败, event: ISO_CODE_HASH_WRITE_FAILED, "
-                            + "dictionary: {}, exceptionType: {}",
+            log.warn("ISO 代码 Hash 写入失败, event: ISO_CODE_HASH_WRITE_FAILED, dictionary: {}, exceptionType: {}",
                     dictionary, exception.getClass().getSimpleName());
             return false;
         }
@@ -826,8 +815,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             }
             return values;
         } catch (DataAccessException exception) {
-            log.warn("ISO 字典数据库读取失败, event: ISO_DICTIONARY_DATABASE_READ_FAILED, "
-                            + "fallbackUsed: false, exceptionType: {}",
+            log.warn("ISO 字典数据库读取失败, event: ISO_DICTIONARY_DATABASE_READ_FAILED, fallbackUsed: false, exceptionType: {}",
                     exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY, exception);
         }
@@ -919,8 +907,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             return databaseValues;
         } catch (DataAccessException exception) {
             log.warn(
-                    "ISO 字典数据库读取失败, event: ISO_DICTIONARY_DATABASE_READ_FAILED, "
-                            + "fallbackUsed: false, exceptionType: {}",
+                    "ISO 字典数据库读取失败, event: ISO_DICTIONARY_DATABASE_READ_FAILED, fallbackUsed: false, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY, exception);
@@ -950,8 +937,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             }
             return CacheReadResult.present(values);
         } catch (RuntimeException exception) {
-            log.warn("ISO 字典 Redis 缓存读取失败, event: ISO_DICTIONARY_CACHE_READ_FAILED, "
-                            + "exceptionType: {}",
+            log.warn("ISO 字典 Redis 缓存读取失败, event: ISO_DICTIONARY_CACHE_READ_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
             return CacheReadResult.unavailable();
         }
@@ -974,8 +960,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         try {
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(values));
         } catch (RuntimeException exception) {
-            log.warn("ISO 字典 Redis 缓存写入失败, event: ISO_DICTIONARY_CACHE_WRITE_FAILED, "
-                            + "exceptionType: {}",
+            log.warn("ISO 字典 Redis 缓存写入失败, event: ISO_DICTIONARY_CACHE_WRITE_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }
@@ -1020,8 +1005,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             return !invalidationGuard.isPending(cacheName, businessKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "ISO 字典缓存门禁检查失败, event: ISO_DICTIONARY_CACHE_GUARD_CHECK_FAILED, "
-                            + "cacheName: {}, exceptionType: {}",
+                    "ISO 字典缓存门禁检查失败, event: ISO_DICTIONARY_CACHE_GUARD_CHECK_FAILED, cacheName: {}, exceptionType: {}",
                     cacheName,
                     exception.getClass().getSimpleName()
             );
@@ -1076,8 +1060,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             stringRedisTemplate.delete(cacheKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "ISO 字典 Redis 缓存失效失败, event: ISO_DICTIONARY_CACHE_EVICTION_FAILED, "
-                            + "exceptionType: {}",
+                    "ISO 字典 Redis 缓存失效失败, event: ISO_DICTIONARY_CACHE_EVICTION_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             throw exception;

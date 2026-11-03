@@ -11,8 +11,11 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorQu
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,6 +59,24 @@ class AdminMonitorWorkbenchControllerContractTest {
                 .getAnnotation(OperationLog.class)).isNotNull();
         assertThat(method("closeAlert", String.class, String.class, AlertActionRequest.class)
                 .getAnnotation(OperationLog.class)).isNotNull();
+    }
+
+    /**
+     * 路径参数必须显式声明名称，避免生产构建未保留 Java 参数名时请求绑定失败。
+     */
+    @Test
+    void alertEndpointsShouldDeclarePathVariableNamesExplicitly() throws Exception {
+        List<Method> methods = List.of(
+                method("alertDetail", String.class, String.class),
+                method("takeOver", String.class, String.class, AlertActionRequest.class),
+                method("markProcessing", String.class, String.class, AlertActionRequest.class),
+                method("closeAlert", String.class, String.class, AlertActionRequest.class));
+
+        for (Method method : methods) {
+            Parameter[] parameters = method.getParameters();
+            assertThat(parameters[0].getAnnotation(PathVariable.class).value()).isEqualTo("sourceType");
+            assertThat(parameters[1].getAnnotation(PathVariable.class).value()).isEqualTo("sourceId");
+        }
     }
 
     private Method method(String name, Class<?>... parameterTypes) throws NoSuchMethodException {

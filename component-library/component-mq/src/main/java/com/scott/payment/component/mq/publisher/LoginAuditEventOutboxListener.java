@@ -40,8 +40,7 @@ public class LoginAuditEventOutboxListener {
         try {
             mqPublisher.publish(MqTopic.LOGIN_AUDIT, MqTag.LOGIN_AUDIT, toMessage(event));
         } catch (RuntimeException exception) {
-            log.warn("登录审计事件写入 Outbox 失败, event: LOGIN_AUDIT_OUTBOX_FAILED, "
-                            + "eventId: {}, exceptionType: {}",
+            log.warn("登录审计事件写入 Outbox 失败, event: LOGIN_AUDIT_OUTBOX_FAILED, eventId: {}, exceptionType: {}",
                     event.eventId(), exception.getClass().getSimpleName());
         }
     }

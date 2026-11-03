@@ -4,6 +4,8 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.web.auth.BrowserSessionCookieSupport;
 import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
 import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
 import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
@@ -31,11 +33,11 @@ import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordRes
 import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetRequestResponse;
 import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetVerifyResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -171,12 +173,15 @@ public class MerchantAuthController {
      *
      * @param request 登录请求
      * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 登录响应
      */
     @PostMapping("/login")
     public CommonResult<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request,
-                                                 HttpServletRequest servletRequest) {
-        return success(merchantAuthApplicationService.login(request, servletRequest));
+                                                 HttpServletRequest servletRequest,
+                                                 HttpServletResponse servletResponse) {
+        return success(completeBrowserLogin(
+                merchantAuthApplicationService.login(request, servletRequest), servletRequest, servletResponse));
     }
 
     /**
@@ -195,12 +200,17 @@ public class MerchantAuthController {
      *
      * @param request        绑定确认请求
      * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 登录响应
      */
     @PostMapping("/mfa/bind-confirm")
     public CommonResult<AuthLoginResponse> mfaBindConfirm(@Valid @RequestBody AuthMfaBindConfirmRequest request,
-                                                          HttpServletRequest servletRequest) {
-        return success(merchantAuthApplicationService.mfaBindConfirm(request, servletRequest));
+                                                          HttpServletRequest servletRequest,
+                                                          HttpServletResponse servletResponse) {
+        return success(completeBrowserLogin(
+                merchantAuthApplicationService.mfaBindConfirm(request, servletRequest),
+                servletRequest,
+                servletResponse));
     }
 
     /**
@@ -208,12 +218,17 @@ public class MerchantAuthController {
      *
      * @param request        OTP 验证请求
      * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 登录响应
      */
     @PostMapping("/mfa/verify")
     public CommonResult<AuthLoginResponse> mfaVerify(@Valid @RequestBody AuthMfaVerifyRequest request,
-                                                     HttpServletRequest servletRequest) {
-        return success(merchantAuthApplicationService.mfaVerify(request, servletRequest));
+                                                     HttpServletRequest servletRequest,
+                                                     HttpServletResponse servletResponse) {
+        return success(completeBrowserLogin(
+                merchantAuthApplicationService.mfaVerify(request, servletRequest),
+                servletRequest,
+                servletResponse));
     }
 
     /**
@@ -223,42 +238,42 @@ public class MerchantAuthController {
      * 无法恢复自己的会话与权限集合。
      * </p>
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
      * @return 当前登录账号、菜单和权限
     */
     @GetMapping("/me")
-    public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
-        return success(merchantAuthApplicationService.currentUser(authorization));
+    public CommonResult<AuthLoginResponse> me(HttpServletRequest servletRequest) {
+        return success(merchantAuthApplicationService.currentUser(resolveAuthorization(servletRequest)));
     }
 
     /**
      * 更新当前商户登录账号个人资料。
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
      * @param request       个人资料更新请求
      * @return 更新后的当前商户登录账号、菜单和权限
      */
     @PostMapping("/profile")
     @OperationLog(moduleName = "商户个人中心", businessType = OperationTypeConstants.UPDATE,
             operation = "更新商户个人资料", recordRequest = false, recordResponse = false)
-    public CommonResult<AuthLoginResponse> updateProfile(@RequestHeader("Authorization") String authorization,
+    public CommonResult<AuthLoginResponse> updateProfile(HttpServletRequest servletRequest,
                                                          @Valid @RequestBody AuthProfileUpdateRequest request) {
-        return success(merchantAuthApplicationService.updateCurrentProfile(authorization, request));
+        return success(merchantAuthApplicationService.updateCurrentProfile(resolveAuthorization(servletRequest), request));
     }
 
     /**
      * 修改当前商户登录账号密码。
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
      * @param request       修改密码请求
      * @return 空响应
      */
     @PostMapping("/password/change")
     @OperationLog(moduleName = "商户个人中心", businessType = OperationTypeConstants.UPDATE,
             operation = "修改商户登录密码", recordRequest = false, recordResponse = false)
-    public CommonResult<Void> changePassword(@RequestHeader("Authorization") String authorization,
+    public CommonResult<Void> changePassword(HttpServletRequest servletRequest,
                                              @Valid @RequestBody AuthPasswordChangeRequest request) {
-        merchantAuthApplicationService.changeCurrentPassword(authorization, request);
+        merchantAuthApplicationService.changeCurrentPassword(resolveAuthorization(servletRequest), request);
         return success();
     }
 
@@ -268,14 +283,50 @@ public class MerchantAuthController {
      * 任意有效商户登录态都必须能够主动退出，不依赖首页或其他业务权限。
      * </p>
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 空响应
     */
     @PostMapping("/logout")
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "商户系统账号退出登录", recordRequest = false, recordResponse = false)
-    public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {
-        merchantAuthApplicationService.logout(authorization);
+    public CommonResult<Void> logout(HttpServletRequest servletRequest, HttpServletResponse servletResponse) {
+        merchantAuthApplicationService.logout(resolveAuthorization(servletRequest));
+        BrowserSessionCookieSupport.clearBrowserSession(
+                AuthConstants.APP_MERCHANT, servletRequest, servletResponse);
         return success();
+    }
+
+    /**
+     * 在浏览器 Cookie 模式下签发 HttpOnly 会话，并从 JSON 响应移除令牌。
+     *
+     * @param loginResponse 登录响应
+     * @param request Servlet 请求
+     * @param response Servlet 响应
+     * @return 适合当前调用模式的登录响应
+     */
+    private AuthLoginResponse completeBrowserLogin(AuthLoginResponse loginResponse,
+                                                   HttpServletRequest request,
+                                                   HttpServletResponse response) {
+        if (loginResponse != null && BrowserSessionCookieSupport.issueBrowserSession(
+                AuthConstants.APP_MERCHANT,
+                loginResponse.getAccessToken(),
+                loginResponse.getExpiresIn(),
+                request,
+                response)) {
+            loginResponse.setAccessToken(null);
+            loginResponse.setTokenType("Cookie");
+        }
+        return loginResponse;
+    }
+
+    /**
+     * 从显式 Bearer 请求头或商户系统 HttpOnly Cookie 解析认证凭据。
+     *
+     * @param request Servlet 请求
+     * @return Bearer 认证值
+     */
+    private String resolveAuthorization(HttpServletRequest request) {
+        return BrowserSessionCookieSupport.resolveAuthorization(AuthConstants.APP_MERCHANT, request);
     }
 }

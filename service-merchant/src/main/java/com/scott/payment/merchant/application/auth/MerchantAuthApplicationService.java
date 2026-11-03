@@ -118,6 +118,7 @@ public class MerchantAuthApplicationService {
             return credential;
         }
         SysMerchantUserDO merchantUser = sysMerchantUserMapper.selectOne(Wrappers.<SysMerchantUserDO>lambdaQuery()
+                .eq(SysMerchantUserDO::getMerchantId, defaultLoginProperties.getMerchantId())
                 .eq(SysMerchantUserDO::getLoginAccount, defaultLoginProperties.getLoginAccount())
                 .eq(SysMerchantUserDO::getStatus, AuthConstants.ENABLED)
                 .eq(SysMerchantUserDO::getDeleted, AuthConstants.NOT_DELETED)

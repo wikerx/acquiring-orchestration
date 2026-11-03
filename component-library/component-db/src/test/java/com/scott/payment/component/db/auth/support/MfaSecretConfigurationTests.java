@@ -70,6 +70,17 @@ class MfaSecretConfigurationTests {
     }
 
     @Test
+    void shouldExplainNacosConfigurationWhenDevSecretIsMissing() {
+        MockEnvironment dev = new MockEnvironment()
+                .withProperty("spring.application.name", "service-admin");
+        dev.setActiveProfiles("dev");
+
+        assertThatThrownBy(() -> new MfaSecretConfiguration(dev).afterPropertiesSet())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Nacos DataId");
+    }
+
+    @Test
     void shouldRejectEphemeralSecretOutsideIsolatedTestProfile() {
         MockEnvironment dev = new MockEnvironment()
                 .withProperty("spring.application.name", "service-admin")

@@ -31,6 +31,7 @@ readonly SERVICES=(
 readonly EDGES=(
   merchant-admin
   admin-job
+  job-admin
   admin-payment
   admin-clearing
   admin-settlement
@@ -54,6 +55,7 @@ usage() {
     '  manage-nacos-internal-auth.sh migrate <env> <namespace-id>' \
     '  manage-nacos-internal-auth.sh verify <env> <namespace-id>' \
     '  manage-nacos-internal-auth.sh plan-service-configs <env> <namespace-id>' \
+    '  CONFIRM_MIGRATE_LOCAL_DEV_RUNTIME_CONFIG=YES manage-nacos-internal-auth.sh migrate-local-dev-runtime-config dev <namespace-id> <absolute-secret-dir>' \
     '  CONFIRM_PUBLISH_SERVICE_CONFIGS=YES manage-nacos-internal-auth.sh sync-service-configs <env> <namespace-id>' \
     '  CONFIRM_RESTORE_SERVICE_CONFIGS=YES manage-nacos-internal-auth.sh restore-service-configs <env> <namespace-id> <absolute-backup-dir>' \
     '  manage-nacos-internal-auth.sh rotate-prepare <env> <namespace-id> <edge>' \
@@ -177,7 +179,7 @@ legacy_edge_data_id() {
 service_edges() {
   case "$1" in
     service-admin)
-      printf '%s\n' merchant-admin admin-job admin-payment admin-clearing admin-settlement
+      printf '%s\n' merchant-admin admin-job job-admin admin-payment admin-clearing admin-settlement gateway-checkout
       ;;
     service-checkout)
       printf '%s\n' gateway-checkout
@@ -192,10 +194,10 @@ service_edges() {
       printf '%s\n' gateway-checkout
       ;;
     service-job)
-      printf '%s\n' admin-job job-payment job-clearing job-data
+      printf '%s\n' admin-job job-admin job-payment job-clearing job-data
       ;;
     service-merchant)
-      printf '%s\n' merchant-payment
+      printf '%s\n' merchant-payment gateway-checkout
       ;;
     service-openapi)
       printf '%s\n' openapi-payment openapi-payout gateway-checkout
@@ -224,7 +226,7 @@ edge_caller() {
   case "$1" in
     merchant-admin) printf '%s' '' ;;
     admin-job|admin-payment|admin-clearing|admin-settlement) printf '%s' service-admin ;;
-    job-payment|job-clearing|job-data) printf '%s' service-job ;;
+    job-admin|job-payment|job-clearing|job-data) printf '%s' service-job ;;
     merchant-payment) printf '%s' service-merchant ;;
     openapi-payment|openapi-payout) printf '%s' service-openapi ;;
     payment-risk) printf '%s' service-payment ;;
@@ -236,18 +238,19 @@ edge_caller() {
   esac
 }
 
-# 返回验签方；gateway-checkout 同时保护 OpenAPI 和 Checkout 两个下游入口。
+# 返回验签方；gateway-checkout 同时保护门户、OpenAPI 和 Checkout 下游入口。
 edge_receivers() {
   case "$1" in
     merchant-admin) printf '%s\n' service-admin ;;
     admin-job) printf '%s\n' service-job ;;
+    job-admin) printf '%s\n' service-admin ;;
     admin-payment|job-payment|merchant-payment|openapi-payment) printf '%s\n' service-payment ;;
     admin-clearing|job-clearing) printf '%s\n' service-clearing ;;
     admin-settlement) printf '%s\n' service-settlement ;;
     job-data) printf '%s\n' service-data ;;
     openapi-payout) printf '%s\n' service-payout ;;
     payment-risk) printf '%s\n' service-risk ;;
-    gateway-checkout) printf '%s\n' service-openapi service-checkout ;;
+    gateway-checkout) printf '%s\n' service-admin service-merchant service-openapi service-checkout ;;
     *)
       printf 'Unsupported internal-auth edge: %s\n' "$1" >&2
       exit 1
@@ -594,6 +597,7 @@ edge_description() {
   case "$1" in
     merchant-admin) printf '遗留 Merchant 到 Admin 兼容接口验签，仅用于失败关闭保护。' ;;
     admin-job) printf 'Admin 调用 Job 管理命令时使用的签名与验签凭据。' ;;
+    job-admin) printf 'Job 调用 Admin 汇率波动评估命令时使用的签名与验签凭据。' ;;
     admin-payment) printf 'Admin 调用 Payment 状态变更和异常处置命令时使用的凭据。' ;;
     admin-clearing) printf 'Admin 调用 Clearing 人工清分执行与补偿命令时使用的凭据。' ;;
     admin-settlement) printf 'Admin 调用 Settlement 手工结算、审批、取消和冲正命令时使用的凭据。' ;;
@@ -604,7 +608,7 @@ edge_description() {
     openapi-payment) printf 'OpenAPI 调用 Payment 支付受理与查询内部协议时使用的凭据。' ;;
     openapi-payout) printf 'OpenAPI 调用 Payout 代付受理与查询内部协议时使用的凭据。' ;;
     payment-risk) printf 'Payment 调用 Risk 实时风控评估时使用的凭据。' ;;
-    gateway-checkout) printf 'Gateway 访问 OpenAPI 和 Checkout 托管收银台入口时使用的凭据。' ;;
+    gateway-checkout) printf 'Gateway 访问管理门户、商户门户、OpenAPI 和 Checkout 入口时使用的凭据。' ;;
     *) printf '内部服务调用边签名与验签凭据。' ;;
   esac
 }
@@ -1037,15 +1041,163 @@ verify_all_service_bundles() {
   local namespace="$2"
   load_all_service_bundles "$environment" "$namespace"
   verify_loaded_edge_consistency
+  if [[ "$environment" == "dev" ]]; then
+    verify_loaded_runtime_configs
+  fi
   printf 'Service configuration set verified: services=%d, edges=%d, environment=%s.\n' \
     "${#SERVICES[@]}" "${#EDGES[@]}" "$environment"
 }
 
-# 服务模板只保存非敏感业务配置和对内部调用边的属性引用，真实密钥必须来自现有 Nacos 服务配置。
+is_registered_edge() {
+  local requested="$1"
+  local edge
+  for edge in "${EDGES[@]}"; do
+    if [[ "$edge" == "$requested" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# 同步前允许服务暂缺新注册的调用边，但已有边仍必须结构合法、密钥合规且不能重复。
+# 最终发布内容继续由 verify_service_bundle_file 按最小权限集合做严格校验。
+verify_reconcilable_service_bundle_file() {
+  local service="$1"
+  local content_file="$2"
+  local layout
+  local marker_count
+  local edge
+  local edge_count
+  local active_secret
+  local previous_secret
+  if ! layout="$(service_auth_bundle_format "$content_file")"; then
+    printf 'Service configuration validation failed before synchronization: %s.\n' "$service" >&2
+    exit 1
+  fi
+  marker_count="$(sed 's/^[[:space:]]*//' "$content_file" | grep -Fxc "$AUTH_BUNDLE_MARKER" || true)"
+  if [[ "$marker_count" -ne 1 ]]; then
+    printf 'Managed internal-auth marker validation failed before synchronization: %s.\n' \
+      "$service" >&2
+    exit 1
+  fi
+  while IFS= read -r edge; do
+    [[ -n "$edge" ]] || continue
+    if ! is_registered_edge "$edge"; then
+      printf 'Unregistered internal-auth edge found before synchronization: %s/%s.\n' \
+        "$service" "$edge" >&2
+      exit 1
+    fi
+    if [[ "$layout" == "nested" ]]; then
+      edge_count="$(grep -c "^      ${edge}:[[:space:]]*$" "$content_file" || true)"
+    else
+      edge_count="$(grep -c "^  ${edge}:[[:space:]]*$" "$content_file" || true)"
+    fi
+    if [[ "$edge_count" -ne 1 ]]; then
+      printf 'Internal-auth edge occurrence validation failed before synchronization: %s/%s.\n' \
+        "$service" "$edge" >&2
+      exit 1
+    fi
+    active_secret="$(bundle_edge_secret_from "$content_file" "$edge" active-secret)"
+    previous_secret="$(bundle_edge_secret_from "$content_file" "$edge" previous-secret)"
+    verify_secret_value "$active_secret" "${service}/${edge} active before synchronization"
+    if [[ -n "$previous_secret" ]]; then
+      verify_secret_value "$previous_secret" "${service}/${edge} previous before synchronization"
+      if [[ "$active_secret" == "$previous_secret" ]]; then
+        printf 'Active and previous internal-auth secrets must differ: %s/%s.\n' \
+          "$service" "$edge" >&2
+        exit 1
+      fi
+    fi
+  done < <(bundle_edges_from "$content_file")
+}
+
+load_service_bundle_for_sync() {
+  local service="$1"
+  local environment="$2"
+  local namespace="$3"
+  local content_file="${work_dir}/bundle-${service}.yaml"
+  local header_file="${work_dir}/bundle-${service}.headers"
+  local fetch_status=0
+  fetch_data_id "$(service_data_id "$service" "$environment")" "$namespace" \
+    "$content_file" "$header_file" || fetch_status=$?
+  if [[ $fetch_status -eq 1 ]]; then
+    printf 'Required service DataId is missing: %s.\n' \
+      "$(service_data_id "$service" "$environment")" >&2
+    exit 1
+  elif [[ $fetch_status -ne 0 ]]; then
+    exit 1
+  fi
+  verify_reconcilable_service_bundle_file "$service" "$content_file"
+}
+
+load_all_service_bundles_for_sync() {
+  local environment="$1"
+  local namespace="$2"
+  local service
+  for service in "${SERVICES[@]}"; do
+    load_service_bundle_for_sync "$service" "$environment" "$namespace"
+  done
+}
+
+# 从参与服务的现有配置中为每条调用边选择唯一密钥来源；调用边完全缺失时只生成一次，
+# 随后由同一临时来源写入调用方和全部验签方，避免单边初始化或静默轮换既有密钥。
+prepare_reconciled_edge_sources() {
+  local edge
+  local service
+  local active_secret
+  local previous_secret
+  local expected_active
+  local expected_previous
+  local initialized
+  local reused=0
+  local generated=0
+  for edge in "${EDGES[@]}"; do
+    expected_active=""
+    expected_previous=""
+    initialized=false
+    while IFS= read -r service; do
+      [[ -n "$service" ]] || continue
+      active_secret="$(bundle_edge_secret_from \
+        "${work_dir}/bundle-${service}.yaml" "$edge" active-secret)"
+      previous_secret="$(bundle_edge_secret_from \
+        "${work_dir}/bundle-${service}.yaml" "$edge" previous-secret)"
+      [[ -n "$active_secret" ]] || continue
+      verify_secret_value "$active_secret" "${service}/${edge} active before synchronization"
+      if [[ -n "$previous_secret" ]]; then
+        verify_secret_value "$previous_secret" "${service}/${edge} previous before synchronization"
+      fi
+      if [[ "$initialized" == false ]]; then
+        expected_active="$active_secret"
+        expected_previous="$previous_secret"
+        initialized=true
+      elif [[ "$active_secret" != "$expected_active" || "$previous_secret" != "$expected_previous" ]]; then
+        printf 'Internal-auth edge values are inconsistent before synchronization: %s.\n' \
+          "$edge" >&2
+        exit 1
+      fi
+    done < <(edge_services "$edge")
+    if [[ "$initialized" == false ]]; then
+      expected_active="$(random_base64 "$SECRET_BYTES")"
+      expected_previous=""
+      generated=$((generated + 1))
+    else
+      reused=$((reused + 1))
+    fi
+    write_edge_source "${work_dir}/edge-${edge}.yaml" "$edge" \
+      "$expected_active" "$expected_previous"
+  done
+  printf 'Internal-auth synchronization sources prepared: reused=%d, generated=%d.\n' \
+    "$reused" "$generated"
+}
+
+# 服务模板只保存非敏感业务配置、内部调用边引用与受管运行时占位符。
+# 占位符必须由脚本从现有 Nacos 或一次性迁移源渲染，禁止将占位符或明文密钥提交到模板。
 validate_service_config_template() {
   local service="$1"
   local environment="$2"
   local template_file
+  local expected_edges_file="${work_dir}/template-expected-edges-${service}-$$.txt"
+  local referenced_edges_file="${work_dir}/template-referenced-edges-${service}-$$.txt"
   template_file="$(service_config_template "$service" "$environment")"
   if [[ ! -s "$template_file" ]]; then
     printf 'Required service configuration template is missing or empty: %s.\n' "$template_file" >&2
@@ -1059,18 +1211,56 @@ validate_service_config_template() {
       "$template_file" >&2
     exit 1
   fi
+  service_edges "$service" | sort -u >"$expected_edges_file"
+  sed -n 's/.*acquiring\.internal-auth\.edges\.\([a-z0-9-]*\)\..*/\1/p' \
+    "$template_file" | sort -u >"$referenced_edges_file"
+  if ! cmp -s "$expected_edges_file" "$referenced_edges_file"; then
+    printf 'Service template internal-auth references do not match least privilege edges: %s.\n' \
+      "$service" >&2
+    exit 1
+  fi
+  case "$service" in
+    service-admin)
+      for placeholder in \
+        __NACOS_MANAGED_ADMIN_RISK_SECRET__ \
+        __NACOS_MANAGED_ADMIN_RISK_PREVIOUS_SECRETS__ \
+        __NACOS_MANAGED_ADMIN_RISK_LEGACY_DECRYPTION__ \
+        __NACOS_MANAGED_ADMIN_MFA_SECRET__ \
+        __NACOS_MANAGED_ADMIN_MFA_PREVIOUS_SECRETS__; do
+        if [[ "$(grep -Foc "$placeholder" "$template_file" || true)" -ne 1 ]]; then
+          printf 'Managed Admin runtime placeholder is missing or duplicated: %s.\n' "$placeholder" >&2
+          exit 1
+        fi
+      done
+      ;;
+    service-merchant)
+      for placeholder in \
+        __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ENABLED__ \
+        __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_MERCHANT_ID__ \
+        __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ACCOUNT__ \
+        __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_PASSWORD__ \
+        __NACOS_MANAGED_MERCHANT_MFA_SECRET__ \
+        __NACOS_MANAGED_MERCHANT_MFA_PREVIOUS_SECRETS__; do
+        if [[ "$(grep -Foc "$placeholder" "$template_file" || true)" -ne 1 ]]; then
+          printf 'Managed Merchant runtime placeholder is missing or duplicated: %s.\n' "$placeholder" >&2
+          exit 1
+        fi
+      done
+      ;;
+  esac
 }
 
-# 读取 payment.mfa 下的单行标量；只用于同步时保留已由受控流程写入 Nacos 的运行时密钥。
-payment_mfa_scalar_from() {
+# 读取 payment.<section> 下的单行 YAML 标量，仅处理本脚本管理的固定结构。
+payment_section_scalar_from() {
   local content_file="$1"
-  local field="$2"
-  awk -v field="$field" '
+  local section="$2"
+  local field="$3"
+  awk -v section="$section" -v field="$field" '
     $0 == "payment:" { in_payment=1; next }
     in_payment && /^[^[:space:]#]/ { exit }
-    in_payment && $0 == "  mfa:" { in_mfa=1; next }
-    in_mfa && /^  [^ ]/ { exit }
-    in_mfa && index($0, "    " field ":") == 1 {
+    in_payment && $0 == "  " section ":" { in_section=1; next }
+    in_section && /^  [^ ]/ { exit }
+    in_section && index($0, "    " field ":") == 1 {
       sub("^    " field ":[[:space:]]*", "")
       print
       exit
@@ -1078,65 +1268,291 @@ payment_mfa_scalar_from() {
   ' "$content_file"
 }
 
-# Admin/Merchant 共用的 MFA 主密钥属于 Nacos 运行时秘密；模板同步不得将稳定密钥覆盖回空占位符。
-preserve_service_runtime_secrets() {
-  local service="$1"
-  local current_file="$2"
+# 读取 payment.merchant.default-login 下的单行 YAML 标量。
+merchant_default_login_scalar_from() {
+  local content_file="$1"
+  local field="$2"
+  awk -v field="$field" '
+    $0 == "payment:" { in_payment=1; next }
+    in_payment && /^[^[:space:]#]/ { exit }
+    in_payment && $0 == "  merchant:" { in_merchant=1; next }
+    in_merchant && /^  [^ ]/ { exit }
+    in_merchant && $0 == "    default-login:" { in_default_login=1; next }
+    in_default_login && /^    [^ ]/ { exit }
+    in_default_login && index($0, "      " field ":") == 1 {
+      sub("^      " field ":[[:space:]]*", "")
+      print
+      exit
+    }
+  ' "$content_file"
+}
+
+# 读取 Java properties 迁移源中的单行值；不支持续行，避免密钥或密码被意外截断。
+property_scalar_from() {
+  local content_file="$1"
+  local field="$2"
+  awk -v field="$field" '
+    index($0, field "=") == 1 {
+      sub("^[^=]*=", "")
+      print
+      exit
+    }
+  ' "$content_file"
+}
+
+normalize_managed_scalar() {
+  local value="$1"
+  if [[ ${#value} -ge 2 && "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+    value="${value:1:${#value}-2}"
+    value="${value//\'\'/\'}"
+  elif [[ ${#value} -ge 2 && "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+  printf '%s' "$value"
+}
+
+# 服务运行时段是标准两空格缩进 YAML map；发布前显式拒绝同一路径重复 key。
+# 该校验只用于不含 map list 的 Admin/Merchant 服务配置，避免依赖客户端宽松解析行为。
+verify_unique_yaml_mapping_keys() {
+  local content_file="$1"
+  local description="$2"
+  if ! awk '
+    /^[[:space:]]*($|#|- )/ { next }
+    {
+      line=$0
+      sub(/[^ ].*$/, "", line)
+      indent=length(line)
+      if (indent % 2 != 0) next
+      value=$0
+      sub(/^[ ]*/, "", value)
+      if (value !~ /^[A-Za-z0-9_.-]+:[[:space:]]*/) next
+      key=value
+      sub(/:.*/, "", key)
+      depth=indent / 2
+      for (path_index in paths) {
+        if ((path_index + 0) >= depth) delete paths[path_index]
+      }
+      parent=(depth == 0 ? "" : paths[depth - 1])
+      full_path=parent "/" key
+      if (seen[full_path]++) {
+        printf "duplicate YAML mapping key: %s\n", full_path > "/dev/stderr"
+        exit 42
+      }
+      paths[depth]=full_path
+    }
+  ' "$content_file"; then
+    printf 'Managed Nacos YAML contains duplicate mapping keys: %s.\n' "$description" >&2
+    exit 1
+  fi
+}
+
+require_managed_single_line() {
+  local value="$1"
+  local description="$2"
+  if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+    printf 'Managed Nacos scalar must be a single line: %s.\n' "$description" >&2
+    exit 1
+  fi
+}
+
+verify_managed_secret() {
+  local value="$1"
+  local description="$2"
+  require_managed_single_line "$value" "$description"
+  if [[ ${#value} -lt 32 || ! "$value" =~ ^[A-Za-z0-9_+/=-]+$ ]]; then
+    printf 'Managed Nacos secret is missing, weak, or unsafe: %s.\n' "$description" >&2
+    exit 1
+  fi
+}
+
+verify_managed_previous_secrets() {
+  local value="$1"
+  local active_secret="$2"
+  local description="$3"
+  local item
+  local count=0
+  require_managed_single_line "$value" "$description"
+  [[ -n "$value" ]] || return 0
+  IFS=',' read -r -a previous_items <<<"$value"
+  for item in "${previous_items[@]}"; do
+    verify_managed_secret "$item" "$description"
+    if [[ "$item" == "$active_secret" ]]; then
+      printf 'Managed Nacos previous secret duplicates the active secret: %s.\n' "$description" >&2
+      exit 1
+    fi
+    count=$((count + 1))
+  done
+  if [[ $count -gt 2 ]]; then
+    printf 'Managed Nacos previous secrets exceed the supported rotation window: %s.\n' "$description" >&2
+    exit 1
+  fi
+}
+
+yaml_managed_string() {
+  local value="$1"
+  printf "'%s'" "$value"
+}
+
+render_admin_runtime_config() {
+  local source_type="$1"
+  local source_file="$2"
   local template_file="$3"
   local output_file="$4"
-  local active_secret
-  local normalized_active_secret
-  local previous_secrets
-  case "$service" in
-    service-admin|service-merchant) ;;
-    *)
-      cp "$template_file" "$output_file"
-      return
-      ;;
-  esac
-  active_secret="$(payment_mfa_scalar_from "$current_file" secret)"
-  if [[ -z "$active_secret" || "$active_secret" == '${PAYMENT_MFA_SECRET:}' ]]; then
-    cp "$template_file" "$output_file"
-    return
+  local risk_secret
+  local risk_previous
+  local risk_legacy
+  local mfa_secret
+  local mfa_previous
+  if [[ "$source_type" == "properties" ]]; then
+    risk_secret="$(property_scalar_from "$source_file" payment.risk.secret)"
+    risk_previous="$(property_scalar_from "$source_file" payment.risk.previous-secrets)"
+    risk_legacy="$(property_scalar_from "$source_file" payment.risk.allow-legacy-dev-key-decryption)"
+    mfa_secret="$(property_scalar_from "$source_file" payment.mfa.secret)"
+    mfa_previous="$(property_scalar_from "$source_file" payment.mfa.previous-secrets)"
+  else
+    risk_secret="$(payment_section_scalar_from "$source_file" risk secret)"
+    risk_previous="$(payment_section_scalar_from "$source_file" risk previous-secrets)"
+    risk_legacy="$(payment_section_scalar_from "$source_file" risk allow-legacy-dev-key-decryption)"
+    mfa_secret="$(payment_section_scalar_from "$source_file" mfa secret)"
+    mfa_previous="$(payment_section_scalar_from "$source_file" mfa previous-secrets)"
   fi
-  normalized_active_secret="$(normalize_empty_secret "$active_secret")"
-  if [[ ${#normalized_active_secret} -lt 32 \
-      || ! "$normalized_active_secret" =~ ^[A-Za-z0-9_+/=-]+$ ]]; then
-    printf 'Existing MFA secret is invalid or unsafe to preserve: %s.\n' "$service" >&2
+  risk_secret="$(normalize_managed_scalar "$risk_secret")"
+  risk_previous="$(normalize_managed_scalar "$risk_previous")"
+  risk_legacy="$(normalize_managed_scalar "$risk_legacy")"
+  mfa_secret="$(normalize_managed_scalar "$mfa_secret")"
+  mfa_previous="$(normalize_managed_scalar "$mfa_previous")"
+  verify_managed_secret "$risk_secret" "service-admin Risk active"
+  verify_managed_previous_secrets "$risk_previous" "$risk_secret" "service-admin Risk previous"
+  verify_managed_secret "$mfa_secret" "service-admin MFA active"
+  verify_managed_previous_secrets "$mfa_previous" "$mfa_secret" "service-admin MFA previous"
+  if [[ "$risk_legacy" != "true" && "$risk_legacy" != "false" ]]; then
+    printf 'Managed Admin legacy Risk decryption switch must be true or false.\n' >&2
     exit 1
   fi
-  previous_secrets="$(payment_mfa_scalar_from "$current_file" previous-secrets)"
-  if [[ -z "$previous_secrets" ]]; then
-    previous_secrets='${PAYMENT_MFA_PREVIOUS_SECRETS:}'
-  elif [[ "$previous_secrets" != '${PAYMENT_MFA_PREVIOUS_SECRETS:}' \
-      && "$previous_secrets" != '""' && "$previous_secrets" != "''" \
-      && ! "$previous_secrets" =~ ^[A-Za-z0-9_+/=,-]+$ ]]; then
-    printf 'Existing MFA previous secrets are unsafe to preserve: %s.\n' "$service" >&2
-    exit 1
-  fi
-  if ! awk -v active="$normalized_active_secret" -v previous="$previous_secrets" '
-    BEGIN { in_payment=0; in_mfa=0; replacements=0 }
-    $0 == "payment:" { in_payment=1 }
-    in_payment && NR > 1 && /^[^[:space:]#]/ && $0 != "payment:" {
-      in_payment=0
-      in_mfa=0
-    }
-    in_payment && $0 == "  mfa:" { in_mfa=1 }
-    in_mfa && /^  [^ ]/ && $0 != "  mfa:" { in_mfa=0 }
-    in_mfa && $0 ~ /^    secret:[[:space:]]*/ {
-      print "    secret: " active
-      replacements++
-      next
-    }
-    in_mfa && $0 ~ /^    previous-secrets:[[:space:]]*/ {
-      print "    previous-secrets: " previous
-      replacements++
-      next
-    }
+  risk_secret="$(yaml_managed_string "$risk_secret")"
+  risk_previous="$(yaml_managed_string "$risk_previous")"
+  mfa_secret="$(yaml_managed_string "$mfa_secret")"
+  mfa_previous="$(yaml_managed_string "$mfa_previous")"
+  awk -v risk_secret="$risk_secret" -v risk_previous="$risk_previous" \
+      -v risk_legacy="$risk_legacy" -v mfa_secret="$mfa_secret" \
+      -v mfa_previous="$mfa_previous" '
+    $0 ~ /__NACOS_MANAGED_ADMIN_RISK_SECRET__/ { sub(/__NACOS_MANAGED_ADMIN_RISK_SECRET__/, risk_secret) }
+    $0 ~ /__NACOS_MANAGED_ADMIN_RISK_PREVIOUS_SECRETS__/ { sub(/__NACOS_MANAGED_ADMIN_RISK_PREVIOUS_SECRETS__/, risk_previous) }
+    $0 ~ /__NACOS_MANAGED_ADMIN_RISK_LEGACY_DECRYPTION__/ { sub(/__NACOS_MANAGED_ADMIN_RISK_LEGACY_DECRYPTION__/, risk_legacy) }
+    $0 ~ /__NACOS_MANAGED_ADMIN_MFA_SECRET__/ { sub(/__NACOS_MANAGED_ADMIN_MFA_SECRET__/, mfa_secret) }
+    $0 ~ /__NACOS_MANAGED_ADMIN_MFA_PREVIOUS_SECRETS__/ { sub(/__NACOS_MANAGED_ADMIN_MFA_PREVIOUS_SECRETS__/, mfa_previous) }
     { print }
-    END { if (replacements != 2) exit 42 }
-  ' "$template_file" >"$output_file"; then
-    printf 'Cannot preserve MFA runtime secrets in service template: %s.\n' "$service" >&2
+  ' "$template_file" >"$output_file"
+}
+
+render_merchant_runtime_config() {
+  local source_type="$1"
+  local source_file="$2"
+  local template_file="$3"
+  local output_file="$4"
+  local enabled
+  local merchant_id
+  local account
+  local password
+  local mfa_secret
+  local mfa_previous
+  if [[ "$source_type" == "properties" ]]; then
+    enabled="$(property_scalar_from "$source_file" payment.merchant.default-login.enabled)"
+    merchant_id="$(property_scalar_from "$source_file" payment.merchant.default-login.merchant-id)"
+    account="$(property_scalar_from "$source_file" payment.merchant.default-login.login-account)"
+    password="$(property_scalar_from "$source_file" payment.merchant.default-login.password)"
+    mfa_secret="$(property_scalar_from "$source_file" payment.mfa.secret)"
+    mfa_previous="$(property_scalar_from "$source_file" payment.mfa.previous-secrets)"
+  else
+    enabled="$(merchant_default_login_scalar_from "$source_file" enabled)"
+    merchant_id="$(merchant_default_login_scalar_from "$source_file" merchant-id)"
+    account="$(merchant_default_login_scalar_from "$source_file" login-account)"
+    password="$(merchant_default_login_scalar_from "$source_file" password)"
+    mfa_secret="$(payment_section_scalar_from "$source_file" mfa secret)"
+    mfa_previous="$(payment_section_scalar_from "$source_file" mfa previous-secrets)"
+  fi
+  enabled="$(normalize_managed_scalar "$enabled")"
+  merchant_id="$(normalize_managed_scalar "$merchant_id")"
+  account="$(normalize_managed_scalar "$account")"
+  password="$(normalize_managed_scalar "$password")"
+  mfa_secret="$(normalize_managed_scalar "$mfa_secret")"
+  mfa_previous="$(normalize_managed_scalar "$mfa_previous")"
+  if [[ "$enabled" != "true" && "$enabled" != "false" ]]; then
+    printf 'Managed Merchant default-login switch must be true or false.\n' >&2
+    exit 1
+  fi
+  if [[ ! "$merchant_id" =~ ^[0-9]{1,32}$ ]]; then
+    printf 'Managed Merchant default-login merchant id is missing or unsafe.\n' >&2
+    exit 1
+  fi
+  if [[ -z "$account" || ! "$account" =~ ^[A-Za-z0-9._@-]+$ ]]; then
+    printf 'Managed Merchant default-login account is missing or unsafe.\n' >&2
+    exit 1
+  fi
+  require_managed_single_line "$password" "service-merchant default-login password"
+  if [[ ${#password} -lt 12 || ! "$password" =~ ^[A-Za-z0-9@._+!#$%\&*=?^-]+$ ]]; then
+    printf 'Managed Merchant default-login password is missing, weak, or unsafe.\n' >&2
+    exit 1
+  fi
+  verify_managed_secret "$mfa_secret" "service-merchant MFA active"
+  verify_managed_previous_secrets "$mfa_previous" "$mfa_secret" "service-merchant MFA previous"
+  merchant_id="$(yaml_managed_string "$merchant_id")"
+  account="$(yaml_managed_string "$account")"
+  password="$(yaml_managed_string "$password")"
+  mfa_secret="$(yaml_managed_string "$mfa_secret")"
+  mfa_previous="$(yaml_managed_string "$mfa_previous")"
+  awk -v enabled="$enabled" -v merchant_id="$merchant_id" -v account="$account" \
+      -v password="$password" -v mfa_secret="$mfa_secret" -v mfa_previous="$mfa_previous" '
+    $0 ~ /__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ENABLED__/ { sub(/__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ENABLED__/, enabled) }
+    $0 ~ /__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_MERCHANT_ID__/ { sub(/__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_MERCHANT_ID__/, merchant_id) }
+    $0 ~ /__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ACCOUNT__/ { sub(/__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ACCOUNT__/, account) }
+    $0 ~ /__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_PASSWORD__/ { sub(/__NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_PASSWORD__/, password) }
+    $0 ~ /__NACOS_MANAGED_MERCHANT_MFA_SECRET__/ { sub(/__NACOS_MANAGED_MERCHANT_MFA_SECRET__/, mfa_secret) }
+    $0 ~ /__NACOS_MANAGED_MERCHANT_MFA_PREVIOUS_SECRETS__/ { sub(/__NACOS_MANAGED_MERCHANT_MFA_PREVIOUS_SECRETS__/, mfa_previous) }
+    { print }
+  ' "$template_file" >"$output_file"
+}
+
+render_service_runtime_config() {
+  local service="$1"
+  local source_type="$2"
+  local source_file="$3"
+  local template_file="$4"
+  local output_file="$5"
+  case "$service" in
+    service-admin) render_admin_runtime_config "$source_type" "$source_file" "$template_file" "$output_file" ;;
+    service-merchant) render_merchant_runtime_config "$source_type" "$source_file" "$template_file" "$output_file" ;;
+    *) cp "$template_file" "$output_file" ;;
+  esac
+  if grep -q '__NACOS_MANAGED_' "$output_file"; then
+    printf 'Managed Nacos runtime placeholder remains unresolved: %s.\n' "$service" >&2
+    exit 1
+  fi
+}
+
+verify_service_runtime_config_file() {
+  local service="$1"
+  local content_file="$2"
+  local rendered_file="${work_dir}/runtime-verify-${service}-$$.yaml"
+  local template_file
+  template_file="$(service_config_template "$service" dev)"
+  validate_service_config_template "$service" dev
+  verify_unique_yaml_mapping_keys "$content_file" "$service"
+  render_service_runtime_config "$service" yaml "$content_file" "$template_file" "$rendered_file"
+  verify_unique_yaml_mapping_keys "$rendered_file" "rendered ${service}"
+}
+
+verify_loaded_runtime_configs() {
+  local admin_mfa
+  local merchant_mfa
+  verify_service_runtime_config_file service-admin "${work_dir}/bundle-service-admin.yaml"
+  verify_service_runtime_config_file service-merchant "${work_dir}/bundle-service-merchant.yaml"
+  admin_mfa="$(normalize_managed_scalar "$(payment_section_scalar_from \
+    "${work_dir}/bundle-service-admin.yaml" mfa secret)")"
+  merchant_mfa="$(normalize_managed_scalar "$(payment_section_scalar_from \
+    "${work_dir}/bundle-service-merchant.yaml" mfa secret)")"
+  if [[ "$admin_mfa" == "$merchant_mfa" ]]; then
+    printf 'Admin and Merchant must not share the same MFA master secret.\n' >&2
     exit 1
   fi
 }
@@ -1152,9 +1568,9 @@ build_synced_service_config() {
   local validation_headers="${work_dir}/synced-${service}.headers"
   template_file="$(service_config_template "$service" "$environment")"
   validate_service_config_template "$service" "$environment"
-  preserve_service_runtime_secrets "$service" "$current_file" "$template_file" \
+  render_service_runtime_config "$service" yaml "$current_file" "$template_file" \
     "$runtime_template_file"
-  write_managed_auth_fragment_from_bundle "$service" "$current_file" "$auth_file"
+  write_managed_auth_fragment_from_edge_sources "$service" "$auth_file"
   inject_managed_auth_fragment "$runtime_template_file" "$auth_file" "$expected_file"
   : >"$validation_headers"
   verify_service_bundle_file "$service" "$expected_file" "$validation_headers"
@@ -1164,8 +1580,8 @@ prepare_synced_service_configs() {
   local environment="$1"
   local namespace="$2"
   local service
-  load_all_service_bundles "$environment" "$namespace"
-  verify_loaded_edge_consistency
+  load_all_service_bundles_for_sync "$environment" "$namespace"
+  prepare_reconciled_edge_sources
   for service in "${SERVICES[@]}"; do
     build_synced_service_config "$service" "$environment"
   done
@@ -1220,6 +1636,94 @@ create_service_config_backup_dir() {
   mkdir -p "$SERVICE_CONFIG_BACKUP_ROOT"
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
   mktemp -d "${SERVICE_CONFIG_BACKUP_ROOT}/${environment}-${timestamp}-XXXXXX"
+}
+
+validate_local_runtime_migration_source() {
+  local source_dir="$1"
+  local source_file
+  local mode
+  if [[ "$source_dir" != /* || ! -d "$source_dir" || -L "$source_dir" ]]; then
+    printf 'Local runtime migration source must be an absolute non-symlink directory.\n' >&2
+    exit 1
+  fi
+  for source_file in \
+    "${source_dir}/service-admin-dev.properties" \
+    "${source_dir}/service-merchant-dev.properties"; do
+    if [[ ! -f "$source_file" || -L "$source_file" ]]; then
+      printf 'Required local runtime migration source is missing or unsafe: %s.\n' "$source_file" >&2
+      exit 1
+    fi
+    mode="$(stat -f '%Lp' "$source_file" 2>/dev/null || stat -c '%a' "$source_file")"
+    if (( (8#$mode & 077) != 0 )); then
+      printf 'Local runtime migration source must not be accessible by group or others: %s.\n' \
+        "$source_file" >&2
+      exit 1
+    fi
+  done
+}
+
+prepare_local_runtime_migrated_bundle() {
+  local service="$1"
+  local source_file="$2"
+  local current_file="${work_dir}/bundle-${service}.yaml"
+  local template_file
+  local runtime_template_file="${work_dir}/migrated-runtime-template-${service}.yaml"
+  local auth_file="${work_dir}/migrated-auth-${service}.yaml"
+  local expected_file="${work_dir}/migrated-${service}.yaml"
+  template_file="$(service_config_template "$service" dev)"
+  validate_service_config_template "$service" dev
+  render_service_runtime_config "$service" properties "$source_file" "$template_file" \
+    "$runtime_template_file"
+  write_managed_auth_fragment_from_bundle "$service" "$current_file" "$auth_file"
+  inject_managed_auth_fragment "$runtime_template_file" "$auth_file" "$expected_file"
+  verify_service_bundle_file "$service" "$expected_file" "${work_dir}/migration-validation.headers"
+  verify_service_runtime_config_file "$service" "$expected_file"
+}
+
+# 将历史本机 dev 密钥与默认登录配置一次性迁移到服务专属 Nacos DataId。
+# 脚本只输出校验结果和备份路径，不输出任何密钥、密码或默认账号值。
+migrate_local_dev_runtime_config() {
+  local environment="$1"
+  local namespace="$2"
+  local source_dir="$3"
+  local backup_dir
+  local admin_mfa
+  local merchant_mfa
+  local service
+  if [[ "$environment" != "dev" ]]; then
+    printf 'Local runtime configuration migration is restricted to the dev environment.\n' >&2
+    exit 1
+  fi
+  if [[ "${CONFIRM_MIGRATE_LOCAL_DEV_RUNTIME_CONFIG:-}" != "YES" ]]; then
+    printf 'Set CONFIRM_MIGRATE_LOCAL_DEV_RUNTIME_CONFIG=YES after validating the dev target.\n' >&2
+    exit 1
+  fi
+  validate_local_runtime_migration_source "$source_dir"
+  load_all_service_bundles "$environment" "$namespace"
+  verify_loaded_edge_consistency
+  prepare_local_runtime_migrated_bundle service-admin \
+    "${source_dir}/service-admin-dev.properties"
+  prepare_local_runtime_migrated_bundle service-merchant \
+    "${source_dir}/service-merchant-dev.properties"
+  admin_mfa="$(normalize_managed_scalar "$(payment_section_scalar_from \
+    "${work_dir}/migrated-service-admin.yaml" mfa secret)")"
+  merchant_mfa="$(normalize_managed_scalar "$(payment_section_scalar_from \
+    "${work_dir}/migrated-service-merchant.yaml" mfa secret)")"
+  if [[ "$admin_mfa" == "$merchant_mfa" ]]; then
+    printf 'Admin and Merchant must not share the same MFA master secret.\n' >&2
+    exit 1
+  fi
+  backup_dir="$(create_service_config_backup_dir "$environment")"
+  backup_service_configs "$environment" "$namespace" "$backup_dir"
+  for service in service-admin service-merchant; do
+    publish_data_id "$(service_data_id "$service" "$environment")" "$namespace" \
+      "${work_dir}/migrated-${service}.yaml"
+    fetch_expected_bundle "$service" "$environment" "$namespace" \
+      "${work_dir}/migrated-${service}.yaml"
+  done
+  verify_all_service_bundles "$environment" "$namespace"
+  printf 'Local dev runtime configuration migrated and verified: services=2, backup=%s.\n' \
+    "$backup_dir"
 }
 
 sync_service_configs() {
@@ -1542,6 +2046,11 @@ main() {
       require_environment "$2"
       require_namespace "$3"
       ;;
+    migrate-local-dev-runtime-config)
+      [[ $# -eq 4 ]] || { usage >&2; exit 1; }
+      require_environment "$2"
+      require_namespace "$3"
+      ;;
     restore-service-configs)
       [[ $# -eq 4 ]] || { usage >&2; exit 1; }
       require_environment "$2"
@@ -1567,6 +2076,7 @@ main() {
     migrate) migrate_service_bundles "$2" "$3" ;;
     verify) verify_all_service_bundles "$2" "$3" ;;
     plan-service-configs) plan_service_configs "$2" "$3" ;;
+    migrate-local-dev-runtime-config) migrate_local_dev_runtime_config "$2" "$3" "$4" ;;
     sync-service-configs) sync_service_configs "$2" "$3" ;;
     restore-service-configs) restore_service_configs "$2" "$3" "$4" ;;
     rotate-prepare) rotate_prepare "$2" "$3" "$4" ;;

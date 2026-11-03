@@ -340,7 +340,9 @@ public class ApiClient {
                     HTTP_METHOD_PUT, apiOperation, request.getOperationId(), request.getTransactionId(),
                     request.getChannelOrderNo(), request.getAuthenticationTransactionId(), request.getMerchantOrderNo()
             )));
-            logPayloadMetadata("MPGS 3DS请求摘要", requestBody);
+            PayloadLogMetadata requestMetadata = payloadLogMetadata(requestBody);
+            log.info("MPGS 3DS请求摘要, event: MPGS_3DS_REQUEST_PAYLOAD_METADATA, payloadLength: {}, payloadDigest: {}",
+                    requestMetadata.length(), requestMetadata.digest());
             HttpResponse<String> response = sendPut(request, url, requestBody);
             return handleAuthenticationResponse(
                     request, response, HTTP_METHOD_PUT, apiOperation, url, startNanos);
@@ -742,7 +744,9 @@ public class ApiClient {
                 request.getChannelOrderNo(), request.getAuthenticationTransactionId(), response.statusCode(),
                 elapsedMillis(startNanos)
         )));
-        logPayloadMetadata("MPGS 3DS响应摘要", body);
+        PayloadLogMetadata responseMetadata = payloadLogMetadata(body);
+        log.info("MPGS 3DS响应摘要, event: MPGS_3DS_RESPONSE_PAYLOAD_METADATA, payloadLength: {}, payloadDigest: {}",
+                responseMetadata.length(), responseMetadata.digest());
         if (!StringUtils.hasText(body)) {
             throw responseException("MPGS 3DS response body is empty", response.statusCode(), null);
         }
@@ -1025,17 +1029,6 @@ public class ApiClient {
                 .replaceAll("(?i)(authorization|password|api[_-]?key|cvv|cvc|pan)\\s*[:=]\\s*[^,;\\s]+", "$1=***")
                 .replaceAll("\\b[0-9]{12,19}\\b", "***");
         return sanitized.length() <= 256 ? sanitized : sanitized.substring(0, 256);
-    }
-
-    /**
-     * 记录渠道报文的最小元数据，避免完整结构进入应用日志。
-     *
-     * @param eventName 日志事件名称
-     * @param payload 渠道请求或响应对象
-     */
-    private void logPayloadMetadata(String eventName, Object payload) {
-        PayloadLogMetadata metadata = payloadLogMetadata(payload);
-        log.info("{}, payloadLength: {}, payloadDigest: {}", eventName, metadata.length(), metadata.digest());
     }
 
     /**

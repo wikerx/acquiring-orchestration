@@ -39,6 +39,11 @@ FORBIDDEN_PATTERNS = [
     re.compile(r"printStackTrace\s*\("),
 ]
 
+LOG_CALL_RE = re.compile(r"\b(?:log|logger|LOGGER)\.(?:trace|debug|info|warn|error)\s*\(")
+FIRST_STRING_LITERAL_RE = re.compile(r'\s*"((?:\\.|[^"\\])*)"', re.DOTALL)
+FORMAT_LITERAL_CONCAT_RE = re.compile(r'\A\s*"(?:\\.|[^"\\])*"\s*\+', re.DOTALL)
+CHINESE_TEXT_RE = re.compile(r"[\u4e00-\u9fff]")
+
 REQUIRED_EVENT_PATTERNS = [
     "PAYMENT_TRANSACTION_START",
     "PAYMENT_TRANSACTION_END",
@@ -102,7 +107,7 @@ def iter_java_files(root: Path):
 
 def extract_log_statements(text: str) -> list[str]:
     statements: list[str] = []
-    for match in re.finditer(r"\blog\.(?:trace|debug|info|warn|error)\s*\(", text):
+    for match in LOG_CALL_RE.finditer(text):
         start = match.start()
         index = match.end()
         depth = 1
@@ -129,6 +134,33 @@ def extract_log_statements(text: str) -> list[str]:
                         break
             index += 1
     return statements
+
+
+def is_production_java(path: Path) -> bool:
+    """Return whether the path belongs to production Java source."""
+    normalized = str(path).replace("\\", "/")
+    return "/src/main/java/" in f"/{normalized}"
+
+
+def log_format_findings(statement: str) -> list[str]:
+    """Validate the stable production log format without interpreting argument values."""
+    findings: list[str] = []
+    call_match = LOG_CALL_RE.search(statement)
+    arguments = statement[call_match.end():] if call_match else statement
+    literal_match = FIRST_STRING_LITERAL_RE.match(arguments)
+    if not literal_match:
+        findings.append("log format must start with a string literal")
+        return findings
+    format_text = literal_match.group(1)
+    if FORMAT_LITERAL_CONCAT_RE.search(arguments):
+        findings.append("log format uses string concatenation")
+    if not CHINESE_TEXT_RE.search(format_text):
+        findings.append("log format lacks a Chinese event description")
+    if "event:" not in format_text:
+        findings.append("log format lacks an event field")
+    if "[{}]" in format_text:
+        findings.append("log format wraps a placeholder as [{}]")
+    return findings
 
 
 def unsafe_log_token(statement: str) -> str | None:
@@ -161,13 +193,16 @@ def main() -> int:
             token = unsafe_log_token(statement)
             if token:
                 findings.append(f"{path.relative_to(root)}: log statement contains {token}")
+            if is_production_java(path):
+                for format_finding in log_format_findings(statement):
+                    findings.append(f"{path.relative_to(root)}: {format_finding}")
 
     joined = "\n".join(all_text)
     missing_events = [event for event in REQUIRED_EVENT_PATTERNS if event not in joined]
     missing_trace_rules = [pattern for pattern in REQUIRED_TRACE_PATTERNS if pattern not in joined]
 
     print(f"checked_java_files={len(java_files)}")
-    print(f"sensitive_log_findings={len(findings)}")
+    print(f"logging_findings={len(findings)}")
     print(f"missing_required_events={len(missing_events)}")
     print(f"missing_trace_rules={len(missing_trace_rules)}")
     for finding in findings[:100]:

@@ -27,17 +27,25 @@ public class MerchantDefaultLoginCredentialProperties implements InitializingBea
     private String loginAccount = "admin";
 
     /**
+     * 本地种子商户号；配置后凭据接口只查询该商户，避免多商户环境选中其他账号。
+     */
+    private String merchantId;
+
+    /**
      * 本地种子商户初始密码，只能由环境变量或密钥配置注入。
      */
     private String password;
 
     /**
-     * 校验显式启用时的账号和密码配置，阻止空值或弱口令进入公开登录页。
+     * 校验显式启用时的商户、账号和密码配置，阻止空值或弱口令进入公开登录页。
      */
     @Override
     public void afterPropertiesSet() {
         if (!enabled) {
             return;
+        }
+        if (!StringUtils.hasText(merchantId)) {
+            throw new IllegalStateException("payment.merchant.default-login.merchant-id must be configured");
         }
         if (!StringUtils.hasText(loginAccount)) {
             throw new IllegalStateException("payment.merchant.default-login.login-account must be configured");
@@ -83,6 +91,24 @@ public class MerchantDefaultLoginCredentialProperties implements InitializingBea
      */
     public void setLoginAccount(String loginAccount) {
         this.loginAccount = loginAccount;
+    }
+
+    /**
+     * 返回本地种子商户号。
+     *
+     * @return 商户号，未配置时为空
+     */
+    public String getMerchantId() {
+        return merchantId;
+    }
+
+    /**
+     * 设置本地种子商户号。
+     *
+     * @param merchantId 商户号
+     */
+    public void setMerchantId(String merchantId) {
+        this.merchantId = merchantId;
     }
 
     /**

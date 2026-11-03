@@ -157,7 +157,30 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
             )
             """.strip();
     /**
-     * 渠道告警和安全拦截事件的统一来源查询，不读取敏感业务报文。
+     * 汇率波动系统任务连续两个调度周期未被触发的判定。
+     *
+     * <p>任务 Cron 可由调度中心维护，因此不能把五分钟写死为健康阈值。这里使用上次触发时间到
+     * 下次触发时间的实际间隔作为一个周期，当前时间超过下一触发点一个完整周期后才告警。</p>
+     */
+    private static final String RATE_JOB_TWO_PERIODS_OVERDUE_CONDITION = """
+            task.status = 'ENABLED'
+            AND task.next_trigger_time IS NOT NULL
+            AND task.last_trigger_time IS NOT NULL
+            AND TIMESTAMPDIFF(SECOND, task.last_trigger_time, task.next_trigger_time) > 0
+            AND TIMESTAMPDIFF(SECOND, task.next_trigger_time, CURRENT_TIMESTAMP(3)) >=
+                TIMESTAMPDIFF(SECOND, task.last_trigger_time, task.next_trigger_time)
+            """.strip();
+    /**
+     * 汇率波动任务健康告警条件：任务被停用、连续两个最终调度链路未成功，或连续两个周期未触发。
+     */
+    private static final String RATE_JOB_UNHEALTHY_CONDITION = """
+            (task.status <> 'ENABLED'
+             OR (COALESCE(run_health.run_count, 0) = 2
+                 AND COALESCE(run_health.unsuccessful_count, 0) = 2)
+             OR (%s))
+            """.formatted(RATE_JOB_TWO_PERIODS_OVERDUE_CONDITION).strip();
+    /**
+     * 渠道、安全、汇率和系统任务健康告警的统一来源查询，不读取敏感业务报文。
      */
     private static final String ALERT_SOURCE_SQL = """
             SELECT 'CHANNEL' AS source_type,
@@ -206,7 +229,109 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                    process_remark AS source_handle_remark
             FROM security_intercept_event
             WHERE event_time >= :beginTime AND event_time <= :endTime
-            """;
+            UNION ALL
+            SELECT 'RATE' AS source_type,
+                   event_no AS source_id,
+                   CASE
+                       WHEN UPPER(alert_level) = 'CRITICAL' THEN 'CRITICAL'
+                       WHEN UPPER(alert_level) = 'ERROR' THEN 'ERROR'
+                       ELSE 'WARNING'
+                   END AS level,
+                   'service-admin' AS service_name,
+                   'EXCHANGE_RATE' AS module_name,
+                   CONCAT(rate_type, ' ', base_currency, '/', quote_currency) AS title,
+                   CONCAT('Rate volatility ', volatility_rate, CHAR(37),
+                          ' exceeded threshold ', trigger_threshold, CHAR(37)) AS content,
+                   1 AS occurrence_count,
+                   first_trigger_time AS first_occurred_at,
+                   last_detected_time AS last_occurred_at,
+                   resolved_time AS recovered_at,
+                   CASE
+                       WHEN UPPER(event_status) = 'ACKNOWLEDGED' THEN 'PROCESSING'
+                       WHEN UPPER(event_status) = 'RESOLVED' THEN 'RECOVERED'
+                       WHEN UPPER(event_status) = 'CLOSED' THEN 'CLOSED'
+                       ELSE 'OPEN'
+                   END AS source_status,
+                   COALESCE(NULLIF(TRIM(closed_by), ''), NULLIF(TRIM(acknowledged_by), '')) AS source_owner_name,
+                   COALESCE(NULLIF(TRIM(close_remark), ''), NULLIF(TRIM(acknowledge_remark), '')) AS source_handle_remark
+            FROM exchange_rate_alert_event
+            WHERE last_detected_time >= :beginTime AND last_detected_time <= :endTime AND deleted = 0
+            UNION ALL
+            SELECT 'JOB' AS source_type,
+                   task.job_code AS source_id,
+                   CASE WHEN task.status <> 'ENABLED' THEN 'CRITICAL' ELSE 'ERROR' END AS level,
+                   'service-job' AS service_name,
+                   'SCHEDULER' AS module_name,
+                   'Exchange rate volatility monitor job' AS title,
+                   CASE
+                       WHEN task.status <> 'ENABLED' THEN 'The mandatory exchange-rate monitor job is disabled'
+                       WHEN COALESCE(run_health.run_count, 0) = 2
+                            AND COALESCE(run_health.unsuccessful_count, 0) = 2
+                           THEN 'The exchange-rate monitor job did not succeed in two consecutive runs'
+                       WHEN (%1$s)
+                           THEN 'The exchange-rate monitor job missed two consecutive trigger periods'
+                       ELSE 'The exchange-rate monitor job is healthy'
+                   END AS content,
+                   GREATEST(COALESCE(run_health.unsuccessful_count, 0), 1) AS occurrence_count,
+                   COALESCE(run_health.first_run_time, task.update_time, task.create_time) AS first_occurred_at,
+                   CASE WHEN (%2$s) THEN CURRENT_TIMESTAMP(3)
+                        ELSE COALESCE(run_health.last_success_time, task.update_time, task.create_time)
+                   END AS last_occurred_at,
+                   CASE WHEN (%3$s) THEN NULL
+                        ELSE COALESCE(run_health.last_success_time, task.update_time, task.create_time)
+                   END AS recovered_at,
+                   CASE WHEN (%4$s) THEN 'OPEN' ELSE 'RECOVERED' END AS source_status,
+                   NULL AS source_owner_name,
+                   NULL AS source_handle_remark
+            FROM sys_job_task task
+            LEFT JOIN (
+                SELECT ranked.job_id,
+                       COUNT(*) AS run_count,
+                       SUM(CASE WHEN ranked.run_status <> 'SUCCESS' THEN 1 ELSE 0 END) AS unsuccessful_count,
+                       MIN(ranked.start_time) AS first_run_time,
+                       MAX(CASE WHEN ranked.run_status = 'SUCCESS' THEN ranked.end_time END) AS last_success_time
+                FROM (
+                    SELECT chain_final.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY chain_final.job_id
+                               ORDER BY chain_final.start_time DESC, chain_final.id DESC
+                           ) AS recent_rank
+                    FROM (
+                        SELECT run_log.*,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY run_log.job_id,
+                                                COALESCE(NULLIF(run_log.trace_id, ''), run_log.run_id)
+                                   ORDER BY run_log.retry_index DESC, run_log.id DESC
+                               ) AS chain_rank
+                        FROM sys_job_run_log run_log
+                        WHERE run_log.job_code = 'EXCHANGE_RATE_VOLATILITY_MONITOR'
+                          AND run_log.trigger_type IN ('SCHEDULE', 'RETRY')
+                          AND run_log.run_status IN ('SUCCESS', 'FAILED', 'TIMEOUT', 'CANCELLED')
+                    ) chain_final
+                    WHERE chain_final.chain_rank = 1
+                ) ranked
+                WHERE ranked.recent_rank <= 2
+                GROUP BY ranked.job_id
+            ) run_health ON run_health.job_id = task.id
+            WHERE task.job_code = 'EXCHANGE_RATE_VOLATILITY_MONITOR'
+              AND task.deleted = 0
+              AND (
+                  CASE WHEN (%5$s) THEN CURRENT_TIMESTAMP(3)
+                       ELSE COALESCE(run_health.last_success_time, task.update_time, task.create_time)
+                  END
+              ) >= :beginTime
+              AND (
+                  CASE WHEN (%6$s) THEN CURRENT_TIMESTAMP(3)
+                       ELSE COALESCE(run_health.last_success_time, task.update_time, task.create_time)
+                  END
+              ) <= :endTime
+            """.formatted(
+            RATE_JOB_TWO_PERIODS_OVERDUE_CONDITION,
+            RATE_JOB_UNHEALTHY_CONDITION,
+            RATE_JOB_UNHEALTHY_CONDITION,
+            RATE_JOB_UNHEALTHY_CONDITION,
+            RATE_JOB_UNHEALTHY_CONDITION,
+            RATE_JOB_UNHEALTHY_CONDITION);
 
     /**
      * Admin 数据库命名参数查询模板，查询超时固定为五秒。
@@ -1328,6 +1453,82 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
     }
 
     /**
+     * 将汇率波动事件转换为统一告警模型。
+     *
+     * <p>来源、币种对和波动百分比只用于运维诊断；统一告警处理状态不回写汇率事件状态机。</p>
+     *
+     * @param row exchange_rate_alert_event 查询行
+     * @return 汇率来源告警
+     */
+    private AlertItem rateAlert(Map<String, Object> row) {
+        AlertItem item = new AlertItem();
+        item.setSourceType("RATE");
+        item.setSourceId(string(row, "event_no"));
+        item.setLevel(normalizeAlertLevel(string(row, "alert_level")));
+        item.setServiceName("service-admin");
+        item.setModuleName("EXCHANGE_RATE");
+        String pair = string(row, "base_currency") + "/" + string(row, "quote_currency");
+        item.setTitle(string(row, "rate_type") + " " + pair);
+        item.setContent(safeText("Rate volatility " + decimalText(row, "volatility_rate")
+                + "% exceeded threshold " + decimalText(row, "trigger_threshold") + "%", 512));
+        item.setOccurrenceCount(1L);
+        item.setFirstOccurredAt(dateTime(row, "first_trigger_time"));
+        item.setLastOccurredAt(dateTime(row, "last_detected_time"));
+        item.setRecoveredAt(dateTime(row, "resolved_time"));
+        item.setStatus(sourceAlertStatus(string(row, "event_status")));
+        item.setOwnerName(firstText(row, "closed_by", row, "acknowledged_by"));
+        item.setHandleRemark(safeText(firstText(row, "close_remark", row, "acknowledge_remark"), 512));
+        return item;
+    }
+
+    /**
+     * 将汇率波动系统任务的当前健康快照转换为统一告警模型。
+     *
+     * <p>系统任务停用、连续两次调度链路未成功或连续两个调度周期未触发时为活动告警；
+     * 健康恢复由调度事实自动决定，人工处理不能伪造恢复状态。</p>
+     *
+     * @param row 任务定义和最近两个最终调度链路的聚合行
+     * @return 系统任务健康告警
+     */
+    private AlertItem jobHealthAlert(Map<String, Object> row) {
+        boolean disabled = !"ENABLED".equals(upper(string(row, "job_status")));
+        boolean twoFailed = longValue(row, "run_count") == 2L
+                && longValue(row, "unsuccessful_count") == 2L;
+        boolean overdue = bool(row, "periods_overdue");
+        boolean unhealthy = disabled || twoFailed || overdue;
+        AlertItem item = new AlertItem();
+        item.setSourceType("JOB");
+        item.setSourceId(string(row, "job_code"));
+        item.setLevel(disabled ? "CRITICAL" : "ERROR");
+        item.setServiceName("service-job");
+        item.setModuleName("SCHEDULER");
+        item.setTitle("Exchange rate volatility monitor job");
+        item.setContent(jobHealthReason(disabled, twoFailed, overdue));
+        item.setOccurrenceCount(Math.max(longValue(row, "unsuccessful_count"), 1L));
+        item.setFirstOccurredAt(firstDateTime(row, "first_run_time", "update_time", "create_time"));
+        item.setLastOccurredAt(unhealthy ? LocalDateTime.now()
+                : firstDateTime(row, "last_success_time", "update_time", "create_time"));
+        item.setRecoveredAt(unhealthy ? null
+                : firstDateTime(row, "last_success_time", "update_time", "create_time"));
+        item.setStatus(unhealthy ? ALERT_OPEN : ALERT_RECOVERED);
+        return item;
+    }
+
+    /** 返回系统任务健康异常的稳定英文诊断，便于监控检索和前端国际化展示。 */
+    private String jobHealthReason(boolean disabled, boolean twoFailed, boolean overdue) {
+        if (disabled) {
+            return "The mandatory exchange-rate monitor job is disabled";
+        }
+        if (twoFailed) {
+            return "The exchange-rate monitor job did not succeed in two consecutive runs";
+        }
+        if (overdue) {
+            return "The exchange-rate monitor job missed two consecutive trigger periods";
+        }
+        return "The exchange-rate monitor job is healthy";
+    }
+
+    /**
      * 批量应用人工处理状态、负责人、备注和乐观锁版本。
      *
      * <p>使用来源类型和来源 ID 的组合键匹配，来源终态仍由
@@ -1372,7 +1573,7 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
     /**
      * 从来源事实表读取并校验单个告警。
      *
-     * @param sourceType CHANNEL 或 SECURITY
+     * @param sourceType CHANNEL、SECURITY、RATE 或 JOB
      * @param sourceId 来源系统告警标识
      * @return 统一来源告警
      * @throws ServiceException 来源类型非法或告警不存在时抛出
@@ -1407,8 +1608,66 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
             if (!rows.isEmpty()) {
                 return securityAlert(rows.get(0));
             }
+        } else if ("RATE".equals(normalizedType)) {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT event_no, rate_type, base_currency, quote_currency, alert_level,
+                           volatility_rate, trigger_threshold, event_status, first_trigger_time,
+                           last_detected_time, resolved_time, acknowledged_by, acknowledge_remark,
+                           closed_by, close_remark
+                    FROM exchange_rate_alert_event
+                    WHERE event_no = :sourceId AND deleted = 0
+                    LIMIT 1
+                    """, new MapSqlParameterSource("sourceId", normalizedId));
+            if (!rows.isEmpty()) {
+                return rateAlert(rows.get(0));
+            }
+        } else if ("JOB".equals(normalizedType)) {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT task.job_code, task.status AS job_status, task.last_run_status,
+                           task.last_trigger_time, task.next_trigger_time, task.create_time, task.update_time,
+                           COALESCE(run_health.run_count, 0) AS run_count,
+                           COALESCE(run_health.unsuccessful_count, 0) AS unsuccessful_count,
+                           run_health.first_run_time, run_health.last_success_time,
+                           CASE WHEN (%s) THEN 1 ELSE 0 END AS periods_overdue
+                    FROM sys_job_task task
+                    LEFT JOIN (
+                        SELECT ranked.job_id,
+                               COUNT(*) AS run_count,
+                               SUM(CASE WHEN ranked.run_status <> 'SUCCESS' THEN 1 ELSE 0 END) AS unsuccessful_count,
+                               MIN(ranked.start_time) AS first_run_time,
+                               MAX(CASE WHEN ranked.run_status = 'SUCCESS' THEN ranked.end_time END) AS last_success_time
+                        FROM (
+                            SELECT chain_final.*,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY chain_final.job_id
+                                       ORDER BY chain_final.start_time DESC, chain_final.id DESC
+                                   ) AS recent_rank
+                            FROM (
+                                SELECT run_log.*,
+                                       ROW_NUMBER() OVER (
+                                           PARTITION BY run_log.job_id,
+                                                        COALESCE(NULLIF(run_log.trace_id, ''), run_log.run_id)
+                                           ORDER BY run_log.retry_index DESC, run_log.id DESC
+                                       ) AS chain_rank
+                                FROM sys_job_run_log run_log
+                                WHERE run_log.job_code = 'EXCHANGE_RATE_VOLATILITY_MONITOR'
+                                  AND run_log.trigger_type IN ('SCHEDULE', 'RETRY')
+                                  AND run_log.run_status IN ('SUCCESS', 'FAILED', 'TIMEOUT', 'CANCELLED')
+                            ) chain_final
+                            WHERE chain_final.chain_rank = 1
+                        ) ranked
+                        WHERE ranked.recent_rank <= 2
+                        GROUP BY ranked.job_id
+                    ) run_health ON run_health.job_id = task.id
+                    WHERE task.job_code = :sourceId AND task.deleted = 0
+                    LIMIT 1
+                    """.formatted(RATE_JOB_TWO_PERIODS_OVERDUE_CONDITION),
+                    new MapSqlParameterSource("sourceId", normalizedId));
+            if (!rows.isEmpty()) {
+                return jobHealthAlert(rows.get(0));
+            }
         } else {
-            throw invalid("sourceType must be CHANNEL or SECURITY");
+            throw invalid("sourceType must be CHANNEL, SECURITY, RATE or JOB");
         }
         throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "告警不存在");
     }
@@ -1470,6 +1729,67 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                     """, new MapSqlParameterSource("sourceId", alert.getSourceId()));
             return rows.isEmpty() ? new AlertSourceMetrics() : toChannelAlertSourceMetrics(rows.get(0));
         }
+        if ("RATE".equals(alert.getSourceType())) {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT rate_type, base_currency, quote_currency, window_minutes, sample_count,
+                           minimum_rate, minimum_rate_source, maximum_rate, maximum_rate_source,
+                           latest_rate, latest_rate_source, volatility_rate, maximum_volatility_rate,
+                           trigger_threshold, recovery_threshold, window_start_time, window_end_time
+                    FROM exchange_rate_alert_event
+                    WHERE event_no = :sourceId AND deleted = 0
+                    LIMIT 1
+                    """, new MapSqlParameterSource("sourceId", alert.getSourceId()));
+            return rows.isEmpty() ? new AlertSourceMetrics() : toRateAlertSourceMetrics(rows.get(0));
+        }
+        if ("JOB".equals(alert.getSourceType())) {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT task.status AS job_status,
+                           task.last_run_status,
+                           task.last_trigger_time,
+                           task.next_trigger_time,
+                           COALESCE(run_health.run_count, 0) AS run_count,
+                           CASE
+                               WHEN run_health.latest_final_status = 'SUCCESS' THEN 0
+                               ELSE COALESCE(run_health.unsuccessful_count, 0)
+                           END AS consecutive_unsuccessful_runs,
+                           CASE WHEN (%s) THEN 1 ELSE 0 END AS periods_overdue
+                    FROM sys_job_task task
+                    LEFT JOIN (
+                        SELECT ranked.job_id,
+                               COUNT(*) AS run_count,
+                               SUM(CASE WHEN ranked.run_status <> 'SUCCESS' THEN 1 ELSE 0 END)
+                                   AS unsuccessful_count,
+                               MAX(CASE WHEN ranked.recent_rank = 1 THEN ranked.run_status END)
+                                   AS latest_final_status
+                        FROM (
+                            SELECT chain_final.*,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY chain_final.job_id
+                                       ORDER BY chain_final.start_time DESC, chain_final.id DESC
+                                   ) AS recent_rank
+                            FROM (
+                                SELECT run_log.*,
+                                       ROW_NUMBER() OVER (
+                                           PARTITION BY run_log.job_id,
+                                                        COALESCE(NULLIF(run_log.trace_id, ''), run_log.run_id)
+                                           ORDER BY run_log.retry_index DESC, run_log.id DESC
+                                       ) AS chain_rank
+                                FROM sys_job_run_log run_log
+                                WHERE run_log.job_code = :sourceId
+                                  AND run_log.trigger_type IN ('SCHEDULE', 'RETRY')
+                                  AND run_log.run_status IN ('SUCCESS', 'FAILED', 'TIMEOUT', 'CANCELLED')
+                            ) chain_final
+                            WHERE chain_final.chain_rank = 1
+                        ) ranked
+                        WHERE ranked.recent_rank <= 2
+                        GROUP BY ranked.job_id
+                    ) run_health ON run_health.job_id = task.id
+                    WHERE task.job_code = :sourceId AND task.deleted = 0
+                    LIMIT 1
+                    """.formatted(RATE_JOB_TWO_PERIODS_OVERDUE_CONDITION),
+                    new MapSqlParameterSource("sourceId", alert.getSourceId()));
+            return rows.isEmpty() ? new AlertSourceMetrics() : toJobAlertSourceMetrics(rows.get(0));
+        }
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT source_layer, event_type, risk_level, action, merchant_id,
                        service_name, hit_rule_code, reason_code, event_time
@@ -1478,6 +1798,61 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                 LIMIT 1
                 """, new MapSqlParameterSource("sourceId", alert.getSourceId()));
         return rows.isEmpty() ? new AlertSourceMetrics() : toSecurityAlertSourceMetrics(rows.get(0));
+    }
+
+    /** 将汇率事件的精度敏感指标转换为字符串字段，避免监控接口破坏十进制语义。 */
+    private AlertSourceMetrics toRateAlertSourceMetrics(Map<String, Object> row) {
+        AlertSourceMetrics metrics = new AlertSourceMetrics();
+        metrics.setRateType(string(row, "rate_type"));
+        metrics.setBaseCurrency(string(row, "base_currency"));
+        metrics.setQuoteCurrency(string(row, "quote_currency"));
+        metrics.setWindowMinutes(integer(row, "window_minutes"));
+        metrics.setSampleCount(longValue(row, "sample_count"));
+        metrics.setMinimumRate(decimalText(row, "minimum_rate"));
+        metrics.setMinimumRateSource(string(row, "minimum_rate_source"));
+        metrics.setMaximumRate(decimalText(row, "maximum_rate"));
+        metrics.setMaximumRateSource(string(row, "maximum_rate_source"));
+        metrics.setLatestRate(decimalText(row, "latest_rate"));
+        metrics.setLatestRateSource(string(row, "latest_rate_source"));
+        metrics.setVolatilityRate(decimalText(row, "volatility_rate"));
+        metrics.setMaximumVolatilityRate(decimalText(row, "maximum_volatility_rate"));
+        metrics.setTriggerThreshold(decimalText(row, "trigger_threshold"));
+        metrics.setRecoveryThreshold(decimalText(row, "recovery_threshold"));
+        metrics.setWindowStartTime(dateTime(row, "window_start_time"));
+        metrics.setWindowEndTime(dateTime(row, "window_end_time"));
+        return metrics;
+    }
+
+    /** 将系统任务健康事实转换为统一告警详情指标。 */
+    private AlertSourceMetrics toJobAlertSourceMetrics(Map<String, Object> row) {
+        long runCount = Objects.requireNonNullElse(longValue(row, "run_count"), 0L);
+        long consecutiveUnsuccessfulRuns = Objects.requireNonNullElse(
+                longValue(row, "consecutive_unsuccessful_runs"), 0L);
+        boolean disabled = !"ENABLED".equals(upper(string(row, "job_status")));
+        boolean twoFailed = runCount == 2L && consecutiveUnsuccessfulRuns == 2L;
+        boolean overdue = bool(row, "periods_overdue");
+        AlertSourceMetrics metrics = new AlertSourceMetrics();
+        metrics.setJobStatus(string(row, "job_status"));
+        metrics.setLastRunStatus(string(row, "last_run_status"));
+        metrics.setConsecutiveUnsuccessfulRuns(consecutiveUnsuccessfulRuns);
+        metrics.setLastTriggerTime(dateTime(row, "last_trigger_time"));
+        metrics.setNextTriggerTime(dateTime(row, "next_trigger_time"));
+        metrics.setHealthReason(jobHealthReasonCode(disabled, twoFailed, overdue));
+        return metrics;
+    }
+
+    /** 返回系统任务健康事实的稳定机器码，供前端国际化和自动化诊断使用。 */
+    private String jobHealthReasonCode(boolean disabled, boolean twoFailed, boolean overdue) {
+        if (disabled) {
+            return "DISABLED";
+        }
+        if (twoFailed) {
+            return "CONSECUTIVE_UNSUCCESSFUL_RUNS";
+        }
+        if (overdue) {
+            return "MISSED_TWO_PERIODS";
+        }
+        return "HEALTHY";
     }
 
     /**
@@ -1548,6 +1923,10 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         AlertItem sourceAlert = requireSourceAlert(sourceType, sourceId);
         String normalizedType = sourceAlert.getSourceType();
         String normalizedId = sourceAlert.getSourceId();
+        // 汇率事件和系统任务都有自己的恢复状态机；统一告警只能接手，不能伪造来源终态。
+        if (Set.of("RATE", "JOB").contains(normalizedType) && !"TAKEOVER".equals(action)) {
+            throw invalid("RATE and JOB alerts must be resolved by their owning source");
+        }
         jdbcTemplate.update("""
                 INSERT IGNORE INTO monitor_alert_handle_state
                     (source_type, source_id, status, owner_account_id, owner_name,
@@ -3241,6 +3620,7 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         return switch (normalized) {
             case "ACKNOWLEDGED" -> ALERT_PROCESSING;
             case "RESOLVED" -> ALERT_RECOVERED;
+            case "CLOSED" -> ALERT_CLOSED;
             default -> ALERT_OPEN;
         };
     }
@@ -3313,6 +3693,29 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
         } catch (NumberFormatException exception) {
             return null;
         }
+    }
+
+    /**
+     * 将数据库十进制值转换为不使用科学计数法的字符串。
+     *
+     * @param row 动态查询行
+     * @param field 十进制字段名
+     * @return 去除无意义尾零后的十进制文本；空值保持为空
+     */
+    private String decimalText(Map<String, Object> row, String field) {
+        BigDecimal value = nullableDecimalValue(row, field);
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
+    }
+
+    /** 返回候选字段中的首个非空时间，保持数据库事实优先级。 */
+    private LocalDateTime firstDateTime(Map<String, Object> row, String... fields) {
+        for (String field : fields) {
+            LocalDateTime value = dateTime(row, field);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**

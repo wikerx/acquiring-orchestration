@@ -1,5 +1,14 @@
 # service-job 专属配置：任务服务调用其他业务服务的内部补偿客户端参数。
 job:
+  admin-client:
+    # 参数说明：建立 Admin 内部连接的最大等待时间，单位毫秒。
+    connect-timeout-millis: ${JOB_ADMIN_CLIENT_CONNECT_TIMEOUT_MILLIS:3000}
+    # 参数说明：等待单轮汇率波动评估响应的最大时间，超时后由统一任务重试接管。
+    read-timeout-millis: ${JOB_ADMIN_CLIENT_READ_TIMEOUT_MILLIS:30000}
+    # 参数说明：写入 Admin 内部签名头的固定调用方标识，必须保持 service-job。
+    internal-caller: service-job
+    # 参数说明：Job 到 Admin 调用边的当前 HMAC 密钥引用，仅用于汇率波动评估命令。
+    internal-secret: ${acquiring.internal-auth.edges.job-admin.active-secret}
   clearing-client:
     # 参数说明：清分补偿服务地址；dev 默认通过 Nacos 服务发现访问 service-clearing。
     base-url: ${JOB_CLEARING_BASE_URL:http://service-clearing}

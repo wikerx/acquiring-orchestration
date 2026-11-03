@@ -15,6 +15,11 @@ A change is ready only when the following are known:
 - verification scope and required environment;
 - compatibility, rollout, and rollback/containment needs.
 
+For a new or stricter startup gate, also require an environment matrix, a non-secret repository-safe
+bootstrap/provisioning path, compatibility for existing persisted data, actionable failure text, and
+focused startup-contract verification for every service that reads the configuration. Removing a
+fallback without a usable local-development path is not a complete security change.
+
 If an R3 item is unknown and the answer changes behavior, stop for a decision.
 
 ## Risk Levels

@@ -186,8 +186,8 @@ public class AdminMonitorWorkbenchController {
      */
     @GetMapping("/alerts/{sourceType}/{sourceId}")
     @RequiresPermission("system:monitor:alert:query")
-    public CommonResult<AlertDetailResponse> alertDetail(@PathVariable String sourceType,
-                                                         @PathVariable String sourceId) {
+    public CommonResult<AlertDetailResponse> alertDetail(@PathVariable("sourceType") String sourceType,
+                                                         @PathVariable("sourceId") String sourceId) {
         return success(applicationService.alertDetail(sourceType, sourceId));
     }
 
@@ -202,8 +202,8 @@ public class AdminMonitorWorkbenchController {
     @PutMapping("/alerts/{sourceType}/{sourceId}/take-over")
     @RequiresPermission("system:monitor:alert:handle")
     @OperationLog(moduleName = "系统监控告警", businessType = OperationTypeConstants.UPDATE, operation = "接手告警")
-    public CommonResult<AlertDetailResponse> takeOver(@PathVariable String sourceType,
-                                                      @PathVariable String sourceId,
+    public CommonResult<AlertDetailResponse> takeOver(@PathVariable("sourceType") String sourceType,
+                                                      @PathVariable("sourceId") String sourceId,
                                                       @Valid @RequestBody AlertActionRequest request) {
         return success(applicationService.takeOver(sourceType, sourceId, request));
     }
@@ -219,8 +219,8 @@ public class AdminMonitorWorkbenchController {
     @PutMapping("/alerts/{sourceType}/{sourceId}/processing")
     @RequiresPermission("system:monitor:alert:handle")
     @OperationLog(moduleName = "系统监控告警", businessType = OperationTypeConstants.UPDATE, operation = "标记告警处理中")
-    public CommonResult<AlertDetailResponse> markProcessing(@PathVariable String sourceType,
-                                                            @PathVariable String sourceId,
+    public CommonResult<AlertDetailResponse> markProcessing(@PathVariable("sourceType") String sourceType,
+                                                            @PathVariable("sourceId") String sourceId,
                                                             @Valid @RequestBody AlertActionRequest request) {
         return success(applicationService.markProcessing(sourceType, sourceId, request));
     }
@@ -236,8 +236,8 @@ public class AdminMonitorWorkbenchController {
     @PutMapping("/alerts/{sourceType}/{sourceId}/close")
     @RequiresPermission("system:monitor:alert:handle")
     @OperationLog(moduleName = "系统监控告警", businessType = OperationTypeConstants.UPDATE, operation = "关闭告警")
-    public CommonResult<AlertDetailResponse> closeAlert(@PathVariable String sourceType,
-                                                        @PathVariable String sourceId,
+    public CommonResult<AlertDetailResponse> closeAlert(@PathVariable("sourceType") String sourceType,
+                                                        @PathVariable("sourceId") String sourceId,
                                                         @Valid @RequestBody AlertActionRequest request) {
         return success(applicationService.closeAlert(sourceType, sourceId, request));
     }

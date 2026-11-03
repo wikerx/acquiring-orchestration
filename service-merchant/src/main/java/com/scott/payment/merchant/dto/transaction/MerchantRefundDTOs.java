@@ -1,5 +1,7 @@
 package com.scott.payment.merchant.dto.transaction;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
@@ -153,9 +155,17 @@ public final class MerchantRefundDTOs {
     public static class RefundCurrencySummary implements Serializable {
         private static final long serialVersionUID = 1L;
         private String currency;
+        /**
+         * 该组交易币种的小数位数，必须与金额一同返回以支持零位及高精度币种展示。
+         */
+        private Integer currencyExponent;
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal totalAmount = BigDecimal.ZERO;
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal pendingApprovalAmount = BigDecimal.ZERO;
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal successfulAmount = BigDecimal.ZERO;
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal pendingAmount = BigDecimal.ZERO;
     }
 

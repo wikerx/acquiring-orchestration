@@ -4,9 +4,13 @@ import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.message.ExchangeRateUsageMessage;
 import com.scott.payment.component.redis.lock.DistributedLockBusyException;
 import com.scott.payment.component.redis.lock.DistributedLockExecution;
 import com.scott.payment.component.redis.lock.DistributedLockService;
@@ -355,10 +359,11 @@ class PaymentTransactionServiceImplTests {
     @Test
     void shouldConvertLabelCurrencyToRoutedCurrencyWhenEdcRateExists() {
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new InMemoryTransactionIdempotencyService(),
-                new CapturingTransactionEventOutboxService(),
+                eventOutboxService,
                 new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService,
@@ -388,6 +393,21 @@ class PaymentTransactionServiceImplTests {
         assertThat(channelInvokeService.commandDTO.getTransactionRate()).isEqualByComparingTo("0.14000000");
         assertThat(channelInvokeService.commandDTO.getRateSource()).isEqualTo("TEST");
         assertThat(channelInvokeService.commandDTO.getEdcEnabled()).isOne();
+        TransactionEventOutboxDO rateUsageEvent = eventOutboxService.events.stream()
+                .filter(event -> MqTag.EXCHANGE_RATE_USAGE.equals(event.getTag()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(rateUsageEvent.getTopic()).isEqualTo(MqTopic.EXCHANGE_RATE_USAGE);
+        assertThat(rateUsageEvent.getDeliveryMode()).isEqualTo("NORMAL");
+        ExchangeRateUsageMessage rateUsageMessage = JsonUtils.parseObject(
+                rateUsageEvent.getPayloadJson(), ExchangeRateUsageMessage.class);
+        assertThat(rateUsageMessage.getBusinessType())
+                .isEqualTo(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
+        assertThat(rateUsageMessage.getBusinessNo()).isEqualTo(resultDTO.getTransactionId());
+        assertThat(rateUsageMessage.getBusinessRateId()).isEqualTo(1001L);
+        assertThat(rateUsageMessage.getRawRateId()).isEqualTo(901L);
+        assertThat(rateUsageMessage.getRuleId()).isEqualTo(801L);
+        assertThat(rateUsageMessage.getUsedRate()).isEqualByComparingTo("0.14000000");
     }
 
     /**
@@ -1485,10 +1505,14 @@ class PaymentTransactionServiceImplTests {
         return (baseCurrency, quoteCurrency, atTime) -> {
             if ("CNY".equalsIgnoreCase(baseCurrency) && "USD".equalsIgnoreCase(quoteCurrency)) {
                 PaymentExchangeRateDTO dto = new PaymentExchangeRateDTO();
+                dto.setRateId(1001L);
+                dto.setRawRateId(901L);
+                dto.setRuleId(801L);
                 dto.setBaseCurrency("CNY");
                 dto.setQuoteCurrency("USD");
                 dto.setSourceCode("TEST");
                 dto.setFinalRate(new BigDecimal("0.14000000"));
+                dto.setAdjustDescription("CNY/USD transaction rate");
                 dto.setEffectiveTime(LocalDateTime.of(2026, 7, 12, 10, 0));
                 return Optional.of(dto);
             }

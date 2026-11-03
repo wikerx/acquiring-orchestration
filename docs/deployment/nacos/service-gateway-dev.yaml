@@ -8,8 +8,8 @@ gateway:
     payout-openapi-path: /api/rest/payout/**
     # 渠道回调入口，统一由 service-openapi 处理后分发。
     channel-callback-path: /channel/**
-    # OpenAPI 健康检查、通知重试等支持入口。
-    support-path: /openapi/**
+    # OpenAPI 健康检查入口；维护命令不得通过公网支持路由暴露。
+    support-path: /openapi/health
   security:
     # 网关只做路径白名单和基础响应头处理；JWT验签、报文解密、参数校验下沉到 service-openapi。
     delegate-auth-to-openapi: true
@@ -51,8 +51,6 @@ spring:
           default-filters:
             # 过滤器说明：向下游保留客户端原始 Host，供回调地址、租户域名和审计判断使用。
             - PreserveHostHeader
-            # 过滤器说明：清除浏览器 Cookie，避免后台会话或第三方 Cookie 被透传到业务服务。
-            - RemoveRequestHeader=Cookie
             # 过滤器说明：清除下游 Server 响应头，减少容器和中间件指纹暴露。
             - RemoveResponseHeader=Server
             # 过滤器说明：跨多个过滤器写入 CORS 响应头时只保留第一项，避免重复响应头导致浏览器拒绝。
@@ -131,14 +129,14 @@ spring:
                 allow-credentials: false
                 # 参数说明：浏览器缓存渠道回调预检结果的时间，单位秒。
                 max-age: 1800
-              "[/openapi/**]":
+              "[/openapi/health]":
                 allowed-origin-patterns:
                   # 来源说明：允许本机 localhost 任意端口访问 OpenAPI 支持接口，仅用于 dev。
                   - "http://localhost:*"
                   # 来源说明：允许本机回环 IP 任意端口访问 OpenAPI 支持接口，仅用于 dev。
                   - "http://127.0.0.1:*"
-                # 参数说明：OpenAPI 支持接口允许的浏览器方法集合。
-                allowed-methods: [GET, POST, OPTIONS]
+                # 参数说明：OpenAPI 健康检查只允许 GET 和浏览器预检 OPTIONS。
+                allowed-methods: [GET, OPTIONS]
                 # 参数说明：dev 支持接口允许任意请求头；正式环境必须按实际接口收敛。
                 allowed-headers: "*"
                 # 参数说明：OpenAPI 支持接口不携带浏览器凭据，必须保持 false。
@@ -157,8 +155,8 @@ spring:
                 allowed-headers: "*"
                 # 参数说明：允许管理前端读取链路追踪头用于故障定位。
                 exposed-headers: [X-Trace-Id]
-                # 参数说明：当前管理端使用显式令牌而非跨域 Cookie，禁止开启跨域凭据。
-                allow-credentials: false
+                # 参数说明：管理端使用 HttpOnly 会话 Cookie；来源模式受控且写请求仍必须通过 CSRF 校验。
+                allow-credentials: true
                 # 参数说明：浏览器缓存 Admin CORS 预检结果的时间，单位秒。
                 max-age: 1800
               "[/merchant/**]":
@@ -173,7 +171,7 @@ spring:
                 allowed-headers: "*"
                 # 参数说明：允许商户前端读取链路追踪头用于请求定位。
                 exposed-headers: [X-Trace-Id]
-                # 参数说明：当前商户端使用显式令牌而非跨域 Cookie，禁止开启跨域凭据。
-                allow-credentials: false
+                # 参数说明：商户端使用 HttpOnly 会话 Cookie；来源模式受控且写请求仍必须通过 CSRF 校验。
+                allow-credentials: true
                 # 参数说明：浏览器缓存 Merchant CORS 预检结果的时间，单位秒。
                 max-age: 1800

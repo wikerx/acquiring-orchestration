@@ -1,5 +1,6 @@
 package com.scott.payment.settlement.service;
 
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.settlement.entity.SettlementEventOutboxDO;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,28 @@ class SettlementEventPublisherServiceTest {
         verify(persistence).markFailed(org.mockito.ArgumentMatchers.eq(row),
                 org.mockito.ArgumentMatchers.eq("IllegalStateException"),
                 org.mockito.ArgumentMatchers.any());
+    }
+
+    /**
+     * 汇率使用 Topic 是普通消息，不得复用交易投影的 FIFO 发送入口。
+     */
+    @Test
+    void shouldPublishExchangeRateUsageAsNormalMessage() {
+        SettlementEventOutboxPersistenceService persistence = mock(SettlementEventOutboxPersistenceService.class);
+        MqProducer producer = mock(MqProducer.class);
+        SettlementEventPublisherService service = new SettlementEventPublisherService(persistence, producer);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 1, 13, 0);
+        SettlementEventOutboxDO row = row();
+        row.setTopic(MqTopic.EXCHANGE_RATE_USAGE);
+        row.setTag("EXCHANGE_RATE_USAGE");
+        when(persistence.claimNext(now)).thenReturn(Optional.of(row));
+        when(persistence.markSent(org.mockito.ArgumentMatchers.eq(row),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+
+        assertThat(service.publishNext(now)).isTrue();
+
+        verify(producer).sendSerialized(row.getTopic(), row.getTag(), row.getMessageKey(),
+                row.getSettlementBatchNo(), row.getRetryCount(), row.getPayloadJson());
     }
 
     private SettlementEventOutboxDO row() {

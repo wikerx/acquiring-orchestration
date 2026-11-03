@@ -83,8 +83,7 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
                         TransactionChannelRequestDO requestDO,
                         RefundExecutionMessage message) {
         validate(operationDO, requestDO, message);
-        log.info("开始执行已审批退款渠道请求, event: APPROVED_REFUND_CHANNEL_EXECUTION_STARTED, "
-                        + "transactionId: {}, operationId: {}, requestId: {}",
+        log.info("开始执行已审批退款渠道请求, event: APPROVED_REFUND_CHANNEL_EXECUTION_STARTED, transactionId: {}, operationId: {}, requestId: {}",
                 operationDO.getTransactionId(), operationDO.getOperationId(), requestDO.getRequestId());
         TransactionOrderDO sourceOrder = transactionRecordService.findSourceOrderByTransactionId(
                 message.getSourceTransactionId(),
@@ -134,8 +133,7 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
                 operationDO.getTransactionAmount(),
                 operationDO.getTransactionCurrency(),
                 JsonUtils.toJsonString(result));
-        log.info("已审批退款渠道执行完成, event: APPROVED_REFUND_CHANNEL_EXECUTION_COMPLETED, "
-                        + "transactionId: {}, status: {}, statusChanged: {}, outcomeUncertain: {}",
+        log.info("已审批退款渠道执行完成, event: APPROVED_REFUND_CHANNEL_EXECUTION_COMPLETED, transactionId: {}, status: {}, statusChanged: {}, outcomeUncertain: {}",
                 operationDO.getTransactionId(), result.getStatus(), statusChanged,
                 invokeResult != null && invokeResult.isOutcomeUncertain());
     }
@@ -199,8 +197,7 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
                     command, route, operation.getOperationId(), operation.getTransactionId(), prepared);
         } catch (DefaultPaymentChannelInvokeService.PaymentChannelInvokeException exception) {
             // 渠道调用服务已结构化记录发送状态；此处返回结果交由统一状态解析，不能直接把异常等同为失败。
-            log.warn("已审批退款渠道调用返回异常结果, event: APPROVED_REFUND_CHANNEL_INVOKE_EXCEPTION, "
-                            + "transactionId: {}, requestId: {}, exceptionType: {}, outcomeUncertain: {}",
+            log.warn("已审批退款渠道调用返回异常结果, event: APPROVED_REFUND_CHANNEL_INVOKE_EXCEPTION, transactionId: {}, requestId: {}, exceptionType: {}, outcomeUncertain: {}",
                     operation.getTransactionId(), prepared.getRequestId(),
                     exception.getClass().getSimpleName(),
                     exception.getInvokeResult() != null && exception.getInvokeResult().isOutcomeUncertain());

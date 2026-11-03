@@ -293,8 +293,7 @@ public class GlobalExceptionHandler {
     public CommonResult<Void> handleException(Exception exception) {
         TransactionDataUnavailableException unavailable = findTransactionDataUnavailable(exception);
         if (unavailable != null) {
-            log.warn("交易分片数据不可用, event: TRANSACTION_DATA_UNAVAILABLE, "
-                            + "logicalTable: {}, quarter: {}, ruleVersion: {}, wrapperType: {}",
+            log.warn("交易分片数据不可用, event: TRANSACTION_DATA_UNAVAILABLE, logicalTable: {}, quarter: {}, ruleVersion: {}, wrapperType: {}",
                     unavailable.getLogicalTable(), unavailable.getQuarter(), unavailable.getRuleVersion(),
                     exception.getClass().getSimpleName());
             return CommonResult.error(ApiResultEnum.TRANSACTION_DATA_UNAVAILABLE);

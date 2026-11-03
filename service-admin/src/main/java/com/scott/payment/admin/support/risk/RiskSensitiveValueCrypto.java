@@ -2,6 +2,8 @@ package com.scott.payment.admin.support.risk;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -23,10 +25,23 @@ import java.util.List;
 public class RiskSensitiveValueCrypto {
 
     /**
+     * 风控敏感值密钥兼容告警日志，不记录密钥或密文正文。
+     */
+    private static final Logger log = LoggerFactory.getLogger(RiskSensitiveValueCrypto.class);
+
+    /**
      * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    /**
+     * AES-GCM 推荐的初始化向量长度，单位字节。
+     */
     private static final int IV_LENGTH = 12;
+
+    /**
+     * AES-GCM 认证标签长度，单位 bit。
+     */
     private static final int TAG_LENGTH_BITS = 128;
 
     /**
@@ -58,6 +73,15 @@ public class RiskSensitiveValueCrypto {
                 .stream()
                 .map(this::deriveKey)
                 .forEach(keys::add);
+        RiskSensitiveValueKeyPolicy.resolveLegacyDevDecryptionSecret(
+                        environment.getProperty(
+                                "payment.risk.allow-legacy-dev-key-decryption", Boolean.class, false),
+                        environment.getActiveProfiles())
+                .map(this::deriveKey)
+                .ifPresent(legacyKey -> {
+                    keys.add(legacyKey);
+                    log.warn("已启用历史开发密钥只读解密兼容, event: risk_legacy_dev_key_decryption_enabled");
+                });
         this.decryptionKeys = List.copyOf(keys);
     }
 

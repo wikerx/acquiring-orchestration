@@ -24,6 +24,7 @@ import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.IncrementalAuthorizationTransactionPreparationService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
@@ -110,6 +111,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
 
     private final TransactionEventOutboxService transactionEventOutboxService;
 
+    private final PaymentExchangeRateService paymentExchangeRateService;
+
     private final TransactionRecordService transactionRecordService;
 
     private final TransactionStateMachineService transactionStateMachineService;
@@ -121,6 +124,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
      * @param paymentChannelRouteService 原交易渠道和原 MID 恢复服务
      * @param transactionIdempotencyService 动作幂等服务
      * @param transactionEventOutboxService 可靠交易事件服务
+     * @param paymentExchangeRateService 冻结交易汇率版本追溯服务
      * @param transactionRecordService 交易事实持久化服务
      * @param transactionStateMachineService 增量授权金额和状态规则服务
      */
@@ -129,12 +133,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             PaymentChannelRouteService paymentChannelRouteService,
             TransactionIdempotencyService transactionIdempotencyService,
             TransactionEventOutboxService transactionEventOutboxService,
+            PaymentExchangeRateService paymentExchangeRateService,
             TransactionRecordService transactionRecordService,
             TransactionStateMachineService transactionStateMachineService) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
+        this.paymentExchangeRateService = paymentExchangeRateService;
         this.transactionRecordService = transactionRecordService;
         this.transactionStateMachineService = transactionStateMachineService;
     }
@@ -234,6 +240,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             OriginalTransactionRejectionSupport.apply(resultDTO);
             recordIncrementalAuthorizationPreparedFact(
                     commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+            saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
             saveTransactionCreatedEvent(commandDTO, resultDTO);
             completeIdempotency(idempotencyKey, commandDTO, resultDTO);
             IncrementalAuthorizationPreparationResultDTO target =
@@ -256,6 +263,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         // 动作事实、固定请求身份和恢复事件先提交；上层看到 callChannel=true 后才执行真实渠道外呼。
         recordIncrementalAuthorizationPreparedFact(
                 commandDTO, sourceOrderDO, routeResultDTO, preparedInvokeResultDTO, resultDTO, currencyExponent);
+        saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
 
@@ -454,6 +462,30 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         commandDTO.setRateTime(amountPlan.rateTime());
         commandDTO.setDccEnabled(amountPlan.dccEnabled());
         commandDTO.setEdcEnabled(amountPlan.edcEnabled());
+    }
+
+    /**
+     * 为真实使用首笔冻结汇率的增量授权写入可靠汇率使用事件。
+     */
+    private void saveRateUsageIfApplied(PaymentCreateCommandDTO commandDTO,
+                                        PaymentCreateResultDTO resultDTO,
+                                        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan,
+                                        int currencyExponent) {
+        boolean conversionEnabled = Integer.valueOf(1).equals(amountPlan.edcEnabled())
+                || Integer.valueOf(1).equals(amountPlan.dccEnabled());
+        if (!conversionEnabled
+                || amountPlan.labelCurrency().equals(amountPlan.transactionCurrency())) {
+            return;
+        }
+        TransactionRateUsageOutboxSupport.save(
+                transactionEventOutboxService,
+                commandDTO,
+                resultDTO,
+                FrozenTransactionRateResolverSupport.resolve(paymentExchangeRateService, amountPlan),
+                LocalDateTime.now(),
+                "transactionAmount = labelAmount * frozenTransactionRate; sourceTransactionId="
+                        + commandDTO.getTransactionInfo().getSourceTransactionId()
+                        + "; targetCurrencyExponent=" + currencyExponent);
     }
 
     /**

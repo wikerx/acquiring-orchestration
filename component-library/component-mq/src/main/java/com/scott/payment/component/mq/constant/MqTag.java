@@ -91,6 +91,11 @@ public final class MqTag {
     public static final String CARD_BIN_CACHE_CHANGED = "CARD_BIN_CACHE_CHANGED";
 
     /**
+     * 交易或结算业务已经实际使用跨币种汇率的审计事实标签。
+     */
+    public static final String EXCHANGE_RATE_USAGE = "EXCHANGE_RATE_USAGE";
+
+    /**
      * 禁止实例化 RocketMQ 标签常量类。
      */
     private MqTag() {

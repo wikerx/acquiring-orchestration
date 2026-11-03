@@ -44,8 +44,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } catch (ServletException | IOException | RuntimeException exception) {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-            log.warn("HTTP 请求处理失败, event: HTTP_REQUEST_ERROR, traceId: {}, method: {}, path: {}, "
-                            + "status: {}, durationMs: {}, exceptionType: {}",
+            log.warn("HTTP 请求处理失败, event: HTTP_REQUEST_ERROR, traceId: {}, method: {}, path: {}, status: {}, durationMs: {}, exceptionType: {}",
                     traceId,
                     request.getMethod(),
                     request.getRequestURI(),
@@ -55,8 +54,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
             throw exception;
         } finally {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-            log.debug("HTTP 请求处理完成, event: HTTP_REQUEST_END, traceId: {}, method: {}, path: {}, "
-                            + "status: {}, responseContentType: {}, durationMs: {}",
+            log.debug("HTTP 请求处理完成, event: HTTP_REQUEST_END, traceId: {}, method: {}, path: {}, status: {}, responseContentType: {}, durationMs: {}",
                     traceId,
                     request.getMethod(),
                     request.getRequestURI(),

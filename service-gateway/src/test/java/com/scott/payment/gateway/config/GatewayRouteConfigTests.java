@@ -14,12 +14,13 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 验证四类收银台公网路径都由 service-gateway 显式路由。
+ * 验证公网入口只由 service-gateway 的明确白名单路由转发。
  */
 class GatewayRouteConfigTests {
 
@@ -61,6 +62,26 @@ class GatewayRouteConfigTests {
     }
 
     /**
+     * OpenAPI 支持路由只开放健康检查，历史维护入口不得再命中下游服务。
+     */
+    @Test
+    void shouldRouteOnlyOpenApiHealthSupportPath() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(PathRoutePredicateFactory.class);
+            context.refresh();
+            RouteLocator locator = new GatewayRouteConfig().openApiRoutes(new RouteLocatorBuilder(context));
+            Map<String, Route> routes = locator.getRoutes().collectList().block().stream()
+                    .collect(Collectors.toMap(Route::getId, Function.identity()));
+
+            Route supportRoute = routes.get("openapi-support");
+            assertRouteMatches(supportRoute, "/openapi/health");
+            assertRouteDoesNotMatch(supportRoute, "/openapi/v1/merchant-notifies/retry");
+            assertRouteDoesNotMatch(supportRoute, "/openapi/health/details");
+            assertEquals("lb://service-openapi", supportRoute.getUri().toString());
+        }
+    }
+
+    /**
      * 未命中的商户 OpenAPI 路径必须进入专用 V1.3 兜底，不得落入内部系统旧码响应。
      */
     @Test
@@ -82,5 +103,11 @@ class GatewayRouteConfigTests {
         assertNotNull(route);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path).build());
         assertTrue(Mono.from(route.getPredicate().apply(exchange)).block());
+    }
+
+    private void assertRouteDoesNotMatch(Route route, String path) {
+        assertNotNull(route);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path).build());
+        assertFalse(Mono.from(route.getPredicate().apply(exchange)).block());
     }
 }

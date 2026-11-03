@@ -1,6 +1,7 @@
 name: Backend Quality
 
 on:
+  push:
   pull_request:
   workflow_dispatch:
 
@@ -32,6 +33,8 @@ jobs:
           python3 --version
       - name: Verify Java comment contracts
         run: python3 scripts/verify-java-comments.py
+      - name: Verify Java structural rules
+        run: python3 scripts/verify-java-structural-rules.py
       - name: Verify structured logging rules
         run: python3 scripts/verify-logging-rules.py
       - name: Run reactor tests

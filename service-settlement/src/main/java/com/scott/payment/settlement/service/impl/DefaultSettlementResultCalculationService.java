@@ -30,6 +30,7 @@ import com.scott.payment.settlement.exception.SettlementProcessingException;
 import com.scott.payment.settlement.mapper.SettlementBatchMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.service.SettlementResultCalculationService;
+import com.scott.payment.settlement.service.SettlementRateUsageOutboxService;
 import com.scott.payment.settlement.support.SettlementReviewFingerprintService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,21 +97,19 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
     private final SettlementBatchMapper batchMapper;
     private final SettlementResultMapper resultMapper;
     private final SettlementReviewFingerprintService fingerprintService;
+    private final SettlementRateUsageOutboxService rateUsageOutboxService;
     private final SettlementAmountCalculator amountCalculator = new SettlementAmountCalculator();
     private final SettlementFeeGroupCalculator feeGroupCalculator = new SettlementFeeGroupCalculator();
-
-    public DefaultSettlementResultCalculationService(SettlementBatchMapper batchMapper,
-                                                     SettlementResultMapper resultMapper) {
-        this(batchMapper, resultMapper, new SettlementReviewFingerprintService());
-    }
 
     @Autowired
     public DefaultSettlementResultCalculationService(SettlementBatchMapper batchMapper,
                                                      SettlementResultMapper resultMapper,
-                                                     SettlementReviewFingerprintService fingerprintService) {
+                                                     SettlementReviewFingerprintService fingerprintService,
+                                                     SettlementRateUsageOutboxService rateUsageOutboxService) {
         this.batchMapper = batchMapper;
         this.resultMapper = resultMapper;
         this.fingerprintService = fingerprintService;
+        this.rateUsageOutboxService = rateUsageOutboxService;
     }
 
     /**
@@ -211,6 +210,8 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 batch.getSettlementBatchNo()));
         validateStoredSummaries(expectedSummaries, storedSummaries);
 
+        // 只有正式结果已经写入并回读一致时才记录“已使用”，锁率后失败或取消的批次不会留下伪快照。
+        rateUsageOutboxService.saveForCalculatedBatch(batch, rates, now);
         if (batchMapper.markCalculated(batch.getSettlementBatchNo(), owner.trim(),
                 batch.getVersion(), now) != 1) {
             throw failure("SETTLEMENT_CALCULATED_STATE_CAS_FAILED", true,

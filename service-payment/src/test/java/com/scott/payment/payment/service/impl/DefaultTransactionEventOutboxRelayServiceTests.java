@@ -2,6 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.BaseMqMessage;
+import com.scott.payment.component.mq.message.ExchangeRateUsageMessage;
 import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
 import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
 import com.scott.payment.component.mq.constant.MqTag;
@@ -16,6 +17,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -183,6 +185,50 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         assertThat(mqProducer.deliveryMethod).isEqualTo("NORMAL");
         assertThat(mqProducer.messageGroup).isNull();
         assertThat(mqProducer.payloadJson).isEqualTo(normalEvent.getPayloadJson());
+    }
+
+    /**
+     * 汇率使用事件必须按专用消息契约解析，并通过普通 Topic 原样投递冻结 JSON。
+     */
+    @Test
+    void shouldPublishExchangeRateUsageAsNormalMessage() {
+        LocalDateTime appliedTime = LocalDateTime.of(2026, 11, 1, 12, 1);
+        ExchangeRateUsageMessage message = new ExchangeRateUsageMessage();
+        message.setMessageId("FXTR:TX202611010001");
+        message.setUsageEventId("FXTR:TX202611010001");
+        message.setCreatedAt(appliedTime);
+        message.setProducerService("service-payment");
+        message.setRateType("TRANSACTION_RATE");
+        message.setUsageScene("TRANSACTION");
+        message.setBusinessType("PAYMENT");
+        message.setBusinessNo("TX202611010001");
+        message.setBaseCurrency("EUR");
+        message.setQuoteCurrency("USD");
+        message.setUsedRate(new BigDecimal("1.080000000000"));
+        message.setBusinessRateId(101L);
+        message.setRateSource("BOC");
+        message.setSourceQuoteDirection("DIRECT");
+        message.setRateEffectiveTime(appliedTime.minusMinutes(1));
+        message.setAppliedTime(appliedTime);
+        TransactionEventOutboxDO usageEvent = event();
+        usageEvent.setEventNo(message.getUsageEventId());
+        usageEvent.setMessageKey(message.getUsageEventId());
+        usageEvent.setTopic(MqTopic.EXCHANGE_RATE_USAGE);
+        usageEvent.setTag(MqTag.EXCHANGE_RATE_USAGE);
+        usageEvent.setEventType(MqTag.EXCHANGE_RATE_USAGE);
+        usageEvent.setDeliveryMode("NORMAL");
+        usageEvent.setMessageGroup(null);
+        usageEvent.setPayloadJson(JsonUtils.toJsonString(message));
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(usageEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(usageEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.deliveryMethod).isEqualTo("NORMAL");
+        assertThat(mqProducer.payloadJson).isEqualTo(usageEvent.getPayloadJson());
     }
 
     /**

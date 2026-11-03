@@ -283,8 +283,7 @@ public class CardBinRangeIndex {
             markAllShardsComplete(generation);
             redisTemplate.opsForValue().set(
                     readyGenerationKey(), generation + ":" + INDEX_FORMAT_VERSION);
-            log.info("卡 BIN 区间索引发布完成, event: CARD_BIN_RANGE_INDEX_PUBLISHED, "
-                            + "generation: {}, sourceRows: {}, indexedEntries: {}, snapshotBytes: {}, shards: {}",
+            log.info("卡 BIN 区间索引发布完成, event: CARD_BIN_RANGE_INDEX_PUBLISHED, generation: {}, sourceRows: {}, indexedEntries: {}, snapshotBytes: {}, shards: {}",
                     generation, sourceRows, indexedEntries, snapshotBytes, SHARD_COUNT);
         } catch (RuntimeException exception) {
             releasePublicationLock(ownerToken, exception);
@@ -685,8 +684,7 @@ public class CardBinRangeIndex {
         long now = System.currentTimeMillis();
         long previous = lastWarningMillis.get();
         if (now - previous >= 60_000 && lastWarningMillis.compareAndSet(previous, now)) {
-            log.warn("卡 BIN 区间索引降级, event: CARD_BIN_RANGE_INDEX_FALLBACK, "
-                            + "operation: {}, exceptionType: {}",
+            log.warn("卡 BIN 区间索引降级, event: CARD_BIN_RANGE_INDEX_FALLBACK, operation: {}, exceptionType: {}",
                     operation, exception.getClass().getSimpleName(), exception);
         }
     }

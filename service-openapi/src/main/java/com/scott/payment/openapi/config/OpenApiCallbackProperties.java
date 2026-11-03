@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 渠道回调和商户通知维护入口安全配置，统一管理回调签名密钥与内部维护密钥。
+ * 渠道回调安全配置，统一管理回调签名密钥、来源地址和失败关闭策略。
  */
 @Data
 @ConfigurationProperties(prefix = "openapi.callback-security")
@@ -18,11 +18,6 @@ public class OpenApiCallbackProperties {
      * 渠道回调签名时间戳允许偏移毫秒数。
      */
     private long allowedClockSkewMillis = 300_000L;
-
-    /**
-     * 商户通知重试维护密钥，请求头 X-Notify-Retry-Token 必须与该值一致。
-     */
-    private String notifyRetryToken;
 
     /**
      * 渠道编码到 HMAC-SHA256 共享密钥的映射。

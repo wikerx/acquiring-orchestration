@@ -1248,6 +1248,8 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     private UsageSnapshotResponse toUsageSnapshotResponse(ExchangeRateUsageSnapshotDO entity) {
         UsageSnapshotResponse response = new UsageSnapshotResponse();
         response.setId(entity.getId());
+        response.setUsageEventId(entity.getUsageEventId());
+        response.setProducerService(entity.getProducerService());
         response.setRateType(entity.getRateType());
         response.setUsageScene(entity.getUsageScene());
         response.setBusinessType(entity.getBusinessType());
@@ -1258,6 +1260,9 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         response.setBusinessRateId(entity.getBusinessRateId());
         response.setRawRateId(entity.getRawRateId());
         response.setRuleId(entity.getRuleId());
+        response.setRateSource(entity.getRateSource());
+        response.setSourceQuoteDirection(entity.getSourceQuoteDirection());
+        response.setRateEffectiveTime(entity.getRateEffectiveTime());
         response.setCalculationDescription(entity.getCalculationDescription());
         response.setAppliedTime(entity.getAppliedTime());
         response.setCreateTime(entity.getCreateTime());

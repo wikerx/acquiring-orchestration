@@ -73,8 +73,7 @@ public class IndependentReliableMqPublisher {
         try {
             outboxExecutor.execute(() -> persistSafely(event));
         } catch (RuntimeException exception) {
-            log.warn("独立 Outbox 持久化任务被拒绝, event: INDEPENDENT_MQ_OUTBOX_SCHEDULE_REJECTED, "
-                            + "eventId: {}, exceptionType: {}",
+            log.warn("独立 Outbox 持久化任务被拒绝, event: INDEPENDENT_MQ_OUTBOX_SCHEDULE_REJECTED, eventId: {}, exceptionType: {}",
                     event.getEventId(), exception.getClass().getSimpleName());
             persistSafely(event);
         }
@@ -87,8 +86,7 @@ public class IndependentReliableMqPublisher {
         try {
             delegate.publishPreparedEvent(event);
         } catch (RuntimeException exception) {
-            log.warn("独立 Outbox 事件持久化失败, event: INDEPENDENT_MQ_OUTBOX_PERSIST_FAILED, "
-                            + "eventId: {}, exceptionType: {}",
+            log.warn("独立 Outbox 事件持久化失败, event: INDEPENDENT_MQ_OUTBOX_PERSIST_FAILED, eventId: {}, exceptionType: {}",
                     event.getEventId(), exception.getClass().getSimpleName());
         }
     }

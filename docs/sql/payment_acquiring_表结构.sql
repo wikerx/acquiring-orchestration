@@ -715,8 +715,118 @@ CREATE TABLE `exchange_business_rate` (
   KEY `idx_exchange_business_rate_raw` (`raw_rate_id`,`deleted`),
   KEY `idx_exchange_business_rate_rule` (`rule_id`,`deleted`),
   KEY `idx_exchange_business_rate_lookup` (`rate_type`,`base_currency`,`quote_currency`,`deleted`),
-  KEY `idx_exchange_business_rate_current` (`rate_type`,`base_currency`,`quote_currency`,`rate_status`,`effective_time`,`expire_time`,`deleted`)
+  KEY `idx_exchange_business_rate_current` (`rate_type`,`base_currency`,`quote_currency`,`rate_status`,`effective_time`,`expire_time`,`deleted`),
+  KEY `idx_exchange_business_rate_volatility` (`rate_type`,`base_currency`,`quote_currency`,`effective_time`,`deleted`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4904 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='业务汇率表';
+
+-- ----------------------------
+-- Table structure for exchange_rate_alert_evaluation
+-- ----------------------------
+DROP TABLE IF EXISTS `exchange_rate_alert_evaluation`;
+CREATE TABLE `exchange_rate_alert_evaluation` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `request_key` varchar(128) NOT NULL COMMENT '调度请求幂等键',
+  `window_end_time` datetime(3) NOT NULL COMMENT '本轮评估业务截止时间',
+  `evaluation_status` varchar(32) NOT NULL COMMENT 'PROCESSING/SUCCESS/FAILED',
+  `evaluated_rule_count` int NOT NULL DEFAULT '0' COMMENT '评估规则数',
+  `evaluated_pair_count` int NOT NULL DEFAULT '0' COMMENT '评估币种对数',
+  `triggered_event_count` int NOT NULL DEFAULT '0' COMMENT '新触发事件数',
+  `updated_event_count` int NOT NULL DEFAULT '0' COMMENT '更新活动事件数',
+  `resolved_event_count` int NOT NULL DEFAULT '0' COMMENT '自动恢复事件数',
+  `insufficient_data_count` int NOT NULL DEFAULT '0' COMMENT '样本不足维度数',
+  `error_message` varchar(512) DEFAULT NULL COMMENT '失败摘要，不保存敏感信息',
+  `start_time` datetime(3) NOT NULL COMMENT '开始时间',
+  `end_time` datetime(3) DEFAULT NULL COMMENT '结束时间',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_exchange_rate_alert_evaluation_request` (`request_key`),
+  KEY `idx_exchange_rate_alert_evaluation_time` (`window_end_time`,`evaluation_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='汇率波动预警评估幂等记录表';
+
+-- ----------------------------
+-- Table structure for exchange_rate_alert_event
+-- ----------------------------
+DROP TABLE IF EXISTS `exchange_rate_alert_event`;
+CREATE TABLE `exchange_rate_alert_event` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `event_no` varchar(64) NOT NULL COMMENT '预警事件编号',
+  `active_event_key` varchar(255) DEFAULT NULL COMMENT '活动事件唯一键，终态后置空',
+  `rule_id` bigint NOT NULL COMMENT '规则ID',
+  `rule_code` varchar(64) NOT NULL COMMENT '触发时规则编码快照',
+  `rule_name` varchar(128) NOT NULL COMMENT '触发时规则名称快照',
+  `rate_type` varchar(32) NOT NULL COMMENT '汇率类型',
+  `base_currency` char(3) NOT NULL COMMENT '原始币种',
+  `quote_currency` char(3) NOT NULL COMMENT '目标币种',
+  `alert_level` varchar(32) NOT NULL COMMENT '预警等级快照',
+  `window_minutes` int NOT NULL COMMENT '窗口分钟数快照',
+  `trigger_threshold` decimal(9,4) NOT NULL COMMENT '触发阈值百分比快照',
+  `recovery_threshold` decimal(9,4) NOT NULL COMMENT '恢复阈值百分比快照',
+  `window_start_time` datetime(3) NOT NULL COMMENT '最近评估窗口开始时间',
+  `window_end_time` datetime(3) NOT NULL COMMENT '最近评估窗口结束时间',
+  `sample_count` int NOT NULL COMMENT '最近评估样本数',
+  `minimum_rate` decimal(24,12) NOT NULL COMMENT '窗口最低汇率',
+  `minimum_rate_source` varchar(64) DEFAULT NULL COMMENT '最低汇率来源证据',
+  `minimum_business_rate_id` bigint DEFAULT NULL COMMENT '最低汇率业务汇率ID',
+  `maximum_rate` decimal(24,12) NOT NULL COMMENT '窗口最高汇率',
+  `maximum_rate_source` varchar(64) DEFAULT NULL COMMENT '最高汇率来源证据',
+  `maximum_business_rate_id` bigint DEFAULT NULL COMMENT '最高汇率业务汇率ID',
+  `latest_rate` decimal(24,12) NOT NULL COMMENT '窗口最新汇率',
+  `latest_rate_source` varchar(64) DEFAULT NULL COMMENT '最新汇率来源证据',
+  `latest_business_rate_id` bigint DEFAULT NULL COMMENT '最新汇率业务汇率ID',
+  `volatility_rate` decimal(12,6) NOT NULL COMMENT '最近窗口波动率百分比',
+  `maximum_volatility_rate` decimal(12,6) NOT NULL COMMENT '事件持续期间最大波动率百分比',
+  `recovery_streak` int NOT NULL DEFAULT '0' COMMENT '连续低于恢复阈值次数',
+  `event_status` varchar(32) NOT NULL COMMENT 'OPEN/ACKNOWLEDGED/RESOLVED/CLOSED',
+  `first_trigger_time` datetime(3) NOT NULL COMMENT '首次触发时间',
+  `last_detected_time` datetime(3) NOT NULL COMMENT '最近发现时间',
+  `resolved_time` datetime(3) DEFAULT NULL COMMENT '自动恢复时间',
+  `acknowledged_by` varchar(64) DEFAULT NULL COMMENT '确认人',
+  `acknowledged_time` datetime(3) DEFAULT NULL COMMENT '确认时间',
+  `acknowledge_remark` varchar(512) DEFAULT NULL COMMENT '确认备注',
+  `closed_by` varchar(64) DEFAULT NULL COMMENT '关闭人',
+  `closed_time` datetime(3) DEFAULT NULL COMMENT '关闭时间',
+  `close_remark` varchar(512) DEFAULT NULL COMMENT '关闭备注',
+  `version` int NOT NULL DEFAULT '0' COMMENT 'CAS版本',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_exchange_rate_alert_event_no` (`event_no`),
+  UNIQUE KEY `uk_exchange_rate_alert_active_key` (`active_event_key`),
+  KEY `idx_exchange_rate_alert_event_status_time` (`event_status`,`first_trigger_time`,`id`),
+  KEY `idx_exchange_rate_alert_event_scope_time` (`rate_type`,`base_currency`,`quote_currency`,`first_trigger_time`,`id`),
+  KEY `idx_exchange_rate_alert_event_rule_time` (`rule_id`,`first_trigger_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='汇率波动预警事件表';
+
+-- ----------------------------
+-- Table structure for exchange_rate_alert_rule
+-- ----------------------------
+DROP TABLE IF EXISTS `exchange_rate_alert_rule`;
+CREATE TABLE `exchange_rate_alert_rule` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_code` varchar(64) NOT NULL COMMENT '稳定规则编码',
+  `rule_name` varchar(128) NOT NULL COMMENT '规则名称',
+  `rate_type` varchar(32) NOT NULL COMMENT '汇率类型：TRANSACTION_RATE/SETTLEMENT_RATE',
+  `base_currency` varchar(3) NOT NULL DEFAULT 'ALL' COMMENT '原始币种，ALL表示所有币种',
+  `quote_currency` varchar(3) NOT NULL DEFAULT 'ALL' COMMENT '目标币种，ALL表示所有币种',
+  `window_minutes` int NOT NULL COMMENT '滚动窗口分钟数',
+  `trigger_threshold` decimal(9,4) NOT NULL COMMENT '触发阈值百分比',
+  `recovery_threshold` decimal(9,4) NOT NULL COMMENT '恢复阈值百分比',
+  `recovery_consecutive_count` int NOT NULL DEFAULT '2' COMMENT '连续低于恢复阈值的评估次数',
+  `minimum_sample_count` int NOT NULL DEFAULT '2' COMMENT '最小样本数',
+  `alert_level` varchar(32) NOT NULL DEFAULT 'WARNING' COMMENT '预警等级：WARNING/ERROR/CRITICAL',
+  `system_mandatory` tinyint NOT NULL DEFAULT '0' COMMENT '是否系统强制规则：0否，1是',
+  `rule_status` tinyint NOT NULL DEFAULT '1' COMMENT '状态：0停用，1启用',
+  `remark` varchar(512) DEFAULT NULL COMMENT '备注',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_exchange_rate_alert_rule_code_deleted` (`rule_code`,`deleted`),
+  KEY `idx_exchange_rate_alert_rule_scope` (`rate_type`,`base_currency`,`quote_currency`,`rule_status`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='汇率波动预警规则表';
 
 -- ----------------------------
 -- Table structure for exchange_rate_fetch_log
@@ -809,6 +919,8 @@ CREATE TABLE `exchange_rate_source` (
 DROP TABLE IF EXISTS `exchange_rate_usage_snapshot`;
 CREATE TABLE `exchange_rate_usage_snapshot` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `usage_event_id` varchar(96) NOT NULL COMMENT '汇率使用事件全局幂等号',
+  `producer_service` varchar(64) NOT NULL COMMENT '产生实际使用事实的服务名',
   `rate_type` varchar(32) NOT NULL COMMENT '汇率类型：TRANSACTION_RATE/SETTLEMENT_RATE',
   `usage_scene` varchar(64) NOT NULL COMMENT '汇率使用场景',
   `business_type` varchar(64) NOT NULL COMMENT '业务类型，如 PAYMENT/SETTLEMENT/REFUND',
@@ -819,12 +931,16 @@ CREATE TABLE `exchange_rate_usage_snapshot` (
   `business_rate_id` bigint DEFAULT NULL COMMENT '业务汇率ID',
   `raw_rate_id` bigint DEFAULT NULL COMMENT '原始汇率ID',
   `rule_id` bigint DEFAULT NULL COMMENT '汇率规则ID',
+  `rate_source` varchar(64) DEFAULT NULL COMMENT '实际采用的汇率来源编码',
+  `source_quote_direction` varchar(16) DEFAULT NULL COMMENT '原始报价方向：DIRECT/INVERSE',
+  `rate_effective_time` datetime(3) DEFAULT NULL COMMENT '实际采用汇率的生效时间',
   `calculation_description` varchar(512) DEFAULT NULL COMMENT '计算说明',
   `applied_time` datetime(3) NOT NULL COMMENT '业务实际使用时间',
   `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
   `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_exchange_snapshot_usage_event` (`usage_event_id`),
   KEY `idx_exchange_snapshot_business` (`business_type`,`business_no`,`deleted`),
   KEY `idx_exchange_snapshot_scope` (`rate_type`,`usage_scene`,`base_currency`,`quote_currency`,`deleted`),
   KEY `idx_exchange_snapshot_applied` (`applied_time`,`deleted`)

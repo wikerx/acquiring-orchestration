@@ -171,8 +171,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             processOne(operationDO, now, resultDTO);
         }
         if (resultDTO.getScannedCount() > 0) {
-            log.info("渠道交易批量勾兑完成, event: CHANNEL_TRANSACTION_MATCH_BATCH_COMPLETED, "
-                            + "scannedCount: {}, matchedCount: {}, pendingCount: {}, failedCount: {}",
+            log.info("渠道交易批量勾兑完成, event: CHANNEL_TRANSACTION_MATCH_BATCH_COMPLETED, scannedCount: {}, matchedCount: {}, pendingCount: {}, failedCount: {}",
                     resultDTO.getScannedCount(), resultDTO.getMatchedCount(),
                     resultDTO.getPendingCount(), resultDTO.getFailedCount());
         }
@@ -203,8 +202,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                     "current channel match status does not allow requery");
         }
         processOne(operationDO, LocalDateTime.now(), resultDTO);
-        log.info("渠道交易单笔勾兑完成, event: CHANNEL_TRANSACTION_MATCH_ONE_COMPLETED, "
-                        + "transactionId: {}, matchedCount: {}, pendingCount: {}, failedCount: {}",
+        log.info("渠道交易单笔勾兑完成, event: CHANNEL_TRANSACTION_MATCH_ONE_COMPLETED, transactionId: {}, matchedCount: {}, pendingCount: {}, failedCount: {}",
                 transactionId, resultDTO.getMatchedCount(), resultDTO.getPendingCount(), resultDTO.getFailedCount());
         return resultDTO;
     }
@@ -236,8 +234,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 markPending(operationDO, originalRequestDO, now, now.plusHours(MISSING_IDENTITY_RETRY_HOURS), null,
                         "QUERY_IDENTITY_MISSING",
                         missingIdentityReason(operationDO, originalRequestDO));
-                log.warn("渠道交易缺少可用查询身份, event: CHANNEL_TRANSACTION_QUERY_IDENTITY_MISSING, "
-                                + "transactionId: {}, channelCode: {}",
+                log.warn("渠道交易缺少可用查询身份, event: CHANNEL_TRANSACTION_QUERY_IDENTITY_MISSING, transactionId: {}, channelCode: {}",
                         operationDO.getTransactionId(), operationDO.getChannelCode());
                 resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
                 return;
@@ -262,8 +259,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             if (mismatchType != null) {
                 // 金额或币种不一致时绝不推进终态，保留原平台事实并进入人工复核。
                 markMoneyMismatch(operationDO, originalRequestDO, now, invokeResultDTO, mismatchType);
-                log.warn("渠道交易金额或币种勾兑不一致, event: CHANNEL_TRANSACTION_MONEY_MISMATCH, "
-                                + "transactionId: {}, abnormalType: {}",
+                log.warn("渠道交易金额或币种勾兑不一致, event: CHANNEL_TRANSACTION_MONEY_MISMATCH, transactionId: {}, abnormalType: {}",
                         operationDO.getTransactionId(), mismatchType);
                 resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
                 return;
@@ -288,8 +284,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             markPending(operationDO, originalRequestDO, now, null,
                     "QUERY_EXCEPTION", exception.getClass().getSimpleName());
             resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
-            log.warn("渠道交易查询勾兑异常, event: CHANNEL_TRANSACTION_MATCH_QUERY_EXCEPTION, "
-                            + "transactionId: {}, exceptionType: {}",
+            log.warn("渠道交易查询勾兑异常, event: CHANNEL_TRANSACTION_MATCH_QUERY_EXCEPTION, transactionId: {}, exceptionType: {}",
                     operationDO.getTransactionId(), exception.getClass().getSimpleName());
         }
     }
@@ -331,8 +326,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             return;
         }
         resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
-        log.warn("平台终态与渠道终态不一致, event: CHANNEL_TRANSACTION_TERMINAL_MISMATCH, "
-                        + "transactionId: {}, platformStatus: {}, channelStatus: {}",
+        log.warn("平台终态与渠道终态不一致, event: CHANNEL_TRANSACTION_TERMINAL_MISMATCH, transactionId: {}, platformStatus: {}, channelStatus: {}",
                 operationDO.getTransactionId(), operationDO.getTransactionStatus(), resolution.getTargetStatus());
         if (abnormalService != null) {
             String mismatch = "platformStatus=" + operationDO.getTransactionStatus()
@@ -507,8 +501,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 resolution,
                 now);
         if (completed) {
-            log.info("渠道查询已确认并推进交易终态, event: CHANNEL_TRANSACTION_MATCH_TERMINAL_COMPLETED, "
-                            + "transactionId: {}, targetStatus: {}",
+            log.info("渠道查询已确认并推进交易终态, event: CHANNEL_TRANSACTION_MATCH_TERMINAL_COMPLETED, transactionId: {}, targetStatus: {}",
                     operationDO.getTransactionId(), resolution.getTargetStatus());
             ChannelMatchAbnormalService abnormalService = abnormalService();
             if (abnormalService != null) {

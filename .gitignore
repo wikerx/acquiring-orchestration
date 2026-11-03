@@ -52,6 +52,7 @@ audit/*secret*.json
 .nacos-runtime.env
 **/.nacos-runtime.env
 runtime/nacos-backups/
+/runtime/secrets/
 docs/nacos/*.zip
 
 # Generated
@@ -78,6 +79,11 @@ docs/sql/*
 !docs/sql/20260913_01_currency_icon_key_migration.sql
 !docs/sql/20260913_02_currency_icon_key_postcheck.sql
 !docs/sql/20260913_03_currency_icon_key_rollback.sql
+!docs/sql/20261101_01_exchange_rate_usage_pipeline_precheck.sql
+!docs/sql/20261101_02_exchange_rate_usage_pipeline_migration.sql
+!docs/sql/20261101_03_exchange_rate_usage_pipeline_postcheck.sql
+!docs/sql/20261101_04_exchange_rate_usage_pipeline_rollback.sql
+!docs/sql/20261102_01_local_exchange_rate_usage_history_backfill.sql
 !docs/sql/20260919_01_scott_channel_a_configuration.sql
 !docs/sql/20260920_01_scott_channel_a_eur_currency_fix.sql
 !docs/sql/20261017_01_transaction_callback_inbox_migration_draft.sql
@@ -117,3 +123,5 @@ docs/archive/reports/*
 !docs/archive/reports/transaction-sharding-scan-and-remediation-report.md
 /scripts/*
 !/scripts/manage-nacos-internal-auth.sh
+!/scripts/verify-java-structural-rules.py
+!/scripts/bootstrap-local-dev-config.sh

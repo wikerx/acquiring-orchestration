@@ -140,8 +140,7 @@ public class RedisSlidingWindowRateLimiter {
         long now = System.currentTimeMillis();
         long previous = lastWarningMillis.get();
         if (now - previous >= 60_000L && lastWarningMillis.compareAndSet(previous, now)) {
-            log.warn("Redis 限流执行失败, event: REDIS_RATE_LIMIT_FAILURE, "
-                            + "scope: {}, failurePolicy: {}, exceptionType: {}",
+            log.warn("Redis 限流执行失败, event: REDIS_RATE_LIMIT_FAILURE, scope: {}, failurePolicy: {}, exceptionType: {}",
                     scope, failurePolicy, exception.getClass().getSimpleName(), exception);
         }
     }

@@ -137,9 +137,7 @@ public class ManagedCacheInvalidationCoordinator {
                         relayService.publish(context.event().getEventId());
                     } catch (RuntimeException exception) {
                         log.warn(
-                                "事务提交后发布受管缓存失效事件失败, "
-                                        + "event: MANAGED_CACHE_INVALIDATION_AFTER_COMMIT_FAILED, "
-                                        + "eventId: {}, cacheName: {}, exceptionType: {}",
+                                "事务提交后发布受管缓存失效事件失败, event: MANAGED_CACHE_INVALIDATION_AFTER_COMMIT_FAILED, eventId: {}, cacheName: {}, exceptionType: {}",
                                 context.event().getEventId(),
                                 context.event().getCacheName(),
                                 exception.getClass().getSimpleName()
@@ -178,8 +176,7 @@ public class ManagedCacheInvalidationCoordinator {
             invalidationGuard.release(lease);
         } catch (RuntimeException exception) {
             log.warn(
-                    "事务回滚后释放缓存失效门禁失败, event: MANAGED_CACHE_INVALIDATION_ABORT_FAILED, "
-                            + "cacheName: {}, businessKey: {}, exceptionType: {}",
+                    "事务回滚后释放缓存失效门禁失败, event: MANAGED_CACHE_INVALIDATION_ABORT_FAILED, cacheName: {}, businessKey: {}, exceptionType: {}",
                     lease.cacheName(),
                     lease.businessKey(),
                     exception.getClass().getSimpleName()

@@ -98,8 +98,7 @@ public class RedisCacheMissMarkerStore implements CacheMissMarkerStore {
                     metrics.classifyFallback(exception)
             );
             log.warn(
-                    "Redis 缓存缺失标记读取失败, event: REDIS_CACHE_MISS_MARKER_READ_FAILED, "
-                            + "domain: {}, business: {}, exceptionType: {}",
+                    "Redis 缓存缺失标记读取失败, event: REDIS_CACHE_MISS_MARKER_READ_FAILED, domain: {}, business: {}, exceptionType: {}",
                     domain,
                     business,
                     exception.getClass().getSimpleName()

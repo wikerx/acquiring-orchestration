@@ -48,8 +48,7 @@ public class EnabledEmailTemplateCacheCondition {
                     EmailTemplateCacheKey.of(templateCode, localeCode)
             );
         } catch (RuntimeException exception) {
-            log.warn("邮件模板缓存门禁检查失败, event: EMAIL_TEMPLATE_CACHE_GUARD_CHECK_FAILED, "
-                            + "templateCode: {}, locale: {}, exceptionType: {}",
+            log.warn("邮件模板缓存门禁检查失败, event: EMAIL_TEMPLATE_CACHE_GUARD_CHECK_FAILED, templateCode: {}, locale: {}, exceptionType: {}",
                     templateCode, localeCode, exception.getClass().getSimpleName());
             return false;
         }

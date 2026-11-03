@@ -18,6 +18,8 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.web.auth.BrowserSessionCookieSupport;
 import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
 import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
 import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
@@ -30,11 +32,11 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -167,12 +169,15 @@ public class AdminAuthController {
      *
      * @param request 登录请求
      * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 登录响应
      */
     @PostMapping("/login")
     public CommonResult<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request,
-                                                 HttpServletRequest servletRequest) {
-        return success(adminAuthApplicationService.login(request, servletRequest));
+                                                 HttpServletRequest servletRequest,
+                                                 HttpServletResponse servletResponse) {
+        return success(completeBrowserLogin(
+                adminAuthApplicationService.login(request, servletRequest), servletRequest, servletResponse));
     }
 
     /**
@@ -191,12 +196,17 @@ public class AdminAuthController {
      *
      * @param request        绑定确认请求
      * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 登录响应
      */
     @PostMapping("/mfa/bind-confirm")
     public CommonResult<AuthLoginResponse> mfaBindConfirm(@Valid @RequestBody AuthMfaBindConfirmRequest request,
-                                                          HttpServletRequest servletRequest) {
-        return success(adminAuthApplicationService.mfaBindConfirm(request, servletRequest));
+                                                          HttpServletRequest servletRequest,
+                                                          HttpServletResponse servletResponse) {
+        return success(completeBrowserLogin(
+                adminAuthApplicationService.mfaBindConfirm(request, servletRequest),
+                servletRequest,
+                servletResponse));
     }
 
     /**
@@ -204,67 +214,108 @@ public class AdminAuthController {
      *
      * @param request        OTP 验证请求
      * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 登录响应
      */
     @PostMapping("/mfa/verify")
     public CommonResult<AuthLoginResponse> mfaVerify(@Valid @RequestBody AuthMfaVerifyRequest request,
-                                                     HttpServletRequest servletRequest) {
-        return success(adminAuthApplicationService.mfaVerify(request, servletRequest));
+                                                     HttpServletRequest servletRequest,
+                                                     HttpServletResponse servletResponse) {
+        return success(completeBrowserLogin(
+                adminAuthApplicationService.mfaVerify(request, servletRequest),
+                servletRequest,
+                servletResponse));
     }
 
     /**
      * 查询当前登录账号、菜单和权限。
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
      * @return 当前登录账号、菜单和权限
      */
     @GetMapping("/me")
-    public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
-        return success(adminAuthApplicationService.currentUser(authorization));
+    public CommonResult<AuthLoginResponse> me(HttpServletRequest servletRequest) {
+        return success(adminAuthApplicationService.currentUser(resolveAuthorization(servletRequest)));
     }
 
     /**
      * 更新当前后台登录账号个人资料。
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
      * @param request       个人资料更新请求
      * @return 更新后的当前登录账号、菜单和权限
      */
     @PostMapping("/profile")
     @OperationLog(moduleName = "后台个人中心", businessType = OperationTypeConstants.UPDATE,
             operation = "更新后台个人资料", recordRequest = false, recordResponse = false)
-    public CommonResult<AuthLoginResponse> updateProfile(@RequestHeader("Authorization") String authorization,
+    public CommonResult<AuthLoginResponse> updateProfile(HttpServletRequest servletRequest,
                                                          @Valid @RequestBody AuthProfileUpdateRequest request) {
-        return success(adminAuthApplicationService.updateCurrentProfile(authorization, request));
+        return success(adminAuthApplicationService.updateCurrentProfile(resolveAuthorization(servletRequest), request));
     }
 
     /**
      * 修改当前后台登录账号密码。
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
      * @param request       修改密码请求
      * @return 空响应
      */
     @PostMapping("/password/change")
     @OperationLog(moduleName = "后台个人中心", businessType = OperationTypeConstants.UPDATE,
             operation = "修改后台登录密码", recordRequest = false, recordResponse = false)
-    public CommonResult<Void> changePassword(@RequestHeader("Authorization") String authorization,
+    public CommonResult<Void> changePassword(HttpServletRequest servletRequest,
                                              @Valid @RequestBody AuthPasswordChangeRequest request) {
-        adminAuthApplicationService.changeCurrentPassword(authorization, request);
+        adminAuthApplicationService.changeCurrentPassword(resolveAuthorization(servletRequest), request);
         return success();
     }
 
     /**
      * 退出登录。
      *
-     * @param authorization Authorization 请求头
+     * @param servletRequest Servlet 请求
+     * @param servletResponse Servlet 响应
      * @return 空响应
      */
     @PostMapping("/logout")
     @OperationLog(moduleName = "后台登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "管理后台账号退出登录", recordRequest = false, recordResponse = false)
-    public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {
-        adminAuthApplicationService.logout(authorization);
+    public CommonResult<Void> logout(HttpServletRequest servletRequest, HttpServletResponse servletResponse) {
+        adminAuthApplicationService.logout(resolveAuthorization(servletRequest));
+        BrowserSessionCookieSupport.clearBrowserSession(
+                AuthConstants.APP_ADMIN, servletRequest, servletResponse);
         return success();
+    }
+
+    /**
+     * 在浏览器 Cookie 模式下签发 HttpOnly 会话，并从 JSON 响应移除令牌。
+     *
+     * @param loginResponse 登录响应
+     * @param request Servlet 请求
+     * @param response Servlet 响应
+     * @return 适合当前调用模式的登录响应
+     */
+    private AuthLoginResponse completeBrowserLogin(AuthLoginResponse loginResponse,
+                                                   HttpServletRequest request,
+                                                   HttpServletResponse response) {
+        if (loginResponse != null && BrowserSessionCookieSupport.issueBrowserSession(
+                AuthConstants.APP_ADMIN,
+                loginResponse.getAccessToken(),
+                loginResponse.getExpiresIn(),
+                request,
+                response)) {
+            loginResponse.setAccessToken(null);
+            loginResponse.setTokenType("Cookie");
+        }
+        return loginResponse;
+    }
+
+    /**
+     * 从显式 Bearer 请求头或管理后台 HttpOnly Cookie 解析认证凭据。
+     *
+     * @param request Servlet 请求
+     * @return Bearer 认证值
+     */
+    private String resolveAuthorization(HttpServletRequest request) {
+        return BrowserSessionCookieSupport.resolveAuthorization(AuthConstants.APP_ADMIN, request);
     }
 }

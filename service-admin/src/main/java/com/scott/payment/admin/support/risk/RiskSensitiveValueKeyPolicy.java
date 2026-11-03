@@ -7,6 +7,7 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -15,6 +16,11 @@ import java.util.Set;
  * <p>生产和持久化开发环境必须显式配置独立强密钥；只有隔离 test profile 可显式启用进程随机临时密钥。</p>
  */
 final class RiskSensitiveValueKeyPolicy {
+
+    /**
+     * 历史开发环境固定密钥，只允许在纯 dev 环境作为解密密钥读取迁移前密文。
+     */
+    private static final String LEGACY_DEV_DECRYPTION_SECRET = "local-risk-secret-change-me";
 
     /**
      * 风控敏感值主密钥最低 UTF-8 字节数。
@@ -62,7 +68,30 @@ final class RiskSensitiveValueKeyPolicy {
             SECURE_RANDOM.nextBytes(randomSecret);
             return Base64.getUrlEncoder().withoutPadding().encodeToString(randomSecret);
         }
+        if (hasOnlyProfile(activeProfiles, "dev")) {
+            throw new IllegalStateException("payment.risk.secret must be configured with at least 32 bytes; "
+                    + "configure it in service-admin-dev.yaml on Nacos for local dev");
+        }
         throw new IllegalStateException("payment.risk.secret must be configured with at least 32 bytes");
+    }
+
+    /**
+     * 解析历史开发密钥只读兼容配置；非纯 dev 环境显式开启时直接阻止启动。
+     *
+     * @param allowLegacyDevKeyDecryption 是否显式启用历史开发密钥解密
+     * @param activeProfiles 当前活动 profile
+     * @return 仅供解密的历史开发密钥
+     */
+    static Optional<String> resolveLegacyDevDecryptionSecret(boolean allowLegacyDevKeyDecryption,
+                                                             String[] activeProfiles) {
+        if (!allowLegacyDevKeyDecryption) {
+            return Optional.empty();
+        }
+        if (!hasOnlyProfile(activeProfiles, "dev")) {
+            throw new IllegalStateException(
+                    "payment.risk.allow-legacy-dev-key-decryption is only allowed for the isolated dev profile");
+        }
+        return Optional.of(LEGACY_DEV_DECRYPTION_SECRET);
     }
 
     /**
@@ -118,10 +147,21 @@ final class RiskSensitiveValueKeyPolicy {
      * @return 仅启用 test profile 时返回 true
      */
     private static boolean hasOnlyTestProfile(String[] activeProfiles) {
+        return hasOnlyProfile(activeProfiles, "test");
+    }
+
+    /**
+     * 判断是否严格只启用了指定 profile。
+     *
+     * @param activeProfiles 当前活动 profile
+     * @param expectedProfile 期望的唯一 profile
+     * @return profile 唯一且匹配时返回 true
+     */
+    private static boolean hasOnlyProfile(String[] activeProfiles, String expectedProfile) {
         if (activeProfiles == null || activeProfiles.length != 1) {
             return false;
         }
         String profile = activeProfiles[0];
-        return profile != null && "test".equals(profile.trim().toLowerCase(Locale.ROOT));
+        return profile != null && expectedProfile.equals(profile.trim().toLowerCase(Locale.ROOT));
     }
 }

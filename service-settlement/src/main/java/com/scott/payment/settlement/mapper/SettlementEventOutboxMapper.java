@@ -2,6 +2,7 @@ package com.scott.payment.settlement.mapper;
 
 import com.scott.payment.settlement.entity.SettlementEventOutboxDO;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -11,6 +12,43 @@ import java.time.LocalDateTime;
  * 结算事件 Outbox 数据访问接口；通过事件唯一键、短租约和 version CAS 支撑 MQ 至少一次发送，不假设网络发送与成功标记原子。
  */
 public interface SettlementEventOutboxMapper {
+
+    /**
+     * 在结算结果事务内幂等追加一条跨币种汇率使用事件。
+     *
+     * <p>candidate_id 对批次汇率事件为空，rate_usage_id 使用 settlement_batch_rate.id；
+     * 唯一键冲突保留原行，服务层必须随后按 event_no 回读并核对冻结事实。</p>
+     *
+     * @param row 已冻结的普通消息 Outbox
+     * @return 新增或唯一键命中的数据库影响行数
+     */
+    @Insert("""
+            INSERT INTO settlement_event_outbox
+            (event_no, settlement_batch_no, candidate_id, rate_usage_id, topic, tag, message_key,
+             message_group, payload_json, event_status, retry_count, next_retry_time,
+             version, create_time, update_time)
+            VALUES
+            (#{row.eventNo}, #{row.settlementBatchNo}, NULL, #{row.rateUsageId}, #{row.topic},
+             #{row.tag}, #{row.messageKey}, #{row.messageGroup}, #{row.payloadJson},
+             #{row.eventStatus}, #{row.retryCount}, #{row.nextRetryTime}, #{row.version},
+             #{row.createTime}, #{row.updateTime})
+            ON DUPLICATE KEY UPDATE id = id
+            """)
+    int insertRateUsageIdempotent(@Param("row") SettlementEventOutboxDO row);
+
+    /**
+     * 按全局事件号回读冻结 Outbox，用于幂等冲突后的完整身份核对。
+     *
+     * @param eventNo 全局稳定事件号
+     * @return 已提交 Outbox；不存在时返回空
+     */
+    @Select("""
+            SELECT *
+            FROM settlement_event_outbox
+            WHERE event_no = #{eventNo}
+            LIMIT 1
+            """)
+    SettlementEventOutboxDO selectByEventNo(@Param("eventNo") String eventNo);
 
     /**
      * 锁定一条到期或 PROCESSING 超时事件。

@@ -66,6 +66,14 @@ public final class MqTopic {
     public static final String CACHE_INVALIDATION = "acquiring_cache_invalidation_topic";
 
     /**
+     * 汇率实际使用事实 Topic。
+     *
+     * <p>Payment 与 Settlement 通过各自事务 Outbox 发送普通消息，service-data 以数据库
+     * 唯一键完成最终幂等落库；该 Topic 不承载查询汇率或同币种恒等汇率。</p>
+     */
+    public static final String EXCHANGE_RATE_USAGE = "acquiring_exchange_rate_usage_topic";
+
+    /**
      * 禁止实例化 RocketMQ 主题常量类。
      */
     private MqTopic() {

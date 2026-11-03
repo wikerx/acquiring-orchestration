@@ -41,8 +41,7 @@ public class RocketMqResourceInitializer {
      */
     public void initialize() {
         if (!properties.isEnabled() || !properties.isScanOnStartup()) {
-            log.info("RocketMQ 资源初始化器跳过启动扫描, event: ROCKET_MQ_RESOURCE_SCAN_SKIPPED, "
-                            + "enabled: {}, scanOnStartup: {}",
+            log.info("RocketMQ 资源初始化器跳过启动扫描, event: ROCKET_MQ_RESOURCE_SCAN_SKIPPED, enabled: {}, scanOnStartup: {}",
                     properties.isEnabled(),
                     properties.isScanOnStartup());
             return;
@@ -53,8 +52,7 @@ public class RocketMqResourceInitializer {
         }
         List<MqResourceCheckResult> results = adminFacade.checkAndInitialize(properties.getResources());
         for (MqResourceCheckResult result : results) {
-            log.info("RocketMQ 资源检查完成, event: ROCKET_MQ_RESOURCE_CHECKED, type: {}, name: {}, "
-                            + "exists: {}, created: {}, updated: {}, message: {}",
+            log.info("RocketMQ 资源检查完成, event: ROCKET_MQ_RESOURCE_CHECKED, type: {}, name: {}, exists: {}, created: {}, updated: {}, message: {}",
                     result.getResourceType(),
                     result.getResourceName(),
                     result.isExists(),

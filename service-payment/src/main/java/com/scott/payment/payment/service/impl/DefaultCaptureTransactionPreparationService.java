@@ -24,6 +24,7 @@ import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.CaptureTransactionPreparationService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
@@ -111,6 +112,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
 
     private final TransactionEventOutboxService transactionEventOutboxService;
 
+    private final PaymentExchangeRateService paymentExchangeRateService;
+
     private final TransactionRecordService transactionRecordService;
 
     private final TransactionStateMachineService transactionStateMachineService;
@@ -122,6 +125,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
      * @param paymentChannelRouteService 原交易渠道和原 MID 恢复服务
      * @param transactionIdempotencyService 动作幂等服务
      * @param transactionEventOutboxService 可靠交易事件服务
+     * @param paymentExchangeRateService 冻结交易汇率版本追溯服务
      * @param transactionRecordService 交易事实持久化服务
      * @param transactionStateMachineService 请款状态和累计金额规则服务
      */
@@ -129,12 +133,14 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                                                        PaymentChannelRouteService paymentChannelRouteService,
                                                        TransactionIdempotencyService transactionIdempotencyService,
                                                        TransactionEventOutboxService transactionEventOutboxService,
+                                                       PaymentExchangeRateService paymentExchangeRateService,
                                                        TransactionRecordService transactionRecordService,
                                                        TransactionStateMachineService transactionStateMachineService) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
+        this.paymentExchangeRateService = paymentExchangeRateService;
         this.transactionRecordService = transactionRecordService;
         this.transactionStateMachineService = transactionStateMachineService;
     }
@@ -243,6 +249,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
             OriginalTransactionRejectionSupport.apply(resultDTO);
             recordCapturePreparedFact(
                     commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+            saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
             saveTransactionCreatedEvent(commandDTO, resultDTO);
             completeIdempotency(idempotencyKey, commandDTO, resultDTO);
             CapturePreparationResultDTO target = new CapturePreparationResultDTO();
@@ -263,6 +270,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);
         // 先持久化动作、固定请求身份和恢复事件；事务提交后上层才可使用 callChannel=true 发起真实外呼。
         recordCapturePreparedFact(commandDTO, sourceOrderDO, routeResultDTO, preparedInvokeResultDTO, resultDTO, currencyExponent);
+        saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
 
@@ -493,6 +501,33 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         commandDTO.setRateTime(amountPlan.rateTime());
         commandDTO.setDccEnabled(amountPlan.dccEnabled());
         commandDTO.setEdcEnabled(amountPlan.edcEnabled());
+    }
+
+    /**
+     * 为真实使用首笔冻结汇率的请款类动作写入可靠汇率使用事件。
+     *
+     * <p>同币种或未启用 DCC/EDC 的历史兼容动作不属于汇率使用事实；跨币种事件必须先追溯到
+     * 完全一致的业务汇率版本，避免只保存数值却丢失来源。</p>
+     */
+    private void saveRateUsageIfApplied(PaymentCreateCommandDTO commandDTO,
+                                        PaymentCreateResultDTO resultDTO,
+                                        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan,
+                                        int currencyExponent) {
+        boolean conversionEnabled = Integer.valueOf(1).equals(amountPlan.edcEnabled())
+                || Integer.valueOf(1).equals(amountPlan.dccEnabled());
+        if (!conversionEnabled
+                || amountPlan.labelCurrency().equals(amountPlan.transactionCurrency())) {
+            return;
+        }
+        TransactionRateUsageOutboxSupport.save(
+                transactionEventOutboxService,
+                commandDTO,
+                resultDTO,
+                FrozenTransactionRateResolverSupport.resolve(paymentExchangeRateService, amountPlan),
+                LocalDateTime.now(),
+                "transactionAmount = labelAmount * frozenTransactionRate; sourceTransactionId="
+                        + commandDTO.getTransactionInfo().getSourceTransactionId()
+                        + "; targetCurrencyExponent=" + currencyExponent);
     }
 
     /**

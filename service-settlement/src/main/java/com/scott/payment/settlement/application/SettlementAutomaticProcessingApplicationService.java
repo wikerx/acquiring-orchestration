@@ -160,7 +160,7 @@ public class SettlementAutomaticProcessingApplicationService {
         } catch (RuntimeException failure) {
             LOGGER.warn("自动结算批次处理失败，准备记录补偿状态, event: SETTLEMENT_AUTOMATIC_BATCH_FAILED, settlementBatchNo: {}, batchStatus: {}, exceptionType: {}",
                     batch.getSettlementBatchNo(), batch.getBatchStatus(),
-                    failure.getClass().getSimpleName());
+                    failure.getClass().getSimpleName(), failure);
             failureService.recordFailure(batch.getSettlementBatchNo(), owner, failure, nowUtc());
         }
         return true;

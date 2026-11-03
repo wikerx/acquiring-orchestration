@@ -17,6 +17,8 @@ import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.web.auth.BrowserSessionCookieSupport;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.ServiceInstance;
@@ -530,15 +532,20 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     }
 
     /**
-     * 读取当前线程绑定的 Authorization 请求头，用于服务间内部鉴权透传。
+     * 解析当前管理端操作人的认证凭据，用于 Job 服务继续校验登录态、权限和审计身份。
+     * <p>
+     * 浏览器可使用 HttpOnly 会话 Cookie，非浏览器客户端仍可使用显式 Bearer 请求头；
+     * 此处复用统一会话解析规则，避免 Cookie 登录态在服务间调用时丢失。
+     * </p>
      *
-     * @return Authorization 请求头
+     * @return 可透传的 Bearer 认证值；没有请求上下文或未登录时返回 {@code null}
      */
     private String resolveAuthorizationHeader() {
         if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
             return null;
         }
-        return attributes.getRequest().getHeader(AUTHORIZATION_HEADER);
+        return BrowserSessionCookieSupport.resolveAuthorization(
+                AuthConstants.APP_ADMIN, attributes.getRequest());
     }
 
     /**

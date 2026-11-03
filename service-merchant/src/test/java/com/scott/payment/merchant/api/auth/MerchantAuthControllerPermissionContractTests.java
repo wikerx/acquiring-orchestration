@@ -1,6 +1,8 @@
 package com.scott.payment.merchant.api.auth;
 
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,10 +19,11 @@ class MerchantAuthControllerPermissionContractTests {
      */
     @Test
     void sessionSelfServiceEndpointsShouldNotRequireDashboardPermission() throws NoSuchMethodException {
-        assertThat(MerchantAuthController.class.getMethod("me", String.class)
+        assertThat(MerchantAuthController.class.getMethod("me", HttpServletRequest.class)
                         .isAnnotationPresent(RequiresPermission.class))
                 .isFalse();
-        assertThat(MerchantAuthController.class.getMethod("logout", String.class)
+        assertThat(MerchantAuthController.class.getMethod(
+                        "logout", HttpServletRequest.class, HttpServletResponse.class)
                         .isAnnotationPresent(RequiresPermission.class))
                 .isFalse();
     }

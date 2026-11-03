@@ -100,8 +100,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
             throw new ServiceException(ApiResultEnum.ABNORMAL_CASE_STATE_CONFLICT);
         }
         AbnormalRecord assigned = requireRecord(eventId, command.getTransactionDateTime());
-        log.info("渠道勾兑异常案件已领取或转派, event: CHANNEL_MATCH_ABNORMAL_ASSIGNED, "
-                        + "eventId: {}, version: {}",
+        log.info("渠道勾兑异常案件已领取或转派, event: CHANNEL_MATCH_ABNORMAL_ASSIGNED, eventId: {}, version: {}",
                 eventId, assigned.getVersion());
         return assigned;
     }
@@ -139,8 +138,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
             throw new ServiceException(ApiResultEnum.ABNORMAL_CASE_STATE_CONFLICT);
         }
         AbnormalRecord resolved = requireRecord(eventId, command.getTransactionDateTime());
-        log.info("渠道勾兑异常案件已处置, event: CHANNEL_MATCH_ABNORMAL_RESOLVED, "
-                        + "eventId: {}, resolutionType: {}, status: {}, version: {}",
+        log.info("渠道勾兑异常案件已处置, event: CHANNEL_MATCH_ABNORMAL_RESOLVED, eventId: {}, resolutionType: {}, status: {}, version: {}",
                 eventId, resolution.getCode(), resolved.getEventStatus(), resolved.getVersion());
         return resolved;
     }
@@ -169,8 +167,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
                     "MANUAL_REQUERY:" + eventId, LocalDateTime.now());
         }
         AbnormalRecord reloaded = requireRecord(eventId, command.getTransactionDateTime());
-        log.info("渠道勾兑异常案件重查完成, event: CHANNEL_MATCH_ABNORMAL_REQUERY_COMPLETED, "
-                        + "eventId: {}, status: {}, version: {}",
+        log.info("渠道勾兑异常案件重查完成, event: CHANNEL_MATCH_ABNORMAL_REQUERY_COMPLETED, eventId: {}, status: {}, version: {}",
                 eventId, reloaded.getEventStatus(), reloaded.getVersion());
         return reloaded;
     }
@@ -201,13 +198,11 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
             } catch (RuntimeException exception) {
                 result.setFailedCount(result.getFailedCount() + 1);
                 result.getFailedEventIds().add(reference == null ? null : reference.getEventId());
-                log.warn("渠道勾兑异常案件批量重查单笔失败, event: CHANNEL_MATCH_ABNORMAL_BATCH_ITEM_FAILED, "
-                                + "eventId: {}, exceptionType: {}",
+                log.warn("渠道勾兑异常案件批量重查单笔失败, event: CHANNEL_MATCH_ABNORMAL_BATCH_ITEM_FAILED, eventId: {}, exceptionType: {}",
                         reference == null ? null : reference.getEventId(), exception.getClass().getSimpleName());
             }
         }
-        log.info("渠道勾兑异常案件批量重查完成, event: CHANNEL_MATCH_ABNORMAL_BATCH_COMPLETED, "
-                        + "requestedCount: {}, acceptedCount: {}, failedCount: {}",
+        log.info("渠道勾兑异常案件批量重查完成, event: CHANNEL_MATCH_ABNORMAL_BATCH_COMPLETED, requestedCount: {}, acceptedCount: {}, failedCount: {}",
                 result.getRequestedCount(), result.getAcceptedCount(), result.getFailedCount());
         return result;
     }
@@ -320,8 +315,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         row.setCreateTime(now);
         row.setUpdateTime(now);
         abnormalEventMapper.upsertOccurrence(row);
-        log.warn("渠道勾兑异常已记录待复核案件, event: CHANNEL_MATCH_ABNORMAL_REVIEW_REQUIRED, "
-                        + "transactionId: {}, abnormalType: {}, channelMatchResult: {}",
+        log.warn("渠道勾兑异常已记录待复核案件, event: CHANNEL_MATCH_ABNORMAL_REVIEW_REQUIRED, transactionId: {}, abnormalType: {}, channelMatchResult: {}",
                 operationDO.getTransactionId(), abnormalType, matchResult);
     }
 
@@ -354,8 +348,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         int resolved = abnormalEventMapper.resolveActiveByTransaction(transactionId, transactionDateTime,
                 referenceId, resolvedTime == null ? LocalDateTime.now() : resolvedTime);
         if (resolved > 0) {
-            log.info("渠道勾兑异常案件已自动关闭, event: CHANNEL_MATCH_ABNORMAL_AUTO_RESOLVED, "
-                            + "transactionId: {}, resolvedCount: {}",
+            log.info("渠道勾兑异常案件已自动关闭, event: CHANNEL_MATCH_ABNORMAL_AUTO_RESOLVED, transactionId: {}, resolvedCount: {}",
                     transactionId, resolved);
         }
         return resolved;
