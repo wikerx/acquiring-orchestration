@@ -40,6 +40,16 @@ import java.util.List;
 public class DefaultTransactionEventOutboxRelayService implements TransactionEventOutboxRelayService {
 
     /**
+     * 单批最多读取的事件数，避免错误配置导致单次查询和内存占用失控。
+     */
+    private static final int MAX_BATCH_SIZE = 500;
+
+    /**
+     * 单次调用最多连续处理的批次数，确保 Relay 定期让出调度线程和数据库资源。
+     */
+    private static final int MAX_BATCHES_PER_RUN = 20;
+
+    /**
      * 默认失败重试间隔分钟数。
      */
     private static final long DEFAULT_RETRY_DELAY_MINUTES = 1L;
@@ -103,6 +113,23 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     @Override
     public int publishDueEvents(LocalDateTime eventTime, int limit) {
+        return publishDueEvents(eventTime, limit, 1);
+    }
+
+    /**
+     * 在单次资源预算内连续排空到期事件，减少满批积压等待下一轮固定延迟的时间。
+     *
+     * <p>是否继续下一批以“本批查询条数是否达到上限”为准，而不是以发送成功数为准。
+     * 因此单条 MQ 失败或多实例 claim 竞争不会阻断后续事件；所有批次共用同一个查询基准时间，
+     * 避免持续流量下任务无限追赶。</p>
+     *
+     * @param eventTime 事件时间，用于 ShardingSphere 精确定位季度
+     * @param limit 每批最大投递条数
+     * @param maxBatches 单次调用允许处理的最大批次数
+     * @return 本次成功投递总数
+     */
+    @Override
+    public int publishDueEvents(LocalDateTime eventTime, int limit, int maxBatches) {
         long startNanos = System.nanoTime();
         String outcome = "failure";
         try {
@@ -114,23 +141,56 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                 log.warn("交易Outbox超时任务已恢复, event: TRANSACTION_OUTBOX_PROCESSING_RECOVERED, recoveredCount: {}, eventQuarter: {}",
                         recovered, eventTime);
             }
-            int batchSize = Math.max(limit, 1);
-            List<TransactionEventOutboxDO> events = eventOutboxService.listDueEvents(eventTime, now, batchSize);
-            metrics.recordBatchSize(MqOutboxOperationalMetrics.TRANSACTION_OUTBOX, events.size(), batchSize);
-            int successCount = 0;
-            for (TransactionEventOutboxDO eventDO : events) {
-                if (publishSingle(eventDO, now)) {
-                    successCount++;
+            int batchSize = bounded(limit, MAX_BATCH_SIZE);
+            int batchBudget = bounded(maxBatches, MAX_BATCHES_PER_RUN);
+            int selectedCount = 0;
+            int publishedCount = 0;
+            int processedBatchCount = 0;
+            boolean batchBudgetReached = false;
+            for (int batchIndex = 0; batchIndex < batchBudget; batchIndex++) {
+                List<TransactionEventOutboxDO> events =
+                        eventOutboxService.listDueEvents(eventTime, now, batchSize);
+                int currentBatchSize = events.size();
+                metrics.recordBatchSize(
+                        MqOutboxOperationalMetrics.TRANSACTION_OUTBOX, currentBatchSize, batchSize);
+                selectedCount += currentBatchSize;
+                processedBatchCount++;
+                for (TransactionEventOutboxDO eventDO : events) {
+                    if (publishSingle(eventDO, now)) {
+                        publishedCount++;
+                    }
                 }
+                if (currentBatchSize < batchSize) {
+                    break;
+                }
+                batchBudgetReached = batchIndex + 1 == batchBudget;
+            }
+            if (selectedCount > 0) {
+                log.info("交易Outbox有界排空完成, event: TRANSACTION_OUTBOX_RELAY_DRAIN, eventQuarter: {}, selectedCount: {}, publishedCount: {}, processedBatchCount: {}, batchSize: {}, maxBatches: {}, batchBudgetReached: {}, durationMs: {}",
+                        eventTime,
+                        selectedCount,
+                        publishedCount,
+                        processedBatchCount,
+                        batchSize,
+                        batchBudget,
+                        batchBudgetReached,
+                        elapsedMillis(startNanos));
             }
             outcome = "success";
-            return successCount;
+            return publishedCount;
         } finally {
             metrics.recordRelayDuration(
                     MqOutboxOperationalMetrics.TRANSACTION_OUTBOX,
                     outcome,
                     System.nanoTime() - startNanos);
         }
+    }
+
+    /**
+     * 将外部配置限制到正数且有明确上限的资源预算。
+     */
+    private int bounded(int configuredValue, int upperBound) {
+        return Math.max(1, Math.min(configuredValue, upperBound));
     }
 
     /**

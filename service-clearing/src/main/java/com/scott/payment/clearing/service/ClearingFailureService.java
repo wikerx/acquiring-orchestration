@@ -19,12 +19,12 @@ public interface ClearingFailureService {
      * @param claim 阶段 A 成功领取结果
      * @param processingOwner 当前租约持有者
      * @param failure 带稳定失败码的受控异常
-     * @param nowUtc 本次失败提交的 UTC 时间
+     * @param now 本次失败提交的平台本地时间
      * @return 已提交状态及延时重试结果
      */
     ClearingFailureResult recordFailure(PaymentTransactionEventMessage message,
                                         ClearingClaimResult claim,
                                         String processingOwner,
                                         ClearingProcessingException failure,
-                                        LocalDateTime nowUtc);
+                                        LocalDateTime now);
 }

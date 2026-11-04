@@ -61,21 +61,21 @@ public class ClearingProcessingApplicationService {
      *
      * @param message 已反序列化的非敏感清分输入
      * @param processingOwner 本次处理唯一租约标识
-     * @param nowUtc 本次处理统一 UTC 时间
+     * @param now 本次处理统一平台本地时间
      * @return 可以安全 ACK 的处理结果
      * @throws RuntimeException 租约竞争或未知技术异常，交由 RocketMQ 原生重试
      */
     public ClearingProcessingResult process(PaymentTransactionEventMessage message,
                                             String processingOwner,
-                                            LocalDateTime nowUtc) {
-        if (!StringUtils.hasText(processingOwner) || nowUtc == null) {
-            throw new IllegalArgumentException("clearing processing owner and UTC time are required");
+                                            LocalDateTime now) {
+        if (!StringUtils.hasText(processingOwner) || now == null) {
+            throw new IllegalArgumentException("clearing processing owner and platform time are required");
         }
         long startNanos = System.nanoTime();
         ClearingProcessingResult result = null;
         try {
             eventValidator.validate(message);
-            ClearingClaimResult claim = persistenceService.claim(message, processingOwner, nowUtc);
+            ClearingClaimResult claim = persistenceService.claim(message, processingOwner, now);
             result = switch (claim.outcome()) {
                 case ALREADY_CONSUMED -> ClearingProcessingResult.ALREADY_CONSUMED;
                 case ALREADY_COMPLETED -> ClearingProcessingResult.ALREADY_COMPLETED;
@@ -83,7 +83,7 @@ public class ClearingProcessingApplicationService {
                 case MANUAL_REVIEW_REQUIRED -> ClearingProcessingResult.MANUAL_REVIEW_ACKNOWLEDGED;
                 case STALE_RETRY -> ClearingProcessingResult.STALE_RETRY_ACKNOWLEDGED;
                 case BUSY -> throw new ClearingLeaseBusyException();
-                case ACQUIRED -> completeAcquired(message, claim, processingOwner, nowUtc);
+                case ACQUIRED -> completeAcquired(message, claim, processingOwner, now);
             };
             metrics.recordProcessing(result);
             metrics.recordEventConsumed(result, message.getTransactionType());
@@ -113,10 +113,10 @@ public class ClearingProcessingApplicationService {
     private ClearingProcessingResult completeAcquired(PaymentTransactionEventMessage message,
                                                       ClearingClaimResult claim,
                                                       String processingOwner,
-                                                      LocalDateTime nowUtc) {
+                                                      LocalDateTime now) {
         try {
             CompletionCommand command = preparationService.prepare(message, claim, processingOwner);
-            var completion = completionService.complete(command, nowUtc);
+            var completion = completionService.complete(command, now);
             metrics.recordCompleted(claim.operation().transactionType(), claim.operation().labelCurrency(),
                     completion.clearingStatus());
             if (completion.reserveDetailCount() > 0
@@ -125,7 +125,7 @@ public class ClearingProcessingApplicationService {
             }
             return ClearingProcessingResult.COMPLETED;
         } catch (ClearingProcessingException failure) {
-            failureService.recordFailure(message, claim, processingOwner, failure, nowUtc);
+            failureService.recordFailure(message, claim, processingOwner, failure, now);
             metrics.recordFailure(failure.getFailureCode());
             log.warn("清分受控失败已持久化, event: CLEARING_CONTROLLED_FAILURE_RECORDED, transactionId: {}, operationId: {}, failureCode: {}",
                     message.getTransactionId(), message.getOperationId(), failure.getFailureCode());

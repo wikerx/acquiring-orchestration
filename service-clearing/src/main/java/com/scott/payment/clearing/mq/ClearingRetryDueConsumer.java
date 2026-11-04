@@ -4,6 +4,7 @@ import com.scott.payment.clearing.application.ClearingProcessingApplicationServi
 import com.scott.payment.clearing.application.ClearingProcessingResult;
 import com.scott.payment.clearing.config.ClearingProperties;
 import com.scott.payment.clearing.support.ClearingOperationalMetrics;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
@@ -17,11 +18,11 @@ import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.apache.rocketmq.spring.core.RocketMQPushConsumerLifecycleListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
 
 /**
  * 清分到期重试消费者。
@@ -45,6 +46,7 @@ public class ClearingRetryDueConsumer
     private final GlobalIdGenerator idGenerator;
     private final ClearingProperties properties;
     private final ClearingOperationalMetrics metrics;
+    private final Clock clock;
 
     /**
      * 创建清分重试到期消费者。
@@ -54,14 +56,33 @@ public class ClearingRetryDueConsumer
      * @param properties 清分消费线程参数
      * @param metrics 清分低基数运行指标
      */
+    @Autowired
     public ClearingRetryDueConsumer(ClearingProcessingApplicationService applicationService,
                                     GlobalIdGenerator idGenerator,
                                     ClearingProperties properties,
                                     ClearingOperationalMetrics metrics) {
+        this(applicationService, idGenerator, properties, metrics, Clock.systemUTC());
+    }
+
+    /**
+     * 创建可注入时钟的重试到期消费者，供测试固定跨日和跨季度时点。
+     *
+     * @param applicationService 清分应用编排服务
+     * @param idGenerator 单次处理租约编号生成器
+     * @param properties 清分消费线程参数
+     * @param metrics 清分低基数运行指标
+     * @param clock 当前绝对时刻来源
+     */
+    ClearingRetryDueConsumer(ClearingProcessingApplicationService applicationService,
+                             GlobalIdGenerator idGenerator,
+                             ClearingProperties properties,
+                             ClearingOperationalMetrics metrics,
+                             Clock clock) {
         this.applicationService = applicationService;
         this.idGenerator = idGenerator;
         this.properties = properties;
         this.metrics = metrics;
+        this.clock = clock;
     }
 
     /**
@@ -75,7 +96,7 @@ public class ClearingRetryDueConsumer
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
             ClearingProcessingResult result = applicationService.process(
-                    message, processingOwner(), LocalDateTime.now(Clock.systemUTC()));
+                    message, processingOwner(), ClearingTimeSupport.now(clock));
             log.info("清分到期重试消息处理完成, event: TRANSACTION_CLEARING_RETRY_DUE_CONSUMED, traceId: {}, messageId: {}, sourceEventNo: {}, transactionId: {}, operationId: {}, clearingRetryCount: {}, retryReasonCode: {}, result: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getSourceEventNo(),
                     message.getTransactionId(), message.getOperationId(), message.getClearingRetryCount(),

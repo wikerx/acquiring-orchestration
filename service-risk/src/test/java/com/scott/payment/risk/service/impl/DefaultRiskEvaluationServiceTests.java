@@ -10,11 +10,14 @@ import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
+import com.scott.payment.risk.domain.FrequencyRuleEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
+import com.scott.payment.risk.domain.MerchantLimitReadEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitReservation;
 import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
+import com.scott.payment.risk.domain.SourceUrlRuleEvaluation;
 import com.scott.payment.risk.domain.state.RiskDecisionEnum;
 import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
@@ -250,6 +253,73 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
         assertThat(repository.merchantLimitQueryCount).isZero();
+    }
+
+    /**
+     * 验证开启查询合并后使用组合仓储契约，并在一次评估内只读取一次相同名单启用状态。
+     */
+    @Test
+    void shouldConsolidateRepeatedRuleReadsWithinSingleEvaluation() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withActiveListRule(RiskListFunction.BLACK_EMAIL)
+                .withActiveFrequencyRule();
+        RiskEvaluationProperties properties = runtimeProperties();
+        properties.setReadQueryConsolidationEnabled(true);
+        DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                repository,
+                new RecordingRiskAuditRecordPublisher(),
+                properties);
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(repository.sourceUrlEvaluationCount).isEqualTo(1);
+        assertThat(repository.merchantLimitReadEvaluationCount).isEqualTo(1);
+        assertThat(repository.frequencyEvaluationWithStatusCount).isEqualTo(1);
+        assertThat(repository.activeListRuleQueryCounts.get(RiskListFunction.BLACK_EMAIL)).isEqualTo(1);
+    }
+
+    /**
+     * 验证查询合并开关开启前后保持决策、原因码和审计节点顺序一致。
+     */
+    @Test
+    void shouldKeepEvaluationOutcomeStableWhenQueryConsolidationIsEnabled() {
+        FakeRiskListRuntimeRepository legacyRepository = new FakeRiskListRuntimeRepository()
+                .withSourceUrlRule(match("RULE", "sourceUrl", "LOW", "PASS"))
+                .withActiveListRule(RiskListFunction.BLACK_EMAIL)
+                .withActiveMerchantLimitRule()
+                .withActiveFrequencyRule();
+        FakeRiskListRuntimeRepository consolidatedRepository = new FakeRiskListRuntimeRepository()
+                .withSourceUrlRule(match("RULE", "sourceUrl", "LOW", "PASS"))
+                .withActiveListRule(RiskListFunction.BLACK_EMAIL)
+                .withActiveMerchantLimitRule()
+                .withActiveFrequencyRule();
+        RecordingRiskAuditRecordPublisher legacyPublisher = new RecordingRiskAuditRecordPublisher();
+        RecordingRiskAuditRecordPublisher consolidatedPublisher = new RecordingRiskAuditRecordPublisher();
+        RiskEvaluationProperties legacyProperties = runtimeProperties();
+        RiskEvaluationProperties consolidatedProperties = runtimeProperties();
+        consolidatedProperties.setReadQueryConsolidationEnabled(true);
+
+        RiskPaymentEvaluateResultDTO legacyResult = new DefaultRiskEvaluationService(
+                legacyRepository, legacyPublisher, legacyProperties)
+                .evaluatePayment(fullyPopulatedRequest());
+        RiskPaymentEvaluateResultDTO consolidatedResult = new DefaultRiskEvaluationService(
+                consolidatedRepository, consolidatedPublisher, consolidatedProperties)
+                .evaluatePayment(fullyPopulatedRequest());
+
+        assertThat(consolidatedResult.getDecision()).isEqualTo(legacyResult.getDecision());
+        assertThat(consolidatedResult.getReasonCode()).isEqualTo(legacyResult.getReasonCode());
+        assertThat(consolidatedResult.isMerchantLimitReserved())
+                .isEqualTo(legacyResult.isMerchantLimitReserved());
+        List<String> legacyDetails = legacyPublisher.messages.get(0).getHits().stream()
+                .map(detail -> detail.getStageCode() + ":" + detail.getFunctionCode()
+                        + ":" + detail.getMatchResult() + ":" + detail.getDecisionEffect())
+                .toList();
+        List<String> consolidatedDetails = consolidatedPublisher.messages.get(0).getHits().stream()
+                .map(detail -> detail.getStageCode() + ":" + detail.getFunctionCode()
+                        + ":" + detail.getMatchResult() + ":" + detail.getDecisionEffect())
+                .toList();
+        assertThat(consolidatedDetails).containsExactlyElementsOf(legacyDetails);
     }
 
     /**
@@ -1389,6 +1459,12 @@ class DefaultRiskEvaluationServiceTests {
         private final EnumSet<RiskListFunction> activeListRules = EnumSet.noneOf(RiskListFunction.class);
 
         /**
+         * 记录每个名单功能启用状态的实际读取次数。
+         */
+        private final Map<RiskListFunction, Integer> activeListRuleQueryCounts =
+                new ConcurrentHashMap<>();
+
+        /**
          * 在测试场景中声明商户已开通但可以尚未配置规则的名单功能。
          */
         private final EnumSet<RiskListFunction> enabledMerchantFunctions = EnumSet.noneOf(RiskListFunction.class);
@@ -1424,6 +1500,11 @@ class DefaultRiskEvaluationServiceTests {
         private RiskListMatch sourceUrlRule;
 
         /**
+         * 记录来源网址组合查询调用次数。
+         */
+        private int sourceUrlEvaluationCount;
+
+        /**
          * 预置的商户单笔限额命中结果。
          */
         private RiskListMatch merchantLimitRule;
@@ -1437,6 +1518,11 @@ class DefaultRiskEvaluationServiceTests {
          * 记录单笔限额只读查询次数。
          */
         private int merchantLimitQueryCount;
+
+        /**
+         * 记录商户限额组合只读查询调用次数。
+         */
+        private int merchantLimitReadEvaluationCount;
 
         /**
          * 记录累计限额预占调用次数。
@@ -1477,6 +1563,11 @@ class DefaultRiskEvaluationServiceTests {
          * 记录频控评估调用次数。
          */
         private int frequencyEvaluationCount;
+
+        /**
+         * 记录携带启用状态的频控组合执行调用次数。
+         */
+        private int frequencyEvaluationWithStatusCount;
 
         /**
          * 记录频控评估所在的线程。
@@ -1651,6 +1742,7 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public boolean hasActiveListRule(RiskListFunction function, String merchantId) {
+            activeListRuleQueryCounts.merge(function, 1, Integer::sum);
             return activeListRules.contains(function);
         }
 
@@ -1687,6 +1779,16 @@ class DefaultRiskEvaluationServiceTests {
         }
 
         /**
+         * 记录并返回来源网址允许与限制未命中的组合结果。
+         */
+        @Override
+        public SourceUrlRuleEvaluation evaluateSourceUrlRules(String merchantId,
+                                                              RiskRuntimeLookupValue lookupValue) {
+            sourceUrlEvaluationCount++;
+            return RiskListRuntimeRepository.super.evaluateSourceUrlRules(merchantId, lookupValue);
+        }
+
+        /**
          * 返回预置的商户 IP 白名单命中结果。
          */
         @Override
@@ -1714,6 +1816,17 @@ class DefaultRiskEvaluationServiceTests {
             merchantLimitQueryCount++;
             readOnlyThreadNames.add(Thread.currentThread().getName());
             return Optional.ofNullable(merchantLimitRule);
+        }
+
+        /**
+         * 记录并返回单笔限额与规则启用状态的组合结果。
+         */
+        @Override
+        public MerchantLimitReadEvaluation evaluateMerchantLimitRules(String merchantId,
+                                                                      BigDecimal amount,
+                                                                      String currency) {
+            merchantLimitReadEvaluationCount++;
+            return RiskListRuntimeRepository.super.evaluateMerchantLimitRules(merchantId, amount, currency);
         }
 
         /**
@@ -1778,6 +1891,33 @@ class DefaultRiskEvaluationServiceTests {
             frequencyEvaluationCount++;
             frequencyThreadName = Thread.currentThread().getName();
             return frequencyRules;
+        }
+
+        /**
+         * 记录并返回频控执行明细与规则启用状态的组合结果。
+         */
+        @Override
+        public FrequencyRuleEvaluation evaluateFrequencyRulesWithStatus(
+                String merchantId,
+                RiskPaymentEvaluateRequestDTO requestDTO,
+                RiskRuntimeLookupValue cardNoLookup,
+                RiskRuntimeLookupValue cardFingerprintLookup,
+                RiskRuntimeLookupValue ipLookup,
+                RiskRuntimeLookupValue emailLookup,
+                RiskRuntimeLookupValue phoneLookup,
+                RiskRuntimeLookupValue customerIdLookup,
+                RiskRuntimeLookupValue deviceFingerprintLookup) {
+            frequencyEvaluationWithStatusCount++;
+            return RiskListRuntimeRepository.super.evaluateFrequencyRulesWithStatus(
+                    merchantId,
+                    requestDTO,
+                    cardNoLookup,
+                    cardFingerprintLookup,
+                    ipLookup,
+                    emailLookup,
+                    phoneLookup,
+                    customerIdLookup,
+                    deviceFingerprintLookup);
         }
 
         /**

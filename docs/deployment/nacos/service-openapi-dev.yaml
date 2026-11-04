@@ -7,6 +7,9 @@ acquiring:
     allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
 
 openapi:
+  merchant-api-response-audit:
+    # dev 使用可靠 Outbox + MQ，由 service-data 异步回写响应审计；紧急回滚可临时改为 HTTP 并滚动重启 OpenAPI。
+    mode: ${OPENAPI_MERCHANT_API_RESPONSE_AUDIT_MODE:MQ}
   merchant:
     # JWT iat/exp 与服务器时间允许的最大偏差，单位秒。
     timestamp-tolerance-seconds: 300
@@ -22,6 +25,18 @@ openapi:
     # 同步内部调用统一采用 3 秒建连、30 秒读取默认值，任何环境均不得超过 60 秒上限。
     connect-timeout-millis: ${OPENAPI_PAYMENT_CONNECT_TIMEOUT_MILLIS:3000}
     read-timeout-millis: ${OPENAPI_PAYMENT_READ_TIMEOUT_MILLIS:30000}
+    # 参数说明：支付内部客户端连接池总容量；容量上限负责隔离 OpenAPI 与 Payment，不能脱离下游线程池和数据库连接池单独放大。
+    max-connections-total: ${OPENAPI_PAYMENT_MAX_CONNECTIONS_TOTAL:32}
+    # 参数说明：本机单个 service-payment 实例最多承接 16 个同步在途请求；必须小于其 20 条主库连接，给嵌套强一致读取和后台任务保留连接。
+    max-connections-per-route: ${OPENAPI_PAYMENT_MAX_CONNECTIONS_PER_ROUTE:16}
+    # 参数说明：连接池满时最多等待 10 秒承接短时流量尖峰；超过边界后快速失败，禁止无界排队。
+    connection-request-timeout-millis: ${OPENAPI_PAYMENT_CONNECTION_REQUEST_TIMEOUT_MILLIS:10000}
+    # 参数说明：连接空闲超过 5 秒后，复用前先执行存活校验。
+    validate-after-inactivity-millis: ${OPENAPI_PAYMENT_VALIDATE_AFTER_INACTIVITY_MILLIS:5000}
+    # 参数说明：单条连接最长保留 5 分钟，避免长期持有已变更的实例连接。
+    connection-time-to-live-millis: ${OPENAPI_PAYMENT_CONNECTION_TIME_TO_LIVE_MILLIS:300000}
+    # 参数说明：后台清理空闲超过 30 秒的连接，并同时清理已过期连接。
+    idle-connection-evict-millis: ${OPENAPI_PAYMENT_IDLE_CONNECTION_EVICT_MILLIS:30000}
     # 参数说明：支付内部协议的固定调用方标识，必须保持 service-openapi。
     internal-caller: service-openapi
     # 参数说明：OpenAPI 到 Payment 调用边的当前 HMAC 密钥引用。

@@ -72,6 +72,11 @@
             <artifactId>component-http</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--支付核心同步调用使用有界、可复用并可清理的 Apache HttpClient 连接池。-->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
         <!--支付渠道回调验签器注册和通用回调安全支持。-->
         <dependency>
             <groupId>com.scott.payment</groupId>

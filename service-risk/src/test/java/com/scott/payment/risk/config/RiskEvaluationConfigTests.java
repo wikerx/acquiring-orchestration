@@ -47,7 +47,22 @@ class RiskEvaluationConfigTests {
             assertThat(properties.getReadOnlyParallelism()).isEqualTo(4);
             assertThat(properties.getReadOnlyQueueCapacity()).isEqualTo(64);
             assertThat(properties.getReadOnlyTimeoutMillis()).isEqualTo(3_000);
+            assertThat(properties.isReadQueryConsolidationEnabled()).isFalse();
         });
+    }
+
+    /**
+     * 验证重复查询合并开关可由环境配置显式开启，代码默认仍保持兼容路径。
+     */
+    @Test
+    void shouldBindReadQueryConsolidationSwitchExplicitly() {
+        contextRunner
+                .withPropertyValues("risk.evaluation.read-query-consolidation-enabled=true")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(RiskEvaluationProperties.class)
+                            .isReadQueryConsolidationEnabled()).isTrue();
+                });
     }
 
     /**

@@ -30,6 +30,11 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--实时风控同步调用使用有界、可复用并可清理的 Apache HttpClient 连接池。-->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
         <!--平台通用值对象、交易枚举、异常、响应和 ID。-->
         <dependency>
             <groupId>com.scott.payment</groupId>

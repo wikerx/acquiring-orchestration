@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  * @param approvedAmount 渠道最终批准金额
  * @param transactionCurrency 系统交易币种
  * @param transactionAmount 系统交易金额
- * @param currencyExponent 标签币种 ISO exponent
+ * @param currencyExponent 系统交易币种 ISO exponent
  * @param transactionDateTime 当前动作季度分片时间
  * @param transactionUtcTime 当前动作 UTC 时间
  * @param transactionTimeZone 当前动作业务时区

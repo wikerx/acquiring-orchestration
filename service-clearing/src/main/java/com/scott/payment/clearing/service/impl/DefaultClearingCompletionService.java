@@ -42,6 +42,7 @@ import com.scott.payment.clearing.service.ClearingSettlementCandidateService;
 import com.scott.payment.clearing.support.ClearingOperationalMetrics;
 import com.scott.payment.clearing.support.ClearingItemNameResolver;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.constant.MqTag;
@@ -280,7 +281,7 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         // 财务状态、查询投影、消费幂等和 Outbox 必须同事务成功，任何 CAS 或插入数量异常都会整体回滚。
         FinanceSummary summary = financeSummary(command, revision, targetStatus, calculation);
         requireOne(financeStateMapper.completeProcessing(
-                operation.transactionId(), operation.transactionDateTime(), command.processingOwner(),
+                state.getId(), operation.transactionId(), operation.transactionDateTime(), command.processingOwner(),
                 command.claim().financeStateVersion(), summary, now), "finance state completion CAS");
         projectionService.updateWithLocator(
                 operation, command.currentLocator(), ClearingStateEnum.valueOf(targetStatus), null, now);
@@ -737,7 +738,8 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
             if (!EntryDirection.DEBIT.name().equals(row.getDirection())
                     || row.getLabelAmount() == null || row.getLabelAmount().signum() < 0
                     || !Objects.equals(row.getLabelCurrency(), source.operation().labelCurrency())
-                    || !Objects.equals(row.getLabelCurrencyExponent(), source.operation().currencyExponent())) {
+                    || !Objects.equals(row.getLabelCurrencyExponent(),
+                            labelCurrencyExponent(source.operation()))) {
                 throw failure(ClearingFailureCodeEnum.AMOUNT_INVALID,
                         "historical refund principal label amount is inconsistent");
             }
@@ -924,7 +926,8 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                 || !StringUtils.hasText(state.getOriginalHoldDetailNo())
                 || !StringUtils.hasText(state.getOriginalReserveSnapshotHash())
                 || !Objects.equals(state.getReserveCurrency(), source.operation().labelCurrency())
-                || !Objects.equals(state.getReserveCurrencyExponent(), source.operation().currencyExponent())
+                || !Objects.equals(state.getReserveCurrencyExponent(),
+                        labelCurrencyExponent(source.operation()))
                 || state.getOriginalBasisAmount() == null
                 || state.getOriginalBasisAmount().compareTo(source.operation().labelAmount()) != 0
                 || state.getOriginalReserveRate() == null
@@ -953,15 +956,35 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
     }
 
     /**
-     * 使用动作冻结的币种指数构造标签金额，禁止默认所有币种均为两位小数。
+     * 使用标签币种自身的 ISO 指数构造标签金额，禁止复用交易币种指数。
      */
     private Money labelMoney(ClearingOperationFacts operation) {
         if (operation.labelAmount() == null || operation.labelAmount().signum() < 0
-                || !StringUtils.hasText(operation.labelCurrency()) || operation.currencyExponent() == null) {
+                || !StringUtils.hasText(operation.labelCurrency())) {
             throw failure(ClearingFailureCodeEnum.AMOUNT_INVALID,
                     "transaction label amount is incomplete");
         }
-        return new Money(operation.labelAmount(), operation.labelCurrency(), operation.currencyExponent());
+        int exponent = labelCurrencyExponent(operation);
+        if (operation.labelAmount().stripTrailingZeros().scale() > exponent) {
+            throw failure(ClearingFailureCodeEnum.AMOUNT_INVALID,
+                    "transaction label amount does not conform to ISO currency exponent");
+        }
+        return new Money(operation.labelAmount(), operation.labelCurrency(), exponent);
+    }
+
+    /**
+     * 按标签币种解析 ISO exponent，避免把系统交易币种的持久化 exponent 写入标签财务事实。
+     */
+    private int labelCurrencyExponent(ClearingOperationFacts operation) {
+        if (operation == null || !StringUtils.hasText(operation.labelCurrency())) {
+            throw failure(ClearingFailureCodeEnum.AMOUNT_INVALID,
+                    "transaction label currency is incomplete");
+        }
+        return IsoCurrencyResolver.resolve(operation.labelCurrency())
+                .filter(currency -> currency.defaultFractionDigits() >= 0)
+                .orElseThrow(() -> failure(ClearingFailureCodeEnum.AMOUNT_INVALID,
+                        "transaction label currency is not supported"))
+                .defaultFractionDigits();
     }
 
     /**
@@ -971,7 +994,7 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         return source.operation().labelAmount()
                 .multiply(source.feeSnapshot().reserve().reserveRate(), CALCULATION_CONTEXT)
                 .divide(new BigDecimal("100"), CALCULATION_CONTEXT)
-                .setScale(source.operation().currencyExponent(), source.feeSnapshot().roundingMode());
+                .setScale(labelCurrencyExponent(source.operation()), source.feeSnapshot().roundingMode());
     }
 
     /**
@@ -1293,7 +1316,7 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         row.setComponentType("REVERSAL");
         row.setBasisCurrency(command.claim().operation().labelCurrency());
         row.setBasisAmount(command.claim().operation().labelAmount());
-        row.setBasisCurrencyExponent(command.claim().operation().currencyExponent());
+        row.setBasisCurrencyExponent(labelCurrencyExponent(command.claim().operation()));
         row.setAmount(component.amount().amount());
         row.setCurrency(component.amount().currency());
         row.setCurrencyExponent(component.amount().exponent());
@@ -1337,7 +1360,7 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         row.setLineNo(lineNo);
         row.setLabelCurrency(operation.labelCurrency());
         row.setLabelAmount(operation.labelAmount());
-        row.setLabelCurrencyExponent(operation.currencyExponent());
+        row.setLabelCurrencyExponent(labelCurrencyExponent(operation));
         row.setSettlementEligibleDate(command.settlementEligibleDate());
         row.setRecordStatus(ACTIVE);
         row.setTransactionDateTime(operation.transactionDateTime());

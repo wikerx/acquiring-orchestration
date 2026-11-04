@@ -15,8 +15,11 @@ import com.scott.payment.clearing.service.ClearingAnomalyService;
 import com.scott.payment.clearing.service.ClearingProjectionService;
 import com.scott.payment.clearing.service.ClearingRecalculationService;
 import com.scott.payment.clearing.support.ClearingOperationalMetrics;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -78,8 +81,12 @@ class DefaultClearingManagementCommandServiceTest {
         assertThat(outbox.getTopic()).isEqualTo(MqTopic.PAYMENT_CLEARING_DELAY);
         assertThat(outbox.getTag()).isEqualTo(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
         assertThat(outbox.getDeliveryMode()).isEqualTo("SCHEDULED");
-        assertThat(outbox.getDeliverAt()).isEqualTo(DELIVER_AT);
+        assertThat(outbox.getDeliverAt())
+                .isEqualTo(ClearingTimeSupport.toUtcLocalDateTime(DELIVER_AT));
         assertThat(outbox.getTransactionDateTime()).isEqualTo(TRANSACTION_TIME);
+        ClearingRetryDueMessage retryMessage = JsonUtils.parseObject(
+                outbox.getPayloadJson(), ClearingRetryDueMessage.class);
+        assertThat(retryMessage.getDeliverAt()).isEqualTo(ClearingTimeSupport.toInstant(DELIVER_AT));
         assertThat(response.getResult()).isEqualTo("SCHEDULED");
         assertThat(response.getVersion()).isEqualTo(4);
         verify(dependencies.projectionService).updateResolvingLocator(
@@ -242,7 +249,7 @@ class DefaultClearingManagementCommandServiceTest {
         private final ClearingAnomalyService anomalyService = mock(ClearingAnomalyService.class);
 
         private DefaultClearingManagementCommandService service() {
-            Clock clock = Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+            Clock clock = Clock.fixed(ClearingTimeSupport.toInstant(NOW), ZoneOffset.UTC);
             return new DefaultClearingManagementCommandService(
                     financeMapper, operationMapper, outboxMapper, projectionService,
                     recalculationService, metrics, anomalyService, clock);

@@ -33,8 +33,11 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -118,6 +121,11 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     private final TransactionStateMachineService transactionStateMachineService;
 
     /**
+     * 增量授权准备事实的短事务执行器；原动作、路由、币种与汇率读取均不占用主单锁。
+     */
+    private final TransactionOperations transactionOperations;
+
+    /**
      * 创建增量授权本地准备服务。
      *
      * @param isoDictionaryService 币种辅币位字典
@@ -136,6 +144,29 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             PaymentExchangeRateService paymentExchangeRateService,
             TransactionRecordService transactionRecordService,
             TransactionStateMachineService transactionStateMachineService) {
+        this(isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                paymentExchangeRateService,
+                transactionRecordService,
+                transactionStateMachineService,
+                null);
+    }
+
+    /**
+     * Spring 生产构造器，使用交易数据源事务管理器建立主单锁短事务。
+     */
+    @Autowired
+    public DefaultIncrementalAuthorizationTransactionPreparationService(
+            IsoDictionaryService isoDictionaryService,
+            PaymentChannelRouteService paymentChannelRouteService,
+            TransactionIdempotencyService transactionIdempotencyService,
+            TransactionEventOutboxService transactionEventOutboxService,
+            PaymentExchangeRateService paymentExchangeRateService,
+            TransactionRecordService transactionRecordService,
+            TransactionStateMachineService transactionStateMachineService,
+            PlatformTransactionManager transactionManager) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.transactionIdempotencyService = transactionIdempotencyService;
@@ -143,6 +174,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         this.paymentExchangeRateService = paymentExchangeRateService;
         this.transactionRecordService = transactionRecordService;
         this.transactionStateMachineService = transactionStateMachineService;
+        this.transactionOperations = transactionManager == null
+                ? null
+                : new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -156,7 +190,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
-    @Transactional(rollbackFor = Exception.class)
     public IncrementalAuthorizationPreparationResultDTO prepareIncrementalAuthorization(
             PaymentCreateCommandDTO commandDTO,
             String idempotencyKey) {
@@ -164,6 +197,27 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         TransactionOrderDO resolvedSourceOrderDO = resolveSourceOrder(commandDTO);
+        commandDTO.setRequestFingerprint(canonicalIncrementalAuthorizationRequestFingerprint(
+                commandDTO, resolvedSourceOrderDO));
+        IncrementalAuthorizationPreparationResultDTO duplicate = findDuplicateIncrementalAuthorization(
+                commandDTO, idempotencyKey);
+        if (duplicate != null) {
+            return duplicate;
+        }
+        IncrementalAuthorizationPreparationPlan plan = planIncrementalAuthorization(
+                resolvedSourceOrderDO, commandDTO);
+        return executeInTransaction(() -> prepareIncrementalAuthorizationInTransaction(
+                commandDTO, idempotencyKey, resolvedSourceOrderDO, plan));
+    }
+
+    /**
+     * 在持有原授权主单行锁的短事务中完成状态、额度、冲突动作校验和事实写入。
+     */
+    private IncrementalAuthorizationPreparationResultDTO prepareIncrementalAuthorizationInTransaction(
+            PaymentCreateCommandDTO commandDTO,
+            String idempotencyKey,
+            TransactionOrderDO resolvedSourceOrderDO,
+            IncrementalAuthorizationPreparationPlan plan) {
         // 主单锁把增量授权、请款和撤销对授权额度的竞争收敛为单点串行决策。
         TransactionOrderDO sourceOrderDO = lockSourceOrder(resolvedSourceOrderDO);
         // 锁内使用数据库权威原交易身份计算指纹，阻止同一商户操作号替换金额或币种后重放。
@@ -171,7 +225,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .map(record -> IncrementalAuthorizationPreparationResultDTO.duplicate(
                         resolveDuplicateIncrementalAuthorization(commandDTO, record)))
-                .orElseGet(() -> prepareNewIncrementalAuthorization(commandDTO, idempotencyKey, sourceOrderDO));
+                .orElseGet(() -> prepareNewIncrementalAuthorization(
+                        commandDTO, idempotencyKey, sourceOrderDO, plan));
     }
 
     /**
@@ -182,13 +237,17 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     private IncrementalAuthorizationPreparationResultDTO prepareNewIncrementalAuthorization(
             PaymentCreateCommandDTO commandDTO,
             String idempotencyKey,
-            TransactionOrderDO sourceOrderDO) {
+            TransactionOrderDO sourceOrderDO,
+            IncrementalAuthorizationPreparationPlan plan) {
         if (transactionStateMachineService == null) {
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
         }
         FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan = calculateIncrementalAuthorizationAmountPlan(
-                commandDTO, sourceOrderDO);
+                commandDTO,
+                sourceOrderDO,
+                plan.labelCurrencyExponent(),
+                plan.transactionCurrencyExponent());
         applyIncrementalAuthorizationAmountPlan(commandDTO, sourceOrderDO, amountPlan);
         // 状态机和未决动作扫描必须基于持锁后的同一快照，否则并发增额可能同时通过。
         transactionStateMachineService.validateFollowUpAction(
@@ -217,30 +276,21 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                             "incremental authorization idempotency conflict record is missing"));
         }
-        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId(),
-                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
+        TransactionOperationDO sourceOperationDO = plan.sourceOperationDO();
         bindIncrementalAuthorizationSourceChannelTransaction(commandDTO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentCreateResultDTO resultDTO = buildIncrementalAuthorizationResult(commandDTO, sourceOrderDO, transactionId);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO;
-        try {
-            // 增量授权必须沿用原授权冻结的渠道和 MID，重新路由会破坏渠道侧授权链。
-            routeResultDTO = OriginalTransactionRouteResolver.restore(
-                    paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
-        } catch (ServiceException exception) {
-            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
-                throw exception;
-            }
-            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
-                    sourceOrderDO, sourceOperationDO);
+        int currencyExponent = plan.transactionCurrencyExponent();
+        PaymentCreateResultDTO resultDTO = buildIncrementalAuthorizationResult(
+                commandDTO, sourceOrderDO, transactionId, currencyExponent);
+        OriginalTransactionRouteResolver.Resolution routeResolution = plan.routeResolution();
+        PaymentRouteResultDTO routeResultDTO = routeResolution.requireRouteResult();
+        if (routeResolution.rejected()) {
             OriginalTransactionRejectionSupport.apply(resultDTO);
             enrichIncrementalAuthorizationResult(commandDTO, sourceOrderDO, null, resultDTO);
             OriginalTransactionRejectionSupport.apply(resultDTO);
             recordIncrementalAuthorizationPreparedFact(
-                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
-            saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
+                    commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO, currencyExponent);
+            saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, plan.frozenRate(), currencyExponent);
             saveTransactionCreatedEvent(commandDTO, resultDTO);
             completeIdempotency(idempotencyKey, commandDTO, resultDTO);
             IncrementalAuthorizationPreparationResultDTO target =
@@ -249,7 +299,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             target.setIdempotencyKey(idempotencyKey);
             target.setCommandDTO(commandDTO);
             target.setSourceOrderDO(sourceOrderDO);
-            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setRouteResultDTO(routeResultDTO);
             target.setResultDTO(resultDTO);
             target.setCurrencyExponent(currencyExponent);
             return target;
@@ -263,7 +313,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         // 动作事实、固定请求身份和恢复事件先提交；上层看到 callChannel=true 后才执行真实渠道外呼。
         recordIncrementalAuthorizationPreparedFact(
                 commandDTO, sourceOrderDO, routeResultDTO, preparedInvokeResultDTO, resultDTO, currencyExponent);
-        saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
+        saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, plan.frozenRate(), currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
 
@@ -293,6 +343,53 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return sourceOrderDO;
+    }
+
+    /**
+     * 在短事务前读取不可变原动作、渠道身份、币种精度和冻结汇率版本。
+     */
+    private IncrementalAuthorizationPreparationPlan planIncrementalAuthorization(
+            TransactionOrderDO sourceOrderDO,
+            PaymentCreateCommandDTO commandDTO) {
+        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
+                commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
+        OriginalTransactionRouteResolver.Resolution routeResolution = OriginalTransactionRouteResolver.plan(
+                paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        String labelCurrency = firstText(sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
+        int labelCurrencyExponent = resolveCurrencyExponent(labelCurrency);
+        int transactionCurrencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        FrozenTransactionRateResolverSupport.Resolution frozenRate = FrozenTransactionRateResolverSupport.planForSourceOrder(
+                paymentExchangeRateService, sourceOrderDO);
+        return new IncrementalAuthorizationPreparationPlan(
+                sourceOperationDO,
+                routeResolution,
+                labelCurrencyExponent,
+                transactionCurrencyExponent,
+                frozenRate);
+    }
+
+    /**
+     * 在路由和汇率规划前快速返回已完成的重复增量授权。
+     */
+    private IncrementalAuthorizationPreparationResultDTO findDuplicateIncrementalAuthorization(
+            PaymentCreateCommandDTO commandDTO,
+            String idempotencyKey) {
+        return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                .map(record -> IncrementalAuthorizationPreparationResultDTO.duplicate(
+                        resolveDuplicateIncrementalAuthorization(commandDTO, record)))
+                .orElse(null);
+    }
+
+    /**
+     * 使用 Spring 事务管理器执行主单锁短事务；无事务管理器仅用于现有直接构造的单元测试兼容。
+     */
+    private IncrementalAuthorizationPreparationResultDTO executeInTransaction(
+            java.util.function.Supplier<IncrementalAuthorizationPreparationResultDTO> callback) {
+        if (transactionOperations == null) {
+            return callback.get();
+        }
+        return transactionOperations.execute(status -> callback.get());
     }
 
     /**
@@ -430,14 +527,15 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
      */
     private FrozenRateFollowUpAmountCalculator.AmountPlan calculateIncrementalAuthorizationAmountPlan(
             PaymentCreateCommandDTO commandDTO,
-            TransactionOrderDO sourceOrderDO) {
-        String labelCurrency = firstText(sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
+            TransactionOrderDO sourceOrderDO,
+            int labelCurrencyExponent,
+            int transactionCurrencyExponent) {
         return FrozenRateFollowUpAmountCalculator.calculateIncrementalAuthorization(
                 sourceOrderDO,
                 commandDTO.getAmount(),
                 commandDTO.getCurrency(),
-                resolveCurrencyExponent(labelCurrency),
-                resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency()));
+                labelCurrencyExponent,
+                transactionCurrencyExponent);
     }
 
     /**
@@ -470,6 +568,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     private void saveRateUsageIfApplied(PaymentCreateCommandDTO commandDTO,
                                         PaymentCreateResultDTO resultDTO,
                                         FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan,
+                                        FrozenTransactionRateResolverSupport.Resolution frozenRate,
                                         int currencyExponent) {
         boolean conversionEnabled = Integer.valueOf(1).equals(amountPlan.edcEnabled())
                 || Integer.valueOf(1).equals(amountPlan.dccEnabled());
@@ -481,7 +580,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 transactionEventOutboxService,
                 commandDTO,
                 resultDTO,
-                FrozenTransactionRateResolverSupport.resolve(paymentExchangeRateService, amountPlan),
+                FrozenTransactionRateResolverSupport.validate(frozenRate, amountPlan),
                 LocalDateTime.now(),
                 "transactionAmount = labelAmount * frozenTransactionRate; sourceTransactionId="
                         + commandDTO.getTransactionInfo().getSourceTransactionId()
@@ -531,7 +630,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
      */
     private PaymentCreateResultDTO buildIncrementalAuthorizationResult(PaymentCreateCommandDTO commandDTO,
                                                                        TransactionOrderDO sourceOrderDO,
-                                                                       String transactionId) {
+                                                                       String transactionId,
+                                                                       int currencyExponent) {
         PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
         resultDTO.setOperationId(sourceOrderDO.getOperationId());
         resultDTO.setTransactionId(transactionId);
@@ -542,7 +642,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
         resultDTO.setCurrency(commandDTO.getTransactionCurrency());
-        resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
+        resultDTO.setAmount(toMinorAmount(
+                commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency(), currencyExponent));
         return resultDTO;
     }
 
@@ -775,6 +876,23 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
+     * 增量授权事务外规划结果；主单锁内只消费这些只读快照并重新校验资金事实。
+     *
+     * @param sourceOperationDO 原授权动作快照
+     * @param routeResolution 原交易路由规划结果
+     * @param labelCurrencyExponent 标签币种辅币位数
+     * @param transactionCurrencyExponent 渠道交易币种辅币位数
+     * @param frozenRate 首次交易冻结业务汇率的事务外规划结果
+     */
+    private record IncrementalAuthorizationPreparationPlan(
+            TransactionOperationDO sourceOperationDO,
+            OriginalTransactionRouteResolver.Resolution routeResolution,
+            int labelCurrencyExponent,
+            int transactionCurrencyExponent,
+            FrozenTransactionRateResolverSupport.Resolution frozenRate) {
+    }
+
+    /**
      * 按 ISO 4217 币种精度精确转换最小货币单位，超精度输入直接失败。
      */
     private Long toMinorAmount(BigDecimal amount, String currency) {
@@ -782,6 +900,18 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             return isoDictionaryService.toMinorUnit(amount, currency);
         } catch (IllegalArgumentException | ArithmeticException exception) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "amount fraction digits exceed currency minor unit", exception);
+        }
+    }
+
+    /**
+     * 使用事务外已解析的币种精度转换金额，避免持有主单锁时再次访问币种字典。
+     */
+    private Long toMinorAmount(BigDecimal amount, String currency, int currencyExponent) {
+        try {
+            return amount.movePointRight(currencyExponent).longValueExact();
+        } catch (ArithmeticException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "amount fraction digits exceed currency minor unit: " + currency, exception);
         }
     }
 

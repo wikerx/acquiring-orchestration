@@ -213,6 +213,75 @@ class DefaultClearingCalculationServiceTest {
                         assertThat(failure.getFailureCode()).isEqualTo(ClearingFailureCodeEnum.AMOUNT_INVALID));
     }
 
+    /**
+     * 标签币种与系统交易币种不同时，各自使用自身 ISO exponent，不得交叉校验。
+     */
+    @Test
+    void calculateShouldAcceptJpyLabelWithUsdTransactionExponent() {
+        ClearingCalculationCommand base = command("SUCCESS");
+        ClearingOperationFacts original = base.operation();
+        ClearingOperationFacts operation = new ClearingOperationFacts(
+                original.transactionId(), original.operationId(), original.sourceTransactionId(),
+                original.merchantId(), original.merchantOrderNo(), original.transactionType(),
+                original.transactionStatus(), "JPY", new BigDecimal("112"),
+                "USD", new BigDecimal("0.71"), "USD", new BigDecimal("0.71"), 2,
+                original.transactionDateTime(), original.transactionUtcTime(),
+                original.transactionTimeZone(), original.operationVersion());
+
+        ClearingCalculationResult result = service.calculate(new ClearingCalculationCommand(
+                operation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
+                base.occurredRiskServices(), base.tierContexts(), null, null));
+
+        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("0.71"), "USD", 2));
+        assertThat(result.fees().get(0).result().components().get(0).amount())
+                .isEqualTo(new Money(new BigDecimal("3"), "JPY", 0));
+        assertThat(result.reserve().amount()).isEqualTo(new Money(new BigDecimal("11"), "JPY", 0));
+    }
+
+    /**
+     * JPY 标签金额不得携带有效小数，避免清分阶段隐式舍入资金事实。
+     */
+    @Test
+    void calculateShouldRejectJpyLabelAmountWithFraction() {
+        ClearingCalculationCommand base = command("SUCCESS");
+        ClearingOperationFacts original = base.operation();
+        ClearingOperationFacts operation = new ClearingOperationFacts(
+                original.transactionId(), original.operationId(), original.sourceTransactionId(),
+                original.merchantId(), original.merchantOrderNo(), original.transactionType(),
+                original.transactionStatus(), "JPY", new BigDecimal("112.5"),
+                "USD", new BigDecimal("0.71"), "USD", new BigDecimal("0.71"), 2,
+                original.transactionDateTime(), original.transactionUtcTime(),
+                original.transactionTimeZone(), original.operationVersion());
+
+        assertThatThrownBy(() -> service.calculate(new ClearingCalculationCommand(
+                operation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
+                base.occurredRiskServices(), base.tierContexts(), null, null)))
+                .isInstanceOfSatisfying(ClearingProcessingException.class, failure ->
+                        assertThat(failure.getFailureCode()).isEqualTo(ClearingFailureCodeEnum.AMOUNT_INVALID));
+    }
+
+    /**
+     * 持久化 exponent 属于系统交易币种，和交易币种 ISO exponent 不一致时必须拒绝。
+     */
+    @Test
+    void calculateShouldRejectStoredTransactionExponentMismatch() {
+        ClearingCalculationCommand base = command("SUCCESS");
+        ClearingOperationFacts original = base.operation();
+        ClearingOperationFacts operation = new ClearingOperationFacts(
+                original.transactionId(), original.operationId(), original.sourceTransactionId(),
+                original.merchantId(), original.merchantOrderNo(), original.transactionType(),
+                original.transactionStatus(), "JPY", new BigDecimal("112"),
+                "USD", new BigDecimal("0.71"), "USD", new BigDecimal("0.71"), 0,
+                original.transactionDateTime(), original.transactionUtcTime(),
+                original.transactionTimeZone(), original.operationVersion());
+
+        assertThatThrownBy(() -> service.calculate(new ClearingCalculationCommand(
+                operation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
+                base.occurredRiskServices(), base.tierContexts(), null, null)))
+                .isInstanceOfSatisfying(ClearingProcessingException.class, failure ->
+                        assertThat(failure.getFailureCode()).isEqualTo(ClearingFailureCodeEnum.AMOUNT_INVALID));
+    }
+
     @Test
     void calculateShouldAcceptThreeDecimalCurrencyFacts() {
         ClearingCalculationCommand base = command("SUCCESS");
@@ -221,7 +290,7 @@ class DefaultClearingCalculationServiceTest {
                 original.transactionId(), original.operationId(), original.sourceTransactionId(),
                 original.merchantId(), original.merchantOrderNo(), original.transactionType(),
                 original.transactionStatus(), "KWD", new BigDecimal("100.125"),
-                "KWD", new BigDecimal("100.125"), "KWD", new BigDecimal("100.125"), 3,
+                "USD", new BigDecimal("0.71"), "USD", new BigDecimal("0.71"), 2,
                 original.transactionDateTime(), original.transactionUtcTime(),
                 original.transactionTimeZone(), original.operationVersion());
 
@@ -230,8 +299,9 @@ class DefaultClearingCalculationServiceTest {
                 base.occurredRiskServices(), base.tierContexts(), base.feeRefundCommand(),
                 base.reserveReturnCommand()));
 
-        assertThat(result.principal().currency()).isEqualTo("KWD");
-        assertThat(result.principal().amount()).isEqualByComparingTo("100.125");
+        assertThat(result.principal().currency()).isEqualTo("USD");
+        assertThat(result.principal().amount()).isEqualByComparingTo("0.71");
+        assertThat(result.fees().get(0).result().components().get(0).amount().exponent()).isEqualTo(3);
         assertThat(result.reserve().amount().amount()).isEqualByComparingTo("10.013");
     }
 

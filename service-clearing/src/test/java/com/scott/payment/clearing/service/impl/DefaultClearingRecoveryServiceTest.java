@@ -8,6 +8,7 @@ import com.scott.payment.clearing.mapper.ClearingTransactionEventOutboxMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.service.ClearingProjectionService;
 import com.scott.payment.clearing.service.ClearingAnomalyService;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
@@ -95,13 +96,15 @@ class DefaultClearingRecoveryServiceTest {
         verify(outboxMapper).insertLogical(captor.capture());
         ClearingTransactionEventOutboxDO outbox = captor.getValue();
         assertThat(outbox.getEventNo()).startsWith("CC").hasSize(34);
-        assertThat(outbox.getDeliverAt()).isEqualTo(DELIVER_AT);
+        assertThat(outbox.getDeliverAt())
+                .isEqualTo(ClearingTimeSupport.toUtcLocalDateTime(DELIVER_AT));
         ClearingRetryDueMessage message = JsonUtils.parseObject(
                 outbox.getPayloadJson(), ClearingRetryDueMessage.class);
         assertThat(message.getExpectedClearingRevision()).isEqualTo(2);
         assertThat(message.getClearingRetryCount()).isEqualTo(3);
         assertThat(message.getRetryReasonCode()).isEqualTo("CLEARING_COMPENSATION_DUE");
         assertThat(message.getSourceEventNo()).isEqualTo("COMPENSATION:FS-1");
+        assertThat(message.getDeliverAt()).isEqualTo(ClearingTimeSupport.toInstant(DELIVER_AT));
     }
 
     @Test

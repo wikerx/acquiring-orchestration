@@ -27,6 +27,21 @@ import java.util.List;
 public class TransactionEventOutboxRelayScheduler {
 
     /**
+     * 单批读取上限，与 Relay 服务的防御性边界保持一致。
+     */
+    private static final int MAX_BATCH_SIZE = 500;
+
+    /**
+     * 单次调度连续排空批次上限，防止错误配置长期独占调度线程。
+     */
+    private static final int MAX_BATCHES_PER_RUN = 20;
+
+    /**
+     * 默认连续排空批次数，在吞吐和本机资源占用之间保持保守平衡。
+     */
+    private static final int DEFAULT_MAX_BATCHES_PER_RUN = 5;
+
+    /**
      * 交易 Outbox 到期事件投递服务。
      */
     private final TransactionEventOutboxRelayService relayService;
@@ -40,6 +55,11 @@ public class TransactionEventOutboxRelayScheduler {
      * 每个季度分表单次扫描的最大事件数。
      */
     private final int batchSize;
+
+    /**
+     * 每个季度在单次调度内允许连续处理的最大批次数。
+     */
+    private final int maxBatchesPerRun;
 
     /**
      * 高频扫描覆盖的最近季度数量，默认当前和上一季度。
@@ -57,14 +77,17 @@ public class TransactionEventOutboxRelayScheduler {
      * @param relayService 交易 Outbox 到期事件投递服务
      * @param shardingProperties 已发布的交易分片规则
      * @param batchSize 每个季度分表单次扫描的最大事件数
+     * @param maxBatchesPerRun 每个季度单次调度允许连续处理的最大批次数
+     * @param recentQuarterCount 常规调度扫描的最近季度数量
      */
     @Autowired
     public TransactionEventOutboxRelayScheduler(
             TransactionEventOutboxRelayService relayService,
             TransactionShardingProperties shardingProperties,
             @Value("${payment.transaction.outbox.batch-size:100}") int batchSize,
+            @Value("${payment.transaction.outbox.max-batches-per-run:5}") int maxBatchesPerRun,
             @Value("${payment.transaction.outbox.recent-quarter-count:2}") int recentQuarterCount) {
-        this(relayService, shardingProperties, batchSize, recentQuarterCount,
+        this(relayService, shardingProperties, batchSize, maxBatchesPerRun, recentQuarterCount,
                 Clock.system(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID)));
     }
 
@@ -80,7 +103,7 @@ public class TransactionEventOutboxRelayScheduler {
                                           TransactionShardingProperties shardingProperties,
                                           int batchSize,
                                           Clock clock) {
-        this(relayService, shardingProperties, batchSize, 2, clock);
+        this(relayService, shardingProperties, batchSize, DEFAULT_MAX_BATCHES_PER_RUN, 2, clock);
     }
 
     /**
@@ -89,17 +112,20 @@ public class TransactionEventOutboxRelayScheduler {
      * @param relayService 交易 Outbox 到期事件投递服务
      * @param shardingProperties 已发布的交易分片规则
      * @param batchSize 每个季度分表单次扫描的最大事件数
+     * @param maxBatchesPerRun 每个季度单次调度允许连续处理的最大批次数
      * @param recentQuarterCount 常规调度扫描的最近季度数量
      * @param clock 生成扫描基准时间的时钟
      */
     TransactionEventOutboxRelayScheduler(TransactionEventOutboxRelayService relayService,
                                           TransactionShardingProperties shardingProperties,
                                           int batchSize,
+                                          int maxBatchesPerRun,
                                           int recentQuarterCount,
                                           Clock clock) {
         this.relayService = relayService;
         this.shardingProperties = shardingProperties;
-        this.batchSize = Math.max(1, batchSize);
+        this.batchSize = Math.max(1, Math.min(batchSize, MAX_BATCH_SIZE));
+        this.maxBatchesPerRun = Math.max(1, Math.min(maxBatchesPerRun, MAX_BATCHES_PER_RUN));
         this.recentQuarterCount = Math.max(1, recentQuarterCount);
         this.clock = clock;
     }
@@ -146,11 +172,11 @@ public class TransactionEventOutboxRelayScheduler {
     private void relayQuarters(List<LocalDateTime> quarters, String scanType) {
         int published = 0;
         for (LocalDateTime quarter : quarters) {
-            published += relayService.publishDueEvents(quarter, batchSize);
+            published += relayService.publishDueEvents(quarter, batchSize, maxBatchesPerRun);
         }
         if (published > 0) {
-            log.info("交易 Outbox 批次转发完成, event: TRANSACTION_OUTBOX_RELAY_BATCH, scanType: {}, published: {}, scannedQuarterCount: {}, batchSize: {}",
-                    scanType, published, quarters.size(), batchSize);
+            log.info("交易Outbox调度转发完成, event: TRANSACTION_OUTBOX_RELAY_BATCH, scanType: {}, publishedCount: {}, scannedQuarterCount: {}, batchSize: {}, maxBatchesPerRun: {}",
+                    scanType, published, quarters.size(), batchSize, maxBatchesPerRun);
         }
     }
 

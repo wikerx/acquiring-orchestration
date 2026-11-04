@@ -76,6 +76,8 @@ class ClearingPersistenceMapperContractTest {
     void financeStateMutationsShouldRequireStatusOwnerAndVersionCas() {
         String claim = sql(methodNamed(ClearingTransactionFinanceStateMapper.class, "claimProcessing"));
         assertThat(claim)
+                .contains("id = #{id}")
+                .contains("transaction_id = #{transactionId}")
                 .contains("transaction_date_time = #{transactionDateTime}")
                 .contains("clearing_status IN ('NOT_CLEARED', 'PENDING', 'WAITING_SOURCE', 'FAILED')")
                 .contains("processing_owner = #{processingOwner}")
@@ -85,6 +87,8 @@ class ClearingPersistenceMapperContractTest {
 
         String complete = sql(methodNamed(ClearingTransactionFinanceStateMapper.class, "completeProcessing"));
         assertThat(complete)
+                .contains("id = #{id}")
+                .contains("transaction_id = #{transactionId}")
                 .contains("clearing_status = 'PROCESSING'")
                 .contains("processing_owner = #{processingOwner}")
                 .contains("processing_deadline >= #{now}")
@@ -93,6 +97,8 @@ class ClearingPersistenceMapperContractTest {
 
         String failure = sql(methodNamed(ClearingTransactionFinanceStateMapper.class, "recordFailure"));
         assertThat(failure)
+                .contains("id = #{id}")
+                .contains("transaction_id = #{transactionId}")
                 .contains("clearing_status = 'PROCESSING'")
                 .contains("processing_owner = #{processingOwner}")
                 .contains("version = #{expectedVersion}")

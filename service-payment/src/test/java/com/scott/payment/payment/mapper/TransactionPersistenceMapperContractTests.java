@@ -4,6 +4,7 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingRuleChecksum;
+import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.impl.DefaultCaptureChannelResultTransactionService;
 import com.scott.payment.payment.service.impl.DefaultCaptureTransactionPreparationService;
 import com.scott.payment.payment.service.impl.DefaultIncrementalAuthorizationChannelResultTransactionService;
@@ -21,6 +22,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.yaml.snakeyaml.Yaml;
 
@@ -268,13 +270,56 @@ class TransactionPersistenceMapperContractTests {
     }
 
     @Test
-    void transactionalPaymentCoordinatorsShouldSelectLogicalDataSourceBeforeTransactionBegins() {
-        List<Class<?>> transactionTypes = List.of(
-                DefaultPaymentTransactionPreparationService.class,
+    void transactionalPaymentCoordinatorsShouldSelectLogicalDataSourceBeforeTransactionBegins()
+            throws NoSuchMethodException {
+        Method initialPreparation = DefaultPaymentTransactionPreparationService.class.getDeclaredMethod(
+                "prepareInitialTransaction", PaymentCreateCommandDTO.class, String.class);
+        DS initialPreparationDataSource = initialPreparation.getAnnotation(DS.class);
+        assertThat(initialPreparationDataSource)
+                .as("initial payment planning must select transaction data source before opening its short transaction")
+                .isNotNull();
+        assertThat(initialPreparationDataSource.value()).isEqualTo(DataSourceName.TRANSACTION);
+        assertThat(initialPreparation.isAnnotationPresent(Transactional.class))
+                .as("remote risk, route and exchange-rate planning must stay outside a method-level transaction")
+                .isFalse();
+        assertThat(Arrays.stream(DefaultPaymentTransactionPreparationService.class.getDeclaredConstructors())
+                .anyMatch(constructor -> Arrays.asList(constructor.getParameterTypes())
+                        .contains(PlatformTransactionManager.class)))
+                .as("initial payment preparation must inject a transaction manager for its persistence-only transaction")
+                .isTrue();
+
+        List<Class<?>> shortTransactionTypes = List.of(
                 DefaultCaptureTransactionPreparationService.class,
                 DefaultRefundTransactionPreparationService.class,
                 DefaultVoidTransactionPreparationService.class,
-                DefaultIncrementalAuthorizationTransactionPreparationService.class,
+                DefaultIncrementalAuthorizationTransactionPreparationService.class);
+
+        assertThat(shortTransactionTypes).allSatisfy(type -> {
+            assertThat(type.getAnnotation(DS.class)).isNull();
+            List<Method> dataSourceEntries = Arrays.stream(type.getDeclaredMethods())
+                    .filter(method -> method.isAnnotationPresent(DS.class))
+                    .toList();
+            assertThat(dataSourceEntries)
+                    .as("%s must select the transaction data source before its programmatic short transaction",
+                            type.getSimpleName())
+                    .isNotEmpty()
+                    .allSatisfy(method -> {
+                        assertThat(method.getAnnotation(DS.class).value())
+                                .isEqualTo(DataSourceName.TRANSACTION);
+                        assertThat(method.isAnnotationPresent(Transactional.class))
+                                .as("%s.%s must not reopen the former method-level long transaction",
+                                        type.getSimpleName(), method.getName())
+                                .isFalse();
+                    });
+            assertThat(Arrays.stream(type.getDeclaredConstructors())
+                    .anyMatch(constructor -> Arrays.asList(constructor.getParameterTypes())
+                            .contains(PlatformTransactionManager.class)))
+                    .as("%s must inject a transaction manager for its locked fact-persistence transaction",
+                            type.getSimpleName())
+                    .isTrue();
+        });
+
+        List<Class<?>> annotationTransactionTypes = List.of(
                 DefaultPaymentChannelResultTransactionService.class,
                 DefaultCaptureChannelResultTransactionService.class,
                 DefaultRefundChannelResultTransactionService.class,
@@ -283,7 +328,7 @@ class TransactionPersistenceMapperContractTests {
                 DefaultTransactionChannelMatchResultTransactionService.class,
                 DefaultTransactionCallbackService.class);
 
-        assertThat(transactionTypes).allSatisfy(type -> {
+        assertThat(annotationTransactionTypes).allSatisfy(type -> {
             assertThat(type.getAnnotation(DS.class)).isNull();
             List<Method> transactionMethods = Arrays.stream(type.getDeclaredMethods())
                     .filter(method -> method.isAnnotationPresent(Transactional.class))
@@ -403,6 +448,7 @@ class TransactionPersistenceMapperContractTests {
                 java.time.LocalDateTime.class), Select.class);
         String notificationUpdateSql = annotationValue(TransactionMerchantNotificationMapper.class.getMethod(
                 "activateByTransactionId",
+                Long.class,
                 String.class,
                 java.time.LocalDateTime.class,
                 Integer.class,
@@ -410,6 +456,11 @@ class TransactionPersistenceMapperContractTests {
                 String.class,
                 java.time.LocalDateTime.class,
                 java.time.LocalDateTime.class), Update.class);
+        String notificationSelectSql = annotationValue(TransactionMerchantNotificationMapper.class.getMethod(
+                "selectPendingActivation",
+                String.class,
+                java.time.LocalDateTime.class,
+                Integer.class), Select.class);
 
         assertLogicalPointSql(orderSelectSql, "transaction_order");
         assertLogicalPointSql(operationSelectSql, "transaction_operation");
@@ -425,8 +476,17 @@ class TransactionPersistenceMapperContractTests {
                         "settlement_transaction_date_time")
                 .doesNotContain("SELECT *", "SELECT o.*");
         assertThat(orderLockSql).contains("FOR UPDATE");
+        assertThat(notificationSelectSql)
+                .contains("SELECT id, notify_id")
+                .contains("transaction_id = #{transactionId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("version = #{expectedVersion}")
+                .contains("notify_status = 'INIT'")
+                .contains("deleted = 0")
+                .doesNotContain("${");
         assertThat(notificationUpdateSql)
                 .contains("UPDATE transaction_merchant_notification")
+                .contains("id = #{id}")
                 .contains("transaction_date_time = #{transactionDateTime}")
                 .contains("version = #{expectedVersion}")
                 .contains("version = version + 1")

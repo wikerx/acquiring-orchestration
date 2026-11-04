@@ -18,7 +18,7 @@ public interface ClearingProjectionService {
      * @param currentLocator 当前动作及根主单真实分片定位
      * @param authoritativeStatus 本次已提交或准备提交的权威清分状态
      * @param failureCode 最近失败码；成功或无需清分时为空
-     * @param now 本次事务统一 UTC 时间
+     * @param now 本次事务统一平台本地时间
      */
     void updateWithLocator(ClearingOperationFacts operation,
                            LocatorFacts currentLocator,
@@ -32,7 +32,7 @@ public interface ClearingProjectionService {
      * @param operation 当前动作权威事实
      * @param authoritativeStatus 本次已提交或准备提交的权威清分状态
      * @param failureCode 本次稳定失败码
-     * @param now 本次事务统一 UTC 时间
+     * @param now 本次事务统一平台本地时间
      */
     void updateResolvingLocator(ClearingOperationFacts operation,
                                 ClearingStateEnum authoritativeStatus,

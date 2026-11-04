@@ -79,7 +79,7 @@ public class ClearingTransactionEventOutboxDO {
      */
     private String deliveryMode;
     /**
-     * Broker 绝对投递 UTC 时间；非定时消息为空。
+     * Broker 绝对投递时间对应的 UTC 墙钟值；非定时消息为空。
      */
     private LocalDateTime deliverAt;
     /**
@@ -95,11 +95,11 @@ public class ClearingTransactionEventOutboxDO {
      */
     private Integer maxRetryCount;
     /**
-     * 下一次技术重试 UTC 时间。
+     * 下一次技术发布重试的平台本地时间。
      */
     private LocalDateTime nextRetryTime;
     /**
-     * 业务事件发生 UTC 时间。
+     * 业务事件发生的平台本地时间。
      */
     private LocalDateTime eventTime;
     /**
@@ -123,11 +123,11 @@ public class ClearingTransactionEventOutboxDO {
      */
     private Integer deleted;
     /**
-     * 创建 UTC 时间。
+     * 记录创建的平台本地时间。
      */
     private LocalDateTime createTime;
     /**
-     * 最后更新 UTC 时间。
+     * 记录最后更新的平台本地时间。
      */
     private LocalDateTime updateTime;
 }

@@ -15,7 +15,8 @@ import java.util.List;
  * 注册商户 OpenAPI 安全拦截器和解密参数解析器，限定统一安全链路覆盖的路由范围。
  */
 @Configuration
-@EnableConfigurationProperties({OpenApiCallbackProperties.class, OpenApiMerchantSecretCacheProperties.class})
+@EnableConfigurationProperties({OpenApiCallbackProperties.class, OpenApiMerchantSecretCacheProperties.class,
+        MerchantApiResponseAuditProperties.class})
 public class OpenApiWebMvcConfig implements WebMvcConfigurer {
 
     /**

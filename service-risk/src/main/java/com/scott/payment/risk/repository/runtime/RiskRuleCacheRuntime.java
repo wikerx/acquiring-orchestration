@@ -99,6 +99,20 @@ public class RiskRuleCacheRuntime {
     }
 
     /**
+     * 使用当前规则 generation 缓存不含敏感原文的字符串配置集合。
+     *
+     * @param loader 数据库回源函数
+     * @param segments 不含敏感原文的业务 Key 维度
+     * @return 不可变缓存集合或数据库加载结果
+     */
+    public List<String> findValues(Supplier<List<String>> loader,
+                                   String... segments) {
+        Optional<RuleCacheKeys> cacheKeys = currentRuleCacheKeys(segments);
+        return cacheKeys.map(keys -> findValues(keys, loader))
+                .orElseGet(() -> immutableValues(loader.get()));
+    }
+
+    /**
      * 按读 Key 优先级查询单规则缓存，全部未缓存时仅回源一次。
      *
      * @param cacheKeys 当前 generation 的读写 Key
@@ -391,6 +405,90 @@ public class RiskRuleCacheRuntime {
     }
 
     /**
+     * 按读 Key 优先级查询字符串配置集合，全部未缓存时仅回源一次。
+     *
+     * @param cacheKeys 当前 generation 的读写 Key
+     * @param loader 数据库回源函数
+     * @return 不可变缓存集合或数据库加载结果
+     */
+    private List<String> findValues(RuleCacheKeys cacheKeys,
+                                    Supplier<List<String>> loader) {
+        for (String readKey : cacheKeys.readKeys()) {
+            CachedValueListLookup cached = readValues(readKey);
+            if (cached.cached()) {
+                writeValues(backfillTargets(cacheKeys, readKey), cached.values());
+                return cached.values();
+            }
+        }
+        List<String> loaded = immutableValues(loader.get());
+        writeValues(cacheKeys.writeKeys(), loaded);
+        return loaded;
+    }
+
+    /**
+     * 读取字符串配置集合并区分未缓存和已缓存空集合。
+     *
+     * @param cacheKey 目标物理 Key
+     * @return 带缓存状态的不可变字符串集合
+     */
+    private CachedValueListLookup readValues(String cacheKey) {
+        if (redisStringService == null) {
+            return CachedValueListLookup.notCached();
+        }
+        try {
+            Object cached = redisStringService.get(cacheKey);
+            if (cached instanceof String text && StringUtils.hasText(text)) {
+                RiskRuntimeCacheEntry entry = JsonUtils.parseObject(text, RiskRuntimeCacheEntry.class);
+                if (entry != null) {
+                    return CachedValueListLookup.cached(entry.isFound()
+                            ? immutableValues(entry.getValues())
+                            : List.of());
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.warn("风控运行时缓存读取失败, event: RISK_RUNTIME_CACHE_READ_FAILED, cacheKeyDigest: {}, exceptionType: {}",
+                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
+        }
+        return CachedValueListLookup.notCached();
+    }
+
+    /**
+     * 向全部目标 Key 写入字符串配置集合。
+     *
+     * @param cacheKeys 有序写 Key
+     * @param values 不可变字符串集合
+     */
+    private void writeValues(List<String> cacheKeys, List<String> values) {
+        for (String cacheKey : cacheKeys) {
+            writeValues(cacheKey, values);
+        }
+    }
+
+    /**
+     * 写入字符串配置集合，空集合使用较短的未命中 TTL。
+     *
+     * @param cacheKey 目标物理 Key
+     * @param values 不可变字符串集合
+     */
+    private void writeValues(String cacheKey, List<String> values) {
+        if (redisStringService == null || properties == null) {
+            return;
+        }
+        try {
+            long ttlSeconds = values.isEmpty()
+                    ? properties.getCacheMissTtlSeconds()
+                    : properties.getCacheHitTtlSeconds();
+            redisStringService.set(
+                    cacheKey,
+                    JsonUtils.toJsonString(RiskRuntimeCacheEntry.values(values)),
+                    Duration.ofSeconds(ttlSeconds));
+        } catch (RuntimeException exception) {
+            log.warn("风控运行时缓存写入失败, event: RISK_RUNTIME_CACHE_WRITE_FAILED, cacheKeyDigest: {}, exceptionType: {}",
+                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
+        }
+    }
+
+    /**
      * 将空值和空集合统一为不可变空列表。
      *
      * @param matches 数据库或缓存返回的规则集合
@@ -398,6 +496,16 @@ public class RiskRuleCacheRuntime {
      */
     private List<RiskListMatch> immutableList(List<RiskListMatch> matches) {
         return matches == null || matches.isEmpty() ? List.of() : List.copyOf(matches);
+    }
+
+    /**
+     * 将空值和空字符串集合统一为不可变空列表。
+     *
+     * @param values 数据库或缓存返回的字符串集合
+     * @return 不可变字符串列表
+     */
+    private List<String> immutableValues(List<String> values) {
+        return values == null || values.isEmpty() ? List.of() : List.copyOf(values);
     }
 
     /**
@@ -478,6 +586,36 @@ public class RiskRuleCacheRuntime {
             return new CachedListLookup(
                     true,
                     matches == null || matches.isEmpty() ? List.of() : List.copyOf(matches));
+        }
+    }
+
+    /**
+     * 区分字符串集合未缓存和已缓存空集合。
+     *
+     * @param cached Redis 是否提供了确定结果
+     * @param values 不可变字符串集合
+     */
+    private record CachedValueListLookup(boolean cached, List<String> values) {
+
+        /**
+         * 创建未缓存状态。
+         *
+         * @return 允许调用方继续回源的状态
+         */
+        private static CachedValueListLookup notCached() {
+            return new CachedValueListLookup(false, List.of());
+        }
+
+        /**
+         * 创建已缓存状态并复制集合。
+         *
+         * @param values 已缓存的字符串集合
+         * @return 不再回源数据库的缓存状态
+         */
+        private static CachedValueListLookup cached(List<String> values) {
+            return new CachedValueListLookup(
+                    true,
+                    values == null || values.isEmpty() ? List.of() : List.copyOf(values));
         }
     }
 }

@@ -7,7 +7,6 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
-import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
@@ -53,9 +52,9 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
     private final OpenApiPayloadCrypto payloadCrypto;
 
     /**
-     * service-payment 内部客户端，用于回写商户响应加密后的日志摘要。
+     * 商户响应审计发布器，按配置使用可靠 MQ 或兼容 HTTP 路径。
      */
-    private final PaymentInternalClient paymentInternalClient;
+    private final MerchantApiResponseAuditPublisher merchantApiResponseAuditPublisher;
 
     /**
      * OpenAPI 诊断日志支撑组件，用于生成响应明文和密文摘要。
@@ -66,14 +65,14 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
      * 创建 OpenAPI 响应加密处理器。
      *
      * @param payloadCrypto           OpenAPI 报文混合加密工具
-     * @param paymentInternalClient   service-payment 内部客户端
+     * @param merchantApiResponseAuditPublisher 商户响应审计发布器
      * @param diagnosticLogSupport    OpenAPI 诊断日志摘要组件
      */
     public OpenApiResponseBodyAdvice(OpenApiPayloadCrypto payloadCrypto,
-                                     PaymentInternalClient paymentInternalClient,
+                                     MerchantApiResponseAuditPublisher merchantApiResponseAuditPublisher,
                                      OpenApiDiagnosticLogSupport diagnosticLogSupport) {
         this.payloadCrypto = payloadCrypto;
-        this.paymentInternalClient = paymentInternalClient;
+        this.merchantApiResponseAuditPublisher = merchantApiResponseAuditPublisher;
         this.diagnosticLogSupport = diagnosticLogSupport;
     }
 
@@ -204,14 +203,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         if (data instanceof PaymentCreateVO createVO && createVO.getOrderInfo() != null) {
             requestDTO.setRequestId(createVO.getOrderInfo().getOrderId());
         }
-        try {
-            paymentInternalClient.updateMerchantApiResponseLog(requestDTO);
-        } catch (RuntimeException exception) {
-            log.warn("OpenAPI响应审计日志回写失败, event: OPENAPI_RESPONSE_LOG_UPDATE_FAILED, stage: RESPONSE_LOG, traceId: {}, transactionId: {}, exceptionType: {}",
-                    TraceContext.getTraceId(),
-                    transactionInfo.getTransactionId(),
-                    exception.getClass().getSimpleName());
-        }
+        merchantApiResponseAuditPublisher.publish(requestDTO);
     }
 
     /**

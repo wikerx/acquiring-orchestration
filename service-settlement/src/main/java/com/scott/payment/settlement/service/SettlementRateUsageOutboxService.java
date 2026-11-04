@@ -11,7 +11,10 @@ import com.scott.payment.settlement.entity.SettlementEventOutboxDO;
 import com.scott.payment.settlement.mapper.SettlementEventOutboxMapper;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -167,9 +170,54 @@ public class SettlementRateUsageOutboxService {
         try {
             Object existingJson = JsonUtils.parseObject(existingPayload, Object.class);
             Object expectedJson = JsonUtils.parseObject(expectedPayload, Object.class);
-            return existingJson != null && Objects.equals(existingJson, expectedJson);
+            return existingJson != null && sameJsonValue(existingJson, expectedJson);
         } catch (RuntimeException exception) {
             return false;
         }
+    }
+
+    /**
+     * 递归核对 JSON 结构；数字按数学值比较，以兼容 MySQL JSON 对无意义尾随零的规范化。
+     */
+    private boolean sameJsonValue(Object existing, Object expected) {
+        if (existing == expected) {
+            return true;
+        }
+        if (existing == null || expected == null) {
+            return false;
+        }
+        if (existing instanceof Number existingNumber && expected instanceof Number expectedNumber) {
+            return sameJsonNumber(existingNumber, expectedNumber);
+        }
+        if (existing instanceof Map<?, ?> existingMap && expected instanceof Map<?, ?> expectedMap) {
+            if (!existingMap.keySet().equals(expectedMap.keySet())) {
+                return false;
+            }
+            for (Object key : existingMap.keySet()) {
+                if (!sameJsonValue(existingMap.get(key), expectedMap.get(key))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (existing instanceof List<?> existingList && expected instanceof List<?> expectedList) {
+            if (existingList.size() != expectedList.size()) {
+                return false;
+            }
+            for (int index = 0; index < existingList.size(); index++) {
+                if (!sameJsonValue(existingList.get(index), expectedList.get(index))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return Objects.equals(existing, expected);
+    }
+
+    /**
+     * JSON 只有统一的 number 类型；数据库改变数字表示形式时不得改变其业务数值语义。
+     */
+    private boolean sameJsonNumber(Number existing, Number expected) {
+        return new BigDecimal(existing.toString()).compareTo(new BigDecimal(expected.toString())) == 0;
     }
 }

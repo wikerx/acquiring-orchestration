@@ -13,7 +13,10 @@ import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,8 +37,10 @@ class TransactionTerminalClearingConsumerTest {
         when(idGenerator.nextId()).thenReturn("1001");
         when(applicationService.process(any(), any(), any()))
                 .thenReturn(ClearingProcessingResult.COMPLETED);
+        Clock clock = Clock.fixed(Instant.parse("2026-11-03T08:39:18.175Z"), ZoneOffset.UTC);
         TransactionTerminalClearingConsumer consumer = new TransactionTerminalClearingConsumer(
-                applicationService, idGenerator, new ClearingProperties(), mock(ClearingOperationalMetrics.class));
+                applicationService, idGenerator, new ClearingProperties(),
+                mock(ClearingOperationalMetrics.class), clock);
         PaymentTransactionEventMessage message = message();
 
         consumer.onMessage(JsonUtils.toJsonString(message));
@@ -45,7 +50,8 @@ class TransactionTerminalClearingConsumerTest {
                         "TX-1".equals(parsed.getTransactionId())
                                 && TRANSACTION_TIME.equals(parsed.getTransactionDateTime())),
                 org.mockito.ArgumentMatchers.eq("service-clearing:1001"),
-                any(LocalDateTime.class));
+                org.mockito.ArgumentMatchers.eq(
+                        LocalDateTime.of(2026, 11, 3, 16, 39, 18, 175_000_000)));
     }
 
     @Test

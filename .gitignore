@@ -84,6 +84,10 @@ docs/sql/*
 !docs/sql/20261101_03_exchange_rate_usage_pipeline_postcheck.sql
 !docs/sql/20261101_04_exchange_rate_usage_pipeline_rollback.sql
 !docs/sql/20261102_01_local_exchange_rate_usage_history_backfill.sql
+!docs/sql/20261104_01_checkout_timeout_notification_precheck.sql
+!docs/sql/20261104_02_checkout_timeout_notification_migration.sql
+!docs/sql/20261104_03_checkout_timeout_notification_postcheck.sql
+!docs/sql/20261104_04_checkout_timeout_notification_rollback.sql
 !docs/sql/20260919_01_scott_channel_a_configuration.sql
 !docs/sql/20260920_01_scott_channel_a_eur_currency_fix.sql
 !docs/sql/20261017_01_transaction_callback_inbox_migration_draft.sql

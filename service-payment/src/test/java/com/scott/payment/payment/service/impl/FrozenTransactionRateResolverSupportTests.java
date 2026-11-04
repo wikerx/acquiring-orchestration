@@ -2,6 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,33 @@ class FrozenTransactionRateResolverSupportTests {
                 exchangeRateService, amountPlan()))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("can not be traced");
+    }
+
+    /**
+     * 主单短事务建立前应能直接从原订单冻结字段追溯同一业务汇率版本。
+     */
+    @Test
+    void shouldResolveFrozenRateFromSourceOrderBeforeShortTransaction() {
+        PaymentExchangeRateDTO expected = rate(new BigDecimal("0.70000521"), "PLATFORM", RATE_TIME);
+        PaymentExchangeRateService exchangeRateService = (baseCurrency, quoteCurrency, atTime) -> {
+            assertThat(baseCurrency).isEqualTo("AUD");
+            assertThat(quoteCurrency).isEqualTo("USD");
+            assertThat(atTime).isEqualTo(RATE_TIME);
+            return Optional.of(expected);
+        };
+        TransactionOrderDO sourceOrder = new TransactionOrderDO();
+        sourceOrder.setLabelCurrency("AUD");
+        sourceOrder.setTransactionCurrency("USD");
+        sourceOrder.setTransactionRate(new BigDecimal("0.70000521"));
+        sourceOrder.setRateSource("PLATFORM");
+        sourceOrder.setRateTime(RATE_TIME);
+        sourceOrder.setEdcEnabled(1);
+        sourceOrder.setDccEnabled(0);
+
+        PaymentExchangeRateDTO actual = FrozenTransactionRateResolverSupport.resolveForSourceOrder(
+                exchangeRateService, sourceOrder);
+
+        assertThat(actual).isSameAs(expected);
     }
 
     /**

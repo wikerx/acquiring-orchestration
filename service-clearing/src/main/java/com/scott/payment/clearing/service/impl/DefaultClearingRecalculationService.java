@@ -17,6 +17,7 @@ import com.scott.payment.clearing.service.ClearingCompletionService;
 import com.scott.payment.clearing.service.ClearingPreparationService;
 import com.scott.payment.clearing.service.ClearingRecalculationService;
 import com.scott.payment.clearing.service.FeeConfigurationSnapshotService;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeVersionSnapshot;
@@ -53,7 +54,7 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
     private final Clock clock;
 
     /**
-     * 创建人工重算服务，生产环境统一使用 UTC 系统时钟生成触发时间。
+     * 创建人工重算服务，系统时钟只提供绝对时刻，触发时间统一转换为平台本地时间。
      */
     @Autowired
     public DefaultClearingRecalculationService(ClearingTransactionFinanceStateMapper financeStateMapper,
@@ -112,7 +113,7 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
                 message, syntheticClaim, processingOwner, targetSnapshot);
         CompletionResult result = completionService.recalculate(
                 command, request.getExpectedVersion(), request.getExpectedClearingRevision(),
-                LocalDateTime.now(clock));
+                ClearingTimeSupport.now(clock));
 
         ClearingCommandResponse response = new ClearingCommandResponse();
         response.setTransactionId(transactionId);
@@ -134,7 +135,7 @@ public class DefaultClearingRecalculationService implements ClearingRecalculatio
         PaymentTransactionEventMessage message = new PaymentTransactionEventMessage();
         message.setMessageId("RECALC:" + state.getFinanceStateId() + ":"
                 + request.getExpectedClearingRevision() + ":" + request.getTargetFeePlanVersionId());
-        message.setCreatedAt(LocalDateTime.now(clock));
+        message.setCreatedAt(ClearingTimeSupport.now(clock));
         message.setRetryCount(0);
         message.setTransactionId(operation.getTransactionId());
         message.setOperationId(operation.getOperationId());

@@ -14,13 +14,16 @@ import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.config.RiskBaselineMode;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.config.RiskRuleCacheMode;
+import com.scott.payment.risk.domain.FrequencyRuleEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
+import com.scott.payment.risk.domain.MerchantLimitReadEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitReservation;
 import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 import com.scott.payment.risk.domain.RiskRuleSnapshot;
 import com.scott.payment.risk.domain.RiskRuleSnapshotRow;
+import com.scott.payment.risk.domain.SourceUrlRuleEvaluation;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
@@ -59,7 +62,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Redis 优先的风控运行时仓储。
+ * Redis 优先、数据库可回源的风控运行时仓储。
+ *
+ * <p>规则缓存通过 generation 隔离变更；累计限额和频控计数仍由持久化事实及原子脚本
+ * 共同保护，不因查询合并改变失败关闭、预占或回滚语义。</p>
  */
 @Slf4j
 @Service
@@ -484,8 +490,17 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Set.of();
         }
-        Set<String> enabledKeys = Set.copyOf(
-                riskRuntimeMapper.selectEnabledMerchantFunctionKeys(trim(merchantId)));
+        String normalizedMerchantId = trim(merchantId);
+        List<String> enabledKeyValues = properties.isReadQueryConsolidationEnabled()
+                ? ruleCacheRuntime.findValues(
+                        () -> riskRuntimeMapper.selectEnabledMerchantFunctionKeys(normalizedMerchantId),
+                        "merchant-function",
+                        "enabled",
+                        safeMerchant(normalizedMerchantId))
+                : riskRuntimeMapper.selectEnabledMerchantFunctionKeys(normalizedMerchantId);
+        Set<String> enabledKeys = enabledKeyValues == null || enabledKeyValues.isEmpty()
+                ? Set.of()
+                : Set.copyOf(enabledKeyValues);
         EnumSet<RiskListFunction> enabledFunctions = EnumSet.noneOf(RiskListFunction.class);
         for (RiskListFunction function : RiskListFunction.values()) {
             String key = function.getModuleType().getCode() + ":" + function.getFunctionCode();
@@ -558,6 +573,58 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             return legacyResult;
         }
         return snapshot.available() ? snapshotResult : legacyLoader.get();
+    }
+
+    /**
+     * 从同一来源网址快照同时解析允许命中和限制未命中。
+     *
+     * <p>仅在查询合并开关和 SNAPSHOT 模式同时开启时复用快照；LEGACY、SHADOW 或快照
+     * 不可用时回到原有方法，确保迁移比较和数据库回源语义不变。</p>
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值
+     * @return 允许命中和限制未命中的组合结果
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public SourceUrlRuleEvaluation evaluateSourceUrlRules(String merchantId,
+                                                          RiskRuntimeLookupValue lookupValue) {
+        if (!properties.isReadQueryConsolidationEnabled()
+                || ruleCacheMode() != RiskRuleCacheMode.SNAPSHOT) {
+            return RiskListRuntimeRepository.super.evaluateSourceUrlRules(merchantId, lookupValue);
+        }
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+            return SourceUrlRuleEvaluation.empty();
+        }
+        String normalizedMerchantId = merchantId.trim();
+        String sourceHost = lookupValue == null ? null : lookupValue.getSourceHost();
+        SnapshotRows snapshot = sourceUrlSnapshot(normalizedMerchantId);
+        if (!snapshot.available()) {
+            return RiskListRuntimeRepository.super.evaluateSourceUrlRules(merchantId, lookupValue);
+        }
+        Optional<RiskListMatch> allowedRule = !StringUtils.hasText(sourceHost)
+                ? Optional.empty()
+                : snapshot.rows().stream()
+                .filter(this::isSourceUrlRuntimeAllowed)
+                .filter(row -> equalsIgnoreCase(row.getSourceHost(), sourceHost))
+                .map(row -> {
+                    row.setRiskLevel("LOW");
+                    row.setDecisionAction("PASS");
+                    row.setDecisionReason("merchant source url is allowed");
+                    return (RiskListMatch) row;
+                })
+                .findFirst();
+        Optional<RiskListMatch> restrictionMiss = snapshot.rows().isEmpty() || allowedRule.isPresent()
+                ? Optional.empty()
+                : Optional.of(RiskListMatch.system(
+                "sourceUrl",
+                "商户来源网址限定",
+                "sourceUrl",
+                StringUtils.hasText(sourceHost) ? sourceHost : "EMPTY",
+                "HIGH",
+                "REJECT",
+                "merchant source url is not allowed"));
+        return new SourceUrlRuleEvaluation(allowedRule, restrictionMiss);
     }
 
     /**
@@ -779,6 +846,43 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             return legacyResult;
         }
         return snapshot.available() ? snapshotResult : legacyLoader.get();
+    }
+
+    /**
+     * 从同一限额快照查询单笔超限和规则启用状态，不执行累计限额预占。
+     *
+     * <p>只有 SNAPSHOT 模式复用集合；LEGACY、SHADOW 或快照不可用时保留原有两条兼容路径。
+     * 累计规则仍由后续同步预占方法独立读取和处理。</p>
+     *
+     * @param merchantId 当前商户号
+     * @param amount 交易金额
+     * @param currency ISO 4217 币种代码
+     * @return 单笔限额命中和规则启用状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public MerchantLimitReadEvaluation evaluateMerchantLimitRules(String merchantId,
+                                                                  BigDecimal amount,
+                                                                  String currency) {
+        if (!properties.isReadQueryConsolidationEnabled()
+                || ruleCacheMode() != RiskRuleCacheMode.SNAPSHOT) {
+            return RiskListRuntimeRepository.super.evaluateMerchantLimitRules(merchantId, amount, currency);
+        }
+        if (!StringUtils.hasText(currency) || riskRuntimeMapper == null) {
+            return MerchantLimitReadEvaluation.empty();
+        }
+        String normalizedCurrency = normalizedUpper(currency);
+        SnapshotRows snapshot = merchantLimitSnapshot(merchantId, normalizedCurrency);
+        if (!snapshot.available()) {
+            return RiskListRuntimeRepository.super.evaluateMerchantLimitRules(merchantId, amount, currency);
+        }
+        Optional<RiskListMatch> singleLimitHit = amount == null
+                ? Optional.empty()
+                : snapshot.rows().stream()
+                .filter(row -> singleMerchantLimitMatches(row, amount))
+                .map(row -> (RiskListMatch) row)
+                .findFirst();
+        return new MerchantLimitReadEvaluation(singleLimitHit, !snapshot.rows().isEmpty());
     }
 
     /**
@@ -1085,6 +1189,51 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     customerIdLookup, deviceFingerprintLookup));
         }
         return details;
+    }
+
+    /**
+     * 使用一次有序规则集合读取完成频控计数并返回启用状态。
+     *
+     * <p>计数、成功名额预占和失败关闭逻辑仍由原有运行时逐条执行，本方法只消除执行完成后
+     * 为生成 PASS 检查点而产生的第二次规则集合读取。</p>
+     *
+     * @return 与规则顺序一致的执行明细及规则启用状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public FrequencyRuleEvaluation evaluateFrequencyRulesWithStatus(
+            String merchantId,
+            RiskPaymentEvaluateRequestDTO requestDTO,
+            RiskRuntimeLookupValue cardNoLookup,
+            RiskRuntimeLookupValue cardFingerprintLookup,
+            RiskRuntimeLookupValue ipLookup,
+            RiskRuntimeLookupValue emailLookup,
+            RiskRuntimeLookupValue phoneLookup,
+            RiskRuntimeLookupValue customerIdLookup,
+            RiskRuntimeLookupValue deviceFingerprintLookup) {
+        if (!properties.isReadQueryConsolidationEnabled()) {
+            return RiskListRuntimeRepository.super.evaluateFrequencyRulesWithStatus(
+                    merchantId,
+                    requestDTO,
+                    cardNoLookup,
+                    cardFingerprintLookup,
+                    ipLookup,
+                    emailLookup,
+                    phoneLookup,
+                    customerIdLookup,
+                    deviceFingerprintLookup);
+        }
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+            return FrequencyRuleEvaluation.empty();
+        }
+        List<RiskListMatch> rules = activeFrequencyRules(merchantId.trim());
+        List<RiskListMatch> details = new ArrayList<>(rules.size());
+        for (RiskListMatch rule : rules) {
+            details.add(frequencyRuleRuntime.evaluate(rule, merchantId, requestDTO,
+                    cardNoLookup, cardFingerprintLookup, ipLookup, emailLookup, phoneLookup,
+                    customerIdLookup, deviceFingerprintLookup));
+        }
+        return new FrequencyRuleEvaluation(details, !rules.isEmpty());
     }
 
     /**

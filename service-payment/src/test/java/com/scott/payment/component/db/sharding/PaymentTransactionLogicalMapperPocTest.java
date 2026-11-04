@@ -108,8 +108,12 @@ public class PaymentTransactionLogicalMapperPocTest {
             assertThat(orderMapper.selectByOperationId("poc-operation-q3", q3Time)).isNotNull();
             assertThat(orderMapper.selectByOperationIdForUpdate("poc-operation-q3", q3Time)).isNotNull();
             assertThat(operationMapper.selectByTransactionId("poc-transaction-q3", q3Time)).isNotNull();
+            TransactionMerchantNotificationDO pendingNotification = notificationMapper.selectPendingActivation(
+                    "poc-transaction-q3", q3Time, 0);
+            assertThat(pendingNotification).isNotNull();
             assertThat(notificationMapper.activateByTransactionId(
-                    "poc-transaction-q3", q3Time, 0, "{}", "{}", q3Time.plusMinutes(1), q3Time)).isEqualTo(1);
+                    pendingNotification.getId(), "poc-transaction-q3", q3Time, 0,
+                    "{}", "{}", q3Time.plusMinutes(1), q3Time)).isEqualTo(1);
             session.commit();
         }
 
@@ -391,7 +395,9 @@ public class PaymentTransactionLogicalMapperPocTest {
                     + "version INT NOT NULL, deleted INT NOT NULL, create_time TIMESTAMP(3), update_time TIMESTAMP(3))");
             direct.execute("CREATE TABLE transaction_merchant_notification_" + suffix + " ("
                     + "id BIGINT AUTO_INCREMENT NOT NULL, notify_id VARCHAR(64) NOT NULL, "
-                    + "transaction_id VARCHAR(64) NOT NULL, notify_status VARCHAR(32) NOT NULL, "
+                    + "transaction_id VARCHAR(64) NOT NULL, operation_id VARCHAR(64), "
+                    + "merchant_id VARCHAR(64), merchant_order_no VARCHAR(128), "
+                    + "notify_status VARCHAR(32) NOT NULL, "
                     + "callback_url VARCHAR(512), payload_json VARCHAR(4096), "
                     + "payload_json_masked VARCHAR(512), next_retry_time TIMESTAMP(3), update_time TIMESTAMP(3), "
                     + "transaction_date_time TIMESTAMP(3) NOT NULL, version INT NOT NULL, deleted INT NOT NULL)");

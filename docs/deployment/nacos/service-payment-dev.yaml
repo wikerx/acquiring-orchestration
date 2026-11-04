@@ -118,6 +118,8 @@ payment:
       # 参数说明：配置单批处理记录数；增大可提高吞吐，但会增加数据库锁持有时间和单次失败影响。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE，dev 配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
+      # 单次调度对每个季度最多连续处理的批次数，范围 1 至 20；设置为 1 可回滚为原单批行为。
+      max-batches-per-run: ${PAYMENT_TRANSACTION_OUTBOX_MAX_BATCHES_PER_RUN:5}
       # PROCESSING 超过该时间后允许 CAS 恢复为待重试，必须大于单次 MQ 同步发送超时。
       processing-timeout-seconds: ${PAYMENT_TRANSACTION_OUTBOX_PROCESSING_TIMEOUT_SECONDS:120}
       # 当前和上一季度保持高频扫描，其他已发布季度进入历史低频任务。
@@ -156,6 +158,15 @@ payment:
     # 实时风控同步调用默认 3 秒建连、30 秒读取，配置超过 60 秒时 Payment 拒绝启动。
     connect-timeout-millis: ${PAYMENT_RISK_CONNECT_TIMEOUT_MILLIS:3000}
     read-timeout-millis: ${PAYMENT_RISK_READ_TIMEOUT_MILLIS:30000}
+    # 风控连接池总容量和单实例容量；dev 单实例默认允许 32 个并发连接，总容量预留滚动实例空间。
+    max-connections-total: ${PAYMENT_RISK_MAX_CONNECTIONS_TOTAL:64}
+    max-connections-per-route: ${PAYMENT_RISK_MAX_CONNECTIONS_PER_ROUTE:32}
+    # 连接池饱和时最多等待 3 秒，超时沿现有 Fail Closed 路径终止支付，不允许无界排队。
+    connection-request-timeout-millis: ${PAYMENT_RISK_CONNECTION_REQUEST_TIMEOUT_MILLIS:3000}
+    # 连接复用前校验空闲连接，限制连接最长生命周期并定期清理长期空闲连接。
+    validate-after-inactivity-millis: ${PAYMENT_RISK_VALIDATE_AFTER_INACTIVITY_MILLIS:5000}
+    connection-time-to-live-millis: ${PAYMENT_RISK_CONNECTION_TIME_TO_LIVE_MILLIS:300000}
+    idle-connection-evict-millis: ${PAYMENT_RISK_IDLE_CONNECTION_EVICT_MILLIS:30000}
     # 参数说明：实时风控内部协议的固定调用方标识，必须保持 service-payment。
     internal-caller: service-payment
     # 参数说明：Payment 到 Risk 调用边的当前 HMAC 密钥引用；生产禁止配置共享全局密钥。

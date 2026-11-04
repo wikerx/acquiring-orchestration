@@ -35,6 +35,7 @@ import com.scott.payment.payment.domain.state.PaymentCheckoutSecurityDecisionEnu
 import com.scott.payment.payment.domain.state.PaymentCheckoutSessionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentCheckoutTokenStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
+import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
@@ -183,6 +184,15 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * 不暴露渠道原文或内部异常的付款人默认失败提示。
      */
     private static final String DEFAULT_PAYER_FAILURE_MESSAGE = "Payment could not be completed. Please try another card or contact your bank.";
+    /**
+     * 付款人未在收银台有效期内完成支付的稳定失败原因码。
+     */
+    private static final String FAILURE_PAYMENT_TIMEOUT = "PAYMENT_TIMEOUT";
+    /**
+     * 收银台超时通知中面向商户的稳定失败说明。
+     */
+    private static final String MERCHANT_PAYMENT_TIMEOUT_MESSAGE =
+            "Payment was not completed within the allowed time";
     /**
      * 收银台超时通知任务编号前缀。
      */
@@ -2171,7 +2181,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (sessionDO == null || sessionDO.getVersion() == null) {
             return false;
         }
-        String snapshot = "{\"pageState\":\"EXPIRED\",\"failureCode\":\"PAYMENT_TIMEOUT\"}";
+        String snapshot = "{\"pageState\":\"EXPIRED\",\"failureCode\":\""
+                + FAILURE_PAYMENT_TIMEOUT + "\"}";
         int updated = sessionMapper.markPaymentTimeoutCas(
                 sessionDO.getCheckoutSessionId(), snapshot, sessionDO.getVersion(), now);
         if (updated != 1) {
@@ -2254,12 +2265,14 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
 
         MerchantNotificationPayload.TransactionInfo transactionInfo =
                 new MerchantNotificationPayload.TransactionInfo();
-        transactionInfo.setCode("PAYMENT_TIMEOUT");
-        transactionInfo.setMessage("Payment was not completed within the allowed time");
+        transactionInfo.setCode(FAILURE_PAYMENT_TIMEOUT);
+        transactionInfo.setMessage(MERCHANT_PAYMENT_TIMEOUT_MESSAGE);
         transactionInfo.setTransactionId(transactionId);
         transactionInfo.setTransactionType(PaymentTransactionTypeEnum.PAYMENT.getCode());
         transactionInfo.setTransactionStatus(PaymentTransactionStatusEnum.FAILED.getCode());
-        transactionInfo.setFailReasonCode("PAYMENT_TIMEOUT");
+        transactionInfo.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+        transactionInfo.setFailReasonCode(FAILURE_PAYMENT_TIMEOUT);
+        transactionInfo.setFailReasonMessage(MERCHANT_PAYMENT_TIMEOUT_MESSAGE);
         transactionInfo.setTransactionDateTime(
                 sessionDO.getExpireTime() == null ? null : sessionDO.getExpireTime().toString());
 

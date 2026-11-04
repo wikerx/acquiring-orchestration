@@ -25,6 +25,7 @@ import com.scott.payment.payment.domain.state.PaymentCheckoutAttemptStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentCheckoutPageStateEnum;
 import com.scott.payment.payment.domain.state.PaymentCheckoutProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentCheckoutSessionStatusEnum;
+import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
 import com.scott.payment.payment.entity.PaymentCheckoutEventDO;
@@ -657,8 +658,10 @@ class DefaultPaymentCheckoutServiceTests {
                 .containsEntry("orderNo", first.getMerchantOrderNo());
         assertThat((Map<String, Object>) timeoutPayload.get("transactionInfo"))
                 .containsEntry("transactionStatus", PaymentTransactionStatusEnum.FAILED.getCode())
+                .containsEntry("processStage", PaymentProcessStageEnum.FINISHED.getCode())
                 .containsEntry("transactionDateTime", first.getExpireTime().toString())
-                .containsEntry("failReasonCode", "PAYMENT_TIMEOUT");
+                .containsEntry("failReasonCode", "PAYMENT_TIMEOUT")
+                .containsEntry("failReasonMessage", "Payment was not completed within the allowed time");
         assertThat(timeoutPayload).containsEntry("checkoutSessionId", first.getCheckoutSessionId());
         verify(merchantNotificationInitialDeliveryService).schedule(
                 eq(notificationCaptor.getValue()), eq(0), eq(now));

@@ -2973,6 +2973,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS);
         // 初始版本条件保证通知只激活一次；调度器仅在激活成功后登记提交后发送任务。
         int affectedRows = transactionMerchantNotificationMapper.activateByTransactionId(
+                pendingNotification == null ? null : pendingNotification.getId(),
                 operationDO.getTransactionId(),
                 operationDO.getTransactionDateTime(),
                 INITIAL_VERSION,

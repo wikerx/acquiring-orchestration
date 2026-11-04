@@ -33,8 +33,11 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -119,6 +122,11 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     private final TransactionStateMachineService transactionStateMachineService;
 
     /**
+     * 请款准备事实的短事务执行器；原单定位、路由恢复、币种字典和汇率追溯均在事务外完成。
+     */
+    private final TransactionOperations transactionOperations;
+
+    /**
      * 创建请款本地准备服务。
      *
      * @param isoDictionaryService 币种辅币位字典
@@ -136,6 +144,28 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                                                        PaymentExchangeRateService paymentExchangeRateService,
                                                        TransactionRecordService transactionRecordService,
                                                        TransactionStateMachineService transactionStateMachineService) {
+        this(isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                paymentExchangeRateService,
+                transactionRecordService,
+                transactionStateMachineService,
+                null);
+    }
+
+    /**
+     * Spring 生产构造器，使用交易数据源事务管理器建立主单锁短事务。
+     */
+    @Autowired
+    public DefaultCaptureTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                       PaymentChannelRouteService paymentChannelRouteService,
+                                                       TransactionIdempotencyService transactionIdempotencyService,
+                                                       TransactionEventOutboxService transactionEventOutboxService,
+                                                       PaymentExchangeRateService paymentExchangeRateService,
+                                                       TransactionRecordService transactionRecordService,
+                                                       TransactionStateMachineService transactionStateMachineService,
+                                                       PlatformTransactionManager transactionManager) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.transactionIdempotencyService = transactionIdempotencyService;
@@ -143,6 +173,9 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         this.paymentExchangeRateService = paymentExchangeRateService;
         this.transactionRecordService = transactionRecordService;
         this.transactionStateMachineService = transactionStateMachineService;
+        this.transactionOperations = transactionManager == null
+                ? null
+                : new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -154,7 +187,6 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
-    @Transactional(rollbackFor = Exception.class)
     public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
         return prepareCapture(commandDTO, idempotencyKey, PaymentTransactionTypeEnum.CAPTURE);
     }
@@ -166,7 +198,6 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
-    @Transactional(rollbackFor = Exception.class)
     public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO,
                                                       String idempotencyKey,
                                                       PaymentTransactionTypeEnum transactionType) {
@@ -175,13 +206,34 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         }
         PaymentTransactionTypeEnum captureLikeType = normalizeCaptureLikeType(transactionType);
         TransactionOrderDO resolvedSourceOrderDO = resolveSourceOrder(commandDTO);
+        commandDTO.setRequestFingerprint(canonicalCaptureRequestFingerprint(
+                commandDTO, resolvedSourceOrderDO, captureLikeType));
+        CapturePreparationResultDTO duplicate = findDuplicateCapture(commandDTO, idempotencyKey);
+        if (duplicate != null) {
+            return duplicate;
+        }
+        CapturePreparationPlan plan = planCapture(resolvedSourceOrderDO, commandDTO);
+        return executeInTransaction(() -> prepareCaptureInTransaction(
+                commandDTO, idempotencyKey, resolvedSourceOrderDO, captureLikeType, plan));
+    }
+
+    /**
+     * 在持有原订单行锁的短事务内完成额度决策、幂等占位和全部准备事实写入。
+     */
+    private CapturePreparationResultDTO prepareCaptureInTransaction(
+            PaymentCreateCommandDTO commandDTO,
+            String idempotencyKey,
+            TransactionOrderDO resolvedSourceOrderDO,
+            PaymentTransactionTypeEnum captureLikeType,
+            CapturePreparationPlan plan) {
         // 后续状态校验、累计金额判断和幂等占位必须共享同一主单锁，避免并发动作同时通过额度校验。
         TransactionOrderDO sourceOrderDO = lockSourceOrderForCapture(resolvedSourceOrderDO);
         // 指纹必须在锁内基于数据库权威币种和原交易身份计算，不能信任可被商户重复提交的展示字段。
         commandDTO.setRequestFingerprint(canonicalCaptureRequestFingerprint(commandDTO, sourceOrderDO, captureLikeType));
         return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .map(record -> CapturePreparationResultDTO.duplicate(resolveDuplicateCapture(commandDTO, record)))
-                .orElseGet(() -> prepareNewCapture(commandDTO, idempotencyKey, sourceOrderDO, captureLikeType));
+                .orElseGet(() -> prepareNewCapture(
+                        commandDTO, idempotencyKey, sourceOrderDO, captureLikeType, plan));
     }
 
     /**
@@ -193,13 +245,18 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     private CapturePreparationResultDTO prepareNewCapture(PaymentCreateCommandDTO commandDTO,
                                                           String idempotencyKey,
                                                           TransactionOrderDO sourceOrderDO,
-                                                          PaymentTransactionTypeEnum transactionType) {
+                                                          PaymentTransactionTypeEnum transactionType,
+                                                          CapturePreparationPlan plan) {
         if (transactionStateMachineService == null) {
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
         }
         FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan = calculateCaptureAmountPlan(
-                commandDTO, sourceOrderDO, LocalDateTime.now());
+                commandDTO,
+                sourceOrderDO,
+                LocalDateTime.now(),
+                plan.labelCurrencyExponent(),
+                plan.transactionCurrencyExponent());
         applyCaptureAmountPlan(commandDTO, sourceOrderDO, amountPlan);
         // 状态机校验与冲突动作扫描均发生在主单锁内，形成对可请款额度的串行决策点。
         transactionStateMachineService.validateFollowUpAction(
@@ -226,30 +283,21 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                             "capture idempotency conflict record is missing"));
         }
-        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId(),
-                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
+        TransactionOperationDO sourceOperationDO = plan.sourceOperationDO();
         bindCaptureSourceChannelTransaction(commandDTO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentCreateResultDTO resultDTO = buildCaptureResult(commandDTO, sourceOrderDO, transactionId, transactionType);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO;
-        try {
-            // 后续动作必须沿用原交易冻结的渠道和 MID，不能重新路由到另一个收单渠道。
-            routeResultDTO = OriginalTransactionRouteResolver.restore(
-                    paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
-        } catch (ServiceException exception) {
-            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
-                throw exception;
-            }
-            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
-                    sourceOrderDO, sourceOperationDO);
+        int currencyExponent = plan.transactionCurrencyExponent();
+        PaymentCreateResultDTO resultDTO = buildCaptureResult(
+                commandDTO, sourceOrderDO, transactionId, transactionType, currencyExponent);
+        OriginalTransactionRouteResolver.Resolution routeResolution = plan.routeResolution();
+        PaymentRouteResultDTO routeResultDTO = routeResolution.requireRouteResult();
+        if (routeResolution.rejected()) {
             OriginalTransactionRejectionSupport.apply(resultDTO);
-            enrichCaptureResult(commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO);
+            enrichCaptureResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
             OriginalTransactionRejectionSupport.apply(resultDTO);
             recordCapturePreparedFact(
-                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
-            saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
+                    commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO, currencyExponent);
+            saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, plan.frozenRate(), currencyExponent);
             saveTransactionCreatedEvent(commandDTO, resultDTO);
             completeIdempotency(idempotencyKey, commandDTO, resultDTO);
             CapturePreparationResultDTO target = new CapturePreparationResultDTO();
@@ -257,7 +305,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
             target.setIdempotencyKey(idempotencyKey);
             target.setCommandDTO(commandDTO);
             target.setSourceOrderDO(sourceOrderDO);
-            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setRouteResultDTO(routeResultDTO);
             target.setResultDTO(resultDTO);
             target.setCurrencyExponent(currencyExponent);
             return target;
@@ -270,7 +318,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);
         // 先持久化动作、固定请求身份和恢复事件；事务提交后上层才可使用 callChannel=true 发起真实外呼。
         recordCapturePreparedFact(commandDTO, sourceOrderDO, routeResultDTO, preparedInvokeResultDTO, resultDTO, currencyExponent);
-        saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, currencyExponent);
+        saveRateUsageIfApplied(commandDTO, resultDTO, amountPlan, plan.frozenRate(), currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
 
@@ -300,6 +348,50 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return sourceOrderDO;
+    }
+
+    /**
+     * 在短事务前读取不可变原动作、渠道身份、币种精度和冻结汇率版本。
+     */
+    private CapturePreparationPlan planCapture(TransactionOrderDO sourceOrderDO,
+                                               PaymentCreateCommandDTO commandDTO) {
+        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
+                commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
+        OriginalTransactionRouteResolver.Resolution routeResolution = OriginalTransactionRouteResolver.plan(
+                paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        String labelCurrency = firstText(sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
+        int labelCurrencyExponent = resolveCurrencyExponent(labelCurrency);
+        int transactionCurrencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        FrozenTransactionRateResolverSupport.Resolution frozenRate = FrozenTransactionRateResolverSupport.planForSourceOrder(
+                paymentExchangeRateService, sourceOrderDO);
+        return new CapturePreparationPlan(
+                sourceOperationDO,
+                routeResolution,
+                labelCurrencyExponent,
+                transactionCurrencyExponent,
+                frozenRate);
+    }
+
+    /**
+     * 在路由和汇率规划前快速返回已完成的重复动作，降低重复流量的数据库锁竞争。
+     */
+    private CapturePreparationResultDTO findDuplicateCapture(PaymentCreateCommandDTO commandDTO,
+                                                             String idempotencyKey) {
+        return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                .map(record -> CapturePreparationResultDTO.duplicate(resolveDuplicateCapture(commandDTO, record)))
+                .orElse(null);
+    }
+
+    /**
+     * 使用 Spring 事务管理器执行主单锁短事务；无事务管理器仅用于现有直接构造的单元测试兼容。
+     */
+    private CapturePreparationResultDTO executeInTransaction(
+            java.util.function.Supplier<CapturePreparationResultDTO> callback) {
+        if (transactionOperations == null) {
+            return callback.get();
+        }
+        return transactionOperations.execute(status -> callback.get());
     }
 
     /**
@@ -464,10 +556,9 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     private FrozenRateFollowUpAmountCalculator.AmountPlan calculateCaptureAmountPlan(
             PaymentCreateCommandDTO commandDTO,
             TransactionOrderDO sourceOrderDO,
-            LocalDateTime decisionTime) {
-        String labelCurrency = firstText(sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
-        int labelCurrencyExponent = resolveCurrencyExponent(labelCurrency);
-        int transactionCurrencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+            LocalDateTime decisionTime,
+            int labelCurrencyExponent,
+            int transactionCurrencyExponent) {
         List<TransactionOperationDO> lifecycleOperations = transactionRecordService.findOperationsByOperationId(
                 sourceOrderDO.getOperationId(),
                 sourceOrderDO.getTransactionDateTime(),
@@ -512,6 +603,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     private void saveRateUsageIfApplied(PaymentCreateCommandDTO commandDTO,
                                         PaymentCreateResultDTO resultDTO,
                                         FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan,
+                                        FrozenTransactionRateResolverSupport.Resolution frozenRate,
                                         int currencyExponent) {
         boolean conversionEnabled = Integer.valueOf(1).equals(amountPlan.edcEnabled())
                 || Integer.valueOf(1).equals(amountPlan.dccEnabled());
@@ -523,7 +615,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 transactionEventOutboxService,
                 commandDTO,
                 resultDTO,
-                FrozenTransactionRateResolverSupport.resolve(paymentExchangeRateService, amountPlan),
+                FrozenTransactionRateResolverSupport.validate(frozenRate, amountPlan),
                 LocalDateTime.now(),
                 "transactionAmount = labelAmount * frozenTransactionRate; sourceTransactionId="
                         + commandDTO.getTransactionInfo().getSourceTransactionId()
@@ -549,7 +641,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     private PaymentCreateResultDTO buildCaptureResult(PaymentCreateCommandDTO commandDTO,
                                                       TransactionOrderDO sourceOrderDO,
                                                       String transactionId,
-                                                      PaymentTransactionTypeEnum transactionType) {
+                                                       PaymentTransactionTypeEnum transactionType,
+                                                       int currencyExponent) {
         PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
         resultDTO.setOperationId(sourceOrderDO.getOperationId());
         resultDTO.setTransactionId(transactionId);
@@ -560,7 +653,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(transactionType.getCode());
         resultDTO.setCurrency(commandDTO.getTransactionCurrency());
-        resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
+        resultDTO.setAmount(toMinorAmount(
+                commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency(), currencyExponent));
         return resultDTO;
     }
 
@@ -816,6 +910,23 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     }
 
     /**
+     * 请款事务外规划结果；其中路由、币种精度和冻结汇率在主单锁建立前固定。
+     *
+     * @param sourceOperationDO 原授权动作快照
+     * @param routeResolution 原交易路由规划结果
+     * @param labelCurrencyExponent 标签币种辅币位数
+     * @param transactionCurrencyExponent 渠道交易币种辅币位数
+     * @param frozenRate 首次交易冻结业务汇率的事务外规划结果
+     */
+    private record CapturePreparationPlan(
+            TransactionOperationDO sourceOperationDO,
+            OriginalTransactionRouteResolver.Resolution routeResolution,
+            int labelCurrencyExponent,
+            int transactionCurrencyExponent,
+            FrozenTransactionRateResolverSupport.Resolution frozenRate) {
+    }
+
+    /**
      * 按 ISO 4217 币种精度将十进制金额精确转换为最小货币单位，禁止静默截断小数。
      */
     private Long toMinorAmount(BigDecimal amount, String currency) {
@@ -823,6 +934,18 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
             return isoDictionaryService.toMinorUnit(amount, currency);
         } catch (IllegalArgumentException | ArithmeticException exception) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "amount fraction digits exceed currency minor unit", exception);
+        }
+    }
+
+    /**
+     * 使用事务外已解析的币种精度转换金额，避免持有主单锁时再次访问币种字典。
+     */
+    private Long toMinorAmount(BigDecimal amount, String currency, int currencyExponent) {
+        try {
+            return amount.movePointRight(currencyExponent).longValueExact();
+        } catch (ArithmeticException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "amount fraction digits exceed currency minor unit: " + currency, exception);
         }
     }
 

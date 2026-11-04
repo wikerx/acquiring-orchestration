@@ -115,6 +115,7 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
     /**
      * 从自动可重试状态领取 PROCESSING 租约；终态、人工复核和未过期 PROCESSING 均不会被覆盖。
      *
+     * @param id 已读取状态行的物理主键
      * @param transactionId 动作级平台交易号
      * @param transactionDateTime 动作季度分片时间
      * @param expectedVersion 当前读取到的版本
@@ -135,7 +136,8 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                 next_retry_time = NULL,
                 version = version + 1,
                 update_time = CURRENT_TIMESTAMP(3)
-            WHERE transaction_id = #{transactionId}
+            WHERE id = #{id}
+              AND transaction_id = #{transactionId}
               AND transaction_date_time = #{transactionDateTime}
               AND (
                     clearing_status IN ('NOT_CLEARED', 'PENDING', 'WAITING_SOURCE', 'FAILED')
@@ -144,7 +146,8 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
               AND version = #{expectedVersion}
               AND deleted = 0
             """)
-    int claimProcessing(@Param("transactionId") String transactionId,
+    int claimProcessing(@Param("id") Long id,
+                        @Param("transactionId") String transactionId,
                         @Param("transactionDateTime") LocalDateTime transactionDateTime,
                         @Param("expectedVersion") int expectedVersion,
                         @Param("processingOwner") String processingOwner,
@@ -153,7 +156,10 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                         @Param("triggerEventNo") String triggerEventNo);
 
     /**
-     * 校验 owner、租约、状态和版本后完成动作清分摘要；结算汇率和结算金额兼容列始终不写。
+     * 以已锁定的物理主键定位单行，并校验交易、owner、租约、状态和版本后完成动作清分摘要。
+     *
+     * <p>物理主键用于固定 MySQL 的单行更新计划，避免状态索引与主键之间出现并发锁顺序反转；
+     * 交易号和分片时间仍作为业务身份及分片路由保护。结算汇率和结算金额兼容列始终不写。</p>
      */
     @Update("""
             UPDATE transaction_finance_state
@@ -192,7 +198,8 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                 net_settlement_amount = #{summary.netSettlementAmount},
                 version = version + 1,
                 update_time = #{now}
-            WHERE transaction_id = #{transactionId}
+            WHERE id = #{id}
+              AND transaction_id = #{transactionId}
               AND transaction_date_time = #{transactionDateTime}
               AND clearing_status = 'PROCESSING'
               AND processing_owner = #{processingOwner}
@@ -200,7 +207,8 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
               AND version = #{expectedVersion}
               AND deleted = 0
             """)
-    int completeProcessing(@Param("transactionId") String transactionId,
+    int completeProcessing(@Param("id") Long id,
+                           @Param("transactionId") String transactionId,
                            @Param("transactionDateTime") LocalDateTime transactionDateTime,
                            @Param("processingOwner") String processingOwner,
                            @Param("expectedVersion") int expectedVersion,
@@ -208,7 +216,10 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                            @Param("now") LocalDateTime now);
 
     /**
-     * 使用领取版本记录失败、等待源动作或人工复核状态，禁止覆盖已完成终态。
+     * 使用已锁定行的物理主键和领取版本记录失败、等待源动作或人工复核状态，禁止覆盖已完成终态。
+     *
+     * <p>物理主键固定单行更新计划；交易号、分片时间、PROCESSING owner 和版本继续承担
+     * 业务身份、分片路由与租约 CAS 保护。</p>
      */
     @Update("""
             UPDATE transaction_finance_state
@@ -221,14 +232,16 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                 processing_deadline = NULL,
                 version = version + 1,
                 update_time = #{now}
-            WHERE transaction_id = #{transactionId}
+            WHERE id = #{id}
+              AND transaction_id = #{transactionId}
               AND transaction_date_time = #{transactionDateTime}
               AND clearing_status = 'PROCESSING'
               AND processing_owner = #{processingOwner}
               AND version = #{expectedVersion}
               AND deleted = 0
             """)
-    int recordFailure(@Param("transactionId") String transactionId,
+    int recordFailure(@Param("id") Long id,
+                      @Param("transactionId") String transactionId,
                       @Param("transactionDateTime") LocalDateTime transactionDateTime,
                       @Param("processingOwner") String processingOwner,
                       @Param("expectedVersion") int expectedVersion,

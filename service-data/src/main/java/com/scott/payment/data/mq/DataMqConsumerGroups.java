@@ -46,6 +46,12 @@ public final class DataMqConsumerGroups {
     public static final String EXCHANGE_RATE_USAGE = "acquiring-data-exchange-rate-usage-consumer";
 
     /**
+     * OpenAPI 商户响应加密审计消费组。
+     */
+    public static final String MERCHANT_API_RESPONSE_AUDIT =
+            "acquiring-data-merchant-api-response-audit-consumer";
+
+    /**
      * 常量类不允许实例化。
      */
     private DataMqConsumerGroups() {

@@ -1,5 +1,9 @@
 # service-data 专属配置：异步操作日志、风控与安全审计持久化，以及商户通知投递参数。
 data:
+  merchant-api-response-audit:
+    mq:
+      # 仅 service-data 消费 OpenAPI 响应审计；关闭后消息保留在独立消费组进度中，恢复开关可继续补偿。
+      enabled: ${DATA_MERCHANT_API_RESPONSE_AUDIT_MQ_ENABLED:true}
   card-vault:
     # 默认关闭；所有密钥必须由 K8s Secret、CI/CD Secret 或 KMS 注入，禁止写入 Nacos 明文。
     enabled: ${CHECKOUT_CARD_VAULT_CONSUME_ENABLED:false}

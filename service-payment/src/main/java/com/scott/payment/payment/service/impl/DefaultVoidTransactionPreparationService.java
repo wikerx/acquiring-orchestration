@@ -31,8 +31,11 @@ import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.VoidPreparationResultDTO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -114,6 +117,11 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
     private final TransactionStateMachineService transactionStateMachineService;
 
     /**
+     * 撤销准备事实的短事务执行器；原动作、路由和币种精度读取均在锁事务外完成。
+     */
+    private final TransactionOperations transactionOperations;
+
+    /**
      * 创建授权取消本地准备服务。
      *
      * @param isoDictionaryService 币种辅币位字典
@@ -129,12 +137,35 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                                                     TransactionEventOutboxService transactionEventOutboxService,
                                                     TransactionRecordService transactionRecordService,
                                                     TransactionStateMachineService transactionStateMachineService) {
+        this(isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService,
+                null);
+    }
+
+    /**
+     * Spring 生产构造器，使用交易数据源事务管理器建立主单锁短事务。
+     */
+    @Autowired
+    public DefaultVoidTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                    PaymentChannelRouteService paymentChannelRouteService,
+                                                    TransactionIdempotencyService transactionIdempotencyService,
+                                                    TransactionEventOutboxService transactionEventOutboxService,
+                                                    TransactionRecordService transactionRecordService,
+                                                    TransactionStateMachineService transactionStateMachineService,
+                                                    PlatformTransactionManager transactionManager) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionRecordService = transactionRecordService;
         this.transactionStateMachineService = transactionStateMachineService;
+        this.transactionOperations = transactionManager == null
+                ? null
+                : new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -148,19 +179,36 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
-    @Transactional(rollbackFor = Exception.class)
     public VoidPreparationResultDTO prepareVoid(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
         if (transactionRecordService == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         TransactionOrderDO resolvedSourceOrderDO = resolveSourceOrder(commandDTO);
+        commandDTO.setRequestFingerprint(canonicalVoidRequestFingerprint(commandDTO, resolvedSourceOrderDO));
+        VoidPreparationResultDTO duplicate = findDuplicateVoid(commandDTO, idempotencyKey);
+        if (duplicate != null) {
+            return duplicate;
+        }
+        VoidPreparationPlan plan = planVoid(resolvedSourceOrderDO, commandDTO);
+        return executeInTransaction(() -> prepareVoidInTransaction(
+                commandDTO, idempotencyKey, resolvedSourceOrderDO, plan));
+    }
+
+    /**
+     * 在持有原订单行锁的短事务内完成状态、冲突动作校验和撤销事实写入。
+     */
+    private VoidPreparationResultDTO prepareVoidInTransaction(
+            PaymentCreateCommandDTO commandDTO,
+            String idempotencyKey,
+            TransactionOrderDO resolvedSourceOrderDO,
+            VoidPreparationPlan plan) {
         // 主单锁把撤销与请款、退款、增量授权的状态竞争收敛为串行决策。
         TransactionOrderDO sourceOrderDO = lockSourceOrder(resolvedSourceOrderDO);
         // 基于锁内权威原交易身份计算指纹，禁止相同商户操作号被替换后重复撤销。
         commandDTO.setRequestFingerprint(canonicalVoidRequestFingerprint(commandDTO, sourceOrderDO));
         return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .map(record -> VoidPreparationResultDTO.duplicate(resolveDuplicateVoid(commandDTO, record)))
-                .orElseGet(() -> prepareNewVoid(commandDTO, idempotencyKey, sourceOrderDO));
+                .orElseGet(() -> prepareNewVoid(commandDTO, idempotencyKey, sourceOrderDO, plan));
     }
 
     /**
@@ -170,7 +218,8 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      */
     private VoidPreparationResultDTO prepareNewVoid(PaymentCreateCommandDTO commandDTO,
                                                     String idempotencyKey,
-                                                    TransactionOrderDO sourceOrderDO) {
+                                                    TransactionOrderDO sourceOrderDO,
+                                                    VoidPreparationPlan plan) {
         if (transactionStateMachineService == null) {
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
@@ -198,29 +247,20 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                             "void idempotency conflict record is missing"));
         }
-        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId(),
-                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
+        TransactionOperationDO sourceOperationDO = plan.sourceOperationDO();
         normalizeVoidCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentCreateResultDTO resultDTO = buildVoidResult(commandDTO, sourceOrderDO, transactionId);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO;
-        try {
-            // 撤销必须发往原交易冻结的渠道和 MID，重新路由可能造成原授权无法释放。
-            routeResultDTO = OriginalTransactionRouteResolver.restore(
-                    paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
-        } catch (ServiceException exception) {
-            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
-                throw exception;
-            }
-            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
-                    sourceOrderDO, sourceOperationDO);
+        int currencyExponent = plan.transactionCurrencyExponent();
+        PaymentCreateResultDTO resultDTO = buildVoidResult(
+                commandDTO, sourceOrderDO, transactionId, currencyExponent);
+        OriginalTransactionRouteResolver.Resolution routeResolution = plan.routeResolution();
+        PaymentRouteResultDTO routeResultDTO = routeResolution.requireRouteResult();
+        if (routeResolution.rejected()) {
             OriginalTransactionRejectionSupport.apply(resultDTO);
-            enrichVoidResult(commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO);
+            enrichVoidResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
             OriginalTransactionRejectionSupport.apply(resultDTO);
             recordVoidPreparedFact(
-                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+                    commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO, currencyExponent);
             saveTransactionCreatedEvent(commandDTO, resultDTO);
             completeIdempotency(idempotencyKey, commandDTO, resultDTO);
             VoidPreparationResultDTO target = new VoidPreparationResultDTO();
@@ -228,7 +268,7 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
             target.setIdempotencyKey(idempotencyKey);
             target.setCommandDTO(commandDTO);
             target.setSourceOrderDO(sourceOrderDO);
-            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setRouteResultDTO(routeResultDTO);
             target.setResultDTO(resultDTO);
             target.setCurrencyExponent(currencyExponent);
             return target;
@@ -270,6 +310,42 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return sourceOrderDO;
+    }
+
+    /**
+     * 在短事务前读取不可变原动作、原渠道身份和交易币种精度。
+     */
+    private VoidPreparationPlan planVoid(TransactionOrderDO sourceOrderDO,
+                                         PaymentCreateCommandDTO commandDTO) {
+        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
+                commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
+        OriginalTransactionRouteResolver.Resolution routeResolution = OriginalTransactionRouteResolver.plan(
+                paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        int transactionCurrencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        return new VoidPreparationPlan(
+                sourceOperationDO, routeResolution, transactionCurrencyExponent);
+    }
+
+    /**
+     * 在路由规划前快速返回已完成的重复撤销，降低重复请求的主单锁竞争。
+     */
+    private VoidPreparationResultDTO findDuplicateVoid(PaymentCreateCommandDTO commandDTO,
+                                                       String idempotencyKey) {
+        return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                .map(record -> VoidPreparationResultDTO.duplicate(resolveDuplicateVoid(commandDTO, record)))
+                .orElse(null);
+    }
+
+    /**
+     * 使用 Spring 事务管理器执行主单锁短事务；无事务管理器仅用于现有直接构造的单元测试兼容。
+     */
+    private VoidPreparationResultDTO executeInTransaction(
+            java.util.function.Supplier<VoidPreparationResultDTO> callback) {
+        if (transactionOperations == null) {
+            return callback.get();
+        }
+        return transactionOperations.execute(status -> callback.get());
     }
 
     /**
@@ -441,7 +517,8 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      */
     private PaymentCreateResultDTO buildVoidResult(PaymentCreateCommandDTO commandDTO,
                                                    TransactionOrderDO sourceOrderDO,
-                                                   String transactionId) {
+                                                   String transactionId,
+                                                   int currencyExponent) {
         PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
         resultDTO.setOperationId(sourceOrderDO.getOperationId());
         resultDTO.setTransactionId(transactionId);
@@ -452,7 +529,8 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(PaymentTransactionTypeEnum.VOID.getCode());
         resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        resultDTO.setAmount(toMinorAmount(sourceOrderDO.getTransactionAmount(), sourceOrderDO.getTransactionCurrency()));
+        resultDTO.setAmount(toMinorAmount(
+                sourceOrderDO.getTransactionAmount(), sourceOrderDO.getTransactionCurrency(), currencyExponent));
         return resultDTO;
     }
 
@@ -719,6 +797,19 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
     }
 
     /**
+     * 撤销事务外规划结果；主单锁内继续以数据库权威状态和冲突动作完成最终决策。
+     *
+     * @param sourceOperationDO 原交易动作快照
+     * @param routeResolution 原交易路由规划结果
+     * @param transactionCurrencyExponent 交易币种辅币位数
+     */
+    private record VoidPreparationPlan(
+            TransactionOperationDO sourceOperationDO,
+            OriginalTransactionRouteResolver.Resolution routeResolution,
+            int transactionCurrencyExponent) {
+    }
+
+    /**
      * 按原交易币种的 ISO 4217 精度精确转换最小货币单位。
      */
     private Long toMinorAmount(BigDecimal amount, String currency) {
@@ -726,6 +817,18 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
             return isoDictionaryService.toMinorUnit(amount, currency);
         } catch (IllegalArgumentException | ArithmeticException exception) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "amount fraction digits exceed currency minor unit", exception);
+        }
+    }
+
+    /**
+     * 使用事务外已解析的币种精度转换金额，避免持有主单锁时再次访问币种字典。
+     */
+    private Long toMinorAmount(BigDecimal amount, String currency, int currencyExponent) {
+        try {
+            return amount.movePointRight(currencyExponent).longValueExact();
+        } catch (ArithmeticException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "amount fraction digits exceed currency minor unit: " + currency, exception);
         }
     }
 

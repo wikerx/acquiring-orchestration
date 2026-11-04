@@ -17,6 +17,7 @@ import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.service.ClearingFailureService;
 import com.scott.payment.clearing.service.ClearingAnomalyService;
 import com.scott.payment.clearing.service.ClearingProjectionService;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -31,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
@@ -110,19 +110,19 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                                                ClearingClaimResult claim,
                                                String processingOwner,
                                                ClearingProcessingException failure,
-                                               LocalDateTime nowUtc) {
-        requireArguments(message, claim, processingOwner, failure, nowUtc);
+                                               LocalDateTime now) {
+        requireArguments(message, claim, processingOwner, failure, now);
         ClearingTransactionFinanceStateDO state = financeStateMapper.selectForUpdate(
                 message.getTransactionId(), message.getTransactionDateTime());
         validateLease(message, claim, processingOwner, state);
 
         int currentRetryCount = requiredRetryCount(state.getClearingRetryCount());
-        FailureDecision decision = decide(failure.getFailureCode(), currentRetryCount, nowUtc);
+        FailureDecision decision = decide(failure.getFailureCode(), currentRetryCount, now);
         String failureSummary = failureSummary(failure, decision);
         int updated = financeStateMapper.recordFailure(
-                message.getTransactionId(), message.getTransactionDateTime(), processingOwner,
+                state.getId(), message.getTransactionId(), message.getTransactionDateTime(), processingOwner,
                 claim.financeStateVersion(), decision.targetState().name(), decision.retryCount(),
-                decision.nextRetryTime(), decision.recordedCode().name(), failureSummary, nowUtc);
+                decision.nextRetryTime(), decision.recordedCode().name(), failureSummary, now);
         if (updated != 1) {
             throw new IllegalStateException("clearing failure state CAS did not update the acquired lease");
         }
@@ -130,10 +130,10 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 FINANCIAL_FAILURES.contains(failure.getFailureCode())
                         ? ClearingAnomalyTypeEnum.FINANCIAL_MISMATCH
                         : ClearingAnomalyTypeEnum.CONTROLLED_FAILURE,
-                decision.recordedCode().name(), failureSummary, nowUtc);
-        updateFailureProjection(claim, decision, nowUtc);
+                decision.recordedCode().name(), failureSummary, now);
+        updateFailureProjection(claim, decision, now);
         if (decision.nextRetryTime() != null) {
-            persistRetryOutbox(message, claim, decision, nowUtc);
+            persistRetryOutbox(message, claim, decision, now);
         }
         return new ClearingFailureResult(
                 decision.targetState().name(), decision.recordedCode().name(), decision.retryCount(),
@@ -145,10 +145,10 @@ public class DefaultClearingFailureService implements ClearingFailureService {
      */
     private void updateFailureProjection(ClearingClaimResult claim,
                                          FailureDecision decision,
-                                         LocalDateTime nowUtc) {
+                                         LocalDateTime now) {
         try {
             projectionService.updateResolvingLocator(
-                    claim.operation(), decision.targetState(), decision.recordedCode().name(), nowUtc);
+                    claim.operation(), decision.targetState(), decision.recordedCode().name(), now);
         } catch (ClearingProcessingException projectionFailure) {
             log.warn("清分失败投影更新延后, event: CLEARING_FAILURE_PROJECTION_DEFERRED, transactionId: {}, operationId: {}, targetStatus: {}, projectionFailureCode: {}",
                     claim.operation().transactionId(), claim.operation().operationId(),
@@ -163,7 +163,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
      */
     private FailureDecision decide(ClearingFailureCodeEnum code,
                                    int currentRetryCount,
-                                   LocalDateTime nowUtc) {
+                                   LocalDateTime now) {
         if (!code.isRetryable()) {
             return manualDecision(code, currentRetryCount);
         }
@@ -177,7 +177,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 ? ClearingStateEnum.WAITING_SOURCE : ClearingStateEnum.FAILED;
         requireTransition(targetState);
         return new FailureDecision(targetState, code, nextRetryCount,
-                nowUtc.plusMinutes(delayMinutes).truncatedTo(ChronoUnit.MILLIS));
+                now.plusMinutes(delayMinutes).truncatedTo(ChronoUnit.MILLIS));
     }
 
     /**
@@ -203,12 +203,12 @@ public class DefaultClearingFailureService implements ClearingFailureService {
     private void persistRetryOutbox(PaymentTransactionEventMessage source,
                                     ClearingClaimResult claim,
                                     FailureDecision decision,
-                                    LocalDateTime nowUtc) {
+                                    LocalDateTime now) {
         ClearingOperationFacts operation = claim.operation();
         String eventNo = "CR" + idGenerator.nextId();
         ClearingRetryDueMessage message = new ClearingRetryDueMessage();
         message.setMessageId(eventNo);
-        message.setCreatedAt(nowUtc);
+        message.setCreatedAt(now);
         message.setTraceId(source.getTraceId());
         message.setRetryCount(0);
         message.setTransactionId(operation.transactionId());
@@ -223,7 +223,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         message.setExpectedClearingRevision(claim.clearingRevision());
         message.setClearingRetryCount(decision.retryCount());
         message.setRetryReasonCode(decision.recordedCode().name());
-        message.setDeliverAt(decision.nextRetryTime().toInstant(ZoneOffset.UTC));
+        message.setDeliverAt(ClearingTimeSupport.toInstant(decision.nextRetryTime()));
 
         ClearingTransactionEventOutboxDO outbox = new ClearingTransactionEventOutboxDO();
         outbox.setEventNo(eventNo);
@@ -240,19 +240,20 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         outbox.setTag(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
         outbox.setMessageKey(eventNo);
         outbox.setDeliveryMode("SCHEDULED");
-        outbox.setDeliverAt(decision.nextRetryTime());
+        // 共享交易 Outbox 的 deliver_at 按 UTC 墙钟值持久化，Relay 才能还原同一绝对投递时刻。
+        outbox.setDeliverAt(ClearingTimeSupport.toUtcLocalDateTime(decision.nextRetryTime()));
         outbox.setPayloadJson(JsonUtils.toJsonString(message));
         outbox.setRetryCount(0);
         outbox.setMaxRetryCount(OUTBOX_MAX_RETRY_COUNT);
-        outbox.setNextRetryTime(nowUtc);
-        outbox.setEventTime(nowUtc);
+        outbox.setNextRetryTime(now);
+        outbox.setEventTime(now);
         outbox.setTransactionDateTime(operation.transactionDateTime());
         outbox.setTransactionUtcTime(operation.transactionUtcTime());
         outbox.setTransactionTimeZone(operation.transactionTimeZone());
         outbox.setVersion(0);
         outbox.setDeleted(0);
-        outbox.setCreateTime(nowUtc);
-        outbox.setUpdateTime(nowUtc);
+        outbox.setCreateTime(now);
+        outbox.setUpdateTime(now);
         if (outboxMapper.insertLogical(outbox) != 1) {
             throw new IllegalStateException("clearing retry outbox insert did not affect one row");
         }
@@ -291,19 +292,19 @@ public class DefaultClearingFailureService implements ClearingFailureService {
     }
 
     /**
-     * 校验失败事务仍携带原消息、已领取财务状态、租约所有者和统一 UTC 时间。
+     * 校验失败事务仍携带原消息、已领取财务状态、租约所有者和统一平台时间。
      *
      * @param message 原交易或重试事件
      * @param claim 当前已成功领取的清分状态
      * @param processingOwner 当前数据库处理租约所有者
      * @param failure 待记录受控异常
-     * @param nowUtc 失败事实统一 UTC 时间
+     * @param now 失败事实统一平台本地时间
      */
     private void requireArguments(PaymentTransactionEventMessage message,
                                   ClearingClaimResult claim,
                                   String processingOwner,
                                   ClearingProcessingException failure,
-                                  LocalDateTime nowUtc) {
+                                  LocalDateTime now) {
         if (message == null || !StringUtils.hasText(message.getMessageId())
                 || !StringUtils.hasText(message.getTransactionId())
                 || message.getTransactionDateTime() == null) {
@@ -313,8 +314,8 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 || !StringUtils.hasText(claim.financeStateId())) {
             throw new IllegalArgumentException("an acquired clearing claim is required");
         }
-        if (!StringUtils.hasText(processingOwner) || failure == null || nowUtc == null) {
-            throw new IllegalArgumentException("clearing failure owner, exception and UTC time are required");
+        if (!StringUtils.hasText(processingOwner) || failure == null || now == null) {
+            throw new IllegalArgumentException("clearing failure owner, exception and platform time are required");
         }
     }
 
@@ -327,6 +328,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                                ClearingTransactionFinanceStateDO state) {
         ClearingOperationFacts operation = claim.operation();
         boolean valid = state != null
+                && state.getId() != null
                 && Objects.equals(state.getFinanceStateId(), claim.financeStateId())
                 && Objects.equals(state.getTransactionId(), operation.transactionId())
                 && Objects.equals(state.getTransactionId(), message.getTransactionId())

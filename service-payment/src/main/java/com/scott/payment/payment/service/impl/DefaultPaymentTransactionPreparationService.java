@@ -39,7 +39,9 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -54,13 +56,15 @@ import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 在首次交易调用渠道前提交完整的本地准备事实。
+ * 在首次交易调用渠道前完成事务外业务规划，并以短事务提交完整的本地准备事实。
  *
- * <p>同一事务内完成持久化幂等占位、商户订单生命周期守卫、风控结论、路由与换汇快照、交易主单、
- * 动作单、渠道请求 INIT 和可靠事件。方法返回后才允许执行真实渠道调用，因此本地事务回滚时不会留下
- * 已发送但不可追踪的渠道请求，重复请求也只能复用同一份准备结果。</p>
+ * <p>卡 BIN 解析、远程风控、渠道路由和汇率查询在事务外完成；同一短事务内完成幂等占位、商户订单
+ * 生命周期守卫、风控结论、路由与换汇快照、交易主单、动作单、渠道请求 INIT 和可靠事件。方法返回后
+ * 才允许执行真实渠道调用，因此本地事务回滚时不会留下已发送但不可追踪的渠道请求，重复请求也只能
+ * 复用同一份准备结果。</p>
  */
 @Service
 @Slf4j
@@ -151,6 +155,11 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     private final PaymentRiskReservationCompensation riskReservationCompensation;
 
     /**
+     * 首次交易准备事实的短事务执行器；远程风控、路由和汇率读取不得进入该事务。
+     */
+    private final TransactionOperations transactionOperations;
+
+    /**
      * 创建首次交易本地准备默认实现。
      *
      * @param isoDictionaryService ISO 币种字典服务
@@ -175,11 +184,34 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 transactionIdempotencyService,
                 transactionEventOutboxService,
                 transactionRecordService,
+                null,
                 null);
     }
 
     /**
-     * Spring 生产构造器，注入统一卡品牌解析能力。
+     * 兼容直接构造的测试入口，生产环境使用包含事务管理器的 Spring 构造器。
+     */
+    public DefaultPaymentTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                       PaymentRiskInvokeService paymentRiskInvokeService,
+                                                       PaymentChannelRouteService paymentChannelRouteService,
+                                                       PaymentExchangeRateService paymentExchangeRateService,
+                                                       TransactionIdempotencyService transactionIdempotencyService,
+                                                       TransactionEventOutboxService transactionEventOutboxService,
+                                                       TransactionRecordService transactionRecordService,
+                                                       PaymentCheckoutCardCapabilityService cardCapabilityService) {
+        this(isoDictionaryService,
+                paymentRiskInvokeService,
+                paymentChannelRouteService,
+                paymentExchangeRateService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                cardCapabilityService,
+                null);
+    }
+
+    /**
+     * Spring 生产构造器，注入统一卡品牌解析能力和交易数据源事务管理器。
      */
     @Autowired
     public DefaultPaymentTransactionPreparationService(IsoDictionaryService isoDictionaryService,
@@ -189,7 +221,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                                                        TransactionIdempotencyService transactionIdempotencyService,
                                                        TransactionEventOutboxService transactionEventOutboxService,
                                                        TransactionRecordService transactionRecordService,
-                                                       PaymentCheckoutCardCapabilityService cardCapabilityService) {
+                                                       PaymentCheckoutCardCapabilityService cardCapabilityService,
+                                                       PlatformTransactionManager transactionManager) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentRiskInvokeService = paymentRiskInvokeService;
         this.paymentChannelRouteService = paymentChannelRouteService;
@@ -201,10 +234,13 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         this.transactionRecordService = transactionRecordService;
         this.riskReservationCompensation =
                 new PaymentRiskReservationCompensation(paymentRiskInvokeService);
+        this.transactionOperations = transactionManager == null
+                ? null
+                : new TransactionTemplate(transactionManager);
     }
 
     /**
-     * 在独立本地事务中准备首次交易事实。
+     * 规划首次交易并在独立短事务中提交本地事实。
      *
      * @param commandDTO 创建交易命令
      * @param transactionType 首次交易类型
@@ -212,7 +248,6 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
-    @Transactional(rollbackFor = Exception.class)
     public PaymentInitialPreparationResultDTO prepareInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType) {
         long startNanos = System.nanoTime();
         // 卡品牌由服务端基于 BIN 数据和规则解析，不能信任商户传入品牌绕过渠道能力校验。
@@ -225,7 +260,6 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         // 指纹绑定会影响资金动作的稳定字段，同一幂等键携带不同业务内容时必须判定冲突。
         commandDTO.setRequestFingerprint(canonicalRequestFingerprint(commandDTO, transactionType));
-        LocalDateTime now = LocalDateTime.now();
         log.info("支付首次交易本地准备开始, event: PAYMENT_LOCAL_PREPARE_BEGIN, stage: LOCAL_PREPARE, traceId: {}, merchantId: {}, merchantOrderNo: {}, merchantOrderId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, idempotencyKey: {}, requestFingerprint: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -237,36 +271,10 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 commandDTO.getAmount(),
                 idempotencyKey,
                 commandDTO.getRequestFingerprint());
-        TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
-                TRANSACTION_OPERATION_SCOPE,
-                idempotencyKey,
-                commandDTO.getMerchantId(),
-                commandDTO.getMerchantOrderNo(),
-                commandDTO.getMerchantOrderId(),
-                transactionType,
-                commandDTO.getTransactionDateTime(),
-                DEFAULT_TIME_ZONE,
-                commandDTO.getRequestFingerprint(),
-                now);
-        // 数据库唯一约束和状态记录是资金动作的最终幂等保护；Redis 准备锁失效也不能重复建单。
-        if (!transactionIdempotencyService.tryBegin(beginRecord)) {
-            log.warn("支付幂等占位冲突, event: PAYMENT_IDEMPOTENCY_BEGIN_CONFLICT, stage: IDEMPOTENCY_BEGIN, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, idempotencyKey: {}, requestFingerprint: {}",
-                    TraceContext.getTraceId(),
-                    commandDTO.getMerchantId(),
-                    commandDTO.getMerchantOrderNo(),
-                    transactionType,
-                    idempotencyKey,
-                    commandDTO.getRequestFingerprint());
-            return resolveDuplicate(commandDTO, idempotencyKey);
+        // 已完成或正在处理的重复请求在远程风控前直接返回，避免无意义地重复预占商户限额。
+        if (transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).isPresent()) {
+            return resolveDuplicate(commandDTO, idempotencyKey, transactionType);
         }
-        // 生命周期守卫阻止同一商户订单并发创建互相冲突的首次支付类型。
-        acquireMerchantOrderFlow(commandDTO, transactionType, merchantOrderFlowKey, now);
-        log.info("支付幂等占位成功, event: PAYMENT_IDEMPOTENCY_BEGIN_OK, stage: IDEMPOTENCY_BEGIN, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, idempotencyKey: {}",
-                TraceContext.getTraceId(),
-                commandDTO.getMerchantId(),
-                commandDTO.getMerchantOrderNo(),
-                transactionType,
-                idempotencyKey);
         String operationId = PaymentOrderNoGenerator.nextOrderNo(OPERATION_ID_PREFIX, commandDTO.getTransactionDateTime());
         String transactionId = StringUtils.hasText(commandDTO.getTransactionId())
                 ? commandDTO.getTransactionId()
@@ -295,8 +303,6 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 commandDTO.getCurrency(),
                 commandDTO.getAmount());
         PaymentRiskDecisionDTO riskDecisionDTO = paymentRiskInvokeService.checkPreRoute(commandDTO);
-        // 风控预占随当前本地事务登记补偿，后续任意异常回滚都必须释放未确认的累计限额。
-        riskReservationCompensation.register(commandDTO, riskDecisionDTO);
         PaymentRiskDecisionEnum riskDecisionEnum = PaymentRiskDecisionSupport.resolve(riskDecisionDTO);
         log.info("支付路由前风控结束, event: PAYMENT_RISK_EVALUATE_END, stage: RISK, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, riskDecision: {}, riskPassed: {}, riskRecordNo: {}, hitRuleId: {}, durationMs: {}",
                 TraceContext.getTraceId(),
@@ -392,46 +398,37 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         }
         enrichResult(commandDTO, null, resultDTO);
         int currencyExponent = resolveCurrencyExponent(commandDTO.getTransactionCurrency());
-        // 交易、渠道 INIT、风控和审计事实必须原子落库；任何一项失败都阻止后续真实渠道调用。
-        transactionRecordService.recordInitialTransaction(
+        InitialPreparationPlan plan = new InitialPreparationPlan(
                 commandDTO,
+                transactionType,
+                idempotencyKey,
+                merchantOrderFlowKey,
                 routeResultDTO,
                 preparedInvokeResultDTO,
                 resultDTO,
+                riskDecisionDTO,
                 riskDecisionEnum,
+                conversionOutcome,
+                callChannel,
                 currencyExponent);
-        if (conversionOutcome.appliedRate() != null) {
-            // 交易事实与汇率使用 Outbox 同事务提交，避免消息先发或事实已落库但审计事件丢失。
-            PaymentExchangeRateDTO appliedRate = conversionOutcome.appliedRate();
-            String calculationDescription = StringUtils.hasText(appliedRate.getAdjustDescription())
-                    ? appliedRate.getAdjustDescription()
-                    : "transactionAmount = labelAmount * transactionRate; targetCurrencyExponent="
-                    + currencyExponent;
-            TransactionRateUsageOutboxSupport.save(
-                    transactionEventOutboxService,
-                    commandDTO,
-                    resultDTO,
-                    appliedRate,
-                    conversionOutcome.appliedTime(),
-                    calculationDescription);
+        long persistenceStartNanos = System.nanoTime();
+        PaymentInitialPreparationResultDTO target;
+        AtomicBoolean riskCompensationManaged = new AtomicBoolean(false);
+        try {
+            target = persistPreparedFacts(plan, riskCompensationManaged);
+        } catch (RuntimeException exception) {
+            // 事务同步负责已注册预占的回滚；仅事务尚未启动或注册前失败时由外层直接补偿。
+            if (!riskCompensationManaged.get()) {
+                cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "payment preparation persistence failed");
+            }
+            throw exception;
         }
-        // 只有已形成终态或确实准备调用渠道时才创建交易事件，纯重复回放不会产生新事件。
-        if (isTerminal(resultDTO) || callChannel) {
-            saveTransactionCreatedEvent(commandDTO, resultDTO);
+        if (target.isDuplicate()) {
+            // Redis 锁失效或并发穿透时数据库唯一约束仍可能判定重复，新生成交易号对应的预占必须释放。
+            cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "duplicate payment preparation");
+            return target;
         }
-        if (isTerminal(resultDTO)) {
-            lifecycleEventService.saveStatusChanged(
-                    resultDTO.getTransactionId(),
-                    resultDTO.getOperationId(),
-                    commandDTO.getMerchantId(),
-                    commandDTO.getMerchantOrderNo(),
-                    resultDTO.getTransactionType(),
-                    resultDTO.getStatus(),
-                    commandDTO.getTransactionDateTime());
-        }
-        // 最后写入可重放结果；事务提交前任何异常都会连同全部准备事实一起回滚。
-        completeIdempotency(idempotencyKey, merchantOrderFlowKey, commandDTO, resultDTO);
-        log.info("支付首次交易本地准备结束, event: PAYMENT_LOCAL_PREPARE_END, stage: LOCAL_PREPARE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, platformStatus: {}, riskDecision: {}, callChannel: {}, channelCode: {}, channelMidId: {}, durationMs: {}",
+        log.info("支付首次交易本地准备结束, event: PAYMENT_LOCAL_PREPARE_END, stage: LOCAL_PREPARE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, platformStatus: {}, riskDecision: {}, callChannel: {}, channelCode: {}, channelMidId: {}, persistenceDurationMs: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -446,18 +443,161 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 callChannel,
                 routeResultDTO == null ? null : routeResultDTO.getChannelCode(),
                 routeResultDTO == null ? null : routeResultDTO.getMidConfigId(),
+                elapsedMillis(persistenceStartNanos),
                 elapsedMillis(startNanos));
-
-        PaymentInitialPreparationResultDTO target = new PaymentInitialPreparationResultDTO();
-        target.setCallChannel(callChannel);
-        target.setIdempotencyKey(idempotencyKey);
-        target.setCommandDTO(commandDTO);
-        target.setRouteResultDTO(routeResultDTO);
-        target.setPreparedChannelRequestDTO(preparedInvokeResultDTO == null ? null : toPreparedChannelRequest(preparedInvokeResultDTO));
-        target.setResultDTO(resultDTO);
-        target.setRiskDecisionEnum(riskDecisionEnum);
-        target.setCurrencyExponent(currencyExponent);
         return target;
+    }
+
+    /**
+     * 在短事务内原子提交幂等、交易、渠道 INIT、汇率使用和生命周期事件。
+     */
+    private PaymentInitialPreparationResultDTO persistPreparedFacts(InitialPreparationPlan plan,
+                                                                    AtomicBoolean riskCompensationManaged) {
+        if (transactionOperations == null) {
+            // 仅兼容现有直接构造的单元测试；Spring 生产构造器始终注入真实事务管理器。
+            return persistPreparedFactsInTransaction(plan, riskCompensationManaged);
+        }
+        return transactionOperations.execute(status ->
+                persistPreparedFactsInTransaction(plan, riskCompensationManaged));
+    }
+
+    /**
+     * 执行首次交易准备事实写入；调用方必须已经建立 transaction 数据源本地事务。
+     */
+    private PaymentInitialPreparationResultDTO persistPreparedFactsInTransaction(
+            InitialPreparationPlan plan,
+            AtomicBoolean riskCompensationManaged) {
+        PaymentCreateCommandDTO commandDTO = plan.commandDTO();
+        LocalDateTime now = LocalDateTime.now();
+        TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
+                TRANSACTION_OPERATION_SCOPE,
+                plan.idempotencyKey(),
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                commandDTO.getMerchantOrderId(),
+                plan.transactionType(),
+                commandDTO.getTransactionDateTime(),
+                DEFAULT_TIME_ZONE,
+                commandDTO.getRequestFingerprint(),
+                now);
+        // 数据库唯一约束是并发请求的最终保护；重复请求不得写入第二套交易事实。
+        if (!transactionIdempotencyService.tryBegin(beginRecord)) {
+            log.warn("支付幂等占位冲突, event: PAYMENT_IDEMPOTENCY_BEGIN_CONFLICT, stage: IDEMPOTENCY_BEGIN, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, idempotencyKey: {}, requestFingerprint: {}",
+                    TraceContext.getTraceId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    plan.transactionType(),
+                    plan.idempotencyKey(),
+                    commandDTO.getRequestFingerprint());
+            return resolveDuplicate(commandDTO, plan.idempotencyKey(), plan.transactionType());
+        }
+        // 远程风控已在事务外完成；从此处起，任一写入回滚都同步撤销对应累计限额预占。
+        // register 在同步不可用时会先自行撤销再抛错，因此调用前即把预占交给补偿器管理。
+        riskCompensationManaged.set(true);
+        riskReservationCompensation.register(commandDTO, plan.riskDecisionDTO());
+        acquireMerchantOrderFlow(commandDTO, plan.transactionType(), plan.merchantOrderFlowKey(), now);
+        log.info("支付幂等占位成功, event: PAYMENT_IDEMPOTENCY_BEGIN_OK, stage: IDEMPOTENCY_BEGIN, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                plan.transactionType(),
+                plan.idempotencyKey());
+        transactionRecordService.recordInitialTransaction(
+                commandDTO,
+                plan.routeResultDTO(),
+                plan.preparedInvokeResultDTO(),
+                plan.resultDTO(),
+                plan.riskDecisionEnum(),
+                plan.currencyExponent());
+        if (plan.conversionOutcome().appliedRate() != null) {
+            PaymentExchangeRateDTO appliedRate = plan.conversionOutcome().appliedRate();
+            String calculationDescription = StringUtils.hasText(appliedRate.getAdjustDescription())
+                    ? appliedRate.getAdjustDescription()
+                    : "transactionAmount = labelAmount * transactionRate; targetCurrencyExponent="
+                    + plan.currencyExponent();
+            TransactionRateUsageOutboxSupport.save(
+                    transactionEventOutboxService,
+                    commandDTO,
+                    plan.resultDTO(),
+                    appliedRate,
+                    plan.conversionOutcome().appliedTime(),
+                    calculationDescription);
+        }
+        if (isTerminal(plan.resultDTO()) || plan.callChannel()) {
+            saveTransactionCreatedEvent(commandDTO, plan.resultDTO());
+        }
+        if (isTerminal(plan.resultDTO())) {
+            lifecycleEventService.saveStatusChanged(
+                    plan.resultDTO().getTransactionId(),
+                    plan.resultDTO().getOperationId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    plan.resultDTO().getTransactionType(),
+                    plan.resultDTO().getStatus(),
+                    commandDTO.getTransactionDateTime());
+        }
+        completeIdempotency(
+                plan.idempotencyKey(),
+                plan.merchantOrderFlowKey(),
+                commandDTO,
+                plan.resultDTO());
+        return preparationResult(plan);
+    }
+
+    /**
+     * 将已原子提交的准备计划转换为渠道提交上下文。
+     */
+    private PaymentInitialPreparationResultDTO preparationResult(InitialPreparationPlan plan) {
+        PaymentInitialPreparationResultDTO target = new PaymentInitialPreparationResultDTO();
+        target.setCallChannel(plan.callChannel());
+        target.setIdempotencyKey(plan.idempotencyKey());
+        target.setCommandDTO(plan.commandDTO());
+        target.setRouteResultDTO(plan.routeResultDTO());
+        target.setPreparedChannelRequestDTO(plan.preparedInvokeResultDTO() == null
+                ? null : toPreparedChannelRequest(plan.preparedInvokeResultDTO()));
+        target.setResultDTO(plan.resultDTO());
+        target.setRiskDecisionEnum(plan.riskDecisionEnum());
+        target.setCurrencyExponent(plan.currencyExponent());
+        return target;
+    }
+
+    /**
+     * 尽力撤销未形成支付事实的风控累计限额预占；失败时由 Risk 对账任务继续收敛。
+     */
+    private void cancelRiskReservationSafely(PaymentCreateCommandDTO commandDTO,
+                                             PaymentRiskDecisionDTO decisionDTO,
+                                             String reason) {
+        if (decisionDTO == null || !decisionDTO.isMerchantLimitReserved()) {
+            return;
+        }
+        try {
+            paymentRiskInvokeService.cancelMerchantLimitReservation(commandDTO, decisionDTO, reason);
+        } catch (RuntimeException exception) {
+            log.error("支付准备阶段风控预占撤销失败, event: PAYMENT_RISK_RESERVATION_CANCEL_FAILED, stage: RISK_COMPENSATION, traceId: {}, transactionId: {}, riskRecordNo: {}, reason: {}, exceptionType: {}",
+                    TraceContext.getTraceId(),
+                    commandDTO == null ? null : commandDTO.getTransactionId(),
+                    decisionDTO.getRiskRecordNo(),
+                    reason,
+                    exception.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * 首次交易的事务外计算结果；对象只在同一请求线程内传递，提交后不再修改。
+     */
+    private record InitialPreparationPlan(
+            PaymentCreateCommandDTO commandDTO,
+            String transactionType,
+            String idempotencyKey,
+            String merchantOrderFlowKey,
+            PaymentRouteResultDTO routeResultDTO,
+            PaymentChannelInvokeResultDTO preparedInvokeResultDTO,
+            PaymentCreateResultDTO resultDTO,
+            PaymentRiskDecisionDTO riskDecisionDTO,
+            PaymentRiskDecisionEnum riskDecisionEnum,
+            CurrencyConversionOutcome conversionOutcome,
+            boolean callChannel,
+            int currencyExponent) {
     }
 
     /**
@@ -518,11 +658,13 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      * 解析首次支付幂等命中结果，同时核对商户订单流和操作级请求指纹。
      * <p>指纹不同或原请求仍在处理中必须拒绝，禁止把相同商户订单号用于不同金额、币种或支付工具。</p>
      */
-    private PaymentInitialPreparationResultDTO resolveDuplicate(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
+    private PaymentInitialPreparationResultDTO resolveDuplicate(PaymentCreateCommandDTO commandDTO,
+                                                                String idempotencyKey,
+                                                                String transactionType) {
         TransactionIdempotencyDO existing = transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                         "transaction idempotency conflict record is missing"));
-        commandDTO.setRequestFingerprint(canonicalRequestFingerprint(commandDTO, commandDTO.getTransactionType()));
+        commandDTO.setRequestFingerprint(canonicalRequestFingerprint(commandDTO, transactionType));
         if (StringUtils.hasText(existing.getRequestFingerprint())
                 && !Objects.equals(existing.getRequestFingerprint(), commandDTO.getRequestFingerprint())) {
             log.warn("支付重复请求内容冲突, event: PAYMENT_IDEMPOTENCY_CONFLICT, stage: IDEMPOTENCY_DUPLICATE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, idempotencyKey: {}",

@@ -14,6 +14,7 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.ExchangeRateUsageMessage;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
+import com.scott.payment.payment.config.RefundManagementProperties;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -39,6 +40,8 @@ import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.RefundChannelResultTransactionService;
+import com.scott.payment.payment.service.RefundApprovalPolicyService;
+import com.scott.payment.payment.service.RefundScopeService;
 import com.scott.payment.payment.service.RefundTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
@@ -61,6 +64,10 @@ import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -2539,6 +2546,189 @@ class PaymentTransactionConsistencyBaselineTests {
                 .contains(Exception.class);
     }
 
+    /**
+     * S4-02：请款、退款、撤销和增量授权必须先在事务外规划，再在同一短事务内锁单并写入事实。
+     */
+    @Test
+    void shouldKeepFollowUpPlanningOutsideAndFactsInsideShortTransactions() {
+        RecordingTransactionManager transactionManager = new RecordingTransactionManager();
+        PaymentChannelRouteService routeService = transactionAwareRouteService();
+
+        TransactionBoundaryRecordService captureRecordService = new TransactionBoundaryRecordService();
+        CapturePreparationResultDTO captureResult = new DefaultCaptureTransactionPreparationService(
+                isoDictionaryService(),
+                routeService,
+                new TransactionBoundaryIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                exchangeRateService(),
+                captureRecordService,
+                new DefaultTransactionStateMachineService(),
+                transactionManager).prepareCapture(
+                followUpCommand("CAPTURE-SHORT-TX", new BigDecimal("5.00")),
+                "capture-short-transaction");
+
+        TransactionBoundaryRecordService refundRecordService = new TransactionBoundaryRecordService();
+        CapturingTransactionRecordService refundFacts = refundRecordService;
+        refundFacts.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        refundFacts.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        RefundPreparationResultDTO refundResult = new DefaultRefundTransactionPreparationService(
+                isoDictionaryService(),
+                routeService,
+                new TransactionBoundaryIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                refundRecordService,
+                new DefaultTransactionStateMachineService(),
+                new RefundScopeService(),
+                new RefundApprovalPolicyService(new RefundManagementProperties()),
+                null,
+                transactionManager).prepareRefund(
+                followUpCommand("REFUND-SHORT-TX", new BigDecimal("5.00")),
+                "refund-short-transaction");
+
+        TransactionBoundaryRecordService voidRecordService = new TransactionBoundaryRecordService();
+        VoidPreparationResultDTO voidResult = new DefaultVoidTransactionPreparationService(
+                isoDictionaryService(),
+                routeService,
+                new TransactionBoundaryIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                voidRecordService,
+                new DefaultTransactionStateMachineService(),
+                transactionManager).prepareVoid(
+                voidCommand("VOID-SHORT-TX"),
+                "void-short-transaction");
+
+        TransactionBoundaryRecordService incrementalRecordService = new TransactionBoundaryRecordService();
+        IncrementalAuthorizationPreparationResultDTO incrementalResult =
+                new DefaultIncrementalAuthorizationTransactionPreparationService(
+                        isoDictionaryService(),
+                        routeService,
+                        new TransactionBoundaryIdempotencyService(),
+                        new CapturingTransactionEventOutboxService(),
+                        exchangeRateService(),
+                        incrementalRecordService,
+                        new DefaultTransactionStateMachineService(),
+                        transactionManager).prepareIncrementalAuthorization(
+                        followUpCommand("INCREMENTAL-SHORT-TX", new BigDecimal("3.00")),
+                        "incremental-short-transaction");
+
+        assertThat(Stream.of(captureResult.isCallChannel(), refundResult.isCallChannel(),
+                        voidResult.isCallChannel(), incrementalResult.isCallChannel()))
+                .allMatch(Boolean::booleanValue);
+        assertThat(transactionManager.beginCount).isEqualTo(4);
+        assertThat(transactionManager.commitCount).isEqualTo(4);
+        assertThat(transactionManager.rollbackCount).isZero();
+    }
+
+    /**
+     * S4-03：准备事实任一写入失败时，主单锁短事务必须整体回滚且不得返回可调用渠道的结果。
+     */
+    @Test
+    void shouldRollbackFollowUpShortTransactionWhenPersistenceFails() {
+        RecordingTransactionManager transactionManager = new RecordingTransactionManager();
+        TransactionBoundaryRecordService recordService = new TransactionBoundaryRecordService();
+        recordService.failFollowUpRecord = true;
+        DefaultCaptureTransactionPreparationService service = new DefaultCaptureTransactionPreparationService(
+                isoDictionaryService(),
+                transactionAwareRouteService(),
+                new TransactionBoundaryIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                exchangeRateService(),
+                recordService,
+                new DefaultTransactionStateMachineService(),
+                transactionManager);
+
+        assertThatThrownBy(() -> service.prepareCapture(
+                followUpCommand("CAPTURE-ROLLBACK", new BigDecimal("5.00")),
+                "capture-rollback"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("follow-up fact persistence failed");
+        assertThat(transactionManager.commitCount).isZero();
+        assertThat(transactionManager.rollbackCount).isEqualTo(1);
+    }
+
+    /**
+     * S4-04：事务外路由和汇率规划失败不得覆盖锁内原交易状态校验的既有错误优先级。
+     */
+    @Test
+    void shouldReportIllegalSourceStateBeforeDeferredRouteAndRateFailures() {
+        RecordingTransactionManager transactionManager = new RecordingTransactionManager();
+        TransactionBoundaryRecordService transactionRecordService = new TransactionBoundaryRecordService();
+        CapturingTransactionRecordService recordService = transactionRecordService;
+        recordService.sourceStatus = PaymentTransactionStatusEnum.FAILED.getCode();
+        recordService.sourceLabelCurrency = "AUD";
+        recordService.sourceLabelAmount = new BigDecimal("89.59");
+        recordService.sourceTransactionRate = new BigDecimal("0.70000521");
+        recordService.sourceRateSource = "PLATFORM";
+        recordService.sourceRateTime = LocalDateTime.of(2026, 10, 31, 10, 30);
+        recordService.sourceEdcEnabled = 1;
+        AtomicInteger routeLookupCount = new AtomicInteger();
+        AtomicInteger rateLookupCount = new AtomicInteger();
+        PaymentChannelRouteService failingRouteService = new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("follow-up action must not reroute");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                routeLookupCount.incrementAndGet();
+                throw new IllegalStateException("deferred route lookup failed");
+            }
+        };
+        PaymentExchangeRateService failingRateService = (baseCurrency, quoteCurrency, atTime) -> {
+            rateLookupCount.incrementAndGet();
+            throw new IllegalStateException("deferred rate lookup failed");
+        };
+        DefaultCaptureTransactionPreparationService service = new DefaultCaptureTransactionPreparationService(
+                isoDictionaryService(),
+                failingRouteService,
+                new TransactionBoundaryIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                failingRateService,
+                transactionRecordService,
+                new DefaultTransactionStateMachineService(),
+                transactionManager);
+        PaymentCreateCommandDTO commandDTO = followUpCommand(
+                "CAPTURE-INVALID-SOURCE", new BigDecimal("5.00"));
+        commandDTO.setCurrency("AUD");
+
+        assertThatThrownBy(() -> service.prepareCapture(
+                commandDTO,
+                "capture-invalid-source"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("source transaction status does not allow follow-up action");
+        assertThat(routeLookupCount).hasValue(1);
+        assertThat(rateLookupCount).hasValue(1);
+        assertThat(recordService.followUpRecordCount).isZero();
+        assertThat(transactionManager.commitCount).isZero();
+        assertThat(transactionManager.rollbackCount).isEqualTo(1);
+    }
+
+    /**
+     * 构造会断言路由恢复未进入本地事务的原交易路由服务。
+     */
+    private PaymentChannelRouteService transactionAwareRouteService() {
+        PaymentChannelRouteService delegate = restoreRouteService();
+        return new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("follow-up action must not reroute");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+                return delegate.restore(channelCode, channelId, midConfigId, fallbackMidNo);
+            }
+        };
+    }
+
     private void runAfterStart(CountDownLatch ready,
                                CountDownLatch start,
                                Runnable action,
@@ -3217,6 +3407,97 @@ class PaymentTransactionConsistencyBaselineTests {
             record.setTransactionUtcTime(transactionDateTime);
             record.setRequestFingerprint(requestFingerprint);
             return record;
+        }
+    }
+
+    /**
+     * 断言幂等占位与完成写入均发生在主单锁短事务内。
+     */
+    private static final class TransactionBoundaryIdempotencyService
+            extends InMemoryTransactionIdempotencyService {
+
+        @Override
+        public synchronized boolean tryBegin(TransactionIdempotencyDO record) {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isTrue();
+            return super.tryBegin(record);
+        }
+
+        @Override
+        public TransactionIdempotencyDO newProcessingRecord(String scope,
+                                                            String key,
+                                                            String merchantId,
+                                                            String merchantOrderNo,
+                                                            String merchantOrderId,
+                                                            String transactionType,
+                                                            LocalDateTime transactionDateTime,
+                                                            String timeZone,
+                                                            String requestFingerprint,
+                                                            LocalDateTime now) {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isTrue();
+            return super.newProcessingRecord(
+                    scope,
+                    key,
+                    merchantId,
+                    merchantOrderNo,
+                    merchantOrderId,
+                    transactionType,
+                    transactionDateTime,
+                    timeZone,
+                    requestFingerprint,
+                    now);
+        }
+
+        @Override
+        public synchronized void complete(String scope,
+                                          String key,
+                                          String operationId,
+                                          String transactionId,
+                                          String transactionStatus,
+                                          BigDecimal transactionAmount,
+                                          String transactionCurrency,
+                                          String resultSnapshot) {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isTrue();
+            super.complete(
+                    scope,
+                    key,
+                    operationId,
+                    transactionId,
+                    transactionStatus,
+                    transactionAmount,
+                    transactionCurrency,
+                    resultSnapshot);
+        }
+    }
+
+    /**
+     * 最小本地事务管理器，用于验证后续资金动作短事务的提交与回滚次数。
+     */
+    private static final class RecordingTransactionManager extends AbstractPlatformTransactionManager {
+
+        private int beginCount;
+
+        private int commitCount;
+
+        private int rollbackCount;
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+            beginCount++;
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {
+            commitCount++;
+        }
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {
+            rollbackCount++;
         }
     }
 
@@ -3949,6 +4230,50 @@ class PaymentTransactionConsistencyBaselineTests {
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
             return false;
+        }
+    }
+
+    /**
+     * 验证普通原单/原动作读取在事务外，而行锁和后续动作事实写入在短事务内。
+     */
+    private static final class TransactionBoundaryRecordService extends CapturingTransactionRecordService {
+
+        private boolean lockRead;
+
+        private boolean failFollowUpRecord;
+
+        @Override
+        public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isEqualTo(lockRead);
+            return super.findSourceOrderByTransactionId(sourceTransactionId);
+        }
+
+        @Override
+        public TransactionOperationDO findSourceOperationByTransactionId(
+                String sourceTransactionId,
+                LocalDateTime sourceTransactionDateTime) {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+            return super.findSourceOperationByTransactionId(sourceTransactionId);
+        }
+
+        @Override
+        public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isTrue();
+            lockRead = true;
+            try {
+                return super.lockOrder(transactionDateTime, operationId);
+            } finally {
+                lockRead = false;
+            }
+        }
+
+        @Override
+        public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isTrue();
+            if (failFollowUpRecord) {
+                throw new IllegalStateException("follow-up fact persistence failed");
+            }
+            super.recordFollowUpTransaction(recordDTO);
         }
     }
 

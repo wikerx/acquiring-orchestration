@@ -77,7 +77,8 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         Principal principal;
         Money labelAmount;
         try {
-            principal = principal(command.operation());
+            Money transactionAmount = transactionAmount(command.operation());
+            principal = principal(command.operation(), transactionAmount);
             labelAmount = labelAmount(command.operation());
         } catch (IllegalArgumentException exception) {
             throw controlledFailure(ClearingFailureCodeEnum.AMOUNT_INVALID, exception);
@@ -166,7 +167,7 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
     /**
      * 按终态交易类型确定本金方向，并优先采用渠道批准金额作为本金事实。
      */
-    private Principal principal(ClearingOperationFacts operation) {
+    private Principal principal(ClearingOperationFacts operation, Money transactionAmount) {
         if (!"SUCCESS".equals(operation.transactionStatus())) {
             return null;
         }
@@ -180,7 +181,7 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         }
         Money amount = approvedAmount(operation);
         if (amount == null) {
-            amount = transactionAmount(operation);
+            amount = transactionAmount;
         }
         if (amount == null || amount.amount().signum() < 0) {
             throw new IllegalArgumentException("successful principal action requires a non-negative approved amount");
@@ -199,7 +200,12 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
      * 将数据库权威交易金额转换为带 ISO exponent 的精确金额。
      */
     private Money transactionAmount(ClearingOperationFacts operation) {
-        return money(operation.transactionAmount(), operation.transactionCurrency(), "transaction amount");
+        Money transaction = money(
+                operation.transactionAmount(), operation.transactionCurrency(), "transaction amount");
+        if (transaction != null && !Objects.equals(transaction.exponent(), operation.currencyExponent())) {
+            throw new IllegalArgumentException("stored transaction currency exponent does not match ISO currency");
+        }
+        return transaction;
     }
 
     /**
@@ -208,10 +214,7 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
     private Money labelAmount(ClearingOperationFacts operation) {
         Money label = money(operation.labelAmount(), operation.labelCurrency(), "label amount");
         if (label == null || label.amount().signum() < 0) {
-            throw new IllegalArgumentException("clearing label amount, currency and exponent are required");
-        }
-        if (!Objects.equals(label.exponent(), operation.currencyExponent())) {
-            throw new IllegalArgumentException("stored label currency exponent does not match ISO currency");
+            throw new IllegalArgumentException("clearing label amount and currency are required");
         }
         return label;
     }

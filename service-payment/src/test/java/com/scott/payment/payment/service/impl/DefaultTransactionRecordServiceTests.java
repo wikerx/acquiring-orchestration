@@ -55,6 +55,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -371,6 +372,7 @@ class DefaultTransactionRecordServiceTests {
                 mock(MerchantNotificationInitialDeliveryService.class);
         LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
         TransactionMerchantNotificationDO pendingNotification = new TransactionMerchantNotificationDO();
+        pendingNotification.setId(97L);
         when(operationMapper.completeStatus(any(), any(), any(), anyString(), anyString(), any(), any(),
                 any(), any(), any(), any(), any(), any(), anyString())).thenReturn(1);
         when(orderMapper.markInitialSuccess(anyString(), any(), anyString(), any(BigDecimal.class), any(), anyString()))
@@ -381,7 +383,7 @@ class DefaultTransactionRecordServiceTests {
                 "TX202607010030000000001", transactionDateTime, 0))
                 .thenReturn(pendingNotification);
         when(notificationMapper.activateByTransactionId(
-                anyString(), any(), any(), anyString(), anyString(), any(), any()))
+                any(), anyString(), any(), any(), anyString(), anyString(), any(), any()))
                 .thenReturn(1);
         ArgumentCaptor<String> callbackPayloadCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> notificationAuditPayloadCaptor = ArgumentCaptor.forClass(String.class);
@@ -439,6 +441,7 @@ class DefaultTransactionRecordServiceTests {
                 0,
                 "MATCHED");
         verify(notificationMapper).activateByTransactionId(
+                eq(97L),
                 eq("TX202607010030000000001"),
                 eq(transactionDateTime),
                 eq(0),
@@ -1088,7 +1091,7 @@ class DefaultTransactionRecordServiceTests {
         assertThat(flowEventCaptor.getValue().getEventType()).isEqualTo("CHANNEL_CALLBACK_PROCESSED");
         assertThat(flowEventCaptor.getValue().getEventStage()).isEqualTo("CHANNEL");
         verify(notificationMapper).activateByTransactionId(
-                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                isNull(), anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
                 any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
@@ -1109,7 +1112,7 @@ class DefaultTransactionRecordServiceTests {
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenReturn(1);
         when(notificationMapper.activateByTransactionId(
-                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any()))
+                any(), anyString(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -1146,6 +1149,7 @@ class DefaultTransactionRecordServiceTests {
         verify(orderMapper, never()).completeStatus(anyString(), any(LocalDateTime.class), anyString(),
                 any(), anyString(), anyString(), any(), any(), any(), any(), anyString());
         verify(notificationMapper).activateByTransactionId(
+                isNull(),
                 eq("RF202610250001"),
                 eq(refund.getTransactionDateTime()),
                 eq(0),
@@ -1203,7 +1207,7 @@ class DefaultTransactionRecordServiceTests {
                 "Approved"))
                 .hasMessageContaining("order state has changed");
         verify(notificationMapper, never()).activateByTransactionId(
-                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any());
+                any(), anyString(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any());
     }
 
     /**
@@ -1320,7 +1324,7 @@ class DefaultTransactionRecordServiceTests {
         verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertLogical(any(TransactionFlowEventDO.class));
         verify(notificationMapper).activateByTransactionId(
-                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                isNull(), anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
                 any(LocalDateTime.class), any(LocalDateTime.class));
         verify(merchantApiLogMapper).updateFinalResultLogical(
                 eq("202607010030000000001"),

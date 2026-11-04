@@ -16,6 +16,7 @@ import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.service.ClearingProjectionService;
 import com.scott.payment.clearing.service.ClearingAnomalyService;
 import com.scott.payment.clearing.service.ClearingRecoveryService;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -32,7 +33,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Objects;
@@ -295,7 +295,7 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         message.setExpectedClearingRevision(revision);
         message.setClearingRetryCount(retryCount);
         message.setRetryReasonCode(FAILURE_CODE);
-        message.setDeliverAt(deliverAt.toInstant(ZoneOffset.UTC));
+        message.setDeliverAt(ClearingTimeSupport.toInstant(deliverAt));
 
         ClearingTransactionEventOutboxDO outbox = new ClearingTransactionEventOutboxDO();
         outbox.setEventNo(eventNo);
@@ -312,7 +312,8 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         outbox.setTag(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
         outbox.setMessageKey(eventNo);
         outbox.setDeliveryMode("SCHEDULED");
-        outbox.setDeliverAt(deliverAt);
+        // 共享交易 Outbox 的 deliver_at 按 UTC 墙钟值持久化，Relay 才能还原同一绝对投递时刻。
+        outbox.setDeliverAt(ClearingTimeSupport.toUtcLocalDateTime(deliverAt));
         outbox.setPayloadJson(JsonUtils.toJsonString(message));
         outbox.setRetryCount(0);
         outbox.setMaxRetryCount(OUTBOX_MAX_RETRY_COUNT);
