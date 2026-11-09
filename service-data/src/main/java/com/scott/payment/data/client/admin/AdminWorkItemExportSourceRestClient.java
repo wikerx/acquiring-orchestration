@@ -10,8 +10,16 @@ import com.scott.payment.data.client.admin.dto.AdminWorkItemExportSourceDTOs.Pag
 import com.scott.payment.data.client.admin.dto.AdminWorkItemExportSourceDTOs.PageResponse;
 import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.OrderPageRequest;
 import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.OrderPageResponse;
+import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.OperationPageRequest;
+import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.OperationPageResponse;
+import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.MerchantNotificationPageRequest;
+import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.MerchantNotificationPageResponse;
 import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.RefundPageRequest;
 import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.RefundPageResponse;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementReservePageRequest;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementReservePageResponse;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementTransactionPageRequest;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementTransactionPageResponse;
 import com.scott.payment.data.config.export.DataAdminClientProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -34,10 +42,18 @@ import java.util.regex.Pattern;
 @Slf4j
 @Service
 public class AdminWorkItemExportSourceRestClient
-        implements AdminWorkItemExportSourceClient, AdminTransactionExportSourceClient {
+        implements AdminWorkItemExportSourceClient, AdminTransactionExportSourceClient,
+        AdminSettlementExportSourceClient {
     private static final String WORK_ITEM_PATH = "/internal/admin/operations/work-items/export-page";
     private static final String ORDER_PATH = "/internal/admin/transactions/orders/export-page";
+    private static final String OPERATION_PATH = "/internal/admin/transactions/operations/export-page";
+    private static final String MERCHANT_NOTIFICATION_PATH =
+            "/internal/admin/transactions/merchant-notifications/export-page";
     private static final String REFUND_PATH = "/internal/admin/transactions/refunds/export-page";
+    private static final String SETTLEMENT_TRANSACTION_PATH =
+            "/internal/admin/settlement/result-items/export-page";
+    private static final String SETTLEMENT_RESERVE_PATH =
+            "/internal/admin/settlement/reserve-items/export-page";
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
     private final RestTemplate direct;
     private final RestTemplate loadBalanced;
@@ -72,11 +88,50 @@ public class AdminWorkItemExportSourceRestClient
     }
 
     /**
+     * 请求一页交易操作流水，网络和鉴权失败统一映射为可重试的网关错误。
+     */
+    @Override
+    public OperationPageResponse loadOperationPage(OperationPageRequest request) {
+        return post(OPERATION_PATH, request,
+                new TypeReference<CommonResult<OperationPageResponse>>() { });
+    }
+
+    /**
+     * 请求一页商户通知记录，网络和鉴权失败统一映射为可重试的网关错误。
+     */
+    @Override
+    public MerchantNotificationPageResponse loadMerchantNotificationPage(
+            MerchantNotificationPageRequest request) {
+        return post(MERCHANT_NOTIFICATION_PATH, request,
+                new TypeReference<CommonResult<MerchantNotificationPageResponse>>() { });
+    }
+
+    /**
      * 请求一页退款记录，网络和鉴权失败统一映射为可重试的网关错误。
      */
     @Override
     public RefundPageResponse loadRefundPage(RefundPageRequest request) {
         return post(REFUND_PATH, request, new TypeReference<CommonResult<RefundPageResponse>>() { });
+    }
+
+    /**
+     * 请求一页结算交易明细，网络和鉴权失败统一映射为可重试的网关错误。
+     */
+    @Override
+    public SettlementTransactionPageResponse loadSettlementTransactionPage(
+            SettlementTransactionPageRequest request) {
+        return post(SETTLEMENT_TRANSACTION_PATH, request,
+                new TypeReference<CommonResult<SettlementTransactionPageResponse>>() { });
+    }
+
+    /**
+     * 请求一页保证金结算明细，网络和鉴权失败统一映射为可重试的网关错误。
+     */
+    @Override
+    public SettlementReservePageResponse loadSettlementReservePage(
+            SettlementReservePageRequest request) {
+        return post(SETTLEMENT_RESERVE_PATH, request,
+                new TypeReference<CommonResult<SettlementReservePageResponse>>() { });
     }
 
     /**

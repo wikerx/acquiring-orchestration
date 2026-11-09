@@ -2,7 +2,9 @@ package com.scott.payment.admin.api.export;
 
 import com.scott.payment.admin.application.export.AdminExportTaskApplicationService;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RefundSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotificationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOperationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOrderSubmitRequest;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -41,6 +43,30 @@ public class AdminTransactionExportTaskController {
     public CommonResult<TaskSummary> submitOrders(
             @Valid @RequestBody TransactionOrderSubmitRequest request) {
         return success(applicationService.submitTransactionOrders(request));
+    }
+
+    /**
+     * 冻结当前操作人的交易操作查询与数据范围并创建后台任务。
+     */
+    @PostMapping("/operations/export-task")
+    @RequiresPermission("transaction:operation:export")
+    @OperationLog(moduleName = "交易操作流水", businessType = OperationTypeConstants.EXPORT,
+            operation = "创建交易操作流水导出任务")
+    public CommonResult<TaskSummary> submitOperations(
+            @Valid @RequestBody TransactionOperationSubmitRequest request) {
+        return success(applicationService.submitTransactionOperations(request));
+    }
+
+    /**
+     * 冻结当前操作人的商户通知查询与数据范围并创建后台任务。
+     */
+    @PostMapping("/merchant-notifications/export-task")
+    @RequiresPermission("transaction:merchant-notification:export")
+    @OperationLog(moduleName = "商户回调记录", businessType = OperationTypeConstants.EXPORT,
+            operation = "创建商户通知记录导出任务")
+    public CommonResult<TaskSummary> submitMerchantNotifications(
+            @Valid @RequestBody MerchantNotificationSubmitRequest request) {
+        return success(applicationService.submitMerchantNotifications(request));
     }
 
     /**

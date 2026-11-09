@@ -3,6 +3,10 @@ package com.scott.payment.admin.api.internal;
 import com.scott.payment.admin.application.export.AdminTransactionExportSourceApplicationService;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.OrderPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.OrderPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.OperationPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.OperationPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.MerchantNotificationPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.MerchantNotificationPageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundPageResponse;
 import com.scott.payment.component.core.model.CommonResult;
@@ -36,6 +40,24 @@ public class AdminTransactionExportInternalController {
     @PostMapping("/orders/export-page")
     public CommonResult<OrderPageResponse> orderPage(@Valid @RequestBody OrderPageRequest request) {
         return success(applicationService.pageOrders(request));
+    }
+
+    /**
+     * 按冻结范围分页读取交易操作流水安全摘要。
+     */
+    @PostMapping("/operations/export-page")
+    public CommonResult<OperationPageResponse> operationPage(
+            @Valid @RequestBody OperationPageRequest request) {
+        return success(applicationService.pageOperations(request));
+    }
+
+    /**
+     * 按冻结范围分页读取商户通知记录安全摘要。
+     */
+    @PostMapping("/merchant-notifications/export-page")
+    public CommonResult<MerchantNotificationPageResponse> merchantNotificationPage(
+            @Valid @RequestBody MerchantNotificationPageRequest request) {
+        return success(applicationService.pageMerchantNotifications(request));
     }
 
     /**

@@ -63,6 +63,16 @@ public interface AdminTransactionQueryService {
     PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query);
 
     /**
+     * 按异步任务冻结的管理端商户范围分页查询交易操作流水。
+     *
+     * @param query 冻结筛选和内部页码
+     * @param dataScope 任务创建时冻结的商户范围
+     * @return 范围收紧后的交易操作分页
+     */
+    PageResult<TransactionOperationResponse> pageOperationsForExport(
+            TransactionPageQuery query, AdminMerchantDataScope dataScope);
+
+    /**
      * 查询交易动作；筛选条件、分页上限和数据范围由方法参数共同限定。
      * <p>
      * 只读操作；实现必须沿用 运营后台服务 既有权限、数据范围和空结果约定。
@@ -160,6 +170,16 @@ public interface AdminTransactionQueryService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     PageResult<MerchantNotificationResponse> pageMerchantNotifications(MerchantNotificationQuery query);
+
+    /**
+     * 按异步任务冻结的管理端商户范围分页查询商户通知记录。
+     *
+     * @param query 冻结筛选和内部页码
+     * @param dataScope 任务创建时冻结的商户范围
+     * @return 范围收紧后的商户通知分页
+     */
+    PageResult<MerchantNotificationResponse> pageMerchantNotificationsForExport(
+            MerchantNotificationQuery query, AdminMerchantDataScope dataScope);
 
     /**
      * 查询单个商户通知任务快照。

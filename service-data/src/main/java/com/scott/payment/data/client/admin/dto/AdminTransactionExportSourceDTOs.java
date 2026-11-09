@@ -1,6 +1,7 @@
 package com.scott.payment.data.client.admin.dto;
 
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.RefundQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantNotificationQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.TransactionOrderQuery;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -69,6 +70,50 @@ public final class AdminTransactionExportSourceDTOs {
     }
 
     /**
+     * 交易操作流水分页请求，商户范围来自任务创建时冻结的可信快照。
+     */
+    @Data
+    public static class OperationPageRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotNull
+        private Long creatorAccountId;
+        private boolean allMerchants;
+        private Set<String> merchantIds = new LinkedHashSet<>();
+        @Valid
+        @NotNull
+        private TransactionOrderQuery query;
+        @NotNull
+        @Min(1)
+        private Integer pageNo;
+        @NotNull
+        @Min(1)
+        @Max(100)
+        private Integer pageSize;
+    }
+
+    /**
+     * 商户通知记录分页请求，商户范围来自任务创建时冻结的可信快照。
+     */
+    @Data
+    public static class MerchantNotificationPageRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotNull
+        private Long creatorAccountId;
+        private boolean allMerchants;
+        private Set<String> merchantIds = new LinkedHashSet<>();
+        @Valid
+        @NotNull
+        private MerchantNotificationQuery query;
+        @NotNull
+        @Min(1)
+        private Integer pageNo;
+        @NotNull
+        @Min(1)
+        @Max(100)
+        private Integer pageSize;
+    }
+
+    /**
      * 交易主单导出源分页响应。
      */
     @Data
@@ -90,6 +135,30 @@ public final class AdminTransactionExportSourceDTOs {
         private long pageNo;
         private long pageSize;
         private List<RefundRow> records = new ArrayList<>();
+    }
+
+    /**
+     * 交易操作流水导出源分页响应。
+     */
+    @Data
+    public static class OperationPageResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private long total;
+        private long pageNo;
+        private long pageSize;
+        private List<OperationRow> records = new ArrayList<>();
+    }
+
+    /**
+     * 商户通知记录导出源分页响应。
+     */
+    @Data
+    public static class MerchantNotificationPageResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private long total;
+        private long pageNo;
+        private long pageSize;
+        private List<MerchantNotificationRow> records = new ArrayList<>();
     }
 
     /**
@@ -147,5 +216,69 @@ public final class AdminTransactionExportSourceDTOs {
         private String channelOrderNo;
         private LocalDateTime transactionDateTime;
         private LocalDateTime completeTime;
+    }
+
+    /**
+     * 管理端交易操作流水安全导出投影。
+     */
+    @Data
+    public static class OperationRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String transactionId;
+        private String sourceTransactionId;
+        private String merchantId;
+        private String merchantOrderNo;
+        private String merchantOrderId;
+        private String transactionType;
+        private String transactionStatus;
+        private BigDecimal transactionAmount;
+        private String transactionCurrency;
+        private BigDecimal transactionRate;
+        private String merchantResponseCode;
+        private String merchantResponseMessage;
+        private String merchantNotificationStatus;
+        private String paymentMethod;
+        private String paymentBrand;
+        private String cardBin;
+        private String cardNumberMasked;
+        private String channelCode;
+        private String channelOrderNo;
+        private String channelTransactionId;
+        private String channelResponseCode;
+        private String channelResponseMessage;
+        private String authCode;
+        private String acquirerReferenceNo;
+        private String channelMatchStatus;
+        private Integer threeDsEnabled;
+        private Integer dccEnabled;
+        private Integer edcEnabled;
+        private String reconciliationStatus;
+        private String settlementStatus;
+        private LocalDateTime transactionDateTime;
+        private LocalDateTime operationTime;
+    }
+
+    /**
+     * 管理端商户通知记录安全导出投影，不包含地址、载荷和响应正文。
+     */
+    @Data
+    public static class MerchantNotificationRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String notifyId;
+        private String transactionId;
+        private String operationId;
+        private String merchantId;
+        private String merchantOrderNo;
+        private String notifyType;
+        private String eventType;
+        private String notifyStatus;
+        private Integer lastAttemptNo;
+        private Integer maxRetryCount;
+        private LocalDateTime nextRetryTime;
+        private LocalDateTime successTime;
+        private String failReason;
+        private LocalDateTime transactionDateTime;
+        private LocalDateTime createTime;
+        private LocalDateTime updateTime;
     }
 }

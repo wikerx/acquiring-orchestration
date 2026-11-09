@@ -99,6 +99,71 @@ class JdbcAdminTransactionQueryServiceTest {
     }
 
     /**
+     * 异步交易操作导出必须把有限商户集合落实为带操作表别名的 SQL IN 条件。
+     */
+    @Test
+    void operationExportShouldApplyFrozenMerchantScopeInSql() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.now().minusHours(1));
+        query.setEndTime(LocalDateTime.now());
+
+        service.pageOperationsForExport(query, AdminMerchantDataScope.limited(Set.of("M2001", "M2002")));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), params.capture(), eq(Long.class));
+        assertThat(sql.getValue()).contains("o.merchant_id IN (:scopeMerchantIds)");
+        assertThat(params.getValue().getValue("scopeMerchantIds"))
+                .isEqualTo(Set.of("M2001", "M2002"));
+    }
+
+    /**
+     * 异步商户通知导出必须在通知逻辑表查询中落实冻结商户集合。
+     */
+    @Test
+    void merchantNotificationExportShouldApplyFrozenMerchantScopeInSql() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        MerchantNotificationQuery query = new MerchantNotificationQuery();
+        query.setBeginTime(LocalDateTime.now().minusHours(1));
+        query.setEndTime(LocalDateTime.now());
+
+        service.pageMerchantNotificationsForExport(
+                query, AdminMerchantDataScope.limited(Set.of("M3001")));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), params.capture(), eq(Long.class));
+        assertThat(sql.getValue()).contains("merchant_id IN (:scopeMerchantIds)");
+        assertThat(params.getValue().getValue("scopeMerchantIds")).isEqualTo(Set.of("M3001"));
+    }
+
+    /**
+     * 商户通知显式商户号不在冻结范围时必须返回空页且不访问数据库。
+     */
+    @Test
+    void merchantNotificationExportShouldRejectMerchantOutsideFrozenScopeBeforeSql() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        MerchantNotificationQuery query = new MerchantNotificationQuery();
+        query.setMerchantId("M-OUTSIDE");
+        query.setBeginTime(LocalDateTime.now().minusHours(1));
+        query.setEndTime(LocalDateTime.now());
+
+        PageResult<MerchantNotificationResponse> result = service.pageMerchantNotificationsForExport(
+                query, AdminMerchantDataScope.limited(Set.of("M3001")));
+
+        assertThat(result.getTotal()).isZero();
+        verify(jdbcTemplate, never()).queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class));
+    }
+
+    /**
      * F 类描述故障来源而非交易终态，后台筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。
      */
     @Test

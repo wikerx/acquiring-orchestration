@@ -4,12 +4,19 @@ import com.scott.payment.admin.client.data.DataExportTaskInternalClient;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.CreateRequest;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.SearchRequestDTO;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RefundSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotificationSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementTransactionSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOrderSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOperationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.WorkItemSubmitRequest;
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -21,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.i18n.LocaleContextHolder;
 
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Set;
 
@@ -151,6 +159,113 @@ class AdminExportTaskApplicationServiceTest {
         assertThat(refundCommand.getTaskType()).isEqualTo("ADMIN_REFUND");
         assertThat(refundCommand.getRefundQuery().getRefundTransactionId()).isEqualTo("RFD-2001");
         assertThat(refundCommand.getMerchantIds()).containsExactly("M2001");
+    }
+
+    /**
+     * 交易操作与商户通知提交必须分别冻结正确的强类型查询，不能携带页面分页参数。
+     */
+    @Test
+    void shouldFreezeOperationAndMerchantNotificationQueriesWithTrustedScope() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.limited(Set.of("M3001")));
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        TransactionPageQuery operationQuery = new TransactionPageQuery();
+        operationQuery.setTransactionId("TXN-3001");
+        operationQuery.setPageNo(6);
+        operationQuery.setPageSize(100);
+        TransactionOperationSubmitRequest operationRequest = new TransactionOperationSubmitRequest();
+        operationRequest.setRequestId("operation-export-1");
+        operationRequest.setQuery(operationQuery);
+        service.submitTransactionOperations(operationRequest);
+
+        MerchantNotificationQuery notificationQuery = new MerchantNotificationQuery();
+        notificationQuery.setTransactionId("TXN-3002");
+        notificationQuery.setNotifyStatus("FAILED");
+        notificationQuery.setPageNo(4);
+        notificationQuery.setPageSize(50);
+        MerchantNotificationSubmitRequest notificationRequest = new MerchantNotificationSubmitRequest();
+        notificationRequest.setRequestId("notification-export-1");
+        notificationRequest.setQuery(notificationQuery);
+        service.submitMerchantNotifications(notificationRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(2)).submit(captor.capture());
+        CreateRequest operationCommand = captor.getAllValues().get(0);
+        CreateRequest notificationCommand = captor.getAllValues().get(1);
+        assertThat(operationCommand.getTaskType()).isEqualTo("ADMIN_TRANSACTION_OPERATION");
+        assertThat(operationCommand.getTransactionOperationQuery().getTransactionId()).isEqualTo("TXN-3001");
+        assertThat(operationCommand.getMerchantIds()).containsExactly("M3001");
+        assertThat(java.util.Arrays.stream(operationCommand.getTransactionOperationQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+        assertThat(notificationCommand.getTaskType()).isEqualTo("ADMIN_MERCHANT_NOTIFICATION");
+        assertThat(notificationCommand.getMerchantNotificationQuery().getTransactionId()).isEqualTo("TXN-3002");
+        assertThat(notificationCommand.getMerchantNotificationQuery().getNotifyStatus()).isEqualTo("FAILED");
+        assertThat(notificationCommand.getMerchantIds()).containsExactly("M3001");
+        assertThat(java.util.Arrays.stream(notificationCommand.getMerchantNotificationQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+    }
+
+    /**
+     * 两类结算明细任务必须冻结财务查询和可信商户范围，不能携带页面分页参数。
+     */
+    @Test
+    void shouldFreezeSettlementQueriesWithTrustedScope() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.limited(Set.of("M4001")));
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        ResultItemSearchRequest transactionQuery = new ResultItemSearchRequest();
+        transactionQuery.setSettlementBatchNo("STB4001");
+        transactionQuery.setBeginBusinessDate(LocalDate.of(2026, 11, 1));
+        transactionQuery.setEndBusinessDate(LocalDate.of(2026, 11, 9));
+        transactionQuery.setPageNo(7);
+        transactionQuery.setPageSize(100);
+        SettlementTransactionSubmitRequest transactionRequest = new SettlementTransactionSubmitRequest();
+        transactionRequest.setRequestId("settlement-transaction-export-1");
+        transactionRequest.setQuery(transactionQuery);
+        service.submitSettlementTransactions(transactionRequest);
+
+        ReserveItemSearchRequest reserveQuery = new ReserveItemSearchRequest();
+        reserveQuery.setReserveNo("RSV4001");
+        reserveQuery.setCurrency("USD");
+        reserveQuery.setBeginBusinessDate(LocalDate.of(2026, 11, 1));
+        reserveQuery.setEndBusinessDate(LocalDate.of(2026, 11, 9));
+        reserveQuery.setPageNo(4);
+        reserveQuery.setPageSize(50);
+        SettlementReserveSubmitRequest reserveRequest = new SettlementReserveSubmitRequest();
+        reserveRequest.setRequestId("settlement-reserve-export-1");
+        reserveRequest.setQuery(reserveQuery);
+        service.submitSettlementReserves(reserveRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(2)).submit(captor.capture());
+        CreateRequest transactionCommand = captor.getAllValues().get(0);
+        CreateRequest reserveCommand = captor.getAllValues().get(1);
+        assertThat(transactionCommand.getTaskType()).isEqualTo("ADMIN_SETTLEMENT_TRANSACTION");
+        assertThat(transactionCommand.getSettlementTransactionQuery().getSettlementBatchNo())
+                .isEqualTo("STB4001");
+        assertThat(transactionCommand.getMerchantIds()).containsExactly("M4001");
+        assertThat(java.util.Arrays.stream(transactionCommand.getSettlementTransactionQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+        assertThat(reserveCommand.getTaskType()).isEqualTo("ADMIN_SETTLEMENT_RESERVE");
+        assertThat(reserveCommand.getSettlementReserveQuery().getReserveNo()).isEqualTo("RSV4001");
+        assertThat(reserveCommand.getSettlementReserveQuery().getCurrency()).isEqualTo("USD");
+        assertThat(reserveCommand.getMerchantIds()).containsExactly("M4001");
+        assertThat(java.util.Arrays.stream(reserveCommand.getSettlementReserveQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
     }
 
     /**

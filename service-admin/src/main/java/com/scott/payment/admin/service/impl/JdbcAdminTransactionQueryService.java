@@ -656,6 +656,21 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 按任务创建时冻结的商户范围分页查询交易操作流水，有限范围绝不回退全量。
+     */
+    @Override
+    public PageResult<TransactionOperationResponse> pageOperationsForExport(
+            TransactionPageQuery query, AdminMerchantDataScope dataScope) {
+        TransactionPageQuery safeQuery = normalize(query);
+        AdminMerchantDataScope scope = requireExportScope(dataScope);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())
+                || scope.empty() || !scopeAllowsMerchantFilter(safeQuery.getMerchantId(), scope)) {
+            return emptyPage(safeQuery);
+        }
+        return executeRead(false, () -> pageOperationsNormalized(safeQuery, scope));
+    }
+
+    /**
      * 查询交易操作单分页结果及相同条件下的汇总指标。
      *
      * @param query 交易筛选和分页条件
@@ -1390,6 +1405,28 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 按任务创建时冻结的商户范围分页查询商户通知记录，有限范围绝不回退全量。
+     */
+    @Override
+    public PageResult<MerchantNotificationResponse> pageMerchantNotificationsForExport(
+            MerchantNotificationQuery query, AdminMerchantDataScope dataScope) {
+        MerchantNotificationQuery safeQuery = normalize(query);
+        AdminMerchantDataScope scope = requireExportScope(dataScope);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())
+                || scope.empty() || !scopeAllowsMerchantFilter(safeQuery.getMerchantId(), scope)) {
+            return emptyPage(safeQuery);
+        }
+        return executeRead(false,
+                () -> pageRecords(
+                        TRANSACTION_MERCHANT_NOTIFICATION_TABLE,
+                        TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION,
+                        merchantNotificationWhereSql(safeQuery, scope),
+                        merchantNotificationParams(safeQuery, scope),
+                        safeQuery,
+                        merchantNotificationMapper()));
+    }
+
+    /**
      * 按通知任务号和精确分片时间读取通知任务快照。
      *
      * @param notifyId 通知任务号
@@ -1543,6 +1580,28 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                         safeQuery,
                         offset,
                         limit)
+                : List.of();
+        enrichOperationLifecycles(rows);
+        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
+    }
+
+    /**
+     * 使用已规范化查询和冻结商户范围执行交易操作分页。
+     */
+    private PageResult<TransactionOperationResponse> pageOperationsNormalized(
+            TransactionPageQuery safeQuery, AdminMerchantDataScope scope) {
+        long offset = offset(safeQuery);
+        long limit = safeQuery.safePageSize();
+        long total = countOperations(
+                TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE, safeQuery, scope);
+        List<TransactionOperationResponse> rows = offset < total
+                ? selectOperations(
+                        TRANSACTION_OPERATION_TABLE,
+                        TRANSACTION_PAYMENT_METHOD_INFO_TABLE,
+                        safeQuery,
+                        offset,
+                        limit,
+                        scope)
                 : List.of();
         enrichOperationLifecycles(rows);
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
@@ -1793,6 +1852,23 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 在冻结商户范围内统计符合筛选条件的交易操作数量。
+     */
+    private long countOperations(String table,
+                                 String paymentTable,
+                                 TransactionPageQuery query,
+                                 AdminMerchantDataScope scope) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(1)
+                FROM %s o
+                WHERE o.deleted = 0
+                %s
+                """.formatted(table, operationWhereSql(query, paymentTable, scope)),
+                operationParams(query, scope), Long.class);
+        return count == null ? 0L : count;
+    }
+
+    /**
      * 查询一页交易动作并关联支付方式快照。
      *
      * @param table 交易动作逻辑表
@@ -1818,6 +1894,34 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 LIMIT :offset, :limit
                 """.formatted(OPERATION_QUERY_COLUMNS, table, paymentTable,
                 operationWhereSql(query, paymentTable)), params, operationMapper(true));
+    }
+
+    /**
+     * 在冻结商户范围内查询一页交易操作并关联支付方式快照。
+     */
+    private List<TransactionOperationResponse> selectOperations(
+            String table,
+            String paymentTable,
+            TransactionPageQuery query,
+            long offset,
+            long limit,
+            AdminMerchantDataScope scope) {
+        MapSqlParameterSource params = operationParams(query, scope)
+                .addValue("offset", offset).addValue("limit", limit);
+        return jdbcTemplate.query("""
+                SELECT %s,
+                       p.payment_method AS joined_payment_method,
+                       p.payment_brand AS joined_payment_brand,
+                       p.card_bin AS joined_card_bin,
+                       p.card_number_masked AS joined_card_number_masked
+                FROM %s o
+                LEFT JOIN %s p ON p.transaction_id = o.transaction_id AND p.transaction_date_time = o.transaction_date_time
+                WHERE o.deleted = 0
+                %s
+                ORDER BY o.transaction_date_time DESC, o.id DESC
+                LIMIT :offset, :limit
+                """.formatted(OPERATION_QUERY_COLUMNS, table, paymentTable,
+                operationWhereSql(query, paymentTable, scope)), params, operationMapper(true));
     }
 
     /**
@@ -2152,6 +2256,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 在普通交易操作筛选后追加冻结商户集合，显式商户筛选已在入口校验归属。
+     */
+    private String operationWhereSql(TransactionPageQuery query,
+                                     String paymentTable,
+                                     AdminMerchantDataScope scope) {
+        StringBuilder sql = new StringBuilder(operationWhereSql(query, paymentTable));
+        if (!scope.allMerchants() && !StringUtils.hasText(query.getMerchantId())) {
+            sql.append(" AND o.merchant_id IN (:scopeMerchantIds)");
+        }
+        return sql.toString();
+    }
+
+    /**
      * 构建渠道交互日志查询条件 SQL。
      */
     private String channelLogWhereSql(ChannelLogQuery query) {
@@ -2191,6 +2308,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         append(sql, query.getMerchantId(), "AND merchant_id = :merchantId");
         append(sql, query.getTransactionId(), "AND transaction_id = :transactionId");
         append(sql, query.getNotifyStatus(), "AND notify_status = :notifyStatus");
+        return sql.toString();
+    }
+
+    /**
+     * 在普通商户通知筛选后追加冻结商户集合，显式商户筛选已在入口校验归属。
+     */
+    private String merchantNotificationWhereSql(MerchantNotificationQuery query,
+                                                AdminMerchantDataScope scope) {
+        StringBuilder sql = new StringBuilder(merchantNotificationWhereSql(query));
+        if (!scope.allMerchants() && !StringUtils.hasText(query.getMerchantId())) {
+            sql.append(" AND merchant_id IN (:scopeMerchantIds)");
+        }
         return sql.toString();
     }
 
@@ -2260,6 +2389,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 构建包含冻结商户集合的交易操作查询参数。
+     */
+    private MapSqlParameterSource operationParams(TransactionPageQuery query, AdminMerchantDataScope scope) {
+        return operationParams(query).addValue("scopeMerchantIds", scope.merchantIds());
+    }
+
+    /**
      * 构建渠道交互日志查询参数。
      */
     private MapSqlParameterSource channelLogParams(ChannelLogQuery query) {
@@ -2291,6 +2427,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("merchantId", query.getMerchantId())
                 .addValue("transactionId", query.getTransactionId())
                 .addValue("notifyStatus", query.getNotifyStatus());
+    }
+
+    /**
+     * 构建包含冻结商户集合的商户通知查询参数。
+     */
+    private MapSqlParameterSource merchantNotificationParams(
+            MerchantNotificationQuery query, AdminMerchantDataScope scope) {
+        return merchantNotificationParams(query).addValue("scopeMerchantIds", scope.merchantIds());
     }
 
     /**

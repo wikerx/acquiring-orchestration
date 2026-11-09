@@ -147,10 +147,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
             reserve.expected_release_date, action.action_time
             """;
     private static final String RESERVE_COLUMNS = RESERVE_COLUMN_PREFIX + """
-            reserve_detail.original_transaction_id AS source_transaction_id,
+            reserve.source_transaction_id AS source_transaction_id,
             locator.merchant_order_no,
-            COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time)
-                AS source_transaction_date_time,
+            locator.transaction_date_time AS source_transaction_date_time,
             """ + RESERVE_COLUMN_SUFFIX;
     private static final String RESERVE_HISTORY_COLUMNS = RESERVE_COLUMN_PREFIX + """
             reserve_state.original_transaction_id AS source_transaction_id,
@@ -463,7 +462,7 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         if (query.getReserveNo() != null) where.append(" AND action.reserve_no = :reserveNo\n");
         if (query.getReserveActionNo() != null) where.append(" AND action.reserve_action_no = :reserveActionNo\n");
         if (query.getSourceTransactionId() != null) {
-            where.append(" AND reserve_detail.original_transaction_id = :transactionId\n");
+            where.append(" AND reserve.source_transaction_id = :transactionId\n");
         }
         if (query.getMerchantOrderNo() != null) where.append(" AND locator.merchant_order_no = :merchantOrderNo\n");
         if (query.getReserveStatus() != null) {
@@ -472,8 +471,8 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         if (query.getActionType() != null) where.append(" AND action.action_type = :actionType\n");
         if (query.getCurrency() != null) where.append(" AND action.currency = :currency\n");
         if (query.getBeginTransactionTime() != null) {
-            where.append(" AND COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time) >= :beginTransactionTime\n")
-                    .append(" AND COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time) < :endTransactionTime\n");
+            where.append(" AND locator.transaction_date_time >= :beginTransactionTime\n")
+                    .append(" AND locator.transaction_date_time < :endTransactionTime\n");
         }
         if (query.getBeginExpectedReleaseDate() != null) {
             where.append(" AND reserve.expected_release_date BETWEEN :beginExpectedReleaseDate AND :endExpectedReleaseDate\n");
@@ -498,23 +497,13 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                   ON reserve.id = action.reserve_item_id AND reserve.reserve_no = action.reserve_no
                 JOIN settlement_candidate candidate
                   ON candidate.id = action.candidate_id AND candidate.merchant_id = reserve.merchant_id
-                LEFT JOIN merchant_reserve_action source_action
-                  ON source_action.id = action.reversal_of_action_id
-                JOIN transaction_reserve_clearing_detail reserve_detail
-                  ON reserve_detail.transaction_id = candidate.source_transaction_id
-                 AND reserve_detail.transaction_date_time = candidate.source_transaction_date_time
-                 AND reserve_detail.clearing_revision = candidate.source_revision
-                 AND reserve_detail.reserve_clearing_detail_no = COALESCE(
-                         source_action.source_reserve_detail_no,
-                         action.source_reserve_detail_no)
-                 AND reserve_detail.record_status = 'ACTIVE'
                 JOIN settlement_batch batch ON batch.settlement_batch_no = action.settlement_batch_no
                 LEFT JOIN merchant_fund_account fund_account
                   ON fund_account.id = reserve.account_id
                  AND fund_account.merchant_id = reserve.merchant_id
                  AND fund_account.deleted = 0
                 LEFT JOIN transaction_locator locator
-                  ON locator.transaction_id = reserve_detail.original_transaction_id
+                  ON locator.transaction_id = reserve.source_transaction_id
                  AND locator.merchant_id = reserve.merchant_id
                 LEFT JOIN base_iso_currency currency
                   ON currency.alpha3_code = action.currency AND currency.deleted = 0

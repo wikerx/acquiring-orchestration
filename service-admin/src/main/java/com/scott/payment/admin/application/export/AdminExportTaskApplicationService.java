@@ -6,14 +6,23 @@ import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.Dow
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.TaskRequest;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.WorkItemQuery;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.TransactionOrderQuery;
+import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.MerchantNotificationQuery;
+import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.SettlementReserveQuery;
+import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.SettlementTransactionQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotificationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RefundSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RetryRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SearchRequestDTO;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementTransactionSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOrderSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOperationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.WorkItemSubmitRequest;
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
@@ -38,7 +47,11 @@ import java.util.Locale;
 public class AdminExportTaskApplicationService {
     private static final String OPERATIONAL_WORK_ITEM = "ADMIN_OPERATIONAL_WORK_ITEM";
     private static final String TRANSACTION_ORDER = "ADMIN_TRANSACTION_ORDER";
+    private static final String TRANSACTION_OPERATION = "ADMIN_TRANSACTION_OPERATION";
+    private static final String MERCHANT_NOTIFICATION = "ADMIN_MERCHANT_NOTIFICATION";
     private static final String REFUND = "ADMIN_REFUND";
+    private static final String SETTLEMENT_TRANSACTION = "ADMIN_SETTLEMENT_TRANSACTION";
+    private static final String SETTLEMENT_RESERVE = "ADMIN_SETTLEMENT_RESERVE";
     private final DataExportTaskInternalClient dataClient;
     private final AdminMerchantDataScopeResolver dataScopeResolver;
 
@@ -74,6 +87,28 @@ public class AdminExportTaskApplicationService {
     }
 
     /**
+     * 冻结当前账号、商户范围和交易操作查询后幂等创建异步任务。
+     */
+    public TaskSummary submitTransactionOperations(TransactionOperationSubmitRequest request) {
+        InternalAuthAccount account = currentAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        CreateRequest command = createRequest(request.getRequestId(), TRANSACTION_OPERATION, account, scope);
+        command.setTransactionOperationQuery(toTransactionOrderQuery(request.getQuery()));
+        return dataClient.submit(command);
+    }
+
+    /**
+     * 冻结当前账号、商户范围和商户通知查询后幂等创建异步任务。
+     */
+    public TaskSummary submitMerchantNotifications(MerchantNotificationSubmitRequest request) {
+        InternalAuthAccount account = currentAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        CreateRequest command = createRequest(request.getRequestId(), MERCHANT_NOTIFICATION, account, scope);
+        command.setMerchantNotificationQuery(toMerchantNotificationQuery(request.getQuery()));
+        return dataClient.submit(command);
+    }
+
+    /**
      * 冻结当前账号、商户范围和退款查询后幂等创建异步任务。
      */
     public TaskSummary submitRefunds(RefundSubmitRequest request) {
@@ -81,6 +116,29 @@ public class AdminExportTaskApplicationService {
         AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
         CreateRequest command = createRequest(request.getRequestId(), REFUND, account, scope);
         command.setRefundQuery(toRefundQuery(request.getQuery()));
+        return dataClient.submit(command);
+    }
+
+    /**
+     * 冻结当前账号、商户范围和结算交易明细查询后幂等创建异步任务。
+     */
+    public TaskSummary submitSettlementTransactions(SettlementTransactionSubmitRequest request) {
+        InternalAuthAccount account = currentAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        CreateRequest command = createRequest(
+                request.getRequestId(), SETTLEMENT_TRANSACTION, account, scope);
+        command.setSettlementTransactionQuery(toSettlementTransactionQuery(request.getQuery()));
+        return dataClient.submit(command);
+    }
+
+    /**
+     * 冻结当前账号、商户范围和保证金结算明细查询后幂等创建异步任务。
+     */
+    public TaskSummary submitSettlementReserves(SettlementReserveSubmitRequest request) {
+        InternalAuthAccount account = currentAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        CreateRequest command = createRequest(request.getRequestId(), SETTLEMENT_RESERVE, account, scope);
+        command.setSettlementReserveQuery(toSettlementReserveQuery(request.getQuery()));
         return dataClient.submit(command);
     }
 
@@ -246,6 +304,65 @@ public class AdminExportTaskApplicationService {
     }
 
     /**
+     * 复制商户通知允许冻结的筛选字段并剔除分页参数。
+     */
+    private MerchantNotificationQuery toMerchantNotificationQuery(
+            com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery source) {
+        MerchantNotificationQuery target = new MerchantNotificationQuery();
+        target.setMerchantId(source.getMerchantId());
+        target.setTransactionId(source.getTransactionId());
+        target.setNotifyStatus(source.getNotifyStatus());
+        target.setBeginTime(source.getBeginTime());
+        target.setEndTime(source.getEndTime());
+        target.setQueryTimeZone(source.getQueryTimeZone());
+        return target;
+    }
+
+    /**
+     * 复制结算交易明细允许冻结的筛选字段并剔除分页参数。
+     */
+    private SettlementTransactionQuery toSettlementTransactionQuery(ResultItemSearchRequest source) {
+        SettlementTransactionQuery target = new SettlementTransactionQuery();
+        target.setSettlementBatchNo(source.getSettlementBatchNo());
+        target.setMerchantId(source.getMerchantId());
+        target.setSourceTransactionId(source.getSourceTransactionId());
+        target.setMerchantOrderNo(source.getMerchantOrderNo());
+        target.setBeginTransactionTime(source.getBeginTransactionTime());
+        target.setEndTransactionTime(source.getEndTransactionTime());
+        target.setResultItemType(source.getResultItemType());
+        target.setResultRole(source.getResultRole());
+        target.setDirection(source.getDirection());
+        target.setTargetCurrency(source.getTargetCurrency());
+        target.setSourceDetailType(source.getSourceDetailType());
+        target.setBeginBusinessDate(source.getBeginBusinessDate());
+        target.setEndBusinessDate(source.getEndBusinessDate());
+        return target;
+    }
+
+    /**
+     * 复制保证金结算明细允许冻结的筛选字段并剔除分页参数。
+     */
+    private SettlementReserveQuery toSettlementReserveQuery(ReserveItemSearchRequest source) {
+        SettlementReserveQuery target = new SettlementReserveQuery();
+        target.setSettlementBatchNo(source.getSettlementBatchNo());
+        target.setMerchantId(source.getMerchantId());
+        target.setReserveNo(source.getReserveNo());
+        target.setReserveActionNo(source.getReserveActionNo());
+        target.setSourceTransactionId(source.getSourceTransactionId());
+        target.setMerchantOrderNo(source.getMerchantOrderNo());
+        target.setReserveStatus(source.getReserveStatus());
+        target.setActionType(source.getActionType());
+        target.setCurrency(source.getCurrency());
+        target.setBeginTransactionTime(source.getBeginTransactionTime());
+        target.setEndTransactionTime(source.getEndTransactionTime());
+        target.setBeginExpectedReleaseDate(source.getBeginExpectedReleaseDate());
+        target.setEndExpectedReleaseDate(source.getEndExpectedReleaseDate());
+        target.setBeginBusinessDate(source.getBeginBusinessDate());
+        target.setEndBusinessDate(source.getEndBusinessDate());
+        return target;
+    }
+
+    /**
      * 从线程认证上下文获取 ADMIN 账号，内部调用不能伪造浏览器身份。
      */
     private InternalAuthAccount currentAccount() {
@@ -284,7 +401,11 @@ public class AdminExportTaskApplicationService {
         boolean chinese = Locale.CHINESE.getLanguage().equals(locale.getLanguage());
         return switch (taskType) {
             case TRANSACTION_ORDER -> chinese ? "交易主单导出" : "Transaction Order Export";
+            case TRANSACTION_OPERATION -> chinese ? "交易操作流水导出" : "Transaction Operation Export";
+            case MERCHANT_NOTIFICATION -> chinese ? "商户通知记录导出" : "Merchant Notification Export";
             case REFUND -> chinese ? "退款管理导出" : "Refund Management Export";
+            case SETTLEMENT_TRANSACTION -> chinese ? "结算交易明细导出" : "Settlement Transaction Export";
+            case SETTLEMENT_RESERVE -> chinese ? "保证金结算明细导出" : "Settlement Reserve Export";
             default -> chinese ? "统一运营待办导出" : "Operational Work Item Export";
         };
     }

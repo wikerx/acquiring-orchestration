@@ -41,8 +41,17 @@ class AdminExportTaskControllerContractTest {
         assertThat(submit.value()).isEqualTo("operations:work-item:export");
         assertThat(method(AdminTransactionExportTaskController.class, "submitOrders")
                 .getAnnotation(RequiresPermission.class).value()).isEqualTo("transaction:order:export");
+        assertThat(method(AdminTransactionExportTaskController.class, "submitOperations")
+                .getAnnotation(RequiresPermission.class).value()).isEqualTo("transaction:operation:export");
+        assertThat(method(AdminTransactionExportTaskController.class, "submitMerchantNotifications")
+                .getAnnotation(RequiresPermission.class).value())
+                .isEqualTo("transaction:merchant-notification:export");
         assertThat(method(AdminTransactionExportTaskController.class, "submitRefunds")
                 .getAnnotation(RequiresPermission.class).value()).isEqualTo("transaction:refund:export");
+        assertThat(method(AdminSettlementExportTaskController.class, "submitTransactions")
+                .getAnnotation(RequiresPermission.class).value()).isEqualTo("settlement:result-item:export");
+        assertThat(method(AdminSettlementExportTaskController.class, "submitReserves")
+                .getAnnotation(RequiresPermission.class).value()).isEqualTo("settlement:reserve-item:export");
     }
 
     /**
@@ -57,7 +66,15 @@ class AdminExportTaskControllerContractTest {
                 .getAnnotation(OperationLog.class)).isNotNull();
         assertThat(method(AdminTransactionExportTaskController.class, "submitOrders")
                 .getAnnotation(OperationLog.class)).isNotNull();
+        assertThat(method(AdminTransactionExportTaskController.class, "submitOperations")
+                .getAnnotation(OperationLog.class)).isNotNull();
+        assertThat(method(AdminTransactionExportTaskController.class, "submitMerchantNotifications")
+                .getAnnotation(OperationLog.class)).isNotNull();
         assertThat(method(AdminTransactionExportTaskController.class, "submitRefunds")
+                .getAnnotation(OperationLog.class)).isNotNull();
+        assertThat(method(AdminSettlementExportTaskController.class, "submitTransactions")
+                .getAnnotation(OperationLog.class)).isNotNull();
+        assertThat(method(AdminSettlementExportTaskController.class, "submitReserves")
                 .getAnnotation(OperationLog.class)).isNotNull();
     }
 

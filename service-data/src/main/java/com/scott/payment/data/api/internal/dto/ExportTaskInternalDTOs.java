@@ -12,6 +12,7 @@ import lombok.EqualsAndHashCode;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -74,6 +75,20 @@ public final class ExportTaskInternalDTOs {
     }
 
     /**
+     * 管理端商户通知导出条件快照，不包含页面分页参数和服务端商户范围。
+     */
+    @Data
+    public static class MerchantNotificationQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String transactionId;
+        private String notifyStatus;
+        private LocalDateTime beginTime;
+        private LocalDateTime endTime;
+        private String queryTimeZone;
+    }
+
+    /**
      * 管理端退款导出条件快照，完整保留筛选语义但不携带分页参数。
      */
     @Data
@@ -107,6 +122,50 @@ public final class ExportTaskInternalDTOs {
     }
 
     /**
+     * 管理端结算交易明细导出条件快照，不包含页面分页参数和可信商户范围。
+     */
+    @Data
+    public static class SettlementTransactionQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String settlementBatchNo;
+        private String merchantId;
+        private String sourceTransactionId;
+        private String merchantOrderNo;
+        private LocalDateTime beginTransactionTime;
+        private LocalDateTime endTransactionTime;
+        private String resultItemType;
+        private String resultRole;
+        private String direction;
+        private String targetCurrency;
+        private String sourceDetailType;
+        private LocalDate beginBusinessDate;
+        private LocalDate endBusinessDate;
+    }
+
+    /**
+     * 管理端保证金结算明细导出条件快照，不包含页面分页参数和可信商户范围。
+     */
+    @Data
+    public static class SettlementReserveQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String settlementBatchNo;
+        private String merchantId;
+        private String reserveNo;
+        private String reserveActionNo;
+        private String sourceTransactionId;
+        private String merchantOrderNo;
+        private String reserveStatus;
+        private String actionType;
+        private String currency;
+        private LocalDateTime beginTransactionTime;
+        private LocalDateTime endTransactionTime;
+        private LocalDate beginExpectedReleaseDate;
+        private LocalDate endExpectedReleaseDate;
+        private LocalDate beginBusinessDate;
+        private LocalDate endBusinessDate;
+    }
+
+    /**
      * 创建导出任务命令；商户范围由管理服务根据当前账号重新计算后写入。
      */
     @Data
@@ -137,7 +196,15 @@ public final class ExportTaskInternalDTOs {
         @Valid
         private TransactionOrderQuery transactionOrderQuery;
         @Valid
+        private TransactionOrderQuery transactionOperationQuery;
+        @Valid
+        private MerchantNotificationQuery merchantNotificationQuery;
+        @Valid
         private RefundQuery refundQuery;
+        @Valid
+        private SettlementTransactionQuery settlementTransactionQuery;
+        @Valid
+        private SettlementReserveQuery settlementReserveQuery;
     }
 
     /**

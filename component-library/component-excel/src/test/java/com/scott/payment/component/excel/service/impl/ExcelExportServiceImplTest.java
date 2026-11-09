@@ -40,6 +40,22 @@ import java.util.Map;
 class ExcelExportServiceImplTest {
 
     /**
+     * 验证保证金结算异步导出的标题在维护语言中均可解析，避免国际化键直接写入文件。
+     */
+    @Test
+    void shouldResolveSettlementReserveTitleForMaintainedLocales() {
+        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
+        messageSource.setBasenames("messages");
+        messageSource.setDefaultEncoding("UTF-8");
+        ExcelI18nMessageResolver resolver = new ExcelI18nMessageResolver(messageSource);
+
+        Assertions.assertEquals("保证金结算明细",
+                resolver.resolve("excel.settlement.reserveTitle", Locale.SIMPLIFIED_CHINESE));
+        Assertions.assertEquals("Reserve Settlement Details",
+                resolver.resolve("excel.settlement.reserveTitle", Locale.US));
+    }
+
+    /**
      * 验证导出结果同时包含标题、表头和数据。
      *
      * @throws IOException 读取工作簿异常

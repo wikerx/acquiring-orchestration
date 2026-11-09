@@ -87,7 +87,11 @@ class AsyncExportTaskSchemaContractTest {
                 "active-secret: ${acquiring.internal-auth.edges.data-admin.active-secret}",
                 "/internal/admin/operations/work-items/export-page",
                 "/internal/admin/transactions/orders/export-page",
-                "/internal/admin/transactions/refunds/export-page");
+                "/internal/admin/transactions/operations/export-page",
+                "/internal/admin/transactions/merchant-notifications/export-page",
+                "/internal/admin/transactions/refunds/export-page",
+                "/internal/admin/settlement/result-items/export-page",
+                "/internal/admin/settlement/reserve-items/export-page");
         assertThat(data).contains(
                 "internal-secret: ${acquiring.internal-auth.edges.data-admin.active-secret}",
                 "active-secret: ${acquiring.internal-auth.edges.admin-data.active-secret}",

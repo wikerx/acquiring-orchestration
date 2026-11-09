@@ -2,6 +2,9 @@ package com.scott.payment.admin.dto.exporttask;
 
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -51,6 +54,34 @@ public final class AdminExportTaskDTOs {
     }
 
     /**
+     * 交易操作流水异步导出提交命令，账号和商户范围由服务端可信上下文补齐。
+     */
+    @Data
+    public static class TransactionOperationSubmitRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank
+        @Size(max = 128)
+        private String requestId;
+        @Valid
+        @NotNull
+        private TransactionPageQuery query;
+    }
+
+    /**
+     * 商户通知记录异步导出提交命令，账号和商户范围由服务端可信上下文补齐。
+     */
+    @Data
+    public static class MerchantNotificationSubmitRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank
+        @Size(max = 128)
+        private String requestId;
+        @Valid
+        @NotNull
+        private MerchantNotificationQuery query;
+    }
+
+    /**
      * 退款异步导出提交命令，账号和商户范围由服务端可信上下文补齐。
      */
     @Data
@@ -62,6 +93,34 @@ public final class AdminExportTaskDTOs {
         @Valid
         @NotNull
         private RefundQuery query;
+    }
+
+    /**
+     * 结算交易明细异步导出提交命令，账号和商户范围由服务端可信上下文补齐。
+     */
+    @Data
+    public static class SettlementTransactionSubmitRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank
+        @Size(max = 128)
+        private String requestId;
+        @Valid
+        @NotNull
+        private ResultItemSearchRequest query;
+    }
+
+    /**
+     * 保证金结算明细异步导出提交命令，账号和商户范围由服务端可信上下文补齐。
+     */
+    @Data
+    public static class SettlementReserveSubmitRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank
+        @Size(max = 128)
+        private String requestId;
+        @Valid
+        @NotNull
+        private ReserveItemSearchRequest query;
     }
 
     /**

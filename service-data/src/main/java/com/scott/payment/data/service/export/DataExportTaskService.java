@@ -40,9 +40,15 @@ import java.util.Set;
 public class DataExportTaskService {
     public static final String ADMIN_OPERATIONAL_WORK_ITEM = "ADMIN_OPERATIONAL_WORK_ITEM";
     public static final String ADMIN_TRANSACTION_ORDER = "ADMIN_TRANSACTION_ORDER";
+    public static final String ADMIN_TRANSACTION_OPERATION = "ADMIN_TRANSACTION_OPERATION";
+    public static final String ADMIN_MERCHANT_NOTIFICATION = "ADMIN_MERCHANT_NOTIFICATION";
     public static final String ADMIN_REFUND = "ADMIN_REFUND";
+    public static final String ADMIN_SETTLEMENT_TRANSACTION = "ADMIN_SETTLEMENT_TRANSACTION";
+    public static final String ADMIN_SETTLEMENT_RESERVE = "ADMIN_SETTLEMENT_RESERVE";
     private static final Set<String> SUPPORTED_TASK_TYPES = Set.of(
-            ADMIN_OPERATIONAL_WORK_ITEM, ADMIN_TRANSACTION_ORDER, ADMIN_REFUND);
+            ADMIN_OPERATIONAL_WORK_ITEM, ADMIN_TRANSACTION_ORDER, ADMIN_TRANSACTION_OPERATION,
+            ADMIN_MERCHANT_NOTIFICATION, ADMIN_REFUND,
+            ADMIN_SETTLEMENT_TRANSACTION, ADMIN_SETTLEMENT_RESERVE);
     private static final String PENDING = "PENDING";
     private static final String PROCESSING = "PROCESSING";
     private static final String SUCCESS = "SUCCESS";
@@ -415,7 +421,11 @@ public class DataExportTaskService {
         return switch (request.getTaskType()) {
             case ADMIN_OPERATIONAL_WORK_ITEM -> request.getWorkItemQuery();
             case ADMIN_TRANSACTION_ORDER -> request.getTransactionOrderQuery();
+            case ADMIN_TRANSACTION_OPERATION -> request.getTransactionOperationQuery();
+            case ADMIN_MERCHANT_NOTIFICATION -> request.getMerchantNotificationQuery();
             case ADMIN_REFUND -> request.getRefundQuery();
+            case ADMIN_SETTLEMENT_TRANSACTION -> request.getSettlementTransactionQuery();
+            case ADMIN_SETTLEMENT_RESERVE -> request.getSettlementReserveQuery();
             default -> null;
         };
     }

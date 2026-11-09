@@ -6,6 +6,7 @@ import lombok.EqualsAndHashCode;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -34,7 +35,11 @@ public final class AdminDataExportTaskClientDTOs {
         private Set<String> merchantIds = new LinkedHashSet<>();
         private WorkItemQuery workItemQuery;
         private TransactionOrderQuery transactionOrderQuery;
+        private TransactionOrderQuery transactionOperationQuery;
+        private MerchantNotificationQuery merchantNotificationQuery;
         private RefundQuery refundQuery;
+        private SettlementTransactionQuery settlementTransactionQuery;
+        private SettlementReserveQuery settlementReserveQuery;
     }
 
     /**
@@ -86,6 +91,20 @@ public final class AdminDataExportTaskClientDTOs {
     }
 
     /**
+     * 冻结的商户通知筛选条件，不向 Data 传递页面当前页码。
+     */
+    @Data
+    public static class MerchantNotificationQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String transactionId;
+        private String notifyStatus;
+        private LocalDateTime beginTime;
+        private LocalDateTime endTime;
+        private String queryTimeZone;
+    }
+
+    /**
      * 冻结的退款筛选条件，不向 Data 传递页面当前页码。
      */
     @Data
@@ -116,6 +135,50 @@ public final class AdminDataExportTaskClientDTOs {
         private LocalDateTime completeBeginTime;
         private LocalDateTime completeEndTime;
         private String queryTimeZone;
+    }
+
+    /**
+     * 冻结的结算交易明细筛选条件，不携带页面分页参数或可信商户范围。
+     */
+    @Data
+    public static class SettlementTransactionQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String settlementBatchNo;
+        private String merchantId;
+        private String sourceTransactionId;
+        private String merchantOrderNo;
+        private LocalDateTime beginTransactionTime;
+        private LocalDateTime endTransactionTime;
+        private String resultItemType;
+        private String resultRole;
+        private String direction;
+        private String targetCurrency;
+        private String sourceDetailType;
+        private LocalDate beginBusinessDate;
+        private LocalDate endBusinessDate;
+    }
+
+    /**
+     * 冻结的保证金结算明细筛选条件，不携带页面分页参数或可信商户范围。
+     */
+    @Data
+    public static class SettlementReserveQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String settlementBatchNo;
+        private String merchantId;
+        private String reserveNo;
+        private String reserveActionNo;
+        private String sourceTransactionId;
+        private String merchantOrderNo;
+        private String reserveStatus;
+        private String actionType;
+        private String currency;
+        private LocalDateTime beginTransactionTime;
+        private LocalDateTime endTransactionTime;
+        private LocalDate beginExpectedReleaseDate;
+        private LocalDate endExpectedReleaseDate;
+        private LocalDate beginBusinessDate;
+        private LocalDate endBusinessDate;
     }
 
     /**

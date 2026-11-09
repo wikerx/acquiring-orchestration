@@ -7,6 +7,9 @@ import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.DispatchRe
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.DownloadRequest;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.TaskRequest;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.WorkItemQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantNotificationQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementReserveQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementTransactionQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.TransactionOrderQuery;
 import com.scott.payment.data.config.export.DataExportProperties;
 import com.scott.payment.data.entity.export.DataExportDownloadAuditDO;
@@ -25,6 +28,10 @@ import java.util.Set;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_OPERATIONAL_WORK_ITEM;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_TRANSACTION_ORDER;
+import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_TRANSACTION_OPERATION;
+import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_MERCHANT_NOTIFICATION;
+import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SETTLEMENT_RESERVE;
+import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SETTLEMENT_TRANSACTION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -85,6 +92,107 @@ class DataExportTaskServiceTest {
         assertThat(inserted.getTaskType()).isEqualTo(ADMIN_TRANSACTION_ORDER);
         assertThat(inserted.getQuerySnapshot()).contains("merchant-order-1001");
         assertThat(inserted.getQuerySnapshot()).doesNotContain("workItemNo");
+    }
+
+    /**
+     * 交易操作任务必须保存独立任务类型和对应查询快照。
+     */
+    @Test
+    void shouldPersistTransactionOperationTaskTypeAndQuerySnapshot() {
+        Fixture fixture = fixture();
+        CreateRequest request = createRequest();
+        request.setTaskType(ADMIN_TRANSACTION_OPERATION);
+        request.setWorkItemQuery(null);
+        TransactionOrderQuery query = new TransactionOrderQuery();
+        query.setTransactionId("TXN-OPERATION-1001");
+        request.setTransactionOperationQuery(query);
+        when(fixture.taskMapper.selectOwned(anyString(), eq(88L))).thenAnswer(invocation -> {
+            DataExportTaskDO task = fixture.insertedTask.getValue();
+            task.setId(11L);
+            return task;
+        });
+
+        fixture.service.submit(request);
+
+        DataExportTaskDO inserted = fixture.insertedTask.getValue();
+        assertThat(inserted.getTaskType()).isEqualTo(ADMIN_TRANSACTION_OPERATION);
+        assertThat(inserted.getQuerySnapshot()).contains("TXN-OPERATION-1001");
+        assertThat(inserted.getQuerySnapshot()).doesNotContain("workItemNo");
+    }
+
+    /**
+     * 商户通知任务必须保存独立任务类型和通知筛选快照。
+     */
+    @Test
+    void shouldPersistMerchantNotificationTaskTypeAndQuerySnapshot() {
+        Fixture fixture = fixture();
+        CreateRequest request = createRequest();
+        request.setTaskType(ADMIN_MERCHANT_NOTIFICATION);
+        request.setWorkItemQuery(null);
+        MerchantNotificationQuery query = new MerchantNotificationQuery();
+        query.setTransactionId("TXN-NOTIFY-1001");
+        query.setNotifyStatus("FAILED");
+        request.setMerchantNotificationQuery(query);
+        when(fixture.taskMapper.selectOwned(anyString(), eq(88L))).thenAnswer(invocation -> {
+            DataExportTaskDO task = fixture.insertedTask.getValue();
+            task.setId(11L);
+            return task;
+        });
+
+        fixture.service.submit(request);
+
+        DataExportTaskDO inserted = fixture.insertedTask.getValue();
+        assertThat(inserted.getTaskType()).isEqualTo(ADMIN_MERCHANT_NOTIFICATION);
+        assertThat(inserted.getQuerySnapshot()).contains("TXN-NOTIFY-1001", "FAILED");
+        assertThat(inserted.getQuerySnapshot()).doesNotContain("workItemNo");
+    }
+
+    /**
+     * 结算交易与保证金任务必须分别保存强类型查询快照，不能回退到其他任务查询。
+     */
+    @Test
+    void shouldPersistSettlementTaskTypesAndQuerySnapshots() {
+        Fixture fixture = fixture();
+        CreateRequest transactionRequest = createRequest();
+        transactionRequest.setTaskType(ADMIN_SETTLEMENT_TRANSACTION);
+        transactionRequest.setWorkItemQuery(null);
+        SettlementTransactionQuery transactionQuery = new SettlementTransactionQuery();
+        transactionQuery.setSettlementBatchNo("STB5001");
+        transactionRequest.setSettlementTransactionQuery(transactionQuery);
+        when(fixture.taskMapper.selectOwned(anyString(), eq(88L))).thenAnswer(invocation -> {
+            DataExportTaskDO task = fixture.insertedTask.getValue();
+            task.setId(11L);
+            return task;
+        });
+
+        fixture.service.submit(transactionRequest);
+
+        DataExportTaskDO transactionTask = fixture.insertedTask.getValue();
+        assertThat(transactionTask.getTaskType()).isEqualTo(ADMIN_SETTLEMENT_TRANSACTION);
+        assertThat(transactionTask.getQuerySnapshot()).contains("STB5001");
+        assertThat(transactionTask.getQuerySnapshot()).doesNotContain("workItemNo");
+
+        Fixture reserveFixture = fixture();
+        CreateRequest reserveRequest = createRequest();
+        reserveRequest.setRequestId("request-reserve-001");
+        reserveRequest.setTaskType(ADMIN_SETTLEMENT_RESERVE);
+        reserveRequest.setWorkItemQuery(null);
+        SettlementReserveQuery reserveQuery = new SettlementReserveQuery();
+        reserveQuery.setReserveNo("RSV5001");
+        reserveQuery.setCurrency("EUR");
+        reserveRequest.setSettlementReserveQuery(reserveQuery);
+        when(reserveFixture.taskMapper.selectOwned(anyString(), eq(88L))).thenAnswer(invocation -> {
+            DataExportTaskDO task = reserveFixture.insertedTask.getValue();
+            task.setId(12L);
+            return task;
+        });
+
+        reserveFixture.service.submit(reserveRequest);
+
+        DataExportTaskDO reserveTask = reserveFixture.insertedTask.getValue();
+        assertThat(reserveTask.getTaskType()).isEqualTo(ADMIN_SETTLEMENT_RESERVE);
+        assertThat(reserveTask.getQuerySnapshot()).contains("RSV5001", "EUR");
+        assertThat(reserveTask.getQuerySnapshot()).doesNotContain("workItemNo");
     }
 
     /**
