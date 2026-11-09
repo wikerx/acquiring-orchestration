@@ -261,7 +261,8 @@ class PaymentServiceImplTests {
         assertThat(responseJson).contains("\"billingCardHolderInfo\"");
         assertThat(responseJson).contains("\"transactionInfo\"");
         assertThat(responseJson).contains("\"billingInfo\"");
-        assertThat(responseJson).contains("\"transactionRate\":1.00000000");
+        assertThat(responseJson).contains("\"labelAmount\":12.34");
+        assertThat(responseJson).contains("\"labelCurrency\":\"USD\"");
         assertThat(responseJson).contains("\"settlementCurrency\":\"HKD\"");
         assertThat(responseJson).contains("\"currency\":\"USD\"");
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":12.34");
@@ -279,6 +280,11 @@ class PaymentServiceImplTests {
         assertThat(responseJson).doesNotContain("channelTransactionId");
         assertThat(responseJson).doesNotContain("dccEnabled");
         assertThat(responseJson).doesNotContain("edcEnabled");
+        assertThat(responseJson).doesNotContain("transactionAmount");
+        assertThat(responseJson).doesNotContain("transactionCurrency");
+        assertThat(responseJson).doesNotContain("transactionRate");
+        assertThat(responseJson).doesNotContain("rateSource");
+        assertThat(responseJson).doesNotContain("rateTime");
         assertThat(responseJson).doesNotContain("failReasonCode");
         assertThat(responseJson).doesNotContain("failReasonMessage");
         assertThat(responseJson).doesNotContain("null");

@@ -173,7 +173,7 @@ class DefaultClearingCalculationServiceTest {
     }
 
     @Test
-    void calculateShouldResolvePrincipalExponentFromApprovedCurrency() {
+    void calculateShouldKeepPrincipalInLabelCurrencyWhenApprovedCurrencyDiffers() {
         ClearingCalculationCommand base = command("SUCCESS");
         ClearingOperationFacts original = base.operation();
         ClearingOperationFacts operation = new ClearingOperationFacts(
@@ -189,12 +189,11 @@ class DefaultClearingCalculationServiceTest {
                 base.occurredRiskServices(), base.tierContexts(), base.feeRefundCommand(),
                 base.reserveReturnCommand()));
 
-        assertThat(result.principal().currency()).isEqualTo("JPY");
-        assertThat(result.principal().exponent()).isZero();
+        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("100.00"), "EUR", 2));
     }
 
     @Test
-    void calculateShouldRejectApprovedAmountBeyondCurrencyExponent() {
+    void calculateShouldIgnoreChannelApprovedAmountPrecisionForMerchantClearing() {
         ClearingCalculationCommand base = command("SUCCESS");
         ClearingOperationFacts original = base.operation();
         ClearingOperationFacts operation = new ClearingOperationFacts(
@@ -205,12 +204,12 @@ class DefaultClearingCalculationServiceTest {
                 original.transactionAmount(), original.currencyExponent(), original.transactionDateTime(),
                 original.transactionUtcTime(), original.transactionTimeZone(), original.operationVersion());
 
-        assertThatThrownBy(() -> service.calculate(new ClearingCalculationCommand(
+        ClearingCalculationResult result = service.calculate(new ClearingCalculationCommand(
                 operation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
                 base.occurredRiskServices(), base.tierContexts(), base.feeRefundCommand(),
-                base.reserveReturnCommand())))
-                .isInstanceOfSatisfying(ClearingProcessingException.class, failure ->
-                        assertThat(failure.getFailureCode()).isEqualTo(ClearingFailureCodeEnum.AMOUNT_INVALID));
+                base.reserveReturnCommand()));
+
+        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("100.00"), "EUR", 2));
     }
 
     /**
@@ -232,7 +231,7 @@ class DefaultClearingCalculationServiceTest {
                 operation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
                 base.occurredRiskServices(), base.tierContexts(), null, null));
 
-        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("0.71"), "USD", 2));
+        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("112"), "JPY", 0));
         assertThat(result.fees().get(0).result().components().get(0).amount())
                 .isEqualTo(new Money(new BigDecimal("3"), "JPY", 0));
         assertThat(result.reserve().amount()).isEqualTo(new Money(new BigDecimal("11"), "JPY", 0));
@@ -261,10 +260,32 @@ class DefaultClearingCalculationServiceTest {
     }
 
     /**
-     * 持久化 exponent 属于系统交易币种，和交易币种 ISO exponent 不一致时必须拒绝。
+     * 渠道金额完整时也不能替代缺失的商户标签金额。
      */
     @Test
-    void calculateShouldRejectStoredTransactionExponentMismatch() {
+    void calculateShouldRejectMissingLabelAmountInsteadOfFallingBackToChannelAmount() {
+        ClearingCalculationCommand base = command("SUCCESS");
+        ClearingOperationFacts original = base.operation();
+        ClearingOperationFacts operation = new ClearingOperationFacts(
+                original.transactionId(), original.operationId(), original.sourceTransactionId(),
+                original.merchantId(), original.merchantOrderNo(), original.transactionType(),
+                original.transactionStatus(), original.labelCurrency(), null,
+                "USD", new BigDecimal("110.00"), "USD", new BigDecimal("110.00"), 2,
+                original.transactionDateTime(), original.transactionUtcTime(),
+                original.transactionTimeZone(), original.operationVersion());
+
+        assertThatThrownBy(() -> service.calculate(new ClearingCalculationCommand(
+                operation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
+                base.occurredRiskServices(), base.tierContexts(), null, null)))
+                .isInstanceOfSatisfying(ClearingProcessingException.class, failure ->
+                        assertThat(failure.getFailureCode()).isEqualTo(ClearingFailureCodeEnum.AMOUNT_INVALID));
+    }
+
+    /**
+     * 渠道交易 exponent 不得影响商户标签币种本金、费用和保证金。
+     */
+    @Test
+    void calculateShouldKeepMerchantClearingIndependentFromChannelTransactionExponent() {
         ClearingCalculationCommand base = command("SUCCESS");
         ClearingOperationFacts original = base.operation();
         ClearingOperationFacts operation = new ClearingOperationFacts(
@@ -275,11 +296,11 @@ class DefaultClearingCalculationServiceTest {
                 original.transactionDateTime(), original.transactionUtcTime(),
                 original.transactionTimeZone(), original.operationVersion());
 
-        assertThatThrownBy(() -> service.calculate(new ClearingCalculationCommand(
+        ClearingCalculationResult result = service.calculate(new ClearingCalculationCommand(
                 operation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
-                base.occurredRiskServices(), base.tierContexts(), null, null)))
-                .isInstanceOfSatisfying(ClearingProcessingException.class, failure ->
-                        assertThat(failure.getFailureCode()).isEqualTo(ClearingFailureCodeEnum.AMOUNT_INVALID));
+                base.occurredRiskServices(), base.tierContexts(), null, null));
+
+        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("112"), "JPY", 0));
     }
 
     @Test
@@ -299,8 +320,7 @@ class DefaultClearingCalculationServiceTest {
                 base.occurredRiskServices(), base.tierContexts(), base.feeRefundCommand(),
                 base.reserveReturnCommand()));
 
-        assertThat(result.principal().currency()).isEqualTo("USD");
-        assertThat(result.principal().amount()).isEqualByComparingTo("0.71");
+        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("100.125"), "KWD", 3));
         assertThat(result.fees().get(0).result().components().get(0).amount().exponent()).isEqualTo(3);
         assertThat(result.reserve().amount().amount()).isEqualByComparingTo("10.013");
     }
@@ -356,7 +376,7 @@ class DefaultClearingCalculationServiceTest {
     }
 
     @Test
-    void calculateShouldClassifyInvalidLabelAmountFactsAsControlledAmountFailure() {
+    void calculateShouldKeepMerchantClearingIndependentFromStoredChannelExponent() {
         ClearingCalculationCommand base = command("SUCCESS");
         ClearingOperationFacts original = base.operation();
         ClearingOperationFacts invalidOperation = new ClearingOperationFacts(
@@ -367,12 +387,12 @@ class DefaultClearingCalculationServiceTest {
                 original.transactionAmount(), 3, original.transactionDateTime(),
                 original.transactionUtcTime(), original.transactionTimeZone(), original.operationVersion());
 
-        assertThatThrownBy(() -> service.calculate(new ClearingCalculationCommand(
+        ClearingCalculationResult result = service.calculate(new ClearingCalculationCommand(
                 invalidOperation, base.feeSnapshot(), base.paymentType(), base.paymentMethod(),
                 base.occurredRiskServices(), base.tierContexts(), base.feeRefundCommand(),
-                base.reserveReturnCommand())))
-                .isInstanceOfSatisfying(ClearingProcessingException.class, failure ->
-                        assertThat(failure.getFailureCode()).isEqualTo(ClearingFailureCodeEnum.AMOUNT_INVALID));
+                base.reserveReturnCommand()));
+
+        assertThat(result.principal()).isEqualTo(new Money(new BigDecimal("100.00"), "EUR", 2));
     }
 
     @Test
@@ -546,7 +566,7 @@ class DefaultClearingCalculationServiceTest {
     }
 
     /**
-     * 请款和拒付申诉形成贷记本金，退款和拒付形成借记本金，均使用动作自身批准金额。
+     * 请款和拒付申诉形成贷记本金，退款和拒付形成借记本金，均使用动作自身标签金额。
      */
     @Test
     void calculateShouldClassifySettlementBearingActionPrincipalDirection() {
@@ -562,6 +582,49 @@ class DefaultClearingCalculationServiceTest {
             assertThat(result.principalDirection()).as(transactionType)
                     .isEqualTo(com.scott.payment.finance.fee.model.FeeCalculationModels.EntryDirection.DEBIT);
         }
+    }
+
+    /**
+     * Apple Pay 拒付必须命中冻结的拒付费规则，并以借记本金和独立费用事实进入清分结果。
+     */
+    @Test
+    void calculateShouldChargeConfiguredApplePayDisputeFeeForChargeback() {
+        ClearingCalculationCommand base = command("SUCCESS");
+        ClearingOperationFacts source = base.operation();
+        ClearingOperationFacts chargeback = new ClearingOperationFacts(
+                "TX-APPLE-PAY-CHARGEBACK", source.operationId(), source.sourceTransactionId(),
+                source.merchantId(), source.merchantOrderNo(), "CHARGEBACK", "SUCCESS",
+                source.labelCurrency(), source.labelAmount(), source.approvedCurrency(), source.approvedAmount(),
+                source.transactionCurrency(), source.transactionAmount(), source.currencyExponent(),
+                source.transactionDateTime(), source.transactionUtcTime(), source.transactionTimeZone(),
+                source.operationVersion());
+        FeeRuleSnapshot disputeCalculation = new FeeRuleSnapshot(
+                501L, FeeMode.STANDARD, BigDecimal.ZERO,
+                new Money(new BigDecimal("15.00"), "USD", 2), null, null, null);
+        FeeRuleConfigurationSnapshot disputeRule = new FeeRuleConfigurationSnapshot(
+                501L, "DISPUTE_FEE", "CHARGEBACK", "APPLE_PAY", "ALL", "NONE",
+                "NOT_APPLICABLE", disputeCalculation, List.of());
+        FeeVersionSnapshot sourceSnapshot = base.feeSnapshot();
+        FeeVersionSnapshot snapshot = new FeeVersionSnapshot(
+                sourceSnapshot.schemaVersion(), sourceSnapshot.merchantId(), sourceSnapshot.feePlanId(),
+                sourceSnapshot.feePlanVersionId(), sourceSnapshot.feePlanVersionNo(),
+                sourceSnapshot.pricingLockTime(), sourceSnapshot.settlementCurrency(),
+                sourceSnapshot.percentageBasis(), sourceSnapshot.feeCurrencyPolicy(),
+                sourceSnapshot.roundingMode(), sourceSnapshot.reserve(), sourceSnapshot.refundFeeReturnPolicy(),
+                List.of(disputeRule), sourceSnapshot.snapshotHash());
+
+        ClearingCalculationResult result = service.calculate(new ClearingCalculationCommand(
+                chargeback, snapshot, "APPLE_PAY", "ALL", Set.of(), Map.of(), null, null));
+
+        assertThat(result.principalDirection())
+                .isEqualTo(com.scott.payment.finance.fee.model.FeeCalculationModels.EntryDirection.DEBIT);
+        assertThat(result.fees()).singleElement().satisfies(fee -> {
+            assertThat(fee.rule().feeCategory()).isEqualTo("DISPUTE_FEE");
+            assertThat(fee.rule().paymentType()).isEqualTo("APPLE_PAY");
+            assertThat(fee.result().components()).singleElement()
+                    .satisfies(component -> assertThat(component.amount())
+                            .isEqualTo(new Money(new BigDecimal("15.00"), "USD", 2)));
+        });
     }
 
     /**

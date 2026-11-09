@@ -1221,12 +1221,30 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         if (merchantInfo == null) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
         }
+        if (isOnboardingPortalAccessible(merchantInfo)) {
+            return;
+        }
         if (Objects.equals(merchantInfo.getMerchantStatus(), 2)) {
             throw new ServiceException(ApiResultEnum.MERCHANT_FROZEN);
         }
         if (!Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
         }
+    }
+
+    /**
+     * 判断未开通商户是否仍可使用受限门户完成进件。
+     *
+     * <p>运行状态为 2 且收单尚未 ACTIVE 表示进件期，不等同于已开通商户被冻结。
+     * 已开通商户一旦被冻结，其 activationStatus 仍为 ACTIVE，必须继续拒绝登录和旧会话。</p>
+     *
+     * @param merchantInfo 共享商户运行画像
+     * @return true 表示仅允许按当前受限权限访问商户门户
+     */
+    private boolean isOnboardingPortalAccessible(MerchantRuntimeProfile merchantInfo) {
+        return Objects.equals(merchantInfo.getMerchantStatus(), 2)
+                && StringUtils.hasText(merchantInfo.getActivationStatus())
+                && !"ACTIVE".equals(merchantInfo.getActivationStatus());
     }
 
     /**
@@ -2242,7 +2260,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             return null;
         }
         MerchantRuntimeProfile merchantInfo = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
-        if (merchantInfo == null || !Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
+        if (merchantInfo == null
+                || (!Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)
+                && !isOnboardingPortalAccessible(merchantInfo))) {
             return null;
         }
         return merchantInfo;

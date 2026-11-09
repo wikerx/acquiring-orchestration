@@ -44,6 +44,7 @@ import java.util.Set;
 public class JdbcMerchantSettlementQueryService implements MerchantSettlementQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_CLEARING_DETAIL_PAGE_SIZE = 100;
     private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> BATCH_TYPES = Set.of(
             "REGULAR", "RESERVE_RELEASE", "REVERSAL", "ADJUSTMENT");
@@ -323,6 +324,26 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         String scopedMerchantId = requireMerchantId(merchantId);
         TransactionIdentityQuery query = normalizeTransactionIdentity(transactionId, transactionDateTime);
         return readExecutor.read(() -> clearingDetail(scopedMerchantId, query));
+    }
+
+    @Override
+    public PageResult<ClearingTransactionLine> searchClearingTransactionLinesByTransaction(
+            String merchantId, String transactionId, LocalDateTime transactionDateTime,
+            Integer pageNo, Integer pageSize) {
+        String scopedMerchantId = requireMerchantId(merchantId);
+        TransactionHistoryQuery query = normalizeClearingDetailPage(
+                transactionId, transactionDateTime, pageNo, pageSize);
+        return readExecutor.read(() -> clearingTransactionPage(scopedMerchantId, query));
+    }
+
+    @Override
+    public PageResult<ClearingReserveLine> searchClearingReserveLinesByTransaction(
+            String merchantId, String transactionId, LocalDateTime transactionDateTime,
+            Integer pageNo, Integer pageSize) {
+        String scopedMerchantId = requireMerchantId(merchantId);
+        TransactionHistoryQuery query = normalizeClearingDetailPage(
+                transactionId, transactionDateTime, pageNo, pageSize);
+        return readExecutor.read(() -> clearingReservePage(scopedMerchantId, query));
     }
 
     /**
@@ -715,9 +736,75 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
             return null;
         }
         ClearingDetail detail = new ClearingDetail();
-        ClearingSummary summary = summaries.get(0);
-        detail.setSummary(summary);
-        Integer clearingRevision = jdbcTemplate.queryForObject("""
+        detail.setSummary(summaries.get(0));
+        return detail;
+    }
+
+    /**
+     * 分页读取商户可见的本金和费用清分行，不返回内部公式、费率方案或渠道字段。
+     */
+    private PageResult<ClearingTransactionLine> clearingTransactionPage(
+            String merchantId, TransactionHistoryQuery query) {
+        Integer revision = currentClearingRevision(merchantId, query);
+        if (revision == null || revision < 1) {
+            return PageResult.of(0L, query.pageNo(), query.pageSize(), List.of());
+        }
+        MapSqlParameterSource parameters = clearingDetailParameters(merchantId, query, revision);
+        return page("""
+                        detail.clearing_detail_no, detail.line_no, detail.item_type,
+                        detail.fee_category, detail.item_code, detail.item_name,
+                        detail.direction, detail.basis_currency, detail.basis_amount,
+                        detail.amount, detail.currency, detail.currency_exponent,
+                        detail.record_status
+                        """,
+                "FROM transaction_clearing_detail detail\n",
+                """
+                        WHERE detail.transaction_id = :transactionId
+                          AND detail.transaction_date_time = :transactionDateTime
+                          AND detail.merchant_id = :merchantId
+                          AND detail.clearing_revision = :clearingRevision
+                          AND detail.record_status = 'ACTIVE'
+                        """,
+                parameters, "detail.line_no ASC, detail.id ASC",
+                query.pageNo(), query.pageSize(), ClearingTransactionLine.class);
+    }
+
+    /**
+     * 分页读取商户可见的原标签币种保证金清分行。
+     */
+    private PageResult<ClearingReserveLine> clearingReservePage(
+            String merchantId, TransactionHistoryQuery query) {
+        Integer revision = currentClearingRevision(merchantId, query);
+        if (revision == null || revision < 1) {
+            return PageResult.of(0L, query.pageNo(), query.pageSize(), List.of());
+        }
+        MapSqlParameterSource parameters = clearingDetailParameters(merchantId, query, revision);
+        return page("""
+                        detail.reserve_clearing_detail_no, detail.line_no,
+                        detail.reserve_action_type, detail.item_code, detail.item_name,
+                        detail.direction, detail.reserve_currency,
+                        detail.reserve_currency_exponent, detail.retained_amount,
+                        detail.returned_amount, detail.released_amount,
+                        detail.adjustment_amount, detail.remaining_amount,
+                        detail.expected_reserve_release_date, detail.record_status
+                        """,
+                "FROM transaction_reserve_clearing_detail detail\n",
+                """
+                        WHERE detail.transaction_id = :transactionId
+                          AND detail.transaction_date_time = :transactionDateTime
+                          AND detail.merchant_id = :merchantId
+                          AND detail.clearing_revision = :clearingRevision
+                          AND detail.record_status = 'ACTIVE'
+                        """,
+                parameters, "detail.line_no ASC, detail.id ASC",
+                query.pageNo(), query.pageSize(), ClearingReserveLine.class);
+    }
+
+    /**
+     * 先用可信商户和精确交易身份定位当前修订，错误商户只得到空分页。
+     */
+    private Integer currentClearingRevision(String merchantId, TransactionHistoryQuery query) {
+        List<Integer> revisions = jdbcTemplate.query("""
                 SELECT finance.clearing_revision
                 FROM transaction_finance_state finance
                 WHERE finance.transaction_id = :transactionId
@@ -725,38 +812,21 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                   AND finance.merchant_id = :merchantId
                   AND finance.deleted = 0
                 LIMIT 1
-                """, parameters, Integer.class);
-        if (clearingRevision == null || clearingRevision < 1) {
-            return detail;
-        }
-        parameters.addValue("clearingRevision", clearingRevision);
-        detail.setTransactionDetails(jdbcTemplate.query("""
-                SELECT clearing_detail_no, line_no, item_type, fee_category,
-                       item_code, item_name, direction, basis_currency, basis_amount,
-                       amount, currency, currency_exponent, record_status
-                FROM transaction_clearing_detail
-                WHERE transaction_id = :transactionId
-                  AND transaction_date_time = :transactionDateTime
-                  AND merchant_id = :merchantId
-                  AND clearing_revision = :clearingRevision
-                  AND record_status = 'ACTIVE'
-                ORDER BY line_no ASC, id ASC
-                """, parameters, BeanPropertyRowMapper.newInstance(ClearingTransactionLine.class)));
-        detail.setReserveDetails(jdbcTemplate.query("""
-                SELECT reserve_clearing_detail_no, line_no, reserve_action_type,
-                       item_code, item_name, direction, reserve_currency,
-                       reserve_currency_exponent, retained_amount, returned_amount,
-                       released_amount, adjustment_amount, remaining_amount,
-                       expected_reserve_release_date, record_status
-                FROM transaction_reserve_clearing_detail
-                WHERE transaction_id = :transactionId
-                  AND transaction_date_time = :transactionDateTime
-                  AND merchant_id = :merchantId
-                  AND clearing_revision = :clearingRevision
-                  AND record_status = 'ACTIVE'
-                ORDER BY line_no ASC, id ASC
-                """, parameters, BeanPropertyRowMapper.newInstance(ClearingReserveLine.class)));
-        return detail;
+                """, new MapSqlParameterSource()
+                        .addValue("merchantId", merchantId)
+                        .addValue("transactionId", query.transactionId())
+                        .addValue("transactionDateTime", query.transactionDateTime()),
+                (resultSet, rowNumber) -> resultSet.getObject("clearing_revision", Integer.class));
+        return revisions.isEmpty() ? null : revisions.get(0);
+    }
+
+    private MapSqlParameterSource clearingDetailParameters(
+            String merchantId, TransactionHistoryQuery query, Integer revision) {
+        return new MapSqlParameterSource()
+                .addValue("merchantId", merchantId)
+                .addValue("transactionId", query.transactionId())
+                .addValue("transactionDateTime", query.transactionDateTime())
+                .addValue("clearingRevision", revision);
     }
 
     /**
@@ -998,6 +1068,26 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         }
         return new TransactionHistoryQuery(
                 normalizedTransactionId, transactionDateTime, normalizedPageNo, normalizedPageSize);
+    }
+
+    private TransactionHistoryQuery normalizeClearingDetailPage(String transactionId,
+                                                                LocalDateTime transactionDateTime,
+                                                                Integer pageNo,
+                                                                Integer pageSize) {
+        String normalizedTransactionId = optionalText(transactionId, 64);
+        if (normalizedTransactionId == null || transactionDateTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        int normalizedPageNo = pageNo == null ? 1 : pageNo;
+        int normalizedPageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
+        int maximumPageSize = Math.min(MAX_CLEARING_DETAIL_PAGE_SIZE, maxResultRows);
+        if (normalizedPageNo < 1 || normalizedPageSize < 1
+                || normalizedPageSize > maximumPageSize) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return new TransactionHistoryQuery(
+                normalizedTransactionId, transactionDateTime,
+                normalizedPageNo, normalizedPageSize);
     }
 
     /**

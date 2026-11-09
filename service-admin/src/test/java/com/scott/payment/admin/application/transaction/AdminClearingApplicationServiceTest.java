@@ -67,9 +67,13 @@ class AdminClearingApplicationServiceTest {
 
         service.search(request);
         service.detail(" TX-1 ", transactionTime);
+        service.searchTransactionDetails(" TX-1 ", transactionTime, 2, 20);
+        service.searchReserveDetails(" TX-1 ", transactionTime, 3, 50);
 
         verify(queryService).search(request);
         verify(queryService).detail("TX-1", transactionTime);
+        verify(queryService).searchTransactionDetails("TX-1", transactionTime, 2, 20);
+        verify(queryService).searchReserveDetails("TX-1", transactionTime, 3, 50);
         verifyNoInteractions(client);
     }
 

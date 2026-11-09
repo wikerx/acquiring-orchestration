@@ -1,10 +1,9 @@
 package com.scott.payment.merchant.dto.transaction;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.ChannelInteractionLogResponse;
-import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.ChannelRequestResponse;
 import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.MerchantApiInteractionLogResponse;
 import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.MerchantNotificationResponse;
@@ -82,19 +81,9 @@ public final class MerchantTransactionDTOs {
         private String paymentBrand;
 
         /**
-         * 渠道订单号，可用于商户对账排查。
-         */
-        private String channelOrderNo;
-
-        /**
          * 商户侧可见响应码。
          */
         private String merchantResponseCode;
-
-        /**
-         * 对账状态。
-         */
-        private String reconciliationStatus;
 
         /**
          * 结算状态。
@@ -289,8 +278,16 @@ public final class MerchantTransactionDTOs {
 
         private BigDecimal labelAmount;
 
+        /**
+         * 平台上送渠道的交易币种，仅供商户后台动作编排使用，禁止序列化到商户端。
+         */
+        @JsonIgnore
         private String transactionCurrency;
 
+        /**
+         * 平台上送渠道的交易金额，仅供商户后台动作编排使用，禁止序列化到商户端。
+         */
+        @JsonIgnore
         private BigDecimal transactionAmount;
 
         private BigDecimal currentAmount;
@@ -302,6 +299,10 @@ public final class MerchantTransactionDTOs {
          */
         private Integer currencyExponent;
 
+        /**
+         * 标签金额换算为渠道交易金额的内部汇率，禁止序列化到商户端。
+         */
+        @JsonIgnore
         private BigDecimal transactionRate;
 
         /**
@@ -312,25 +313,42 @@ public final class MerchantTransactionDTOs {
         /**
          * 是否实际启用 DCC：0 未启用，1 启用。
          */
+        @JsonIgnore
         private Integer dccEnabled;
 
         /**
          * 是否实际启用 EDC：0 未启用，1 启用。
          */
+        @JsonIgnore
         private Integer edcEnabled;
 
         private String merchantResponseCode;
 
         private String merchantResponseMessage;
 
+        /**
+         * 所属生命周期累计授权成功金额，商户标签币种单位。
+         */
         private BigDecimal authorizedAmount;
 
+        /**
+         * 所属生命周期累计请款成功金额，商户标签币种单位。
+         */
         private BigDecimal capturedAmount;
 
+        /**
+         * 所属生命周期累计退款成功金额，商户标签币种单位。
+         */
         private BigDecimal refundedAmount;
 
+        /**
+         * 所属生命周期当前可请款金额，商户标签币种单位。
+         */
         private BigDecimal availableCaptureAmount;
 
+        /**
+         * 所属生命周期当前可退款金额，商户标签币种单位。
+         */
         private BigDecimal availableRefundAmount;
 
         /**
@@ -346,6 +364,7 @@ public final class MerchantTransactionDTOs {
         /**
          * 最近真实动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。
          */
+        @JsonIgnore
         private BigDecimal settlementRate;
 
         /**
@@ -371,19 +390,7 @@ public final class MerchantTransactionDTOs {
 
         private String settlementStatus;
 
-        private String reconciliationStatus;
-
         private String accountingStatus;
-
-        /**
-         * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
-         */
-        private String channelCode;
-
-        /**
-         * 渠道订单号，由渠道返回，用于渠道查询、回调匹配和对账。
-         */
-        private String channelOrderNo;
 
         /**
          * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
@@ -453,8 +460,16 @@ public final class MerchantTransactionDTOs {
 
         private BigDecimal labelAmount;
 
+        /**
+         * 平台上送渠道的交易币种，仅供商户后台动作编排使用，禁止序列化到商户端。
+         */
+        @JsonIgnore
         private String transactionCurrency;
 
+        /**
+         * 平台上送渠道的交易金额，仅供商户后台动作编排使用，禁止序列化到商户端。
+         */
+        @JsonIgnore
         private BigDecimal transactionAmount;
 
         /**
@@ -462,6 +477,10 @@ public final class MerchantTransactionDTOs {
          */
         private Integer currencyExponent;
 
+        /**
+         * 标签金额换算为渠道交易金额的内部汇率，禁止序列化到商户端。
+         */
+        @JsonIgnore
         private BigDecimal transactionRate;
 
         /**
@@ -472,11 +491,13 @@ public final class MerchantTransactionDTOs {
         /**
          * 是否实际启用 DCC：0 未启用，1 启用。
          */
+        @JsonIgnore
         private Integer dccEnabled;
 
         /**
          * 是否实际启用 EDC：0 未启用，1 启用。
          */
+        @JsonIgnore
         private Integer edcEnabled;
 
         private String merchantResponseCode;
@@ -517,24 +538,7 @@ public final class MerchantTransactionDTOs {
          */
         private String accessType;
 
-        /**
-         * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
-         */
-        private String channelCode;
-
-        /**
-         * 渠道订单号，由渠道返回，用于渠道查询、回调匹配和对账。
-         */
-        private String channelOrderNo;
-
-        /**
-         * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         */
-        private String channelTransactionId;
-
         private String authCode;
-
-        private String acquirerReferenceNo;
 
         /**
          * 当前动作最终结算币种；未结算时为空。
@@ -549,6 +553,7 @@ public final class MerchantTransactionDTOs {
         /**
          * 当前动作中 1 单位交易币种兑换的结算币种数量，最多 12 位小数。
          */
+        @JsonIgnore
         private BigDecimal settlementRate;
 
         /**
@@ -562,8 +567,6 @@ public final class MerchantTransactionDTOs {
         private String settlementBatchNo;
 
         private String settlementStatus;
-
-        private String reconciliationStatus;
 
         private String accountingStatus;
 
@@ -698,16 +701,6 @@ public final class MerchantTransactionDTOs {
          * 生命周期金额变动记录，金额必须结合各记录币种解释。
          */
         private List<TransactionAmountChangeResponse> amountChanges = Collections.emptyList();
-
-        /**
-         * 渠道请求业务记录。
-         */
-        private List<ChannelRequestResponse> channelRequests = Collections.emptyList();
-
-        /**
-         * 已脱敏且不含报文正文的渠道交互摘要。
-         */
-        private List<ChannelInteractionLogResponse> channelInteractionLogs = Collections.emptyList();
 
         /**
          * 商户通知任务。

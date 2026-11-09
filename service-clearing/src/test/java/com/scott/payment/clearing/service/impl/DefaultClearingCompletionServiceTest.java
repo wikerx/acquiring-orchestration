@@ -1,5 +1,6 @@
 package com.scott.payment.clearing.service.impl;
 
+import com.scott.payment.clearing.domain.model.ClearingCalculationModels.ClearingCalculationResult;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.CompletionCommand;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.CompletionResult;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.FinanceSummary;
@@ -32,6 +33,7 @@ import com.scott.payment.clearing.support.ClearingOperationalMetrics;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.EntryDirection;
 import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeMode;
 import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeRuleSnapshot;
 import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeTierSnapshot;
@@ -115,7 +117,8 @@ class DefaultClearingCompletionServiceTest {
         assertThat(detailCaptor.getValue()).extracting(ClearingTransactionDetailDO::getItemType)
                 .containsExactly("PRINCIPAL", "PLATFORM_FEE", "PLATFORM_FEE");
         assertThat(detailCaptor.getValue()).extracting(ClearingTransactionDetailDO::getCurrency)
-                .containsExactly("USD", "EUR", "USD");
+                .containsExactly("EUR", "EUR", "USD");
+        assertThat(detailCaptor.getValue().get(0).getAmount()).isEqualByComparingTo("100.00");
 
         ArgumentCaptor<FinanceSummary> summaryCaptor = ArgumentCaptor.forClass(FinanceSummary.class);
         verify(financeMapper).completeProcessing(
@@ -150,6 +153,19 @@ class DefaultClearingCompletionServiceTest {
         verify(projectionService).updateWithLocator(
                 command.claim().operation(), command.currentLocator(), ClearingStateEnum.CLEARED, null, now);
         assertThat(result).isEqualTo(new CompletionResult("CLEARED", 1, 3, 1));
+    }
+
+    @Test
+    void validateMerchantPrincipalInvariantShouldRejectChannelPrincipalBeforePersistence() {
+        ClearingOperationFacts operation = command("USD", "110.00").claim().operation();
+        ClearingCalculationResult invalidResult = new ClearingCalculationResult(
+                new Money(new BigDecimal("110.00"), "USD", 2), EntryDirection.CREDIT,
+                List.of(), null, null);
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> DefaultClearingCompletionService.validateMerchantPrincipalInvariant(
+                        operation, invalidResult))
+                .withMessageContaining("label amount and currency");
     }
 
     /**
@@ -199,8 +215,11 @@ class DefaultClearingCompletionServiceTest {
                     assertThat(detail.getLabelCurrency()).isEqualTo("JPY");
                     assertThat(detail.getLabelCurrencyExponent()).isZero();
                 });
-        assertThat(detailCaptor.getValue().get(0).getBasisCurrency()).isEqualTo("USD");
-        assertThat(detailCaptor.getValue().get(0).getBasisCurrencyExponent()).isEqualTo(2);
+        assertThat(detailCaptor.getValue().get(0).getBasisCurrency()).isEqualTo("JPY");
+        assertThat(detailCaptor.getValue().get(0).getBasisCurrencyExponent()).isZero();
+        assertThat(detailCaptor.getValue().get(0).getAmount()).isEqualByComparingTo("112");
+        assertThat(detailCaptor.getValue().get(0).getCurrency()).isEqualTo("JPY");
+        assertThat(detailCaptor.getValue().get(0).getCurrencyExponent()).isZero();
         assertThat(detailCaptor.getValue().get(1).getBasisCurrency()).isEqualTo("JPY");
         assertThat(detailCaptor.getValue().get(1).getBasisCurrencyExponent()).isZero();
 

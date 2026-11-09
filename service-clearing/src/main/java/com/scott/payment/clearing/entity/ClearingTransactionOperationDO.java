@@ -60,6 +60,10 @@ public class ClearingTransactionOperationDO implements Serializable {
      */
     private BigDecimal labelAmount;
     /**
+     * 商户标签币种 ISO exponent；与渠道交易币种 exponent 独立冻结。
+     */
+    private Integer labelCurrencyExponent;
+    /**
      * 渠道批准 ISO 币种；未批准时允许为空。
      */
     private String approvedCurrency;
@@ -76,7 +80,7 @@ public class ClearingTransactionOperationDO implements Serializable {
      */
     private BigDecimal transactionAmount;
     /**
-     * 标签币种 ISO exponent。
+     * 实际交易币种 ISO exponent。
      */
     private Integer currencyExponent;
     /**

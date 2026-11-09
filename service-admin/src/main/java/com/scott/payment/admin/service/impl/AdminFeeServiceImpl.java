@@ -83,6 +83,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private static final String ALL = "ALL";
     private static final String BANK_CARD = "BANK_CARD";
     private static final String TRANSACTION_FEE = "TRANSACTION_FEE";
+    private static final String REFUND_FEE = "REFUND_FEE";
     private static final String RISK_FEE = "RISK_FEE";
     private static final String DISPUTE_FEE = "DISPUTE_FEE";
     private static final String SETTLEMENT_PROCESSING_FEE = "SETTLEMENT_PROCESSING_FEE";
@@ -106,6 +107,17 @@ public class AdminFeeServiceImpl implements AdminFeeService {
      */
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final int MAX_EXPANDED_RULES = 200;
+    /**
+     * 新增规则未提交交易类型时使用的业务默认值；显式提交值始终优先。
+     */
+    private static final Map<String, List<String>> DEFAULT_TRANSACTION_TYPES_BY_FEE_CATEGORY = Map.of(
+            TRANSACTION_FEE, List.of("PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION"),
+            REFUND_FEE, List.of("REFUND"),
+            RISK_FEE, List.of("PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION"),
+            DISPUTE_FEE, List.of("CHARGEBACK", "REPRESENTMENT"),
+            SETTLEMENT_FX_FEE, List.of(
+                    "PAYMENT", "CAPTURE", "PRE_AUTH_COMPLETION",
+                    "REFUND", "CHARGEBACK", "REPRESENTMENT"));
 
     private final FeePlanMapper planMapper;
     private final FeePlanVersionMapper versionMapper;
@@ -591,13 +603,19 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         ResolvedSettlementRate resolvedRate = settlementRateResolver.resolve(
                 request.getLabelCurrency(), LocalDateTime.now());
         List<CalculatedFeeDetail> calculatedDetails = new ArrayList<>();
+        List<FeeSimulationDetailResponse> informationalDetails = new ArrayList<>();
         if (!RISK_FEE.equals(feeCategory)) {
             calculatedDetails.add(calculateFeeDetail(
                     request, version, resolvedRate.rate(), feeCategory, NONE, version.getReserveRate()));
         }
         for (String riskServiceType : selectedRiskServiceTypes) {
-            calculatedDetails.add(calculateFeeDetail(
-                    request, version, resolvedRate.rate(), RISK_FEE, riskServiceType, BigDecimal.ZERO));
+            CalculatedFeeDetail riskFeeDetail = calculateOptionalFeeDetail(
+                    request, version, resolvedRate.rate(), RISK_FEE, riskServiceType, BigDecimal.ZERO);
+            if (riskFeeDetail == null) {
+                informationalDetails.add(zeroFeeStatusDetail(RISK_FEE, riskServiceType));
+            } else {
+                calculatedDetails.add(riskFeeDetail);
+            }
         }
         FeeSimulationDetailResponse settlementFxStatusDetail = null;
         if (!RISK_FEE.equals(feeCategory) && !SETTLEMENT_FX_FEE.equals(feeCategory)) {
@@ -622,8 +640,13 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         List<FeeSimulationDetailResponse> detailRows = new ArrayList<>(calculatedDetails.stream()
                 .map(CalculatedFeeDetail::detail)
                 .toList());
+        detailRows.addAll(informationalDetails);
         if (!DISPUTE_FEE.equals(feeCategory)) {
-            detailRows.add(statusDetail(DISPUTE_FEE, NOT_APPLICABLE));
+            FeeSimulationDetailResponse disputePreview = calculateDisputeFeePreview(
+                    request, version, resolvedRate.rate());
+            detailRows.add(disputePreview == null
+                    ? zeroFeeStatusDetail(DISPUTE_FEE, NONE)
+                    : disputePreview);
         }
         if (settlementFxStatusDetail != null) {
             detailRows.add(settlementFxStatusDetail);
@@ -657,6 +680,36 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                                    String riskServiceType,
                                                    BigDecimal reserveRate) {
         FeeRuleDO rule = resolveSimulationRule(version.getId(), sourceRequest, feeCategory, riskServiceType);
+        return calculateFeeDetail(
+                sourceRequest, rule, labelToUsdRate, feeCategory, riskServiceType, reserveRate);
+    }
+
+    /**
+     * 匹配可选费用；未配置规则时返回空，由调用方生成明确的零费用说明。
+     */
+    private CalculatedFeeDetail calculateOptionalFeeDetail(FeeSimulationRequest sourceRequest,
+                                                           FeePlanVersionDO version,
+                                                           BigDecimal labelToUsdRate,
+                                                           String feeCategory,
+                                                           String riskServiceType,
+                                                           BigDecimal reserveRate) {
+        FeeRuleDO rule = findSimulationRule(version.getId(), sourceRequest, feeCategory, riskServiceType);
+        if (rule == null) {
+            return null;
+        }
+        return calculateFeeDetail(
+                sourceRequest, rule, labelToUsdRate, feeCategory, riskServiceType, reserveRate);
+    }
+
+    /**
+     * 使用已匹配规则完成单项计算，避免必选费用和可选费用复制计算逻辑。
+     */
+    private CalculatedFeeDetail calculateFeeDetail(FeeSimulationRequest sourceRequest,
+                                                   FeeRuleDO rule,
+                                                   BigDecimal labelToUsdRate,
+                                                   String feeCategory,
+                                                   String riskServiceType,
+                                                   BigDecimal reserveRate) {
         List<FeeRuleTierDO> tiers = tierMapper.selectList(Wrappers.<FeeRuleTierDO>lambdaQuery()
                 .eq(FeeRuleTierDO::getFeeRuleId, rule.getId())
                 .eq(FeeRuleTierDO::getDeleted, NOT_DELETED)
@@ -688,12 +741,31 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     }
 
     /**
+     * 展示当前支付方式已配置的拒付费用，但不把未来可能发生的拒付费计入本次交易合计。
+     */
+    private FeeSimulationDetailResponse calculateDisputeFeePreview(FeeSimulationRequest sourceRequest,
+                                                                   FeePlanVersionDO version,
+                                                                   BigDecimal labelToUsdRate) {
+        FeeSimulationRequest disputeRequest = copySimulationRequest(sourceRequest, DISPUTE_FEE, NONE);
+        disputeRequest.setTransactionType("CHARGEBACK");
+        CalculatedFeeDetail preview = calculateOptionalFeeDetail(
+                disputeRequest, version, labelToUsdRate, DISPUTE_FEE, NONE, BigDecimal.ZERO);
+        if (preview == null) {
+            return null;
+        }
+        FeeSimulationDetailResponse detail = preview.detail();
+        detail.setCalculationStatus(NOT_APPLICABLE);
+        detail.setIncludedInFeeTotal(false);
+        return detail;
+    }
+
+    /**
      * 匹配版本级结算货币兑换费；未配置时返回空，由明细状态明确说明。
      */
     private CalculatedFeeDetail calculateOptionalSettlementFxFeeDetail(FeeSimulationRequest sourceRequest,
                                                                        FeePlanVersionDO version,
                                                                        BigDecimal labelToUsdRate) {
-        FeeRuleDO rule = findSettlementFxRule(version.getId());
+        FeeRuleDO rule = findSettlementFxRule(version.getId(), sourceRequest.getTransactionType());
         if (rule == null) {
             return null;
         }
@@ -787,10 +859,10 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     }
 
     /**
-     * 结算货币兑换费是版本级规则，不参与交易类型、支付类型和支付方式匹配。
+     * 按交易类型匹配结算货币兑换费；历史 ALL 规则作为兼容兜底。
      */
-    private FeeRuleDO findSettlementFxRule(Long versionId) {
-        return ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
+    private FeeRuleDO findSettlementFxRule(Long versionId, String transactionType) {
+        List<FeeRuleDO> candidates = ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
                         .eq(FeeRuleDO::getPlanVersionId, versionId)
                         .eq(FeeRuleDO::getFeeCategory, SETTLEMENT_FX_FEE)
                         .eq(FeeRuleDO::getRiskServiceType, NONE)
@@ -799,7 +871,14 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                         .orderByAsc(FeeRuleDO::getId)).stream()
                 .filter(item -> SETTLEMENT_FX_FEE.equals(upper(item.getFeeCategory())))
                 .filter(item -> NONE.equals(upper(item.getRiskServiceType())))
+                .toList();
+        String normalizedTransactionType = upper(transactionType);
+        return candidates.stream()
+                .filter(item -> normalizedTransactionType.equals(upper(item.getTransactionType())))
                 .findFirst()
+                .or(() -> candidates.stream()
+                        .filter(item -> ALL.equals(upper(item.getTransactionType())))
+                        .findFirst())
                 .orElse(null);
     }
 
@@ -897,13 +976,33 @@ public class AdminFeeServiceImpl implements AdminFeeService {
      * 组装交易状态及失败原因详情。
      */
     private FeeSimulationDetailResponse statusDetail(String feeCategory, String calculationStatus) {
+        return statusDetail(feeCategory, NONE, calculationStatus);
+    }
+
+    /**
+     * 组装带风控服务维度的说明性费用明细，不参与本次费用合计。
+     */
+    private FeeSimulationDetailResponse statusDetail(String feeCategory,
+                                                     String riskServiceType,
+                                                     String calculationStatus) {
         FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
         detail.setItemType(FEE);
         detail.setFeeCategory(feeCategory);
-        detail.setRiskServiceType(NONE);
+        detail.setRiskServiceType(riskServiceType);
         detail.setCalculationStatus(calculationStatus);
         detail.setIncludedInFeeTotal(false);
         detail.setChargeTrigger(NOT_APPLICABLE);
+        return detail;
+    }
+
+    /**
+     * 未配置的可选费用按零费用展示，与真实清分“不命中即不收费”的语义保持一致。
+     */
+    private FeeSimulationDetailResponse zeroFeeStatusDetail(String feeCategory, String riskServiceType) {
+        FeeSimulationDetailResponse detail = statusDetail(feeCategory, riskServiceType, NOT_CONFIGURED);
+        detail.setRawFeeUsd(BigDecimal.ZERO);
+        detail.setFinalFeeUsd(BigDecimal.ZERO);
+        detail.setFormulaSnapshot("USD 0.00");
         return detail;
     }
 
@@ -1376,8 +1475,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     }
 
     /**
-     * 将结算货币兑换费收敛为无业务匹配维度的标准单笔规则。
-     * 数据库非空维度统一使用 ALL，仅作为内部占位，不参与结算匹配。
+     * 将结算货币兑换费收敛为按交易类型匹配的标准单笔规则。
+     * 支付类型和支付方式不参与该费用匹配，数据库非空维度统一使用 ALL。
      *
      * @param rule 待保存的结算货币兑换费规则
      */
@@ -1386,7 +1485,6 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             throw invalid("结算货币兑换费只支持标准单笔计费");
         }
         rule.setRuleName(SETTLEMENT_FX_FEE_NAME);
-        rule.setTransactionType(ALL);
         rule.setPaymentType(ALL);
         rule.setPaymentMethod(ALL);
         rule.setFeeMode("STANDARD");
@@ -1462,13 +1560,16 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             }
             String ruleGroupCode = generateCode("FRG");
             if (SETTLEMENT_FX_FEE.equals(upper(request.getFeeCategory()))) {
-                FeeRuleRequest settlementFxRule = copyAtomicRule(request, ALL, ALL, ALL, ruleGroupCode);
-                settlementFxRule.setRuleName(SETTLEMENT_FX_FEE_NAME);
-                expanded.add(settlementFxRule);
+                for (String transactionType : transactionTypes(request)) {
+                    FeeRuleRequest settlementFxRule = copyAtomicRule(
+                            request, transactionType, ALL, ALL, ruleGroupCode);
+                    settlementFxRule.setRuleName(SETTLEMENT_FX_FEE_NAME);
+                    expanded.add(settlementFxRule);
+                    validateExpandedRuleLimit(expanded);
+                }
                 continue;
             }
-            List<String> transactionTypes = dimensionValues(
-                    request.getTransactionTypes(), request.getTransactionType(), "交易类型");
+            List<String> transactionTypes = transactionTypes(request);
             List<String> paymentTypes = dimensionValues(
                     request.getPaymentTypes(), request.getPaymentType(), "支付类型");
             List<String> paymentMethods = List.of(ALL);
@@ -1486,14 +1587,64 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                         FeeRuleRequest atomicRule = copyAtomicRule(
                                 request, transactionType, paymentType, paymentMethod, ruleGroupCode);
                         expanded.add(atomicRule);
-                        if (expanded.size() > MAX_EXPANDED_RULES) {
-                            throw invalid("单次提交展开后的费用规则不能超过 " + MAX_EXPANDED_RULES + " 条");
-                        }
+                        validateExpandedRuleLimit(expanded);
                     }
                 }
             }
         }
         return expanded;
+    }
+
+    /**
+     * 优先兼容旧调用方显式提交的交易类型；新费用表单省略该维度时按费用分类受控展开。
+     */
+    private List<String> transactionTypes(FeeRuleRequest request) {
+        boolean hasBatchValues = request.getTransactionTypes() != null
+                && !request.getTransactionTypes().isEmpty();
+        if (hasBatchValues || StringUtils.hasText(request.getTransactionType())) {
+            if (SETTLEMENT_FX_FEE.equals(upper(request.getFeeCategory()))) {
+                List<String> values = allowAllDimensionValues(
+                        request.getTransactionTypes(), request.getTransactionType(), "交易类型");
+                if (values.size() > 1 && values.contains(ALL)) {
+                    throw invalid("交易类型不能同时选择 ALL 和具体交易类型");
+                }
+                return values;
+            }
+            return dimensionValues(request.getTransactionTypes(), request.getTransactionType(), "交易类型");
+        }
+        List<String> defaults = DEFAULT_TRANSACTION_TYPES_BY_FEE_CATEGORY.get(upper(request.getFeeCategory()));
+        if (defaults == null) {
+            return dimensionValues(request.getTransactionTypes(), request.getTransactionType(), "交易类型");
+        }
+        return defaults;
+    }
+
+    /**
+     * 校验规则批量展开上限，避免单次配置生成过多原子记录。
+     */
+    private void validateExpandedRuleLimit(List<FeeRuleRequest> expanded) {
+        if (expanded.size() > MAX_EXPANDED_RULES) {
+            throw invalid("单次提交展开后的费用规则不能超过 " + MAX_EXPANDED_RULES + " 条");
+        }
+    }
+
+    /**
+     * 规范化允许使用 ALL 的兼容维度；只用于历史结算换汇费交易类型。
+     */
+    private List<String> allowAllDimensionValues(List<String> batchValues,
+                                                 String compatibleValue,
+                                                 String dimensionName) {
+        List<String> source = batchValues == null || batchValues.isEmpty()
+                ? List.of(StringUtils.hasText(compatibleValue) ? compatibleValue : ALL)
+                : batchValues;
+        LinkedHashSet<String> normalized = source.stream()
+                .filter(StringUtils::hasText)
+                .map(this::upper)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (normalized.isEmpty()) {
+            throw invalid(dimensionName + "不能为空");
+        }
+        return new ArrayList<>(normalized);
     }
 
     /**

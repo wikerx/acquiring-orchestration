@@ -10,7 +10,7 @@ import java.util.List;
 
 
 /**
- * 商户支付类创建响应，展示订单、交易状态、金额、汇率和后续动作，不暴露内部持久化模型。
+ * 商户支付类创建响应，展示订单、交易状态、商户金额和后续动作，不暴露渠道或内部持久化事实。
  */
 @Data
 public class PaymentCreateVO implements Serializable {
@@ -61,7 +61,7 @@ public class PaymentCreateVO implements Serializable {
     private TransactionInfoVO transactionInfo;
 
     /**
-     * 账单和换汇信息，包含标签金额、平台交易金额、汇率和结算摘要。
+     * 商户账单信息，包含标签金额和已形成的结算摘要。
      */
     private BillingInfoVO billingInfo;
 
@@ -270,27 +270,27 @@ public class PaymentCreateVO implements Serializable {
         private String currency;
 
         /**
-         * 当前生命周期累计授权成功金额，平台交易币种单位。
+         * 当前生命周期累计授权成功金额，商户标签币种单位。
          */
         private BigDecimal totalAuthorizedAmount;
 
         /**
-         * 当前生命周期累计请款成功金额，平台交易币种单位。
+         * 当前生命周期累计请款成功金额，商户标签币种单位。
          */
         private BigDecimal totalCapturedAmount;
 
         /**
-         * 当前生命周期累计退款成功金额，平台交易币种单位。
+         * 当前生命周期累计退款成功金额，商户标签币种单位。
          */
         private BigDecimal totalRefundAmount;
 
         /**
-         * 当前生命周期累计授权取消、预授权取消或未请款金额释放成功金额，平台交易币种单位。
+         * 当前生命周期累计授权取消、预授权取消或未请款金额释放成功金额，商户标签币种单位。
          */
         private BigDecimal totalAuthorizedCancelAmount;
 
         /**
-         * 当前生命周期累计拒付成立或确认成功金额，平台交易币种单位。
+         * 当前生命周期累计拒付成立或确认成功金额，商户标签币种单位。
          */
         private BigDecimal totalRefuseAmount;
     }
@@ -584,7 +584,10 @@ public class PaymentCreateVO implements Serializable {
     }
 
     /**
-     * 标签金额、渠道交易金额、冻结汇率、结算金额和费用明细。
+     * 商户标签金额、结算金额和费用明细。
+     *
+     * <p>渠道交易金额、渠道交易币种、交易汇率及汇率来源属于平台内部成本事实，
+     * 不属于商户 OpenAPI 响应契约。</p>
      */
     @Data
     public static class BillingInfoVO implements Serializable {
@@ -603,31 +606,6 @@ public class PaymentCreateVO implements Serializable {
          * 商户上送或页面标签展示的原始币种。
          */
         private String labelCurrency;
-
-        /**
-         * 平台上送渠道的交易金额，主币种单位。
-         */
-        private BigDecimal transactionAmount;
-
-        /**
-         * 平台上送渠道的交易币种。
-         */
-        private String transactionCurrency;
-
-        /**
-         * 标签金额转平台交易金额使用的汇率，未换汇时为 1.00000000。
-         */
-        private BigDecimal transactionRate;
-
-        /**
-         * 汇率来源编码。
-         */
-        private String rateSource;
-
-        /**
-         * 汇率生效或报价时间，按交易业务时区展示。
-         */
-        private OffsetDateTime rateTime;
 
         /**
          * 已形成的结算换汇汇率。

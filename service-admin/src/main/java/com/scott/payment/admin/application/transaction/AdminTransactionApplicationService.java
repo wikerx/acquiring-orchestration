@@ -12,11 +12,13 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQu
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
@@ -258,7 +260,7 @@ public class AdminTransactionApplicationService {
     /**
      * 管理后台发起全额请款动作。
      * <p>
-     * 后台只允许授权类成功交易做全额请款；页面展示标签币种，调用支付核心时按交易币种金额发起渠道请求。
+     * 后台只允许授权类成功交易做全额请款；传入支付核心的金额保持标签口径，渠道金额由支付核心按冻结汇率计算。
      *
      * @param transactionId 原授权平台交易 ID
      * @param request 请款动作请求
@@ -275,12 +277,10 @@ public class AdminTransactionApplicationService {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
         BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
-        BigDecimal transactionAmount = fullTransactionAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 sourceOperation,
                 request,
                 labelAmount,
-                transactionAmount,
                 ADMIN_CAPTURE_ORDER_ID_PREFIX);
         return paymentInternalClient.capture(requestDTO);
     }
@@ -306,12 +306,10 @@ public class AdminTransactionApplicationService {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
         BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
-        BigDecimal transactionAmount = fullTransactionAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 sourceOperation,
                 request,
                 labelAmount,
-                transactionAmount,
                 ADMIN_PRE_AUTH_COMPLETION_ORDER_ID_PREFIX);
         return paymentInternalClient.preAuthCompletion(requestDTO);
     }
@@ -339,11 +337,6 @@ public class AdminTransactionApplicationService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount must be greater than 0");
         }
-        BigDecimal transactionAmount = toTransactionAmount(sourceOperation, amount);
-        BigDecimal availableRefundAmount = sourceOperation.getAvailableRefundAmount();
-        if (availableRefundAmount != null && transactionAmount.compareTo(availableRefundAmount) > 0) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount exceeds available refund amount");
-        }
         request.setReason(RefundReasonEnum.resolveRequestReason(
                 request.getReasonCode(), request.getRefundDescription(), request.getReason(),
                 LocaleContextHolder.getLocale()));
@@ -351,7 +344,6 @@ public class AdminTransactionApplicationService {
                 sourceOperation,
                 request,
                 amount,
-                transactionAmount,
                 ADMIN_REFUND_ORDER_ID_PREFIX);
         return paymentInternalClient.refund(requestDTO);
     }
@@ -379,7 +371,6 @@ public class AdminTransactionApplicationService {
                 sourceOperation,
                 request,
                 fullLabelAmount(sourceOperation, sourceOperation.getTransactionAmount()),
-                fullTransactionAmount(sourceOperation, sourceOperation.getTransactionAmount()),
                 ADMIN_VOID_ORDER_ID_PREFIX);
         return paymentInternalClient.voidPayment(requestDTO);
     }
@@ -413,6 +404,42 @@ public class AdminTransactionApplicationService {
                                             LocalDateTime transactionDateTime,
                                             LocalDateTime rootTransactionDateTime) {
         return transactionQueryService.detail(transactionId, transactionDateTime, rootTransactionDateTime);
+    }
+
+    /**
+     * 查询交易详情首屏摘要，日志和时间线由详情页签按需分页加载。
+     */
+    public TransactionDetailResponse detailSummary(String transactionId,
+                                                   LocalDateTime transactionDateTime,
+                                                   LocalDateTime rootTransactionDateTime) {
+        return transactionQueryService.detailSummary(transactionId, transactionDateTime, rootTransactionDateTime);
+    }
+
+    /**
+     * 分页查询交易详情指定页签的脱敏摘要记录。
+     */
+    public PageResult<TransactionDetailRecordResponse> pageDetailRecords(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String section,
+            long pageNo,
+            long pageSize) {
+        return transactionQueryService.pageDetailRecords(
+                transactionId, transactionDateTime, rootTransactionDateTime, section, pageNo, pageSize);
+    }
+
+    /**
+     * 加载单条详情记录的完整脱敏正文。
+     */
+    public TransactionDetailRecordResponse detailRecordPayload(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String recordType,
+            String recordId) {
+        return transactionQueryService.detailRecordPayload(
+                transactionId, transactionDateTime, rootTransactionDateTime, recordType, recordId);
     }
 
     /**
@@ -478,6 +505,24 @@ public class AdminTransactionApplicationService {
     public MerchantNotificationDetailResponse merchantNotificationDetail(String notifyId,
                                                                           LocalDateTime transactionDateTime) {
         return transactionQueryService.merchantNotificationDetail(notifyId, transactionDateTime);
+    }
+
+    /**
+     * 分页查询商户回调任务的投递尝试，最新尝试优先。
+     *
+     * @param notifyId 通知任务号
+     * @param transactionDateTime 页面列表返回的真实交易分片时间
+     * @param pageNo 页码，从 1 开始
+     * @param pageSize 每页记录数，最大 100
+     * @return 投递日志分页
+     */
+    public PageResult<MerchantNotificationDeliveryLogResponse> pageMerchantNotificationDeliveryLogs(
+            String notifyId,
+            LocalDateTime transactionDateTime,
+            long pageNo,
+            long pageSize) {
+        return transactionQueryService.pageMerchantNotificationDeliveryLogs(
+                notifyId, transactionDateTime, pageNo, pageSize);
     }
 
     /**
@@ -818,14 +863,12 @@ public class AdminTransactionApplicationService {
      * @param sourceOperation 源交易动作
      * @param request 管理端动作请求
      * @param labelAmount 面向商户的标签金额
-     * @param transactionAmount 面向渠道的交易金额
      * @param orderIdPrefix 管理端幂等订单号前缀
      * @return 支付核心内部动作请求
      */
     private PaymentTransactionActionClientRequestDTO buildActionRequest(TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
                                                                        BigDecimal labelAmount,
-                                                                       BigDecimal transactionAmount,
                                                                        String orderIdPrefix) {
         LocalDateTime transactionDateTime = LocalDateTime.now();
         String merchantOrderId = request == null ? null : request.getMerchantOrderId();
@@ -843,10 +886,11 @@ public class AdminTransactionApplicationService {
                 ? "admin" : applicant.getAccountId().toString());
         requestDTO.setApplicantName(resolveApplicantName(applicant, "admin"));
         requestDTO.setRequestReason(request == null ? null : request.getReason());
-        requestDTO.setAmount(transactionAmount);
-        requestDTO.setCurrency(sourceOperation.getTransactionCurrency());
+        String labelCurrency = resolveLabelCurrency(sourceOperation, request);
+        requestDTO.setAmount(labelAmount);
+        requestDTO.setCurrency(labelCurrency);
         requestDTO.setLabelAmount(labelAmount);
-        requestDTO.setLabelCurrency(resolveLabelCurrency(sourceOperation, request));
+        requestDTO.setLabelCurrency(labelCurrency);
         requestDTO.setTransactionDateTime(transactionDateTime);
         PaymentTransactionActionClientRequestDTO.TransactionInfoDTO transactionInfoDTO =
                 new PaymentTransactionActionClientRequestDTO.TransactionInfoDTO();
@@ -905,7 +949,11 @@ public class AdminTransactionApplicationService {
                 && source.getCurrencyExponent() != null && source.getCurrencyExponent() >= 0) {
             digits = source.getCurrencyExponent();
         }
-        BigDecimal available = source.getAvailableRefundAmount();
+        BigDecimal available = labelLifecycleAmount(
+                source,
+                source.getLabelAvailableRefundAmount(),
+                source.getAvailableRefundAmount(),
+                "label refund balance is missing");
         if (available == null) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID);
         }
@@ -913,26 +961,65 @@ public class AdminTransactionApplicationService {
                 .filter(operation -> REFUND_OPERATION_TYPE.equals(operation.getTransactionType()))
                 .filter(operation -> operation.getTransactionStatus() != null
                         && REFUND_IN_PROGRESS_STATUSES.contains(operation.getTransactionStatus()))
-                .map(TransactionOperationResponse::getTransactionAmount)
-                .filter(java.util.Objects::nonNull)
+                .map(operation -> operationLabelAmount(operation, source))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal refunded = source.getRefundedAmount() == null ? BigDecimal.ZERO : source.getRefundedAmount();
+        BigDecimal refunded = source.getLabelRefundedAmount() == null && source.getRefundedAmount() == null
+                ? BigDecimal.ZERO
+                : labelLifecycleAmount(
+                        source,
+                        source.getLabelRefundedAmount(),
+                        source.getRefundedAmount(),
+                        "label refunded amount is missing");
         return new RefundContext(currency, digits,
-                refundLabelAmount(source, refunded, digits, RoundingMode.HALF_UP),
-                refundLabelAmount(source, pending, digits, RoundingMode.HALF_UP),
-                refundLabelAmount(source, available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
+                normalizeLabelAmount(refunded, digits, RoundingMode.HALF_UP),
+                normalizeLabelAmount(pending, digits, RoundingMode.HALF_UP),
+                normalizeLabelAmount(available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
     }
 
     /**
-     * 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。
+     * 读取主单标签累计事实；同币种历史数据允许使用交易口径兼容，跨币种禁止按比例反推。
      */
-    private BigDecimal refundLabelAmount(TransactionOperationResponse source, BigDecimal amount,
-                                         int digits, RoundingMode roundingMode) {
-        if (source.getLabelAmount() != null && source.getTransactionAmount() != null
-                && source.getTransactionAmount().signum() > 0) {
-            return amount.multiply(source.getLabelAmount()).divide(source.getTransactionAmount(), digits, roundingMode);
+    private BigDecimal labelLifecycleAmount(TransactionOperationResponse source,
+                                            BigDecimal labelAmount,
+                                            BigDecimal transactionAmount,
+                                            String missingMessage) {
+        if (labelAmount != null) {
+            return labelAmount;
         }
+        if (sameLabelAndTransactionCurrency(source) && transactionAmount != null) {
+            return transactionAmount;
+        }
+        throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, missingMessage);
+    }
+
+    /**
+     * 读取非终态退款动作的标签金额，避免把渠道交易金额重复换算为标签金额。
+     */
+    private BigDecimal operationLabelAmount(TransactionOperationResponse operation,
+                                            TransactionOperationResponse source) {
+        if (operation.getLabelAmount() != null) {
+            return operation.getLabelAmount();
+        }
+        if (sameLabelAndTransactionCurrency(source) && operation.getTransactionAmount() != null) {
+            return operation.getTransactionAmount();
+        }
+        throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR,
+                "pending refund label amount is missing");
+    }
+
+    /**
+     * 按标签币种精度输出退款上下文；可退上限向下取整，禁止展示值超过真实额度。
+     */
+    private BigDecimal normalizeLabelAmount(BigDecimal amount, int digits, RoundingMode roundingMode) {
         return amount.setScale(digits, roundingMode);
+    }
+
+    /**
+     * 判断标签币种与渠道交易币种是否相同。
+     */
+    private boolean sameLabelAndTransactionCurrency(TransactionOperationResponse source) {
+        return StringUtils.hasText(source.getLabelCurrency())
+                && source.getLabelCurrency().equalsIgnoreCase(source.getTransactionCurrency());
     }
 
     /**
@@ -973,19 +1060,4 @@ public class AdminTransactionApplicationService {
         return amount.multiply(sourceLabelAmount).divide(sourceTransactionAmount, 6, RoundingMode.HALF_UP);
     }
 
-    /**
-     * 转换为交易金额。
-     */
-    private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
-        if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
-        }
-        BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
-        BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
-        if (sourceLabelAmount == null || sourceLabelAmount.compareTo(BigDecimal.ZERO) <= 0
-                || sourceTransactionAmount == null || sourceTransactionAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            return labelAmount;
-        }
-        return labelAmount.multiply(sourceTransactionAmount).divide(sourceLabelAmount, 6, RoundingMode.HALF_UP);
-    }
 }

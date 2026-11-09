@@ -124,14 +124,14 @@ class AdminFeeVersioningServiceTests {
         riskRule.setRiskServiceType("INTERNAL");
         riskRule.setChargeTrigger("SUCCESS_OR_FAILURE");
         riskRule.setFixedAmountUsd(new BigDecimal("0.08"));
-        AtomicReference<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<FeeRuleDO>> ruleQuery =
-                new AtomicReference<>();
+        List<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<FeeRuleDO>> ruleQueries =
+                new ArrayList<>();
         AtomicReference<FeeSimulationRecordDO> insertedRecord = new AtomicReference<>();
 
         when(fixture.planMapper.selectOne(any())).thenReturn(plan);
         when(fixture.versionMapper.selectOne(any())).thenReturn(version);
         when(fixture.ruleMapper.selectList(any())).thenAnswer(invocation -> {
-            ruleQuery.set(invocation.getArgument(0));
+            ruleQueries.add(invocation.getArgument(0));
             return List.of(riskRule);
         });
         when(fixture.tierMapper.selectList(any())).thenReturn(List.of());
@@ -155,8 +155,10 @@ class AdminFeeVersioningServiceTests {
 
         fixture.service.simulate(request, 8L, "试算人");
 
-        ruleQuery.get().getSqlSegment();
-        assertThat(ruleQuery.get().getParamNameValuePairs().values()).contains("RISK_FEE", "INTERNAL");
+        assertThat(ruleQueries).anySatisfy(query -> {
+            query.getSqlSegment();
+            assertThat(query.getParamNameValuePairs().values()).contains("RISK_FEE", "INTERNAL");
+        });
         assertThat(insertedRecord.get().getRiskServiceType()).isEqualTo("INTERNAL");
         assertThat(insertedRecord.get().getMatchedRuleId()).isEqualTo(31L);
     }
@@ -250,8 +252,9 @@ class AdminFeeVersioningServiceTests {
         assertThat(response.getFeeDetails().get(0).getRiskServiceType()).isEqualTo("NONE");
         assertThat(response.getFeeDetails()).anySatisfy(item -> {
             assertThat(item.getFeeCategory()).isEqualTo("DISPUTE_FEE");
-            assertThat(item.getCalculationStatus()).isEqualTo("NOT_APPLICABLE");
+            assertThat(item.getCalculationStatus()).isEqualTo("NOT_CONFIGURED");
             assertThat(item.isIncludedInFeeTotal()).isFalse();
+            assertThat(item.getFinalFeeUsd()).isEqualByComparingTo("0");
         });
         assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("3");
         assertThat(response.getReserveAmountUsd()).isEqualByComparingTo("10");
@@ -279,7 +282,7 @@ class AdminFeeVersioningServiceTests {
         assertThat(response.getFeeDetails().stream().filter(item -> item.isIncludedInFeeTotal()).toList())
                 .hasSize(2);
         assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("3.08");
-        verify(fixture.ruleMapper, times(2)).selectList(any());
+        verify(fixture.ruleMapper, times(3)).selectList(any());
         verify(fixture.simulationMapper, times(1)).insert(any(FeeSimulationRecordDO.class));
     }
 
@@ -302,10 +305,10 @@ class AdminFeeVersioningServiceTests {
     }
 
     /**
-     * 已选风控服务没有生效规则时，整次试算失败且不得留下部分审计。
+     * 已选风控服务没有生效规则时按零费用展示，且不影响基础费用试算和审计。
      */
     @Test
-    void shouldRejectSimulationWhenSelectedRiskRuleIsMissing() {
+    void shouldReturnZeroFeeWhenSelectedRiskRuleIsMissing() {
         FeeRuleDO transactionRule = atomicRule(
                 31L, 21L, "PAYMENT", "BANK_CARD", "ALL", "RG-TRANSACTION", "2");
         Fixture fixture = simulationFixture(List.of(transactionRule), new BigDecimal("10"));
@@ -315,10 +318,19 @@ class AdminFeeVersioningServiceTests {
         FeeSimulationRequest request = simulationRequest();
         request.setRiskServiceTypes(List.of("EXTERNAL"));
 
-        assertThatThrownBy(() -> fixture.service.simulate(request, 8L, "试算人"))
-                .isInstanceOf(ServiceException.class)
-                .hasMessageContaining("未匹配到费用规则");
-        verify(fixture.simulationMapper, never()).insert(any(FeeSimulationRecordDO.class));
+        FeeSimulationResponse response = fixture.service.simulate(request, 8L, "试算人");
+
+        assertThat(response.getFeeDetails().stream()
+                .filter(item -> "RISK_FEE".equals(item.getFeeCategory()))
+                .filter(item -> "EXTERNAL".equals(item.getRiskServiceType())))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getCalculationStatus()).isEqualTo("NOT_CONFIGURED");
+                    assertThat(item.isIncludedInFeeTotal()).isFalse();
+                    assertThat(item.getFinalFeeUsd()).isEqualByComparingTo("0");
+                });
+        assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("3");
+        verify(fixture.simulationMapper, times(1)).insert(any(FeeSimulationRecordDO.class));
     }
 
     /**
@@ -369,7 +381,7 @@ class AdminFeeVersioningServiceTests {
         assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("3");
         assertThat(response.getReserveAmountUsd()).isEqualByComparingTo("10");
         assertThat(response.getEstimatedNetSettlementUsd()).isEqualByComparingTo("87");
-        verify(fixture.ruleMapper, times(1)).selectList(any());
+        verify(fixture.ruleMapper, times(2)).selectList(any());
     }
 
     /**
@@ -450,6 +462,38 @@ class AdminFeeVersioningServiceTests {
     }
 
     /**
+     * 结算换汇费显式限定交易类型后，其他交易动作不能误命中该规则。
+     */
+    @Test
+    void shouldNotCalculateSettlementFxFeeForUnconfiguredTransactionType() {
+        FeeRuleDO transactionRule = atomicRule(
+                31L, 21L, "PAYMENT", "BANK_CARD", "ALL", "RG-TRANSACTION", "2");
+        FeeRuleDO settlementFxRule = atomicRule(
+                35L, 21L, "REFUND", "ALL", "ALL", "RG-SETTLEMENT-FX", "1");
+        settlementFxRule.setFeeCategory("SETTLEMENT_FX_FEE");
+        Fixture fixture = simulationFixture(List.of(transactionRule), new BigDecimal("10"));
+        when(fixture.ruleMapper.selectList(any()))
+                .thenReturn(List.of(transactionRule))
+                .thenReturn(List.of(settlementFxRule));
+        LocalDateTime now = LocalDateTime.of(2026, 8, 20, 12, 0);
+        when(fixture.settlementRateResolver.resolve(any(), any()))
+                .thenReturn(new ResolvedSettlementRate(
+                        null, "SYSTEM_RATE", new BigDecimal("0.125"), now, now));
+        FeeSimulationRequest request = simulationRequest();
+        request.setLabelCurrency("HKD");
+
+        FeeSimulationResponse response = fixture.service.simulate(request, 8L, "试算人");
+
+        assertThat(response.getFeeDetails().stream()
+                .filter(item -> "SETTLEMENT_FX_FEE".equals(item.getFeeCategory())))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getCalculationStatus()).isEqualTo("NOT_CONFIGURED");
+                    assertThat(item.isIncludedInFeeTotal()).isFalse();
+                });
+    }
+
+    /**
      * 拒付交易计算拒付手续费，普通交易只显示不适用状态。
      */
     @Test
@@ -476,6 +520,39 @@ class AdminFeeVersioningServiceTests {
                 });
         assertThat(response.getReserveAmountUsd()).isEqualByComparingTo("0");
         assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("15");
+    }
+
+    /**
+     * 普通 Apple Pay 支付试算展示已配置的拒付费，但不得提前计入本次交易费用合计。
+     */
+    @Test
+    void shouldPreviewConfiguredApplePayDisputeFeeWithoutChargingCurrentPayment() {
+        FeeRuleDO transactionRule = atomicRule(
+                31L, 21L, "PAYMENT", "APPLE_PAY", "ALL", "RG-TRANSACTION", "2");
+        FeeRuleDO disputeRule = atomicRule(
+                36L, 21L, "CHARGEBACK", "APPLE_PAY", "ALL", "RG-DISPUTE", "0");
+        disputeRule.setFeeCategory("DISPUTE_FEE");
+        disputeRule.setRuleName("Apple Pay拒付手续费");
+        disputeRule.setFixedAmountUsd(new BigDecimal("15"));
+        Fixture fixture = simulationFixture(List.of(transactionRule, disputeRule), new BigDecimal("10"));
+        FeeSimulationRequest request = simulationRequest();
+        request.setPaymentType("APPLE_PAY");
+        request.setPaymentMethod("ALL");
+
+        FeeSimulationResponse response = fixture.service.simulate(request, 8L, "试算人");
+
+        assertThat(response.getFeeDetails().stream()
+                .filter(item -> "DISPUTE_FEE".equals(item.getFeeCategory())))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getCalculationStatus()).isEqualTo("NOT_APPLICABLE");
+                    assertThat(item.isIncludedInFeeTotal()).isFalse();
+                    assertThat(item.getRuleName()).isEqualTo("Apple Pay拒付手续费");
+                    assertThat(item.getMatchedRuleId()).isEqualTo(36L);
+                    assertThat(item.getFinalFeeUsd()).isEqualByComparingTo("15");
+                });
+        assertThat(response.getFinalFeeUsd()).isEqualByComparingTo("3");
+        assertThat(response.getEstimatedNetSettlementUsd()).isEqualByComparingTo("87");
     }
 
     /**
@@ -699,6 +776,82 @@ class AdminFeeVersioningServiceTests {
                 .doesNotContainNull()
                 .allSatisfy(groupCode -> assertThat(groupCode).isNotBlank())
                 .containsOnly(insertedRules.get(0).getRuleGroupCode());
+    }
+
+    /**
+     * 新费用配置省略交易类型时，服务端必须按费用分类生成受控的原子交易动作。
+     */
+    @Test
+    void shouldDeriveTransactionTypesFromFeeCategory() {
+        Fixture fixture = new Fixture();
+        FeePlanDO plan = templatePlan(1L, "ENABLED", 20L, 3);
+        FeePlanVersionDO latest = version(20L, 1L, 3, "ACTIVE");
+        AtomicReference<FeePlanVersionDO> insertedVersion = new AtomicReference<>();
+        List<FeeRuleDO> insertedRules = new ArrayList<>();
+        when(fixture.planMapper.selectByIdForUpdate(1L)).thenReturn(plan);
+        when(fixture.versionMapper.selectCount(any())).thenReturn(0L);
+        when(fixture.versionMapper.selectOne(any()))
+                .thenReturn(latest)
+                .thenAnswer(invocation -> insertedVersion.get());
+        when(fixture.versionMapper.selectList(any()))
+                .thenAnswer(invocation -> List.of(insertedVersion.get()));
+        doAnswer(invocation -> {
+            FeePlanVersionDO row = invocation.getArgument(0);
+            row.setId(21L);
+            insertedVersion.set(row);
+            return 1;
+        }).when(fixture.versionMapper).insert(any(FeePlanVersionDO.class));
+        doAnswer(invocation -> {
+            FeeRuleDO row = invocation.getArgument(0);
+            row.setId(31L + insertedRules.size());
+            insertedRules.add(row);
+            return 1;
+        }).when(fixture.ruleMapper).insert(any(FeeRuleDO.class));
+        when(fixture.ruleMapper.selectList(any())).thenReturn(List.of());
+
+        FeeRuleRequest transactionRule = automaticTransactionTypeRule("TRANSACTION_FEE");
+        FeeRuleRequest refundRule = automaticTransactionTypeRule("REFUND_FEE");
+        FeeRuleRequest riskRule = automaticTransactionTypeRule("RISK_FEE");
+        riskRule.setRiskServiceType("INTERNAL");
+        riskRule.setChargeTrigger("NO_CHARGE");
+        FeeRuleRequest disputeRule = automaticTransactionTypeRule("DISPUTE_FEE");
+        FeeRuleRequest settlementFxRule = automaticTransactionTypeRule("SETTLEMENT_FX_FEE");
+        FeeVersionSaveRequest request = standardVersionRequest();
+        request.setRules(List.of(transactionRule, refundRule, riskRule, disputeRule, settlementFxRule));
+
+        fixture.service.createTemplateVersion(1L, request, 8L, "提交人");
+
+        assertThat(insertedRules).hasSize(15);
+        assertThat(insertedRules)
+                .extracting(rule -> rule.getFeeCategory() + "|" + rule.getTransactionType())
+                .containsExactly(
+                        "TRANSACTION_FEE|PAYMENT",
+                        "TRANSACTION_FEE|AUTHORIZATION",
+                        "TRANSACTION_FEE|PRE_AUTHORIZATION",
+                        "REFUND_FEE|REFUND",
+                        "RISK_FEE|PAYMENT",
+                        "RISK_FEE|AUTHORIZATION",
+                        "RISK_FEE|PRE_AUTHORIZATION",
+                        "DISPUTE_FEE|CHARGEBACK",
+                        "DISPUTE_FEE|REPRESENTMENT",
+                        "SETTLEMENT_FX_FEE|PAYMENT",
+                        "SETTLEMENT_FX_FEE|CAPTURE",
+                        "SETTLEMENT_FX_FEE|PRE_AUTH_COMPLETION",
+                        "SETTLEMENT_FX_FEE|REFUND",
+                        "SETTLEMENT_FX_FEE|CHARGEBACK",
+                        "SETTLEMENT_FX_FEE|REPRESENTMENT");
+        assertThat(insertedRules.stream()
+                .filter(rule -> !"SETTLEMENT_FX_FEE".equals(rule.getFeeCategory())).toList())
+                .allSatisfy(rule -> {
+                    assertThat(rule.getPaymentType()).isEqualTo("BANK_CARD");
+                    assertThat(rule.getPaymentMethod()).isEqualTo("VISA");
+                });
+        assertThat(insertedRules.stream()
+                .filter(rule -> "SETTLEMENT_FX_FEE".equals(rule.getFeeCategory())).toList())
+                .allSatisfy(rule -> {
+                    assertThat(rule.getPaymentType()).isEqualTo("ALL");
+                    assertThat(rule.getPaymentMethod()).isEqualTo("ALL");
+                });
     }
 
     /**
@@ -1323,7 +1476,7 @@ class AdminFeeVersioningServiceTests {
     }
 
     /**
-     * 结算货币兑换费保存为无业务匹配维度的唯一标准单笔规则。
+     * 结算货币兑换费保留显式交易类型，支付维度统一保存为 ALL。
      */
     @Test
     void shouldAcceptSettlementCurrencyConversionFeeCategory() {
@@ -1364,7 +1517,7 @@ class AdminFeeVersioningServiceTests {
 
         assertThat(insertedRule.get().getFeeCategory()).isEqualTo("SETTLEMENT_FX_FEE");
         assertThat(insertedRule.get().getRuleName()).isEqualTo("结算货币兑换费");
-        assertThat(insertedRule.get().getTransactionType()).isEqualTo("ALL");
+        assertThat(insertedRule.get().getTransactionType()).isEqualTo("PAYMENT");
         assertThat(insertedRule.get().getPaymentType()).isEqualTo("ALL");
         assertThat(insertedRule.get().getPaymentMethod()).isEqualTo("ALL");
         assertThat(insertedRule.get().getRiskServiceType()).isEqualTo("NONE");
@@ -1523,6 +1676,19 @@ class AdminFeeVersioningServiceTests {
         rule.setFeeMode("STANDARD");
         rule.setPercentageRate(new BigDecimal("2.3"));
         rule.setFixedAmountUsd(BigDecimal.ONE);
+        return rule;
+    }
+
+    /** 构造由服务端生成交易类型、由页面只提交支付方式的费用规则。 */
+    private static FeeRuleRequest automaticTransactionTypeRule(String feeCategory) {
+        FeeRuleRequest rule = standardRule();
+        rule.setFeeCategory(feeCategory);
+        rule.setTransactionType(null);
+        rule.setTransactionTypes(List.of());
+        rule.setPaymentType(null);
+        rule.setPaymentMethod(null);
+        rule.setPaymentTypes(List.of("BANK_CARD"));
+        rule.setPaymentMethods(List.of("VISA"));
         return rule;
     }
 

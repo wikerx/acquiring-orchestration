@@ -228,26 +228,26 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         result.setTransactionAmount(operation.getTransactionAmount());
         result.setTransactionCurrency(operation.getTransactionCurrency());
         result.setTransactionRate(operation.getTransactionRate());
-        result.setCurrency(operation.getTransactionCurrency());
-        result.setAmount(toMinorAmount(operation.getTransactionAmount(), operation.getCurrencyExponent()));
+        result.setCurrency(operation.getLabelCurrency());
+        result.setAmount(toMinorAmount(operation.getLabelAmount(), operation.getLabelCurrencyExponent()));
         result.setTransactionDateTime(operation.getTransactionDateTime());
         result.setRootTransactionDateTime(sourceOrder.getTransactionDateTime());
         result.setTransactionTimeZone(operation.getTransactionTimeZone());
         result.setPaymentMethod(sourceOrder.getPaymentMethod());
         result.setPaymentBrand(sourceOrder.getPaymentBrand());
-        result.setTotalAuthorizedAmount(sourceOrder.getAuthorizedAmount());
-        result.setTotalCapturedAmount(sourceOrder.getCapturedAmount());
-        result.setTotalAuthorizedCancelAmount(sourceOrder.getAuthorizedCancelAmount());
-        result.setTotalRefundAmount(sourceOrder.getRefundedAmount());
-        result.setTotalRefuseAmount(sourceOrder.getChargebackAmount());
+        result.setTotalAuthorizedAmount(sourceOrder.getLabelAuthorizedAmount());
+        result.setTotalCapturedAmount(sourceOrder.getLabelCapturedAmount());
+        result.setTotalAuthorizedCancelAmount(sourceOrder.getLabelAuthorizedCancelAmount());
+        result.setTotalRefundAmount(sourceOrder.getLabelRefundedAmount());
+        result.setTotalRefuseAmount(sourceOrder.getLabelChargebackAmount());
         applyChannelStatus(result, invokeResult, response);
         if (response != null) {
             result.setAuthCode(response.getAuthCode());
             result.setAcquirerReferenceNo(response.getAcquirerReferenceNo());
         }
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(result.getStatus())) {
-            result.setTotalRefundAmount(zeroIfNull(sourceOrder.getRefundedAmount())
-                    .add(zeroIfNull(operation.getTransactionAmount())));
+            result.setTotalRefundAmount(zeroIfNull(sourceOrder.getLabelRefundedAmount())
+                    .add(zeroIfNull(operation.getLabelAmount())));
         }
         return result;
     }

@@ -92,6 +92,8 @@ class AdminTransactionShardingTimeSerializationTest {
         channelRequest.setRequestAmount(new BigDecimal("89.590000"));
         TransactionAmountChangeResponse persistedAmountChange = new TransactionAmountChangeResponse();
         persistedAmountChange.setAmountChangeId("AMOUNT-1");
+        persistedAmountChange.setLabelAmountCurrency("EUR");
+        persistedAmountChange.setLabelChangeAmount(new BigDecimal("81.445455"));
         persistedAmountChange.setAmountCurrency("AUD");
         persistedAmountChange.setChangeAmount(new BigDecimal("89.590000"));
 
@@ -105,6 +107,8 @@ class AdminTransactionShardingTimeSerializationTest {
         assertThat(requestJson.path("requestAmount").decimalValue()).isEqualByComparingTo("89.590000");
         assertThat(requestJson.has("channel_mid_config_id")).isFalse();
         assertThat(amountJson.path("amountChangeId").asText()).isEqualTo("AMOUNT-1");
+        assertThat(amountJson.path("labelAmountCurrency").asText()).isEqualTo("EUR");
+        assertThat(amountJson.path("labelChangeAmount").decimalValue()).isEqualByComparingTo("81.445455");
         assertThat(amountJson.path("changeAmount").decimalValue()).isEqualByComparingTo("89.590000");
         assertThat(amountJson.has("changeSource")).isFalse();
     }

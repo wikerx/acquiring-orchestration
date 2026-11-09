@@ -45,6 +45,14 @@ public class MerchantRuntimeProfile {
     private Integer merchantStatus;
 
     /**
+     * 收单开通状态：NOT_READY、READY 或 ACTIVE。
+     *
+     * <p>该状态与门户访问状态分离。未完成收单开通的商户可以使用受限门户完成进件，
+     * 但只有 ACTIVE 才允许进入 OpenAPI 交易链路。</p>
+     */
+    private String activationStatus;
+
+    /**
      * Default locale for merchant-facing notifications.
      */
     private String defaultLocale;

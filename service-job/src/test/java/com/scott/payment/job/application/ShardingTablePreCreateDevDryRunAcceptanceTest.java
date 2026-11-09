@@ -3,6 +3,7 @@ package com.scott.payment.job.application;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scott.payment.component.db.sharding.ShardingQuarter;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.job.JobApplication;
@@ -50,9 +51,10 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
      */
     private static final String OPERATOR_NAME = "Codex Dev Dry Run Acceptance";
     /**
-     * 必须完整参与季度治理的正式交易逻辑表数量。
+     * 必须完整参与季度治理的交易和风控审计逻辑表总数。
      */
-    private static final int FORMAL_TABLE_COUNT = TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT;
+    private static final int FORMAL_TABLE_COUNT = TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT
+            + RiskAuditShardingProperties.defaultLogicTables().size();
     /**
      * 本次 Dry Run 固定覆盖当前季度和下一季度。
      */
@@ -67,13 +69,17 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
      */
     private final ShardingQuarterResolver quarterResolver;
     /**
-     * 从 dev Nacos 绑定的 25 表物理治理规则。
+     * 从 dev Nacos 绑定的交易与风控审计物理治理规则。
      */
     private final TransactionShardingGovernanceProperties governanceProperties;
     /**
      * 从 dev Nacos 绑定的已发布 ShardingSphere 逻辑节点。
      */
     private final TransactionShardingProperties transactionShardingProperties;
+    /**
+     * 从 dev Nacos 绑定的风控审计逻辑节点。
+     */
+    private final RiskAuditShardingProperties riskAuditShardingProperties;
     /**
      * 只核验本轮目标物理表治理记录，不执行 DDL。
      */
@@ -90,6 +96,7 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
      * @param quarterResolver                季度解析器
      * @param governanceProperties           dev 治理配置
      * @param transactionShardingProperties 当前已发布的交易逻辑节点
+     * @param riskAuditShardingProperties    当前已发布的风控审计逻辑节点
      * @param physicalTableMapper            治理记录 Mapper
      * @param createLogMapper                Dry Run 日志 Mapper
      */
@@ -99,12 +106,14 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
             ShardingQuarterResolver quarterResolver,
             TransactionShardingGovernanceProperties governanceProperties,
             TransactionShardingProperties transactionShardingProperties,
+            RiskAuditShardingProperties riskAuditShardingProperties,
             SysShardingPhysicalTableMapper physicalTableMapper,
             SysShardingTableCreateLogMapper createLogMapper) {
         this.applicationService = applicationService;
         this.quarterResolver = quarterResolver;
         this.governanceProperties = governanceProperties;
         this.transactionShardingProperties = transactionShardingProperties;
+        this.riskAuditShardingProperties = riskAuditShardingProperties;
         this.physicalTableMapper = physicalTableMapper;
         this.createLogMapper = createLogMapper;
     }
@@ -118,6 +127,10 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
                 transactionShardingProperties.getPhysicalNodes());
         expectedPhysicalNodes.add(currentQuarter.suffix());
         expectedPhysicalNodes.add(nextQuarter.suffix());
+        LinkedHashSet<String> expectedRiskAuditPhysicalNodes = new LinkedHashSet<>(
+                riskAuditShardingProperties.getPhysicalNodes());
+        expectedRiskAuditPhysicalNodes.add(currentQuarter.suffix());
+        expectedRiskAuditPhysicalNodes.add(nextQuarter.suffix());
         long logCountBefore = countAcceptanceLogs();
 
         ShardingTablePreCreateInternalRequest request = new ShardingTablePreCreateInternalRequest();
@@ -149,6 +162,12 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
         assertThat(result.getTimezone()).isEqualTo(TransactionShardingProperties.REQUIRED_ZONE_ID);
         assertThat(result.getTargetQuarters()).containsExactlyElementsOf(expectedTargetQuarters);
         assertThat(result.getTableResults()).hasSize(FORMAL_TABLE_COUNT * TARGET_QUARTER_COUNT);
+        assertThat(result.getTableResults().stream()
+                .filter(table -> "TRANSACTION".equals(table.getTableFamily())))
+                .hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT * TARGET_QUARTER_COUNT);
+        assertThat(result.getTableResults().stream()
+                .filter(table -> "RISK_AUDIT".equals(table.getTableFamily())))
+                .hasSize(RiskAuditShardingProperties.defaultLogicTables().size() * TARGET_QUARTER_COUNT);
         assertThat(result.getCreatedTables()).isEmpty();
         assertThat(result.getSkippedTables()).hasSize(FORMAL_TABLE_COUNT * TARGET_QUARTER_COUNT);
         assertThat(result.getFailedTables()).isEmpty();
@@ -165,6 +184,12 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
         assertThat(result.getCandidateRuleChecksum()).startsWith("sha256:");
         assertThat(result.getPublicationReady()).isTrue();
         assertThat(result.getPublicationBlockers()).isEmpty();
+        assertThat(result.getRiskAuditVerifiedPhysicalNodes())
+                .containsExactlyElementsOf(expectedRiskAuditPhysicalNodes);
+        assertThat(result.getRiskAuditCandidateRuleVersion()).isNotBlank();
+        assertThat(result.getRiskAuditCandidateRuleChecksum()).startsWith("sha256:");
+        assertThat(result.getRiskAuditPublicationReady()).isTrue();
+        assertThat(result.getRiskAuditPublicationBlockers()).isEmpty();
         assertThat(result.getNextAction()).isEqualTo("REVIEW_AND_PUBLISH_VERSIONED_NACOS_THEN_ROLLING_RESTART");
 
         List<String> physicalTables = result.getTableResults().stream()

@@ -188,6 +188,35 @@ class NacosInternalAuthScriptContractTest {
     }
 
     /**
+     * 早期脚本生成的嵌套配置可能缺少 managed marker，同步前允许一次受控升级，最终发布校验仍保持严格。
+     */
+    @Test
+    void scriptShouldAcceptLegacyMarkerlessNestedBundleOnlyForControlledSync() throws Exception {
+        Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
+        Path bundle = tempDir.resolve("markerless-payout.yaml");
+        Files.writeString(bundle, "acquiring:\n"
+                + "  internal-auth:\n"
+                + "    edges:\n"
+                + "      openapi-payout:\n"
+                + "        active-secret: " + OLD_SECRET + "\n"
+                + "        previous-secret: \"\"\n", StandardCharsets.UTF_8);
+
+        String command = "source \"$1\"\n"
+                + "work_dir=\"$2\"\n"
+                + "verify_reconcilable_service_bundle_file service-payout \"$3\"\n";
+        Process process = new ProcessBuilder(
+                "bash", "-c", command, "bash",
+                script.toString(), tempDir.toString(), bundle.toString())
+                .redirectErrorStream(true)
+                .start();
+        String processOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+
+        assertThat(exitCode).as(processOutput).isZero();
+        assertThat(processOutput).contains("Legacy markerless nested bundle accepted");
+    }
+
+    /**
      * 服务模板同步必须保留 Admin 已配置的 Risk 与 MFA 密钥，避免发布后再次触发启动门禁。
      */
     @Test

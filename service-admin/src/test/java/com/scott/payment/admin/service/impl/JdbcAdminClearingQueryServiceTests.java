@@ -3,6 +3,8 @@ package com.scott.payment.admin.service.impl;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.SearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculateBatchItem;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.Summary;
+import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TransactionLine;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -119,6 +122,67 @@ class JdbcAdminClearingQueryServiceTests {
         assertThat(listParameters.getValue().getValue("offset")).isEqualTo(10L);
         verify(readExecutor).read(any());
         verify(readExecutor, never()).readPrimary(any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void transactionDetailShouldUseCurrentRevisionAndStableServerPagination() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        TransactionLogicalReadExecutor readExecutor = executingReadExecutor();
+        Summary summary = new Summary();
+        summary.setClearingRevision(3);
+        TransactionLine line = new TransactionLine();
+        line.setClearingDetailNo("CD-21");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> invocation.<String>getArgument(0)
+                        .contains("FROM transaction_finance_state")
+                        ? List.of(summary) : List.of(line));
+        when(jdbcTemplate.queryForObject(
+                anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(21L);
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.getQueryBudget().setMaxResultRows(100);
+        JdbcAdminClearingQueryService service = new JdbcAdminClearingQueryService(
+                jdbcTemplate, readExecutor, properties);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 11, 8, 18, 30);
+
+        var page = service.searchTransactionDetails(" TX-1 ", transactionTime, 2, 20);
+
+        assertThat(page.getTotal()).isEqualTo(21L);
+        assertThat(page.getPageNo()).isEqualTo(2L);
+        assertThat(page.getRecords()).singleElement()
+                .extracting(TransactionLine::getClearingDetailNo).isEqualTo("CD-21");
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> countParameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).queryForObject(
+                countSql.capture(), countParameters.capture(), eq(Long.class));
+        assertThat(countSql.getValue()).contains(
+                "FROM transaction_clearing_detail",
+                "transaction_id = :transactionId",
+                "transaction_date_time = :transactionDateTime",
+                "clearing_revision = :clearingRevision");
+        assertThat(countParameters.getValue().getValue("transactionId")).isEqualTo("TX-1");
+        assertThat(countParameters.getValue().getValue("clearingRevision")).isEqualTo(3);
+        ArgumentCaptor<String> listSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> listParameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.times(2)).query(
+                listSql.capture(), listParameters.capture(), any(RowMapper.class));
+        assertThat(listSql.getAllValues().get(1)).contains(
+                "ORDER BY line_no ASC, id ASC LIMIT :offset, :limit");
+        assertThat(listParameters.getAllValues().get(1).getValue("offset")).isEqualTo(20L);
+        assertThat(listParameters.getAllValues().get(1).getValue("limit")).isEqualTo(20L);
+    }
+
+    @Test
+    void detailPaginationShouldRejectMoreThanOneHundredRows() {
+        JdbcAdminClearingQueryService service = new JdbcAdminClearingQueryService(
+                mock(NamedParameterJdbcTemplate.class), executingReadExecutor(),
+                new TransactionShardingProperties());
+
+        assertThatThrownBy(() -> service.searchReserveDetails(
+                "TX-1", LocalDateTime.of(2026, 11, 8, 18, 30), 1, 101))
+                .isInstanceOf(ServiceException.class);
     }
 
     private SearchRequest request() {

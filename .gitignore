@@ -88,6 +88,17 @@ docs/sql/*
 !docs/sql/20261104_02_checkout_timeout_notification_migration.sql
 !docs/sql/20261104_03_checkout_timeout_notification_postcheck.sql
 !docs/sql/20261104_04_checkout_timeout_notification_rollback.sql
+!docs/sql/20261106_01_label_principal_clearing_precheck.sql
+!docs/sql/20261106_02_label_principal_repair_migration.sql
+!docs/sql/20261106_03_label_principal_repair_postcheck.sql
+!docs/sql/20261106_04_label_principal_repair_rollback.sql
+!docs/sql/20261106_05_settlement_principal_correction_migration.sql
+!docs/sql/20261106_06_settlement_principal_correction_postcheck.sql
+!docs/sql/20261106_07_settlement_principal_correction_rollback.sql
+!docs/sql/20261108_01_risk_audit_sharding_precheck.sql
+!docs/sql/20261108_02_risk_audit_sharding_migration.sql
+!docs/sql/20261108_03_risk_audit_sharding_postcheck.sql
+!docs/sql/20261108_04_risk_audit_sharding_rollback.sql
 !docs/sql/20260919_01_scott_channel_a_configuration.sql
 !docs/sql/20260920_01_scott_channel_a_eur_currency_fix.sql
 !docs/sql/20261017_01_transaction_callback_inbox_migration_draft.sql

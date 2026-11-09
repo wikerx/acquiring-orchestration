@@ -65,10 +65,13 @@ class MerchantTransactionApplicationServiceTests {
         source.setTransactionAmount(new BigDecimal("100.00"));
         source.setLabelAmount(new BigDecimal("124.68"));
         source.setLabelCurrency("HKD");
-        source.setRefundedAmount(new BigDecimal("10.00"));
-        source.setAvailableRefundAmount(new BigDecimal("90.00"));
+        source.setTransactionCurrency("USD");
+        source.setRefundedAmount(new BigDecimal("12.47"));
+        source.setAvailableRefundAmount(new BigDecimal("112.21"));
         TransactionOperationResponse pending = refundOperation("PENDING", "20.00");
+        pending.setLabelAmount(new BigDecimal("24.94"));
         TransactionOperationResponse processing = refundOperation("PROCESSING", "5.00");
+        processing.setLabelAmount(new BigDecimal("6.23"));
         detail.setOperations(List.of(source, pending, processing,
                 refundOperation("SUCCESS", "10.00"), refundOperation("FAILED", "50.00")));
         when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
@@ -92,16 +95,45 @@ class MerchantTransactionApplicationServiceTests {
         TransactionDetailResponse detail = detail("PAYMENT");
         TransactionOperationResponse source = detail.getOperations().get(0);
         source.setTransactionAmount(new BigDecimal("100"));
-        source.setAvailableRefundAmount(new BigDecimal("10"));
+        source.setAvailableRefundAmount(new BigDecimal("12.345"));
         source.setLabelAmount(new BigDecimal("123.456"));
         source.setLabelCurrency("KWD");
+        source.setTransactionCurrency("USD");
         when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
         assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).availableRefundAmount()).isEqualByComparingTo("12.345");
         source.setLabelCurrency("JPY");
         assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).currencyExponent()).isZero();
         assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).availableRefundAmount()).isEqualByComparingTo("12");
-        detail.setOperations(List.of(source, refundOperation("PENDING", "11")));
+        TransactionOperationResponse pending = refundOperation("PENDING", "11");
+        pending.setLabelAmount(new BigDecimal("13"));
+        detail.setOperations(List.of(source, pending));
         assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).availableRefundAmount()).isZero();
+    }
+
+    /**
+     * 商户查询已经返回标签口径余额时不得再次按标签与渠道金额比例换算。
+     */
+    @Test
+    void refundContextShouldNotConvertProjectedLabelBalanceTwice() {
+        MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
+        MerchantTransactionApplicationService service = service(
+                mock(PaymentInternalClient.class), query,
+                new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
+        TransactionDetailResponse detail = detail("PAYMENT");
+        TransactionOperationResponse source = detail.getOperations().get(0);
+        source.setLabelCurrency("AUD");
+        source.setLabelAmount(new BigDecimal("59.36"));
+        source.setTransactionCurrency("USD");
+        source.setTransactionAmount(new BigDecimal("42.28"));
+        source.setRefundedAmount(BigDecimal.ZERO);
+        source.setAvailableRefundAmount(new BigDecimal("59.36"));
+        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail);
+
+        var context = service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest());
+
+        assertThat(context.currency()).isEqualTo("AUD");
+        assertThat(context.availableRefundAmount()).isEqualByComparingTo("59.36");
     }
 
     /**
@@ -130,9 +162,17 @@ class MerchantTransactionApplicationServiceTests {
         MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
         PaymentInternalClient payment = mock(PaymentInternalClient.class);
         MerchantTransactionApplicationService service = service(payment, query, new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
-        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail("PAYMENT"));
+        TransactionDetailResponse detail = detail("PAYMENT");
+        TransactionOperationResponse source = detail.getOperations().get(0);
+        source.setLabelCurrency("AUD");
+        source.setLabelAmount(new BigDecimal("59.36"));
+        source.setTransactionCurrency("USD");
+        source.setTransactionAmount(new BigDecimal("42.28"));
+        source.setAvailableRefundAmount(new BigDecimal("42.28"));
+        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
         TransactionActionRequest request = actionRequest();
-        request.setAmount(new BigDecimal("1.00"));
+        request.setAmount(new BigDecimal("10.00"));
+        request.setCurrency("AUD");
         request.setMerchantOrderId("refund-request-001");
         request.setReasonCode("OTHER");
         request.setRefundDescription("  Return one item  ");
@@ -143,6 +183,10 @@ class MerchantTransactionApplicationServiceTests {
         assertThat(captor.getValue().getRequestReason()).endsWith(" - Return one item");
         assertThat(captor.getValue().getTransactionInfo().getDescription()).isEqualTo(captor.getValue().getRequestReason());
         assertThat(captor.getValue().getMerchantOrderId()).isEqualTo("refund-request-001");
+        assertThat(captor.getValue().getAmount()).isEqualByComparingTo("10.00");
+        assertThat(captor.getValue().getCurrency()).isEqualTo("AUD");
+        assertThat(captor.getValue().getLabelAmount()).isEqualByComparingTo("10.00");
+        assertThat(captor.getValue().getLabelCurrency()).isEqualTo("AUD");
         assertThat(captor.getAllValues()).allSatisfy(command ->
                 assertThat(command.getMerchantOrderId()).isEqualTo("refund-request-001"));
     }

@@ -63,7 +63,7 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
             o.source_transaction_id, o.merchant_order_no, o.merchant_operation_no,
             o.transaction_type, o.refund_scope, o.request_source, o.request_reason,
             o.transaction_status, o.process_stage, o.label_currency, o.label_amount,
-            o.transaction_currency, o.transaction_amount, o.currency_exponent,
+            o.label_currency_exponent AS currency_exponent,
             p.payment_method, p.payment_brand, NULL AS merchant_notification_status,
             o.transaction_date_time, o.complete_time,
             a.approval_id,
@@ -238,21 +238,21 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 """ + REFUND_FROM_SQL + whereSql, parameters, refundSummaryMapper());
         RefundSummary safeSummary = summary == null ? new RefundSummary() : summary;
         safeSummary.setCurrencyAmounts(jdbcTemplate.query("""
-                SELECT o.transaction_currency AS currency,
-                       o.currency_exponent,
-                       COALESCE(SUM(o.transaction_amount), 0) AS total_amount,
+                SELECT o.label_currency AS currency,
+                       o.label_currency_exponent AS currency_exponent,
+                       COALESCE(SUM(o.label_amount), 0) AS total_amount,
                        COALESCE(SUM(CASE WHEN a.approval_status = 'PENDING'
-                                        THEN o.transaction_amount ELSE 0 END), 0)
+                                        THEN o.label_amount ELSE 0 END), 0)
                            AS pending_approval_amount,
                        COALESCE(SUM(CASE WHEN o.transaction_status = 'SUCCESS'
-                                        THEN o.transaction_amount ELSE 0 END), 0)
+                                        THEN o.label_amount ELSE 0 END), 0)
                            AS successful_amount,
                        COALESCE(SUM(CASE WHEN o.transaction_status IN ('PENDING', 'PROCESSING')
-                                        THEN o.transaction_amount ELSE 0 END), 0)
+                                        THEN o.label_amount ELSE 0 END), 0)
                            AS pending_amount
                 """ + REFUND_FROM_SQL + whereSql + """
-                GROUP BY o.transaction_currency, o.currency_exponent
-                ORDER BY o.transaction_currency, o.currency_exponent
+                GROUP BY o.label_currency, o.label_currency_exponent
+                ORDER BY o.label_currency, o.label_currency_exponent
                 """, parameters, refundCurrencySummaryMapper()));
         return safeSummary;
     }
@@ -271,7 +271,7 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         }
         Map<String, BigDecimal> rootAmounts = new LinkedHashMap<>();
         jdbcTemplate.query("""
-                SELECT operation_id, transaction_amount
+                SELECT operation_id, label_amount
                 FROM transaction_order
                 WHERE deleted = 0
                   AND merchant_id = :merchantId
@@ -286,8 +286,8 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                         .addValue("registeredNodeEnd", LocalDateTime.now(ZoneId.of(STORAGE_TIME_ZONE)).plusDays(1)),
                 (resultSet, rowNumber) -> new RootAmount(
                         resultSet.getString("operation_id"),
-                        resultSet.getBigDecimal("transaction_amount")))
-                .forEach(root -> rootAmounts.put(root.operationId(), root.transactionAmount()));
+                        resultSet.getBigDecimal("label_amount")))
+                .forEach(root -> rootAmounts.put(root.operationId(), root.labelAmount()));
         rows.forEach(row -> enrichRefundScope(
                 row.record(), rootAmounts.get(row.operationId())));
     }
@@ -302,8 +302,8 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         if ("VOID".equals(record.getTransactionType())) {
             record.setRefundScope("VOID");
         } else if ("REFUND".equals(record.getTransactionType())
-                && record.getTransactionAmount() != null && rootAmount != null) {
-            record.setRefundScope(record.getTransactionAmount().compareTo(rootAmount) == 0
+                && record.getLabelAmount() != null && rootAmount != null) {
+            record.setRefundScope(record.getLabelAmount().compareTo(rootAmount) == 0
                     ? "FULL" : "PARTIAL");
         }
     }
@@ -365,12 +365,11 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         appendTextFilter(sql, query.getTransactionStatus(), "AND o.transaction_status = :transactionStatus");
         appendTextFilter(sql, query.getRequestSource(), "AND o.request_source = :requestSource");
         appendTextFilter(sql, query.getLabelCurrency(), "AND o.label_currency = :labelCurrency");
-        appendTextFilter(sql, query.getTransactionCurrency(), "AND o.transaction_currency = :transactionCurrency");
         if (query.getMinimumTransactionAmount() != null) {
-            sql.append(" AND o.transaction_amount >= :minimumTransactionAmount");
+            sql.append(" AND o.label_amount >= :minimumTransactionAmount");
         }
         if (query.getMaximumTransactionAmount() != null) {
-            sql.append(" AND o.transaction_amount <= :maximumTransactionAmount");
+            sql.append(" AND o.label_amount <= :maximumTransactionAmount");
         }
         if (query.getCompleteBeginTime() != null) {
             sql.append(" AND o.complete_time >= :completeBeginTime");
@@ -406,7 +405,6 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
                 .addValue("transactionStatus", query.getTransactionStatus())
                 .addValue("requestSource", query.getRequestSource())
                 .addValue("labelCurrency", query.getLabelCurrency())
-                .addValue("transactionCurrency", query.getTransactionCurrency())
                 .addValue("minimumTransactionAmount", query.getMinimumTransactionAmount())
                 .addValue("maximumTransactionAmount", query.getMaximumTransactionAmount())
                 .addValue("completeBeginTime", query.getCompleteBeginTime())
@@ -574,6 +572,6 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
     /**
      * 生命周期根主单金额投影，用于兼容历史退款范围且允许交易金额为空。
      */
-    private record RootAmount(String operationId, BigDecimal transactionAmount) {
+    private record RootAmount(String operationId, BigDecimal labelAmount) {
     }
 }

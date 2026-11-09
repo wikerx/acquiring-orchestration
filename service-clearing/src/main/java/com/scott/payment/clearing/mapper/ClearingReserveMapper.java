@@ -67,6 +67,23 @@ public interface ClearingReserveMapper {
     int insertDetail(@Param("row") ClearingReserveDetailDO row);
 
     /**
+     * 历史标签本金修复生成新修订后，将旧修订保证金事实转为非活动审计事实。
+     */
+    @Update("""
+            UPDATE transaction_reserve_clearing_detail
+            SET record_status = 'SUPERSEDED', update_time = #{now}
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND clearing_revision = #{clearingRevision}
+              AND record_status = 'ACTIVE'
+            """)
+    int supersedeActiveRevision(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime,
+            @Param("clearingRevision") int clearingRevision,
+            @Param("now") LocalDateTime now);
+
+    /**
      * 新支付计提保证金时创建原支付保证金状态。
      */
     @Insert("""
@@ -106,6 +123,31 @@ public interface ClearingReserveMapper {
     ClearingReserveStateDO selectStateForUpdate(
             @Param("originalTransactionId") String originalTransactionId,
             @Param("originalTransactionDateTime") LocalDateTime originalTransactionDateTime);
+
+    /**
+     * 历史标签本金修复复制 HOLD 后，以旧引用和版本 CAS 迁移保证金状态指针。
+     * 金额、费率、状态和生命周期累计值均不参与更新。
+     */
+    @Update("""
+            UPDATE transaction_reserve_clearing_state
+            SET original_hold_detail_no = #{newHoldDetailNo},
+                version = version + 1,
+                update_time = #{now}
+            WHERE id = #{reserveStateRowId}
+              AND reserve_state_id = #{reserveStateId}
+              AND original_transaction_id = #{originalTransactionId}
+              AND transaction_date_time = #{originalTransactionDateTime}
+              AND original_hold_detail_no = #{oldHoldDetailNo}
+              AND version = #{expectedVersion}
+            """)
+    int migrateHoldReference(@Param("reserveStateRowId") long reserveStateRowId,
+                             @Param("reserveStateId") String reserveStateId,
+                             @Param("originalTransactionId") String originalTransactionId,
+                             @Param("originalTransactionDateTime") LocalDateTime originalTransactionDateTime,
+                             @Param("oldHoldDetailNo") String oldHoldDetailNo,
+                             @Param("newHoldDetailNo") String newHoldDetailNo,
+                             @Param("expectedVersion") long expectedVersion,
+                             @Param("now") LocalDateTime now);
 
     /**
      * 按原HOLD业务号和原支付分片时间读取不可变保证金配置与支付维度快照。

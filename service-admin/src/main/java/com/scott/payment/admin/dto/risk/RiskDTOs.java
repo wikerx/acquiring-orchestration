@@ -1760,6 +1760,11 @@ public final class RiskDTOs {
     @EqualsAndHashCode(callSuper = true)
     public static class EvaluationQueryRequest extends PageRequest {
         /**
+         * 风控记录号，允许为空；用于从统一待办精确定位单条评估记录。
+         */
+        private String riskRecordNo;
+
+        /**
          * 商户号，允许为空。
          */
         private String merchantId;
@@ -1793,5 +1798,16 @@ public final class RiskDTOs {
          * 评估时间范围终点（不包含），避免跨天查询出现边界重复。
          */
         private LocalDateTime evaluationEndTimeExclusive;
+    }
+
+    /**
+     * 风控评估执行明细分页请求。
+     *
+     * <p>当前只承载分页参数，后续分表切换时仍由服务端根据风控记录号解析真实分片，
+     * 不允许客户端传入物理表或分片标识。</p>
+     */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class EvaluationDetailQueryRequest extends PageRequest {
     }
 }

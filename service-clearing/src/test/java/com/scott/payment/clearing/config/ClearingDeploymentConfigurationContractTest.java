@@ -69,7 +69,9 @@ class ClearingDeploymentConfigurationContractTest {
                 "clearing.tier.lock: true",
                 "internal-service:",
                 "active-secret: ${acquiring.internal-auth.edges.admin-clearing.active-secret}",
-                "active-secret: ${acquiring.internal-auth.edges.job-clearing.active-secret}")
+                "active-secret: ${acquiring.internal-auth.edges.job-clearing.active-secret}",
+                "- /internal/clearing/v1/principal-repairs",
+                "- /internal/clearing/v1/principal-repairs/**")
                 .doesNotContain(
                         "CLEARING_ENABLED",
                         "shadow-mode:",

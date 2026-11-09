@@ -2,6 +2,7 @@ package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
@@ -101,8 +102,45 @@ public class AdminTransactionOrderController {
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime transactionDateTime,
             @RequestParam("rootTransactionDateTime")
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime rootTransactionDateTime) {
-        return success(transactionApplicationService.detail(
+        return success(transactionApplicationService.detailSummary(
                 transactionId, transactionDateTime, rootTransactionDateTime));
+    }
+
+    /**
+     * 分页查询交易主单详情页签中的时间线和交互日志摘要。
+     */
+    @GetMapping("/{transactionId}/detail-records")
+    @RequiresPermission("transaction:order:detail")
+    @OperationLog(moduleName = "交易主单管理", businessType = OperationTypeConstants.QUERY, operation = "分页查询交易主单详情记录")
+    public CommonResult<PageResult<TransactionDetailRecordResponse>> detailRecords(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime transactionDateTime,
+            @RequestParam("rootTransactionDateTime")
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime rootTransactionDateTime,
+            @RequestParam("section") String section,
+            @RequestParam(value = "pageNo", defaultValue = "1") long pageNo,
+            @RequestParam(value = "pageSize", defaultValue = "10") long pageSize) {
+        return success(transactionApplicationService.pageDetailRecords(
+                transactionId, transactionDateTime, rootTransactionDateTime, section, pageNo, pageSize));
+    }
+
+    /**
+     * 查询交易主单详情中单条日志的完整脱敏正文。
+     */
+    @GetMapping("/{transactionId}/detail-records/{recordType}/{recordId}")
+    @RequiresPermission("transaction:order:detail")
+    @OperationLog(moduleName = "交易主单管理", businessType = OperationTypeConstants.QUERY, operation = "查询交易主单脱敏日志正文")
+    public CommonResult<TransactionDetailRecordResponse> detailRecordPayload(
+            @PathVariable("transactionId") String transactionId,
+            @PathVariable("recordType") String recordType,
+            @PathVariable("recordId") String recordId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime transactionDateTime,
+            @RequestParam("rootTransactionDateTime")
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime rootTransactionDateTime) {
+        return success(transactionApplicationService.detailRecordPayload(
+                transactionId, transactionDateTime, rootTransactionDateTime, recordType, recordId));
     }
 
     /**

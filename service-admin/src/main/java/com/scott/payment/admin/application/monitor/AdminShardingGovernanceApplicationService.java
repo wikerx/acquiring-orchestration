@@ -27,6 +27,7 @@ import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalcula
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarter;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,11 @@ public class AdminShardingGovernanceApplicationService {
      */
     private final TransactionShardingProperties transactionShardingProperties;
 
+    /**
+     * 当前实例加载的风控审计分片规则元数据。
+     */
+    private final RiskAuditShardingProperties riskAuditShardingProperties;
+
     private final ShardingQuarterResolver quarterResolver;
 
     private final ShardingPhysicalTableNameResolver tableNameResolver;
@@ -72,6 +78,7 @@ public class AdminShardingGovernanceApplicationService {
      *
      * @param shardingProperties            物理表治理配置
      * @param transactionShardingProperties ShardingSphere 交易规则元数据
+     * @param riskAuditShardingProperties ShardingSphere 风控审计规则元数据
      * @param quarterResolver               季度解析器
      * @param tableNameResolver             物理表名解析器
      * @param autoIncrementValueCalculator  自增区间计算器
@@ -83,6 +90,7 @@ public class AdminShardingGovernanceApplicationService {
     public AdminShardingGovernanceApplicationService(
                                                      TransactionShardingGovernanceProperties shardingProperties,
                                                      TransactionShardingProperties transactionShardingProperties,
+                                                     RiskAuditShardingProperties riskAuditShardingProperties,
                                                      ShardingQuarterResolver quarterResolver,
                                                      ShardingPhysicalTableNameResolver tableNameResolver,
                                                      ShardingAutoIncrementValueCalculator autoIncrementValueCalculator,
@@ -92,6 +100,7 @@ public class AdminShardingGovernanceApplicationService {
                                                      ShardingGovernanceConverter shardingGovernanceConverter) {
         this.shardingProperties = shardingProperties;
         this.transactionShardingProperties = transactionShardingProperties;
+        this.riskAuditShardingProperties = riskAuditShardingProperties;
         this.quarterResolver = quarterResolver;
         this.tableNameResolver = tableNameResolver;
         this.autoIncrementValueCalculator = autoIncrementValueCalculator;
@@ -293,11 +302,19 @@ public class AdminShardingGovernanceApplicationService {
     private ShardingRuleResponse toRuleResponse(Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry) {
         TransactionShardingGovernanceProperties.TableRule rule = entry.getValue();
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
+        boolean riskAuditTable = isRiskAuditTable(rule.getLogicalTable());
+        String ruleVersion = riskAuditTable
+                ? riskAuditShardingProperties.getRuleVersion()
+                : transactionShardingProperties.getRuleVersion();
+        List<String> physicalNodes = riskAuditTable
+                ? riskAuditShardingProperties.getPhysicalNodes()
+                : transactionShardingProperties.getPhysicalNodes();
         ShardingRuleResponse response = new ShardingRuleResponse();
         response.setRuleKey(entry.getKey());
-        response.setRuleVersion(transactionShardingProperties.getRuleVersion());
-        response.setRuleChecksumPrefix(checksumPrefix());
-        response.setVerifiedPhysicalNodes(transactionShardingProperties.getPhysicalNodes());
+        response.setTableFamily(riskAuditTable ? "RISK_AUDIT" : "TRANSACTION");
+        response.setRuleVersion(ruleVersion);
+        response.setRuleChecksumPrefix(checksumPrefix(rule.getLogicalTable()));
+        response.setVerifiedPhysicalNodes(physicalNodes);
         response.setLogicalTable(rule.getLogicalTable());
         response.setTemplateTable(rule.getTemplateTable());
         response.setEnabled(Boolean.TRUE.equals(rule.getEnabled()));
@@ -313,8 +330,8 @@ public class AdminShardingGovernanceApplicationService {
         ShardingQuarter nextQuarter = currentQuarter.next();
         response.setCurrentPhysicalTable(resolvePhysicalTableName(rule, currentQuarter));
         response.setNextPhysicalTable(resolvePhysicalTableName(rule, nextQuarter));
-        response.setCurrentNodeRegistered(transactionShardingProperties.getPhysicalNodes().contains(currentQuarter.suffix()));
-        response.setNextNodeRegistered(transactionShardingProperties.getPhysicalNodes().contains(nextQuarter.suffix()));
+        response.setCurrentNodeRegistered(physicalNodes.contains(currentQuarter.suffix()));
+        response.setNextNodeRegistered(physicalNodes.contains(nextQuarter.suffix()));
         List<String> physicalTables = resolvePhysicalTables(rule);
         response.setPhysicalTables(physicalTables);
         response.setPhysicalTableCount(physicalTables.size());
@@ -362,13 +379,15 @@ public class AdminShardingGovernanceApplicationService {
     }
 
     /**
-     * 只返回固定的正式交易表，拒绝任何 test_* 或未知治理规则进入页面和预建入口。
+     * 只返回固定的正式交易表和风控审计表，拒绝任何 test_* 或未知治理规则进入页面和预建入口。
      */
     private Map<String, TransactionShardingGovernanceProperties.TableRule> configuredRules() {
         Set<String> formalTables = Set.copyOf(TransactionShardingProperties.defaultLogicTables());
+        Set<String> riskAuditTables = Set.copyOf(RiskAuditShardingProperties.defaultLogicTables());
         Map<String, TransactionShardingGovernanceProperties.TableRule> result = new LinkedHashMap<>();
         shardingProperties.getTables().forEach((key, rule) -> {
-            if (rule != null && formalTables.contains(rule.getLogicalTable())) {
+            if (rule != null && (formalTables.contains(rule.getLogicalTable())
+                    || riskAuditTables.contains(rule.getLogicalTable()))) {
                 result.put(key, rule);
             }
         });
@@ -379,11 +398,18 @@ public class AdminShardingGovernanceApplicationService {
      * 为物理表登记响应补充当前规则版本和 actualDataNodes 登记状态。
      */
     private ShardingPhysicalTableResponse enrichPhysicalTableResponse(ShardingPhysicalTableResponse response) {
-        response.setRuleVersion(transactionShardingProperties.getRuleVersion());
-        response.setRuleChecksumPrefix(checksumPrefix());
-        response.setNodeRegistered(TransactionShardingProperties.defaultLogicTables().contains(response.getLogicalTable())
-                && response.getQuarterSuffix() != null
-                && transactionShardingProperties.getPhysicalNodes().contains(response.getQuarterSuffix()));
+        boolean riskAuditTable = isRiskAuditTable(response.getLogicalTable());
+        List<String> physicalNodes = riskAuditTable
+                ? riskAuditShardingProperties.getPhysicalNodes()
+                : transactionShardingProperties.getPhysicalNodes();
+        response.setRuleVersion(riskAuditTable
+                ? riskAuditShardingProperties.getRuleVersion()
+                : transactionShardingProperties.getRuleVersion());
+        response.setRuleChecksumPrefix(checksumPrefix(response.getLogicalTable()));
+        response.setNodeRegistered(response.getQuarterSuffix() != null
+                && (riskAuditTable || TransactionShardingProperties.defaultLogicTables()
+                .contains(response.getLogicalTable()))
+                && physicalNodes.contains(response.getQuarterSuffix()));
         return response;
     }
 
@@ -392,12 +418,24 @@ public class AdminShardingGovernanceApplicationService {
      *
      * @return sha256 前缀和前 12 位摘要；规则未发布时返回 null
      */
-    private String checksumPrefix() {
-        String checksum = transactionShardingProperties.getRuleChecksum();
+    private String checksumPrefix(String logicalTable) {
+        String checksum = isRiskAuditTable(logicalTable)
+                ? riskAuditShardingProperties.getRuleChecksum()
+                : transactionShardingProperties.getRuleChecksum();
         if (!StringUtils.hasText(checksum)) {
             return null;
         }
         return checksum.substring(0, Math.min(checksum.length(), 19));
+    }
+
+    /**
+     * 判断逻辑表是否属于风控审计双表表族。
+     *
+     * @param logicalTable 逻辑表名
+     * @return true 表示应展示风控审计运行版本和节点
+     */
+    private boolean isRiskAuditTable(String logicalTable) {
+        return RiskAuditShardingProperties.defaultLogicTables().contains(logicalTable);
     }
 
     /**

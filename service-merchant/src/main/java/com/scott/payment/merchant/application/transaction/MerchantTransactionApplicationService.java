@@ -200,13 +200,11 @@ public class MerchantTransactionApplicationService {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
         BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
-        BigDecimal transactionAmount = fullTransactionAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 merchantId,
                 sourceOperation,
                 request,
                 labelAmount,
-                transactionAmount,
                 MERCHANT_CAPTURE_ORDER_ID_PREFIX);
         return paymentInternalClient.capture(requestDTO);
     }
@@ -235,13 +233,11 @@ public class MerchantTransactionApplicationService {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
         BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
-        BigDecimal transactionAmount = fullTransactionAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 merchantId,
                 sourceOperation,
                 request,
                 labelAmount,
-                transactionAmount,
                 MERCHANT_PRE_AUTH_COMPLETION_ORDER_ID_PREFIX);
         return paymentInternalClient.preAuthCompletion(requestDTO);
     }
@@ -270,11 +266,6 @@ public class MerchantTransactionApplicationService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount must be greater than 0");
         }
-        BigDecimal transactionAmount = toTransactionAmount(sourceOperation, amount);
-        BigDecimal availableRefundAmount = sourceOperation.getAvailableRefundAmount();
-        if (availableRefundAmount != null && transactionAmount.compareTo(availableRefundAmount) > 0) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount exceeds available refund amount");
-        }
         request.setReason(RefundReasonEnum.resolveRequestReason(
                 request.getReasonCode(), request.getRefundDescription(), request.getReason(),
                 LocaleContextHolder.getLocale()));
@@ -283,7 +274,6 @@ public class MerchantTransactionApplicationService {
                 sourceOperation,
                 request,
                 amount,
-                transactionAmount,
                 MERCHANT_REFUND_ORDER_ID_PREFIX);
         return paymentInternalClient.refund(requestDTO);
     }
@@ -313,7 +303,6 @@ public class MerchantTransactionApplicationService {
                 sourceOperation,
                 request,
                 fullLabelAmount(sourceOperation, sourceOperation.getTransactionAmount()),
-                fullTransactionAmount(sourceOperation, sourceOperation.getTransactionAmount()),
                 MERCHANT_VOID_ORDER_ID_PREFIX);
         return paymentInternalClient.voidPayment(requestDTO);
     }
@@ -359,14 +348,9 @@ public class MerchantTransactionApplicationService {
                     "EDC",
                     csvLabel(locale, "卡BIN", "Card BIN"),
                     csvLabel(locale, "授权码", "Auth Code"),
-                    "ARN",
                     csvLabel(locale, "商户响应码", "Merchant Response Code"),
                     csvLabel(locale, "商户响应描述", "Merchant Response Message"),
-                    csvLabel(locale, "渠道编码", "Channel Code"),
-                    csvLabel(locale, "渠道订单号", "Channel Order No."),
-                    csvLabel(locale, "渠道交易ID", "Channel Transaction ID"),
                     csvLabel(locale, "结算状态", "Settlement Status"),
-                    csvLabel(locale, "对账状态", "Reconciliation Status"),
                     csvLabel(locale, "动作时间", "Operation Time"),
                     csvLabel(locale, "交易时间", "Transaction Time")
                 ));
@@ -456,9 +440,7 @@ public class MerchantTransactionApplicationService {
         copy.setTransactionStatus(query.getTransactionStatus());
         copy.setPaymentMethod(query.getPaymentMethod());
         copy.setPaymentBrand(query.getPaymentBrand());
-        copy.setChannelOrderNo(query.getChannelOrderNo());
         copy.setMerchantResponseCode(query.getMerchantResponseCode());
-        copy.setReconciliationStatus(query.getReconciliationStatus());
         copy.setSettlementStatus(query.getSettlementStatus());
         copy.setBeginTime(query.getBeginTime());
         copy.setEndTime(query.getEndTime());
@@ -503,7 +485,6 @@ public class MerchantTransactionApplicationService {
                                                                        TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
                                                                        BigDecimal labelAmount,
-                                                                       BigDecimal transactionAmount,
                                                                        String orderIdPrefix) {
         LocalDateTime transactionDateTime = LocalDateTime.now();
         String merchantOrderId = request == null ? null : request.getMerchantOrderId();
@@ -521,10 +502,11 @@ public class MerchantTransactionApplicationService {
                 ? merchantId : applicant.getAccountId().toString());
         requestDTO.setApplicantName(resolveApplicantName(applicant, merchantId));
         requestDTO.setRequestReason(request == null ? null : request.getReason());
-        requestDTO.setAmount(transactionAmount);
-        requestDTO.setCurrency(sourceOperation.getTransactionCurrency());
+        String labelCurrency = resolveLabelCurrency(sourceOperation, request);
+        requestDTO.setAmount(labelAmount);
+        requestDTO.setCurrency(labelCurrency);
         requestDTO.setLabelAmount(labelAmount);
-        requestDTO.setLabelCurrency(resolveLabelCurrency(sourceOperation, request));
+        requestDTO.setLabelCurrency(labelCurrency);
         requestDTO.setTransactionDateTime(transactionDateTime);
         PaymentTransactionActionClientRequestDTO.TransactionInfoDTO transactionInfoDTO =
                 new PaymentTransactionActionClientRequestDTO.TransactionInfoDTO();
@@ -603,26 +585,43 @@ public class MerchantTransactionApplicationService {
                 .filter(operation -> REFUND_OPERATION_TYPE.equals(operation.getTransactionType()))
                 .filter(operation -> operation.getTransactionStatus() != null
                         && REFUND_IN_PROGRESS_STATUSES.contains(operation.getTransactionStatus()))
-                .map(TransactionOperationResponse::getTransactionAmount)
-                .filter(java.util.Objects::nonNull)
+                .map(operation -> operationLabelAmount(operation, source))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal refunded = source.getRefundedAmount() == null ? BigDecimal.ZERO : source.getRefundedAmount();
         return new RefundContext(currency, digits,
-                refundLabelAmount(source, refunded, digits, RoundingMode.HALF_UP),
-                refundLabelAmount(source, pending, digits, RoundingMode.HALF_UP),
-                refundLabelAmount(source, available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
+                normalizeLabelAmount(refunded, digits, RoundingMode.HALF_UP),
+                normalizeLabelAmount(pending, digits, RoundingMode.HALF_UP),
+                normalizeLabelAmount(available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
     }
 
     /**
-     * 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。
+     * 读取非终态退款动作的标签金额，避免把内部渠道交易金额重复换算为商户金额。
      */
-    private BigDecimal refundLabelAmount(TransactionOperationResponse source, BigDecimal amount,
-                                         int digits, RoundingMode roundingMode) {
-        if (source.getLabelAmount() != null && source.getTransactionAmount() != null
-                && source.getTransactionAmount().signum() > 0) {
-            return amount.multiply(source.getLabelAmount()).divide(source.getTransactionAmount(), digits, roundingMode);
+    private BigDecimal operationLabelAmount(TransactionOperationResponse operation,
+                                            TransactionOperationResponse source) {
+        if (operation.getLabelAmount() != null) {
+            return operation.getLabelAmount();
         }
+        if (sameLabelAndTransactionCurrency(source) && operation.getTransactionAmount() != null) {
+            return operation.getTransactionAmount();
+        }
+        throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR,
+                "pending refund label amount is missing");
+    }
+
+    /**
+     * 按标签币种精度输出退款上下文；可退上限向下取整，禁止展示值超过真实额度。
+     */
+    private BigDecimal normalizeLabelAmount(BigDecimal amount, int digits, RoundingMode roundingMode) {
         return amount.setScale(digits, roundingMode);
+    }
+
+    /**
+     * 判断标签币种与渠道交易币种是否相同。
+     */
+    private boolean sameLabelAndTransactionCurrency(TransactionOperationResponse source) {
+        return StringUtils.hasText(source.getLabelCurrency())
+                && source.getLabelCurrency().equalsIgnoreCase(source.getTransactionCurrency());
     }
 
     /**
@@ -664,22 +663,6 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 按原交易锁定的标签金额与交易金额比例换算本次渠道交易金额。
-     */
-    private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
-        if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
-        }
-        BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
-        BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
-        if (sourceLabelAmount == null || sourceLabelAmount.compareTo(BigDecimal.ZERO) <= 0
-                || sourceTransactionAmount == null || sourceTransactionAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            return labelAmount;
-        }
-        return labelAmount.multiply(sourceTransactionAmount).divide(sourceLabelAmount, 6, RoundingMode.HALF_UP);
-    }
-
-    /**
      * 将交易动作转换为 CSV 行并执行字段转义。
      */
     private String toOperationCsvLine(TransactionOperationResponse row, Locale locale) {
@@ -702,14 +685,9 @@ public class MerchantTransactionApplicationService {
                 csv(binaryLabel(row.getEdcEnabled(), locale, "启用", "未启用", "Enabled", "Disabled")),
                 csv(row.getCardBin()),
                 csv(row.getAuthCode()),
-                csv(row.getAcquirerReferenceNo()),
                 csv(row.getMerchantResponseCode()),
                 csv(row.getMerchantResponseMessage()),
-                csv(row.getChannelCode()),
-                csv(row.getChannelOrderNo()),
-                csv(row.getChannelTransactionId()),
                 csv(row.getSettlementStatus()),
-                csv(row.getReconciliationStatus()),
                 csv(row.getOperationTime()),
                 csv(row.getTransactionDateTime())
         );

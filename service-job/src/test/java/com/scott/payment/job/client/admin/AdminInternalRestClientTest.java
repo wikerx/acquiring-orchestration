@@ -6,6 +6,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.job.client.admin.dto.ExchangeRateAlertEvaluationClientDTOs.Request;
 import com.scott.payment.job.client.admin.dto.ExchangeRateAlertEvaluationClientDTOs.Response;
+import com.scott.payment.job.client.admin.dto.OperationalWorkItemSyncClientDTOs;
 import com.scott.payment.job.config.AdminInternalClientProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -107,6 +108,41 @@ class AdminInternalRestClientTest {
                             .doesNotContain("plain-text-secret")
                             .doesNotContain("4111111111111111");
                 });
+    }
+
+    /** 统一待办同步复用同一 HMAC 契约，并使用独立的内部路径。 */
+    @Test
+    void shouldSynchronizeOperationalWorkItemsWithSignedRequest() {
+        RestTemplate direct = mock(RestTemplate.class);
+        RestTemplate loadBalanced = mock(RestTemplate.class);
+        OperationalWorkItemSyncClientDTOs.Response downstream =
+                new OperationalWorkItemSyncClientDTOs.Response();
+        downstream.setCreatedCount(3);
+        when(loadBalanced.exchange(
+                any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(CommonResult.success(downstream))));
+        AdminInternalRestClient client = new AdminInternalRestClient(direct, loadBalanced, properties());
+        OperationalWorkItemSyncClientDTOs.Request request =
+                new OperationalWorkItemSyncClientDTOs.Request();
+        request.setRequestKey("OPERATIONAL_WORK_ITEM_SYNC:run-2");
+        request.setSyncTime(LocalDateTime.of(2026, 11, 5, 9, 30));
+
+        OperationalWorkItemSyncClientDTOs.Response response =
+                client.synchronizeOperationalWorkItems(request);
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<String>> entityCaptor =
+                (ArgumentCaptor<HttpEntity<String>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(HttpEntity.class);
+        verify(loadBalanced).exchange(
+                uriCaptor.capture(), eq(HttpMethod.POST), entityCaptor.capture(), eq(String.class));
+        assertThat(response.getCreatedCount()).isEqualTo(3);
+        assertThat(uriCaptor.getValue().getPath())
+                .isEqualTo("/internal/admin/operations/work-items/sync");
+        assertThat(entityCaptor.getValue().getBody())
+                .contains("OPERATIONAL_WORK_ITEM_SYNC:run-2");
+        assertThat(entityCaptor.getValue().getHeaders()
+                .getFirst(InternalServiceSignature.HEADER_SIGNATURE)).isNotBlank();
     }
 
     private AdminInternalClientProperties properties() {

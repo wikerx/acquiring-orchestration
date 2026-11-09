@@ -11,6 +11,7 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -224,9 +225,16 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
         }
-        // 状态机校验和未决动作扫描必须共享同一锁快照，避免相反资金动作同时通过。
+        TransactionOperationDO sourceOperationDO = plan.sourceOperationDO();
+        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan =
+                FrozenRateFollowUpAmountCalculator.calculateVoid(
+                        sourceOrderDO, commandDTO.getAmount(), commandDTO.getCurrency());
+        commandDTO.setLabelCurrencyExponent(plan.labelCurrencyExponent());
+        applyVoidAmountPlan(commandDTO, sourceOrderDO, sourceOperationDO, amountPlan);
+        // 双口径金额归一、状态机校验和未决动作扫描共享同一锁快照，避免相反资金动作同时通过。
         transactionStateMachineService.validateFollowUpAction(
-                sourceOrderDO, PaymentTransactionTypeEnum.VOID, commandDTO.getAmount(), commandDTO.getCurrency());
+                sourceOrderDO, PaymentTransactionTypeEnum.VOID,
+                commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency());
         validateNoConflictingFundAction(commandDTO, sourceOrderDO, LocalDateTime.now());
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
@@ -247,12 +255,10 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                             "void idempotency conflict record is missing"));
         }
-        TransactionOperationDO sourceOperationDO = plan.sourceOperationDO();
-        normalizeVoidCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         int currencyExponent = plan.transactionCurrencyExponent();
         PaymentCreateResultDTO resultDTO = buildVoidResult(
-                commandDTO, sourceOrderDO, transactionId, currencyExponent);
+                commandDTO, sourceOrderDO, transactionId, plan.labelCurrencyExponent());
         OriginalTransactionRouteResolver.Resolution routeResolution = plan.routeResolution();
         PaymentRouteResultDTO routeResultDTO = routeResolution.requireRouteResult();
         if (routeResolution.rejected()) {
@@ -313,7 +319,7 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
     }
 
     /**
-     * 在短事务前读取不可变原动作、原渠道身份和交易币种精度。
+     * 在短事务前读取不可变原动作、原渠道身份和双币种精度。
      */
     private VoidPreparationPlan planVoid(TransactionOrderDO sourceOrderDO,
                                          PaymentCreateCommandDTO commandDTO) {
@@ -322,9 +328,12 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                 commandDTO.getTransactionInfo().getSourceTransactionDateTime());
         OriginalTransactionRouteResolver.Resolution routeResolution = OriginalTransactionRouteResolver.plan(
                 paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        String labelCurrency = StringUtils.hasText(sourceOrderDO.getLabelCurrency())
+                ? sourceOrderDO.getLabelCurrency() : sourceOrderDO.getTransactionCurrency();
+        int labelCurrencyExponent = resolveCurrencyExponent(labelCurrency);
         int transactionCurrencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         return new VoidPreparationPlan(
-                sourceOperationDO, routeResolution, transactionCurrencyExponent);
+                sourceOperationDO, routeResolution, labelCurrencyExponent, transactionCurrencyExponent);
     }
 
     /**
@@ -467,19 +476,20 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
     }
 
     /**
-     * 将撤销命令归一到原交易金额、币种和原渠道交易号。
+     * 将撤销命令归一为商户标签口径、渠道交易口径和原渠道交易号。
      *
-     * <p>未指定金额时撤销原交易金额；缺少原渠道交易号时明确拒绝，避免形成无法关联的渠道撤销。</p>
+     * <p>商户兼容字段继续使用标签金额和标签币种，渠道专用字段使用渠道剩余授权金额和币种；
+     * 两套金额共同沿用首笔交易冻结汇率。缺少原渠道交易号时明确拒绝，避免形成无法关联的渠道撤销。</p>
      */
-    private void normalizeVoidCommand(PaymentCreateCommandDTO commandDTO,
-                                      TransactionOrderDO sourceOrderDO,
-                                      TransactionOperationDO sourceOperationDO) {
-        BigDecimal transactionAmount = commandDTO.getAmount() == null ? sourceOrderDO.getTransactionAmount() : commandDTO.getAmount();
+    private void applyVoidAmountPlan(PaymentCreateCommandDTO commandDTO,
+                                    TransactionOrderDO sourceOrderDO,
+                                    TransactionOperationDO sourceOperationDO,
+                                    FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan) {
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
-        commandDTO.setLabelCurrency(resolveLabelCurrency(commandDTO, sourceOrderDO));
-        commandDTO.setLabelAmount(commandDTO.getLabelAmount() == null ? transactionAmount : commandDTO.getLabelAmount());
-        commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setAmount(transactionAmount);
+        commandDTO.setLabelCurrency(amountPlan.labelCurrency());
+        commandDTO.setLabelAmount(amountPlan.labelAmount());
+        commandDTO.setCurrency(amountPlan.labelCurrency());
+        commandDTO.setAmount(amountPlan.labelAmount());
         if (sourceOperationDO == null || !StringUtils.hasText(sourceOperationDO.getChannelTransactionId())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "source channel transaction id is required for VOID");
@@ -487,29 +497,13 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         if (commandDTO.getTransactionInfo() != null) {
             commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
         }
-        commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setTransactionAmount(transactionAmount);
-        commandDTO.setTransactionRate(defaultTransactionRate());
-        commandDTO.setRateSource(null);
-        commandDTO.setRateTime(null);
-        commandDTO.setDccEnabled(0);
-        commandDTO.setEdcEnabled(0);
-    }
-
-    /**
-     * 按本次展示币种、请求币种、原交易展示币种、原交易币种的顺序解析商户展示币种。
-     */
-    private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
-        if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
-            return normalizeCurrency(commandDTO.getLabelCurrency());
-        }
-        if (StringUtils.hasText(commandDTO.getCurrency())) {
-            return normalizeCurrency(commandDTO.getCurrency());
-        }
-        if (StringUtils.hasText(sourceOrderDO.getLabelCurrency())) {
-            return sourceOrderDO.getLabelCurrency();
-        }
-        return sourceOrderDO.getTransactionCurrency();
+        commandDTO.setTransactionCurrency(amountPlan.transactionCurrency());
+        commandDTO.setTransactionAmount(amountPlan.transactionAmount());
+        commandDTO.setTransactionRate(amountPlan.transactionRate());
+        commandDTO.setRateSource(amountPlan.rateSource());
+        commandDTO.setRateTime(amountPlan.rateTime());
+        commandDTO.setDccEnabled(amountPlan.dccEnabled());
+        commandDTO.setEdcEnabled(amountPlan.edcEnabled());
     }
 
     /**
@@ -528,9 +522,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         resultDTO.setMerchantId(commandDTO.getMerchantId());
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(PaymentTransactionTypeEnum.VOID.getCode());
-        resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
+        resultDTO.setCurrency(commandDTO.getLabelCurrency());
         resultDTO.setAmount(toMinorAmount(
-                sourceOrderDO.getTransactionAmount(), sourceOrderDO.getTransactionCurrency(), currencyExponent));
+                commandDTO.getLabelAmount(), commandDTO.getLabelCurrency(), currencyExponent));
         return resultDTO;
     }
 
@@ -655,8 +649,8 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                 resultDTO.getOperationId(),
                 resultDTO.getTransactionId(),
                 resultDTO.getStatus(),
-                commandDTO.getTransactionAmount(),
-                resultDTO.getCurrency(),
+                commandDTO.getLabelAmount(),
+                commandDTO.getLabelCurrency(),
                 JsonUtils.toJsonString(resultDTO));
     }
 
@@ -712,12 +706,12 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         enrichMerchantResponse(resultDTO);
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
-        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getLabelAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(sourceOrderDO));
-        resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalRefundAmount(sourceOrderDO.getLabelRefundedAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getLabelChargebackAmount());
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedAmount());
+            resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getLabelAuthorizedAmount());
         }
     }
 
@@ -726,9 +720,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      */
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
-            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+            return firstPositive(sourceOrderDO.getLabelCapturedAmount(), sourceOrderDO.getLabelAmount());
         }
-        return sourceOrderDO.getAuthorizedAmount();
+        return sourceOrderDO.getLabelAuthorizedAmount();
     }
 
     /**
@@ -736,9 +730,9 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      */
     private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
-            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+            return firstPositive(sourceOrderDO.getLabelCapturedAmount(), sourceOrderDO.getLabelAmount());
         }
-        return sourceOrderDO.getCapturedAmount();
+        return sourceOrderDO.getLabelCapturedAmount();
     }
 
     /**
@@ -801,11 +795,13 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      *
      * @param sourceOperationDO 原交易动作快照
      * @param routeResolution 原交易路由规划结果
-     * @param transactionCurrencyExponent 交易币种辅币位数
+     * @param labelCurrencyExponent 标签币种辅币位数
+     * @param transactionCurrencyExponent 渠道交易币种辅币位数
      */
     private record VoidPreparationPlan(
             TransactionOperationDO sourceOperationDO,
             OriginalTransactionRouteResolver.Resolution routeResolution,
+            int labelCurrencyExponent,
             int transactionCurrencyExponent) {
     }
 
@@ -842,20 +838,6 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency fraction digits can not be resolved");
         }
         return currencyInfo.defaultFractionDigits();
-    }
-
-    /**
-     * 返回无换汇场景的单位交易汇率。
-     */
-    private BigDecimal defaultTransactionRate() {
-        return new BigDecimal("1.00000000");
-    }
-
-    /**
-     * 规范化币种。
-     */
-    private String normalizeCurrency(String currency) {
-        return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
 
     /**

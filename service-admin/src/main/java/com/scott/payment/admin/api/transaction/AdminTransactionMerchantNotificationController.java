@@ -4,6 +4,7 @@ import com.scott.payment.admin.application.transaction.AdminTransactionApplicati
 import com.scott.payment.admin.application.transaction.AdminMerchantNotificationRetryApplicationService;
 import com.scott.payment.admin.dto.transaction.MerchantNotificationRetryRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -83,6 +84,29 @@ public class AdminTransactionMerchantNotificationController {
             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime transactionDateTime) {
         return success(transactionApplicationService.merchantNotificationDetail(
                 notifyId, transactionDateTime));
+    }
+
+    /**
+     * 分页查询单个商户回调任务的投递尝试，最新尝试优先。
+     *
+     * @param notifyId 通知任务号
+     * @param transactionDateTime 列表查询返回的真实交易分片时间
+     * @param pageNo 页码，从 1 开始
+     * @param pageSize 每页记录数，最大 100
+     * @return 投递日志分页
+     */
+    @GetMapping("/{notifyId}/delivery-logs")
+    @RequiresPermission("transaction:merchant-notification:detail")
+    @OperationLog(moduleName = "商户回调记录", businessType = OperationTypeConstants.QUERY,
+            operation = "分页查询商户回调投递日志")
+    public CommonResult<PageResult<MerchantNotificationDeliveryLogResponse>> deliveryLogs(
+            @PathVariable("notifyId") String notifyId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime transactionDateTime,
+            @RequestParam(value = "pageNo", defaultValue = "1") long pageNo,
+            @RequestParam(value = "pageSize", defaultValue = "10") long pageSize) {
+        return success(transactionApplicationService.pageMerchantNotificationDeliveryLogs(
+                notifyId, transactionDateTime, pageNo, pageSize));
     }
 
     /**

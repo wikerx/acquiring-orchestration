@@ -6,6 +6,10 @@ import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalReserve
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.ReserveAdjustmentResponse;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalTierPeriodReplaySubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TierPeriodReplayResponse;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.InternalReviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.InternalSubmitRequest;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.Response;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
@@ -20,16 +24,20 @@ import java.net.URI;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
  * 验证 Admin 调用清分内部接口时签名绑定分片时间、完整目标和专用命令资源
  */
 class ClearingInternalRestClientTest {
+
+    private static final String REPAIR_NO = "LPR0123456789abcdef0123456789abcdef";
 
     @Test
     void detailShouldBindEncodedShardTimeQueryIntoHmacSignature() {
@@ -133,5 +141,84 @@ class ClearingInternalRestClientTest {
                 .contains("\"submitOperator\":\"admin-account:88/Clearing Operator\"");
         assertThat(entityCaptor.getValue().getHeaders()
                 .getFirst(InternalServiceSignature.HEADER_SIGNATURE)).isNotBlank();
+    }
+
+    @Test
+    void labelPrincipalRepairSubmitShouldUseDedicatedSignedInternalResource() {
+        RestTemplate direct = mock(RestTemplate.class);
+        RestTemplate loadBalanced = mock(RestTemplate.class);
+        ClearingInternalClientProperties properties = new ClearingInternalClientProperties();
+        properties.setInternalCaller("service-admin-test");
+        properties.setInternalSecret("unit-test-clearing-secret");
+        when(loadBalanced.exchange(any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(CommonResult.success(new Response()))));
+        ClearingInternalRestClient client = new ClearingInternalRestClient(direct, loadBalanced, properties);
+        InternalSubmitRequest request = new InternalSubmitRequest();
+        request.setRequestKey("REQ-REPAIR-1");
+        request.setTransactionId("TX-1");
+        request.setSubmitOperator("admin-account:88");
+
+        assertThat(client.submitLabelPrincipalRepair(request)).isNotNull();
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<String>> entityCaptor =
+                (ArgumentCaptor<HttpEntity<String>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(HttpEntity.class);
+        verify(loadBalanced).exchange(
+                uriCaptor.capture(), eq(HttpMethod.POST), entityCaptor.capture(), eq(String.class));
+        assertThat(uriCaptor.getValue().getPath())
+                .isEqualTo("/internal/clearing/v1/principal-repairs");
+        assertThat(entityCaptor.getValue().getBody())
+                .contains("\"requestKey\":\"REQ-REPAIR-1\"")
+                .contains("\"submitOperator\":\"admin-account:88\"");
+        assertThat(entityCaptor.getValue().getHeaders()
+                .getFirst(InternalServiceSignature.HEADER_SIGNATURE)).isNotBlank();
+    }
+
+    @Test
+    void labelPrincipalRepairReviewShouldUseRepairScopedSignedResource() {
+        RestTemplate direct = mock(RestTemplate.class);
+        RestTemplate loadBalanced = mock(RestTemplate.class);
+        ClearingInternalClientProperties properties = new ClearingInternalClientProperties();
+        properties.setInternalCaller("service-admin-test");
+        properties.setInternalSecret("unit-test-clearing-secret");
+        when(loadBalanced.exchange(any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(CommonResult.success(new Response()))));
+        ClearingInternalRestClient client = new ClearingInternalRestClient(direct, loadBalanced, properties);
+        InternalReviewRequest request = new InternalReviewRequest();
+        request.setDecision("APPROVE");
+        request.setReviewOperator("admin-account:99");
+
+        assertThat(client.reviewLabelPrincipalRepair(REPAIR_NO, request)).isNotNull();
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<String>> entityCaptor =
+                (ArgumentCaptor<HttpEntity<String>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(HttpEntity.class);
+        verify(loadBalanced).exchange(
+                uriCaptor.capture(), eq(HttpMethod.POST), entityCaptor.capture(), eq(String.class));
+        assertThat(uriCaptor.getValue().getPath())
+                .isEqualTo("/internal/clearing/v1/principal-repairs/" + REPAIR_NO + "/review");
+        assertThat(entityCaptor.getValue().getBody())
+                .contains("\"decision\":\"APPROVE\"")
+                .contains("\"reviewOperator\":\"admin-account:99\"");
+        assertThat(entityCaptor.getValue().getHeaders()
+                .getFirst(InternalServiceSignature.HEADER_SIGNATURE)).isNotBlank();
+    }
+
+    @Test
+    void labelPrincipalRepairReviewShouldRejectNonCanonicalRepairNoBeforeHttpCall() {
+        RestTemplate direct = mock(RestTemplate.class);
+        RestTemplate loadBalanced = mock(RestTemplate.class);
+        ClearingInternalClientProperties properties = new ClearingInternalClientProperties();
+        properties.setInternalCaller("service-admin-test");
+        properties.setInternalSecret("unit-test-clearing-secret");
+        ClearingInternalRestClient client = new ClearingInternalRestClient(direct, loadBalanced, properties);
+
+        assertThatExceptionOfType(ServiceException.class)
+                .isThrownBy(() -> client.reviewLabelPrincipalRepair(
+                        "../transactions/TX-1/retry", new InternalReviewRequest()));
+
+        verifyNoInteractions(direct, loadBalanced);
     }
 }

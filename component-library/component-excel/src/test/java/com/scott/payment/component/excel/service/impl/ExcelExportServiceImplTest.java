@@ -22,6 +22,7 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -105,6 +106,77 @@ class ExcelExportServiceImplTest {
                 response);
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(response.body.toByteArray()))) {
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("alice", sheet.getRow(3).getCell(0).getStringCellValue());
+            Assertions.assertEquals("bob", sheet.getRow(4).getCell(0).getStringCellValue());
+        }
+    }
+
+    /**
+     * 验证首个分页没有数据时仍生成包含标题和表头的可用工作表。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldWriteTitleAndHeaderWhenFirstPageIsEmpty() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        service.exportPaged(
+                ExcelPagedExportRequest.<DemoExportRow>builder()
+                        .fileName("empty-paged-demo")
+                        .sheetName("empty-paged-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .querySummary("无匹配数据")
+                        .rowClass(DemoExportRow.class)
+                        .pageSize(100)
+                        .pageLoader(pageNo -> List.of())
+                        .build(),
+                outputStream);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.toByteArray()))) {
+            Assertions.assertEquals(1, workbook.getNumberOfSheets());
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("用户列表导出", sheet.getRow(0).getCell(0).getStringCellValue());
+            Assertions.assertEquals("登录账号", sheet.getRow(2).getCell(0).getStringCellValue());
+            Assertions.assertEquals("状态", sheet.getRow(2).getCell(1).getStringCellValue());
+            Assertions.assertNull(sheet.getRow(3), "空结果不得伪造业务数据行");
+        }
+    }
+
+    /**
+     * 验证异步导出可直接写入调用方输出流，并且服务完成后不会关闭该流。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldWritePagedRowsToCallerOwnedOutputStreamWithoutClosingIt() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        TrackingOutputStream outputStream = new TrackingOutputStream();
+
+        service.exportPaged(
+                ExcelPagedExportRequest.<DemoExportRow>builder()
+                        .fileName("async-paged-demo")
+                        .sheetName("async-paged-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .rowClass(DemoExportRow.class)
+                        .pageSize(1)
+                        .pageLoader(pageNo -> switch (pageNo) {
+                            case 1 -> List.of(new DemoExportRow("alice", "启用"));
+                            case 2 -> List.of(new DemoExportRow("bob", "停用"));
+                            default -> List.of();
+                        })
+                        .build(),
+                outputStream);
+
+        Assertions.assertFalse(outputStream.closed, "异步导出不得关闭调用方管理的输出流");
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.body.toByteArray()))) {
             var sheet = workbook.getSheetAt(0);
             Assertions.assertEquals("alice", sheet.getRow(3).getCell(0).getStringCellValue());
             Assertions.assertEquals("bob", sheet.getRow(4).getCell(0).getStringCellValue());
@@ -245,6 +317,30 @@ class ExcelExportServiceImplTest {
         TextIdentifierExportRow(String transactionId, String status) {
             this.transactionId = transactionId;
             this.status = status;
+        }
+    }
+
+    /**
+     * 记录输出内容和关闭动作的测试流，用于验证异步导出的流所有权契约。
+     */
+    private static final class TrackingOutputStream extends OutputStream {
+        private final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        private boolean closed;
+
+        /**
+         * 将导出字节写入内存工作簿缓存。
+         */
+        @Override
+        public void write(int value) {
+            body.write(value);
+        }
+
+        /**
+         * 仅记录关闭动作，保留缓存供测试解析。
+         */
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 

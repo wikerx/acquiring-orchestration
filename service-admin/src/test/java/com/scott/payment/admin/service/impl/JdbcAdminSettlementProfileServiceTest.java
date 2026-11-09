@@ -2,7 +2,6 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSummary;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileUpdateRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -12,7 +11,6 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -91,43 +89,6 @@ class JdbcAdminSettlementProfileServiceTest {
         assertThat(sql.getValue())
                 .contains("WHERE 1 = 1\nORDER BY")
                 .doesNotContain("1ORDER BY");
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void updateShouldUseProfileIdentityScopeAndExpectedVersionAsCasConditions() {
-        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        when(jdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
-        ProfileSummary updated = new ProfileSummary();
-        updated.setId(9L);
-        updated.setSettlementProfileNo("SP-M1001-USD");
-        updated.setVersion(4L);
-        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
-                .thenReturn(List.of(updated));
-        JdbcAdminSettlementProfileService service = new JdbcAdminSettlementProfileService(
-                jdbcTemplate, executingReadExecutor(), new TransactionShardingProperties());
-        ProfileUpdateRequest request = new ProfileUpdateRequest();
-        request.setProcessingMode("AUTO_REVIEW");
-        request.setBusinessTimeZone("Asia/Tokyo");
-        request.setDailyCutoffTime(LocalTime.of(23, 30));
-        request.setExpectedVersion(3L);
-
-        ProfileSummary result = service.update(
-                "SP-M1001-USD", request, AdminMerchantDataScope.limited(Set.of("M1001")));
-
-        assertThat(result.getVersion()).isEqualTo(4L);
-        ArgumentCaptor<String> updateSql = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
-        verify(jdbcTemplate).update(updateSql.capture(), parameters.capture());
-        assertThat(updateSql.getValue()).contains(
-                "processing_mode = :processingMode",
-                "business_time_zone = :businessTimeZone",
-                "daily_cutoff_time = :dailyCutoffTime",
-                "version = version + 1",
-                "settlement_profile_no = :settlementProfileNo",
-                "merchant_id IN (:permittedMerchantIds)",
-                "version = :expectedVersion");
-        assertThat(parameters.getValue().getValue("expectedVersion")).isEqualTo(3L);
     }
 
     private TransactionLogicalReadExecutor executingReadExecutor() {

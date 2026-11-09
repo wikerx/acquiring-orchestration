@@ -15,11 +15,14 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionStatusHistoryResponse;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
+import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -54,6 +57,48 @@ import static org.mockito.Mockito.when;
 class JdbcAdminTransactionQueryServiceTest {
 
     /**
+     * 异步交易主单导出必须把有限商户集合落实为 SQL IN 条件。
+     */
+    @Test
+    void orderExportShouldApplyFrozenMerchantScopeInSql() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.now().minusHours(1));
+        query.setEndTime(LocalDateTime.now());
+
+        service.pageOrdersForExport(query, AdminMerchantDataScope.limited(Set.of("M1001", "M1002")));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), params.capture(), eq(Long.class));
+        assertThat(sql.getValue()).contains("merchant_id IN (:scopeMerchantIds)");
+        assertThat(params.getValue().getValue("scopeMerchantIds"))
+                .isEqualTo(Set.of("M1001", "M1002"));
+    }
+
+    /**
+     * 显式商户号不在冻结范围时必须返回空页且不访问数据库。
+     */
+    @Test
+    void orderExportShouldRejectMerchantOutsideFrozenScopeBeforeSql() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setMerchantId("M-OUTSIDE");
+        query.setBeginTime(LocalDateTime.now().minusHours(1));
+        query.setEndTime(LocalDateTime.now());
+
+        PageResult<TransactionOrderResponse> result = service.pageOrdersForExport(
+                query, AdminMerchantDataScope.limited(Set.of("M1001")));
+
+        assertThat(result.getTotal()).isZero();
+        verify(jdbcTemplate, never()).queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class));
+    }
+
+    /**
      * F 类描述故障来源而非交易终态，后台筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。
      */
     @Test
@@ -77,6 +122,8 @@ class JdbcAdminTransactionQueryServiceTest {
         TransactionOperationResponse operation = operation("operation-a", "transaction-a", order.getTransactionDateTime());
         operation.setTransactionType("PAYMENT");
         operation.setTransactionStatus("SUCCESS");
+        operation.setLabelCurrency("EUR");
+        operation.setLabelAmount(new BigDecimal("28.20"));
         operation.setTransactionCurrency("HKD");
         operation.setTransactionAmount(new BigDecimal("31.02"));
         operation.setOperationTime(order.getTransactionDateTime());
@@ -93,6 +140,12 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(changes).hasSize(1);
         assertThat(changes.get(0).getChangeSource()).isEqualTo("INITIAL_OPERATION");
         assertThat(changes.get(0).getChangeTime()).isEqualTo(successTime);
+        assertThat(changes.get(0).getLabelAmountCurrency()).isEqualTo("EUR");
+        assertThat(changes.get(0).getLabelChangeAmount()).isEqualByComparingTo("28.20");
+        assertThat(changes.get(0).getLabelAuthorizedAfter()).isEqualByComparingTo("28.20");
+        assertThat(changes.get(0).getLabelCapturedAfter()).isEqualByComparingTo("28.20");
+        assertThat(changes.get(0).getLabelAvailableCaptureAfter()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(changes.get(0).getLabelAvailableRefundAfter()).isEqualByComparingTo("28.20");
         assertThat(changes.get(0).getAuthorizedAfter()).isEqualByComparingTo("31.02");
         assertThat(changes.get(0).getCapturedAfter()).isEqualByComparingTo("31.02");
         assertThat(changes.get(0).getAvailableCaptureAfter()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -600,30 +653,16 @@ class JdbcAdminTransactionQueryServiceTest {
     }
 
     /**
-     * 商户回调详情必须按通知号和页面传入的真实分片时间查询任务及每次投递日志。
+     * 商户回调主详情只读取任务快照，投递记录由独立分页接口加载。
      */
     @Test
-    void merchantNotificationDetailShouldUseExactShardAndReturnAttemptLogs() {
+    void merchantNotificationDetailShouldUseExactShardAndLeaveAttemptLogsEmpty() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 4, 18, 29, 44, 988_000_000);
         MerchantNotificationResponse notification = new MerchantNotificationResponse();
         notification.setNotifyId("notification-a");
-        LocalDateTime firstResponseTime = transactionTime.plusSeconds(2);
-        LocalDateTime secondResponseTime = transactionTime.plusSeconds(4);
-        MerchantNotificationDeliveryLogResponse firstAttempt = new MerchantNotificationDeliveryLogResponse();
-        firstAttempt.setAttemptNo(1);
-        firstAttempt.setHttpMethod("POST");
-        firstAttempt.setResponseTime(firstResponseTime);
-        MerchantNotificationDeliveryLogResponse secondAttempt = new MerchantNotificationDeliveryLogResponse();
-        secondAttempt.setAttemptNo(2);
-        secondAttempt.setHttpMethod("POST");
-        secondAttempt.setResponseTime(secondResponseTime);
-        secondAttempt.setResponseBodyJsonMasked("succeed");
         when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0, String.class)
-                        .contains("transaction_merchant_notification_log")
-                        ? List.of(firstAttempt, secondAttempt)
-                        : List.of(notification));
+                .thenReturn(List.of(notification));
         JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
                 jdbcTemplate, mock(AdminRiskTimelineQueryService.class));
 
@@ -631,32 +670,50 @@ class JdbcAdminTransactionQueryServiceTest {
                 service.merchantNotificationDetail("notification-a", transactionTime);
 
         assertThat(detail.getNotification()).isEqualTo(notification);
-        assertThat(detail.getDeliveryLogs())
-                .extracting(
-                        MerchantNotificationDeliveryLogResponse::getAttemptNo,
-                        MerchantNotificationDeliveryLogResponse::getHttpMethod,
-                        MerchantNotificationDeliveryLogResponse::getResponseTime)
-                .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(1, "POST", firstResponseTime),
-                        org.assertj.core.groups.Tuple.tuple(2, "POST", secondResponseTime));
-        assertThat(detail.getDeliveryLogs())
-                .last()
-                .satisfies(row -> assertThat(row.getResponseBodyJsonMasked()).isEqualTo("succeed"));
+        assertThat(detail.getDeliveryLogs()).isEmpty();
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
-        verify(jdbcTemplate, org.mockito.Mockito.times(2))
+        verify(jdbcTemplate)
                 .query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
-        assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> {
-            assertThat(sql).contains("notify_id = :notifyId");
-            assertThat(sql).contains("transaction_date_time = :transactionDateTime");
-            assertThat(sql).doesNotContain("${");
-            assertThat(sql).doesNotContain("transaction_merchant_notification_2026");
-        });
-        assertThat(sqlCaptor.getAllValues().get(1)).contains("ORDER BY attempt_no ASC");
-        assertThat(paramsCaptor.getAllValues()).allSatisfy(params -> {
-            assertThat(params.getValue("notifyId")).isEqualTo("notification-a");
-            assertThat(params.getValue("transactionDateTime")).isEqualTo(transactionTime);
-        });
+        assertThat(sqlCaptor.getValue())
+                .contains("notify_id = :notifyId", "transaction_date_time = :transactionDateTime")
+                .doesNotContain("transaction_merchant_notification_log", "${");
+        assertThat(paramsCaptor.getValue().getValue("notifyId")).isEqualTo("notification-a");
+        assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionTime);
+    }
+
+    /**
+     * 投递日志必须在校验通知存在后按最新尝试倒序分页。
+     */
+    @Test
+    void merchantNotificationDeliveryLogsShouldPageNewestAttemptsFirst() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 4, 18, 29, 44, 988_000_000);
+        MerchantNotificationDeliveryLogResponse latestAttempt = new MerchantNotificationDeliveryLogResponse();
+        latestAttempt.setAttemptNo(12);
+        when(jdbcTemplate.queryForObject(
+                anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(1L, 27L);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of(latestAttempt));
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate, mock(AdminRiskTimelineQueryService.class));
+
+        PageResult<MerchantNotificationDeliveryLogResponse> page =
+                service.pageMerchantNotificationDeliveryLogs(
+                        "notification-a", transactionTime, 2L, 10L);
+
+        assertThat(page.getTotal()).isEqualTo(27L);
+        assertThat(page.getPageNo()).isEqualTo(2L);
+        assertThat(page.getRecords()).containsExactly(latestAttempt);
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).query(
+                sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+        assertThat(sqlCaptor.getValue())
+                .contains("ORDER BY attempt_no DESC, id DESC", "LIMIT :offset, :limit");
+        assertThat(paramsCaptor.getValue().getValue("offset")).isEqualTo(10L);
+        assertThat(paramsCaptor.getValue().getValue("limit")).isEqualTo(10L);
     }
 
     /**
@@ -1022,6 +1079,62 @@ class JdbcAdminTransactionQueryServiceTest {
         String sql = captureQuerySql(jdbcTemplate);
         assertThat(sql).contains("target_url_masked");
         assertThat(sql).doesNotContain("notify_config_snapshot_json");
+    }
+
+    @Test
+    void detailRecordPageShouldRejectUnknownSectionBeforeQueryingDatabase() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 11, 8, 12, 0);
+
+        assertThatThrownBy(() -> service.pageDetailRecords(
+                "transaction-a", transactionTime, transactionTime, "UNKNOWN", 1L, 10L))
+                .isInstanceOf(ApiException.class);
+
+        verify(jdbcTemplate, never()).query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class));
+    }
+
+    @Test
+    void detailRecordPageShouldEnforceResultBudgetBeforeQueryingDatabase() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 11, 8, 12, 0);
+
+        assertThatThrownBy(() -> service.pageDetailRecords(
+                "transaction-a", transactionTime, transactionTime, "CHANNEL", 1L, 101L))
+                .isInstanceOf(ApiException.class);
+
+        verify(jdbcTemplate, never()).query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class));
+    }
+
+    @Test
+    void detailPayloadShouldRejectUnsupportedRecordTypeBeforeQueryingDatabase() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 11, 8, 12, 0);
+
+        assertThatThrownBy(() -> service.detailRecordPayload(
+                "transaction-a", transactionTime, transactionTime, "CHANNEL_REQUEST", "request-a"))
+                .isInstanceOf(ApiException.class);
+
+        verify(jdbcTemplate, never()).query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class));
+    }
+
+    @Test
+    void detailSummaryProjectionsShouldExcludeLargeMaskedBodies() {
+        String channelProjection = (String) ReflectionTestUtils.getField(
+                JdbcAdminTransactionQueryService.class, "TRANSACTION_CHANNEL_INTERACTION_SUMMARY_PROJECTION");
+        String callbackProjection = (String) ReflectionTestUtils.getField(
+                JdbcAdminTransactionQueryService.class, "TRANSACTION_CHANNEL_CALLBACK_LOG_SUMMARY_PROJECTION");
+        String notificationProjection = (String) ReflectionTestUtils.getField(
+                JdbcAdminTransactionQueryService.class, "TRANSACTION_MERCHANT_NOTIFICATION_LOG_SUMMARY_PROJECTION");
+        String merchantApiProjection = (String) ReflectionTestUtils.getField(
+                JdbcAdminTransactionQueryService.class, "TRANSACTION_MERCHANT_API_LOG_SUMMARY_PROJECTION");
+
+        assertThat(channelProjection).contains("NULL AS request_body_json_masked", "NULL AS response_body_json_masked");
+        assertThat(callbackProjection).contains("NULL AS request_body_json_masked", "NULL AS platform_response_body");
+        assertThat(notificationProjection).contains("NULL AS request_body_json_masked", "NULL AS response_body_json_masked");
+        assertThat(merchantApiProjection).contains("NULL AS request_plain_json_masked", "NULL AS response_plain_json_masked");
     }
 
     private JdbcAdminTransactionQueryService buildService(NamedParameterJdbcTemplate jdbcTemplate) {

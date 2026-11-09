@@ -69,6 +69,53 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
     }
 
     /**
+     * 历史本金修复不重新解析结算档案，直接继承未认领旧候选的全部路由维度。
+     */
+    @Override
+    public LabelPrincipalRepairCandidateReplacement replaceForLabelPrincipalRepair(
+            String financeStateId,
+            int oldRevision,
+            int newRevision,
+            long expectedCandidateId,
+            long expectedCandidateVersion,
+            int expectedDependencyCount,
+            LocalDateTime now) {
+        if (!StringUtils.hasText(financeStateId) || oldRevision < 1 || newRevision != oldRevision + 1
+                || expectedCandidateId < 1 || expectedCandidateVersion < 0
+                || expectedDependencyCount < 0 || expectedDependencyCount > 1 || now == null) {
+            throw new IllegalArgumentException("label principal repair candidate identity is invalid");
+        }
+        ClearingSettlementCandidateDO old = candidateMapper.selectForUpdate(financeStateId, oldRevision);
+        if (old == null || !Objects.equals(old.getId(), expectedCandidateId)
+                || !Objects.equals(old.getVersion(), expectedCandidateVersion)
+                || !"READY".equals(old.getCandidateStatus()) || old.getSettlementBatchNo() != null
+                || old.getId() == null
+                || candidateMapper.countDependencyReferences(old.getId()) != expectedDependencyCount) {
+            throw new IllegalStateException(
+                    "label principal repair candidate dependency snapshot has changed");
+        }
+        ClearingSettlementCandidateDO replacement = replacementCandidate(old, newRevision, now);
+        if (candidateMapper.supersedeReady(
+                financeStateId, oldRevision, expectedCandidateVersion, now) != 1) {
+            throw new IllegalStateException("old settlement candidate supersede CAS failed");
+        }
+        candidateMapper.insertIdempotent(replacement);
+        ClearingSettlementCandidateDO persisted = candidateMapper.selectForUpdate(financeStateId, newRevision);
+        requireSameCandidate(persisted, replacement);
+        if (persisted.getId() == null
+                || !"READY".equals(persisted.getCandidateStatus())
+                || persisted.getSettlementBatchNo() != null
+                || persisted.getClaimedTime() != null
+                || persisted.getPostedTime() != null
+                || !Objects.equals(persisted.getVersion(), 0L)) {
+            throw new IllegalStateException(
+                    "label principal repair replacement candidate is not unclaimed READY");
+        }
+        return new LabelPrincipalRepairCandidateReplacement(
+                old.getId(), persisted.getId(), persisted.getCandidateNo());
+    }
+
+    /**
      * 作废重放冻结中的旧候选，并为重放产生的新修订创建候选。
      */
     @Override
@@ -204,7 +251,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
     }
 
     /**
-     * 校验源候选真实存在、主键不同并属于计划中的同一商户和源动作。
+     * 校验源候选真实存在、未被淘汰，并属于计划中的同一商户和源动作。
      *
      * @param source 数据库已锁定的源候选
      * @param current 数据库已锁定的当前候选
@@ -220,7 +267,9 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
                 || Objects.equals(source.getId(), current.getId())
                 || !Objects.equals(source.getSourceTransactionId(), plan.sourceTransactionId())
                 || !Objects.equals(source.getMerchantId(), plan.merchantId())
-                || !Objects.equals(current.getMerchantId(), plan.merchantId())) {
+                || !Objects.equals(current.getMerchantId(), plan.merchantId())
+                || "SUPERSEDED".equals(source.getCandidateStatus())
+                || "CANCELLED".equals(source.getCandidateStatus())) {
             throw new IllegalStateException("settlement dependency source candidate identity is inconsistent");
         }
     }
@@ -323,6 +372,33 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         row.setSettlementEligibleDate(eligibleDate);
         row.setCandidateStatus("READY");
         row.setShadowMode(1);
+        row.setVersion(0L);
+        row.setCreateTime(now);
+        row.setUpdateTime(now);
+        return row;
+    }
+
+    /**
+     * 从旧候选复制已经激活的结算路由，只替换来源修订、候选号和审计字段。
+     */
+    private ClearingSettlementCandidateDO replacementCandidate(ClearingSettlementCandidateDO old,
+                                                                int newRevision,
+                                                                LocalDateTime now) {
+        ClearingSettlementCandidateDO row = new ClearingSettlementCandidateDO();
+        row.setCandidateNo(candidateNo("CLEARING_REVISION", old.getSourceBusinessId(), newRevision));
+        row.setSourceType("CLEARING_REVISION");
+        row.setSourceBusinessId(old.getSourceBusinessId());
+        row.setSourceRevision(newRevision);
+        row.setSourceTransactionId(old.getSourceTransactionId());
+        row.setSourceTransactionDateTime(old.getSourceTransactionDateTime());
+        row.setMerchantId(old.getMerchantId());
+        row.setSettlementProfileId(old.getSettlementProfileId());
+        row.setTargetCurrency(old.getTargetCurrency());
+        row.setTargetCurrencyExponent(old.getTargetCurrencyExponent());
+        row.setSettlementEligibleDate(old.getSettlementEligibleDate());
+        row.setCandidateStatus("READY");
+        row.setShadowMode(old.getShadowMode());
+        row.setSettlementBatchNo(null);
         row.setVersion(0L);
         row.setCreateTime(now);
         row.setUpdateTime(now);

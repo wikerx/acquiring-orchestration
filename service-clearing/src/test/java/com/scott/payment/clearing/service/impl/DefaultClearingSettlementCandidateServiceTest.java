@@ -6,6 +6,7 @@ import com.scott.payment.clearing.domain.state.SettlementCandidateDependencyType
 import com.scott.payment.clearing.entity.ClearingSettlementCandidateDO;
 import com.scott.payment.clearing.entity.ClearingSettlementCandidateDependencyDO;
 import com.scott.payment.clearing.mapper.ClearingSettlementCandidateMapper;
+import com.scott.payment.clearing.service.ClearingSettlementCandidateService.LabelPrincipalRepairCandidateReplacement;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -112,6 +114,104 @@ class DefaultClearingSettlementCandidateServiceTest {
                 ArgumentCaptor.forClass(ClearingSettlementCandidateDO.class);
         verify(mapper).insertIdempotent(captor.capture());
         assertThat(captor.getValue().getSourceRevision()).isEqualTo(2);
+    }
+
+    @Test
+    void labelPrincipalRepairShouldPreserveFrozenSettlementRouting() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 6, 16, 0);
+        ClearingSettlementCandidateDO old = new ClearingSettlementCandidateDO();
+        old.setId(91L);
+        old.setSourceType("CLEARING_REVISION");
+        old.setSourceBusinessId("FS-REPAIR");
+        old.setSourceRevision(2);
+        old.setSourceTransactionId("TX-REPAIR");
+        old.setSourceTransactionDateTime(LocalDateTime.of(2026, 4, 1, 10, 0));
+        old.setMerchantId("M-1");
+        old.setSettlementProfileId(38L);
+        old.setTargetCurrency("HKD");
+        old.setTargetCurrencyExponent(2);
+        old.setSettlementEligibleDate(LocalDate.of(2026, 11, 8));
+        old.setCandidateStatus("READY");
+        old.setShadowMode(1);
+        old.setVersion(5L);
+        AtomicReference<ClearingSettlementCandidateDO> inserted = new AtomicReference<>();
+        when(mapper.selectForUpdate("FS-REPAIR", 2)).thenReturn(old);
+        when(mapper.countDependencyReferences(91L)).thenReturn(0);
+        when(mapper.supersedeReady("FS-REPAIR", 2, 5L, now)).thenReturn(1);
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            ClearingSettlementCandidateDO row = invocation.getArgument(0);
+            row.setId(92L);
+            inserted.set(row);
+            return 1;
+        });
+        when(mapper.selectForUpdate("FS-REPAIR", 3)).thenAnswer(invocation -> inserted.get());
+
+        LabelPrincipalRepairCandidateReplacement replacement =
+                service.replaceForLabelPrincipalRepair(
+                        "FS-REPAIR", 2, 3, 91L, 5L, 0, now);
+
+        assertThat(replacement.oldCandidateId()).isEqualTo(91L);
+        assertThat(replacement.newCandidateId()).isEqualTo(92L);
+        assertThat(replacement.newCandidateNo()).isEqualTo(inserted.get().getCandidateNo());
+        assertThat(inserted.get().getSettlementProfileId()).isEqualTo(38L);
+        assertThat(inserted.get().getTargetCurrency()).isEqualTo("HKD");
+        assertThat(inserted.get().getTargetCurrencyExponent()).isEqualTo(2);
+        assertThat(inserted.get().getSettlementEligibleDate()).isEqualTo(LocalDate.of(2026, 11, 8));
+        assertThat(inserted.get().getShadowMode()).isEqualTo(1);
+        assertThat(inserted.get().getSourceRevision()).isEqualTo(3);
+        assertThat(inserted.get().getCandidateStatus()).isEqualTo("READY");
+    }
+
+    @Test
+    void labelPrincipalRepairShouldRejectStaleCandidateOrDependencyTopology() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        ClearingSettlementCandidateDO old = new ClearingSettlementCandidateDO();
+        old.setId(91L);
+        old.setCandidateStatus("READY");
+        old.setVersion(5L);
+        when(mapper.selectForUpdate("FS-REPAIR", 2)).thenReturn(old);
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.replaceForLabelPrincipalRepair(
+                        "FS-REPAIR", 2, 3, 92L, 5L, 0,
+                        LocalDateTime.of(2026, 11, 6, 16, 0)))
+                .withMessageContaining("dependency snapshot");
+
+        when(mapper.countDependencyReferences(91L)).thenReturn(1);
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.replaceForLabelPrincipalRepair(
+                        "FS-REPAIR", 2, 3, 91L, 5L, 0,
+                        LocalDateTime.of(2026, 11, 6, 16, 0)))
+                .withMessageContaining("dependency snapshot");
+        verify(mapper, never()).supersedeReady(anyString(), anyInt(), anyLong(), any());
+    }
+
+    @Test
+    void labelPrincipalRepairShouldRejectReplacementWithoutDatabaseIdentity() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 6, 16, 0);
+        ClearingSettlementCandidateDO old = sourceCandidate(
+                91L, "FS-REPAIR", 2, "TX-REPAIR", "M-1");
+        old.setCandidateStatus("READY");
+        old.setVersion(5L);
+        AtomicReference<ClearingSettlementCandidateDO> inserted = new AtomicReference<>();
+        when(mapper.selectForUpdate("FS-REPAIR", 2)).thenReturn(old);
+        when(mapper.countDependencyReferences(91L)).thenReturn(1);
+        when(mapper.supersedeReady("FS-REPAIR", 2, 5L, now)).thenReturn(1);
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            inserted.set(invocation.getArgument(0));
+            return 1;
+        });
+        when(mapper.selectForUpdate("FS-REPAIR", 3)).thenAnswer(invocation -> inserted.get());
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.replaceForLabelPrincipalRepair(
+                        "FS-REPAIR", 2, 3, 91L, 5L, 1, now))
+                .withMessageContaining("not unclaimed READY");
     }
 
     @Test
@@ -346,6 +446,34 @@ class DefaultClearingSettlementCandidateServiceTest {
                         "FS-REFUND", 1, refundOperation(), "USD", LocalDate.of(2026, 9, 10), plan,
                         LocalDateTime.of(2026, 9, 10, 4, 0)))
                 .withMessageContaining("identity");
+    }
+
+    @Test
+    void createShouldRejectDependencyAddedAfterSourceWasSuperseded() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        AtomicReference<ClearingSettlementCandidateDO> persisted = new AtomicReference<>();
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            ClearingSettlementCandidateDO row = invocation.getArgument(0);
+            row.setId(22L);
+            persisted.set(row);
+            return 1;
+        });
+        ClearingSettlementCandidateDO source = sourceCandidate(11L, "FS-SOURCE", 3, "PAY-1", "M-1");
+        source.setCandidateStatus("SUPERSEDED");
+        when(mapper.selectDependencyPairForUpdate(
+                "CLEARING_REVISION", "FS-REFUND", 1, "FS-SOURCE", 3))
+                .thenAnswer(invocation -> List.of(source, persisted.get()));
+        SettlementCandidateDependencyPlan plan = new SettlementCandidateDependencyPlan(
+                "FS-SOURCE", 3, "PAY-1", "M-1",
+                Set.of(SettlementCandidateDependencyType.SOURCE_FINANCIAL_POSTED));
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.create(
+                        "FS-REFUND", 1, refundOperation(), "USD", LocalDate.of(2026, 9, 10), plan,
+                        LocalDateTime.of(2026, 9, 10, 4, 0)))
+                .withMessageContaining("identity");
+        verify(mapper, never()).insertDependencyIdempotent(any());
     }
 
     private ClearingSettlementCandidateDO sourceCandidate(Long id,

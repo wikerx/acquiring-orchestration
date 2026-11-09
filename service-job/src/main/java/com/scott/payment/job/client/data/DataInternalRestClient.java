@@ -9,6 +9,8 @@ import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationReconcileClientRequestDTO;
+import com.scott.payment.job.client.data.dto.DataExportTaskDispatchClientDTOs.Request;
+import com.scott.payment.job.client.data.dto.DataExportTaskDispatchClientDTOs.Response;
 import com.scott.payment.job.config.DataInternalClientProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -56,6 +58,11 @@ public class DataInternalRestClient implements DataInternalClient {
      * 商户通知 MQ 对账内部接口路径。
      */
     private static final String RECONCILE_DUE_PATH = "/internal/data/merchant-notifications/reconcile-due";
+
+    /**
+     * 异步导出任务领取和过期清理内部接口路径。
+     */
+    private static final String EXPORT_TASK_DISPATCH_PATH = "/internal/data/export-tasks/dispatch";
 
     /**
      * 直连 HTTP 客户端。
@@ -122,6 +129,15 @@ public class DataInternalRestClient implements DataInternalClient {
     public Boolean notifyMerchantNotification(DataMerchantNotificationNotifyClientRequestDTO requestDTO) {
         return post(NOTIFY_TRANSACTION_PATH, requestDTO, new TypeReference<CommonResult<Boolean>>() {
         });
+    }
+
+    /**
+     * 调用 service-data 执行一轮有界导出任务调度。
+     */
+    @Override
+    public Response dispatchExportTasks(Request request) {
+        return post(EXPORT_TASK_DISPATCH_PATH, request,
+                new TypeReference<CommonResult<Response>>() { });
     }
 
     /**

@@ -21,6 +21,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -111,18 +112,32 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     @Override
     public <T> void exportPaged(ExcelPagedExportRequest<T> request, HttpServletResponse response) {
+        try {
+            prepareResponse(response, normalizeFileName(request.getFileName()));
+            exportPaged(request, response.getOutputStream());
+        } catch (IOException exception) {
+            throw new IllegalStateException("paged excel export failed", exception);
+        }
+    }
+
+    /**
+     * 分页加载并写入调用方输出流；异步任务使用该边界生成文件而不依赖 Servlet 响应。
+     */
+    @Override
+    public <T> void exportPaged(ExcelPagedExportRequest<T> request, OutputStream outputStream) {
         if (request.getPageLoader() == null || request.getPageSize() <= 0) {
             throw new IllegalArgumentException("paged excel export requires pageLoader and positive pageSize");
+        }
+        if (outputStream == null) {
+            throw new IllegalArgumentException("paged excel export requires outputStream");
         }
         Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
         List<ExcelExportColumnDefinition> columns = metadataResolver.resolveColumns(request.getRowClass());
         List<List<String>> head = buildHead(columns, locale);
-        String fileName = normalizeFileName(request.getFileName());
         String sheetName = normalizeSheetName(request.getSheetName());
         String title = messageResolver.resolve(request.getTitleKey(), locale);
-        try {
-            prepareResponse(response, fileName);
-            try (ExcelWriter writer = EasyExcel.write(response.getOutputStream())
+        try (ExcelWriter writer = EasyExcel.write(outputStream)
+                    .autoCloseStream(false)
                     .head(head)
                     .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
                     .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
@@ -138,20 +153,20 @@ public class ExcelExportServiceImpl implements ExcelExportService {
                             locale
                     ))
                     .build()) {
-                WriteSheet sheet = EasyExcel.writerSheet(sheetName).build();
-                for (int pageNo = 1; ; pageNo++) {
-                    List<T> page = request.getPageLoader().apply(pageNo);
-                    if (page == null || page.isEmpty()) {
-                        break;
+            WriteSheet sheet = EasyExcel.writerSheet(sheetName).build();
+            for (int pageNo = 1; ; pageNo++) {
+                List<T> page = request.getPageLoader().apply(pageNo);
+                if (page == null || page.isEmpty()) {
+                    if (pageNo == 1) {
+                        writer.write(List.of(), sheet);
                     }
-                    writer.write(toRowData(page, columns, locale), sheet);
-                    if (page.size() < request.getPageSize()) {
-                        break;
-                    }
+                    break;
+                }
+                writer.write(toRowData(page, columns, locale), sheet);
+                if (page.size() < request.getPageSize()) {
+                    break;
                 }
             }
-        } catch (IOException exception) {
-            throw new IllegalStateException("paged excel export failed", exception);
         }
     }
 

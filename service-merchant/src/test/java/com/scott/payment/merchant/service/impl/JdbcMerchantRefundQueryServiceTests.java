@@ -141,8 +141,10 @@ class JdbcMerchantRefundQueryServiceTests {
         verify(jdbcTemplate).query(
                 summarySql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         assertThat(summarySql.getValue()).contains(
-                "o.currency_exponent",
-                "GROUP BY o.transaction_currency, o.currency_exponent");
+                "o.label_currency AS currency",
+                "o.label_currency_exponent AS currency_exponent",
+                "GROUP BY o.label_currency, o.label_currency_exponent")
+                .doesNotContain("o.transaction_currency", "o.transaction_amount", "o.currency_exponent");
         log.info("结果：商户端退款汇总按币种和精度分组，金额未经过浮点转换");
     }
 

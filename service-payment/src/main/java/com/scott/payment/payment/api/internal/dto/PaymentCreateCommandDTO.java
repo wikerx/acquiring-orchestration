@@ -124,6 +124,11 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String labelCurrency;
 
     /**
+     * 标签币种 ISO 4217 小数位精度，由支付核心根据币种字典解析，不接受商户直接控制。
+     */
+    private Integer labelCurrencyExponent;
+
+    /**
      * 平台交易金额，主币种单位；未启用 DCC/EDC 时等于标签金额，启用 EDC 时为换汇后上送渠道的金额。
      */
     private BigDecimal transactionAmount;

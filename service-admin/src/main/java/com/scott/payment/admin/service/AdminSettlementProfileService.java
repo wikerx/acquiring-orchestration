@@ -2,11 +2,10 @@ package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSummary;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileUpdateRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * Admin 结算档案本地管理边界，读取和 CAS 编辑均直接使用交易逻辑数据源。
+ * Admin 结算档案本地只读边界；所有档案写入必须调用 service-settlement 命令接口。
  */
 public interface AdminSettlementProfileService {
 
@@ -20,10 +19,4 @@ public interface AdminSettlementProfileService {
      */
     ProfileSummary detail(String settlementProfileNo, AdminMerchantDataScope dataScope);
 
-    /**
-     * 按档案号、商户范围和期望版本修改后续调度参数。
-     */
-    ProfileSummary update(String settlementProfileNo,
-                          ProfileUpdateRequest request,
-                          AdminMerchantDataScope dataScope);
 }

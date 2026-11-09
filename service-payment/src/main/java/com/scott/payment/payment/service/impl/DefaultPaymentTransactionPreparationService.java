@@ -921,6 +921,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         } else {
             commandDTO.setLabelCurrency(normalizeCurrency(commandDTO.getLabelCurrency()));
         }
+        commandDTO.setLabelCurrencyExponent(resolveCurrencyExponent(commandDTO.getLabelCurrency()));
     }
 
     /**
@@ -1188,17 +1189,17 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     private void fillInitialTotals(PaymentCreateResultDTO resultDTO) {
         if (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
-                || resultDTO.getTransactionAmount() == null) {
+                || resultDTO.getLabelAmount() == null) {
             return;
         }
         if (PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode().equals(resultDTO.getTransactionType())) {
-            resultDTO.setTotalAuthorizedAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalAuthorizedAmount(resultDTO.getLabelAmount());
             return;
         }
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) {
-            resultDTO.setTotalAuthorizedAmount(resultDTO.getTransactionAmount());
-            resultDTO.setTotalCapturedAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalAuthorizedAmount(resultDTO.getLabelAmount());
+            resultDTO.setTotalCapturedAmount(resultDTO.getLabelAmount());
         }
     }
 

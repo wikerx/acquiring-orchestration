@@ -12,6 +12,9 @@ import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.SearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalTierPeriodReplayReviewRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalTierPeriodReplaySubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TierPeriodReplayResponse;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.InternalReviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.InternalSubmitRequest;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.Response;
 
 import java.time.LocalDateTime;
 
@@ -57,4 +60,12 @@ public interface ClearingInternalClient {
      */
     TierPeriodReplayResponse reviewTierPeriodReplay(
             String replayNo, InternalTierPeriodReplayReviewRequest request);
+    /**
+     * 提交未结算历史标签本金修复申请。
+     */
+    Response submitLabelPrincipalRepair(InternalSubmitRequest request);
+    /**
+     * Maker-Checker 复核历史标签本金修复申请。
+     */
+    Response reviewLabelPrincipalRepair(String repairNo, InternalReviewRequest request);
 }

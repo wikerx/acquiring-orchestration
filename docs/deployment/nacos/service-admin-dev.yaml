@@ -100,6 +100,21 @@ payment:
       route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}
 
 admin:
+  operations:
+    work-item:
+      # 渠道金额、币种或状态存在紧急差异时，统一待办要求在三十分钟内进入来源案件处理流程。
+      channel-abnormal-critical-sla: ${ADMIN_WORK_ITEM_CHANNEL_ABNORMAL_CRITICAL_SLA:PT30M}
+      # 高风险渠道勾兑异常默认一小时处理，可按环境运营值覆盖但不得使用零值或负值。
+      channel-abnormal-high-sla: ${ADMIN_WORK_ITEM_CHANNEL_ABNORMAL_HIGH_SLA:PT1H}
+      # 普通查询不确定等预警异常默认四小时处理，不改变支付核心案件状态机。
+      channel-abnormal-warning-sla: ${ADMIN_WORK_ITEM_CHANNEL_ABNORMAL_WARNING_SLA:PT4H}
+      # 清分人工复核或无后续重试计划的异常默认一小时处理；统一待办不得直接修改清分状态。
+      clearing-backlog-sla: ${ADMIN_WORK_ITEM_CLEARING_BACKLOG_SLA:PT1H}
+      # 结算批次进入 MANUAL_REVIEW 后默认一小时处理；统一待办只投影状态，不执行重试或取消。
+      settlement-backlog-sla: ${ADMIN_WORK_ITEM_SETTLEMENT_BACKLOG_SLA:PT1H}
+      # CRITICAL 高风险事件默认三十分钟响应，HIGH 或 REJECT 事件默认两小时响应。
+      high-risk-critical-sla: ${ADMIN_WORK_ITEM_HIGH_RISK_CRITICAL_SLA:PT30M}
+      high-risk-event-sla: ${ADMIN_WORK_ITEM_HIGH_RISK_EVENT_SLA:PT2H}
   clearing-client:
     # 参数说明：清分命令服务地址；管理端页面查询仍使用 service-admin 本地逻辑数据源。
     # 环境说明：dev 默认使用 Nacos 服务名；跨集群部署时改为本环境内部 HTTPS 地址。
@@ -134,19 +149,41 @@ admin:
     internal-caller: service-admin
     # 参数说明：Admin 到 Job 调用边的当前 HMAC 密钥引用，用于后台任务启停和人工触发命令。
     internal-secret: ${acquiring.internal-auth.edges.admin-job.active-secret}
+  data-client:
+    # 参数说明：异步导出 Data 服务地址；dev 默认通过 Nacos 服务发现访问 service-data。
+    base-url: ${ADMIN_DATA_EXPORT_BASE_URL:http://service-data}
+    # 参数说明：建立 Data 内部连接的最大等待时间，单位毫秒。
+    connect-timeout-millis: ${ADMIN_DATA_EXPORT_CONNECT_TIMEOUT_MILLIS:3000}
+    # 参数说明：任务管理和私有文件流读取超时，受平台内部同步调用60秒硬上限约束。
+    read-timeout-millis: ${ADMIN_DATA_EXPORT_READ_TIMEOUT_MILLIS:60000}
+    # 参数说明：Admin 到 Data 调用边的固定服务身份，禁止替换为登录账号。
+    internal-caller: service-admin
+    # 参数说明：Admin 到 Data 独立 HMAC 密钥引用，不复用 Admin-Job 或 Job-Data 密钥。
+    internal-secret: ${acquiring.internal-auth.edges.admin-data.active-secret}
 
 internal-service:
   auth:
     # enabled 安全门禁固定在本地 application.yml；此处只维护调用方凭据、权限路径和防重放时间窗。
     callers:
       service-job:
-        # 参数说明：Job 调用 Admin 汇率波动评估命令时使用的当前验签密钥引用。
+        # 参数说明：Job 调用 Admin 汇率评估与运营待办同步命令时使用的当前验签密钥引用。
         active-secret: ${acquiring.internal-auth.edges.job-admin.active-secret}
         # 参数说明：Job-Admin 密钥滚动轮换期间接受的上一版密钥；平时为空。
         previous-secret: ${acquiring.internal-auth.edges.job-admin.previous-secret:}
         allowed-paths:
-          # 路径说明：只允许汇率波动幂等评估命令，禁止扩大到其他管理接口。
+          # 路径说明：精确放行两个 Job 编排命令，禁止扩大到其他管理接口或使用通配符。
           - /internal/admin/exchange/alerts/evaluate
+          - /internal/admin/operations/work-items/sync
+      service-data:
+        # 参数说明：Data 回调 Admin 权威导出源时使用的独立验签密钥。
+        active-secret: ${acquiring.internal-auth.edges.data-admin.active-secret}
+        # 参数说明：Data-Admin 密钥滚动轮换期间接受的上一版密钥；平时为空。
+        previous-secret: ${acquiring.internal-auth.edges.data-admin.previous-secret:}
+        allowed-paths:
+          # 路径说明：仅允许分页读取冻结范围内的待办、交易主单与退款导出数据。
+          - /internal/admin/operations/work-items/export-page
+          - /internal/admin/transactions/orders/export-page
+          - /internal/admin/transactions/refunds/export-page
       service-merchant:
         # 参数说明：遗留 Merchant 到 Admin 兼容接口的当前验签密钥；正常商户查询不得走该远程链路。
         active-secret: ${acquiring.internal-auth.edges.merchant-admin.active-secret}

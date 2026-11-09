@@ -48,6 +48,31 @@ public class ShardingTablePreCreateResultResponse {
     private List<String> publicationBlockers = new ArrayList<>();
 
     /**
+     * 风控审计表族待人工评审的候选规则版本。
+     */
+    private String riskAuditCandidateRuleVersion;
+
+    /**
+     * 风控审计候选规则 SHA-256 checksum。
+     */
+    private String riskAuditCandidateRuleChecksum;
+
+    /**
+     * 风控审计表族已验证季度节点。
+     */
+    private List<String> riskAuditVerifiedPhysicalNodes = new ArrayList<>();
+
+    /**
+     * 风控审计表族是否具备人工发布条件。
+     */
+    private Boolean riskAuditPublicationReady = Boolean.FALSE;
+
+    /**
+     * 阻止风控审计候选规则发布的原因。
+     */
+    private List<String> riskAuditPublicationBlockers = new ArrayList<>();
+
+    /**
      * 下一步受控操作标识，不会由接口自动执行。
      */
     private String nextAction;

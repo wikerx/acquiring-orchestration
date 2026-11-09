@@ -496,6 +496,25 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
+    void shouldExposePendingPageStateWhenCurrentAttemptIsPending() {
+        PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutAttemptDO pendingAttempt = processingAttempt(processingSession);
+        pendingAttempt.setChannelStatus(PaymentTransactionStatusEnum.PENDING.getCode());
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = paymentStatusCommand(processingSession, pendingAttempt);
+
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(processingSession));
+        when(sessionMapper.selectByCheckoutSessionId(processingSession.getCheckoutSessionId()))
+                .thenReturn(processingSession);
+        when(attemptMapper.selectByCheckoutAttemptId(pendingAttempt.getCheckoutAttemptId()))
+                .thenReturn(pendingAttempt);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo("PENDING");
+        verify(sessionMapper, never()).markFailedCas(anyString(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
     void shouldNotFailSessionWhenThreeDsTimeoutCasLosesToNewerAttemptState() {
         PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO timedOutAttempt = processingAttempt(processingSession);

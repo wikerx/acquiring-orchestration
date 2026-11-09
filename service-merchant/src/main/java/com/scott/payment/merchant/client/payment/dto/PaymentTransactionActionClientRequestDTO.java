@@ -36,7 +36,7 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     private String transactionType;
 
     /**
-     * 动作金额，主币种单位。
+     * 商户标签口径的动作金额；渠道交易金额由支付核心按原交易冻结汇率计算。
      */
     private BigDecimal amount;
 
@@ -51,7 +51,7 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     private String labelCurrency;
 
     /**
-     * 动作币种，ISO 4217 三位代码。
+     * 商户标签口径的动作币种，使用 ISO 4217 三位代码并与原交易标签币种一致。
      */
     private String currency;
 

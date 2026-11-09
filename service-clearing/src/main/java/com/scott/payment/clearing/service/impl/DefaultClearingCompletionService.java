@@ -1170,6 +1170,7 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
                                                                  ClearingCalculationResult calculation,
                                                                  RefundStageContext refundContext,
                                                                  LocalDateTime now) {
+        validateMerchantPrincipalInvariant(command.claim().operation(), calculation);
         List<ClearingTransactionDetailDO> rows = new ArrayList<>();
         if (calculation.principal() != null) {
             rows.add(principalDetail(command, financeStateId, revision, calculation, rows.size() + 1, now));
@@ -1200,7 +1201,7 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
     }
 
     /**
-     * 构造交易本金原币种事实；本金方向由计算结果决定，不与费用净额合并。
+     * 构造商户标签币种本金事实；本金方向由计算结果决定，不与费用净额或渠道成本合并。
      */
     private ClearingTransactionDetailDO principalDetail(CompletionCommand command,
                                                         String financeStateId,
@@ -1228,9 +1229,42 @@ public class DefaultClearingCompletionService implements ClearingCompletionServi
         row.setLimitEvaluationStatus("NOT_REQUIRED");
         row.setAppliedLimit("NONE");
         row.setRoundingMode(command.feeSnapshot().roundingMode().name());
-        row.setFormulaSnapshot("principal = authoritative approved amount, falling back to transaction amount");
+        row.setFormulaSnapshot("merchant principal = current action label amount and currency");
         row.setFeeSnapshotHash(null);
         return row;
+    }
+
+    /**
+     * 在任何清分明细、结算候选或完成事件写入前校验商户本金口径。
+     *
+     * <p>本金必须与当前动作标签金额、标签币种及 ISO exponent 完全一致。该防线用于阻止其他计算实现或
+     * 后续重构误把渠道批准金额、系统交易金额带入商户清分与结算链路。</p>
+     *
+     * @param operation 当前动作权威标签事实
+     * @param calculation 待持久化的清分计算结果
+     */
+    static void validateMerchantPrincipalInvariant(ClearingOperationFacts operation,
+                                                   ClearingCalculationResult calculation) {
+        Objects.requireNonNull(operation, "clearing operation facts are required");
+        Objects.requireNonNull(calculation, "clearing calculation result is required");
+        Money principal = calculation.principal();
+        if (principal == null) {
+            return;
+        }
+        String labelCurrency = StringUtils.hasText(operation.labelCurrency())
+                ? operation.labelCurrency().trim().toUpperCase(java.util.Locale.ROOT) : null;
+        Integer labelExponent = labelCurrency == null ? null : IsoCurrencyResolver.resolve(labelCurrency)
+                .filter(currency -> currency.defaultFractionDigits() >= 0)
+                .map(currency -> currency.defaultFractionDigits())
+                .orElse(null);
+        boolean matchesLabel = operation.labelAmount() != null
+                && operation.labelAmount().compareTo(principal.amount()) == 0
+                && Objects.equals(labelCurrency, principal.currency())
+                && Objects.equals(labelExponent, principal.exponent());
+        if (!matchesLabel) {
+            throw new IllegalStateException(
+                    "merchant clearing principal must match current action label amount and currency");
+        }
     }
 
     /**

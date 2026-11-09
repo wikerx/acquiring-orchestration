@@ -4,6 +4,7 @@ import com.scott.payment.admin.application.transaction.AdminSettlementProfileApp
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileUpdateRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileCreateRequest;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.servlet.http.HttpServletRequest;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -66,6 +68,22 @@ public class AdminSettlementProfileController {
     }
 
     /**
+     * 创建商户首个活动结算档案，账户、币种和 ISO exponent 由结算领域校验。
+     *
+     * @param request 账户、币种、日切配置、原因和幂等键
+     * @param servletRequest 可信客户端环境
+     * @return 新建或幂等重放的活动结算档案
+     */
+    @PostMapping
+    @RequiresPermission("settlement:profile:create")
+    @OperationLog(moduleName = "结算档案", businessType = OperationTypeConstants.CREATE,
+            operation = "创建结算档案")
+    public CommonResult<ProfileSummary> create(@RequestBody ProfileCreateRequest request,
+                                               HttpServletRequest servletRequest) {
+        return success(applicationService.create(request, servletRequest));
+    }
+
+    /**
      * 使用乐观锁修改后续批次的处理模式、业务时区和日切时间，不重写历史批次事实。
      *
      * @param settlementProfileNo 结算档案编号
@@ -77,7 +95,8 @@ public class AdminSettlementProfileController {
     @OperationLog(moduleName = "结算档案", businessType = OperationTypeConstants.UPDATE,
             operation = "修改结算档案调度参数")
     public CommonResult<ProfileSummary> update(@PathVariable("settlementProfileNo") String settlementProfileNo,
-                                               @RequestBody ProfileUpdateRequest request) {
-        return success(applicationService.update(settlementProfileNo, request));
+                                               @RequestBody ProfileUpdateRequest request,
+                                               HttpServletRequest servletRequest) {
+        return success(applicationService.update(settlementProfileNo, request, servletRequest));
     }
 }

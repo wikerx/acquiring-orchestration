@@ -421,7 +421,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                 merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId.trim());
         if (runtimeProfile == null
                 || !Integer.valueOf(MerchantStatusEnum.ACTIVE.getCode())
-                .equals(runtimeProfile.getMerchantStatus())) {
+                .equals(runtimeProfile.getMerchantStatus())
+                || !"ACTIVE".equals(runtimeProfile.getActivationStatus())) {
             throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, merchantId);
         }
         return toMerchantInfoDO(runtimeProfile);

@@ -3,8 +3,6 @@ package com.scott.payment.merchant.dto.transaction;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionDetailResponse;
-import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.ChannelInteractionLogResponse;
-import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.ChannelRequestResponse;
 import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.MerchantApiInteractionLogResponse;
 import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.merchant.dto.transaction.detail.TransactionDetailResponses.MerchantNotificationResponse;
@@ -37,10 +35,6 @@ class TransactionDetailResponseSerializationTest {
         flowEvent.setEventType("CAPTURE_COMPLETED");
         TransactionAmountChangeResponse amountChange = new TransactionAmountChangeResponse();
         amountChange.setAmountCurrency("JPY");
-        ChannelRequestResponse channelRequest = new ChannelRequestResponse();
-        channelRequest.setGatewayCode("APPROVED");
-        ChannelInteractionLogResponse channelLog = new ChannelInteractionLogResponse();
-        channelLog.setHttpStatus(200);
         MerchantNotificationResponse notification = new MerchantNotificationResponse();
         notification.setNotifyStatus("SUCCESS");
         MerchantNotificationDeliveryLogResponse notificationLog = new MerchantNotificationDeliveryLogResponse();
@@ -52,8 +46,6 @@ class TransactionDetailResponseSerializationTest {
         response.setStatusHistory(List.of(status));
         response.setFlowEvents(List.of(flowEvent));
         response.setAmountChanges(List.of(amountChange));
-        response.setChannelRequests(List.of(channelRequest));
-        response.setChannelInteractionLogs(List.of(channelLog));
         response.setMerchantNotifications(List.of(notification));
         response.setMerchantNotificationLogs(List.of(notificationLog));
         response.setMerchantApiInteractionLogs(List.of(apiLog));
@@ -63,15 +55,12 @@ class TransactionDetailResponseSerializationTest {
         assertThat(json.path("statusHistory").get(0).path("toStatus").asText()).isEqualTo("SUCCESS");
         assertThat(json.path("flowEvents").get(0).path("eventType").asText()).isEqualTo("CAPTURE_COMPLETED");
         assertThat(json.path("amountChanges").get(0).path("amountCurrency").asText()).isEqualTo("JPY");
-        assertThat(json.path("channelRequests").get(0).path("gatewayCode").asText()).isEqualTo("APPROVED");
         assertThat(json.path("merchantNotifications").get(0).path("notifyStatus").asText()).isEqualTo("SUCCESS");
         assertThat(json.path("merchantNotificationLogs").get(0).path("deliveryStatus").asText()).isEqualTo("SUCCESS");
         assertThat(json.path("merchantApiInteractionLogs").get(0).path("merchantResponseCode").asText())
                 .isEqualTo("S000");
-        assertThat(json.path("channelInteractionLogs").get(0).fieldNames())
-                .toIterable()
-                .doesNotContain("requestHeaderJsonMasked", "requestBodyJsonMasked",
-                        "responseHeaderJsonMasked", "responseBodyJsonMasked");
+        assertThat(json.fieldNames()).toIterable()
+                .doesNotContain("channelRequests", "channelInteractionLogs");
         assertThat(json.path("merchantApiInteractionLogs").get(0).fieldNames())
                 .toIterable()
                 .doesNotContain("requestCipherMasked", "requestPlainJsonMasked",
@@ -91,8 +80,8 @@ class TransactionDetailResponseSerializationTest {
         assertThat(json.path("statusHistory").isEmpty()).isTrue();
         assertThat(json.path("flowEvents").isArray()).isTrue();
         assertThat(json.path("amountChanges").isArray()).isTrue();
-        assertThat(json.path("channelRequests").isArray()).isTrue();
-        assertThat(json.path("channelInteractionLogs").isArray()).isTrue();
+        assertThat(json.fieldNames()).toIterable()
+                .doesNotContain("channelRequests", "channelInteractionLogs");
         assertThat(json.path("merchantNotifications").isArray()).isTrue();
         assertThat(json.path("merchantNotificationLogs").isArray()).isTrue();
         assertThat(json.path("merchantApiInteractionLogs").isArray()).isTrue();

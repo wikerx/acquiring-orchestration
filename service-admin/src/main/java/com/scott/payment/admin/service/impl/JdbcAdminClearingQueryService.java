@@ -34,6 +34,7 @@ import java.util.StringJoiner;
 public class JdbcAdminClearingQueryService implements AdminClearingQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_DETAIL_PAGE_SIZE = 100;
     private static final Set<String> CLEARING_STATUSES = Set.of(
             "NOT_CLEARED", "PENDING", "PROCESSING", "WAITING_SOURCE", "FAILED",
             "MANUAL_REVIEW", "CLEARED", "NOT_REQUIRED");
@@ -60,6 +61,24 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
             f.fee_reversal_amount, f.reserve_amount, f.reserve_reversal_amount,
             f.expected_reserve_release_date, f.transaction_date_time,
             f.transaction_utc_time, f.transaction_time_zone, f.version
+            """;
+
+    private static final String TRANSACTION_DETAIL_COLUMNS = """
+            clearing_detail_no, clearing_revision, line_no, item_type,
+            fee_category, risk_service_type, item_code, item_name, direction,
+            label_currency, label_amount, component_type, basis_currency,
+            basis_amount, amount, currency, currency_exponent, percentage_rate,
+            fixed_amount_usd, minimum_amount_usd, maximum_amount_usd,
+            limit_evaluation_status, applied_limit, formula_snapshot, record_status
+            """;
+
+    private static final String RESERVE_DETAIL_COLUMNS = """
+            reserve_clearing_detail_no, original_transaction_id,
+            source_reserve_detail_no, clearing_revision, line_no,
+            reserve_action_type, item_code, item_name, direction, reserve_currency,
+            reserve_currency_exponent, basis_amount, reserve_rate, retained_amount,
+            returned_amount, released_amount, adjustment_amount, remaining_amount,
+            expected_reserve_release_date, formula_snapshot, record_status
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -109,6 +128,28 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
         String normalizedId = transactionId.trim();
         return transactionLogicalReadExecutor.read(
                 () -> detailNormalized(normalizedId, transactionDateTime));
+    }
+
+    @Override
+    public PageResult<TransactionLine> searchTransactionDetails(
+            String transactionId, LocalDateTime transactionDateTime,
+            Integer pageNo, Integer pageSize) {
+        DetailPageQuery query = normalizeDetailPage(
+                transactionId, transactionDateTime, pageNo, pageSize);
+        return transactionLogicalReadExecutor.read(() -> detailPage(
+                query, "transaction_clearing_detail", TRANSACTION_DETAIL_COLUMNS,
+                TransactionLine.class));
+    }
+
+    @Override
+    public PageResult<ReserveLine> searchReserveDetails(
+            String transactionId, LocalDateTime transactionDateTime,
+            Integer pageNo, Integer pageSize) {
+        DetailPageQuery query = normalizeDetailPage(
+                transactionId, transactionDateTime, pageNo, pageSize);
+        return transactionLogicalReadExecutor.read(() -> detailPage(
+                query, "transaction_reserve_clearing_detail", RESERVE_DETAIL_COLUMNS,
+                ReserveLine.class));
     }
 
     /**
@@ -173,9 +214,15 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
      */
     private DetailResponse detailNormalized(String transactionId,
                                             LocalDateTime transactionDateTime) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("transactionId", transactionId)
-                .addValue("transactionDateTime", transactionDateTime);
+        DetailResponse response = new DetailResponse();
+        response.setSummary(findSummary(transactionId, transactionDateTime));
+        return response;
+    }
+
+    /**
+     * 使用精确交易身份读取清分摘要；不存在时统一返回订单不存在。
+     */
+    private Summary findSummary(String transactionId, LocalDateTime transactionDateTime) {
         List<Summary> summaries = jdbcTemplate.query(
                 "SELECT " + SUMMARY_COLUMNS + SUMMARY_FROM_SQL + """
                         WHERE f.transaction_id = :transactionId
@@ -183,46 +230,75 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
                           AND f.deleted = 0
                         LIMIT 1
                         """,
-                parameters, BeanPropertyRowMapper.newInstance(Summary.class));
+                detailParameters(transactionId, transactionDateTime),
+                BeanPropertyRowMapper.newInstance(Summary.class));
         if (summaries.isEmpty()) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        Summary summary = summaries.get(0);
-        DetailResponse response = new DetailResponse();
-        response.setSummary(summary);
+        return summaries.get(0);
+    }
+
+    /**
+     * 在当前清分修订内执行稳定分页，摘要不存在时禁止直接探测明细表。
+     */
+    private <T> PageResult<T> detailPage(DetailPageQuery query,
+                                         String tableName,
+                                         String columns,
+                                         Class<T> type) {
+        Summary summary = findSummary(query.transactionId(), query.transactionDateTime());
+        long pageNo = query.pageNo();
+        long pageSize = query.pageSize();
         if (summary.getClearingRevision() == null || summary.getClearingRevision() < 1) {
-            return response;
+            return PageResult.of(0L, pageNo, pageSize, List.of());
         }
-        parameters.addValue("clearingRevision", summary.getClearingRevision());
-        response.setTransactionDetails(jdbcTemplate.query("""
-                SELECT clearing_detail_no, clearing_revision, line_no, item_type,
-                       fee_category, risk_service_type, item_code, item_name, direction,
-                       label_currency, label_amount, component_type, basis_currency,
-                       basis_amount, amount, currency, currency_exponent, percentage_rate,
-                       fixed_amount_usd, minimum_amount_usd, maximum_amount_usd,
-                       limit_evaluation_status, applied_limit, formula_snapshot, record_status
-                FROM transaction_clearing_detail
+        MapSqlParameterSource parameters = detailParameters(
+                query.transactionId(), query.transactionDateTime())
+                .addValue("clearingRevision", summary.getClearingRevision());
+        String fromAndWhere = " FROM " + tableName + "\n" + """
                 WHERE transaction_id = :transactionId
                   AND transaction_date_time = :transactionDateTime
                   AND clearing_revision = :clearingRevision
                   AND record_status = 'ACTIVE'
-                ORDER BY line_no ASC, id ASC
-                """, parameters, BeanPropertyRowMapper.newInstance(TransactionLine.class)));
-        response.setReserveDetails(jdbcTemplate.query("""
-                SELECT reserve_clearing_detail_no, original_transaction_id,
-                       source_reserve_detail_no, clearing_revision, line_no,
-                       reserve_action_type, item_code, item_name, direction, reserve_currency,
-                       reserve_currency_exponent, basis_amount, reserve_rate, retained_amount,
-                       returned_amount, released_amount, adjustment_amount, remaining_amount,
-                       expected_reserve_release_date, formula_snapshot, record_status
-                FROM transaction_reserve_clearing_detail
-                WHERE transaction_id = :transactionId
-                  AND transaction_date_time = :transactionDateTime
-                  AND clearing_revision = :clearingRevision
-                  AND record_status = 'ACTIVE'
-                ORDER BY line_no ASC, id ASC
-                """, parameters, BeanPropertyRowMapper.newInstance(ReserveLine.class)));
-        return response;
+                """;
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1)" + fromAndWhere, parameters, Long.class);
+        long total = count == null ? 0L : count;
+        long offset = (pageNo - 1L) * pageSize;
+        List<T> records = offset < total
+                ? jdbcTemplate.query(
+                        "SELECT " + columns + fromAndWhere
+                                + " ORDER BY line_no ASC, id ASC LIMIT :offset, :limit",
+                        new MapSqlParameterSource(parameters.getValues())
+                                .addValue("offset", offset)
+                                .addValue("limit", pageSize),
+                        BeanPropertyRowMapper.newInstance(type))
+                : List.of();
+        return PageResult.of(total, pageNo, pageSize, records);
+    }
+
+    private MapSqlParameterSource detailParameters(String transactionId,
+                                                   LocalDateTime transactionDateTime) {
+        return new MapSqlParameterSource()
+                .addValue("transactionId", transactionId)
+                .addValue("transactionDateTime", transactionDateTime);
+    }
+
+    private DetailPageQuery normalizeDetailPage(String transactionId,
+                                                LocalDateTime transactionDateTime,
+                                                Integer pageNo,
+                                                Integer pageSize) {
+        if (!StringUtils.hasText(transactionId) || transactionDateTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        int normalizedPageNo = pageNo == null ? 1 : pageNo;
+        int normalizedPageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
+        int maximumPageSize = Math.min(MAX_DETAIL_PAGE_SIZE, maxResultRows);
+        if (normalizedPageNo < 1 || normalizedPageSize < 1
+                || normalizedPageSize > maximumPageSize) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return new DetailPageQuery(transactionId.trim(), transactionDateTime,
+                normalizedPageNo, normalizedPageSize);
     }
 
     /**
@@ -310,5 +386,11 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
      */
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private record DetailPageQuery(String transactionId,
+                                   LocalDateTime transactionDateTime,
+                                   int pageNo,
+                                   int pageSize) {
     }
 }

@@ -15,6 +15,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNoti
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountChangeResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionContactInfoResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionFlowEventResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
@@ -26,9 +27,11 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPaymentMethodSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPayerInfoResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.RiskTimelineEventResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionStatusHistoryResponse;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCurrencyResolver;
@@ -52,6 +55,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -61,6 +65,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -69,6 +74,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -79,6 +85,37 @@ import java.util.function.Supplier;
  */
 @Service
 public class JdbcAdminTransactionQueryService implements AdminTransactionQueryService {
+
+    private static final String DETAIL_SECTION_TIMELINE = "TIMELINE";
+    private static final String DETAIL_SECTION_CHANNEL = "CHANNEL";
+    private static final String DETAIL_SECTION_CALLBACK = "CALLBACK";
+    private static final String DETAIL_SECTION_NOTIFICATION = "NOTIFICATION";
+    private static final String DETAIL_SECTION_MERCHANT_API = "MERCHANT_API";
+
+    private static final String DETAIL_RECORD_STATUS_HISTORY = "STATUS_HISTORY";
+    private static final String DETAIL_RECORD_FLOW_EVENT = "FLOW_EVENT";
+    private static final String DETAIL_RECORD_RISK_EVENT = "RISK_EVENT";
+    private static final String DETAIL_RECORD_CHANNEL_REQUEST = "CHANNEL_REQUEST";
+    private static final String DETAIL_RECORD_CHANNEL_INTERACTION = "CHANNEL_INTERACTION";
+    private static final String DETAIL_RECORD_CHANNEL_CALLBACK = "CHANNEL_CALLBACK";
+    private static final String DETAIL_RECORD_CHANNEL_CALLBACK_LOG = "CHANNEL_CALLBACK_LOG";
+    private static final String DETAIL_RECORD_MERCHANT_NOTIFICATION = "MERCHANT_NOTIFICATION";
+    private static final String DETAIL_RECORD_MERCHANT_NOTIFICATION_LOG = "MERCHANT_NOTIFICATION_LOG";
+    private static final String DETAIL_RECORD_MERCHANT_API = "MERCHANT_API";
+
+    private static final Set<String> DETAIL_SECTIONS = Set.of(
+            DETAIL_SECTION_TIMELINE,
+            DETAIL_SECTION_CHANNEL,
+            DETAIL_SECTION_CALLBACK,
+            DETAIL_SECTION_NOTIFICATION,
+            DETAIL_SECTION_MERCHANT_API);
+
+    private static final Set<String> DETAIL_PAYLOAD_RECORD_TYPES = Set.of(
+            DETAIL_RECORD_CHANNEL_INTERACTION,
+            DETAIL_RECORD_CHANNEL_CALLBACK_LOG,
+            DETAIL_RECORD_MERCHANT_NOTIFICATION,
+            DETAIL_RECORD_MERCHANT_NOTIFICATION_LOG,
+            DETAIL_RECORD_MERCHANT_API);
 
     /**
      * 交易生命周期主单逻辑表名。
@@ -99,8 +136,10 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             operation_id, root_transaction_id, latest_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, merchant_website, payment_method, payment_brand,
             transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
-            label_currency, label_amount, transaction_currency, transaction_amount,
+            label_currency, label_amount, label_currency_exponent, transaction_currency, transaction_amount,
             currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
+            label_authorized_amount, label_captured_amount, label_refunded_amount,
+            label_available_capture_amount, label_available_refund_amount,
             authorized_amount, captured_amount, refunded_amount,
             available_capture_amount, available_refund_amount,
             settlement_currency, settlement_amount, settlement_rate, settlement_date,
@@ -115,7 +154,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             o.operation_id, o.transaction_id, o.source_transaction_id, o.merchant_id,
             o.merchant_order_no, o.merchant_order_id, o.operation_sequence,
             o.transaction_type, o.transaction_status, o.process_stage, o.pending_reason_code, o.fail_reason_code,
-            o.label_currency, o.label_amount, o.transaction_currency, o.transaction_amount,
+            o.label_currency, o.label_amount, o.label_currency_exponent,
+            o.transaction_currency, o.transaction_amount,
             o.currency_exponent, o.transaction_rate, o.dcc_enabled, o.edc_enabled,
             o.channel_code, o.channel_order_no, o.channel_transaction_id,
             o.channel_response_code, o.channel_response_message, o.auth_code,
@@ -204,6 +244,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private static final String TRANSACTION_AMOUNT_CHANGE_DETAIL_PROJECTION = """
             id, amount_change_id, transaction_id, operation_id,
             source_transaction_id, source_operation_id, change_type, amount_currency, change_amount,
+            label_amount_currency, label_change_amount,
+            label_authorized_before, label_authorized_after,
+            label_captured_before, label_captured_after,
+            label_refunded_before, label_refunded_after,
+            label_available_capture_before, label_available_capture_after,
+            label_available_refund_before, label_available_refund_after,
             authorized_before, authorized_after, captured_before, captured_after,
             refunded_before, refunded_after, available_capture_before, available_capture_after,
             available_refund_before, available_refund_after, change_reason, change_time,
@@ -243,6 +289,25 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             """;
 
     /**
+     * 渠道交互分页摘要，不在列表接口返回请求头、请求体和响应正文。
+     */
+    private static final String TRANSACTION_CHANNEL_INTERACTION_SUMMARY_PROJECTION = """
+            id, interaction_log_id, request_id, transaction_id, operation_id, channel_code,
+            interaction_type, http_method, request_url_masked, http_status,
+            NULL AS request_header_json_masked, NULL AS request_body_json_masked,
+            NULL AS response_header_json_masked, NULL AS response_body_json_masked,
+            exception_type, LEFT(exception_message, 512) AS exception_message,
+            duration_millis, trace_id, interaction_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone, create_time,
+            NULL AS transaction_type, NULL AS request_status, NULL AS gateway_result,
+            NULL AS gateway_code, NULL AS acquirer_code, NULL AS acquirer_message,
+            NULL AS channel_trade_status, NULL AS channel_order_no,
+            NULL AS channel_transaction_id, NULL AS platform_result_code,
+            NULL AS platform_fail_reason, NULL AS channel_response_code,
+            NULL AS channel_response_message
+            """;
+
+    /**
      * 管理端渠道回调原文日志显式投影，只返回脱敏报文和校验结果。
      */
     private static final String TRANSACTION_CHANNEL_CALLBACK_LOG_DETAIL_PROJECTION = """
@@ -250,6 +315,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             channel_order_no, channel_transaction_id, request_uri, http_method, source_ip,
             request_header_json_masked, request_body_json_masked, signature_valid, ip_allowed,
             platform_response_code, platform_response_body, callback_received_time,
+            transaction_date_time, transaction_utc_time, transaction_time_zone, create_time
+            """;
+
+    /**
+     * 渠道回调原文分页摘要，完整脱敏报文仅允许通过单条详情接口读取。
+     */
+    private static final String TRANSACTION_CHANNEL_CALLBACK_LOG_SUMMARY_PROJECTION = """
+            id, callback_log_id, transaction_id, operation_id, channel_code, callback_type,
+            channel_order_no, channel_transaction_id, request_uri, http_method, source_ip,
+            NULL AS request_header_json_masked, NULL AS request_body_json_masked,
+            signature_valid, ip_allowed, platform_response_code,
+            NULL AS platform_response_body, callback_received_time,
             transaction_date_time, transaction_utc_time, transaction_time_zone, create_time
             """;
 
@@ -264,6 +341,20 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             response_plain_json_masked, response_cipher_digest, response_cipher_masked,
             duration_millis, trace_id, transaction_date_time, transaction_utc_time,
             transaction_time_zone, create_time
+            """;
+
+    /**
+     * Merchant API 分页摘要，保留摘要、结果和链路字段，不携带脱敏正文。
+     */
+    private static final String TRANSACTION_MERCHANT_API_LOG_SUMMARY_PROJECTION = """
+            id, api_log_id, request_id, transaction_id, operation_id, merchant_id,
+            merchant_order_no, merchant_order_id, api_operation, request_path, request_time,
+            request_result, request_cipher_digest, NULL AS request_cipher_masked,
+            NULL AS request_plain_json_masked, response_time, response_result,
+            merchant_response_code, merchant_response_message,
+            NULL AS response_plain_json_masked, response_cipher_digest,
+            NULL AS response_cipher_masked, duration_millis, trace_id,
+            transaction_date_time, transaction_utc_time, transaction_time_zone, create_time
             """;
 
     /**
@@ -320,6 +411,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             """;
 
     /**
+     * 商户通知任务分页摘要，不在页签列表返回通知载荷正文。
+     */
+    private static final String TRANSACTION_MERCHANT_NOTIFICATION_SUMMARY_PROJECTION = """
+            id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
+            notify_type, event_type, notify_status, notify_config_version,
+            target_url_hash, target_url_masked, NULL AS payload_json_masked, sign_type,
+            last_attempt_no, max_retry_count, next_retry_time, success_time, fail_reason,
+            transaction_date_time, transaction_utc_time, transaction_time_zone,
+            version, deleted, create_time, update_time
+            """;
+
+    /**
      * 管理端商户通知投递日志显式投影，只返回脱敏请求、响应和投递结果。
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION = """
@@ -328,6 +431,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             http_status, request_header_json_masked, request_body_json_masked,
             response_body_json_masked, success, error_message, notify_time,
             duration_millis, transaction_date_time, transaction_utc_time,
+            transaction_time_zone, create_time
+            """;
+
+    /**
+     * 商户通知投递分页摘要，完整脱敏请求和响应正文按单条记录加载。
+     */
+    private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_SUMMARY_PROJECTION = """
+            id, notify_log_id, notify_id, callback_event_id, delivery_mode,
+            transaction_id, operation_id, merchant_id, attempt_no, target_url_hash,
+            http_status, NULL AS request_header_json_masked, NULL AS request_body_json_masked,
+            NULL AS response_body_json_masked, success, LEFT(error_message, 512) AS error_message,
+            notify_time, duration_millis, transaction_date_time, transaction_utc_time,
             transaction_time_zone, create_time
             """;
     /**
@@ -442,6 +557,21 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 按任务创建时冻结的商户范围分页查询交易主单，有限范围绝不回退全量。
+     */
+    @Override
+    public PageResult<TransactionOrderResponse> pageOrdersForExport(
+            TransactionPageQuery query, AdminMerchantDataScope dataScope) {
+        TransactionPageQuery safeQuery = normalize(query);
+        AdminMerchantDataScope scope = requireExportScope(dataScope);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())
+                || scope.empty() || !scopeAllowsMerchantFilter(safeQuery.getMerchantId(), scope)) {
+            return emptyPage(safeQuery);
+        }
+        return executeRead(false, () -> pageOrdersNormalized(safeQuery, scope));
+    }
+
+    /**
      * 查询生命周期主单分页结果及相同条件下的全量统计。
      *
      * @param query 交易筛选和分页条件
@@ -489,6 +619,22 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         long total = count(TRANSACTION_ORDER_TABLE, orderWhereSql(safeQuery), orderParams(safeQuery));
         List<TransactionOrderResponse> rows = offset < total
                 ? selectOrders(TRANSACTION_ORDER_TABLE, safeQuery, offset, limit)
+                : List.of();
+        enrichOrderThreeDs(rows);
+        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
+    }
+
+    /**
+     * 在冻结商户范围内执行交易主单计数和分页查询。
+     */
+    private PageResult<TransactionOrderResponse> pageOrdersNormalized(
+            TransactionPageQuery safeQuery, AdminMerchantDataScope scope) {
+        long offset = offset(safeQuery);
+        long limit = safeQuery.safePageSize();
+        long total = count(TRANSACTION_ORDER_TABLE,
+                orderWhereSql(safeQuery, scope), orderParams(safeQuery, scope));
+        List<TransactionOrderResponse> rows = offset < total
+                ? selectOrders(TRANSACTION_ORDER_TABLE, safeQuery, offset, limit, scope)
                 : List.of();
         enrichOrderThreeDs(rows);
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
@@ -552,7 +698,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             throw new ApiException(ApiResultEnum.PARAM_INVALID);
         }
         return executeRead(true,
-                () -> detailNormalized(transactionId, transactionDateTime, rootTransactionDateTime));
+                () -> detailNormalized(transactionId, transactionDateTime, rootTransactionDateTime, true));
+    }
+
+    /**
+     * 查询页面首屏核心详情，避免打开抽屉时同步读取所有高量日志。
+     */
+    @Override
+    public TransactionDetailResponse detailSummary(String transactionId,
+                                                   LocalDateTime transactionDateTime,
+                                                   LocalDateTime rootTransactionDateTime) {
+        validateDetailLocator(transactionId, transactionDateTime, rootTransactionDateTime);
+        return executeRead(true,
+                () -> detailNormalized(transactionId, transactionDateTime, rootTransactionDateTime, false));
     }
 
     /**
@@ -564,7 +722,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      */
     private TransactionDetailResponse detailNormalized(String transactionId,
                                                        LocalDateTime transactionDateTime,
-                                                       LocalDateTime rootTransactionDateTime) {
+                                                       LocalDateTime rootTransactionDateTime,
+                                                       boolean includeHighVolumeRecords) {
         TransactionOperationResponse sourceOperation = selectOperationByTransactionId(
                 TRANSACTION_OPERATION_TABLE, transactionId, transactionDateTime);
         if (sourceOperation == null) {
@@ -593,17 +752,21 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 sourceOperation.getTransactionId(), sourceOperation.getTransactionDateTime()));
         detail.setShippingInfo(selectShippingInfo(
                 sourceOperation.getTransactionId(), sourceOperation.getTransactionDateTime()));
-        detail.setStatusHistory(selectDetailRowsByOperationId(
+        List<TransactionStatusHistoryResponse> statusHistory = selectDetailRowsByOperationId(
                 TRANSACTION_STATUS_HISTORY_TABLE, TRANSACTION_STATUS_HISTORY_DETAIL_PROJECTION,
-                beginTime, endTime, order.getOperationId(), statusHistoryMapper()));
+                beginTime, endTime, order.getOperationId(), statusHistoryMapper());
+        detail.setAmountChanges(withInitialAmountChange(order, operations, statusHistory,
+                selectDetailRowsByOperationId(
+                        TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, TRANSACTION_AMOUNT_CHANGE_DETAIL_PROJECTION,
+                        beginTime, endTime, order.getOperationId(), amountChangeMapper())));
+        if (!includeHighVolumeRecords) {
+            return detail;
+        }
+        detail.setStatusHistory(statusHistory);
         detail.setFlowEvents(selectDetailRowsByOperationId(
                 TRANSACTION_FLOW_EVENT_TABLE, TRANSACTION_FLOW_EVENT_DETAIL_PROJECTION,
                 beginTime, endTime, order.getOperationId(), flowEventMapper()));
         detail.setRiskEvents(riskTimelineQueryService.findRiskEvents(sourceOperation.getTransactionId()));
-        detail.setAmountChanges(withInitialAmountChange(order, operations, detail.getStatusHistory(),
-                selectDetailRowsByOperationId(
-                        TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, TRANSACTION_AMOUNT_CHANGE_DETAIL_PROJECTION,
-                        beginTime, endTime, order.getOperationId(), amountChangeMapper())));
         detail.setChannelRequests(selectDetailRowsByOperationId(
                 TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_CHANNEL_REQUEST_DETAIL_PROJECTION,
                 beginTime, endTime, order.getOperationId(), channelRequestMapper()));
@@ -626,6 +789,365 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, TRANSACTION_MERCHANT_API_LOG_DETAIL_PROJECTION,
                 beginTime, endTime, order.getOperationId(), merchantApiInteractionLogMapper()));
         return detail;
+    }
+
+    /**
+     * 校验交易详情定位参数，所有详情页签必须使用列表返回的双分片时间。
+     */
+    private void validateDetailLocator(String transactionId,
+                                       LocalDateTime transactionDateTime,
+                                       LocalDateTime rootTransactionDateTime) {
+        if (!StringUtils.hasText(transactionId)
+                || transactionDateTime == null
+                || rootTransactionDateTime == null) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    /**
+     * 按详情板块分页读取脱敏摘要。跨类型分页先在每个受控逻辑表中读取当前查询窗口所需的前 N 条，
+     * 再按统一事件时间归并，避免主详情一次性返回全部日志。
+     */
+    @Override
+    public PageResult<TransactionDetailRecordResponse> pageDetailRecords(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String section,
+            long pageNo,
+            long pageSize) {
+        validateDetailPage(transactionId, transactionDateTime, rootTransactionDateTime, section, pageNo, pageSize);
+        return executeRead(true, () -> pageDetailRecordsNormalized(
+                transactionId, transactionDateTime, rootTransactionDateTime,
+                section.trim().toUpperCase(Locale.ROOT), pageNo, pageSize));
+    }
+
+    /**
+     * 读取单条日志的完整脱敏正文。表名、业务号列、投影和映射器均由稳定记录类型白名单决定。
+     */
+    @Override
+    public TransactionDetailRecordResponse detailRecordPayload(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String recordType,
+            String recordId) {
+        validateDetailLocator(transactionId, transactionDateTime, rootTransactionDateTime);
+        if (!StringUtils.hasText(recordType) || !StringUtils.hasText(recordId)) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+        String normalizedRecordType = recordType.trim().toUpperCase(Locale.ROOT);
+        if (!DETAIL_PAYLOAD_RECORD_TYPES.contains(normalizedRecordType)) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+        return executeRead(true, () -> detailRecordPayloadNormalized(
+                transactionId, transactionDateTime, rootTransactionDateTime,
+                normalizedRecordType, recordId.trim()));
+    }
+
+    private PageResult<TransactionDetailRecordResponse> pageDetailRecordsNormalized(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String section,
+            long pageNo,
+            long pageSize) {
+        DetailContext context = resolveDetailContext(transactionId, transactionDateTime, rootTransactionDateTime);
+        long offset = (pageNo - 1L) * pageSize;
+        long scanLimit = offset + pageSize;
+        List<TransactionDetailRecordResponse> candidates = new ArrayList<>();
+        long total = switch (section) {
+            case DETAIL_SECTION_TIMELINE -> appendTimelineRecords(candidates, context, scanLimit);
+            case DETAIL_SECTION_CHANNEL -> appendChannelRecords(candidates, context, scanLimit);
+            case DETAIL_SECTION_CALLBACK -> appendCallbackRecords(candidates, context, scanLimit);
+            case DETAIL_SECTION_NOTIFICATION -> appendNotificationRecords(candidates, context, scanLimit);
+            case DETAIL_SECTION_MERCHANT_API -> appendMerchantApiRecords(candidates, context, scanLimit);
+            default -> throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        };
+        candidates.sort(Comparator
+                .comparing(TransactionDetailRecordResponse::getRecordTime,
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(TransactionDetailRecordResponse::getRecordType)
+                .thenComparing(TransactionDetailRecordResponse::getRecordId));
+        int fromIndex = (int) Math.min(offset, candidates.size());
+        int toIndex = (int) Math.min(offset + pageSize, candidates.size());
+        return PageResult.of(total, pageNo, pageSize,
+                fromIndex >= toIndex ? List.of() : new ArrayList<>(candidates.subList(fromIndex, toIndex)));
+    }
+
+    private long appendTimelineRecords(List<TransactionDetailRecordResponse> target,
+                                       DetailContext context,
+                                       long scanLimit) {
+        long total = appendDetailSource(target, context,
+                TRANSACTION_STATUS_HISTORY_TABLE, TRANSACTION_STATUS_HISTORY_DETAIL_PROJECTION,
+                "status_time", DETAIL_RECORD_STATUS_HISTORY, false, scanLimit,
+                statusHistoryMapper(), TransactionStatusHistoryResponse::getStatusHistoryId,
+                TransactionStatusHistoryResponse::getStatusTime);
+        total += appendDetailSource(target, context,
+                TRANSACTION_FLOW_EVENT_TABLE, TRANSACTION_FLOW_EVENT_DETAIL_PROJECTION,
+                "event_time", DETAIL_RECORD_FLOW_EVENT, false, scanLimit,
+                flowEventMapper(), TransactionFlowEventResponse::getFlowEventId,
+                TransactionFlowEventResponse::getEventTime);
+        List<RiskTimelineEventResponse> riskEvents = riskTimelineQueryService.findRiskEvents(
+                context.sourceOperation().getTransactionId());
+        total += riskEvents.size();
+        riskEvents.stream()
+                .sorted(Comparator.comparing(RiskTimelineEventResponse::getEventTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(scanLimit)
+                .map(row -> detailRecord(
+                        DETAIL_RECORD_RISK_EVENT,
+                        row.getRiskEventId() == null ? row.getRiskRecordNo() : String.valueOf(row.getRiskEventId()),
+                        row.getEventTime(), false, row))
+                .forEach(target::add);
+        return total;
+    }
+
+    private long appendChannelRecords(List<TransactionDetailRecordResponse> target,
+                                      DetailContext context,
+                                      long scanLimit) {
+        long total = appendDetailSource(target, context,
+                TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_CHANNEL_REQUEST_DETAIL_PROJECTION,
+                "request_start_time", DETAIL_RECORD_CHANNEL_REQUEST, false, scanLimit,
+                channelRequestMapper(), ChannelRequestResponse::getRequestId,
+                ChannelRequestResponse::getRequestStartTime);
+        total += appendDetailSource(target, context,
+                TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, TRANSACTION_CHANNEL_INTERACTION_SUMMARY_PROJECTION,
+                "interaction_time", DETAIL_RECORD_CHANNEL_INTERACTION, true, scanLimit,
+                channelInteractionLogMapper(), ChannelInteractionLogResponse::getInteractionLogId,
+                ChannelInteractionLogResponse::getInteractionTime);
+        return total;
+    }
+
+    private long appendCallbackRecords(List<TransactionDetailRecordResponse> target,
+                                       DetailContext context,
+                                       long scanLimit) {
+        long total = appendDetailSource(target, context,
+                TRANSACTION_CHANNEL_CALLBACK_TABLE, TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION,
+                "callback_received_time", DETAIL_RECORD_CHANNEL_CALLBACK, false, scanLimit,
+                channelCallbackMapper(), ChannelCallbackResponse::getCallbackId,
+                ChannelCallbackResponse::getCallbackReceivedTime);
+        total += appendDetailSource(target, context,
+                TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, TRANSACTION_CHANNEL_CALLBACK_LOG_SUMMARY_PROJECTION,
+                "callback_received_time", DETAIL_RECORD_CHANNEL_CALLBACK_LOG, true, scanLimit,
+                channelCallbackLogMapper(), ChannelCallbackLogResponse::getCallbackLogId,
+                ChannelCallbackLogResponse::getCallbackReceivedTime);
+        return total;
+    }
+
+    private long appendNotificationRecords(List<TransactionDetailRecordResponse> target,
+                                           DetailContext context,
+                                           long scanLimit) {
+        long total = appendDetailSource(target, context,
+                TRANSACTION_MERCHANT_NOTIFICATION_TABLE, TRANSACTION_MERCHANT_NOTIFICATION_SUMMARY_PROJECTION,
+                "create_time", DETAIL_RECORD_MERCHANT_NOTIFICATION, true, scanLimit,
+                merchantNotificationMapper(), MerchantNotificationResponse::getNotifyId,
+                MerchantNotificationResponse::getCreateTime);
+        total += appendDetailSource(target, context,
+                TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, TRANSACTION_MERCHANT_NOTIFICATION_LOG_SUMMARY_PROJECTION,
+                "notify_time", DETAIL_RECORD_MERCHANT_NOTIFICATION_LOG, true, scanLimit,
+                merchantNotificationDeliveryLogMapper(), MerchantNotificationDeliveryLogResponse::getNotifyLogId,
+                MerchantNotificationDeliveryLogResponse::getNotifyTime);
+        return total;
+    }
+
+    private long appendMerchantApiRecords(List<TransactionDetailRecordResponse> target,
+                                          DetailContext context,
+                                          long scanLimit) {
+        return appendDetailSource(target, context,
+                TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, TRANSACTION_MERCHANT_API_LOG_SUMMARY_PROJECTION,
+                "request_time", DETAIL_RECORD_MERCHANT_API, true, scanLimit,
+                merchantApiInteractionLogMapper(), MerchantApiInteractionLogResponse::getApiLogId,
+                MerchantApiInteractionLogResponse::getRequestTime);
+    }
+
+    private <T extends Serializable> long appendDetailSource(
+            List<TransactionDetailRecordResponse> target,
+            DetailContext context,
+            String logicalTable,
+            String projection,
+            String orderColumn,
+            String recordType,
+            boolean payloadAvailable,
+            long scanLimit,
+            RowMapper<T> rowMapper,
+            Function<T, String> idExtractor,
+            Function<T, LocalDateTime> timeExtractor) {
+        long total = countDetailRowsByOperationId(logicalTable, context);
+        if (total == 0L) {
+            return 0L;
+        }
+        selectDetailRowsPageByOperationId(
+                logicalTable, projection, orderColumn, context, scanLimit, rowMapper).stream()
+                .map(row -> detailRecord(recordType, idExtractor.apply(row), timeExtractor.apply(row),
+                        payloadAvailable, row))
+                .forEach(target::add);
+        return total;
+    }
+
+    private TransactionDetailRecordResponse detailRecordPayloadNormalized(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String recordType,
+            String recordId) {
+        DetailContext context = resolveDetailContext(transactionId, transactionDateTime, rootTransactionDateTime);
+        return switch (recordType) {
+            case DETAIL_RECORD_CHANNEL_INTERACTION -> payloadRecord(context,
+                    TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, TRANSACTION_CHANNEL_INTERACTION_DETAIL_PROJECTION,
+                    "interaction_log_id", recordId, DETAIL_RECORD_CHANNEL_INTERACTION,
+                    channelInteractionLogMapper(), ChannelInteractionLogResponse::getInteractionLogId,
+                    ChannelInteractionLogResponse::getInteractionTime);
+            case DETAIL_RECORD_CHANNEL_CALLBACK_LOG -> payloadRecord(context,
+                    TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, TRANSACTION_CHANNEL_CALLBACK_LOG_DETAIL_PROJECTION,
+                    "callback_log_id", recordId, DETAIL_RECORD_CHANNEL_CALLBACK_LOG,
+                    channelCallbackLogMapper(), ChannelCallbackLogResponse::getCallbackLogId,
+                    ChannelCallbackLogResponse::getCallbackReceivedTime);
+            case DETAIL_RECORD_MERCHANT_NOTIFICATION -> payloadRecord(context,
+                    TRANSACTION_MERCHANT_NOTIFICATION_TABLE, TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION,
+                    "notify_id", recordId, DETAIL_RECORD_MERCHANT_NOTIFICATION,
+                    merchantNotificationMapper(), MerchantNotificationResponse::getNotifyId,
+                    MerchantNotificationResponse::getCreateTime);
+            case DETAIL_RECORD_MERCHANT_NOTIFICATION_LOG -> payloadRecord(context,
+                    TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION,
+                    "notify_log_id", recordId, DETAIL_RECORD_MERCHANT_NOTIFICATION_LOG,
+                    merchantNotificationDeliveryLogMapper(), MerchantNotificationDeliveryLogResponse::getNotifyLogId,
+                    MerchantNotificationDeliveryLogResponse::getNotifyTime);
+            case DETAIL_RECORD_MERCHANT_API -> payloadRecord(context,
+                    TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, TRANSACTION_MERCHANT_API_LOG_DETAIL_PROJECTION,
+                    "api_log_id", recordId, DETAIL_RECORD_MERCHANT_API,
+                    merchantApiInteractionLogMapper(), MerchantApiInteractionLogResponse::getApiLogId,
+                    MerchantApiInteractionLogResponse::getRequestTime);
+            default -> throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        };
+    }
+
+    private <T extends Serializable> TransactionDetailRecordResponse payloadRecord(
+            DetailContext context,
+            String logicalTable,
+            String projection,
+            String businessIdColumn,
+            String businessId,
+            String recordType,
+            RowMapper<T> rowMapper,
+            Function<T, String> idExtractor,
+            Function<T, LocalDateTime> timeExtractor) {
+        MapSqlParameterSource params = detailParams(context)
+                .addValue("businessId", businessId);
+        List<T> rows = jdbcTemplate.query("""
+                SELECT %s
+                FROM %s
+                WHERE %s
+                  AND operation_id = :operationId
+                  AND transaction_date_time >= :beginTime
+                  AND transaction_date_time < :endTime
+                  AND %s = :businessId
+                LIMIT 1
+                """.formatted(projection, logicalTable,
+                softDeleteCondition(hasSoftDeleteColumn(logicalTable)), businessIdColumn), params, rowMapper);
+        if (rows.isEmpty()) {
+            throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        T row = rows.get(0);
+        return detailRecord(recordType, idExtractor.apply(row), timeExtractor.apply(row), false, row);
+    }
+
+    private long countDetailRowsByOperationId(String logicalTable, DetailContext context) {
+        Long total = jdbcTemplate.queryForObject("""
+                SELECT COUNT(1)
+                FROM %s
+                WHERE %s
+                  AND operation_id = :operationId
+                  AND transaction_date_time >= :beginTime
+                  AND transaction_date_time < :endTime
+                """.formatted(logicalTable, softDeleteCondition(hasSoftDeleteColumn(logicalTable))),
+                detailParams(context), Long.class);
+        return total == null ? 0L : total;
+    }
+
+    private <T> List<T> selectDetailRowsPageByOperationId(
+            String logicalTable,
+            String projection,
+            String orderColumn,
+            DetailContext context,
+            long limit,
+            RowMapper<T> rowMapper) {
+        MapSqlParameterSource params = detailParams(context).addValue("limit", limit);
+        return jdbcTemplate.query("""
+                SELECT %s
+                FROM %s
+                WHERE %s
+                  AND operation_id = :operationId
+                  AND transaction_date_time >= :beginTime
+                  AND transaction_date_time < :endTime
+                ORDER BY %s DESC, id DESC
+                LIMIT :limit
+                """.formatted(projection, logicalTable,
+                softDeleteCondition(hasSoftDeleteColumn(logicalTable)), orderColumn), params, rowMapper);
+    }
+
+    private DetailContext resolveDetailContext(String transactionId,
+                                               LocalDateTime transactionDateTime,
+                                               LocalDateTime rootTransactionDateTime) {
+        TransactionOperationResponse sourceOperation = selectOperationByTransactionId(
+                TRANSACTION_OPERATION_TABLE, transactionId, transactionDateTime);
+        if (sourceOperation == null) {
+            throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        TransactionOrderResponse order = selectOrderByOperationId(
+                TRANSACTION_ORDER_TABLE, sourceOperation.getOperationId(), rootTransactionDateTime);
+        if (order == null) {
+            throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        LocalDateTime beginTime = order.getTransactionDateTime() == null
+                ? sourceOperation.getTransactionDateTime() : order.getTransactionDateTime();
+        return new DetailContext(sourceOperation, order, beginTime, LocalDateTime.now());
+    }
+
+    private MapSqlParameterSource detailParams(DetailContext context) {
+        return baseParams(context.beginTime(), context.endTime())
+                .addValue("operationId", context.order().getOperationId());
+    }
+
+    private TransactionDetailRecordResponse detailRecord(
+            String recordType,
+            String recordId,
+            LocalDateTime recordTime,
+            boolean payloadAvailable,
+            Serializable record) {
+        TransactionDetailRecordResponse response = new TransactionDetailRecordResponse();
+        response.setRecordType(recordType);
+        response.setRecordId(recordId);
+        response.setRecordTime(recordTime);
+        response.setPayloadAvailable(payloadAvailable);
+        response.setRecord(record);
+        return response;
+    }
+
+    private void validateDetailPage(String transactionId,
+                                    LocalDateTime transactionDateTime,
+                                    LocalDateTime rootTransactionDateTime,
+                                    String section,
+                                    long pageNo,
+                                    long pageSize) {
+        validateDetailLocator(transactionId, transactionDateTime, rootTransactionDateTime);
+        long maxPageSize = Math.min(100L, maxResultRows);
+        String normalizedSection = section == null ? "" : section.trim().toUpperCase(Locale.ROOT);
+        if (!DETAIL_SECTIONS.contains(normalizedSection)
+                || pageNo < 1L
+                || pageSize < 1L
+                || pageSize > maxPageSize
+                || pageNo > maxResultRows
+                || (pageNo - 1L) * pageSize + pageSize > maxResultRows) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    private record DetailContext(
+            TransactionOperationResponse sourceOperation,
+            TransactionOrderResponse order,
+            LocalDateTime beginTime,
+            LocalDateTime endTime) {
     }
 
     /**
@@ -652,6 +1174,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
         BigDecimal zero = BigDecimal.ZERO;
         BigDecimal amount = initial.getTransactionAmount();
+        BigDecimal labelAmount = initial.getLabelAmount() == null ? amount : initial.getLabelAmount();
         boolean payment = "PAYMENT".equals(initial.getTransactionType());
         LocalDateTime successTime = statusHistory.stream()
                 .filter(row -> initial.getTransactionId().equals(row.getTransactionId())
@@ -668,6 +1191,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         row.setChangeSource("INITIAL_OPERATION");
         row.setAmountCurrency(initial.getTransactionCurrency());
         row.setChangeAmount(amount);
+        row.setLabelAmountCurrency(StringUtils.hasText(initial.getLabelCurrency())
+                ? initial.getLabelCurrency() : initial.getTransactionCurrency());
+        row.setLabelChangeAmount(labelAmount);
+        row.setLabelAuthorizedBefore(zero);
+        row.setLabelAuthorizedAfter(labelAmount);
+        row.setLabelCapturedBefore(zero);
+        row.setLabelCapturedAfter(payment ? labelAmount : zero);
+        row.setLabelRefundedBefore(zero);
+        row.setLabelRefundedAfter(zero);
+        row.setLabelAvailableCaptureBefore(zero);
+        row.setLabelAvailableCaptureAfter(payment ? zero : labelAmount);
+        row.setLabelAvailableRefundBefore(zero);
+        row.setLabelAvailableRefundAfter(payment ? labelAmount : zero);
         row.setAuthorizedBefore(zero);
         row.setAuthorizedAfter(amount);
         row.setCapturedBefore(zero);
@@ -854,11 +1390,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 按通知任务号和精确分片时间读取通知任务与投递日志。
+     * 按通知任务号和精确分片时间读取通知任务快照。
      *
      * @param notifyId 通知任务号
      * @param transactionDateTime 页面列表返回的真实交易分片时间
-     * @return 包含脱敏任务快照和按尝试次数排序日志的详情视图
+     * @return 脱敏任务快照；投递日志由独立分页接口返回
      */
     @Override
     public MerchantNotificationDetailResponse merchantNotificationDetail(
@@ -884,21 +1420,77 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             if (notifications.isEmpty()) {
                 throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
             }
-            List<MerchantNotificationDeliveryLogResponse> deliveryLogs = jdbcTemplate.query("""
+            MerchantNotificationDetailResponse detail = new MerchantNotificationDetailResponse();
+            detail.setNotification(notifications.get(0));
+            return detail;
+        });
+    }
+
+    /**
+     * 强一致分页读取通知投递日志，保证人工重发完成后最新尝试可以立即查询。
+     */
+    @Override
+    public PageResult<MerchantNotificationDeliveryLogResponse> pageMerchantNotificationDeliveryLogs(
+            String notifyId,
+            LocalDateTime transactionDateTime,
+            long pageNo,
+            long pageSize) {
+        validateMerchantNotificationDeliveryLogPage(notifyId, transactionDateTime, pageNo, pageSize);
+        return executeRead(true, () -> {
+            MapSqlParameterSource params = new MapSqlParameterSource()
+                    .addValue("notifyId", notifyId.trim())
+                    .addValue("transactionDateTime", transactionDateTime)
+                    .addValue("offset", (pageNo - 1) * pageSize)
+                    .addValue("limit", pageSize);
+            Long notificationCount = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(1)
+                    FROM transaction_merchant_notification
+                    WHERE notify_id = :notifyId
+                      AND transaction_date_time = :transactionDateTime
+                      AND deleted = 0
+                    """, params, Long.class);
+            if (notificationCount == null || notificationCount == 0L) {
+                throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            Long total = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(1)
+                    FROM transaction_merchant_notification_log
+                    WHERE notify_id = :notifyId
+                      AND transaction_date_time = :transactionDateTime
+                    """, params, Long.class);
+            if (total == null || total == 0L) {
+                return PageResult.of(0L, pageNo, pageSize, List.of());
+            }
+            List<MerchantNotificationDeliveryLogResponse> records = jdbcTemplate.query("""
                     SELECT %s
                     FROM transaction_merchant_notification_log
                     WHERE notify_id = :notifyId
                       AND transaction_date_time = :transactionDateTime
-                    ORDER BY attempt_no ASC, id ASC
-                    LIMIT 100
+                    ORDER BY attempt_no DESC, id DESC
+                    LIMIT :offset, :limit
                     """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_LOG_ADMIN_PROJECTION),
                     params,
                     merchantNotificationDeliveryLogMapper());
-            MerchantNotificationDetailResponse detail = new MerchantNotificationDetailResponse();
-            detail.setNotification(notifications.get(0));
-            detail.setDeliveryLogs(deliveryLogs);
-            return detail;
+            return PageResult.of(total, pageNo, pageSize, records);
         });
+    }
+
+    /**
+     * 校验通知投递日志分页定位和查询预算。
+     */
+    private void validateMerchantNotificationDeliveryLogPage(
+            String notifyId,
+            LocalDateTime transactionDateTime,
+            long pageNo,
+            long pageSize) {
+        long maxPageSize = Math.min(100L, maxResultRows);
+        if (!StringUtils.hasText(notifyId)
+                || transactionDateTime == null
+                || pageNo < 1L
+                || pageSize < 1L
+                || pageSize > maxPageSize) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
     }
 
     /**
@@ -1163,6 +1755,26 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 在冻结商户范围内查询一页交易生命周期主单。
+     */
+    private List<TransactionOrderResponse> selectOrders(String table,
+                                                         TransactionPageQuery query,
+                                                         long offset,
+                                                         long limit,
+                                                         AdminMerchantDataScope scope) {
+        MapSqlParameterSource params = orderParams(query, scope)
+                .addValue("offset", offset).addValue("limit", limit);
+        return jdbcTemplate.query("""
+                SELECT %s
+                FROM %s
+                WHERE deleted = 0
+                %s
+                ORDER BY transaction_date_time DESC, id DESC
+                LIMIT :offset, :limit
+                """.formatted(ORDER_QUERY_COLUMNS, table, orderWhereSql(query, scope)), params, orderMapper());
+    }
+
+    /**
      * 统计符合筛选条件的交易动作数量。
      *
      * @param table 交易动作逻辑表
@@ -1250,6 +1862,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 continue;
             }
             row.setRootTransactionDateTime(order.getTransactionDateTime());
+            row.setLabelAuthorizedAmount(order.getLabelAuthorizedAmount());
+            row.setLabelCapturedAmount(order.getLabelCapturedAmount());
+            row.setLabelRefundedAmount(order.getLabelRefundedAmount());
+            row.setLabelAvailableCaptureAmount(order.getLabelAvailableCaptureAmount());
+            row.setLabelAvailableRefundAmount(order.getLabelAvailableRefundAmount());
             row.setAuthorizedAmount(order.getAuthorizedAmount());
             row.setCapturedAmount(order.getCapturedAmount());
             row.setRefundedAmount(order.getRefundedAmount());
@@ -1490,6 +2107,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 在普通交易筛选后追加冻结商户集合，显式商户筛选已在入口校验归属。
+     */
+    private String orderWhereSql(TransactionPageQuery query, AdminMerchantDataScope scope) {
+        StringBuilder sql = new StringBuilder(orderWhereSql(query));
+        if (!scope.allMerchants() && !StringUtils.hasText(query.getMerchantId())) {
+            sql.append(" AND merchant_id IN (:scopeMerchantIds)");
+        }
+        return sql.toString();
+    }
+
+    /**
      * 构建交易动作查询条件 SQL。
      */
     private String operationWhereSql(TransactionPageQuery query, String paymentTable) {
@@ -1592,6 +2220,31 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("channelMatchStatus", query.getChannelMatchStatus())
                 .addValue("reconciliationStatus", query.getReconciliationStatus())
                 .addValue("settlementStatus", query.getSettlementStatus());
+    }
+
+    /**
+     * 构建包含冻结商户集合的交易主单查询参数。
+     */
+    private MapSqlParameterSource orderParams(TransactionPageQuery query, AdminMerchantDataScope scope) {
+        return orderParams(query).addValue("scopeMerchantIds", scope.merchantIds());
+    }
+
+    /**
+     * 校验异步导出的商户范围对象必须存在。
+     */
+    private AdminMerchantDataScope requireExportScope(AdminMerchantDataScope scope) {
+        if (scope == null) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "merchant data scope is required");
+        }
+        return scope;
+    }
+
+    /**
+     * 有限范围下显式商户筛选必须属于冻结集合。
+     */
+    private boolean scopeAllowsMerchantFilter(String merchantId, AdminMerchantDataScope scope) {
+        return scope.allMerchants() || !StringUtils.hasText(merchantId)
+                || scope.merchantIds().contains(merchantId.trim());
     }
 
     /**
@@ -1865,6 +2518,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setProcessStage(rs.getString("process_stage"));
             row.setLabelCurrency(rs.getString("label_currency"));
             row.setLabelAmount(rs.getBigDecimal("label_amount"));
+            row.setLabelCurrencyExponent(nullableInt(rs, "label_currency_exponent"));
             row.setTransactionCurrency(rs.getString("transaction_currency"));
             row.setTransactionAmount(rs.getBigDecimal("transaction_amount"));
             row.setCurrentAmount(rs.getBigDecimal("transaction_amount"));
@@ -1875,6 +2529,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             applyAudienceProjection(row, projectResult(rs, row.getTransactionStatus()), Map.of());
+            row.setLabelAuthorizedAmount(rs.getBigDecimal("label_authorized_amount"));
+            row.setLabelCapturedAmount(rs.getBigDecimal("label_captured_amount"));
+            row.setLabelRefundedAmount(rs.getBigDecimal("label_refunded_amount"));
+            row.setLabelAvailableCaptureAmount(rs.getBigDecimal("label_available_capture_amount"));
+            row.setLabelAvailableRefundAmount(rs.getBigDecimal("label_available_refund_amount"));
             row.setAuthorizedAmount(rs.getBigDecimal("authorized_amount"));
             row.setCapturedAmount(rs.getBigDecimal("captured_amount"));
             row.setRefundedAmount(rs.getBigDecimal("refunded_amount"));
@@ -1918,6 +2577,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setProcessStage(rs.getString("process_stage"));
             row.setLabelCurrency(rs.getString("label_currency"));
             row.setLabelAmount(rs.getBigDecimal("label_amount"));
+            row.setLabelCurrencyExponent(nullableInt(rs, "label_currency_exponent"));
             row.setTransactionCurrency(rs.getString("transaction_currency"));
             row.setTransactionAmount(rs.getBigDecimal("transaction_amount"));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
@@ -1931,6 +2591,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setPaymentBrand(joinedPaymentInfo ? rs.getString("joined_payment_brand") : null);
             row.setCardBin(joinedPaymentInfo ? rs.getString("joined_card_bin") : null);
             row.setCardNumberMasked(joinedPaymentInfo ? rs.getString("joined_card_number_masked") : null);
+            row.setLabelAuthorizedAmount(getBigDecimalIfExists(rs, "lifecycle_label_authorized_amount"));
+            row.setLabelCapturedAmount(getBigDecimalIfExists(rs, "lifecycle_label_captured_amount"));
+            row.setLabelRefundedAmount(getBigDecimalIfExists(rs, "lifecycle_label_refunded_amount"));
+            row.setLabelAvailableCaptureAmount(getBigDecimalIfExists(rs, "lifecycle_label_available_capture_amount"));
+            row.setLabelAvailableRefundAmount(getBigDecimalIfExists(rs, "lifecycle_label_available_refund_amount"));
             row.setAuthorizedAmount(getBigDecimalIfExists(rs, "lifecycle_authorized_amount"));
             row.setCapturedAmount(getBigDecimalIfExists(rs, "lifecycle_captured_amount"));
             row.setRefundedAmount(getBigDecimalIfExists(rs, "lifecycle_refunded_amount"));
@@ -2050,6 +2715,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             response.setChangeType(resultSet.getString("change_type"));
             response.setAmountCurrency(resultSet.getString("amount_currency"));
             response.setChangeAmount(resultSet.getBigDecimal("change_amount"));
+            response.setLabelAmountCurrency(resultSet.getString("label_amount_currency"));
+            response.setLabelChangeAmount(resultSet.getBigDecimal("label_change_amount"));
+            response.setLabelAuthorizedBefore(resultSet.getBigDecimal("label_authorized_before"));
+            response.setLabelAuthorizedAfter(resultSet.getBigDecimal("label_authorized_after"));
+            response.setLabelCapturedBefore(resultSet.getBigDecimal("label_captured_before"));
+            response.setLabelCapturedAfter(resultSet.getBigDecimal("label_captured_after"));
+            response.setLabelRefundedBefore(resultSet.getBigDecimal("label_refunded_before"));
+            response.setLabelRefundedAfter(resultSet.getBigDecimal("label_refunded_after"));
+            response.setLabelAvailableCaptureBefore(resultSet.getBigDecimal("label_available_capture_before"));
+            response.setLabelAvailableCaptureAfter(resultSet.getBigDecimal("label_available_capture_after"));
+            response.setLabelAvailableRefundBefore(resultSet.getBigDecimal("label_available_refund_before"));
+            response.setLabelAvailableRefundAfter(resultSet.getBigDecimal("label_available_refund_after"));
             response.setAuthorizedBefore(resultSet.getBigDecimal("authorized_before"));
             response.setAuthorizedAfter(resultSet.getBigDecimal("authorized_after"));
             response.setCapturedBefore(resultSet.getBigDecimal("captured_before"));

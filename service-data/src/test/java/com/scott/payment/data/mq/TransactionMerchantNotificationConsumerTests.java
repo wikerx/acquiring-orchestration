@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * service-data 商户通知事件消费测试，覆盖终态精确触发、创建事件隔离和畸形消息跳过
@@ -150,6 +151,54 @@ class TransactionMerchantNotificationConsumerTests {
     }
 
     /**
+     * 商户端人工重发必须把通知任务号和商户号一起传入精确投递入口。
+     */
+    @Test
+    void shouldRetryExactMerchantNotificationWhenScopeFieldsArePresent() {
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(true);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        MerchantNotificationRetryMessage retryMessage = new MerchantNotificationRetryMessage();
+        retryMessage.setMessageId("MNR-M-20261104-0001");
+        retryMessage.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED);
+        retryMessage.setNotifyId("NOTIFY-20261104-0001");
+        retryMessage.setMerchantId("merchant-a");
+        retryMessage.setTransactionId("TX202611040001");
+        retryMessage.setTransactionDateTime(
+                LocalDateTime.of(2026, 11, 4, 16, 20, 0, 123_000_000));
+        retryMessage.setRequestId("REQ-20261104-0001");
+
+        consumer.onMessage(JsonUtils.toJsonString(retryMessage));
+
+        assertThat(deliveryService.retryNotificationCalled).isTrue();
+        assertThat(deliveryService.retryTransactionCalled).isFalse();
+        assertThat(deliveryService.notifyId).isEqualTo("NOTIFY-20261104-0001");
+        assertThat(deliveryService.merchantId).isEqualTo("merchant-a");
+        assertThat(deliveryService.callbackEventId).isEqualTo("MNR-M-20261104-0001");
+    }
+
+    /**
+     * 任务号和商户号只出现一个时必须拒绝消费，防止退化为未校验归属的交易号查询。
+     */
+    @Test
+    void shouldRejectPartialMerchantRetryScope() {
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(true);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        MerchantNotificationRetryMessage retryMessage = new MerchantNotificationRetryMessage();
+        retryMessage.setMessageId("MNR-M-20261104-INVALID");
+        retryMessage.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED);
+        retryMessage.setNotifyId("NOTIFY-20261104-0001");
+        retryMessage.setTransactionId("TX202611040001");
+        retryMessage.setTransactionDateTime(
+                LocalDateTime.of(2026, 11, 4, 16, 20, 0, 123_000_000));
+
+        assertThatThrownBy(() -> consumer.onMessage(JsonUtils.toJsonString(retryMessage)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("scope fields");
+        assertThat(deliveryService.retryNotificationCalled).isFalse();
+        assertThat(deliveryService.retryTransactionCalled).isFalse();
+    }
+
+    /**
      * 自动重试消息只传递数据库 CAS 定位信息，商户 eventId 仍由普通投递路径使用 notifyId。
      */
     @Test
@@ -245,6 +294,11 @@ class TransactionMerchantNotificationConsumerTests {
         private boolean retryTransactionCalled;
 
         /**
+         * 是否调用过按商户和任务号精确重发。
+         */
+        private boolean retryNotificationCalled;
+
+        /**
          * 是否调用过自动重试到期投递。
          */
         private boolean retryDueCalled;
@@ -273,6 +327,11 @@ class TransactionMerchantNotificationConsumerTests {
          * 自动重试通知号。
          */
         private String notifyId;
+
+        /**
+         * 商户端精确重发传入的商户号。
+         */
+        private String merchantId;
 
         /**
          * 自动重试预期任务版本。
@@ -325,6 +384,24 @@ class TransactionMerchantNotificationConsumerTests {
             this.retryTransactionCalled = true;
             this.transactionDateTime = transactionDateTime;
             this.transactionId = transactionId;
+            this.callbackEventId = callbackEventId;
+            return transactionResult;
+        }
+
+        /**
+         * 记录商户端精确人工重发参数并返回预设结果。
+         */
+        @Override
+        public boolean retryNotification(LocalDateTime transactionDateTime,
+                                         String transactionId,
+                                         String notifyId,
+                                         String merchantId,
+                                         String callbackEventId) {
+            this.retryNotificationCalled = true;
+            this.transactionDateTime = transactionDateTime;
+            this.transactionId = transactionId;
+            this.notifyId = notifyId;
+            this.merchantId = merchantId;
             this.callbackEventId = callbackEventId;
             return transactionResult;
         }

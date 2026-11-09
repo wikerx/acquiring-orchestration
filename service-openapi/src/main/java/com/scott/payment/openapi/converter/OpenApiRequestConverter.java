@@ -531,19 +531,14 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 将创建类交易的标签金额、渠道交易金额、汇率和费用转换为账单响应。
+     * 将创建类交易的商户标签金额、结算摘要和费用转换为账单响应。
      *
      * @param responseDTO 支付核心创建类交易响应
-     * @return 账单响应；所有金额和汇率字段均为空时返回 {@code null}
+     * @return 账单响应；所有商户可见字段均为空时返回 {@code null}
      */
     private PaymentCreateVO.BillingInfoVO toBillingInfoVO(PaymentCreateClientResponseDTO responseDTO) {
         if (responseDTO.getLabelAmount() == null
                 && !StringUtils.hasText(responseDTO.getLabelCurrency())
-                && responseDTO.getTransactionAmount() == null
-                && !StringUtils.hasText(responseDTO.getTransactionCurrency())
-                && responseDTO.getTransactionRate() == null
-                && !StringUtils.hasText(responseDTO.getRateSource())
-                && responseDTO.getRateTime() == null
                 && responseDTO.getSettlementRate() == null
                 && responseDTO.getSettlementAmount() == null
                 && !StringUtils.hasText(responseDTO.getSettlementCurrency())
@@ -554,11 +549,6 @@ public interface OpenApiRequestConverter {
         PaymentCreateVO.BillingInfoVO billingInfoVO = new PaymentCreateVO.BillingInfoVO();
         billingInfoVO.setLabelAmount(responseDTO.getLabelAmount());
         billingInfoVO.setLabelCurrency(responseDTO.getLabelCurrency());
-        billingInfoVO.setTransactionAmount(responseDTO.getTransactionAmount());
-        billingInfoVO.setTransactionCurrency(responseDTO.getTransactionCurrency());
-        billingInfoVO.setTransactionRate(normalizeRate(responseDTO.getTransactionRate()));
-        billingInfoVO.setRateSource(responseDTO.getRateSource());
-        billingInfoVO.setRateTime(toOffsetDateTime(responseDTO.getRateTime(), responseDTO.getTransactionTimeZone()));
         billingInfoVO.setSettlementRate(normalizeRate(responseDTO.getSettlementRate()));
         billingInfoVO.setSettlementAmount(responseDTO.getSettlementAmount());
         billingInfoVO.setSettlementCurrency(responseDTO.getSettlementCurrency());
@@ -568,20 +558,15 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 将查询聚合中的标签金额、渠道交易金额、汇率和费用转换为账单响应。
+     * 将查询聚合中的商户标签金额、结算摘要和费用转换为账单响应。
      *
      * @param responseDTO 支付核心订单查询响应
-     * @return 账单响应；所有金额和汇率字段均为空时返回 {@code null}
+     * @return 账单响应；所有商户可见字段均为空时返回 {@code null}
      */
     private PaymentCreateVO.BillingInfoVO toBillingInfoVO(PaymentQueryClientResponseDTO responseDTO) {
         if (responseDTO == null
                 || (responseDTO.getLabelAmount() == null
                 && !StringUtils.hasText(responseDTO.getLabelCurrency())
-                && responseDTO.getTransactionAmount() == null
-                && !StringUtils.hasText(responseDTO.getTransactionCurrency())
-                && responseDTO.getTransactionRate() == null
-                && !StringUtils.hasText(responseDTO.getRateSource())
-                && responseDTO.getRateTime() == null
                 && responseDTO.getSettlementRate() == null
                 && responseDTO.getSettlementAmount() == null
                 && !StringUtils.hasText(responseDTO.getSettlementCurrency())
@@ -592,11 +577,6 @@ public interface OpenApiRequestConverter {
         PaymentCreateVO.BillingInfoVO billingInfoVO = new PaymentCreateVO.BillingInfoVO();
         billingInfoVO.setLabelAmount(responseDTO.getLabelAmount());
         billingInfoVO.setLabelCurrency(responseDTO.getLabelCurrency());
-        billingInfoVO.setTransactionAmount(responseDTO.getTransactionAmount());
-        billingInfoVO.setTransactionCurrency(responseDTO.getTransactionCurrency());
-        billingInfoVO.setTransactionRate(normalizeRate(responseDTO.getTransactionRate()));
-        billingInfoVO.setRateSource(responseDTO.getRateSource());
-        billingInfoVO.setRateTime(toOffsetDateTime(responseDTO.getRateTime(), responseDTO.getTransactionTimeZone()));
         billingInfoVO.setSettlementRate(normalizeRate(responseDTO.getSettlementRate()));
         billingInfoVO.setSettlementAmount(responseDTO.getSettlementAmount());
         billingInfoVO.setSettlementCurrency(responseDTO.getSettlementCurrency());

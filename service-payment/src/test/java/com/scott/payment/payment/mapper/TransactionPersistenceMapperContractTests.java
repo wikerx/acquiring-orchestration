@@ -171,6 +171,117 @@ class TransactionPersistenceMapperContractTests {
                 .contains("`description` varchar(128)");
     }
 
+    /**
+     * 标签金额是商户额度事实，渠道交易金额是平台执行事实；请款、退款和撤销必须同时保护两套余额。
+     */
+    @Test
+    void amountLifecycleCasShouldProtectLabelAndTransactionBalances() {
+        String captureSql = annotationValue(
+                methodNamed(TransactionOrderMapper.class, "increaseCapturedAmount"), Update.class);
+        String refundSql = annotationValue(
+                methodNamed(TransactionOrderMapper.class, "increaseRefundedAmount"), Update.class);
+        String voidSql = annotationValue(
+                methodNamed(TransactionOrderMapper.class, "markVoidSuccess"), Update.class);
+
+        assertThat(captureSql)
+                .contains("label_captured_amount = label_captured_amount + #{labelAmount}")
+                .contains("captured_amount = captured_amount + #{transactionAmount}")
+                .contains("label_available_capture_amount >= #{labelAmount}")
+                .contains("available_capture_amount >= #{transactionAmount}")
+                .doesNotContain("${");
+        assertThat(refundSql)
+                .contains("label_refunded_amount = label_refunded_amount + #{labelAmount}")
+                .contains("refunded_amount = refunded_amount + #{transactionAmount}")
+                .contains("label_available_refund_amount >= #{labelAmount}")
+                .contains("available_refund_amount >= #{transactionAmount}")
+                .doesNotContain("${");
+        assertThat(voidSql)
+                .contains("label_authorized_cancel_amount = label_authorized_cancel_amount + #{labelAmount}")
+                .contains("authorized_cancel_amount = authorized_cancel_amount + #{transactionAmount}")
+                .contains("label_authorized_amount - label_authorized_cancel_amount = #{labelAmount}")
+                .contains("authorized_amount - authorized_cancel_amount = #{transactionAmount}")
+                .contains("label_captured_amount = 0", "captured_amount = 0")
+                .contains("label_refunded_amount = 0", "refunded_amount = 0")
+                .contains("#{labelAmount} > 0", "#{transactionAmount} > 0")
+                .doesNotContain("${");
+    }
+
+    /**
+     * 金额变动日志同时保存商户标签口径和渠道交易口径，避免审计时用汇率反推历史金额。
+     */
+    @Test
+    void amountChangeLogInsertShouldPersistBothAmountScopes() {
+        String insertSql = annotationValue(
+                methodNamed(TransactionAmountChangeLogMapper.class, "insertLogical"), Insert.class);
+
+        assertThat(insertSql)
+                .contains("label_amount_currency", "label_change_amount")
+                .contains("label_authorized_before", "label_authorized_after")
+                .contains("label_captured_before", "label_captured_after")
+                .contains("label_refunded_before", "label_refunded_after")
+                .contains("label_available_capture_before", "label_available_capture_after")
+                .contains("label_available_refund_before", "label_available_refund_after")
+                .contains("#{logDO.labelAmountCurrency}", "#{logDO.labelChangeAmount}")
+                .contains("#{logDO.authorizedBefore}", "#{logDO.availableRefundAfter}")
+                .doesNotContain("${");
+    }
+
+    /**
+     * 模板表、已发布分片、迁移、后置检查和回滚必须作为一个数据库契约同步演进。
+     */
+    @Test
+    void labelAmountLifecycleSchemaShouldCoverTemplateAndPublishedShards() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile(
+                "docs/sql/20261105_01_transaction_label_amount_lifecycle_migration.sql");
+        String postcheck = readProjectFile(
+                "docs/sql/20261105_02_transaction_label_amount_lifecycle_postcheck.sql");
+        String rollback = readProjectFile(
+                "docs/sql/20261105_03_transaction_label_amount_lifecycle_rollback.sql");
+
+        List.of("transaction_order", "transaction_order_202603", "transaction_order_202604")
+                .forEach(table -> assertThat(tableDefinition(schema, table))
+                        .contains("`label_currency_exponent` tinyint NOT NULL")
+                        .contains("`label_authorized_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_authorized_cancel_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_captured_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_refunded_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_chargeback_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_available_capture_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_available_refund_amount` decimal(20,6) NOT NULL"));
+        List.of("transaction_operation", "transaction_operation_202603", "transaction_operation_202604")
+                .forEach(table -> assertThat(tableDefinition(schema, table))
+                        .contains("`label_currency_exponent` tinyint NOT NULL"));
+        List.of(
+                "transaction_amount_change_log",
+                "transaction_amount_change_log_202603",
+                "transaction_amount_change_log_202604")
+                .forEach(table -> assertThat(tableDefinition(schema, table))
+                        .contains("`label_amount_currency` char(3) NOT NULL")
+                        .contains("`label_change_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_authorized_before` decimal(20,6) NOT NULL")
+                        .contains("`label_captured_after` decimal(20,6) NOT NULL")
+                        .contains("`label_refunded_after` decimal(20,6) NOT NULL")
+                        .contains("`label_available_capture_after` decimal(20,6) NOT NULL")
+                        .contains("`label_available_refund_after` decimal(20,6) NOT NULL"));
+
+        assertThat(migration)
+                .contains("precheck_transaction_label_amount_lifecycle_20261105")
+                .contains("transaction_label_amount_void_backup_20261105")
+                .contains("tmp_label_operation_state_202603", "tmp_label_operation_state_202604")
+                .contains("ALTER TABLE `transaction_order_202603`", "ALTER TABLE `transaction_order_202604`")
+                .doesNotContain("ADD COLUMN IF NOT EXISTS");
+        assertThat(postcheck)
+                .contains("expected 63 new columns")
+                .contains("template and shard definitions differ")
+                .contains("order totals differ from successful operations")
+                .contains("cross-currency VOID did not preserve frozen rate facts");
+        assertThat(rollback)
+                .contains("transaction_label_amount_void_backup_20261105")
+                .contains("DROP COLUMN label_currency_exponent")
+                .contains("DROP COLUMN label_available_refund_after");
+    }
+
     @Test
     void transactionOutboxInsertShouldPersistExplicitDeliveryContract() {
         String insertSql = annotationValue(

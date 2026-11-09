@@ -427,4 +427,29 @@ public interface ClearingTransactionFinanceStateMapper extends BaseMapper<Cleari
                               @Param("expectedRevision") int expectedRevision,
                               @Param("summary") FinanceSummary summary,
                               @Param("now") LocalDateTime now);
+
+    /**
+     * 历史标签本金修复只推进当前修订和版本，保留已经冻结的费用及查询摘要。
+     */
+    @Update("""
+            UPDATE transaction_finance_state
+            SET clearing_revision = #{newRevision},
+                version = version + 1,
+                update_time = #{now}
+            WHERE id = #{id}
+              AND transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND clearing_status = 'CLEARED'
+              AND clearing_revision = #{expectedRevision}
+              AND settlement_status = 'NOT_SETTLED'
+              AND version = #{expectedVersion}
+              AND deleted = 0
+            """)
+    int completeLabelPrincipalRepair(@Param("id") Long id,
+                                     @Param("transactionId") String transactionId,
+                                     @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                     @Param("expectedVersion") int expectedVersion,
+                                     @Param("expectedRevision") int expectedRevision,
+                                     @Param("newRevision") int newRevision,
+                                     @Param("now") LocalDateTime now);
 }

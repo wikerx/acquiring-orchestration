@@ -77,6 +77,34 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
     }
 
     /**
+     * 永久缓存中的历史画像缺少新增关键字段时，必须回源主库重建，不能把结构不完整的旧值用于交易门禁。
+     */
+    @Test
+    void shouldRefreshLegacyRuntimeProfileMissingActivationStatus() {
+        initializeTableMetadata(BaseMerchantInfoDO.class);
+        BaseMerchantInfoMapper merchantInfoMapper = mock(BaseMerchantInfoMapper.class);
+        CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
+        when(merchantInfoMapper.selectOne(any())).thenReturn(activeMerchant());
+
+        try (AnnotationConfigApplicationContext context =
+                     context(merchantInfoMapper, invalidationGuard)) {
+            Cache cache = runtimeProfileCache(context);
+            MerchantRuntimeProfile legacyProfile = runtimeProfile(1);
+            legacyProfile.setActivationStatus(null);
+            cache.put("200045", legacyProfile);
+
+            MerchantRuntimeProfile actual = context
+                    .getBean(MerchantRuntimeProfileCacheService.class)
+                    .findRuntimeProfile("200045");
+
+            assertThat(actual.getActivationStatus()).isEqualTo("ACTIVE");
+            assertThat(cache.get("200045", MerchantRuntimeProfile.class)
+                    .getActivationStatus()).isEqualTo("ACTIVE");
+            verify(merchantInfoMapper).selectOne(any());
+        }
+    }
+
+    /**
      * 门禁 pending 时即使缓存中已有旧状态，也必须绕过缓存并查询主库。
      */
     @Test
@@ -372,6 +400,7 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
         merchant.setBillingDescriptor("CODEX STORE");
         merchant.setMerchantShortName("Codex");
         merchant.setMerchantStatus(1);
+        merchant.setActivationStatus("ACTIVE");
         merchant.setMerchantCategoryCode("5311");
         merchant.setCountryCode("USA");
         merchant.setRegionCode("CA");
@@ -399,6 +428,7 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
         MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
         profile.setMerchantId("200045");
         profile.setMerchantStatus(status);
+        profile.setActivationStatus("ACTIVE");
         profile.setSettlementCurrency("USD");
         return profile;
     }

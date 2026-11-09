@@ -4,6 +4,7 @@ import com.scott.payment.admin.client.clearing.ClearingInternalClient;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.ActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.CommandResponse;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.DetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.ReserveLine;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalRecalculateRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculateRequest;
@@ -19,6 +20,7 @@ import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.ReserveAdjustme
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.ReserveAdjustmentSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.SearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.Summary;
+import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TransactionLine;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalTierPeriodReplayReviewRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalTierPeriodReplaySubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TierPeriodReplayResponse;
@@ -89,10 +91,45 @@ public class AdminClearingApplicationService {
      */
     public DetailResponse detail(String transactionId, LocalDateTime transactionDateTime) {
         currentOperator();
+        return queryService.detail(normalizedTransactionId(transactionId, transactionDateTime),
+                transactionDateTime);
+    }
+
+    /**
+     * 分页查询当前清分修订的本金和费用明细。
+     */
+    public PageResult<TransactionLine> searchTransactionDetails(String transactionId,
+                                                                LocalDateTime transactionDateTime,
+                                                                Integer pageNo,
+                                                                Integer pageSize) {
+        currentOperator();
+        return queryService.searchTransactionDetails(
+                normalizedTransactionId(transactionId, transactionDateTime),
+                transactionDateTime, pageNo, pageSize);
+    }
+
+    /**
+     * 分页查询当前清分修订的保证金明细。
+     */
+    public PageResult<ReserveLine> searchReserveDetails(String transactionId,
+                                                        LocalDateTime transactionDateTime,
+                                                        Integer pageNo,
+                                                        Integer pageSize) {
+        currentOperator();
+        return queryService.searchReserveDetails(
+                normalizedTransactionId(transactionId, transactionDateTime),
+                transactionDateTime, pageNo, pageSize);
+    }
+
+    /**
+     * 校验交易分片身份并去除平台交易号首尾空白。
+     */
+    private String normalizedTransactionId(String transactionId,
+                                           LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(transactionId) || transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        return queryService.detail(transactionId.trim(), transactionDateTime);
+        return transactionId.trim();
     }
 
     /**

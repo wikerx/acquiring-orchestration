@@ -2,15 +2,21 @@ package com.scott.payment.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
+import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.PaymentCapability;
+import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.PaymentCapabilityReadiness;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.MerchantOnboardingDTOs;
+import com.scott.payment.admin.client.settlement.SettlementInternalClient;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileReadinessResponse;
 import com.scott.payment.admin.entity.channel.ChannelEntities.MerchantChannelMidBindingDO;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanDO;
+import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanVersionDO;
 import com.scott.payment.admin.entity.merchant.MerchantOnboardingEntities.BizDocumentDO;
 import com.scott.payment.admin.entity.merchant.MerchantOnboardingEntities.MerchantRelatedPersonDO;
 import com.scott.payment.admin.entity.merchant.MerchantOnboardingEntities.MerchantReviewRecordDO;
 import com.scott.payment.admin.mapper.BizDocumentMapper;
 import com.scott.payment.admin.mapper.FeePlanMapper;
+import com.scott.payment.admin.mapper.FeePlanVersionMapper;
 import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import com.scott.payment.admin.mapper.MerchantRelatedPersonMapper;
 import com.scott.payment.admin.mapper.MerchantReviewRecordMapper;
@@ -20,6 +26,8 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -40,6 +48,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class MerchantOnboardingService {
+
+    private static final Logger log = LoggerFactory.getLogger(MerchantOnboardingService.class);
 
     /**
      * 开户草稿状态；允许继续编辑和提交审核。
@@ -160,7 +170,31 @@ public class MerchantOnboardingService {
             Map.entry("SETTLEMENT_CURRENCY_NOT_CONFIRMED", "结算币种尚未确认"),
             Map.entry("RISK_LEVEL_NOT_CONFIGURED", "风险等级尚未配置"),
             Map.entry("FEE_PLAN_NOT_ACTIVE", "尚无已生效商户费率版本"),
-            Map.entry("CHANNEL_MID_NOT_ACTIVE", "尚无当前生效的渠道 MID 绑定"));
+            Map.entry("FEE_SETTLEMENT_CYCLE_INCOMPLETE", "当前费率版本的结算周期不完整"),
+            Map.entry("CHANNEL_MID_NOT_ACTIVE", "尚无当前生效的渠道 MID 绑定"),
+            Map.entry("CHANNEL_MID_UNAVAILABLE", "生效的渠道 MID 绑定存在不可用配置"),
+            Map.entry("CHANNEL_PAYMENT_CAPABILITY_EMPTY", "渠道 MID 未形成可用支付能力"),
+            Map.entry("CHANNEL_ROUTE_CONFLICT", "同一支付能力存在最高优先级路由冲突"),
+            Map.entry("FEE_CAPABILITY_NOT_COVERED", "生效费率未覆盖全部支付能力"),
+            Map.entry("FEE_CAPABILITY_AMBIGUOUS", "同一支付能力命中多条费率规则"),
+            Map.entry("PAYMENT_CAPABILITY_READINESS_UNAVAILABLE", "支付能力检查服务暂不可用"),
+            Map.entry("RISK_MERCHANT_LIMIT_NOT_ENABLED", "商户交易限额功能尚未启用"),
+            Map.entry("RISK_MERCHANT_LIMIT_INCOMPLETE", "商户交易限额未覆盖全部能力币种"),
+            Map.entry("CHANNEL_LIMIT_INCOMPLETE", "渠道限额未覆盖全部支付能力"),
+            Map.entry("THREE_DS_POLICY_NOT_COVERED", "银行卡能力缺少完整的 3DS 兜底策略"),
+            Map.entry("RISK_READINESS_UNAVAILABLE", "风控配置检查服务暂不可用"),
+            Map.entry("OPENAPI_CREDENTIALS_NOT_READY", "OpenAPI 凭证或加解密材料尚未就绪"),
+            Map.entry("OPENAPI_IP_WHITELIST_NOT_READY", "尚无审核通过且启用的 OpenAPI IP 白名单"),
+            Map.entry("SOURCE_URL_NOT_READY", "尚无审核通过且启用的店铺网址"),
+            Map.entry("TECHNICAL_ACCESS_READINESS_UNAVAILABLE", "技术接入检查服务暂不可用"),
+            Map.entry("SETTLEMENT_PROFILE_NOT_ACTIVE", "尚无活动结算档案"),
+            Map.entry("SETTLEMENT_ACCOUNT_NOT_NORMAL", "结算资金账户不存在或状态异常"),
+            Map.entry("SETTLEMENT_ACCOUNT_CURRENCY_MISMATCH", "结算档案与资金账户币种不一致"),
+            Map.entry("SETTLEMENT_CURRENCY_NOT_SUPPORTED", "结算币种或币种精度未启用"),
+            Map.entry("SETTLEMENT_BUSINESS_TIME_ZONE_INVALID", "结算业务时区无效"),
+            Map.entry("SETTLEMENT_DAILY_CUTOFF_NOT_CONFIGURED", "结算日切时间未配置"),
+            Map.entry("SETTLEMENT_PROCESSING_MODE_INVALID", "结算处理模式无效"),
+            Map.entry("SETTLEMENT_READINESS_UNAVAILABLE", "结算配置检查服务暂不可用"));
 
     /**
      * 商户相关人员 Mapper；负责人员列表和软删除替换。
@@ -179,9 +213,25 @@ public class MerchantOnboardingService {
      */
     private final FeePlanMapper feePlanMapper;
     /**
+     * 生效费率版本 Mapper；用于校验结算周期和结算币种快照。
+     */
+    private final FeePlanVersionMapper feePlanVersionMapper;
+    /**
      * 商户渠道 MID 绑定 Mapper；用于激活前确认存在有效渠道能力。
      */
     private final MerchantChannelMidBindingMapper channelMidBindingMapper;
+    /**
+     * 商户实际支付能力、费率覆盖和路由唯一性检查服务。
+     */
+    private final MerchantPaymentCapabilityReadinessService paymentCapabilityReadinessService;
+    /**
+     * 商户限额、渠道限额和 3DS 配置就绪检查服务。
+     */
+    private final MerchantRiskConfigurationReadinessService riskConfigurationReadinessService;
+    /**
+     * OpenAPI 凭证、IP 白名单和必需店铺网址门禁服务。
+     */
+    private final MerchantTechnicalAccessReadinessService technicalAccessReadinessService;
     /**
      * 相关人员证件号加密与脱敏边界；不允许为空。
      */
@@ -194,6 +244,10 @@ public class MerchantOnboardingService {
      * 商户资金账户幂等开户服务；只在激活时调用。
      */
     private final AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
+    /**
+     * service-settlement 内部客户端；最终开通前读取权威结算档案 readiness。
+     */
+    private final SettlementInternalClient settlementInternalClient;
 
     /**
      * 创建商户开户领域服务。
@@ -202,27 +256,39 @@ public class MerchantOnboardingService {
      * @param documentMapper 合规资料元数据访问
      * @param reviewRecordMapper 审核记录数据访问
      * @param feePlanMapper 商户费率方案数据访问
+     * @param feePlanVersionMapper 生效费率版本数据访问
      * @param channelMidBindingMapper 渠道 MID 绑定数据访问
      * @param sensitiveCrypto 证件号加密与脱敏组件
      * @param primaryAccountProvisioningService 商户主账号开户服务
      * @param fundAccountProvisioningService 商户资金账户开户服务
+     * @param settlementInternalClient 结算档案 readiness 内部客户端
      */
     public MerchantOnboardingService(MerchantRelatedPersonMapper relatedPersonMapper,
                                      BizDocumentMapper documentMapper,
                                      MerchantReviewRecordMapper reviewRecordMapper,
                                      FeePlanMapper feePlanMapper,
+                                     FeePlanVersionMapper feePlanVersionMapper,
                                      MerchantChannelMidBindingMapper channelMidBindingMapper,
+                                     MerchantPaymentCapabilityReadinessService paymentCapabilityReadinessService,
+                                     MerchantRiskConfigurationReadinessService riskConfigurationReadinessService,
+                                     MerchantTechnicalAccessReadinessService technicalAccessReadinessService,
                                      MerchantProfileSensitiveCrypto sensitiveCrypto,
                                      AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService,
-                                     AdminMerchantFundAccountProvisioningService fundAccountProvisioningService) {
+                                     AdminMerchantFundAccountProvisioningService fundAccountProvisioningService,
+                                     SettlementInternalClient settlementInternalClient) {
         this.relatedPersonMapper = relatedPersonMapper;
         this.documentMapper = documentMapper;
         this.reviewRecordMapper = reviewRecordMapper;
         this.feePlanMapper = feePlanMapper;
+        this.feePlanVersionMapper = feePlanVersionMapper;
         this.channelMidBindingMapper = channelMidBindingMapper;
+        this.paymentCapabilityReadinessService = paymentCapabilityReadinessService;
+        this.riskConfigurationReadinessService = riskConfigurationReadinessService;
+        this.technicalAccessReadinessService = technicalAccessReadinessService;
         this.sensitiveCrypto = sensitiveCrypto;
         this.primaryAccountProvisioningService = primaryAccountProvisioningService;
         this.fundAccountProvisioningService = fundAccountProvisioningService;
+        this.settlementInternalClient = settlementInternalClient;
     }
 
     /**
@@ -237,6 +303,21 @@ public class MerchantOnboardingService {
         merchant.setReviewStatus(REVIEW_NOT_SUBMITTED);
         merchant.setActivationStatus(ACTIVATION_NOT_READY);
         merchant.setMerchantStatus(2);
+    }
+
+    /**
+     * 在商户主档已落库且联系人邮箱可用时创建进件门户账号。
+     *
+     * <p>草稿允许先不填写联系人，因此该动作允许无邮箱时跳过；管理端后续补齐邮箱后会再次调用。
+     * 开户服务自身保证幂等，重复保存资料不会重发激活邮件或重复创建账号。</p>
+     *
+     * @param merchant 已持久化的商户主档
+     */
+    public void provisionOnboardingPortalAccessIfPossible(BaseMerchantInfoDO merchant) {
+        if (merchant == null || !StringUtils.hasText(merchant.getContactEmail())) {
+            return;
+        }
+        primaryAccountProvisioningService.provisionOnboardingAccess(merchant);
     }
 
     /**
@@ -293,10 +374,16 @@ public class MerchantOnboardingService {
             dto.setReadinessIssues(Collections.emptyList());
             return;
         }
-        List<String> activationIssues = activationIssues(merchant);
-        dto.setActivationReady(activationIssues.isEmpty());
-        dto.setReadinessIssues(REVIEW_PASSED.equals(merchant.getReviewStatus())
-                ? activationIssues : submitIssues);
+        if (!REVIEW_PASSED.equals(merchant.getReviewStatus())) {
+            dto.setActivationReady(false);
+            dto.setReadinessIssues(submitIssues);
+            return;
+        }
+        ActivationAssessment activationAssessment = activationAssessment(merchant);
+        dto.setActivationReady(activationAssessment.issues().isEmpty());
+        dto.setReadinessIssues(activationAssessment.issues());
+        dto.setPaymentCapabilityReadiness(toPaymentCapabilityReadiness(
+                activationAssessment.paymentReadiness()));
     }
 
     /**
@@ -342,7 +429,11 @@ public class MerchantOnboardingService {
         if ("PASS".equals(decision)) {
             merchant.setOnboardingStatus(ONBOARDING_APPROVED);
             targetReviewStatus = REVIEW_PASSED;
-            merchant.setActivationStatus(activationIssuesIgnoringReview(merchant).isEmpty()
+            // 审核通过且已确认结算币种后准备零余额账户，后续档案必须绑定真实账户。
+            if (StringUtils.hasText(merchant.getSettlementCurrency())) {
+                fundAccountProvisioningService.provision(merchant);
+            }
+            merchant.setActivationStatus(activationAssessmentIgnoringReview(merchant).issues().isEmpty()
                     ? ACTIVATION_READY : ACTIVATION_NOT_READY);
         } else if ("SUPPLEMENT".equals(decision)) {
             merchant.setOnboardingStatus(ONBOARDING_SUPPLEMENT_REQUIRED);
@@ -366,7 +457,7 @@ public class MerchantOnboardingService {
     public void activate(BaseMerchantInfoDO merchant) {
         List<String> issues = activationIssues(merchant);
         requireNoIssues(issues, "商户尚未满足激活要求：");
-        primaryAccountProvisioningService.provision(merchant);
+        primaryAccountProvisioningService.activateFullAccess(merchant);
         fundAccountProvisioningService.provision(merchant);
         merchant.setMerchantStatus(1);
         merchant.setOnboardingStatus(ONBOARDING_ACTIVE);
@@ -491,22 +582,28 @@ public class MerchantOnboardingService {
      * @return 阻塞激活的问题列表
      */
     private List<String> activationIssues(BaseMerchantInfoDO merchant) {
+        return activationAssessment(merchant).issues();
+    }
+
+    /**
+     * 计算包含审核状态的完整激活评估，供详情展示和最终激活动作复用同一份事实。
+     */
+    private ActivationAssessment activationAssessment(BaseMerchantInfoDO merchant) {
         List<String> issues = new ArrayList<>();
         if (!REVIEW_PASSED.equals(merchant.getReviewStatus())) {
             issues.add("MERCHANT_REVIEW_NOT_PASSED");
         }
-        issues.addAll(activationIssuesIgnoringReview(merchant));
-        return issues;
+        ActivationAssessment operational = activationAssessmentIgnoringReview(merchant);
+        issues.addAll(operational.issues());
+        return new ActivationAssessment(List.copyOf(new LinkedHashSet<>(issues)), operational.paymentReadiness());
     }
 
     /**
-     * 校验审核之外的激活条件，确保 MCC、结算币种、风险、费率和渠道均已就绪。
-     *
-     * @param merchant 商户主档，不允许为空
-     * @return 阻塞激活的内部配置问题列表
+     * 计算审核之外的激活条件，并保留支付能力明细供管理端工作台定位问题。
      */
-    private List<String> activationIssuesIgnoringReview(BaseMerchantInfoDO merchant) {
+    private ActivationAssessment activationAssessmentIgnoringReview(BaseMerchantInfoDO merchant) {
         List<String> issues = new ArrayList<>();
+        MerchantPaymentCapabilityReadinessService.ReadinessResult paymentReadiness = null;
         required(issues, merchant.getMerchantCategoryCode(), "MCC_NOT_CONFIRMED");
         required(issues, merchant.getSettlementCurrency(), "SETTLEMENT_CURRENCY_NOT_CONFIRMED");
         if (merchant.getRiskLevel() == null) issues.add("RISK_LEVEL_NOT_CONFIGURED");
@@ -518,11 +615,20 @@ public class MerchantOnboardingService {
                 .eq(FeePlanDO::getDeleted, 0L)
                 .isNotNull(FeePlanDO::getCurrentVersionId)
                 .last("LIMIT 1"));
+        FeePlanVersionDO version = null;
         if (feePlan == null) {
             issues.add("FEE_PLAN_NOT_ACTIVE");
+        } else {
+            version = feePlanVersionMapper.selectById(feePlan.getCurrentVersionId());
+            if (!validSettlementCycle(version, merchant.getSettlementCurrency())) {
+                issues.add("FEE_SETTLEMENT_CYCLE_INCOMPLETE");
+            }
         }
 
+        appendSettlementReadinessIssues(issues, merchant.getMerchantId());
+
         LocalDateTime now = LocalDateTime.now();
+        appendTechnicalAccessReadinessIssues(issues, merchant.getMerchantId(), now);
         Long channelCount = channelMidBindingMapper.selectCount(
                 Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
                         .eq(MerchantChannelMidBindingDO::getMerchantId, merchant.getMerchantId())
@@ -534,8 +640,162 @@ public class MerchantOnboardingService {
                                 .or().gt(MerchantChannelMidBindingDO::getExpireTime, now)));
         if (channelCount == null || channelCount == 0) {
             issues.add("CHANNEL_MID_NOT_ACTIVE");
+        } else {
+            Long feePlanVersionId = version == null || !"ACTIVE".equals(version.getVersionStatus())
+                    ? null : feePlan.getCurrentVersionId();
+            paymentReadiness = appendPaymentCapabilityReadinessIssues(
+                    issues, merchant.getMerchantId(), feePlanVersionId, now);
+            appendRiskConfigurationReadinessIssues(
+                    issues, merchant.getMerchantId(), paymentReadiness, now);
         }
-        return issues;
+        return new ActivationAssessment(
+                List.copyOf(new LinkedHashSet<>(issues)), paymentReadiness);
+    }
+
+    /**
+     * 读取支付能力、路由和费率覆盖检查结果。
+     *
+     * <p>数据库或配置读取异常不能使管理端商户详情不可用，但必须失败关闭：详情返回稳定
+     * 阻塞编码，最终激活动作也会因为该编码存在而被拒绝。</p>
+     */
+    private MerchantPaymentCapabilityReadinessService.ReadinessResult appendPaymentCapabilityReadinessIssues(
+            List<String> issues,
+            String merchantId,
+            Long feePlanVersionId,
+            LocalDateTime now) {
+        try {
+            MerchantPaymentCapabilityReadinessService.ReadinessResult readiness =
+                    paymentCapabilityReadinessService.evaluate(merchantId, feePlanVersionId, now);
+            issues.addAll(readiness.issueCodes());
+            return readiness;
+        } catch (RuntimeException exception) {
+            issues.add("PAYMENT_CAPABILITY_READINESS_UNAVAILABLE");
+            log.warn("支付能力就绪检查暂不可用, event: merchant_payment_capability_readiness_unavailable, merchantId: {}",
+                    merchantId, exception);
+            return null;
+        }
+    }
+
+    /**
+     * 校验商户和渠道限额及 3DS 策略；查询异常时返回稳定阻塞码并失败关闭。
+     */
+    private void appendRiskConfigurationReadinessIssues(
+            List<String> issues,
+            String merchantId,
+            MerchantPaymentCapabilityReadinessService.ReadinessResult paymentReadiness,
+            LocalDateTime now) {
+        if (paymentReadiness == null || paymentReadiness.capabilities().isEmpty()) {
+            return;
+        }
+        try {
+            issues.addAll(riskConfigurationReadinessService.evaluate(merchantId, paymentReadiness, now));
+        } catch (RuntimeException exception) {
+            issues.add("RISK_READINESS_UNAVAILABLE");
+            log.warn("风控配置就绪检查暂不可用, event: merchant_risk_readiness_unavailable, merchantId: {}",
+                    merchantId, exception);
+        }
+    }
+
+    /**
+     * 校验真实交易入口依赖的技术接入条件；读取异常时返回稳定阻塞码并失败关闭。
+     */
+    private void appendTechnicalAccessReadinessIssues(
+            List<String> issues,
+            String merchantId,
+            LocalDateTime now) {
+        try {
+            issues.addAll(technicalAccessReadinessService.evaluate(merchantId, now));
+        } catch (RuntimeException exception) {
+            issues.add("TECHNICAL_ACCESS_READINESS_UNAVAILABLE");
+            log.warn("技术接入就绪检查暂不可用, event: merchant_technical_access_readiness_unavailable, merchantId: {}",
+                    merchantId, exception);
+        }
+    }
+
+    /**
+     * 将领域检查结果转换为管理端非敏感投影。
+     */
+    private PaymentCapabilityReadiness toPaymentCapabilityReadiness(
+            MerchantPaymentCapabilityReadinessService.ReadinessResult source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCapabilityReadiness target = new PaymentCapabilityReadiness();
+        target.setActiveBindingCount(source.activeBindingCount());
+        target.setUnavailableBindingCount(source.unavailableBindingCount());
+        target.setCapabilities(toPaymentCapabilities(source.capabilities()));
+        target.setRouteConflicts(toPaymentCapabilities(source.routeConflicts()));
+        target.setFeeGaps(toPaymentCapabilities(source.feeGaps()));
+        target.setFeeAmbiguities(toPaymentCapabilities(source.feeAmbiguities()));
+        return target;
+    }
+
+    /**
+     * 转换原子能力列表，固定输出顺序并避免暴露内部路由候选。
+     */
+    private List<PaymentCapability> toPaymentCapabilities(
+            List<MerchantPaymentCapabilityReadinessService.CapabilityKey> capabilities) {
+        if (capabilities == null || capabilities.isEmpty()) {
+            return List.of();
+        }
+        return capabilities.stream().map(source -> {
+            PaymentCapability target = new PaymentCapability();
+            target.setTransactionType(source.transactionType());
+            target.setPaymentType(source.paymentType());
+            target.setPaymentMethod(source.paymentMethod());
+            target.setCurrency(source.currency());
+            return target;
+        }).toList();
+    }
+
+    /**
+     * 单次开通评估结果；问题列表和支付能力必须来自同一评估时点。
+     */
+    private record ActivationAssessment(
+            List<String> issues,
+            MerchantPaymentCapabilityReadinessService.ReadinessResult paymentReadiness) {
+    }
+
+    /**
+     * 校验生效费率版本中的结算周期和结算币种快照。
+     */
+    private boolean validSettlementCycle(FeePlanVersionDO version, String settlementCurrency) {
+        if (version == null || !"ACTIVE".equals(version.getVersionStatus())
+                || !StringUtils.hasText(settlementCurrency)
+                || !settlementCurrency.equalsIgnoreCase(version.getSettlementCurrency())
+                || !("T".equals(version.getInitialDelayUnit()) || "D".equals(version.getInitialDelayUnit()))
+                || version.getInitialDelayDays() == null || version.getInitialDelayDays() < 1
+                || version.getRegularDelayDays() == null || version.getRegularDelayDays() < 1
+                || !StringUtils.hasText(version.getSettlementFrequency())) {
+            return false;
+        }
+        return switch (version.getSettlementFrequency()) {
+            case "DAILY" -> version.getFrequencyDay() == null;
+            case "WEEKLY", "BIWEEKLY" -> version.getFrequencyDay() != null
+                    && version.getFrequencyDay() >= 1 && version.getFrequencyDay() <= 7;
+            case "MONTHLY" -> version.getFrequencyDay() != null
+                    && version.getFrequencyDay() >= 1 && version.getFrequencyDay() <= 28;
+            default -> false;
+        };
+    }
+
+    /**
+     * 读取结算领域 readiness；内部服务不可用时失败关闭，但不阻断商户详情查询。
+     */
+    private void appendSettlementReadinessIssues(List<String> issues, String merchantId) {
+        try {
+            ProfileReadinessResponse readiness = settlementInternalClient.getProfileReadiness(merchantId);
+            if (readiness == null || !Boolean.TRUE.equals(readiness.getReady())) {
+                List<String> readinessIssues = readiness == null ? List.of() : readiness.getIssues();
+                if (readinessIssues == null || readinessIssues.isEmpty()) {
+                    issues.add("SETTLEMENT_PROFILE_NOT_ACTIVE");
+                } else {
+                    issues.addAll(readinessIssues);
+                }
+            }
+        } catch (ServiceException exception) {
+            issues.add("SETTLEMENT_READINESS_UNAVAILABLE");
+        }
     }
 
     /**

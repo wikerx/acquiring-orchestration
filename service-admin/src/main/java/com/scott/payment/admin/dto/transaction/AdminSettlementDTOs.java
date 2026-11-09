@@ -163,6 +163,30 @@ public final class AdminSettlementDTOs {
     }
 
     /**
+     * 创建商户首个活动结算档案的浏览器请求；操作人由服务端可信上下文补齐。
+     */
+    @Data
+    public static class ProfileCreateRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        /** 请求幂等键，由页面为单次提交生成。 */
+        private String requestKey;
+        /** 平台商户号。 */
+        private String merchantId;
+        /** 目标商户资金账户主键。 */
+        private Long settlementAccountId;
+        /** 目标 ISO 结算币种。 */
+        private String targetCurrency;
+        /** 商户业务 IANA 时区。 */
+        private String businessTimeZone;
+        /** 商户本地每日结算日切时间。 */
+        private LocalTime dailyCutoffTime;
+        /** AUTO_POST、AUTO_REVIEW 或 MANUAL。 */
+        private String processingMode;
+        /** 人工配置原因。 */
+        private String reason;
+    }
+
+    /**
      * 仅允许调整后续调度行为，不允许修改账户、币种或历史有效期。
      */
     @Data
@@ -184,6 +208,88 @@ public final class AdminSettlementDTOs {
          * 客户端读取到的期望乐观锁版本。
          */
         private Long expectedVersion;
+        /**
+         * 本次版本切换请求幂等键。
+         */
+        private String requestKey;
+        /**
+         * 人工变更原因，用于结算领域不可变审计。
+         */
+        private String reason;
+    }
+
+    /**
+     * service-admin 注入可信操作审计后的初始档案创建命令。
+     */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class InternalProfileCreateRequest extends ProfileCreateRequest {
+        private static final long serialVersionUID = 1L;
+        /** 可信管理账户 ID。 */
+        private Long operatorId;
+        /** 管理账号显示名称快照。 */
+        private String operatorName;
+        /** 操作时角色权限快照。 */
+        private String roleSnapshot;
+        /** 操作客户端 IP。 */
+        private String clientIp;
+        /** 操作客户端 User-Agent。 */
+        private String userAgent;
+        /** 管理端记录的实际操作时间。 */
+        private LocalDateTime operationTime;
+    }
+
+    /**
+     * service-admin 注入可信操作审计后的档案版本切换命令。
+     */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class InternalProfileVersionCreateRequest extends ProfileUpdateRequest {
+        private static final long serialVersionUID = 1L;
+        /** 可信管理账户 ID。 */
+        private Long operatorId;
+        /** 管理账号显示名称快照。 */
+        private String operatorName;
+        /** 操作时角色权限快照。 */
+        private String roleSnapshot;
+        /** 操作客户端 IP。 */
+        private String clientIp;
+        /** 操作客户端 User-Agent。 */
+        private String userAgent;
+        /** 管理端记录的实际操作时间。 */
+        private LocalDateTime operationTime;
+    }
+
+    /**
+     * service-settlement 返回的结算档案命令结果。
+     */
+    @Data
+    public static class ProfileCommandResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private Long id;
+        private String settlementProfileNo;
+        private String merchantId;
+        private Long settlementAccountId;
+        private String targetCurrency;
+        private Integer targetCurrencyExponent;
+        private String businessTimeZone;
+        private LocalTime dailyCutoffTime;
+        private String processingMode;
+        private String profileStatus;
+        private Long version;
+        private Boolean reused;
+    }
+
+    /**
+     * service-settlement 返回的结算档案开通 readiness。
+     */
+    @Data
+    public static class ProfileReadinessResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String settlementProfileNo;
+        private Boolean ready;
+        private List<String> issues = Collections.emptyList();
     }
 
     /**

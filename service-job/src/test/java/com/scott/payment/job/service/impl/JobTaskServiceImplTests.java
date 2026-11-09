@@ -57,6 +57,68 @@ class JobTaskServiceImplTests {
     }
 
     @Test
+    void deleteTaskShouldRejectOperationalWorkItemSyncSystemTask() {
+        SysJobTaskMapper mapper = mock(SysJobTaskMapper.class);
+        SysJobTaskDO task = task(23L);
+        task.setJobCode("OPERATIONAL_WORK_ITEM_SYNC");
+        when(mapper.selectById(23L)).thenReturn(task);
+        JobTaskServiceImpl service = new JobTaskServiceImpl(
+                mapper, mock(JobTaskTimingService.class), mock(JobHandlerRegistry.class));
+
+        assertThatThrownBy(() -> service.deleteTask(23L, "operator"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("system job task cannot be deleted");
+    }
+
+    @Test
+    void updateTaskShouldRejectOperationalWorkItemHandlerReplacement() {
+        SysJobTaskMapper mapper = mock(SysJobTaskMapper.class);
+        SysJobTaskDO task = task(24L);
+        task.setJobCode("OPERATIONAL_WORK_ITEM_SYNC");
+        task.setHandlerCode("operationalWorkItemSync");
+        when(mapper.selectById(24L)).thenReturn(task);
+        JobTaskServiceImpl service = new JobTaskServiceImpl(
+                mapper, mock(JobTaskTimingService.class), mock(JobHandlerRegistry.class));
+        JobTaskSaveRequest request = operationalWorkItemSystemTaskRequest();
+        request.setHandlerCode("anotherHandler");
+
+        assertThatThrownBy(() -> service.updateTask(24L, request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("system job handler cannot be changed");
+    }
+
+    @Test
+    void deleteTaskShouldRejectDataExportDispatchSystemTask() {
+        SysJobTaskMapper mapper = mock(SysJobTaskMapper.class);
+        SysJobTaskDO task = task(25L);
+        task.setJobCode("DATA_EXPORT_TASK_DISPATCH");
+        when(mapper.selectById(25L)).thenReturn(task);
+        JobTaskServiceImpl service = new JobTaskServiceImpl(
+                mapper, mock(JobTaskTimingService.class), mock(JobHandlerRegistry.class));
+
+        assertThatThrownBy(() -> service.deleteTask(25L, "operator"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("system job task cannot be deleted");
+    }
+
+    @Test
+    void updateTaskShouldRejectDataExportDispatchHandlerReplacement() {
+        SysJobTaskMapper mapper = mock(SysJobTaskMapper.class);
+        SysJobTaskDO task = task(26L);
+        task.setJobCode("DATA_EXPORT_TASK_DISPATCH");
+        task.setHandlerCode("dataExportTaskDispatch");
+        when(mapper.selectById(26L)).thenReturn(task);
+        JobTaskServiceImpl service = new JobTaskServiceImpl(
+                mapper, mock(JobTaskTimingService.class), mock(JobHandlerRegistry.class));
+        JobTaskSaveRequest request = dataExportDispatchSystemTaskRequest();
+        request.setHandlerCode("anotherHandler");
+
+        assertThatThrownBy(() -> service.updateTask(26L, request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("system job handler cannot be changed");
+    }
+
+    @Test
     void disableTaskShouldPersistNullNextTriggerTimeWithoutTouchingLease() {
         SysJobTaskMapper mapper = mock(SysJobTaskMapper.class);
         JobTaskTimingService timingService = mock(JobTaskTimingService.class);
@@ -176,6 +238,24 @@ class JobTaskServiceImplTests {
         request.setAllowConcurrent(0);
         request.setStatus("ENABLED");
         request.setOperator("operator");
+        return request;
+    }
+
+    private JobTaskSaveRequest operationalWorkItemSystemTaskRequest() {
+        JobTaskSaveRequest request = systemTaskRequest();
+        request.setJobCode("OPERATIONAL_WORK_ITEM_SYNC");
+        request.setJobName("统一运营待办同步");
+        request.setJobGroup("operations");
+        request.setHandlerCode("operationalWorkItemSync");
+        return request;
+    }
+
+    private JobTaskSaveRequest dataExportDispatchSystemTaskRequest() {
+        JobTaskSaveRequest request = systemTaskRequest();
+        request.setJobCode("DATA_EXPORT_TASK_DISPATCH");
+        request.setJobName("异步导出任务调度");
+        request.setJobGroup("data");
+        request.setHandlerCode("dataExportTaskDispatch");
         return request;
     }
 }

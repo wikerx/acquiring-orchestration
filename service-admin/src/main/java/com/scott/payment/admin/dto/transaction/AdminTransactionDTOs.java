@@ -494,6 +494,11 @@ public final class AdminTransactionDTOs {
 
         private BigDecimal labelAmount;
 
+        /**
+         * 标签币种 ISO 4217 小数位，用于独立于渠道交易币种展示商户请求金额。
+         */
+        private Integer labelCurrencyExponent;
+
         private String transactionCurrency;
 
         private BigDecimal transactionAmount;
@@ -559,14 +564,54 @@ public final class AdminTransactionDTOs {
          */
         private String payerResultMessage;
 
+        /**
+         * 累计授权成功金额，标签币种单位。
+         */
+        private BigDecimal labelAuthorizedAmount;
+
+        /**
+         * 累计请款成功金额，标签币种单位。
+         */
+        private BigDecimal labelCapturedAmount;
+
+        /**
+         * 累计退款成功金额，标签币种单位。
+         */
+        private BigDecimal labelRefundedAmount;
+
+        /**
+         * 当前可请款金额，标签币种单位。
+         */
+        private BigDecimal labelAvailableCaptureAmount;
+
+        /**
+         * 当前可退款金额，标签币种单位。
+         */
+        private BigDecimal labelAvailableRefundAmount;
+
+        /**
+         * 累计授权成功金额，渠道交易币种单位。
+         */
         private BigDecimal authorizedAmount;
 
+        /**
+         * 累计请款成功金额，渠道交易币种单位。
+         */
         private BigDecimal capturedAmount;
 
+        /**
+         * 累计退款成功金额，渠道交易币种单位。
+         */
         private BigDecimal refundedAmount;
 
+        /**
+         * 当前可请款金额，渠道交易币种单位。
+         */
         private BigDecimal availableCaptureAmount;
 
+        /**
+         * 当前可退款金额，渠道交易币种单位。
+         */
         private BigDecimal availableRefundAmount;
 
         /**
@@ -694,6 +739,11 @@ public final class AdminTransactionDTOs {
 
         private BigDecimal labelAmount;
 
+        /**
+         * 标签币种 ISO 4217 小数位，用于独立于渠道交易币种展示商户请求金额。
+         */
+        private Integer labelCurrencyExponent;
+
         private String transactionCurrency;
 
         private BigDecimal transactionAmount;
@@ -752,6 +802,31 @@ public final class AdminTransactionDTOs {
          * 给商户异步通知任务状态；未配置回调时为空。
          */
         private String merchantNotificationStatus;
+
+        /**
+         * 所属生命周期累计授权成功金额，标签币种单位。
+         */
+        private BigDecimal labelAuthorizedAmount;
+
+        /**
+         * 所属生命周期累计请款成功金额，标签币种单位。
+         */
+        private BigDecimal labelCapturedAmount;
+
+        /**
+         * 所属生命周期累计退款成功金额，标签币种单位。
+         */
+        private BigDecimal labelRefundedAmount;
+
+        /**
+         * 所属生命周期当前可请款金额，标签币种单位。
+         */
+        private BigDecimal labelAvailableCaptureAmount;
+
+        /**
+         * 所属生命周期当前可退款金额，标签币种单位。
+         */
+        private BigDecimal labelAvailableRefundAmount;
 
         /**
          * 所属生命周期累计授权成功金额，交易币种单位。
@@ -1437,6 +1512,66 @@ public final class AdminTransactionDTOs {
          * 本次变动金额。
          */
         private BigDecimal changeAmount;
+
+        /**
+         * 本次变动对应的商户标签币种。
+         */
+        private String labelAmountCurrency;
+
+        /**
+         * 本次变动对应的商户标签金额。
+         */
+        private BigDecimal labelChangeAmount;
+
+        /**
+         * 变动前累计标签授权金额。
+         */
+        private BigDecimal labelAuthorizedBefore;
+
+        /**
+         * 变动后累计标签授权金额。
+         */
+        private BigDecimal labelAuthorizedAfter;
+
+        /**
+         * 变动前累计标签请款金额。
+         */
+        private BigDecimal labelCapturedBefore;
+
+        /**
+         * 变动后累计标签请款金额。
+         */
+        private BigDecimal labelCapturedAfter;
+
+        /**
+         * 变动前累计标签退款金额。
+         */
+        private BigDecimal labelRefundedBefore;
+
+        /**
+         * 变动后累计标签退款金额。
+         */
+        private BigDecimal labelRefundedAfter;
+
+        /**
+         * 变动前标签可请款金额。
+         */
+        private BigDecimal labelAvailableCaptureBefore;
+
+        /**
+         * 变动后标签可请款金额。
+         */
+        private BigDecimal labelAvailableCaptureAfter;
+
+        /**
+         * 变动前标签可退款金额。
+         */
+        private BigDecimal labelAvailableRefundBefore;
+
+        /**
+         * 变动后标签可退款金额。
+         */
+        private BigDecimal labelAvailableRefundAfter;
 
         /**
          * 变动前累计授权金额。
@@ -2597,7 +2732,7 @@ public final class AdminTransactionDTOs {
         private MerchantNotificationResponse notification;
 
         /**
-         * 按尝试序号升序排列的投递日志。
+         * 兼容旧客户端的投递日志字段，主详情接口固定返回空集合；请使用独立分页接口查询。
          */
         private List<MerchantNotificationDeliveryLogResponse> deliveryLogs = Collections.emptyList();
     }
@@ -2821,5 +2956,43 @@ public final class AdminTransactionDTOs {
          * 已脱敏的商户 OpenAPI 请求和响应日志。
          */
         private List<MerchantApiInteractionLogResponse> merchantApiInteractionLogs = Collections.emptyList();
+    }
+
+    /**
+     * 管理端交易详情附属记录分页项。
+     *
+     * <p>recordType 用于前端选择展示模型，record 承载对应的强类型脱敏 DTO。分页接口只返回摘要字段；
+     * payloadAvailable 为 true 时，可在具备交易详情权限的前提下按记录号读取完整脱敏正文。</p>
+     */
+    @Data
+    public static class TransactionDetailRecordResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 稳定记录类型，例如 FLOW_EVENT、CHANNEL_INTERACTION 或 MERCHANT_API。
+         */
+        private String recordType;
+
+        /**
+         * 记录业务号，不暴露数据库物理主键。
+         */
+        private String recordId;
+
+        /**
+         * 记录发生时间，用于跨类型明细稳定排序。
+         */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime recordTime;
+
+        /**
+         * 是否允许通过单条详情接口继续加载完整脱敏正文。
+         */
+        private boolean payloadAvailable;
+
+        /**
+         * 当前记录类型对应的强类型脱敏响应对象。
+         */
+        private Serializable record;
     }
 }

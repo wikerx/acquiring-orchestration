@@ -63,7 +63,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -211,7 +210,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     /**
      * 未换汇交易默认汇率，商户响应和后台日志统一保留 8 位小数。
      */
-    private static final BigDecimal DEFAULT_TRANSACTION_RATE = new BigDecimal("1.00000000");
 
     /**
      * 首次类交易动作序号。
@@ -1242,7 +1240,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         int orderRows = 0;
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            orderRows = updateSourceOrderAmount(sourceOrderDO, resultDTO);
+            orderRows = updateSourceOrderAmount(
+                    sourceOrderDO,
+                    resultDTO,
+                    resolveLabelAmount(commandDTO),
+                    resolveTransactionAmount(commandDTO));
             recordAmountChange(recordDTO, now);
         }
         TransactionStatusHistoryDO orderHistory = buildStatusHistory(
@@ -2065,8 +2067,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
         BigDecimal transactionAmount = resolveTransactionAmount(commandDTO);
         String transactionCurrency = resolveTransactionCurrency(commandDTO);
+        BigDecimal labelAmount = resolveLabelAmount(commandDTO);
         orderDO.setLabelCurrency(resolveLabelCurrency(commandDTO));
-        orderDO.setLabelAmount(resolveLabelAmount(commandDTO));
+        orderDO.setLabelAmount(labelAmount);
+        orderDO.setLabelCurrencyExponent(resolveLabelCurrencyExponent(commandDTO, currencyExponent));
         orderDO.setTransactionCurrency(transactionCurrency);
         orderDO.setTransactionAmount(transactionAmount);
         orderDO.setChannelRequestCurrency(transactionCurrency);
@@ -2079,6 +2083,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setTransactionRate(resolveTransactionRate(commandDTO));
         orderDO.setRateSource(commandDTO.getRateSource());
         orderDO.setRateTime(commandDTO.getRateTime());
+        orderDO.setLabelAuthorizedAmount(success && (isAuthorizationLike(resultDTO.getTransactionType())
+                || PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) ? labelAmount : zero);
+        orderDO.setLabelAuthorizedCancelAmount(zero);
+        orderDO.setLabelCapturedAmount(success && PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType()) ? labelAmount : zero);
+        orderDO.setLabelRefundedAmount(zero);
+        orderDO.setLabelChargebackAmount(zero);
+        orderDO.setLabelAvailableCaptureAmount(success && isAuthorizationLike(resultDTO.getTransactionType()) ? labelAmount : zero);
+        orderDO.setLabelAvailableRefundAmount(success && PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType()) ? labelAmount : zero);
         orderDO.setAuthorizedAmount(success && (isAuthorizationLike(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) ? transactionAmount : zero);
         orderDO.setAuthorizedCancelAmount(zero);
@@ -2103,6 +2115,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
         operationDO.setLabelCurrency(resolveLabelCurrency(commandDTO));
         operationDO.setLabelAmount(resolveLabelAmount(commandDTO));
+        operationDO.setLabelCurrencyExponent(resolveLabelCurrencyExponent(commandDTO, currencyExponent));
         operationDO.setTransactionCurrency(transactionCurrency);
         operationDO.setTransactionAmount(transactionAmount);
         operationDO.setApprovedCurrency(success ? transactionCurrency : null);
@@ -2138,6 +2151,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
         operationDO.setLabelCurrency(resolveLabelCurrency(commandDTO));
         operationDO.setLabelAmount(resolveLabelAmount(commandDTO));
+        operationDO.setLabelCurrencyExponent(resolveFollowUpLabelCurrencyExponent(
+                sourceOrderDO, commandDTO, currencyExponent));
         operationDO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
         operationDO.setTransactionAmount(transactionAmount);
         operationDO.setApprovedCurrency(success ? sourceOrderDO.getTransactionCurrency() : null);
@@ -2164,6 +2179,32 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private BigDecimal resolveLabelAmount(PaymentCreateCommandDTO commandDTO) {
         return commandDTO.getLabelAmount() == null ? commandDTO.getAmount() : commandDTO.getLabelAmount();
+    }
+
+    /**
+     * 解析首次动作标签币种精度；同币种兼容旧调用方，跨币种缺失精度时拒绝静默套用渠道精度。
+     */
+    private int resolveLabelCurrencyExponent(PaymentCreateCommandDTO commandDTO, int transactionCurrencyExponent) {
+        if (commandDTO.getLabelCurrencyExponent() != null) {
+            return commandDTO.getLabelCurrencyExponent();
+        }
+        if (Objects.equals(resolveLabelCurrency(commandDTO), resolveTransactionCurrency(commandDTO))) {
+            return transactionCurrencyExponent;
+        }
+        throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                "label currency exponent is missing for cross-currency transaction");
+    }
+
+    /**
+     * 后续动作优先继承主单标签精度，确保 JPY 等零小数币种不会按渠道币种精度格式化。
+     */
+    private int resolveFollowUpLabelCurrencyExponent(TransactionOrderDO sourceOrderDO,
+                                                     PaymentCreateCommandDTO commandDTO,
+                                                     int transactionCurrencyExponent) {
+        if (sourceOrderDO.getLabelCurrencyExponent() != null) {
+            return sourceOrderDO.getLabelCurrencyExponent();
+        }
+        return resolveLabelCurrencyExponent(commandDTO, transactionCurrencyExponent);
     }
 
     /**
@@ -2294,6 +2335,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                         orderDO.getOperationId(),
                         orderDO.getTransactionDateTime(),
                         operationDO.getTransactionId(),
+                        operationDO.getLabelAmount() == null
+                                ? BigDecimal.ZERO : operationDO.getLabelAmount(),
                         operationDO.getTransactionAmount() == null
                                 ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
                         orderDO.getVersion(),
@@ -2306,7 +2349,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             resultDTO.setAmount(operationDO.getTransactionAmount() == null
                     ? null
                     : operationDO.getTransactionAmount().movePointRight(orderDO.getCurrencyExponent() == null ? 0 : orderDO.getCurrencyExponent()).longValue());
-            updateSourceOrderAmount(orderDO, resultDTO);
+            updateSourceOrderAmount(
+                    orderDO,
+                    resultDTO,
+                    zeroIfNull(operationDO.getLabelAmount()),
+                    zeroIfNull(operationDO.getTransactionAmount()));
             return true;
         }
         if (StringUtils.hasText(operationDO.getSourceTransactionId())) {
@@ -2585,6 +2632,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                     orderDO.getOperationId(),
                     orderDO.getTransactionDateTime(),
                     resultDTO.getTransactionId(),
+                    operationDO.getLabelAmount() == null
+                            ? BigDecimal.ZERO : operationDO.getLabelAmount(),
                     operationDO.getTransactionAmount() == null
                             ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
                     orderDO.getVersion(),
@@ -2698,7 +2747,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         updateOperationChannelIdentity(operationDO, invokeResultDTO);
         TransactionOperationDO mergedOperation = mergeOperationResult(operationDO, invokeResultDTO, resultDTO);
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            updateSourceOrderAmount(sourceOrderDO, resultDTO);
+            updateSourceOrderAmount(
+                    sourceOrderDO,
+                    resultDTO,
+                    zeroIfNull(mergedOperation.getLabelAmount()),
+                    zeroIfNull(mergedOperation.getTransactionAmount()));
             recordAmountChange(mergedOperation, sourceOrderDO, now);
         }
         insertCallbackStateAndFlow(mergedOperation,
@@ -2781,6 +2834,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         target.setPendingReasonCode(resultDTO.getPendingReasonCode());
         target.setFailReasonCode(resultDTO.getFailReasonCode());
         target.setFailReasonMessage(resultDTO.getFailReasonMessage());
+        target.setLabelAmount(source.getLabelAmount());
+        target.setLabelCurrency(source.getLabelCurrency());
+        target.setLabelCurrencyExponent(source.getLabelCurrencyExponent());
         target.setTransactionAmount(source.getTransactionAmount());
         target.setTransactionCurrency(source.getTransactionCurrency());
         target.setCurrencyExponent(source.getCurrencyExponent());
@@ -3027,36 +3083,40 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      *
      * @param sourceOrderDO 原生命周期主单
      * @param resultDTO 后续交易结果
+     * @param labelAmount 本次动作标签金额
+     * @param transactionAmount 本次动作渠道交易金额
      */
     private int updateSourceOrderAmount(TransactionOrderDO sourceOrderDO,
-                                        PaymentCreateResultDTO resultDTO) {
-        BigDecimal amount = amountFromResult(resultDTO, sourceOrderDO);
+                                        PaymentCreateResultDTO resultDTO,
+                                        BigDecimal labelAmount,
+                                        BigDecimal transactionAmount) {
         int updated;
         if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType())) {
             updated = transactionOrderMapper.increaseCapturedAmount(
                     sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
-                    resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
+                    resultDTO.getTransactionId(), labelAmount, transactionAmount, sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.REFUND.getCode().equals(resultDTO.getTransactionType())) {
             updated = transactionOrderMapper.increaseRefundedAmount(
                     sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
-                    resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
+                    resultDTO.getTransactionId(), labelAmount, transactionAmount, sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(resultDTO.getTransactionType())) {
             updated = transactionOrderMapper.increaseAuthorizedAmount(
                     sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
-                    resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
+                    resultDTO.getTransactionId(), labelAmount, transactionAmount, sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())) {
-            BigDecimal cancelAmount = remainingAuthorizedAmount(sourceOrderDO);
+            BigDecimal labelCancelAmount = remainingLabelAuthorizedAmount(sourceOrderDO);
+            BigDecimal transactionCancelAmount = remainingAuthorizedAmount(sourceOrderDO);
             updated = transactionOrderMapper.markVoidSuccess(
                     sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
-                    resultDTO.getTransactionId(), cancelAmount, sourceOrderDO.getVersion());
+                    resultDTO.getTransactionId(), labelCancelAmount, transactionCancelAmount, sourceOrderDO.getVersion());
         } else {
             updated = 1;
         }
         if (updated != 1) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "source transaction state has changed");
         }
-        log.info("支付生命周期累计金额已更新, event: PAYMENT_AMOUNT_CHANGED, stage: AMOUNT_UPDATE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, logicalTable: {}, affectedRows: {}, authorizedBefore: {}, capturedBefore: {}, refundedBefore: {}, availableCaptureBefore: {}, availableRefundBefore: {}",
+        log.info("支付生命周期双口径累计金额已更新, event: PAYMENT_AMOUNT_CHANGED, stage: AMOUNT_UPDATE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, labelCurrency: {}, labelAmount: {}, transactionCurrency: {}, transactionAmount: {}, logicalTable: {}, affectedRows: {}, labelAuthorizedBefore: {}, labelCapturedBefore: {}, labelRefundedBefore: {}, labelAvailableCaptureBefore: {}, labelAvailableRefundBefore: {}, authorizedBefore: {}, capturedBefore: {}, refundedBefore: {}, availableCaptureBefore: {}, availableRefundBefore: {}",
                 TraceContext.getTraceId(),
                 sourceOrderDO.getMerchantId(),
                 sourceOrderDO.getMerchantOrderNo(),
@@ -3064,31 +3124,23 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 sourceOrderDO.getOperationId(),
                 resultDTO.getSourceTransactionId(),
                 resultDTO.getTransactionType(),
+                sourceOrderDO.getLabelCurrency(),
+                labelAmount,
                 sourceOrderDO.getTransactionCurrency(),
-                amount,
+                transactionAmount,
                 TRANSACTION_ORDER_TABLE,
                 updated,
+                sourceOrderDO.getLabelAuthorizedAmount(),
+                sourceOrderDO.getLabelCapturedAmount(),
+                sourceOrderDO.getLabelRefundedAmount(),
+                sourceOrderDO.getLabelAvailableCaptureAmount(),
+                sourceOrderDO.getLabelAvailableRefundAmount(),
                 sourceOrderDO.getAuthorizedAmount(),
                 sourceOrderDO.getCapturedAmount(),
                 sourceOrderDO.getRefundedAmount(),
                 sourceOrderDO.getAvailableCaptureAmount(),
                 sourceOrderDO.getAvailableRefundAmount());
         return updated;
-    }
-
-    /**
-     * 从接口返回金额恢复主币种金额。
-     *
-     * @param resultDTO 交易结果
-     * @param sourceOrderDO 原生命周期主单
-     * @return 主币种金额
-     */
-    private BigDecimal amountFromResult(PaymentCreateResultDTO resultDTO, TransactionOrderDO sourceOrderDO) {
-        if (resultDTO.getAmount() == null) {
-            return BigDecimal.ZERO;
-        }
-        int exponent = sourceOrderDO.getCurrencyExponent() == null ? 0 : sourceOrderDO.getCurrencyExponent();
-        return BigDecimal.valueOf(resultDTO.getAmount()).movePointLeft(exponent);
     }
 
     /**
@@ -3099,6 +3151,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 ? BigDecimal.ZERO : sourceOrderDO.getAuthorizedAmount();
         BigDecimal authorizedCancelAmount = sourceOrderDO.getAuthorizedCancelAmount() == null
                 ? BigDecimal.ZERO : sourceOrderDO.getAuthorizedCancelAmount();
+        return authorizedAmount.subtract(authorizedCancelAmount);
+    }
+
+    /**
+     * 计算原交易标签口径剩余可撤销授权金额。
+     */
+    private BigDecimal remainingLabelAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
+        BigDecimal authorizedAmount = zeroIfNull(sourceOrderDO.getLabelAuthorizedAmount());
+        BigDecimal authorizedCancelAmount = zeroIfNull(sourceOrderDO.getLabelAuthorizedCancelAmount());
         return authorizedAmount.subtract(authorizedCancelAmount);
     }
 
@@ -3933,7 +3994,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         LocalDateTime actionTransactionDateTime = recordDTO.getCommandDTO().getTransactionDateTime();
         TransactionOrderDO source = recordDTO.getSourceOrderDO();
         PaymentCreateResultDTO result = recordDTO.getResultDTO();
-        BigDecimal amount = amountFromResult(result, source);
+        BigDecimal labelAmount = resolveLabelAmount(recordDTO.getCommandDTO());
+        BigDecimal transactionAmount = resolveTransactionAmount(recordDTO.getCommandDTO());
         TransactionAmountChangeLogDO logDO = new TransactionAmountChangeLogDO();
         logDO.setAmountChangeId(PaymentOrderNoGenerator.nextOrderNo(AMOUNT_CHANGE_PREFIX, actionTransactionDateTime));
         logDO.setTransactionId(result.getTransactionId());
@@ -3941,33 +4003,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setSourceTransactionId(result.getSourceTransactionId());
         logDO.setChangeType(result.getTransactionType());
         logDO.setAmountCurrency(source.getTransactionCurrency());
-        logDO.setChangeAmount(amount);
-        fillAmountBeforeAfter(logDO, source, result.getTransactionType(), amount);
+        logDO.setChangeAmount(transactionAmount);
+        logDO.setLabelAmountCurrency(source.getLabelCurrency());
+        logDO.setLabelChangeAmount(labelAmount);
+        fillAmountBeforeAfter(logDO, source, result.getTransactionType(), labelAmount, transactionAmount);
         logDO.setChangeReason("交易动作成功：" + result.getTransactionType());
         logDO.setChangeTime(now);
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
         int affectedRows = transactionAmountChangeLogMapper.insertLogical(logDO);
-        log.info("支付金额变动审计已保存, event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED, stage: AMOUNT_UPDATE, traceId: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, logicalTable: {}, affectedRows: {}, authorizedBefore: {}, authorizedAfter: {}, capturedBefore: {}, capturedAfter: {}, refundedBefore: {}, refundedAfter: {}, availableCaptureBefore: {}, availableCaptureAfter: {}, availableRefundBefore: {}, availableRefundAfter: {}",
+        log.info("支付双口径金额变动审计已保存, event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED, stage: AMOUNT_UPDATE, traceId: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, labelCurrency: {}, labelAmount: {}, transactionCurrency: {}, transactionAmount: {}, logicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 result.getTransactionId(),
                 source.getOperationId(),
                 result.getSourceTransactionId(),
                 result.getTransactionType(),
+                logDO.getLabelAmountCurrency(),
+                logDO.getLabelChangeAmount(),
                 logDO.getAmountCurrency(),
                 logDO.getChangeAmount(),
                 TRANSACTION_AMOUNT_CHANGE_LOG_TABLE,
-                affectedRows,
-                logDO.getAuthorizedBefore(),
-                logDO.getAuthorizedAfter(),
-                logDO.getCapturedBefore(),
-                logDO.getCapturedAfter(),
-                logDO.getRefundedBefore(),
-                logDO.getRefundedAfter(),
-                logDO.getAvailableCaptureBefore(),
-                logDO.getAvailableCaptureAfter(),
-                logDO.getAvailableRefundBefore(),
-                logDO.getAvailableRefundAfter());
+                affectedRows);
     }
 
     /**
@@ -3981,7 +4037,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                     TransactionOrderDO sourceOrderDO,
                                     LocalDateTime now) {
         LocalDateTime actionTransactionDateTime = operationDO.getTransactionDateTime();
-        BigDecimal amount = operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount();
+        BigDecimal labelAmount = zeroIfNull(operationDO.getLabelAmount());
+        BigDecimal transactionAmount = zeroIfNull(operationDO.getTransactionAmount());
         TransactionAmountChangeLogDO logDO = new TransactionAmountChangeLogDO();
         logDO.setAmountChangeId(PaymentOrderNoGenerator.nextOrderNo(AMOUNT_CHANGE_PREFIX, actionTransactionDateTime));
         logDO.setTransactionId(operationDO.getTransactionId());
@@ -3989,33 +4046,28 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setSourceTransactionId(operationDO.getSourceTransactionId());
         logDO.setChangeType(operationDO.getTransactionType());
         logDO.setAmountCurrency(sourceOrderDO.getTransactionCurrency());
-        logDO.setChangeAmount(amount);
-        fillAmountBeforeAfter(logDO, sourceOrderDO, operationDO.getTransactionType(), amount);
+        logDO.setChangeAmount(transactionAmount);
+        logDO.setLabelAmountCurrency(sourceOrderDO.getLabelCurrency());
+        logDO.setLabelChangeAmount(labelAmount);
+        fillAmountBeforeAfter(
+                logDO, sourceOrderDO, operationDO.getTransactionType(), labelAmount, transactionAmount);
         logDO.setChangeReason("渠道回调确认交易动作成功：" + operationDO.getTransactionType());
         logDO.setChangeTime(now);
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
         int affectedRows = transactionAmountChangeLogMapper.insertLogical(logDO);
-        log.info("支付回调金额变动审计已保存, event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED, stage: CALLBACK_AMOUNT_UPDATE, traceId: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, currency: {}, amount: {}, logicalTable: {}, affectedRows: {}, authorizedBefore: {}, authorizedAfter: {}, capturedBefore: {}, capturedAfter: {}, refundedBefore: {}, refundedAfter: {}, availableCaptureBefore: {}, availableCaptureAfter: {}, availableRefundBefore: {}, availableRefundAfter: {}",
+        log.info("支付回调双口径金额变动审计已保存, event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED, stage: CALLBACK_AMOUNT_UPDATE, traceId: {}, transactionId: {}, operationId: {}, sourceTransactionId: {}, transactionType: {}, labelCurrency: {}, labelAmount: {}, transactionCurrency: {}, transactionAmount: {}, logicalTable: {}, affectedRows: {}",
                 TraceContext.getTraceId(),
                 operationDO.getTransactionId(),
                 sourceOrderDO.getOperationId(),
                 operationDO.getSourceTransactionId(),
                 operationDO.getTransactionType(),
+                logDO.getLabelAmountCurrency(),
+                logDO.getLabelChangeAmount(),
                 logDO.getAmountCurrency(),
                 logDO.getChangeAmount(),
                 TRANSACTION_AMOUNT_CHANGE_LOG_TABLE,
-                affectedRows,
-                logDO.getAuthorizedBefore(),
-                logDO.getAuthorizedAfter(),
-                logDO.getCapturedBefore(),
-                logDO.getCapturedAfter(),
-                logDO.getRefundedBefore(),
-                logDO.getRefundedAfter(),
-                logDO.getAvailableCaptureBefore(),
-                logDO.getAvailableCaptureAfter(),
-                logDO.getAvailableRefundBefore(),
-                logDO.getAvailableRefundAfter());
+                affectedRows);
     }
 
     /**
@@ -4024,12 +4076,29 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param logDO           金额变动日志
      * @param source          原生命周期主单
      * @param transactionType 当前动作类型
-     * @param amount          当前动作金额
+     * @param labelAmount 当前动作标签金额
+     * @param transactionAmount 当前动作渠道交易金额
      */
     private void fillAmountBeforeAfter(TransactionAmountChangeLogDO logDO,
                                        TransactionOrderDO source,
                                        String transactionType,
-                                       BigDecimal amount) {
+                                       BigDecimal labelAmount,
+                                       BigDecimal transactionAmount) {
+        BigDecimal labelAuthorized = zeroIfNull(source.getLabelAuthorizedAmount());
+        BigDecimal labelCaptured = zeroIfNull(source.getLabelCapturedAmount());
+        BigDecimal labelRefunded = zeroIfNull(source.getLabelRefundedAmount());
+        BigDecimal labelAvailableCapture = zeroIfNull(source.getLabelAvailableCaptureAmount());
+        BigDecimal labelAvailableRefund = zeroIfNull(source.getLabelAvailableRefundAmount());
+        logDO.setLabelAuthorizedBefore(labelAuthorized);
+        logDO.setLabelCapturedBefore(labelCaptured);
+        logDO.setLabelRefundedBefore(labelRefunded);
+        logDO.setLabelAvailableCaptureBefore(labelAvailableCapture);
+        logDO.setLabelAvailableRefundBefore(labelAvailableRefund);
+        logDO.setLabelAuthorizedAfter(labelAuthorized);
+        logDO.setLabelCapturedAfter(labelCaptured);
+        logDO.setLabelRefundedAfter(labelRefunded);
+        logDO.setLabelAvailableCaptureAfter(labelAvailableCapture);
+        logDO.setLabelAvailableRefundAfter(labelAvailableRefund);
         BigDecimal authorized = zeroIfNull(source.getAuthorizedAmount());
         BigDecimal captured = zeroIfNull(source.getCapturedAmount());
         BigDecimal refunded = zeroIfNull(source.getRefundedAmount());
@@ -4047,16 +4116,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setAvailableRefundAfter(availableRefund);
         if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(transactionType)
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(transactionType)) {
-            logDO.setCapturedAfter(captured.add(amount));
-            logDO.setAvailableCaptureAfter(availableCapture.subtract(amount));
-            logDO.setAvailableRefundAfter(availableRefund.add(amount));
+            logDO.setLabelCapturedAfter(labelCaptured.add(labelAmount));
+            logDO.setLabelAvailableCaptureAfter(labelAvailableCapture.subtract(labelAmount));
+            logDO.setLabelAvailableRefundAfter(labelAvailableRefund.add(labelAmount));
+            logDO.setCapturedAfter(captured.add(transactionAmount));
+            logDO.setAvailableCaptureAfter(availableCapture.subtract(transactionAmount));
+            logDO.setAvailableRefundAfter(availableRefund.add(transactionAmount));
         } else if (PaymentTransactionTypeEnum.REFUND.getCode().equals(transactionType)) {
-            logDO.setRefundedAfter(refunded.add(amount));
-            logDO.setAvailableRefundAfter(availableRefund.subtract(amount));
+            logDO.setLabelRefundedAfter(labelRefunded.add(labelAmount));
+            logDO.setLabelAvailableRefundAfter(labelAvailableRefund.subtract(labelAmount));
+            logDO.setRefundedAfter(refunded.add(transactionAmount));
+            logDO.setAvailableRefundAfter(availableRefund.subtract(transactionAmount));
         } else if (PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(transactionType)) {
-            logDO.setAuthorizedAfter(authorized.add(amount));
-            logDO.setAvailableCaptureAfter(availableCapture.add(amount));
+            logDO.setLabelAuthorizedAfter(labelAuthorized.add(labelAmount));
+            logDO.setLabelAvailableCaptureAfter(labelAvailableCapture.add(labelAmount));
+            logDO.setAuthorizedAfter(authorized.add(transactionAmount));
+            logDO.setAvailableCaptureAfter(availableCapture.add(transactionAmount));
         } else if (PaymentTransactionTypeEnum.VOID.getCode().equals(transactionType)) {
+            logDO.setLabelAvailableCaptureAfter(BigDecimal.ZERO);
             logDO.setAvailableCaptureAfter(BigDecimal.ZERO);
         }
     }
@@ -4187,9 +4264,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 new MerchantNotificationPayload.BillingInfo();
         billingInfo.setLabelAmount(operationDO.getLabelAmount());
         billingInfo.setLabelCurrency(operationDO.getLabelCurrency());
-        billingInfo.setTransactionAmount(operationDO.getTransactionAmount());
-        billingInfo.setTransactionCurrency(operationDO.getTransactionCurrency());
-        billingInfo.setTransactionRate(normalizeRate(operationDO.getTransactionRate()));
         billingInfo.setSettlementCurrency(operationDO.getSettlementCurrency());
         billingInfo.setSettlementAmount(operationDO.getSettlementAmount());
         payload.setBillingInfo(billingInfo);
@@ -4297,16 +4371,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO.getLabelAmount(), commandDTO.getLabelAmount(), commandDTO.getAmount()));
         billingInfo.setLabelCurrency(firstText(
                 resultDTO.getLabelCurrency(), commandDTO.getLabelCurrency(), commandDTO.getCurrency()));
-        billingInfo.setTransactionAmount(firstAmount(
-                resultDTO.getTransactionAmount(), commandDTO.getTransactionAmount(), commandDTO.getAmount()));
-        billingInfo.setTransactionCurrency(firstText(
-                resultDTO.getTransactionCurrency(), commandDTO.getTransactionCurrency(),
-                resultDTO.getCurrency(), commandDTO.getCurrency()));
-        billingInfo.setTransactionRate(normalizeRate(firstAmount(
-                resultDTO.getTransactionRate(), commandDTO.getTransactionRate(), DEFAULT_TRANSACTION_RATE)));
-        billingInfo.setRateSource(resultDTO.getRateSource());
-        billingInfo.setRateTime(offsetDateTimeString(
-                resultDTO.getRateTime(), resultDTO.getTransactionTimeZone()));
         billingInfo.setSettlementCurrency(resultDTO.getSettlementCurrency());
         billingInfo.setSettlementAmount(resultDTO.getSettlementAmount());
         return billingInfo;
@@ -4325,14 +4389,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             }
         }
         return null;
-    }
-
-    /**
-     * 规范化汇率。
-     */
-    private BigDecimal normalizeRate(BigDecimal value) {
-        BigDecimal rate = value == null ? DEFAULT_TRANSACTION_RATE : value;
-        return rate.setScale(8, RoundingMode.HALF_UP);
     }
 
     /**

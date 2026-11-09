@@ -3031,6 +3031,7 @@ DROP TABLE IF EXISTS `risk_evaluation_hit_detail`;
 CREATE TABLE `risk_evaluation_hit_detail` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `risk_record_no` varchar(64) NOT NULL COMMENT '风控记录号',
+  `evaluation_time` datetime(3) NOT NULL COMMENT '所属风控评估时间，也是季度分片路由键',
   `module_type` varchar(32) NOT NULL COMMENT '命中模块类型：AML、BLACK、WHITE、RULE',
   `function_code` varchar(64) NOT NULL COMMENT '命中功能编码',
   `function_name` varchar(128) DEFAULT NULL COMMENT '命中功能名称',
@@ -3053,6 +3054,7 @@ CREATE TABLE `risk_evaluation_hit_detail` (
   `decision_effect` varchar(32) DEFAULT NULL COMMENT '当前明细对最终决策的影响：ALLOW、BLOCK、REVIEW、CHALLENGE、NONE',
   PRIMARY KEY (`id`),
   KEY `idx_risk_hit_record` (`risk_record_no`),
+  KEY `idx_risk_hit_time_record` (`evaluation_time`,`risk_record_no`,`id`),
   KEY `idx_risk_hit_function_time` (`module_type`,`function_code`,`decision_time`),
   KEY `idx_risk_hit_record_stage` (`risk_record_no`,`stage_order`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=15823 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控评估命中明细表';
@@ -3086,6 +3088,36 @@ CREATE TABLE `risk_evaluation_record` (
   KEY `idx_risk_eval_level_time` (`risk_level`,`evaluation_time`,`id`),
   KEY `idx_risk_eval_time_id` (`evaluation_time`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=671 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控评估记录表';
+
+-- ----------------------------
+-- Table structure for risk_evaluation_locator
+-- ----------------------------
+DROP TABLE IF EXISTS `risk_evaluation_locator`;
+CREATE TABLE `risk_evaluation_locator` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `risk_record_no` varchar(64) NOT NULL COMMENT '全局唯一风控记录号',
+  `evaluation_time` datetime(3) NOT NULL COMMENT '原始评估时间，用于精确定位季度分片',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_risk_evaluation_locator_record` (`risk_record_no`),
+  KEY `idx_risk_evaluation_locator_time` (`evaluation_time`,`risk_record_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控记录号季度定位与跨季度幂等表';
+
+-- ----------------------------
+-- Physical tables for risk audit quarter sharding
+-- ----------------------------
+DROP TABLE IF EXISTS `risk_evaluation_record_202603`;
+CREATE TABLE `risk_evaluation_record_202603` LIKE `risk_evaluation_record`;
+ALTER TABLE `risk_evaluation_record_202603` AUTO_INCREMENT = 202603000000000001;
+DROP TABLE IF EXISTS `risk_evaluation_hit_detail_202603`;
+CREATE TABLE `risk_evaluation_hit_detail_202603` LIKE `risk_evaluation_hit_detail`;
+ALTER TABLE `risk_evaluation_hit_detail_202603` AUTO_INCREMENT = 202603000000000001;
+DROP TABLE IF EXISTS `risk_evaluation_record_202604`;
+CREATE TABLE `risk_evaluation_record_202604` LIKE `risk_evaluation_record`;
+ALTER TABLE `risk_evaluation_record_202604` AUTO_INCREMENT = 202604000000000001;
+DROP TABLE IF EXISTS `risk_evaluation_hit_detail_202604`;
+CREATE TABLE `risk_evaluation_hit_detail_202604` LIKE `risk_evaluation_hit_detail`;
+ALTER TABLE `risk_evaluation_hit_detail_202604` AUTO_INCREMENT = 202604000000000001;
 
 -- ----------------------------
 -- Table structure for risk_import_batch
@@ -5194,6 +5226,18 @@ CREATE TABLE `transaction_amount_change_log` (
   `change_type` varchar(64) NOT NULL COMMENT '变动类型：AUTH_INCREASE、CAPTURE、REFUND、VOID、CHARGEBACK。',
   `amount_currency` char(3) NOT NULL COMMENT '金额币种。',
   `change_amount` decimal(20,6) NOT NULL COMMENT '本次变动金额，可正可负。',
+  `label_amount_currency` char(3) NOT NULL COMMENT '本次变动的标签币种。',
+  `label_change_amount` decimal(20,6) NOT NULL COMMENT '本次变动的标签金额。',
+  `label_authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签授权金额。',
+  `label_authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签授权金额。',
+  `label_captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签请款金额。',
+  `label_captured_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签请款金额。',
+  `label_refunded_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签退款金额。',
+  `label_refunded_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签退款金额。',
+  `label_available_capture_before` decimal(20,6) NOT NULL COMMENT '变动前标签可请款金额。',
+  `label_available_capture_after` decimal(20,6) NOT NULL COMMENT '变动后标签可请款金额。',
+  `label_available_refund_before` decimal(20,6) NOT NULL COMMENT '变动前标签可退款金额。',
+  `label_available_refund_after` decimal(20,6) NOT NULL COMMENT '变动后标签可退款金额。',
   `authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计授权金额。',
   `authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计授权金额。',
   `captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计请款金额。',
@@ -5231,6 +5275,18 @@ CREATE TABLE `transaction_amount_change_log_202603` (
   `change_type` varchar(64) NOT NULL COMMENT '变动类型：AUTH_INCREASE、CAPTURE、REFUND、VOID、CHARGEBACK。',
   `amount_currency` char(3) NOT NULL COMMENT '金额币种。',
   `change_amount` decimal(20,6) NOT NULL COMMENT '本次变动金额，可正可负。',
+  `label_amount_currency` char(3) NOT NULL COMMENT '本次变动的标签币种。',
+  `label_change_amount` decimal(20,6) NOT NULL COMMENT '本次变动的标签金额。',
+  `label_authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签授权金额。',
+  `label_authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签授权金额。',
+  `label_captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签请款金额。',
+  `label_captured_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签请款金额。',
+  `label_refunded_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签退款金额。',
+  `label_refunded_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签退款金额。',
+  `label_available_capture_before` decimal(20,6) NOT NULL COMMENT '变动前标签可请款金额。',
+  `label_available_capture_after` decimal(20,6) NOT NULL COMMENT '变动后标签可请款金额。',
+  `label_available_refund_before` decimal(20,6) NOT NULL COMMENT '变动前标签可退款金额。',
+  `label_available_refund_after` decimal(20,6) NOT NULL COMMENT '变动后标签可退款金额。',
   `authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计授权金额。',
   `authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计授权金额。',
   `captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计请款金额。',
@@ -5268,6 +5324,18 @@ CREATE TABLE `transaction_amount_change_log_202604` (
   `change_type` varchar(64) NOT NULL COMMENT '变动类型：AUTH_INCREASE、CAPTURE、REFUND、VOID、CHARGEBACK。',
   `amount_currency` char(3) NOT NULL COMMENT '金额币种。',
   `change_amount` decimal(20,6) NOT NULL COMMENT '本次变动金额，可正可负。',
+  `label_amount_currency` char(3) NOT NULL COMMENT '本次变动的标签币种。',
+  `label_change_amount` decimal(20,6) NOT NULL COMMENT '本次变动的标签金额。',
+  `label_authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签授权金额。',
+  `label_authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签授权金额。',
+  `label_captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签请款金额。',
+  `label_captured_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签请款金额。',
+  `label_refunded_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签退款金额。',
+  `label_refunded_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签退款金额。',
+  `label_available_capture_before` decimal(20,6) NOT NULL COMMENT '变动前标签可请款金额。',
+  `label_available_capture_after` decimal(20,6) NOT NULL COMMENT '变动后标签可请款金额。',
+  `label_available_refund_before` decimal(20,6) NOT NULL COMMENT '变动前标签可退款金额。',
+  `label_available_refund_after` decimal(20,6) NOT NULL COMMENT '变动后标签可退款金额。',
   `authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计授权金额。',
   `authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计授权金额。',
   `captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计请款金额。',
@@ -7249,6 +7317,7 @@ CREATE TABLE `transaction_operation` (
   `fail_reason_message` varchar(512) DEFAULT NULL COMMENT '后台可见失败原因描述。',
   `label_currency` char(3) NOT NULL COMMENT '商户上送/标签币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '商户上送/标签金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额。',
   `approved_currency` char(3) DEFAULT NULL COMMENT '渠道批准或最终成功币种。',
@@ -7348,6 +7417,7 @@ CREATE TABLE `transaction_operation_202603` (
   `fail_reason_message` varchar(512) DEFAULT NULL COMMENT '后台可见失败原因描述。',
   `label_currency` char(3) NOT NULL COMMENT '商户上送/标签币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '商户上送/标签金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额。',
   `approved_currency` char(3) DEFAULT NULL COMMENT '渠道批准或最终成功币种。',
@@ -7447,6 +7517,7 @@ CREATE TABLE `transaction_operation_202604` (
   `fail_reason_message` varchar(512) DEFAULT NULL COMMENT '后台可见失败原因描述。',
   `label_currency` char(3) NOT NULL COMMENT '商户上送/标签币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '商户上送/标签金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额。',
   `approved_currency` char(3) DEFAULT NULL COMMENT '渠道批准或最终成功币种。',
@@ -7539,6 +7610,7 @@ CREATE TABLE `transaction_order` (
   `payer_visible_message` varchar(512) DEFAULT NULL COMMENT '付款人可见的模糊失败原因。',
   `label_currency` char(3) NOT NULL COMMENT '标签币种，即商户上送/页面展示的原始交易币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '标签金额，即商户上送/页面展示的原始交易金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种，经过 DCC/EDC 后用于交易核心处理。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额，经过 DCC/EDC 后用于交易核心处理。',
   `channel_request_currency` char(3) DEFAULT NULL COMMENT '上送渠道的币种。',
@@ -7553,6 +7625,13 @@ CREATE TABLE `transaction_order` (
   `transaction_rate` decimal(24,12) DEFAULT NULL COMMENT '标签金额转交易金额使用的汇率。',
   `rate_source` varchar(64) DEFAULT NULL COMMENT '汇率来源，如 PLATFORM、CHANNEL、MERCHANT。',
   `rate_time` datetime(3) DEFAULT NULL COMMENT '汇率生效或报价时间。',
+  `label_authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，标签币种单位。',
+  `label_authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，标签币种单位。',
+  `label_captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，标签币种单位。',
+  `label_refunded_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计退款成功金额，标签币种单位。',
+  `label_chargeback_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计拒付金额，标签币种单位。',
+  `label_available_capture_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可请款金额，标签币种单位。',
+  `label_available_refund_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可退款金额，标签币种单位。',
   `authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，交易币种单位。',
   `authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。',
   `captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，交易币种单位。',
@@ -7633,6 +7712,7 @@ CREATE TABLE `transaction_order_202603` (
   `payer_visible_message` varchar(512) DEFAULT NULL COMMENT '付款人可见的模糊失败原因。',
   `label_currency` char(3) NOT NULL COMMENT '标签币种，即商户上送/页面展示的原始交易币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '标签金额，即商户上送/页面展示的原始交易金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种，经过 DCC/EDC 后用于交易核心处理。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额，经过 DCC/EDC 后用于交易核心处理。',
   `channel_request_currency` char(3) DEFAULT NULL COMMENT '上送渠道的币种。',
@@ -7647,6 +7727,13 @@ CREATE TABLE `transaction_order_202603` (
   `transaction_rate` decimal(24,12) DEFAULT NULL COMMENT '标签金额转交易金额使用的汇率。',
   `rate_source` varchar(64) DEFAULT NULL COMMENT '汇率来源，如 PLATFORM、CHANNEL、MERCHANT。',
   `rate_time` datetime(3) DEFAULT NULL COMMENT '汇率生效或报价时间。',
+  `label_authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，标签币种单位。',
+  `label_authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，标签币种单位。',
+  `label_captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，标签币种单位。',
+  `label_refunded_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计退款成功金额，标签币种单位。',
+  `label_chargeback_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计拒付金额，标签币种单位。',
+  `label_available_capture_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可请款金额，标签币种单位。',
+  `label_available_refund_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可退款金额，标签币种单位。',
   `authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，交易币种单位。',
   `authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。',
   `captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，交易币种单位。',
@@ -7727,6 +7814,7 @@ CREATE TABLE `transaction_order_202604` (
   `payer_visible_message` varchar(512) DEFAULT NULL COMMENT '付款人可见的模糊失败原因。',
   `label_currency` char(3) NOT NULL COMMENT '标签币种，即商户上送/页面展示的原始交易币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '标签金额，即商户上送/页面展示的原始交易金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种，经过 DCC/EDC 后用于交易核心处理。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额，经过 DCC/EDC 后用于交易核心处理。',
   `channel_request_currency` char(3) DEFAULT NULL COMMENT '上送渠道的币种。',
@@ -7741,6 +7829,13 @@ CREATE TABLE `transaction_order_202604` (
   `transaction_rate` decimal(24,12) DEFAULT NULL COMMENT '标签金额转交易金额使用的汇率。',
   `rate_source` varchar(64) DEFAULT NULL COMMENT '汇率来源，如 PLATFORM、CHANNEL、MERCHANT。',
   `rate_time` datetime(3) DEFAULT NULL COMMENT '汇率生效或报价时间。',
+  `label_authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，标签币种单位。',
+  `label_authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，标签币种单位。',
+  `label_captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，标签币种单位。',
+  `label_refunded_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计退款成功金额，标签币种单位。',
+  `label_chargeback_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计拒付金额，标签币种单位。',
+  `label_available_capture_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可请款金额，标签币种单位。',
+  `label_available_refund_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可退款金额，标签币种单位。',
   `authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，交易币种单位。',
   `authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。',
   `captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，交易币种单位。',

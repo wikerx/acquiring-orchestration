@@ -149,7 +149,7 @@ public class AdminMerchantInfoController {
      * @return 更新后的商户详情
      */
     @PostMapping("/{id}/activate")
-    @RequiresPermission("merchant:info:changeStatus")
+    @RequiresPermission("merchant:info:activate")
     @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.UPDATE, operation = "激活商户")
     public CommonResult<AdminMerchantInfoDTO> activate(@PathVariable("id") Long id) {
         return success(adminMerchantInfoApplicationService.activate(id));

@@ -5,6 +5,7 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.risk.RiskDTOs;
+import com.scott.payment.admin.mapper.AdminRiskAuditMapper;
 import com.scott.payment.admin.mapper.RiskManagementMapper;
 import com.scott.payment.admin.service.MerchantAccessApprovalNotificationService;
 import com.scott.payment.admin.support.approval.MerchantAccessApprovalStatus;
@@ -25,6 +26,7 @@ import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
@@ -412,6 +414,16 @@ public class AdminRiskManagementApplicationService {
     );
 
     private final RiskManagementMapper riskManagementMapper;
+
+    /**
+     * 风控审计季度分片专用数据访问入口。
+     */
+    private final AdminRiskAuditMapper riskAuditMapper;
+
+    /**
+     * 风控审计分片运行配置，用于在迁移窗口内保留原单表兼容查询。
+     */
+    private final RiskAuditShardingProperties riskAuditShardingProperties;
     private final RiskListValueNormalizer riskListValueNormalizer;
     private final AdminRiskImportLogService importLogService;
 
@@ -436,7 +448,9 @@ public class AdminRiskManagementApplicationService {
     /**
      * 创建风控管理应用服务。
      *
-     * @param riskManagementMapper     风控管理数据访问接口
+     * @param riskManagementMapper     风控配置与迁移前审计兼容数据访问接口
+     * @param riskAuditMapper          风控审计季度分片数据访问接口
+     * @param riskAuditShardingProperties 风控审计分片运行配置
      * @param riskListValueNormalizer  名单匹配值归一化组件
      * @param importLogService         导入批次日志服务
      * @param cacheInvalidationCoordinator 风控规则缓存失效协调器
@@ -447,6 +461,8 @@ public class AdminRiskManagementApplicationService {
      * @param approvalNotificationService 审批结果通知服务，在事务提交后发送邮件
      */
     public AdminRiskManagementApplicationService(RiskManagementMapper riskManagementMapper,
+                                                 AdminRiskAuditMapper riskAuditMapper,
+                                                 RiskAuditShardingProperties riskAuditShardingProperties,
                                                  RiskListValueNormalizer riskListValueNormalizer,
                                                  AdminRiskImportLogService importLogService,
                                                  RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator,
@@ -456,6 +472,8 @@ public class AdminRiskManagementApplicationService {
                                                  BaseMerchantInfoMapper merchantInfoMapper,
                                                  MerchantAccessApprovalNotificationService approvalNotificationService) {
         this.riskManagementMapper = riskManagementMapper;
+        this.riskAuditMapper = riskAuditMapper;
+        this.riskAuditShardingProperties = riskAuditShardingProperties;
         this.riskListValueNormalizer = riskListValueNormalizer;
         this.importLogService = importLogService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
@@ -1239,9 +1257,13 @@ public class AdminRiskManagementApplicationService {
      *
      * @return 近 30 天商户风险统计，按高风险命中数倒序
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public List<RiskDTOs.MerchantRiskRankingResponse> merchantRiskRanking() {
-        List<Map<String, Object>> rows = riskManagementMapper.selectMerchantRiskRanking(20);
+        LocalDateTime endTimeExclusive = LocalDateTime.now(PLATFORM_ZONE_ID);
+        LocalDateTime startTime = endTimeExclusive.minusDays(30);
+        List<Map<String, Object>> rows = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectMerchantRiskRanking(startTime, endTimeExclusive, 20)
+                : riskManagementMapper.selectMerchantRiskRanking(20);
         return rows == null ? List.of() : rows.stream().map(this::toMerchantRiskRankingResponse).toList();
     }
 
@@ -1267,7 +1289,7 @@ public class AdminRiskManagementApplicationService {
      * @param request 商户、订单、风险等级、决策结果、时间范围和分页条件
      * @return 风控评估记录分页数据
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public PageResult<RiskDTOs.RiskEvaluationResponse> pageTodayRiskEvents(
             RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null
@@ -1291,12 +1313,29 @@ public class AdminRiskManagementApplicationService {
      * @param request 查询条件，允许按交易标识、风险等级、决策结果和评估时间范围过滤
      * @return 风控评估记录分页数据
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public PageResult<RiskDTOs.RiskEvaluationResponse> pageEvaluations(
             RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null ? new RiskDTOs.EvaluationQueryRequest() : request;
-        validateEvaluationTimeRange(query);
-        long total = riskManagementMapper.countEvaluations(
+        LocalDateTime exactEvaluationTime = prepareEvaluationQuery(query);
+        if (riskAuditShardingProperties.isEnabled()
+                && StringUtils.hasText(query.getRiskRecordNo())
+                && exactEvaluationTime == null) {
+            return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
+        }
+        long total = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.countEvaluations(
+                query.getRiskRecordNo(),
+                query.getMerchantId(),
+                query.getMerchantOrderNo(),
+                query.getPaymentOrderNo(),
+                query.getDecisionResult(),
+                query.getRiskLevel(),
+                exactEvaluationTime,
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive())
+                : riskManagementMapper.countEvaluations(
+                query.getRiskRecordNo(),
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
@@ -1304,7 +1343,22 @@ public class AdminRiskManagementApplicationService {
                 query.getRiskLevel(),
                 query.getEvaluationStartTime(),
                 query.getEvaluationEndTimeExclusive());
-        List<Map<String, Object>> rows = riskManagementMapper.selectEvaluations(
+        List<Map<String, Object>> rows = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectEvaluations(
+                query.getRiskRecordNo(),
+                query.getMerchantId(),
+                query.getMerchantOrderNo(),
+                query.getPaymentOrderNo(),
+                query.getDecisionResult(),
+                query.getRiskLevel(),
+                exactEvaluationTime,
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive(),
+                offset(query.safePageNo(), query.safePageSize()),
+                query.safePageSize()
+        )
+                : riskManagementMapper.selectEvaluations(
+                query.getRiskRecordNo(),
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
@@ -1313,12 +1367,39 @@ public class AdminRiskManagementApplicationService {
                 query.getEvaluationStartTime(),
                 query.getEvaluationEndTimeExclusive(),
                 offset(query.safePageNo(), query.safePageSize()),
-                query.safePageSize()
-        );
+                query.safePageSize());
         List<RiskDTOs.RiskEvaluationResponse> normalizedRows = rows == null ? List.of() : rows.stream()
                 .map(this::toEvaluationResponse)
                 .toList();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), normalizedRows);
+    }
+
+    /**
+     * 归一化风控记录查询时间：精确记录号优先走定位表，普通列表默认限定平台当天。
+     *
+     * @param query 待归一化查询条件
+     * @return 分片启用时由定位表解析出的精确评估时间；其他场景返回 {@code null}
+     */
+    private LocalDateTime prepareEvaluationQuery(RiskDTOs.EvaluationQueryRequest query) {
+        if (StringUtils.hasText(query.getRiskRecordNo())) {
+            query.setRiskRecordNo(query.getRiskRecordNo().trim());
+            query.setEvaluationStartTime(null);
+            query.setEvaluationEndTimeExclusive(null);
+            return riskAuditShardingProperties.isEnabled()
+                    ? riskAuditMapper.selectEvaluationTime(query.getRiskRecordNo())
+                    : null;
+        }
+        boolean startMissing = query.getEvaluationStartTime() == null;
+        boolean endMissing = query.getEvaluationEndTimeExclusive() == null;
+        if (startMissing && endMissing) {
+            LocalDate platformDate = LocalDate.now(PLATFORM_ZONE_ID);
+            query.setEvaluationStartTime(platformDate.atStartOfDay());
+            query.setEvaluationEndTimeExclusive(platformDate.plusDays(1).atStartOfDay());
+        } else if (startMissing || endMissing) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "评估时间范围必须同时包含开始和结束时间");
+        }
+        validateEvaluationTimeRange(query);
+        return null;
     }
 
     /**
@@ -1338,7 +1419,7 @@ public class AdminRiskManagementApplicationService {
      * @param riskRecordNo 风控记录号
      * @return 命中明细列表
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public List<RiskDTOs.RiskEvaluationDetailResponse> evaluationHits(String riskRecordNo) {
         return evaluationDetails(riskRecordNo);
     }
@@ -1349,13 +1430,71 @@ public class AdminRiskManagementApplicationService {
      * @param riskRecordNo 风控记录号
      * @return 按执行阶段排列的规则评估记录
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public List<RiskDTOs.RiskEvaluationDetailResponse> evaluationDetails(String riskRecordNo) {
         if (!StringUtils.hasText(riskRecordNo)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控记录号不能为空");
         }
-        List<Map<String, Object>> rows = riskManagementMapper.selectEvaluationHits(riskRecordNo);
+        String normalizedRecordNo = riskRecordNo.trim();
+        List<Map<String, Object>> rows;
+        if (riskAuditShardingProperties.isEnabled()) {
+            LocalDateTime evaluationTime = riskAuditMapper.selectEvaluationTime(normalizedRecordNo);
+            rows = evaluationTime == null
+                    ? List.of()
+                    : riskAuditMapper.selectEvaluationDetails(normalizedRecordNo, evaluationTime);
+        } else {
+            rows = riskManagementMapper.selectEvaluationHits(normalizedRecordNo);
+        }
         return rows == null ? List.of() : rows.stream().map(this::toEvaluationDetailResponse).toList();
+    }
+
+    /**
+     * 分页查询单笔风控评估的全部实际执行明细。
+     *
+     * <p>分页统计和明细读取使用同一风控记录号及稳定排序。分片开启时先通过定位表获取
+     * 原始评估时间，再精确路由到主记录和执行明细所在季度；分片关闭时保留原单表兼容路径。</p>
+     *
+     * @param riskRecordNo 风控记录号
+     * @param request      分页参数，允许为空
+     * @return 风控执行明细分页结果
+     */
+    @DS(DataSourceName.RISK_AUDIT)
+    public PageResult<RiskDTOs.RiskEvaluationDetailResponse> pageEvaluationDetails(
+            String riskRecordNo,
+            RiskDTOs.EvaluationDetailQueryRequest request) {
+        if (!StringUtils.hasText(riskRecordNo)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控记录号不能为空");
+        }
+        String normalizedRecordNo = riskRecordNo.trim();
+        RiskDTOs.EvaluationDetailQueryRequest query = request == null
+                ? new RiskDTOs.EvaluationDetailQueryRequest()
+                : request;
+        LocalDateTime evaluationTime = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectEvaluationTime(normalizedRecordNo)
+                : null;
+        if (riskAuditShardingProperties.isEnabled() && evaluationTime == null) {
+            return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
+        }
+        long total = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.countEvaluationDetails(normalizedRecordNo, evaluationTime)
+                : riskManagementMapper.countEvaluationHits(normalizedRecordNo);
+        if (total == 0L) {
+            return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
+        }
+        List<Map<String, Object>> rows = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectEvaluationDetailsPage(
+                normalizedRecordNo,
+                evaluationTime,
+                offset(query.safePageNo(), query.safePageSize()),
+                query.safePageSize())
+                : riskManagementMapper.selectEvaluationHitsPage(
+                normalizedRecordNo,
+                offset(query.safePageNo(), query.safePageSize()),
+                query.safePageSize());
+        List<RiskDTOs.RiskEvaluationDetailResponse> details = rows == null
+                ? List.of()
+                : rows.stream().map(this::toEvaluationDetailResponse).toList();
+        return PageResult.of(total, query.safePageNo(), query.safePageSize(), details);
     }
 
     /**

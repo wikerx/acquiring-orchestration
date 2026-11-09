@@ -124,6 +124,11 @@ public class TransactionOrderDO implements Serializable {
     private BigDecimal labelAmount;
 
     /**
+     * 标签币种 ISO 4217 小数位精度，用于商户口径金额格式化和最小单位转换。
+     */
+    private Integer labelCurrencyExponent;
+
+    /**
      * 系统交易币种，当前未启用 DCC/EDC 时与标签币种一致。
      */
     private String transactionCurrency;
@@ -204,37 +209,72 @@ public class TransactionOrderDO implements Serializable {
     private LocalDateTime rateTime;
 
     /**
-     * 累计授权成功金额，交易币种单位。
+     * 累计授权成功金额，标签币种单位。
+     */
+    private BigDecimal labelAuthorizedAmount;
+
+    /**
+     * 累计授权取消、预授权取消或未请款金额释放成功金额，标签币种单位。
+     */
+    private BigDecimal labelAuthorizedCancelAmount;
+
+    /**
+     * 累计请款成功金额，标签币种单位。
+     */
+    private BigDecimal labelCapturedAmount;
+
+    /**
+     * 累计退款成功金额，标签币种单位。
+     */
+    private BigDecimal labelRefundedAmount;
+
+    /**
+     * 累计拒付金额，标签币种单位。
+     */
+    private BigDecimal labelChargebackAmount;
+
+    /**
+     * 当前可请款金额，标签币种单位。
+     */
+    private BigDecimal labelAvailableCaptureAmount;
+
+    /**
+     * 当前可退款金额，标签币种单位。
+     */
+    private BigDecimal labelAvailableRefundAmount;
+
+    /**
+     * 累计授权成功金额，渠道交易币种单位。
      */
     private BigDecimal authorizedAmount;
 
     /**
-     * 累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。
+     * 累计授权取消、预授权取消或未请款金额释放成功金额，渠道交易币种单位。
      */
     private BigDecimal authorizedCancelAmount;
 
     /**
-     * 累计请款成功金额，交易币种单位。
+     * 累计请款成功金额，渠道交易币种单位。
      */
     private BigDecimal capturedAmount;
 
     /**
-     * 累计退款成功金额，交易币种单位。
+     * 累计退款成功金额，渠道交易币种单位。
      */
     private BigDecimal refundedAmount;
 
     /**
-     * 累计拒付金额，交易币种单位。
+     * 累计拒付金额，渠道交易币种单位。
      */
     private BigDecimal chargebackAmount;
 
     /**
-     * 当前可请款金额，交易币种单位。
+     * 当前可请款金额，渠道交易币种单位。
      */
     private BigDecimal availableCaptureAmount;
 
     /**
-     * 当前可退款金额，交易币种单位。
+     * 当前可退款金额，渠道交易币种单位。
      */
     private BigDecimal availableRefundAmount;
 

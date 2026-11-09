@@ -204,6 +204,51 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     }
 
     /**
+     * 商户端人工重发必须按商户号和任务号精确读取成功通知，并保留原任务快照执行投递。
+     */
+    @Test
+    void shouldManuallyRetrySuccessfulNotificationByExactMerchantScope() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        fixture.task().setLastAttemptNo(2);
+        fixture.task().setVersion(7);
+        when(fixture.notificationMapper().selectRetryableNotification(
+                fixture.task().getTransactionId(),
+                fixture.task().getNotifyId(),
+                fixture.task().getMerchantId(),
+                transactionDateTime)).thenReturn(fixture.task());
+        when(fixture.notificationMapper().markProcessingForManualRetry(
+                eq(1L), eq(transactionDateTime), eq(7), eq("MNR-M-EXACT-0001"), any()))
+                .thenReturn(1);
+        when(fixture.notificationMapper().markSuccess(
+                eq(1L), eq(transactionDateTime), eq(8), any())).thenReturn(1);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth("test-token-not-a-real-secret");
+        when(fixture.requestFactory().create(
+                fixture.task(), 3, "MNR-M-EXACT-0001"))
+                .thenReturn(new MerchantCallbackHttpRequest(
+                        "MNR-M-EXACT-0001", headers,
+                        "{\"data\":\"encrypted\"}", "{\"data\":\"***\"}"));
+
+        boolean notified = fixture.service().retryNotification(
+                transactionDateTime,
+                fixture.task().getTransactionId(),
+                fixture.task().getNotifyId(),
+                fixture.task().getMerchantId(),
+                "MNR-M-EXACT-0001");
+
+        assertThat(notified).isTrue();
+        verify(fixture.notificationMapper()).selectRetryableNotification(
+                fixture.task().getTransactionId(),
+                fixture.task().getNotifyId(),
+                fixture.task().getMerchantId(),
+                transactionDateTime);
+        verify(fixture.notificationMapper(), never()).selectRetryableByTransactionId(
+                anyString(), any(LocalDateTime.class));
+        verify(fixture.requestFactory()).create(fixture.task(), 3, "MNR-M-EXACT-0001");
+    }
+
+    /**
      * 人工回调失败只关闭本次状态，不得生成自动重试 Outbox。
      */
     @Test

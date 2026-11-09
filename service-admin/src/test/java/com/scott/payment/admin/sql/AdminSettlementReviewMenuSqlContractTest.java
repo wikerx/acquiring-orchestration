@@ -54,6 +54,7 @@ class AdminSettlementReviewMenuSqlContractTest {
             "settlement:posting:export",
             "settlement:profile:list",
             "settlement:profile:detail",
+            "settlement:profile:create",
             "settlement:profile:update");
 
     private static final Set<String> PAGE_COMPONENT_PATHS = Set.of(

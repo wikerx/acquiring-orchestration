@@ -17,6 +17,8 @@ class AdminClearingControllerContractTest {
         Map<String, String> expected = Map.ofEntries(
                 Map.entry("search", "clearing:record:list"),
                 Map.entry("detail", "clearing:record:detail"),
+                Map.entry("transactionDetails", "clearing:record:detail"),
+                Map.entry("reserveDetails", "clearing:record:detail"),
                 Map.entry("recalculationOptions", "clearing:record:recalculate"),
                 Map.entry("retry", "clearing:record:retry"),
                 Map.entry("review", "clearing:record:review"),

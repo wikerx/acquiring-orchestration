@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 /**
- * service-data 商户通知命令消费者，仅处理自动到期投递和后台人工重发消息。
+ * service-data 商户通知命令消费者，仅处理自动到期投递和人工重发消息。
  */
 @Slf4j
 @Component
@@ -143,7 +143,10 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
     }
 
     /**
-     * 消费管理后台人工重发事件，使用消息号固定本次回调 eventId。
+     * 消费管理端或商户端人工重发事件，使用消息号固定本次回调 eventId。
+     *
+     * <p>商户端消息必须同时提供任务号和商户号，并在通知数据源中再次精确校验归属；管理端历史消息
+     * 两个兼容字段均为空时继续按交易号定位。只传其中一个字段视为无效命令并交由死信治理。</p>
      *
      * @param payload RocketMQ JSON 消息体
      * @param startNanos 消费开始单调时钟
@@ -166,13 +169,31 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
             throw new IllegalArgumentException("merchant notification retry fields are missing");
         }
+        boolean hasNotifyId = StringUtils.hasText(message.getNotifyId());
+        boolean hasMerchantId = StringUtils.hasText(message.getMerchantId());
+        if (hasNotifyId != hasMerchantId) {
+            log.error("人工重发命令任务归属字段不完整, event: DATA_MERCHANT_NOTIFY_RETRY_SCOPE_INVALID, traceId: {}, messageId: {}, hasNotifyId: {}, hasMerchantId: {}",
+                    TraceContext.getTraceId(), message.getMessageId(), hasNotifyId, hasMerchantId);
+            throw new IllegalArgumentException(
+                    "merchant notification retry scope fields must be provided together");
+        }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
-            boolean notified = deliveryService.retryTransaction(
-                    message.getTransactionDateTime(), message.getTransactionId(), message.getMessageId());
-            log.info("人工重发命令消费完成, event: DATA_MERCHANT_NOTIFY_RETRY_CONSUMED, traceId: {}, messageId: {}, requestId: {}, transactionId: {}, requestedBy: {}, notified: {}, durationMs: {}",
+            boolean notified = hasNotifyId
+                    ? deliveryService.retryNotification(
+                            message.getTransactionDateTime(),
+                            message.getTransactionId(),
+                            message.getNotifyId(),
+                            message.getMerchantId(),
+                            message.getMessageId())
+                    : deliveryService.retryTransaction(
+                            message.getTransactionDateTime(),
+                            message.getTransactionId(),
+                            message.getMessageId());
+            log.info("人工重发命令消费完成, event: DATA_MERCHANT_NOTIFY_RETRY_CONSUMED, traceId: {}, messageId: {}, requestId: {}, notifyId: {}, transactionId: {}, merchantId: {}, requestedBy: {}, notified: {}, durationMs: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getRequestId(),
-                    message.getTransactionId(), message.getRequestedBy(), notified, elapsedMillis(startNanos));
+                    message.getNotifyId(), message.getTransactionId(), message.getMerchantId(),
+                    message.getRequestedBy(), notified, elapsedMillis(startNanos));
         } finally {
             TraceContext.clear();
         }

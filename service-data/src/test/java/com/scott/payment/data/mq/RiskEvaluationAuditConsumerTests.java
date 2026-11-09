@@ -9,6 +9,8 @@ import com.scott.payment.data.service.RiskAuditPersistenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -81,6 +83,22 @@ class RiskEvaluationAuditConsumerTests {
     }
 
     /**
+     * 缺少季度路由时间的消息必须触发重试，禁止按消费者当前时间错误落入其他分片。
+     */
+    @Test
+    void shouldRejectMessageWithoutEvaluationTime() {
+        Fixture fixture = fixture(IdempotentAcquireResult.ACQUIRED);
+
+        assertThatThrownBy(() -> fixture.consumer().onMessage(
+                "{\"messageId\":\"MSG-RISK-BAD-TIME\",\"riskRecordNo\":\"RK202608010001\"}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("risk audit message required fields are missing");
+
+        verify(fixture.persistenceService(), never()).persist(
+                org.mockito.ArgumentMatchers.any(RiskEvaluationAuditMessage.class));
+    }
+
+    /**
      * Redis 不可用时应继续依赖数据库唯一键。
      */
     @Test
@@ -127,6 +145,7 @@ class RiskEvaluationAuditConsumerTests {
         RiskEvaluationAuditMessage message = new RiskEvaluationAuditMessage();
         message.setMessageId("MSG-RISK-001");
         message.setRiskRecordNo("RK202608010001");
+        message.setEvaluationTime(LocalDateTime.of(2026, 8, 1, 10, 30));
         when(idempotentService.acquireMq(
                 "risk-audit", "RK202608010001", properties.getConsumeIdempotentTtlSeconds()))
                 .thenReturn(acquireResult);

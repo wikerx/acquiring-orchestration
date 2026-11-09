@@ -40,9 +40,9 @@ class RefundScopeServiceTests {
 
     private TransactionOrderDO order(String principal, String available, String refunded) {
         TransactionOrderDO order = new TransactionOrderDO();
-        order.setTransactionAmount(new BigDecimal(principal));
-        order.setAvailableRefundAmount(new BigDecimal(available));
-        order.setRefundedAmount(new BigDecimal(refunded));
+        order.setLabelAmount(new BigDecimal(principal));
+        order.setLabelAvailableRefundAmount(new BigDecimal(available));
+        order.setLabelRefundedAmount(new BigDecimal(refunded));
         return order;
     }
 }

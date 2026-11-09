@@ -1479,6 +1479,7 @@ public interface RiskManagementMapper {
     /**
      * 查询风控评估总数。
      *
+     * @param riskRecordNo    风控记录号，允许为空
      * @param merchantId      商户号，允许为空
      * @param merchantOrderNo 商户订单号，允许为空
      * @param paymentOrderNo  平台支付订单号，允许为空
@@ -1493,6 +1494,7 @@ public interface RiskManagementMapper {
             SELECT COUNT(1)
             FROM risk_evaluation_record
             WHERE 1 = 1
+            <if test="riskRecordNo != null and riskRecordNo != ''">AND risk_record_no = #{riskRecordNo}</if>
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
             <if test="merchantOrderNo != null and merchantOrderNo != ''">AND merchant_order_no = #{merchantOrderNo}</if>
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
@@ -1502,7 +1504,8 @@ public interface RiskManagementMapper {
             <if test="evaluationEndTimeExclusive != null">AND evaluation_time &lt; #{evaluationEndTimeExclusive}</if>
             </script>
             """)
-    long countEvaluations(@Param("merchantId") String merchantId,
+    long countEvaluations(@Param("riskRecordNo") String riskRecordNo,
+                          @Param("merchantId") String merchantId,
                           @Param("merchantOrderNo") String merchantOrderNo,
                           @Param("paymentOrderNo") String paymentOrderNo,
                           @Param("decisionResult") String decisionResult,
@@ -1513,6 +1516,7 @@ public interface RiskManagementMapper {
     /**
      * 分页查询风控评估记录。
      *
+     * @param riskRecordNo    风控记录号，允许为空
      * @param merchantId      商户号，允许为空
      * @param merchantOrderNo 商户订单号，允许为空
      * @param paymentOrderNo  平台支付订单号，允许为空
@@ -1541,6 +1545,7 @@ public interface RiskManagementMapper {
                    evaluation_time
             FROM risk_evaluation_record
             WHERE 1 = 1
+            <if test="riskRecordNo != null and riskRecordNo != ''">AND risk_record_no = #{riskRecordNo}</if>
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
             <if test="merchantOrderNo != null and merchantOrderNo != ''">AND merchant_order_no = #{merchantOrderNo}</if>
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
@@ -1552,7 +1557,8 @@ public interface RiskManagementMapper {
             LIMIT #{offset}, #{pageSize}
             </script>
             """)
-    List<Map<String, Object>> selectEvaluations(@Param("merchantId") String merchantId,
+    List<Map<String, Object>> selectEvaluations(@Param("riskRecordNo") String riskRecordNo,
+                                                @Param("merchantId") String merchantId,
                                                 @Param("merchantOrderNo") String merchantOrderNo,
                                                 @Param("paymentOrderNo") String paymentOrderNo,
                                                 @Param("decisionResult") String decisionResult,
@@ -1596,6 +1602,61 @@ public interface RiskManagementMapper {
             ORDER BY COALESCE(stage_order, 9999) ASC, decision_time ASC, id ASC
             """)
     List<Map<String, Object>> selectEvaluationHits(@Param("riskRecordNo") String riskRecordNo);
+
+    /**
+     * 查询指定风控评估的执行明细总数。
+     *
+     * @param riskRecordNo 风控记录号
+     * @return 执行明细总数
+     */
+    @Select("""
+            SELECT COUNT(1)
+            FROM risk_evaluation_hit_detail
+            WHERE risk_record_no = #{riskRecordNo}
+            """)
+    long countEvaluationHits(@Param("riskRecordNo") String riskRecordNo);
+
+    /**
+     * 分页查询指定风控评估的执行明细。
+     *
+     * <p>排序条件与旧全量详情接口保持一致，确保切换分页后页面顺序不发生变化。</p>
+     *
+     * @param riskRecordNo 风控记录号
+     * @param offset       分页偏移量
+     * @param pageSize     每页记录数
+     * @return 当前页执行明细
+     */
+    @Select("""
+            SELECT id,
+                   risk_record_no,
+                   module_type,
+                   function_code,
+                   function_name,
+                   rule_id,
+                   hit_element,
+                   hit_value_masked,
+                   risk_level,
+                   decision_result,
+                   reason_code,
+                   decision_reason,
+                   decision_time,
+                   time_window_seconds,
+                   threshold_count,
+                   elements_json,
+                   current_count,
+                   stage_code,
+                   stage_name,
+                   stage_order,
+                   match_result,
+                   decision_effect
+            FROM risk_evaluation_hit_detail
+            WHERE risk_record_no = #{riskRecordNo}
+            ORDER BY COALESCE(stage_order, 9999) ASC, decision_time ASC, id ASC
+            LIMIT #{offset}, #{pageSize}
+            """)
+    List<Map<String, Object>> selectEvaluationHitsPage(@Param("riskRecordNo") String riskRecordNo,
+                                                       @Param("offset") long offset,
+                                                       @Param("pageSize") long pageSize);
 
     /**
      * 查询交易加黑总数。

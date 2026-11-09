@@ -72,4 +72,21 @@ public class AdminRiskRecordController {
             @PathVariable("riskRecordNo") String riskRecordNo) {
         return success(riskManagementApplicationService.evaluationDetails(riskRecordNo));
     }
+
+    /**
+     * 分页查询单笔风控评估的实际执行明细。
+     *
+     * <p>该接口用于管理端详情抽屉的受控分页；旧的全量详情接口继续保留，避免破坏既有调用方。</p>
+     *
+     * @param riskRecordNo 风控记录号
+     * @param request      明细分页参数，允许为空
+     * @return 按执行阶段和决策时间稳定排序的明细分页结果
+     */
+    @PostMapping("/evaluations/{riskRecordNo}/details/page")
+    @RequiresPermission("risk:record:evaluation:detail")
+    public CommonResult<PageResult<RiskDTOs.RiskEvaluationDetailResponse>> pageEvaluationDetails(
+            @PathVariable("riskRecordNo") String riskRecordNo,
+            @RequestBody(required = false) RiskDTOs.EvaluationDetailQueryRequest request) {
+        return success(riskManagementApplicationService.pageEvaluationDetails(riskRecordNo, request));
+    }
 }

@@ -121,12 +121,12 @@ public class PaymentCreateResultDTO implements Serializable {
     private String pendingReasonCode;
 
     /**
-     * 交易金额，单位为最小币种单位，例如 USD 分；兼容旧调用方，新接入优先读取 transactionAmount。
+     * 商户标签金额，单位为标签币种最小单位，例如 USD 分；用于兼容既有内部调用方和对外响应转换。
      */
     private Long amount;
 
     /**
-     * 交易币种，使用 ISO 4217 三位大写币种代码；兼容旧调用方，新接入优先读取 transactionCurrency。
+     * 商户标签币种，使用 ISO 4217 三位大写币种代码；用于兼容既有内部调用方和对外响应转换。
      */
     private String currency;
 
@@ -141,27 +141,27 @@ public class PaymentCreateResultDTO implements Serializable {
     private String orderCurrency;
 
     /**
-     * 当前生命周期累计授权成功金额，平台交易币种单位。
+     * 当前生命周期累计授权成功金额，商户标签币种单位。
      */
     private BigDecimal totalAuthorizedAmount;
 
     /**
-     * 当前生命周期累计请款成功金额，平台交易币种单位。
+     * 当前生命周期累计请款成功金额，商户标签币种单位。
      */
     private BigDecimal totalCapturedAmount;
 
     /**
-     * 当前生命周期累计退款成功金额，平台交易币种单位。
+     * 当前生命周期累计退款成功金额，商户标签币种单位。
      */
     private BigDecimal totalRefundAmount;
 
     /**
-     * 当前生命周期累计授权取消、预授权取消或未请款金额释放成功金额，平台交易币种单位。
+     * 当前生命周期累计授权取消、预授权取消或未请款金额释放成功金额，商户标签币种单位。
      */
     private BigDecimal totalAuthorizedCancelAmount;
 
     /**
-     * 当前生命周期累计拒付成立或确认成功金额，平台交易币种单位。
+     * 当前生命周期累计拒付成立或确认成功金额，商户标签币种单位。
      */
     private BigDecimal totalRefuseAmount;
 

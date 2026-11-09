@@ -31,7 +31,10 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 清分计算默认实现，按终态触发规则调用 finance-library，保留标签币种百分比与USD固定费/上下限且不做换汇。
+ * 清分计算默认实现，按终态触发规则调用 finance-library。
+ *
+ * <p>商户本金、百分比费用和保证金均以当前动作标签金额为业务基数；渠道批准金额和系统交易金额只属于
+ * 平台与渠道间的执行事实，不得进入商户清分。USD 固定费和上下限继续保留原子组件，清分阶段不做换汇。</p>
  */
 @Service
 public class DefaultClearingCalculationService implements ClearingCalculationService {
@@ -77,9 +80,8 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         Principal principal;
         Money labelAmount;
         try {
-            Money transactionAmount = transactionAmount(command.operation());
-            principal = principal(command.operation(), transactionAmount);
             labelAmount = labelAmount(command.operation());
+            principal = principal(command.operation(), labelAmount);
         } catch (IllegalArgumentException exception) {
             throw controlledFailure(ClearingFailureCodeEnum.AMOUNT_INVALID, exception);
         }
@@ -165,9 +167,11 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
     }
 
     /**
-     * 按终态交易类型确定本金方向，并优先采用渠道批准金额作为本金事实。
+     * 按终态交易类型确定本金方向，并使用当前动作标签金额形成商户清分本金。
+     *
+     * <p>渠道批准金额和系统交易金额即使存在，也只能用于平台核算渠道成本，不能覆盖商户请求口径。</p>
      */
-    private Principal principal(ClearingOperationFacts operation, Money transactionAmount) {
+    private Principal principal(ClearingOperationFacts operation, Money labelAmount) {
         if (!"SUCCESS".equals(operation.transactionStatus())) {
             return null;
         }
@@ -179,33 +183,10 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         } else {
             return null;
         }
-        Money amount = approvedAmount(operation);
-        if (amount == null) {
-            amount = transactionAmount;
+        if (labelAmount.amount().signum() < 0) {
+            throw new IllegalArgumentException("successful principal action requires a non-negative label amount");
         }
-        if (amount == null || amount.amount().signum() < 0) {
-            throw new IllegalArgumentException("successful principal action requires a non-negative approved amount");
-        }
-        return new Principal(amount, direction);
-    }
-
-    /**
-     * 将可空渠道批准金额转换为带 ISO exponent 的精确金额。
-     */
-    private Money approvedAmount(ClearingOperationFacts operation) {
-        return money(operation.approvedAmount(), operation.approvedCurrency(), "approved amount");
-    }
-
-    /**
-     * 将数据库权威交易金额转换为带 ISO exponent 的精确金额。
-     */
-    private Money transactionAmount(ClearingOperationFacts operation) {
-        Money transaction = money(
-                operation.transactionAmount(), operation.transactionCurrency(), "transaction amount");
-        if (transaction != null && !Objects.equals(transaction.exponent(), operation.currencyExponent())) {
-            throw new IllegalArgumentException("stored transaction currency exponent does not match ISO currency");
-        }
-        return transaction;
+        return new Principal(labelAmount, direction);
     }
 
     /**

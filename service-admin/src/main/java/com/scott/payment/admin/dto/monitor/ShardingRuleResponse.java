@@ -12,12 +12,17 @@ import java.util.List;
 public class ShardingRuleResponse {
 
     /**
+     * 表族：TRANSACTION 或 RISK_AUDIT。
+     */
+    private String tableFamily;
+
+    /**
      * 监控治理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private String ruleKey;
 
     /**
-     * 当前实例加载的交易分片规则版本。
+     * 当前实例加载的所属表族分片规则版本。
      */
     private String ruleVersion;
 

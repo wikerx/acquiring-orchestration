@@ -257,6 +257,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 LocalDateTime.now(),
                 plan.labelCurrencyExponent(),
                 plan.transactionCurrencyExponent());
+        commandDTO.setLabelCurrencyExponent(plan.labelCurrencyExponent());
         applyCaptureAmountPlan(commandDTO, sourceOrderDO, amountPlan);
         // 状态机校验与冲突动作扫描均发生在主单锁内，形成对可请款额度的串行决策点。
         transactionStateMachineService.validateFollowUpAction(
@@ -838,10 +839,10 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         enrichMerchantResponse(resultDTO);
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
-        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
-        resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
-        resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getLabelAuthorizedCancelAmount());
+        resultDTO.setTotalCapturedAmount(sourceOrderDO.getLabelCapturedAmount());
+        resultDTO.setTotalRefundAmount(sourceOrderDO.getLabelRefundedAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getLabelChargebackAmount());
     }
 
     /**
@@ -849,9 +850,9 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
      */
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
-            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+            return firstPositive(sourceOrderDO.getLabelCapturedAmount(), sourceOrderDO.getLabelAmount());
         }
-        return sourceOrderDO.getAuthorizedAmount();
+        return sourceOrderDO.getLabelAuthorizedAmount();
     }
 
     /**

@@ -837,7 +837,7 @@ POST /api/rest/card-bin/v1/query
 | `orderInfo` | object | 订单、本次金额和累计金额 |
 | `billingCardHolderInfo` | object | 首次交易的持卡人账单摘要，不包含卡号和 CVV |
 | `transactionInfo` | object | 当前支付动作结果 |
-| `billingInfo` | object | 标签金额、交易金额、汇率和结算摘要 |
+| `billingInfo` | object | 商户标签金额及已形成的结算摘要 |
 
 **orderInfo 响应字段**
 
@@ -879,13 +879,10 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- |
 | `labelAmount` | decimal | 商户上送或页面展示金额 |
 | `labelCurrency` | string | 商户上送或页面展示币种 |
-| `transactionAmount` | decimal | 平台发送渠道的交易金额 |
-| `transactionCurrency` | string | 平台交易币种 |
-| `transactionRate` | decimal | 标签金额转换为交易金额的汇率；未换汇时通常为 `1.00000000` |
-| `rateSource` | string | 汇率来源编码 |
-| `rateTime` | string | 汇率生效或报价时间 |
 | `settlementAmount` | decimal | 预计或最终结算金额，适用时存在 |
 | `settlementCurrency` | string | 预计或最终结算币种，适用时存在 |
+
+平台为适配渠道而使用的交易金额、交易币种、交易汇率、汇率来源和报价时间属于平台内部成本事实，不进入商户响应、查询或终态回调契约。
 
 商户应使用 `transactionInfo.code/message` 判断当前动作结果，不应使用未公开的内部状态字段。
 
@@ -979,10 +976,7 @@ merchantId + orderInfo.orderId + PAYMENT
   },
   "billingInfo": {
     "labelAmount": 10.25,
-    "labelCurrency": "USD",
-    "transactionAmount": 10.25,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.00000000
+    "labelCurrency": "USD"
   }
 }
 ```
@@ -1663,9 +1657,7 @@ RequestBody 仍使用平台响应加密方案，外层只有 `data`：
   },
   "billingInfo": {
     "labelAmount": 10.00,
-    "labelCurrency": "USD",
-    "transactionAmount": 10.00,
-    "transactionCurrency": "USD"
+    "labelCurrency": "USD"
   }
 }
 ```

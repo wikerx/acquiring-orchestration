@@ -30,6 +30,8 @@ readonly SERVICES=(
 )
 readonly EDGES=(
   merchant-admin
+  admin-data
+  data-admin
   admin-job
   job-admin
   admin-payment
@@ -179,7 +181,7 @@ legacy_edge_data_id() {
 service_edges() {
   case "$1" in
     service-admin)
-      printf '%s\n' merchant-admin admin-job job-admin admin-payment admin-clearing admin-settlement gateway-checkout
+      printf '%s\n' merchant-admin admin-data data-admin admin-job job-admin admin-payment admin-clearing admin-settlement gateway-checkout
       ;;
     service-checkout)
       printf '%s\n' gateway-checkout
@@ -188,7 +190,7 @@ service_edges() {
       printf '%s\n' admin-clearing job-clearing
       ;;
     service-data)
-      printf '%s\n' job-data
+      printf '%s\n' admin-data data-admin job-data
       ;;
     service-gateway)
       printf '%s\n' gateway-checkout
@@ -225,7 +227,8 @@ service_edges() {
 edge_caller() {
   case "$1" in
     merchant-admin) printf '%s' '' ;;
-    admin-job|admin-payment|admin-clearing|admin-settlement) printf '%s' service-admin ;;
+    admin-data|admin-job|admin-payment|admin-clearing|admin-settlement) printf '%s' service-admin ;;
+    data-admin) printf '%s' service-data ;;
     job-admin|job-payment|job-clearing|job-data) printf '%s' service-job ;;
     merchant-payment) printf '%s' service-merchant ;;
     openapi-payment|openapi-payout) printf '%s' service-openapi ;;
@@ -242,6 +245,8 @@ edge_caller() {
 edge_receivers() {
   case "$1" in
     merchant-admin) printf '%s\n' service-admin ;;
+    admin-data) printf '%s\n' service-data ;;
+    data-admin) printf '%s\n' service-admin ;;
     admin-job) printf '%s\n' service-job ;;
     job-admin) printf '%s\n' service-admin ;;
     admin-payment|job-payment|merchant-payment|openapi-payment) printf '%s\n' service-payment ;;
@@ -596,6 +601,8 @@ service_auth_bundle_format() {
 edge_description() {
   case "$1" in
     merchant-admin) printf '遗留 Merchant 到 Admin 兼容接口验签，仅用于失败关闭保护。' ;;
+    admin-data) printf 'Admin 调用 Data 异步导出任务查询、下载和重试命令时使用的凭据。' ;;
+    data-admin) printf 'Data 回调 Admin 权威导出数据源时使用的凭据。' ;;
     admin-job) printf 'Admin 调用 Job 管理命令时使用的签名与验签凭据。' ;;
     job-admin) printf 'Job 调用 Admin 汇率波动评估命令时使用的签名与验签凭据。' ;;
     admin-payment) printf 'Admin 调用 Payment 状态变更和异常处置命令时使用的凭据。' ;;
@@ -1075,10 +1082,15 @@ verify_reconcilable_service_bundle_file() {
     exit 1
   fi
   marker_count="$(sed 's/^[[:space:]]*//' "$content_file" | grep -Fxc "$AUTH_BUNDLE_MARKER" || true)"
-  if [[ "$marker_count" -ne 1 ]]; then
+  if [[ "$marker_count" -gt 1 || "$marker_count" -eq 0 && "$layout" != "nested" ]]; then
     printf 'Managed internal-auth marker validation failed before synchronization: %s.\n' \
       "$service" >&2
     exit 1
+  fi
+  if [[ "$marker_count" -eq 0 ]]; then
+    # 兼容早期脚本已生成但尚未写入 marker 的嵌套配置；本次同步输出仍由严格校验强制补齐 marker。
+    printf 'Legacy markerless nested bundle accepted for controlled synchronization: %s.\n' \
+      "$service"
   fi
   while IFS= read -r edge; do
     [[ -n "$edge" ]] || continue

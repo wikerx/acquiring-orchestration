@@ -1702,6 +1702,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         } else if (attemptDO != null
                 && PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED.getCode().equals(attemptDO.getAttemptStatus())) {
             resultDTO.setPageState(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
+        } else if (attemptDO != null
+                && PaymentTransactionStatusEnum.PENDING.getCode().equals(attemptDO.getChannelStatus())) {
+            // PENDING 与正在执行的 PROCESSING 分开展示，提醒付款人不要重复发起支付。
+            resultDTO.setPageState(PaymentCheckoutPageStateEnum.PENDING.getCode());
         }
         return resultDTO;
     }

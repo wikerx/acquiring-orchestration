@@ -162,6 +162,70 @@ public interface ClearingSettlementCandidateMapper {
                        @Param("now") LocalDateTime now);
 
     /**
+     * 统计候选作为依赖方或被依赖方的全部关系，供历史修复核对冻结数量。
+     */
+    @Select("""
+            SELECT COUNT(1)
+            FROM settlement_candidate_dependency
+            WHERE candidate_id = #{candidateId}
+               OR depends_on_candidate_id = #{candidateId}
+            """)
+    int countDependencyReferences(@Param("candidateId") Long candidateId);
+
+    /**
+     * 锁定候选作为依赖方或被依赖方的全部关系，按主键排序保证快照稳定。
+     */
+    @Select("""
+            SELECT *
+            FROM settlement_candidate_dependency
+            WHERE candidate_id = #{candidateId}
+               OR depends_on_candidate_id = #{candidateId}
+            ORDER BY id ASC
+            FOR UPDATE
+            """)
+    List<ClearingSettlementCandidateDependencyDO> selectDependencyReferencesForUpdate(
+            @Param("candidateId") Long candidateId);
+
+    /**
+     * 按主键锁定依赖候选，供历史修复冻结其未认领状态和版本。
+     */
+    @Select("""
+            SELECT *
+            FROM settlement_candidate
+            WHERE id = #{candidateId}
+            LIMIT 1
+            FOR UPDATE
+            """)
+    ClearingSettlementCandidateDO selectByIdForUpdate(@Param("candidateId") Long candidateId);
+
+    /**
+     * 将保证金释放候选的既有依赖从旧清分候选迁移到新修订候选。
+     * 依赖候选必须仍为冻结版本的未认领 READY，避免覆盖结算并发认领。
+     */
+    @Update("""
+            UPDATE settlement_candidate_dependency dependency
+            JOIN settlement_candidate dependent
+              ON dependent.id = dependency.candidate_id
+            SET dependency.depends_on_candidate_id = #{newDependsOnCandidateId}
+            WHERE dependency.id = #{dependencyId}
+              AND dependency.candidate_id = #{dependentCandidateId}
+              AND dependency.depends_on_candidate_id = #{oldDependsOnCandidateId}
+              AND dependency.dependency_type = 'RESERVE_HOLD_POSTED'
+              AND dependent.source_type = 'RESERVE_RELEASE'
+              AND dependent.candidate_status = 'READY'
+              AND dependent.settlement_batch_no IS NULL
+              AND dependent.claimed_time IS NULL
+              AND dependent.posted_time IS NULL
+              AND dependent.version = #{expectedDependentCandidateVersion}
+            """)
+    int migrateReserveHoldDependency(
+            @Param("dependencyId") long dependencyId,
+            @Param("dependentCandidateId") long dependentCandidateId,
+            @Param("oldDependsOnCandidateId") long oldDependsOnCandidateId,
+            @Param("newDependsOnCandidateId") long newDependsOnCandidateId,
+            @Param("expectedDependentCandidateVersion") long expectedDependentCandidateVersion);
+
+    /**
      * 按冻结动作身份锁定当前清分修订候选，任何缺失、非 READY 或已认领状态都由服务层拒绝。
      */
     @Select("""

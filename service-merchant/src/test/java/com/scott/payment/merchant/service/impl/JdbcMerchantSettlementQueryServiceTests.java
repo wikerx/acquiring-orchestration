@@ -5,6 +5,8 @@ import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchSummary;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingReserveLine;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingTransactionLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.SummaryLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.TransactionItemQuery;
@@ -173,6 +175,71 @@ class JdbcMerchantSettlementQueryServiceTests {
         assertThat(paramsCaptor.getValue().getValue("transactionId"))
                 .isEqualTo("202609091734081602975");
         assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionDateTime);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void clearingLinePagesShouldBindMerchantCurrentRevisionAndStablePagination() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0);
+                    if (sql.contains("SELECT finance.clearing_revision")) return List.of(4);
+                    if (sql.contains("FROM transaction_clearing_detail")) {
+                        return List.of(new ClearingTransactionLine());
+                    }
+                    if (sql.contains("FROM transaction_reserve_clearing_detail")) {
+                        return List.of(new ClearingReserveLine());
+                    }
+                    return List.of();
+                });
+        when(jdbcTemplate.queryForObject(
+                anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(23L, 7L);
+        JdbcMerchantSettlementQueryService service = service(jdbcTemplate);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 11, 8, 18, 30);
+
+        var transactionPage = service.searchClearingTransactionLinesByTransaction(
+                "merchant-a", "TX-1", transactionTime, 2, 20);
+        var reservePage = service.searchClearingReserveLinesByTransaction(
+                "merchant-a", "TX-1", transactionTime, 1, 10);
+
+        assertThat(transactionPage.getTotal()).isEqualTo(23L);
+        assertThat(transactionPage.getRecords()).hasSize(1);
+        assertThat(reservePage.getTotal()).isEqualTo(7L);
+        assertThat(reservePage.getRecords()).hasSize(1);
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> countParameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.times(2)).queryForObject(
+                countSql.capture(), countParameters.capture(), eq(Long.class));
+        assertThat(countSql.getAllValues()).allSatisfy(sql -> assertThat(sql).contains(
+                "detail.transaction_id = :transactionId",
+                "detail.transaction_date_time = :transactionDateTime",
+                "detail.merchant_id = :merchantId",
+                "detail.clearing_revision = :clearingRevision",
+                "detail.record_status = 'ACTIVE'"));
+        assertThat(countParameters.getAllValues()).allSatisfy(parameters -> {
+            assertThat(parameters.getValue("merchantId")).isEqualTo("merchant-a");
+            assertThat(parameters.getValue("transactionId")).isEqualTo("TX-1");
+            assertThat(parameters.getValue("transactionDateTime")).isEqualTo(transactionTime);
+            assertThat(parameters.getValue("clearingRevision")).isEqualTo(4);
+        });
+        ArgumentCaptor<String> listSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> listParameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.times(4)).query(
+                listSql.capture(), listParameters.capture(), any(RowMapper.class));
+        assertThat(listSql.getAllValues()).filteredOn(sql -> sql.contains("LIMIT :offset, :limit"))
+                .allSatisfy(sql -> assertThat(sql)
+                        .contains("ORDER BY detail.line_no ASC, detail.id ASC")
+                        .doesNotContain("formula_snapshot", "fee_plan", "channel"));
+        assertThat(listParameters.getAllValues())
+                .filteredOn(parameters -> parameters.hasValue("offset"))
+                .anySatisfy(parameters -> {
+            assertThat(parameters.getValue("offset")).isEqualTo(20L);
+            assertThat(parameters.getValue("limit")).isEqualTo(20);
+        });
     }
 
     @Test

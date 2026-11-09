@@ -59,7 +59,7 @@ class SettlementAutomaticOperationContractTest {
 
         for (String methodName : List.of(
                 "processBatches", "processManualReviews", "processReviewDecisions",
-                "projectTransactions", "publishEvents")) {
+                "projectTransactions", "projectPrincipalCorrections", "publishEvents")) {
             Scheduled worker = SettlementAutomaticScheduler.class.getDeclaredMethod(methodName)
                     .getAnnotation(Scheduled.class);
             assertThat(worker).isNotNull();

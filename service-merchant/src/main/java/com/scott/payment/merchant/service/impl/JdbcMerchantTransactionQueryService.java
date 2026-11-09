@@ -68,14 +68,15 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             operation_id, root_transaction_id, latest_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, payment_method, payment_brand,
             transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
-            label_currency, label_amount, transaction_currency, transaction_amount,
-            currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
-            merchant_visible_message, authorized_amount, captured_amount, refunded_amount,
-            available_capture_amount, available_refund_amount,
+            label_currency, label_amount, label_currency_exponent AS currency_exponent,
+            transaction_currency, transaction_amount, transaction_rate, dcc_enabled, edc_enabled,
+            merchant_visible_message,
+            label_authorized_amount, label_captured_amount, label_refunded_amount,
+            label_available_capture_amount, label_available_refund_amount,
             settlement_currency, settlement_amount, settlement_rate, settlement_date,
             settlement_batch_no, settlement_transaction_id, settlement_transaction_date_time,
-            settlement_status, reconciliation_status, accounting_status,
-            channel_code, channel_order_no, transaction_date_time, transaction_time_zone
+            settlement_status, accounting_status,
+            transaction_date_time, transaction_time_zone
             """;
     /**
      * 交易动作查询的稳定显式投影，包含页面展示所需的交易、汇率与结算状态字段。
@@ -84,12 +85,11 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             operation_id, transaction_id, source_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, operation_sequence,
             transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
-            label_currency, label_amount, transaction_currency, transaction_amount,
-            currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
-            channel_code, channel_order_no, channel_transaction_id, auth_code,
-            acquirer_reference_no, settlement_currency, settlement_amount, settlement_rate,
+            label_currency, label_amount, label_currency_exponent AS currency_exponent,
+            transaction_currency, transaction_amount, transaction_rate, dcc_enabled, edc_enabled, auth_code,
+            settlement_currency, settlement_amount, settlement_rate,
             settlement_date, settlement_batch_no,
-            settlement_status, reconciliation_status, accounting_status,
+            settlement_status, accounting_status,
             transaction_date_time, operation_time, request_source
             """;
     private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
@@ -437,8 +437,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         appendTextFilter(sql, query.getTransactionStatus(), "AND transaction_status = :transactionStatus");
         appendTextFilter(sql, query.getPaymentMethod(), "AND payment_method = :paymentMethod");
         appendTextFilter(sql, query.getPaymentBrand(), "AND payment_brand = :paymentBrand");
-        appendTextFilter(sql, query.getChannelOrderNo(), "AND channel_order_no = :channelOrderNo");
-        appendTextFilter(sql, query.getReconciliationStatus(), "AND reconciliation_status = :reconciliationStatus");
         appendTextFilter(sql, query.getSettlementStatus(), "AND settlement_status = :settlementStatus");
         return sql.toString();
     }
@@ -453,8 +451,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         appendTextFilter(sql, query.getSourceTransactionId(), "AND o.source_transaction_id = :sourceTransactionId");
         appendTextFilter(sql, query.getTransactionType(), "AND o.transaction_type = :transactionType");
         appendTextFilter(sql, query.getTransactionStatus(), "AND o.transaction_status = :transactionStatus");
-        appendTextFilter(sql, query.getChannelOrderNo(), "AND o.channel_order_no = :channelOrderNo");
-        appendTextFilter(sql, query.getReconciliationStatus(), "AND o.reconciliation_status = :reconciliationStatus");
         appendTextFilter(sql, query.getSettlementStatus(), "AND o.settlement_status = :settlementStatus");
         if (StringUtils.hasText(query.getPaymentMethod())) {
             sql.append(" AND EXISTS (SELECT 1 FROM ").append(paymentTable)
@@ -488,8 +484,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("transactionStatus", query.getTransactionStatus())
                 .addValue("paymentMethod", query.getPaymentMethod())
                 .addValue("paymentBrand", query.getPaymentBrand())
-                .addValue("channelOrderNo", query.getChannelOrderNo())
-                .addValue("reconciliationStatus", query.getReconciliationStatus())
                 .addValue("settlementStatus", query.getSettlementStatus());
     }
 
@@ -503,8 +497,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("sourceTransactionId", query.getSourceTransactionId())
                 .addValue("transactionType", query.getTransactionType())
                 .addValue("transactionStatus", query.getTransactionStatus())
-                .addValue("channelOrderNo", query.getChannelOrderNo())
-                .addValue("reconciliationStatus", query.getReconciliationStatus())
                 .addValue("settlementStatus", query.getSettlementStatus())
                 .addValue("paymentMethod", query.getPaymentMethod())
                 .addValue("paymentBrand", query.getPaymentBrand());
@@ -1162,11 +1154,11 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setLabelAmount(rs.getBigDecimal("label_amount"));
             row.setTransactionCurrency(rs.getString("transaction_currency"));
             row.setTransactionAmount(rs.getBigDecimal("transaction_amount"));
-            row.setCurrentCurrency(row.getTransactionCurrency());
+            row.setCurrentCurrency(row.getLabelCurrency());
             row.setCurrentAmount(resolveCurrentAmount(
                     row.getTransactionType(),
-                    row.getTransactionAmount(),
-                    rs.getBigDecimal("authorized_amount")));
+                    row.getLabelAmount(),
+                    rs.getBigDecimal("label_authorized_amount")));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
             row.setThreeDsEnabled(0);
@@ -1176,11 +1168,11 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setMerchantResponseCode(projection.resultCode().getCode());
             row.setMerchantResponseMessage(projection.message(
                     OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
-            row.setAuthorizedAmount(rs.getBigDecimal("authorized_amount"));
-            row.setCapturedAmount(rs.getBigDecimal("captured_amount"));
-            row.setRefundedAmount(rs.getBigDecimal("refunded_amount"));
-            row.setAvailableCaptureAmount(rs.getBigDecimal("available_capture_amount"));
-            row.setAvailableRefundAmount(rs.getBigDecimal("available_refund_amount"));
+            row.setAuthorizedAmount(rs.getBigDecimal("label_authorized_amount"));
+            row.setCapturedAmount(rs.getBigDecimal("label_captured_amount"));
+            row.setRefundedAmount(rs.getBigDecimal("label_refunded_amount"));
+            row.setAvailableCaptureAmount(rs.getBigDecimal("label_available_capture_amount"));
+            row.setAvailableRefundAmount(rs.getBigDecimal("label_available_refund_amount"));
             row.setSettlementCurrency(rs.getString("settlement_currency"));
             row.setSettlementAmount(rs.getBigDecimal("settlement_amount"));
             row.setSettlementRate(rs.getBigDecimal("settlement_rate"));
@@ -1189,10 +1181,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setSettlementTransactionId(rs.getString("settlement_transaction_id"));
             row.setSettlementTransactionDateTime(localDateTime(rs, "settlement_transaction_date_time"));
             row.setSettlementStatus(rs.getString("settlement_status"));
-            row.setReconciliationStatus(rs.getString("reconciliation_status"));
             row.setAccountingStatus(rs.getString("accounting_status"));
-            row.setChannelCode(rs.getString("channel_code"));
-            row.setChannelOrderNo(rs.getString("channel_order_no"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setRootTransactionDateTime(row.getTransactionDateTime());
             row.setTransactionTimeZone(rs.getString("transaction_time_zone"));
@@ -1229,18 +1218,13 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setMerchantResponseCode(projection.resultCode().getCode());
             row.setMerchantResponseMessage(projection.message(
                     OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
-            row.setChannelCode(rs.getString("channel_code"));
-            row.setChannelOrderNo(rs.getString("channel_order_no"));
-            row.setChannelTransactionId(rs.getString("channel_transaction_id"));
             row.setAuthCode(rs.getString("auth_code"));
-            row.setAcquirerReferenceNo(rs.getString("acquirer_reference_no"));
             row.setSettlementCurrency(rs.getString("settlement_currency"));
             row.setSettlementAmount(rs.getBigDecimal("settlement_amount"));
             row.setSettlementRate(rs.getBigDecimal("settlement_rate"));
             row.setSettlementDate(rs.getObject("settlement_date", java.time.LocalDate.class));
             row.setSettlementBatchNo(rs.getString("settlement_batch_no"));
             row.setSettlementStatus(rs.getString("settlement_status"));
-            row.setReconciliationStatus(rs.getString("reconciliation_status"));
             row.setAccountingStatus(rs.getString("accounting_status"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setOperationTime(localDateTime(rs, "operation_time"));
@@ -1355,12 +1339,12 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析商户页面应展示的当前交易金额；授权类优先展示有效授权累计金额。
+     * 解析商户页面应展示的当前标签金额；授权类优先展示标签口径有效授权累计金额。
      *
      * @param transactionType 平台交易类型编码
-     * @param transactionAmount 动作交易金额，单位由交易币种确定
-     * @param authorizedAmount 主单授权累计金额，单位与交易币种一致
-     * @return 当前可展示金额；授权累计金额不可用时回退到动作交易金额
+     * @param transactionAmount 动作标签金额，单位由标签币种确定
+     * @param authorizedAmount 主单标签口径授权累计金额
+     * @return 当前可展示金额；授权累计金额不可用时回退到动作标签金额
      */
     static BigDecimal resolveCurrentAmount(String transactionType,
                                            BigDecimal transactionAmount,
@@ -1380,11 +1364,11 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         if (!"SUCCESS".equals(row.getTransactionStatus())) {
             return row.getTransactionStatus();
         }
-        BigDecimal authorized = zeroIfNull(rs.getBigDecimal("authorized_amount"));
-        BigDecimal captured = zeroIfNull(rs.getBigDecimal("captured_amount"));
-        BigDecimal refunded = zeroIfNull(rs.getBigDecimal("refunded_amount"));
-        BigDecimal availableCapture = zeroIfNull(rs.getBigDecimal("available_capture_amount"));
-        BigDecimal availableRefund = zeroIfNull(rs.getBigDecimal("available_refund_amount"));
+        BigDecimal authorized = zeroIfNull(rs.getBigDecimal("label_authorized_amount"));
+        BigDecimal captured = zeroIfNull(rs.getBigDecimal("label_captured_amount"));
+        BigDecimal refunded = zeroIfNull(rs.getBigDecimal("label_refunded_amount"));
+        BigDecimal availableCapture = zeroIfNull(rs.getBigDecimal("label_available_capture_amount"));
+        BigDecimal availableRefund = zeroIfNull(rs.getBigDecimal("label_available_refund_amount"));
         if (isAuthorizationLike(row.getTransactionType()) && captured.signum() == 0 && refunded.signum() == 0
                 && authorized.signum() > 0 && availableCapture.signum() == 0) {
             return "VOIDED";

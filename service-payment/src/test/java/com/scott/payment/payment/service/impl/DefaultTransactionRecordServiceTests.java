@@ -375,7 +375,8 @@ class DefaultTransactionRecordServiceTests {
         pendingNotification.setId(97L);
         when(operationMapper.completeStatus(any(), any(), any(), anyString(), anyString(), any(), any(),
                 any(), any(), any(), any(), any(), any(), anyString())).thenReturn(1);
-        when(orderMapper.markInitialSuccess(anyString(), any(), anyString(), any(BigDecimal.class), any(), anyString()))
+        when(orderMapper.markInitialSuccess(anyString(), any(), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenReturn(1);
@@ -437,6 +438,7 @@ class DefaultTransactionRecordServiceTests {
                 "OP202607010030000000001",
                 transactionDateTime,
                 "TX202607010030000000001",
+                new BigDecimal("12.34"),
                 new BigDecimal("12.34"),
                 0,
                 "MATCHED");
@@ -664,7 +666,8 @@ class DefaultTransactionRecordServiceTests {
             historyCapture.value = invocation.getArgument(0);
             return 1;
         });
-        when(orderMapper.increaseCapturedAmount(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any()))
+        when(orderMapper.increaseCapturedAmount(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -694,6 +697,7 @@ class DefaultTransactionRecordServiceTests {
                 LocalDateTime.of(2026, 7, 1, 0, 30),
                 "TX202610011000000000001",
                 new BigDecimal("5.00"),
+                new BigDecimal("5.00"),
                 0);
         verify(snapshotService).recordActionSnapshot(
                 eq(recordDTO.getCommandDTO()), eq(recordDTO.getResultDTO()), any(LocalDateTime.class));
@@ -711,7 +715,8 @@ class DefaultTransactionRecordServiceTests {
         CapturedList<TransactionFlowEventDO> flowEventCapture = new CapturedList<>();
         when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
-        when(orderMapper.increaseCapturedAmount(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any()))
+        when(orderMapper.increaseCapturedAmount(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any()))
                 .thenReturn(1);
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenAnswer(invocation -> {
@@ -765,7 +770,7 @@ class DefaultTransactionRecordServiceTests {
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(orderMapper.increaseRefundedAmount(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any())).thenReturn(1);
+                any(BigDecimal.class), any(BigDecimal.class), any())).thenReturn(1);
         when(notificationMapper.selectLatestConfigByTransactionId(
                 "200001", "TX202607010030000000001", sourceTransactionDateTime))
                 .thenReturn(sourceNotification);
@@ -820,7 +825,7 @@ class DefaultTransactionRecordServiceTests {
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(orderMapper.increaseRefundedAmount(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any())).thenReturn(1);
+                any(BigDecimal.class), any(BigDecimal.class), any())).thenReturn(1);
         when(notificationMapper.selectLatestConfigByTransactionId(
                 "200001", "TX202607010030000000001", sourceTransactionDateTime))
                 .thenReturn(sourceNotification);
@@ -860,7 +865,8 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
-        when(orderMapper.markVoidSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any()))
+        when(orderMapper.markVoidSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -890,6 +896,7 @@ class DefaultTransactionRecordServiceTests {
                 LocalDateTime.of(2026, 7, 1, 0, 30),
                 "TX202610011000000000002",
                 new BigDecimal("12.34"),
+                new BigDecimal("12.34"),
                 0);
     }
 
@@ -905,7 +912,8 @@ class DefaultTransactionRecordServiceTests {
         Captured<TransactionAmountChangeLogDO> amountChangeCapture = new Captured<>();
         when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1);
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
-        when(orderMapper.increaseAuthorizedAmount(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any()))
+        when(orderMapper.increaseAuthorizedAmount(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any()))
                 .thenReturn(1);
         when(amountChangeLogMapper.insertLogical(any(TransactionAmountChangeLogDO.class))).thenAnswer(invocation -> {
             amountChangeCapture.value = invocation.getArgument(0);
@@ -927,6 +935,8 @@ class DefaultTransactionRecordServiceTests {
         TransactionFollowUpRecordDTO recordDTO = followUpRecord();
         recordDTO.getCommandDTO().setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
         recordDTO.getCommandDTO().setAmount(new BigDecimal("20.00"));
+        recordDTO.getCommandDTO().setLabelAmount(new BigDecimal("20.00"));
+        recordDTO.getCommandDTO().setTransactionAmount(new BigDecimal("20.00"));
         recordDTO.getResultDTO().setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
         recordDTO.getResultDTO().setTransactionId("TX202610011000000000003");
         recordDTO.getResultDTO().setAmount(2000L);
@@ -937,6 +947,7 @@ class DefaultTransactionRecordServiceTests {
                 "OP202607010030000000001",
                 LocalDateTime.of(2026, 7, 1, 0, 30),
                 "TX202610011000000000003",
+                new BigDecimal("20.00"),
                 new BigDecimal("20.00"),
                 0);
         assertThat(amountChangeCapture.value.getChangeAmount()).isEqualByComparingTo("20.00");
@@ -959,7 +970,8 @@ class DefaultTransactionRecordServiceTests {
         when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1)
                 .thenReturn(0);
-        when(orderMapper.increaseAuthorizedAmount(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any()))
+        when(orderMapper.increaseAuthorizedAmount(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any()))
                 .thenReturn(1);
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(amountChangeLogMapper.insertLogical(any(TransactionAmountChangeLogDO.class))).thenReturn(1);
@@ -981,6 +993,7 @@ class DefaultTransactionRecordServiceTests {
         operationDO.setTransactionId("TX202610011000000000003");
         operationDO.setSourceTransactionId("TX202607010030000000001");
         operationDO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+        operationDO.setLabelAmount(new BigDecimal("20.00"));
         operationDO.setTransactionAmount(new BigDecimal("20.00"));
         operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         operationDO.setTransactionDateTime(LocalDateTime.of(2026, 10, 1, 10, 0));
@@ -1019,6 +1032,7 @@ class DefaultTransactionRecordServiceTests {
                 LocalDateTime.of(2026, 7, 1, 0, 30),
                 "TX202610011000000000003",
                 new BigDecimal("20.00"),
+                new BigDecimal("20.00"),
                 0);
         verify(amountChangeLogMapper, times(1)).insertLogical(any(TransactionAmountChangeLogDO.class));
     }
@@ -1036,7 +1050,8 @@ class DefaultTransactionRecordServiceTests {
         ArgumentCaptor<TransactionFlowEventDO> flowEventCaptor = ArgumentCaptor.forClass(TransactionFlowEventDO.class);
         when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1);
-        when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString()))
+        when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -1083,6 +1098,7 @@ class DefaultTransactionRecordServiceTests {
                 "OP202607010030000000001",
                 LocalDateTime.of(2026, 7, 1, 0, 30),
                 "TX202607010030000000001",
+                new BigDecimal("12.34"),
                 new BigDecimal("12.34"),
                 0,
                 "MATCHED");
@@ -1179,7 +1195,7 @@ class DefaultTransactionRecordServiceTests {
         when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(),
                 any(), any(), any(), any(), any(), any(), any(), any(), anyString())).thenReturn(1);
         when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any(), anyString())).thenReturn(0);
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString())).thenReturn(0);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -1239,7 +1255,8 @@ class DefaultTransactionRecordServiceTests {
                 .thenReturn(1);
         when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1);
-        when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString()))
+        when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -1319,6 +1336,7 @@ class DefaultTransactionRecordServiceTests {
                 LocalDateTime.of(2026, 7, 1, 0, 30),
                 "202607010030000000001",
                 new BigDecimal("12.34"),
+                new BigDecimal("12.34"),
                 0,
                 "NOT_REQUIRED");
         verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
@@ -1359,6 +1377,7 @@ class DefaultTransactionRecordServiceTests {
         operationDO.setTransactionId(resultDTO.getTransactionId());
         operationDO.setSourceTransactionId(resultDTO.getSourceTransactionId());
         operationDO.setTransactionType(resultDTO.getTransactionType());
+        operationDO.setLabelAmount(new BigDecimal("5.00"));
         operationDO.setTransactionAmount(new BigDecimal("5.00"));
         operationDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
         when(channelRequestMapper.selectByRequestId(
@@ -1374,7 +1393,7 @@ class DefaultTransactionRecordServiceTests {
                 any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1, 0);
         when(orderMapper.increaseCapturedAmount(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any())).thenReturn(1);
+                any(BigDecimal.class), any(BigDecimal.class), any())).thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
                 operationMapper,
@@ -1406,6 +1425,7 @@ class DefaultTransactionRecordServiceTests {
                 followUp.getSourceOrderDO().getTransactionDateTime(),
                 resultDTO.getTransactionId(),
                 new BigDecimal("5.00"),
+                new BigDecimal("5.00"),
                 followUp.getSourceOrderDO().getVersion());
     }
 
@@ -1434,7 +1454,7 @@ class DefaultTransactionRecordServiceTests {
                 any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1);
         when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any(), anyString()))
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -1654,7 +1674,7 @@ class DefaultTransactionRecordServiceTests {
                 any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1);
         when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any(), anyString()))
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -1682,7 +1702,7 @@ class DefaultTransactionRecordServiceTests {
         verify(operationMapper).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(),
                 any(), any(), any(), any(), any(), any(), any(), anyString());
         verify(orderMapper).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any(), anyString());
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString());
     }
 
     /**
@@ -1744,7 +1764,7 @@ class DefaultTransactionRecordServiceTests {
         verify(operationMapper, never()).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(),
                 any(), any(), any(), any(), any(), any(), any(), any(), anyString());
         verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
-                any(BigDecimal.class), any(), anyString());
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString());
     }
 
     /**
@@ -1833,7 +1853,8 @@ class DefaultTransactionRecordServiceTests {
                 "Processing",
                 "CR202607010030000000001",
                 matchTimeCaptor.getValue());
-        verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString());
+        verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString());
         verify(operationMapper, never()).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
         verify(historyMapper, times(2)).insertLogical(historyCaptor.capture());
         TransactionStatusHistoryDO orderHistory = historyCaptor.getAllValues().stream()
@@ -1900,7 +1921,8 @@ class DefaultTransactionRecordServiceTests {
         verify(operationMapper, never()).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
         verify(operationMapper, never()).updateNonTerminalChannelResult(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), anyString(), any());
         verify(orderMapper, never()).completeStatus(anyString(), any(LocalDateTime.class), anyString(), any(), anyString(), anyString(), any(), any(), any(), any(), anyString());
-        verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString());
+        verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString());
     }
 
     /**
@@ -1947,7 +1969,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(historyCapture.value.getTransitionResult()).isEqualTo("IGNORED");
         assertThat(historyCapture.value.getFailReason()).isEqualTo("operation is already terminal");
         verify(operationMapper, never()).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
-        verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString());
+        verify(orderMapper, never()).markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(BigDecimal.class), any(), anyString());
     }
 
     /**
@@ -2147,6 +2170,14 @@ class DefaultTransactionRecordServiceTests {
         commandDTO.setPaymentMethod("BANK_CARD");
         commandDTO.setAmount(new BigDecimal("12.34"));
         commandDTO.setCurrency("USD");
+        commandDTO.setLabelAmount(new BigDecimal("12.34"));
+        commandDTO.setLabelCurrency("USD");
+        commandDTO.setLabelCurrencyExponent(2);
+        commandDTO.setTransactionAmount(new BigDecimal("12.34"));
+        commandDTO.setTransactionCurrency("USD");
+        commandDTO.setTransactionRate(BigDecimal.ONE);
+        commandDTO.setDccEnabled(0);
+        commandDTO.setEdcEnabled(0);
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 1, 0, 30));
         commandDTO.setRequestSource("HOSTED_CHECKOUT");
         commandDTO.setIngressClientIp("198.51.100.11");
@@ -2174,6 +2205,16 @@ class DefaultTransactionRecordServiceTests {
         sourceOrderDO.setMerchantOrderId("AUTH202607140001");
         sourceOrderDO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         sourceOrderDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        sourceOrderDO.setLabelCurrency("USD");
+        sourceOrderDO.setLabelAmount(new BigDecimal("12.34"));
+        sourceOrderDO.setLabelCurrencyExponent(2);
+        sourceOrderDO.setLabelAuthorizedAmount(new BigDecimal("12.34"));
+        sourceOrderDO.setLabelAuthorizedCancelAmount(BigDecimal.ZERO);
+        sourceOrderDO.setLabelCapturedAmount(BigDecimal.ZERO);
+        sourceOrderDO.setLabelRefundedAmount(BigDecimal.ZERO);
+        sourceOrderDO.setLabelChargebackAmount(BigDecimal.ZERO);
+        sourceOrderDO.setLabelAvailableCaptureAmount(new BigDecimal("12.34"));
+        sourceOrderDO.setLabelAvailableRefundAmount(BigDecimal.ZERO);
         sourceOrderDO.setTransactionCurrency("USD");
         sourceOrderDO.setTransactionAmount(new BigDecimal("12.34"));
         sourceOrderDO.setAuthorizedAmount(new BigDecimal("12.34"));
@@ -2192,6 +2233,8 @@ class DefaultTransactionRecordServiceTests {
         commandDTO.setMerchantOrderId("CAPTURE202610010001");
         commandDTO.setTransactionType(PaymentTransactionTypeEnum.CAPTURE.getCode());
         commandDTO.setAmount(new BigDecimal("5.00"));
+        commandDTO.setLabelAmount(new BigDecimal("5.00"));
+        commandDTO.setTransactionAmount(new BigDecimal("5.00"));
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 10, 1, 10, 0));
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setSourceTransactionId(sourceOrderDO.getRootTransactionId());
@@ -2230,6 +2273,9 @@ class DefaultTransactionRecordServiceTests {
         operationDO.setMerchantOrderId("AUTH202607140001");
         operationDO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        operationDO.setLabelCurrency("USD");
+        operationDO.setLabelAmount(new BigDecimal("12.34"));
+        operationDO.setLabelCurrencyExponent(2);
         operationDO.setTransactionCurrency("USD");
         operationDO.setTransactionAmount(new BigDecimal("12.34"));
         operationDO.setTransactionDateTime(LocalDateTime.of(2026, 7, 1, 0, 30));
@@ -2247,6 +2293,16 @@ class DefaultTransactionRecordServiceTests {
         orderDO.setMerchantOrderId("AUTH202607140001");
         orderDO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         orderDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        orderDO.setLabelCurrency("USD");
+        orderDO.setLabelAmount(new BigDecimal("12.34"));
+        orderDO.setLabelCurrencyExponent(2);
+        orderDO.setLabelAuthorizedAmount(BigDecimal.ZERO);
+        orderDO.setLabelAuthorizedCancelAmount(BigDecimal.ZERO);
+        orderDO.setLabelCapturedAmount(BigDecimal.ZERO);
+        orderDO.setLabelRefundedAmount(BigDecimal.ZERO);
+        orderDO.setLabelChargebackAmount(BigDecimal.ZERO);
+        orderDO.setLabelAvailableCaptureAmount(BigDecimal.ZERO);
+        orderDO.setLabelAvailableRefundAmount(BigDecimal.ZERO);
         orderDO.setTransactionCurrency("USD");
         orderDO.setTransactionAmount(new BigDecimal("12.34"));
         orderDO.setAuthorizedAmount(BigDecimal.ZERO);
@@ -2270,6 +2326,11 @@ class DefaultTransactionRecordServiceTests {
         resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
         resultDTO.setAmount(1234L);
         resultDTO.setCurrency("USD");
+        resultDTO.setLabelAmount(new BigDecimal("12.34"));
+        resultDTO.setLabelCurrency("USD");
+        resultDTO.setTransactionAmount(new BigDecimal("12.34"));
+        resultDTO.setTransactionCurrency("USD");
+        resultDTO.setTransactionRate(BigDecimal.ONE);
         return resultDTO;
     }
 
@@ -2313,6 +2374,11 @@ class DefaultTransactionRecordServiceTests {
         resultDTO.setProcessStage(processStage);
         resultDTO.setAmount(1234L);
         resultDTO.setCurrency("USD");
+        resultDTO.setLabelAmount(new BigDecimal("12.34"));
+        resultDTO.setLabelCurrency("USD");
+        resultDTO.setTransactionAmount(new BigDecimal("12.34"));
+        resultDTO.setTransactionCurrency("USD");
+        resultDTO.setTransactionRate(BigDecimal.ONE);
         return resultDTO;
     }
 
@@ -2423,6 +2489,9 @@ class DefaultTransactionRecordServiceTests {
         assertThat((Map<String, Object>) payload.get("merchantInfo")).containsEntry("merchantId", "200001");
         assertThat((Map<String, Object>) payload.get("orderInfo")).containsEntry("orderNo", "M202607140001");
         assertThat((Map<String, Object>) payload.get("transactionInfo")).containsEntry("transactionId", "TX260714180001");
-        assertThat((Map<String, Object>) payload.get("billingInfo")).containsEntry("transactionCurrency", "USD");
+        Map<String, Object> billingInfo = (Map<String, Object>) payload.get("billingInfo");
+        assertThat(billingInfo).containsEntry("labelCurrency", "USD");
+        assertThat(billingInfo).doesNotContainKeys(
+                "transactionAmount", "transactionCurrency", "transactionRate", "rateSource", "rateTime");
     }
 }

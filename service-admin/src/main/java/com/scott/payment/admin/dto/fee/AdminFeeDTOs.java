@@ -120,7 +120,7 @@ public final class AdminFeeDTOs {
         @Size(max = 128)
         private String ruleName;
         /**
-         * 兼容旧版单选请求；多选数组存在时优先使用数组。
+         * 兼容旧版单选请求；新费用配置可省略，由服务端按费用分类生成交易类型。
          */
         @Size(max = 64)
         private String transactionType;
@@ -135,7 +135,7 @@ public final class AdminFeeDTOs {
         @Size(max = 64)
         private String paymentMethod = "ALL";
         /**
-         * 待展开的交易类型集合，最多选择 32 项。
+         * 兼容旧版多选请求；为空时由服务端按费用分类展开，最多支持 32 项显式值。
          */
         @Size(max = 32)
         private List<@Size(max = 64) String> transactionTypes = new ArrayList<>();

@@ -54,6 +54,28 @@ public interface ClearingSettlementCandidateService {
                  LocalDateTime now);
 
     /**
+     * 历史标签本金修复时继承原候选的结算档案、影子模式和目标维度，并淘汰未认领旧候选。
+     *
+     * @return 新修订的稳定候选业务号
+     */
+    LabelPrincipalRepairCandidateReplacement replaceForLabelPrincipalRepair(
+            String financeStateId,
+            int oldRevision,
+            int newRevision,
+            long expectedCandidateId,
+            long expectedCandidateVersion,
+            int expectedDependencyCount,
+            LocalDateTime now);
+
+    /**
+     * 历史标签本金修复产生的候选替换结果；主键用于同事务迁移既有依赖，业务号用于审计返回。
+     */
+    record LabelPrincipalRepairCandidateReplacement(Long oldCandidateId,
+                                                    Long newCandidateId,
+                                                    String newCandidateNo) {
+    }
+
+    /**
      * 期间重放完成后替换已冻结为 REPLAY_HOLD 的旧候选，避免重放期间被并发结算。
      *
      * @param financeStateId 动作财务状态号

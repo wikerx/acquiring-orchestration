@@ -1725,6 +1725,34 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     /**
+     * 跨币种撤销在进入渠道前必须保留商户标签金额，同时使用渠道剩余授权金额外呼。
+     */
+    @Test
+    void shouldPrepareCrossCurrencyVoidWithSeparateLabelAndTransactionAmounts() {
+        CapturingTransactionRecordService recordService = frozenRateSourceRecordService();
+        VoidPreparationResultDTO preparationResult = new DefaultVoidTransactionPreparationService(
+                isoDictionaryService(),
+                restoreRouteService(),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                recordService,
+                new DefaultTransactionStateMachineService())
+                .prepareVoid(voidCommand("VOID-CROSS-CURRENCY"), "void-cross-currency");
+
+        assertThat(preparationResult.getCommandDTO().getLabelAmount()).isEqualByComparingTo("89.59");
+        assertThat(preparationResult.getCommandDTO().getLabelCurrency()).isEqualTo("AUD");
+        assertThat(preparationResult.getCommandDTO().getTransactionAmount()).isEqualByComparingTo("62.71");
+        assertThat(preparationResult.getCommandDTO().getTransactionCurrency()).isEqualTo("USD");
+        assertThat(preparationResult.getCommandDTO().getTransactionRate()).isEqualByComparingTo("0.70000521");
+        assertThat(preparationResult.getCommandDTO().getRateSource()).isEqualTo("PLATFORM");
+        assertThat(preparationResult.getCommandDTO().getEdcEnabled()).isEqualTo(1);
+        assertThat(preparationResult.getResultDTO().getAmount()).isEqualTo(8959L);
+        assertThat(preparationResult.getResultDTO().getCurrency()).isEqualTo("AUD");
+        assertThat(recordService.lastFollowUpOperation.getLabelAmount()).isEqualByComparingTo("89.59");
+        assertThat(recordService.lastFollowUpOperation.getTransactionAmount()).isEqualByComparingTo("62.71");
+    }
+
+    /**
      * 05E-VOID-02：Void 渠道成功后结果事务失败，重复同动作号只能返回已提交的 PROCESSING 事实，不能重新发起 Void。
      */
     @Test
@@ -1886,8 +1914,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 }),
                 voidResultService);
 
-        PaymentCreateResultDTO result = service.voidPayment(
-                followUpCommand("VOID-CAS", new BigDecimal("5.00")));
+        PaymentCreateResultDTO result = service.voidPayment(voidCommand("VOID-CAS"));
         TransactionIdempotencyDO idempotency = idempotencyService.find(
                         "TRANSACTION_OPERATION", MERCHANT_ID + ":TX202607230001:VOID-CAS:VOID")
                 .orElseThrow();
@@ -3644,6 +3671,9 @@ class PaymentTransactionConsistencyBaselineTests {
             lastInitialOperation.setMerchantOrderId(commandDTO.getMerchantOrderId());
             lastInitialOperation.setTransactionType(resultDTO.getTransactionType());
             lastInitialOperation.setTransactionStatus(resultDTO.getStatus());
+            lastInitialOperation.setLabelAmount(commandDTO.getLabelAmount());
+            lastInitialOperation.setLabelCurrency(commandDTO.getLabelCurrency());
+            lastInitialOperation.setLabelCurrencyExponent(commandDTO.getLabelCurrencyExponent());
             lastInitialOperation.setTransactionAmount(commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount());
             lastInitialOperation.setTransactionCurrency(commandDTO.getTransactionCurrency() == null ? commandDTO.getCurrency() : commandDTO.getTransactionCurrency());
             lastInitialOperation.setChannelOrderNo(channelInvokeResultDTO == null || channelInvokeResultDTO.getChannelRequest() == null
@@ -3704,6 +3734,13 @@ class PaymentTransactionConsistencyBaselineTests {
                     ? operation.getTransactionType() : sourceTransactionType);
             order.setTransactionAmount(lastFollowUpOperation == null
                     ? operation.getTransactionAmount() : new BigDecimal("12.34"));
+            order.setLabelAmount(lastFollowUpOperation == null
+                    ? operation.getLabelAmount() : new BigDecimal("12.34"));
+            order.setLabelAuthorizedAmount(BigDecimal.ZERO);
+            order.setLabelAuthorizedCancelAmount(BigDecimal.ZERO);
+            order.setLabelCapturedAmount(BigDecimal.ZERO);
+            order.setLabelRefundedAmount(BigDecimal.ZERO);
+            order.setLabelChargebackAmount(BigDecimal.ZERO);
             order.setAuthorizedAmount(BigDecimal.ZERO);
             order.setAuthorizedCancelAmount(BigDecimal.ZERO);
             order.setCapturedAmount(BigDecimal.ZERO);
@@ -3714,22 +3751,30 @@ class PaymentTransactionConsistencyBaselineTests {
             }
             if (lastFollowUpOperation == null) {
                 if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(operation.getTransactionType())) {
+                    order.setLabelAuthorizedAmount(operation.getLabelAmount());
+                    order.setLabelCapturedAmount(operation.getLabelAmount());
                     order.setAuthorizedAmount(operation.getTransactionAmount());
                     order.setCapturedAmount(operation.getTransactionAmount());
                 } else {
+                    order.setLabelAuthorizedAmount(operation.getLabelAmount());
                     order.setAuthorizedAmount(operation.getTransactionAmount());
                 }
                 return order;
             }
+            order.setLabelAuthorizedAmount(new BigDecimal("12.34"));
             order.setAuthorizedAmount(new BigDecimal("12.34"));
             if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(operation.getTransactionType())
                     || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(operation.getTransactionType())) {
+                order.setLabelCapturedAmount(operation.getLabelAmount());
                 order.setCapturedAmount(operation.getTransactionAmount());
             } else if (PaymentTransactionTypeEnum.REFUND.getCode().equals(operation.getTransactionType())) {
+                order.setLabelRefundedAmount(operation.getLabelAmount());
                 order.setRefundedAmount(operation.getTransactionAmount());
             } else if (PaymentTransactionTypeEnum.VOID.getCode().equals(operation.getTransactionType())) {
+                order.setLabelAuthorizedCancelAmount(new BigDecimal("12.34"));
                 order.setAuthorizedCancelAmount(new BigDecimal("12.34"));
             } else if (PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(operation.getTransactionType())) {
+                order.setLabelAuthorizedAmount(new BigDecimal("12.34").add(operation.getLabelAmount()));
                 order.setAuthorizedAmount(new BigDecimal("12.34").add(operation.getTransactionAmount()));
             }
             return order;
@@ -3755,6 +3800,18 @@ class PaymentTransactionConsistencyBaselineTests {
             orderDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
             orderDO.setLabelCurrency(sourceLabelCurrency);
             orderDO.setLabelAmount(sourceLabelAmount);
+            BigDecimal effectiveLabelAmount = sourceLabelAmount == null
+                    ? sourceTransactionAmount : sourceLabelAmount;
+            orderDO.setLabelCurrencyExponent(2);
+            orderDO.setLabelAuthorizedAmount(effectiveLabelAmount);
+            orderDO.setLabelAuthorizedCancelAmount(BigDecimal.ZERO);
+            orderDO.setLabelCapturedAmount(BigDecimal.ZERO);
+            orderDO.setLabelRefundedAmount(BigDecimal.ZERO);
+            orderDO.setLabelChargebackAmount(BigDecimal.ZERO);
+            orderDO.setLabelAvailableCaptureAmount(sourceLabelCurrency == null
+                    ? sourceAvailableCaptureAmount : effectiveLabelAmount);
+            orderDO.setLabelAvailableRefundAmount(sourceLabelCurrency == null
+                    ? sourceAvailableRefundAmount : BigDecimal.ZERO);
             orderDO.setTransactionAmount(sourceTransactionAmount);
             orderDO.setTransactionCurrency(sourceTransactionCurrency);
             orderDO.setTransactionRate(sourceTransactionRate);
@@ -3763,6 +3820,7 @@ class PaymentTransactionConsistencyBaselineTests {
             orderDO.setDccEnabled(0);
             orderDO.setEdcEnabled(sourceEdcEnabled);
             orderDO.setAuthorizedAmount(sourceTransactionAmount);
+            orderDO.setAuthorizedCancelAmount(BigDecimal.ZERO);
             orderDO.setCapturedAmount(BigDecimal.ZERO);
             orderDO.setRefundedAmount(BigDecimal.ZERO);
             orderDO.setAvailableCaptureAmount(sourceAvailableCaptureAmount);

@@ -156,6 +156,7 @@ public class MerchantRuntimeProfileCacheReader {
                                     BaseMerchantInfoDO::getBillingDescriptor,
                                     BaseMerchantInfoDO::getMerchantShortName,
                                     BaseMerchantInfoDO::getMerchantStatus,
+                                    BaseMerchantInfoDO::getActivationStatus,
                                     BaseMerchantInfoDO::getMerchantCategoryCode,
                                     BaseMerchantInfoDO::getCountryCode,
                                     BaseMerchantInfoDO::getRegionCode,
@@ -198,6 +199,7 @@ public class MerchantRuntimeProfileCacheReader {
         profile.setBillingDescriptor(row.getBillingDescriptor());
         profile.setMerchantShortName(row.getMerchantShortName());
         profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setActivationStatus(row.getActivationStatus());
         profile.setDefaultLocale(row.getDefaultLocale());
         profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
         profile.setCountryCode(row.getCountryCode());

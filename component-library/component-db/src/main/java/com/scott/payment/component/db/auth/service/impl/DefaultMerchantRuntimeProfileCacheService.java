@@ -97,6 +97,13 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
         if (mustBypassCache(normalizedMerchantId)) {
             return cacheReader.findFresh(normalizedMerchantId);
         }
+        if (isLegacyRuntimeProfile(cached)) {
+            log.info(
+                    "商户运行时资料历史缓存自动重建, event: MERCHANT_RUNTIME_PROFILE_LEGACY_CACHE_REFRESH, merchantId: {}",
+                    normalizedMerchantId
+            );
+            return cacheReader.refresh(normalizedMerchantId);
+        }
         if (cached == null && missStatus == CacheMissMarkerStore.LookupStatus.ABSENT) {
             markConfirmedMissing(normalizedMerchantId);
         }
@@ -245,5 +252,18 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
             return true;
         }
+    }
+
+    /**
+     * 判断缓存画像是否生成于收单开通状态进入共享模型之前。
+     *
+     * <p>{@code activation_status} 在主库中为非空字段，因此缓存值为 null 只表示历史载荷缺少该字段。
+     * 这类永久缓存必须回源重建，不能直接参与 OpenAPI 交易资格判断。</p>
+     *
+     * @param profile 缓存中的商户运行时资料；允许为空
+     * @return true 表示必须从主库刷新并覆盖历史缓存
+     */
+    private boolean isLegacyRuntimeProfile(MerchantRuntimeProfile profile) {
+        return profile != null && profile.getActivationStatus() == null;
     }
 }

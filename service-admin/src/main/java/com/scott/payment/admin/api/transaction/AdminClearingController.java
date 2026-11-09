@@ -8,8 +8,10 @@ import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculateRequ
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculateBatchRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculateBatchResponse;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculationOptionsResponse;
+import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.ReserveLine;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.SearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.Summary;
+import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TransactionLine;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -74,6 +76,40 @@ public class AdminClearingController {
             @RequestParam("transactionDateTime")
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime) {
         return success(applicationService.detail(transactionId, transactionDateTime));
+    }
+
+    /**
+     * 分页查询当前清分修订的本金和费用明细。
+     */
+    @GetMapping("/{transactionId}/transaction-details")
+    @RequiresPermission("clearing:record:detail")
+    @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.QUERY,
+            operation = "分页查询交易清分明细")
+    public CommonResult<PageResult<TransactionLine>> transactionDetails(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchTransactionDetails(
+                transactionId, transactionDateTime, pageNo, pageSize));
+    }
+
+    /**
+     * 分页查询当前清分修订的保证金明细。
+     */
+    @GetMapping("/{transactionId}/reserve-details")
+    @RequiresPermission("clearing:record:detail")
+    @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.QUERY,
+            operation = "分页查询保证金清分明细")
+    public CommonResult<PageResult<ReserveLine>> reserveDetails(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchReserveDetails(
+                transactionId, transactionDateTime, pageNo, pageSize));
     }
 
     /**

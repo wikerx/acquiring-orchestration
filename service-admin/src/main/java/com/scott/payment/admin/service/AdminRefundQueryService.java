@@ -3,6 +3,8 @@ package com.scott.payment.admin.service;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
+import com.scott.payment.component.core.model.PageResult;
 
 import java.time.LocalDateTime;
 
@@ -18,6 +20,15 @@ public interface AdminRefundQueryService {
      * @return 退款分页和统计结果
      */
     RefundSearchResponse search(RefundQuery query);
+
+    /**
+     * 按异步任务冻结的管理端商户范围分页查询退款记录，不执行列表统计。
+     *
+     * @param query 冻结筛选和内部页码
+     * @param dataScope 任务创建时冻结的商户范围
+     * @return 范围收紧后的退款分页
+     */
+    PageResult<RefundRecord> pageForExport(RefundQuery query, AdminMerchantDataScope dataScope);
 
     /**
      * 使用交易号和真实分片时间查询退款详情。

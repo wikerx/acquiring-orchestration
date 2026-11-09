@@ -1,5 +1,43 @@
 # service-data 专属配置：异步操作日志、风控与安全审计持久化，以及商户通知投递参数。
 data:
+  admin-client:
+    # 参数说明：统一待办权威导出源地址；dev 默认通过 Nacos 服务发现访问 service-admin。
+    base-url: ${DATA_ADMIN_EXPORT_BASE_URL:http://service-admin}
+    # 参数说明：建立 Admin 内部连接的最大等待时间，单位毫秒。
+    connect-timeout-millis: ${DATA_ADMIN_EXPORT_CONNECT_TIMEOUT_MILLIS:3000}
+    # 参数说明：单页来源读取超时，失败后由导出任务重试状态机接管。
+    read-timeout-millis: ${DATA_ADMIN_EXPORT_READ_TIMEOUT_MILLIS:30000}
+    # 参数说明：Data 回调 Admin 的固定服务身份。
+    internal-caller: service-data
+    # 参数说明：Data 到 Admin 独立 HMAC 密钥引用，不复用 Job-Admin 密钥。
+    internal-secret: ${acquiring.internal-auth.edges.data-admin.active-secret}
+  export:
+    # 参数说明：每页最多读取100条，避免单次来源查询和Excel写入占用过多内存。
+    page-size: ${DATA_EXPORT_PAGE_SIZE:100}
+    # 参数说明：单轮调度只执行一个文件，保证同步内部调用保持有界。
+    dispatch-batch-size: ${DATA_EXPORT_DISPATCH_BATCH_SIZE:1}
+    # 参数说明：自动执行失败最大尝试次数，耗尽后等待人工重试。
+    max-retry-count: ${DATA_EXPORT_MAX_RETRY_COUNT:3}
+    # 参数说明：执行租约必须覆盖一次文件生成和上传的合理最长时间。
+    processing-lease: ${DATA_EXPORT_PROCESSING_LEASE:10m}
+    # 参数说明：自动重试间隔。
+    retry-delay: ${DATA_EXPORT_RETRY_DELAY:2m}
+    # 参数说明：成功文件保留期限，到期后由调度任务删除私有对象。
+    file-retention: ${DATA_EXPORT_FILE_RETENTION:7d}
+    # 参数说明：单个导出文件硬上限，超过后任务失败且不上传对象。
+    max-file-size-bytes: ${DATA_EXPORT_MAX_FILE_SIZE_BYTES:209715200}
+    object-storage:
+      # 参数说明：dev 复用公共对象存储开关，但使用独立 Bucket；仍可用导出专用环境变量单独关闭。
+      enabled: ${DATA_EXPORT_OBJECT_STORAGE_ENABLED:${acquiring.object-storage.enabled:false}}
+      provider: ${DATA_EXPORT_OBJECT_STORAGE_PROVIDER:MINIO}
+      endpoint: ${DATA_EXPORT_OBJECT_STORAGE_ENDPOINT:${acquiring.object-storage.endpoint:http://127.0.0.1:9010}}
+      region: ${DATA_EXPORT_OBJECT_STORAGE_REGION:${acquiring.object-storage.region:us-east-1}}
+      # 参数说明：严禁复用商户资料Bucket，生命周期和访问策略必须独立。
+      bucket: ${DATA_EXPORT_OBJECT_STORAGE_BUCKET:vexra-export-files}
+      path-style-access: ${DATA_EXPORT_OBJECT_STORAGE_PATH_STYLE_ACCESS:${acquiring.object-storage.path-style-access:true}}
+      # 凭据从 Nacos 公共对象存储配置引用，不在 service-data 模板复制明文。
+      access-key: ${DATA_EXPORT_OBJECT_STORAGE_ACCESS_KEY:${acquiring.object-storage.access-key:}}
+      secret-key: ${DATA_EXPORT_OBJECT_STORAGE_SECRET_KEY:${acquiring.object-storage.secret-key:}}
   merchant-api-response-audit:
     mq:
       # 仅 service-data 消费 OpenAPI 响应审计；关闭后消息保留在独立消费组进度中，恢复开关可继续补偿。
@@ -54,6 +92,14 @@ internal-service:
         allowed-paths:
           # 路径说明：允许 Job 执行数据落库和商户通知补偿；不得暴露为浏览器或商户直接访问接口。
           - /internal/data/**
+      service-admin:
+        # 参数说明：Admin 查询、下载和人工重试导出任务时使用的独立验签密钥。
+        active-secret: ${acquiring.internal-auth.edges.admin-data.active-secret}
+        # 参数说明：Admin-Data 密钥滚动轮换期间接受的上一版密钥；平时为空。
+        previous-secret: ${acquiring.internal-auth.edges.admin-data.previous-secret:}
+        allowed-paths:
+          # 路径说明：仅开放异步导出任务内部接口，不允许访问其他Data内部能力。
+          - /internal/data/export-tasks/**
     # 参数说明：内部 HMAC 请求时间戳允许的最大偏差，默认 5 分钟；所有节点必须保持时钟同步。
     allowed-clock-skew: 5m
     # 参数说明：内部请求 nonce 防重放记录保留时间，默认 10 分钟，必须覆盖签名有效窗口。

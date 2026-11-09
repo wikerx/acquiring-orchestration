@@ -248,6 +248,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 sourceOrderDO,
                 plan.labelCurrencyExponent(),
                 plan.transactionCurrencyExponent());
+        commandDTO.setLabelCurrencyExponent(plan.labelCurrencyExponent());
         applyIncrementalAuthorizationAmountPlan(commandDTO, sourceOrderDO, amountPlan);
         // 状态机和未决动作扫描必须基于持锁后的同一快照，否则并发增额可能同时通过。
         transactionStateMachineService.validateFollowUpAction(
@@ -823,11 +824,11 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         resultDTO.setPaymentBrand(sourceOrderDO.getPaymentBrand());
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         enrichMerchantResponse(resultDTO);
-        resultDTO.setTotalAuthorizedAmount(sourceOrderDO.getAuthorizedAmount());
-        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
-        resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
-        resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalAuthorizedAmount(sourceOrderDO.getLabelAuthorizedAmount());
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getLabelAuthorizedCancelAmount());
+        resultDTO.setTotalCapturedAmount(sourceOrderDO.getLabelCapturedAmount());
+        resultDTO.setTotalRefundAmount(sourceOrderDO.getLabelRefundedAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getLabelChargebackAmount());
     }
 
     /**

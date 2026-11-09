@@ -75,7 +75,8 @@ public class RiskEvaluationAuditConsumer implements RocketMQListener<String> {
     public void onMessage(String payload) {
         long startNanos = System.nanoTime();
         RiskEvaluationAuditMessage message = parseMessage(payload);
-        if (message == null || !StringUtils.hasText(message.getRiskRecordNo())) {
+        if (message == null || !StringUtils.hasText(message.getRiskRecordNo())
+                || message.getEvaluationTime() == null) {
             log.error("风控审计消息缺少必填字段, event: DATA_RISK_AUDIT_INVALID, traceId: {}, payloadLength: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length());
             throw new IllegalArgumentException("risk audit message required fields are missing");
