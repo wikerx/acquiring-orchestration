@@ -4,6 +4,29 @@ import com.scott.payment.admin.client.data.DataExportTaskInternalClient;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.CreateRequest;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.SearchRequestDTO;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RefundSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.CardBinSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.CountryQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.CountrySubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.CurrencyQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.CurrencySubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.DepartmentQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.DepartmentSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.DictDataQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.DictDataSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.DictTypeQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.DictTypeSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.HolidayCalendarQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.HolidayCalendarSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.FeeReviewSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.FeeSimulationSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.FeeTemplateSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MccCodeSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantFeeSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.PostQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.PostSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RegionCurrencyQuery;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RegionCurrencySubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.JobRunLogSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotificationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementTransactionSubmitRequest;
@@ -11,12 +34,25 @@ import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOrderSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOperationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.WorkItemSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.ChannelMatchAbnormalSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReviewSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementPostingSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SecurityInterceptEventSubmitRequest;
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SearchRequest;
+import com.scott.payment.admin.dto.base.CardBinDTOs.CardBinQueryRequest;
+import com.scott.payment.admin.dto.base.MccRequests.MccTreeQueryRequest;
+import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
+import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeePlanQuery;
+import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRecordQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
+import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalQuery;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
+import com.scott.payment.admin.dto.security.SecurityInterceptEventDTOs.SecurityInterceptEventQuery;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -264,6 +300,392 @@ class AdminExportTaskApplicationServiceTest {
         assertThat(reserveCommand.getSettlementReserveQuery().getCurrency()).isEqualTo("USD");
         assertThat(reserveCommand.getMerchantIds()).containsExactly("M4001");
         assertThat(java.util.Arrays.stream(reserveCommand.getSettlementReserveQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+    }
+
+    /**
+     * 卡 BIN 与任务日志任务必须冻结公开筛选字段，不能保存浏览器分页参数。
+     */
+    @Test
+    void shouldFreezePlatformQueriesWithoutPageParameters() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.all());
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        CardBinQueryRequest cardBinQuery = new CardBinQueryRequest();
+        cardBinQuery.setCardBrand("VISA");
+        cardBinQuery.setIssuerCountryAlpha2("US");
+        cardBinQuery.setPageNo(9);
+        cardBinQuery.setPageSize(100);
+        CardBinSubmitRequest cardBinRequest = new CardBinSubmitRequest();
+        cardBinRequest.setRequestId("card-bin-export-1");
+        cardBinRequest.setQuery(cardBinQuery);
+        service.submitCardBins(cardBinRequest);
+
+        JobRunLogQueryRequest jobLogQuery = new JobRunLogQueryRequest();
+        jobLogQuery.setJobCode("DATA_EXPORT_TASK_DISPATCH");
+        jobLogQuery.setRunStatus("FAILED");
+        jobLogQuery.setPageNo(7);
+        jobLogQuery.setPageSize(50);
+        JobRunLogSubmitRequest jobLogRequest = new JobRunLogSubmitRequest();
+        jobLogRequest.setRequestId("job-log-export-1");
+        jobLogRequest.setQuery(jobLogQuery);
+        service.submitJobRunLogs(jobLogRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(2)).submit(captor.capture());
+        CreateRequest cardBinCommand = captor.getAllValues().get(0);
+        CreateRequest jobLogCommand = captor.getAllValues().get(1);
+        assertThat(cardBinCommand.getTaskType()).isEqualTo("ADMIN_CARD_BIN");
+        assertThat(cardBinCommand.getCardBinQuery().getCardBrand()).isEqualTo("VISA");
+        assertThat(cardBinCommand.getCardBinQuery().getIssuerCountryAlpha2()).isEqualTo("US");
+        assertThat(java.util.Arrays.stream(cardBinCommand.getCardBinQuery().getClass().getDeclaredFields())
+                .map(java.lang.reflect.Field::getName)).doesNotContain("pageNo", "pageSize");
+        assertThat(jobLogCommand.getTaskType()).isEqualTo("ADMIN_JOB_RUN_LOG");
+        assertThat(jobLogCommand.getJobRunLogQuery().getJobCode())
+                .isEqualTo("DATA_EXPORT_TASK_DISPATCH");
+        assertThat(jobLogCommand.getJobRunLogQuery().getRunStatus()).isEqualTo("FAILED");
+        assertThat(java.util.Arrays.stream(jobLogCommand.getJobRunLogQuery().getClass().getDeclaredFields())
+                .map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize", "paramsSnapshot", "resultMessage");
+    }
+
+    /**
+     * 基础数据任务必须分别冻结当前筛选条件并使用稳定任务类型。
+     */
+    @Test
+    void shouldFreezeBaseReferenceDataQueries() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.all());
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        CountryQuery countryQuery = new CountryQuery();
+        countryQuery.setKeyword("China");
+        countryQuery.setContinentCode("AS");
+        CountrySubmitRequest countryRequest = new CountrySubmitRequest();
+        countryRequest.setRequestId("country-export-1");
+        countryRequest.setQuery(countryQuery);
+        service.submitCountries(countryRequest);
+
+        CurrencyQuery currencyQuery = new CurrencyQuery();
+        currencyQuery.setKeyword("USD");
+        currencyQuery.setStatus(1);
+        CurrencySubmitRequest currencyRequest = new CurrencySubmitRequest();
+        currencyRequest.setRequestId("currency-export-1");
+        currencyRequest.setQuery(currencyQuery);
+        service.submitCurrencies(currencyRequest);
+
+        RegionCurrencyQuery regionQuery = new RegionCurrencyQuery();
+        regionQuery.setContinentCode("EU");
+        RegionCurrencySubmitRequest regionRequest = new RegionCurrencySubmitRequest();
+        regionRequest.setRequestId("region-currency-export-1");
+        regionRequest.setQuery(regionQuery);
+        service.submitRegionCurrencies(regionRequest);
+
+        MccTreeQueryRequest mccQuery = new MccTreeQueryRequest();
+        mccQuery.setMccCode("5411");
+        mccQuery.setRiskLevel("LOW");
+        MccCodeSubmitRequest mccRequest = new MccCodeSubmitRequest();
+        mccRequest.setRequestId("mcc-export-1");
+        mccRequest.setQuery(mccQuery);
+        service.submitMccCodes(mccRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(4)).submit(captor.capture());
+        assertThat(captor.getAllValues()).extracting(CreateRequest::getTaskType).containsExactly(
+                "ADMIN_COUNTRY", "ADMIN_CURRENCY", "ADMIN_REGION_CURRENCY", "ADMIN_MCC_CODE");
+        assertThat(captor.getAllValues().get(0).getCountryQuery().getContinentCode()).isEqualTo("AS");
+        assertThat(captor.getAllValues().get(1).getCurrencyQuery().getStatus()).isEqualTo(1);
+        assertThat(captor.getAllValues().get(2).getRegionCurrencyQuery().getContinentCode()).isEqualTo("EU");
+        assertThat(captor.getAllValues().get(3).getMccCodeQuery().getMccCode()).isEqualTo("5411");
+        assertThat(captor.getAllValues().get(3).getMccCodeQuery().getRiskLevel()).isEqualTo("LOW");
+    }
+
+    /**
+     * 组织、字典与日历任务必须冻结页面公开筛选条件，并使用独立稳定的任务类型。
+     */
+    @Test
+    void shouldFreezeSystemReferenceQueries() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.all());
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        DepartmentSubmitRequest departmentRequest = new DepartmentSubmitRequest();
+        departmentRequest.setRequestId("department-export-1");
+        departmentRequest.setQuery(new DepartmentQuery());
+        service.submitDepartments(departmentRequest);
+
+        PostQuery postQuery = new PostQuery();
+        postQuery.setPostCode("OPS_001");
+        postQuery.setPostName("Operations");
+        postQuery.setStatus(1);
+        PostSubmitRequest postRequest = new PostSubmitRequest();
+        postRequest.setRequestId("post-export-1");
+        postRequest.setQuery(postQuery);
+        service.submitPosts(postRequest);
+
+        DictTypeQuery dictTypeQuery = new DictTypeQuery();
+        dictTypeQuery.setDictType("payment_status");
+        dictTypeQuery.setBizDomain("PAYMENT");
+        DictTypeSubmitRequest dictTypeRequest = new DictTypeSubmitRequest();
+        dictTypeRequest.setRequestId("dict-type-export-1");
+        dictTypeRequest.setQuery(dictTypeQuery);
+        service.submitDictTypes(dictTypeRequest);
+
+        DictDataQuery dictDataQuery = new DictDataQuery();
+        dictDataQuery.setDictType("payment_status");
+        dictDataQuery.setDictValue("0001");
+        dictDataQuery.setLocale("zh-CN");
+        DictDataSubmitRequest dictDataRequest = new DictDataSubmitRequest();
+        dictDataRequest.setRequestId("dict-data-export-1");
+        dictDataRequest.setQuery(dictDataQuery);
+        service.submitDictData(dictDataRequest);
+
+        HolidayCalendarQuery calendarQuery = new HolidayCalendarQuery();
+        calendarQuery.setYear(2027);
+        HolidayCalendarSubmitRequest calendarRequest = new HolidayCalendarSubmitRequest();
+        calendarRequest.setRequestId("calendar-export-1");
+        calendarRequest.setQuery(calendarQuery);
+        service.submitHolidayCalendar(calendarRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(5)).submit(captor.capture());
+        var commands = captor.getAllValues();
+        assertThat(commands).extracting(CreateRequest::getTaskType).containsExactly(
+                "ADMIN_DEPARTMENT", "ADMIN_POST", "ADMIN_DICT_TYPE",
+                "ADMIN_DICT_DATA", "ADMIN_HOLIDAY_CALENDAR");
+        assertThat(commands.get(1).getPostQuery().getPostCode()).isEqualTo("OPS_001");
+        assertThat(commands.get(1).getPostQuery().getStatus()).isEqualTo(1);
+        assertThat(commands.get(2).getDictTypeQuery().getBizDomain()).isEqualTo("PAYMENT");
+        assertThat(commands.get(3).getDictDataQuery().getDictValue()).isEqualTo("0001");
+        assertThat(commands.get(3).getDictDataQuery().getLocale()).isEqualTo("zh-CN");
+        assertThat(commands.get(4).getHolidayCalendarQuery().getYear()).isEqualTo(2027);
+        assertThat(commands).allSatisfy(command -> {
+            assertThat(command.isAllMerchants()).isTrue();
+            assertThat(command.getMerchantIds()).isEmpty();
+        });
+    }
+
+    /**
+     * 费用配置与试算任务必须冻结公开筛选条件、可信商户范围和语言，不能保存页面分页参数。
+     */
+    @Test
+    void shouldFreezeFeeQueriesWithTrustedScope() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        LocaleContextHolder.setLocale(Locale.US);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.limited(Set.of("M6001")));
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        FeeTemplateSubmitRequest templateRequest = new FeeTemplateSubmitRequest();
+        templateRequest.setRequestId("fee-template-export-1");
+        templateRequest.setQuery(feePlanQuery("template", "ENABLED", "PUBLISHED", 9, 100));
+        service.submitFeeTemplates(templateRequest);
+
+        MerchantFeeSubmitRequest merchantRequest = new MerchantFeeSubmitRequest();
+        merchantRequest.setRequestId("merchant-fee-export-1");
+        merchantRequest.setQuery(feePlanQuery("merchant", "ENABLED", "DRAFT", 8, 100));
+        service.submitMerchantFees(merchantRequest);
+
+        FeeReviewSubmitRequest reviewRequest = new FeeReviewSubmitRequest();
+        reviewRequest.setRequestId("fee-review-export-1");
+        reviewRequest.setQuery(feePlanQuery("review", "DISABLED", "PENDING_REVIEW", 7, 100));
+        service.submitFeeReviews(reviewRequest);
+
+        FeeSimulationRecordQuery simulationQuery = new FeeSimulationRecordQuery();
+        simulationQuery.setKeyword("SIM-6001");
+        simulationQuery.setMerchantId("M6001");
+        simulationQuery.setTransactionType("PAYMENT");
+        simulationQuery.setPageNo(6);
+        simulationQuery.setPageSize(100);
+        FeeSimulationSubmitRequest simulationRequest = new FeeSimulationSubmitRequest();
+        simulationRequest.setRequestId("fee-simulation-export-1");
+        simulationRequest.setQuery(simulationQuery);
+        service.submitFeeSimulations(simulationRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(4)).submit(captor.capture());
+        var commands = captor.getAllValues();
+        assertThat(commands).extracting(CreateRequest::getTaskType).containsExactly(
+                "ADMIN_FEE_TEMPLATE", "ADMIN_MERCHANT_FEE",
+                "ADMIN_FEE_REVIEW", "ADMIN_FEE_SIMULATION");
+        assertThat(commands).allSatisfy(command -> {
+            assertThat(command.isAllMerchants()).isFalse();
+            assertThat(command.getMerchantIds()).containsExactly("M6001");
+            assertThat(command.getLocale()).isEqualTo("en-US");
+        });
+        assertThat(commands.get(0).getFeeTemplateQuery().getKeyword()).isEqualTo("template");
+        assertThat(commands.get(1).getMerchantFeeQuery().getVersionStatus()).isEqualTo("DRAFT");
+        assertThat(commands.get(2).getFeeReviewQuery().getStatus()).isEqualTo("DISABLED");
+        assertThat(commands.get(3).getFeeSimulationQuery().getMerchantId()).isEqualTo("M6001");
+        assertThat(commands.get(3).getFeeSimulationQuery().getTransactionType()).isEqualTo("PAYMENT");
+        assertThat(java.util.Arrays.stream(commands.get(0).getFeeTemplateQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+        assertThat(java.util.Arrays.stream(commands.get(3).getFeeSimulationQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+    }
+
+    /** 系统账户、系统参数和商户访问控制任务只冻结公开筛选字段及可信范围。 */
+    @Test
+    void shouldFreezeSystemAndMerchantAccessQueries() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.limited(Set.of("M7001")));
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        com.scott.payment.admin.dto.SysUserAccountQueryRequest userQuery =
+                new com.scott.payment.admin.dto.SysUserAccountQueryRequest();
+        userQuery.setLoginAccount("operator");
+        userQuery.setDeptId(7L);
+        userQuery.setPageNo(9);
+        userQuery.setPageSize(100);
+        var userRequest = new com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SystemUserSubmitRequest();
+        userRequest.setRequestId("system-user-export-1");
+        userRequest.setQuery(userQuery);
+        service.submitSystemUsers(userRequest);
+
+        com.scott.payment.admin.dto.SysConfigQueryRequest configQuery =
+                new com.scott.payment.admin.dto.SysConfigQueryRequest();
+        configQuery.setConfigGroup("security");
+        configQuery.setConfigKey("security.jwt.secret");
+        configQuery.setPageNo(8);
+        configQuery.setPageSize(100);
+        var configRequest = new com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SystemConfigSubmitRequest();
+        configRequest.setRequestId("system-config-export-1");
+        configRequest.setQuery(configQuery);
+        service.submitSystemConfigs(configRequest);
+
+        var whitelistQuery = new com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistQuery();
+        whitelistQuery.setMerchantId("M7001");
+        whitelistQuery.setIpType("IPv4");
+        whitelistQuery.setPageNo(7);
+        whitelistQuery.setPageSize(100);
+        var whitelistRequest = new com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantIpWhitelistSubmitRequest();
+        whitelistRequest.setRequestId("merchant-ip-export-1");
+        whitelistRequest.setQuery(whitelistQuery);
+        service.submitMerchantIpWhitelists(whitelistRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(3)).submit(captor.capture());
+        var commands = captor.getAllValues();
+        assertThat(commands).extracting(CreateRequest::getTaskType).containsExactly(
+                "ADMIN_SYSTEM_USER", "ADMIN_SYSTEM_CONFIG", "ADMIN_MERCHANT_IP_WHITELIST");
+        assertThat(commands.get(0).getSystemUserQuery().getLoginAccount()).isEqualTo("operator");
+        assertThat(commands.get(1).getSystemConfigQuery().getConfigKey()).isEqualTo("security.jwt.secret");
+        assertThat(commands.get(2).getMerchantIpWhitelistQuery().getMerchantId()).isEqualTo("M7001");
+        assertThat(commands).allSatisfy(command -> {
+            assertThat(command.isAllMerchants()).isFalse();
+            assertThat(command.getMerchantIds()).containsExactly("M7001");
+        });
+        assertThat(java.util.Arrays.stream(commands.get(0).getSystemUserQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+        assertThat(java.util.Arrays.stream(commands.get(2).getMerchantIpWhitelistQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+    }
+
+    /** 创建带浏览器分页的费用方案查询，验证任务快照只保留业务筛选。 */
+    private FeePlanQuery feePlanQuery(
+            String keyword, String status, String versionStatus, int pageNo, int pageSize) {
+        FeePlanQuery query = new FeePlanQuery();
+        query.setKeyword(keyword);
+        query.setStatus(status);
+        query.setVersionStatus(versionStatus);
+        query.setPageNo(pageNo);
+        query.setPageSize(pageSize);
+        return query;
+    }
+
+    /**
+     * 高量运营导出必须分别冻结强类型查询和可信商户范围，页面分页不得进入任务快照。
+     */
+    @Test
+    void shouldFreezeHighVolumeOperationalQueriesWithTrustedScope() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.limited(Set.of("M5001")));
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+
+        AbnormalQuery abnormalQuery = new AbnormalQuery();
+        abnormalQuery.setEventStatus("OPEN");
+        abnormalQuery.setPageNo(8);
+        abnormalQuery.setPageSize(100);
+        ChannelMatchAbnormalSubmitRequest abnormalRequest = new ChannelMatchAbnormalSubmitRequest();
+        abnormalRequest.setRequestId("abnormal-export-1");
+        abnormalRequest.setQuery(abnormalQuery);
+        service.submitChannelMatchAbnormalities(abnormalRequest);
+
+        ReviewSearchRequest reviewQuery = new ReviewSearchRequest();
+        reviewQuery.setReviewStatus("PENDING_APPROVAL");
+        reviewQuery.setPageNo(7);
+        reviewQuery.setPageSize(100);
+        SettlementReviewSubmitRequest reviewRequest = new SettlementReviewSubmitRequest();
+        reviewRequest.setRequestId("review-export-1");
+        reviewRequest.setQuery(reviewQuery);
+        service.submitSettlementReviews(reviewRequest);
+
+        PostingSearchRequest postingQuery = new PostingSearchRequest();
+        postingQuery.setCurrency("USD");
+        postingQuery.setPageNo(6);
+        postingQuery.setPageSize(100);
+        SettlementPostingSubmitRequest postingRequest = new SettlementPostingSubmitRequest();
+        postingRequest.setRequestId("posting-export-1");
+        postingRequest.setQuery(postingQuery);
+        service.submitSettlementPostings(postingRequest);
+
+        SecurityInterceptEventQuery securityQuery = new SecurityInterceptEventQuery();
+        securityQuery.setRiskLevel("HIGH");
+        securityQuery.setPageNo(5);
+        securityQuery.setPageSize(100);
+        SecurityInterceptEventSubmitRequest securityRequest = new SecurityInterceptEventSubmitRequest();
+        securityRequest.setRequestId("security-export-1");
+        securityRequest.setQuery(securityQuery);
+        service.submitSecurityInterceptEvents(securityRequest);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client, org.mockito.Mockito.times(4)).submit(captor.capture());
+        var commands = captor.getAllValues();
+        assertThat(commands).extracting(CreateRequest::getTaskType).containsExactly(
+                "ADMIN_CHANNEL_MATCH_ABNORMAL",
+                "ADMIN_SETTLEMENT_REVIEW",
+                "ADMIN_SETTLEMENT_POSTING",
+                "ADMIN_SECURITY_INTERCEPT_EVENT");
+        assertThat(commands).allSatisfy(command ->
+                assertThat(command.getMerchantIds()).containsExactly("M5001"));
+        assertThat(commands.get(0).getChannelMatchAbnormalQuery().getEventStatus()).isEqualTo("OPEN");
+        assertThat(commands.get(1).getSettlementReviewQuery().getReviewStatus())
+                .isEqualTo("PENDING_APPROVAL");
+        assertThat(commands.get(2).getSettlementPostingQuery().getCurrency()).isEqualTo("USD");
+        assertThat(commands.get(3).getSecurityInterceptEventQuery().getRiskLevel()).isEqualTo("HIGH");
+        assertThat(java.util.Arrays.stream(commands.get(0).getChannelMatchAbnormalQuery()
+                        .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize");
+        assertThat(java.util.Arrays.stream(commands.get(3).getSecurityInterceptEventQuery()
                         .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
                 .doesNotContain("pageNo", "pageSize");
     }

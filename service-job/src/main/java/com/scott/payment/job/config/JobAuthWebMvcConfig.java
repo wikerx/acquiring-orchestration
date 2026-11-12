@@ -20,6 +20,11 @@ import java.util.List;
 @EnableConfigurationProperties(InternalServiceAuthProperties.class)
 public class JobAuthWebMvcConfig implements WebMvcConfigurer {
 
+    /**
+     * 后台异步导出使用的只读日志分页入口，仅跳过管理员浏览器会话校验。
+     */
+    private static final String RUN_LOG_EXPORT_SEARCH_PATH = "/internal/job/logs/export/search";
+
     private final SystemAuthService systemAuthService;
     private final InternalServiceAuthProperties internalServiceAuthProperties;
     private final InternalRequestReplayGuard replayGuard;
@@ -50,7 +55,8 @@ public class JobAuthWebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(new InternalServiceAuthInterceptor(internalServiceAuthProperties, replayGuard))
                 .addPathPatterns("/internal/**");
         registry.addInterceptor(new InternalAuthInterceptor(AuthConstants.APP_ADMIN, systemAuthService, whitelist()))
-                .addPathPatterns("/internal/**");
+                .addPathPatterns("/internal/**")
+                .excludePathPatterns(RUN_LOG_EXPORT_SEARCH_PATH);
     }
 
     /**

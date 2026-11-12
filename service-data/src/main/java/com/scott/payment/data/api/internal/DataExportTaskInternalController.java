@@ -24,6 +24,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
+import static com.scott.payment.data.service.export.DataExportTaskService.APP_ADMIN;
 
 /**
  * service-data 异步导出内部接口，仅允许通过 HMAC 白名单的 Admin 和 Job 调用。
@@ -45,6 +46,7 @@ public class DataExportTaskInternalController {
      */
     @PostMapping("/submit")
     public CommonResult<TaskSummary> submit(@Valid @RequestBody CreateRequest request) {
+        applyAdminOwnership(request);
         return success(applicationService.submit(request));
     }
 
@@ -53,6 +55,7 @@ public class DataExportTaskInternalController {
      */
     @PostMapping("/search")
     public CommonResult<PageResult<TaskSummary>> search(@Valid @RequestBody SearchRequest request) {
+        applyAdminOwnership(request);
         return success(applicationService.search(request));
     }
 
@@ -61,6 +64,7 @@ public class DataExportTaskInternalController {
      */
     @PostMapping("/detail")
     public CommonResult<TaskSummary> detail(@Valid @RequestBody TaskRequest request) {
+        applyAdminOwnership(request);
         return success(applicationService.detail(request));
     }
 
@@ -69,6 +73,7 @@ public class DataExportTaskInternalController {
      */
     @PostMapping("/retry")
     public CommonResult<TaskSummary> retry(@Valid @RequestBody TaskRequest request) {
+        applyAdminOwnership(request);
         return success(applicationService.retry(request));
     }
 
@@ -86,12 +91,14 @@ public class DataExportTaskInternalController {
     @PostMapping("/download")
     public void download(@Valid @RequestBody DownloadRequest request,
                          HttpServletResponse response) throws IOException {
+        applyAdminOwnership(request);
         TaskSummary summary = applicationService.detail(request);
         String fileName = summary.getFileName() == null ? "export.xlsx" : summary.getFileName();
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment;filename*=utf-8''" + URLEncoder.encode(fileName, StandardCharsets.UTF_8));
+                "attachment;filename*=utf-8''"
+                        + URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20"));
         if (summary.getFileSizeBytes() != null) {
             response.setHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(summary.getFileSizeBytes()));
         }
@@ -99,5 +106,29 @@ public class DataExportTaskInternalController {
             response.setHeader("X-File-SHA256", summary.getFileSha256());
         }
         applicationService.download(request, response.getOutputStream());
+    }
+
+    /**
+     * 将旧版 Admin 内部路径固定到管理应用命名空间，忽略调用正文中的归属声明。
+     */
+    private void applyAdminOwnership(CreateRequest request) {
+        request.setCreatorAppCode(APP_ADMIN);
+        request.setMerchantId(null);
+    }
+
+    /**
+     * 将 Admin 任务列表请求固定到管理应用命名空间。
+     */
+    private void applyAdminOwnership(SearchRequest request) {
+        request.setCreatorAppCode(APP_ADMIN);
+        request.setMerchantId(null);
+    }
+
+    /**
+     * 将 Admin 单任务请求固定到管理应用命名空间。
+     */
+    private void applyAdminOwnership(TaskRequest request) {
+        request.setCreatorAppCode(APP_ADMIN);
+        request.setMerchantId(null);
     }
 }

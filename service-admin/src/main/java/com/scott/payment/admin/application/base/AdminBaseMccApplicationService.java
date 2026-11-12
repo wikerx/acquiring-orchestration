@@ -145,6 +145,54 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
+     * 按 MCC 树页面的公开筛选条件分页读取编码节点，供异步导出来源使用。
+     *
+     * <p>异步导出只输出 MCC 编码；当页面明确筛选一级或二级分类节点时返回空页，
+     * 避免把分类条件错误解释为全部编码。关键字匹配范围与编码节点的树查询语义保持一致。</p>
+     *
+     * @param pageNo 内部分页页码
+     * @param pageSize 内部分页大小
+     * @param request 页面冻结的 MCC 树查询条件
+     * @return 满足条件的 MCC 编码分页
+     */
+    @DS(DataSourceName.SLAVE)
+    public PageResult<MccVO.MccCodeVO> pageCodesForExport(
+            int pageNo, int pageSize, MccRequests.MccTreeQueryRequest request) {
+        MccRequests.MccTreeQueryRequest query = request == null
+                ? new MccRequests.MccTreeQueryRequest() : request;
+        if (StringUtils.hasText(query.getNodeType()) && !MCC_CODE.equals(query.getNodeType().trim())) {
+            return PageResult.of(0L, pageNo, pageSize, List.of());
+        }
+        LambdaQueryWrapper<MccEntities.BaseMccCodeDO> wrapper = baseCodeQuery();
+        if (StringUtils.hasText(query.getKeyword())) {
+            String keyword = query.getKeyword().trim();
+            wrapper.and(nested -> nested.like(MccEntities.BaseMccCodeDO::getMccCode, keyword)
+                    .or().like(MccEntities.BaseMccCodeDO::getNameCn, keyword)
+                    .or().like(MccEntities.BaseMccCodeDO::getNameEn, keyword)
+                    .or().like(MccEntities.BaseMccCodeDO::getMccType, keyword)
+                    .or().like(MccEntities.BaseMccCodeDO::getRiskLevel, keyword));
+        }
+        wrapper.like(StringUtils.hasText(query.getMccCode()),
+                        MccEntities.BaseMccCodeDO::getMccCode, trimmed(query.getMccCode()))
+                .like(StringUtils.hasText(query.getNameCn()),
+                        MccEntities.BaseMccCodeDO::getNameCn, trimmed(query.getNameCn()))
+                .like(StringUtils.hasText(query.getNameEn()),
+                        MccEntities.BaseMccCodeDO::getNameEn, trimmed(query.getNameEn()))
+                .eq(StringUtils.hasText(query.getRiskLevel()),
+                        MccEntities.BaseMccCodeDO::getRiskLevel, trimmed(query.getRiskLevel()))
+                .eq(query.getStatus() != null, MccEntities.BaseMccCodeDO::getStatus, query.getStatus())
+                .orderByAsc(MccEntities.BaseMccCodeDO::getMccCode);
+        Page<MccEntities.BaseMccCodeDO> page = codeMapper.selectPage(new Page<>(pageNo, pageSize), wrapper);
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
+                page.getRecords().stream().map(this::toCodeVO).toList());
+    }
+
+    /** 返回去除首尾空白的可选筛选值。 */
+    private String trimmed(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    /**
      * 新增或编辑 MCC 一级、二级分类。
      */
     @DS(DataSourceName.MASTER)

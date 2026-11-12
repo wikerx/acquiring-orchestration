@@ -15,7 +15,9 @@ public class DataExportTaskDO {
     private String taskType;
     private String taskName;
     private String sourceService;
+    private String creatorAppCode;
     private Long creatorAccountId;
+    private String merchantId;
     private String creatorAccountName;
     private String locale;
     private String timezone;

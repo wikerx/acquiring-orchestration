@@ -3,6 +3,8 @@ package com.scott.payment.admin.service;
 import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarBatchSaveRequest;
 import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarMonthResponse;
 import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarYearResponse;
+import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarDayResponse;
+import com.scott.payment.component.core.model.PageResult;
 
 import java.time.LocalDate;
 
@@ -30,4 +32,14 @@ public interface AdminHolidayCalendarService {
      * 读取已确认日历中的工作日属性，缺失或草稿状态时阻断。
      */
     boolean isWorkingDay(LocalDate date);
+
+    /**
+     * 分页读取指定年份的日历日期供异步导出。
+     *
+     * @param year 自然年
+     * @param pageNo 页码
+     * @param pageSize 每页数量
+     * @return 年度日历日期分页
+     */
+    PageResult<CalendarDayResponse> pageYearDays(int year, int pageNo, int pageSize);
 }

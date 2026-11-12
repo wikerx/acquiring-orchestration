@@ -32,6 +32,8 @@ readonly EDGES=(
   merchant-admin
   admin-data
   data-admin
+  merchant-data
+  data-merchant
   admin-job
   job-admin
   admin-payment
@@ -190,7 +192,7 @@ service_edges() {
       printf '%s\n' admin-clearing job-clearing
       ;;
     service-data)
-      printf '%s\n' admin-data data-admin job-data
+      printf '%s\n' admin-data data-admin merchant-data data-merchant job-data
       ;;
     service-gateway)
       printf '%s\n' gateway-checkout
@@ -199,7 +201,7 @@ service_edges() {
       printf '%s\n' admin-job job-admin job-payment job-clearing job-data
       ;;
     service-merchant)
-      printf '%s\n' merchant-payment gateway-checkout
+      printf '%s\n' merchant-data data-merchant merchant-payment gateway-checkout
       ;;
     service-openapi)
       printf '%s\n' openapi-payment openapi-payout gateway-checkout
@@ -228,9 +230,9 @@ edge_caller() {
   case "$1" in
     merchant-admin) printf '%s' '' ;;
     admin-data|admin-job|admin-payment|admin-clearing|admin-settlement) printf '%s' service-admin ;;
-    data-admin) printf '%s' service-data ;;
+    data-admin|data-merchant) printf '%s' service-data ;;
     job-admin|job-payment|job-clearing|job-data) printf '%s' service-job ;;
-    merchant-payment) printf '%s' service-merchant ;;
+    merchant-data|merchant-payment) printf '%s' service-merchant ;;
     openapi-payment|openapi-payout) printf '%s' service-openapi ;;
     payment-risk) printf '%s' service-payment ;;
     gateway-checkout) printf '%s' service-gateway ;;
@@ -247,6 +249,8 @@ edge_receivers() {
     merchant-admin) printf '%s\n' service-admin ;;
     admin-data) printf '%s\n' service-data ;;
     data-admin) printf '%s\n' service-admin ;;
+    merchant-data) printf '%s\n' service-data ;;
+    data-merchant) printf '%s\n' service-merchant ;;
     admin-job) printf '%s\n' service-job ;;
     job-admin) printf '%s\n' service-admin ;;
     admin-payment|job-payment|merchant-payment|openapi-payment) printf '%s\n' service-payment ;;
@@ -603,6 +607,8 @@ edge_description() {
     merchant-admin) printf '遗留 Merchant 到 Admin 兼容接口验签，仅用于失败关闭保护。' ;;
     admin-data) printf 'Admin 调用 Data 异步导出任务查询、下载和重试命令时使用的凭据。' ;;
     data-admin) printf 'Data 回调 Admin 权威导出数据源时使用的凭据。' ;;
+    merchant-data) printf 'Merchant 调用 Data 商户异步导出任务接口时使用的凭据。' ;;
+    data-merchant) printf 'Data 回调 Merchant 商户安全导出数据源时使用的凭据。' ;;
     admin-job) printf 'Admin 调用 Job 管理命令时使用的签名与验签凭据。' ;;
     job-admin) printf 'Job 调用 Admin 汇率波动评估命令时使用的签名与验签凭据。' ;;
     admin-payment) printf 'Admin 调用 Payment 状态变更和异常处置命令时使用的凭据。' ;;

@@ -21,6 +21,16 @@ public interface AdminSecurityInterceptEventService {
     PageResult<SecurityInterceptEventResponse> pageEvents(SecurityInterceptEventQuery query);
 
     /**
+     * 按任务创建时冻结的商户数据范围分页查询安全拦截事件。
+     *
+     * @param query 查询条件
+     * @param dataScope 可信管理账号冻结的商户数据范围
+     * @return 数据范围内的分页结果
+     */
+    PageResult<SecurityInterceptEventResponse> pageEvents(SecurityInterceptEventQuery query,
+                                                          AdminMerchantDataScope dataScope);
+
+    /**
      * 按查询条件列出安全拦截事件，用于导出。
      *
      * @param query 查询条件

@@ -27,7 +27,7 @@ class AsyncExportTaskSchemaContractTest {
         assertThat(migration).contains(
                 "CREATE TABLE IF NOT EXISTS data_export_task",
                 "UNIQUE KEY uk_data_export_task_no (task_no)",
-                "UNIQUE KEY uk_data_export_task_request (creator_account_id, request_id)",
+                "UNIQUE KEY uk_data_export_task_request (creator_app_code, creator_account_id, request_id)",
                 "KEY idx_data_export_task_dispatch (status, next_retry_time, lease_until, id)",
                 "CREATE TABLE IF NOT EXISTS data_export_download_audit",
                 "UNIQUE KEY uk_data_export_download_audit_no (audit_no)",
@@ -91,11 +91,28 @@ class AsyncExportTaskSchemaContractTest {
                 "/internal/admin/transactions/merchant-notifications/export-page",
                 "/internal/admin/transactions/refunds/export-page",
                 "/internal/admin/settlement/result-items/export-page",
-                "/internal/admin/settlement/reserve-items/export-page");
+                "/internal/admin/settlement/reserve-items/export-page",
+                "/internal/admin/base/card-bin/export-page",
+                "/internal/admin/monitor/job-logs/export-page",
+                "/internal/admin/transactions/channel-match-abnormalities/export-page",
+                "/internal/admin/settlement/review-orders/export-page",
+                "/internal/admin/settlement/postings/export-page",
+                "/internal/admin/security/intercept-events/export-page",
+                "/internal/admin/exchange/raw-rates/export-page",
+                "/internal/admin/exchange/business-rates/export-page",
+                "/internal/admin/exchange/usage-snapshots/export-page",
+                "/internal/admin/system/users/export-page",
+                "/internal/admin/system/configs/export-page",
+                "/internal/admin/merchant/ip-whitelists/export-page",
+                "/internal/admin/risk/configs/export-page",
+                "/internal/admin/monitor/datasource-snapshot/export-page");
         assertThat(data).contains(
                 "internal-secret: ${acquiring.internal-auth.edges.data-admin.active-secret}",
                 "active-secret: ${acquiring.internal-auth.edges.admin-data.active-secret}",
+                "internal-secret: ${acquiring.internal-auth.edges.data-merchant.active-secret}",
+                "active-secret: ${acquiring.internal-auth.edges.merchant-data.active-secret}",
                 "/internal/data/export-tasks/**",
+                "/internal/data/merchant-export-tasks/**",
                 "enabled: ${DATA_EXPORT_OBJECT_STORAGE_ENABLED:${acquiring.object-storage.enabled:false}}",
                 "bucket: ${DATA_EXPORT_OBJECT_STORAGE_BUCKET:vexra-export-files}",
                 "access-key: ${DATA_EXPORT_OBJECT_STORAGE_ACCESS_KEY:${acquiring.object-storage.access-key:}}",
@@ -104,12 +121,16 @@ class AsyncExportTaskSchemaContractTest {
                 "read-timeout-millis: ${JOB_DATA_CLIENT_READ_TIMEOUT_MILLIS:60000}",
                 "internal-secret: ${acquiring.internal-auth.edges.job-data.active-secret}");
         assertThat(managementScript).contains(
-                "printf '%s\\n' merchant-admin admin-data data-admin admin-job",
-                "printf '%s\\n' admin-data data-admin job-data",
+                "merchant-data",
+                "data-merchant",
+                "printf '%s\\n' admin-data data-admin merchant-data data-merchant job-data",
                 "admin-data|admin-job|admin-payment|admin-clearing|admin-settlement",
-                "data-admin) printf '%s' service-data",
+                "data-admin|data-merchant) printf '%s' service-data",
+                "merchant-data|merchant-payment) printf '%s' service-merchant",
                 "admin-data) printf '%s\\n' service-data",
-                "data-admin) printf '%s\\n' service-admin");
+                "data-admin) printf '%s\\n' service-admin",
+                "merchant-data) printf '%s\\n' service-data",
+                "data-merchant) printf '%s\\n' service-merchant");
     }
 
     /**

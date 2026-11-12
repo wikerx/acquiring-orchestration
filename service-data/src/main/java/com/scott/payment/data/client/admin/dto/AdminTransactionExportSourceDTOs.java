@@ -3,6 +3,7 @@ package com.scott.payment.data.client.admin.dto;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.RefundQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantNotificationQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.TransactionOrderQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.ChannelMatchAbnormalQuery;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -280,5 +281,49 @@ public final class AdminTransactionExportSourceDTOs {
         private LocalDateTime transactionDateTime;
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
+    }
+
+    /** 一页渠道勾兑异常导出来源请求。 */
+    @Data
+    public static class ChannelMatchAbnormalPageRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private Long creatorAccountId;
+        private boolean allMerchants;
+        private Set<String> merchantIds = new LinkedHashSet<>();
+        private ChannelMatchAbnormalQuery query;
+        private Integer pageNo;
+        private Integer pageSize;
+    }
+
+    /** 一页渠道勾兑异常安全投影。 */
+    @Data
+    public static class ChannelMatchAbnormalPageResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private long total;
+        private long pageNo;
+        private long pageSize;
+        private List<ChannelMatchAbnormalRow> records = new ArrayList<>();
+    }
+
+    /** 渠道勾兑异常安全导出行，不包含渠道原始报文。 */
+    @Data
+    public static class ChannelMatchAbnormalRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String abnormalEventId;
+        private String transactionId;
+        private String merchantId;
+        private String merchantOrderNo;
+        private String abnormalType;
+        private String abnormalLevel;
+        private String eventStatus;
+        private String platformStatus;
+        private String channelCode;
+        private String channelStatus;
+        private BigDecimal platformAmount;
+        private String platformCurrency;
+        private Integer occurrenceCount;
+        private String assignedToName;
+        private LocalDateTime firstSeenTime;
+        private LocalDateTime lastSeenTime;
     }
 }

@@ -25,15 +25,16 @@ public final class DataExportTaskDispatchClientDTOs {
     }
 
     /**
-     * 单轮领取、成功、失败和过期清理数量汇总。
+     * 单轮领取、异步提交、延后、租约恢复和过期清理数量汇总。
      */
     @Data
     public static class Response implements Serializable {
         private static final long serialVersionUID = 1L;
         private String requestId;
         private Integer claimedCount;
-        private Integer successCount;
-        private Integer failedCount;
+        private Integer submittedCount;
+        private Integer deferredCount;
+        private Integer recoveredCount;
         private Integer expiredCount;
     }
 }

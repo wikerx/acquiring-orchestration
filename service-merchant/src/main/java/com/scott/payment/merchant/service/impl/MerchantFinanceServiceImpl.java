@@ -162,6 +162,23 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
     @DS(DataSourceName.SLAVE)
     public PageResult<FundLedgerResponse> pageLedgers(String merchantId, DetailQuery request) {
         FundAccountDO account = requireAccount(merchantId);
+        return pageLedgers(merchantId, account.getId(), request);
+    }
+
+    /**
+     * 按任务冻结的商户号和账户主键查询余额流水，双重归属条件防止跨商户读取。
+     *
+     * @param merchantId 任务冻结的认证商户号
+     * @param accountId 任务提交时冻结的资金账户主键
+     * @param request 流水筛选、时间范围和分页条件
+     * @return 同时属于指定商户和账户的余额流水分页结果
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FundLedgerResponse> pageLedgers(String merchantId, Long accountId, DetailQuery request) {
+        if (!StringUtils.hasText(merchantId) || accountId == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
         DetailQuery query = request == null ? new DetailQuery() : request;
         validatePostedRange(query);
         if (requestsUnsupportedBalanceType(query.getBalanceType())) {
@@ -169,7 +186,7 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         }
         var wrapper = Wrappers.<FundLedgerDO>lambdaQuery()
                 .eq(FundLedgerDO::getMerchantId, merchantId)
-                .eq(FundLedgerDO::getAccountId, account.getId())
+                .eq(FundLedgerDO::getAccountId, accountId)
                 .eq(StringUtils.hasText(query.getBusinessType()), FundLedgerDO::getBusinessType, upper(query.getBusinessType()))
                 .ge(query.getPostedStartTime() != null, FundLedgerDO::getPostedTime, query.getPostedStartTime())
                 .le(query.getPostedEndTime() != null, FundLedgerDO::getPostedTime, query.getPostedEndTime())

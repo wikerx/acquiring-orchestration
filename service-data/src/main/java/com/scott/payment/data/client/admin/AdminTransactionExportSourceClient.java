@@ -8,6 +8,8 @@ import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.
 import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.MerchantNotificationPageResponse;
 import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.RefundPageRequest;
 import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.RefundPageResponse;
+import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.ChannelMatchAbnormalPageRequest;
+import com.scott.payment.data.client.admin.dto.AdminTransactionExportSourceDTOs.ChannelMatchAbnormalPageResponse;
 
 /**
  * service-data 分页读取管理端交易主单和退款导出源的内部客户端契约。
@@ -34,4 +36,8 @@ public interface AdminTransactionExportSourceClient {
      * 按冻结条件和商户范围读取一页退款记录。
      */
     RefundPageResponse loadRefundPage(RefundPageRequest request);
+
+    /** 按冻结条件和商户范围读取一页渠道勾兑异常。 */
+    ChannelMatchAbnormalPageResponse loadChannelMatchAbnormalPage(
+            ChannelMatchAbnormalPageRequest request);
 }

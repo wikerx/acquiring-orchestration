@@ -93,6 +93,8 @@ acquiring:
 | `job-payment` | `service-job` | `service-payment` | 支付到期任务和补偿命令 |
 | `job-clearing` | `service-job` | `service-clearing` | 清分补偿命令 |
 | `job-data` | `service-job` | `service-data` | 数据与商户通知补偿命令 |
+| `merchant-data` | `service-merchant` | `service-data` | 商户异步导出任务创建、查询、重试和下载 |
+| `data-merchant` | `service-data` | `service-merchant` | 分页读取商户交易和退款安全导出投影 |
 | `merchant-payment` | `service-merchant` | `service-payment` | 商户退款、撤销、请款或预授权完成等交易写操作 |
 | `openapi-payment` | `service-openapi` | `service-payment` | 商户支付受理和查询内部协议 |
 | `openapi-payout` | `service-openapi` | `service-payout` | 商户代付受理和查询内部协议 |

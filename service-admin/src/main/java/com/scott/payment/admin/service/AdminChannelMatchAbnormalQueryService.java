@@ -20,6 +20,15 @@ public interface AdminChannelMatchAbnormalQueryService {
     AbnormalSearchResponse search(AbnormalQuery query);
 
     /**
+     * 按任务创建时冻结的商户数据范围查询勾兑异常分页和统计。
+     *
+     * @param query 案件筛选、时间范围和分页条件
+     * @param dataScope 可信管理账号冻结的商户数据范围
+     * @return 数据范围内的案件分页和状态统计
+     */
+    AbnormalSearchResponse search(AbnormalQuery query, AdminMerchantDataScope dataScope);
+
+    /**
      * 使用案件号和真实分片时间查询案件聚合详情。
      *
      * @param eventId 勾兑异常案件号

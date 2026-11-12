@@ -12,7 +12,9 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "data.export")
 public class DataExportProperties {
     private int pageSize = 100;
+    private int platformPageSize = 500;
     private int dispatchBatchSize = 5;
+    private int dispatchConcurrency = 2;
     private int maxRetryCount = 3;
     private Duration processingLease = Duration.ofMinutes(10);
     private Duration retryDelay = Duration.ofMinutes(2);
@@ -26,7 +28,12 @@ public class DataExportProperties {
         if (pageSize < 50 || pageSize > 100) {
             throw new IllegalStateException("data.export.page-size must be between 50 and 100");
         }
-        if (dispatchBatchSize < 1 || dispatchBatchSize > 50 || maxRetryCount < 1 || maxRetryCount > 10) {
+        if (platformPageSize < 100 || platformPageSize > 500) {
+            throw new IllegalStateException("data.export.platform-page-size must be between 100 and 500");
+        }
+        if (dispatchBatchSize < 1 || dispatchBatchSize > 50
+                || dispatchConcurrency < 1 || dispatchConcurrency > 4
+                || maxRetryCount < 1 || maxRetryCount > 10) {
             throw new IllegalStateException("data.export batch or retry configuration is invalid");
         }
         if (processingLease == null || processingLease.isNegative() || processingLease.isZero()

@@ -179,10 +179,7 @@ public class AdminMonitorDatasourceApplicationService {
      */
     public void exportSnapshot(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
-        DataSourceMonitorResponse snapshot = snapshot();
-        List<DataSourceMonitorExportRow> rows = snapshot.getDataSources().stream()
-                .map(dataSource -> toExportRow(dataSource, locale))
-                .toList();
+        List<DataSourceMonitorExportRow> rows = exportRows(locale);
         excelExportService.export(
                 ExcelExportRequest.<DataSourceMonitorExportRow>builder()
                         .fileName(excelI18nMessageResolver.resolve("excel.datasource.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
@@ -197,6 +194,19 @@ public class AdminMonitorDatasourceApplicationService {
                         .build(),
                 response
         );
+    }
+
+    /**
+     * 构造供异步导出读取的脱敏数据源快照行，不包含数据库账号、密码或业务表数据。
+     *
+     * @param locale 导出语言
+     * @return 当前服务运行时数据源安全投影
+     */
+    public List<DataSourceMonitorExportRow> exportRows(Locale locale) {
+        Locale resolvedLocale = locale == null ? Locale.SIMPLIFIED_CHINESE : locale;
+        return snapshot().getDataSources().stream()
+                .map(dataSource -> toExportRow(dataSource, resolvedLocale))
+                .toList();
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.scott.payment.data.client.admin.dto;
 
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementReserveQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementPostingQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementReviewQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementTransactionQuery;
 import lombok.Data;
 
@@ -121,5 +123,96 @@ public final class AdminSettlementExportSourceDTOs {
         private String reserveStatus;
         private LocalDate expectedReleaseDate;
         private LocalDateTime actionTime;
+    }
+
+    /** 一页结算审核单导出来源请求。 */
+    @Data
+    public static class SettlementReviewPageRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private Long creatorAccountId;
+        private boolean allMerchants;
+        private Set<String> merchantIds = new LinkedHashSet<>();
+        private SettlementReviewQuery query;
+        private Integer pageNo;
+        private Integer pageSize;
+    }
+
+    /** 一页结算入账流水导出来源请求。 */
+    @Data
+    public static class SettlementPostingPageRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private Long creatorAccountId;
+        private boolean allMerchants;
+        private Set<String> merchantIds = new LinkedHashSet<>();
+        private SettlementPostingQuery query;
+        private Integer pageNo;
+        private Integer pageSize;
+    }
+
+    /** 一页结算审核单安全投影。 */
+    @Data
+    public static class SettlementReviewPageResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private long total;
+        private long pageNo;
+        private long pageSize;
+        private List<SettlementReviewRow> records = new ArrayList<>();
+    }
+
+    /** 一页结算入账流水安全投影。 */
+    @Data
+    public static class SettlementPostingPageResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private long total;
+        private long pageNo;
+        private long pageSize;
+        private List<SettlementPostingRow> records = new ArrayList<>();
+    }
+
+    /** 结算审核单安全导出行。 */
+    @Data
+    public static class SettlementReviewRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String reviewOrderNo;
+        private String reviewType;
+        private String createMode;
+        private String merchantId;
+        private LocalDate businessDate;
+        private String targetCurrency;
+        private Integer candidateCount;
+        private String netDirection;
+        private BigDecimal netAmount;
+        private String reviewStatus;
+        private String submittedByAccountName;
+        private LocalDateTime submittedTime;
+        private String decidedByAccountName;
+        private String decisionAction;
+        private LocalDateTime decisionTime;
+        private String settlementBatchNo;
+    }
+
+    /** 结算入账流水安全导出行。 */
+    @Data
+    public static class SettlementPostingRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String ledgerNo;
+        private String settlementBatchNo;
+        private String merchantId;
+        private Long accountId;
+        private String businessType;
+        private String direction;
+        private BigDecimal amount;
+        private String currency;
+        private BigDecimal balanceBefore;
+        private BigDecimal balanceAfter;
+        private Long accountSequence;
+        private String operationMode;
+        private String operatorName;
+        private String reviewerName;
+        private String operationReason;
+        private String reviewComment;
+        private LocalDateTime postedTime;
+        private String idempotencyKey;
+        private Long reversalOfLedgerId;
     }
 }

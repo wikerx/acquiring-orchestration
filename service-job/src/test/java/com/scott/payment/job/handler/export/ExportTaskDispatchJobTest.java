@@ -36,8 +36,9 @@ class ExportTaskDispatchJobTest {
         ExportTaskDispatchJob job = new ExportTaskDispatchJob(client, clock);
         Response response = new Response();
         response.setClaimedCount(1);
-        response.setSuccessCount(1);
-        response.setFailedCount(0);
+        response.setSubmittedCount(1);
+        response.setDeferredCount(0);
+        response.setRecoveredCount(0);
         response.setExpiredCount(2);
         when(client.dispatchExportTasks(any())).thenReturn(response);
         JobExecuteContext context = new JobExecuteContext();
@@ -52,7 +53,8 @@ class ExportTaskDispatchJobTest {
         assertThat(requestCaptor.getValue().getDispatchTime())
                 .isEqualTo(LocalDateTime.of(2026, 11, 9, 10, 15));
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.getMessage()).contains("claimed=1", "success=1", "failed=0", "expired=2");
+        assertThat(result.getMessage()).contains(
+                "claimed=1", "submitted=1", "deferred=0", "recovered=0", "expired=2");
         assertThat(result.getData()).isSameAs(response);
     }
 

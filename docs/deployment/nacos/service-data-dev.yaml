@@ -11,11 +11,23 @@ data:
     internal-caller: service-data
     # 参数说明：Data 到 Admin 独立 HMAC 密钥引用，不复用 Job-Admin 密钥。
     internal-secret: ${acquiring.internal-auth.edges.data-admin.active-secret}
+  merchant-client:
+    # 参数说明：商户异步导出执行器分页读取 service-merchant 安全投影的服务地址。
+    base-url: ${DATA_MERCHANT_EXPORT_BASE_URL:http://service-merchant}
+    connect-timeout-millis: ${DATA_MERCHANT_EXPORT_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${DATA_MERCHANT_EXPORT_READ_TIMEOUT_MILLIS:30000}
+    internal-caller: service-data
+    # 参数说明：Data 到 Merchant 的独立调用边密钥，不复用 Data-Admin 凭据。
+    internal-secret: ${acquiring.internal-auth.edges.data-merchant.active-secret}
   export:
     # 参数说明：每页最多读取100条，避免单次来源查询和Excel写入占用过多内存。
     page-size: ${DATA_EXPORT_PAGE_SIZE:100}
-    # 参数说明：单轮调度只执行一个文件，保证同步内部调用保持有界。
-    dispatch-batch-size: ${DATA_EXPORT_DISPATCH_BATCH_SIZE:1}
+    # 参数说明：卡 BIN 与任务运行日志数据量较大，使用独立的500条内部页减少跨服务请求。
+    platform-page-size: ${DATA_EXPORT_PLATFORM_PAGE_SIZE:500}
+    # 参数说明：单轮最多领取两个文件任务，与专用执行器并发容量保持一致。
+    dispatch-batch-size: ${DATA_EXPORT_DISPATCH_BATCH_SIZE:2}
+    # 参数说明：单实例同时执行两个文件任务，避免大文件长期阻塞后续小任务。
+    dispatch-concurrency: ${DATA_EXPORT_DISPATCH_CONCURRENCY:2}
     # 参数说明：自动执行失败最大尝试次数，耗尽后等待人工重试。
     max-retry-count: ${DATA_EXPORT_MAX_RETRY_COUNT:3}
     # 参数说明：执行租约必须覆盖一次文件生成和上传的合理最长时间。
@@ -100,6 +112,13 @@ internal-service:
         allowed-paths:
           # 路径说明：仅开放异步导出任务内部接口，不允许访问其他Data内部能力。
           - /internal/data/export-tasks/**
+      service-merchant:
+        # 参数说明：Merchant 创建、查询、重试和下载自身异步导出任务时使用的独立验签密钥。
+        active-secret: ${acquiring.internal-auth.edges.merchant-data.active-secret}
+        previous-secret: ${acquiring.internal-auth.edges.merchant-data.previous-secret:}
+        allowed-paths:
+          # 路径说明：仅开放商户导出任务接口，不允许访问 Data 其他内部能力。
+          - /internal/data/merchant-export-tasks/**
     # 参数说明：内部 HMAC 请求时间戳允许的最大偏差，默认 5 分钟；所有节点必须保持时钟同步。
     allowed-clock-skew: 5m
     # 参数说明：内部请求 nonce 防重放记录保留时间，默认 10 分钟，必须覆盖签名有效窗口。

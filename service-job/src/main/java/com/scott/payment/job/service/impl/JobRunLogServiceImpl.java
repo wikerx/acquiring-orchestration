@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
+import com.scott.payment.job.api.internal.dto.JobExecutionTrendResponse;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.job.api.internal.dto.JobRunLogQueryRequest;
 import com.scott.payment.job.entity.SysJobRunLogDO;
@@ -198,6 +199,19 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     @DS(DataSourceName.MASTER)
     public List<SysJobRunLogDO> selectTimeoutCandidates() {
         return sysJobRunLogMapper.selectTimeoutCandidates();
+    }
+
+    /**
+     * 委托 Mapper 在数据库侧完成任务终态自然日聚合，避免读取全部日志到 JVM。
+     *
+     * @param startTime 开始时间，包含
+     * @param endTime   结束时间，不包含
+     * @return 存在终态日志日期的聚合结果
+     */
+    @Override
+    public List<JobExecutionTrendResponse.DailyPoint> summarizeExecutionTrend(
+            LocalDateTime startTime, LocalDateTime endTime) {
+        return sysJobRunLogMapper.selectDailyTrend(startTime, endTime);
     }
 
     /**

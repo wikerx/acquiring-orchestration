@@ -5,6 +5,7 @@ import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.builder.ExcelWriterSheetBuilder;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
+import com.scott.payment.component.excel.model.ExcelDynamicPagedExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -211,6 +213,63 @@ public class ExcelExportServiceImpl implements ExcelExportService {
     }
 
     /**
+     * 分页加载动态列行并持续写入同一工作簿，输出流由异步任务持有且不会在本方法关闭。
+     *
+     * @param request 动态列分页导出请求
+     * @param outputStream 调用方管理的输出流
+     */
+    @Override
+    public void exportDynamicPaged(ExcelDynamicPagedExportRequest request, OutputStream outputStream) {
+        if (request.getPageLoader() == null || request.getPageSize() <= 0) {
+            throw new IllegalArgumentException("dynamic paged excel export requires pageLoader and positive pageSize");
+        }
+        if (outputStream == null) {
+            throw new IllegalArgumentException("dynamic paged excel export requires outputStream");
+        }
+        Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
+        List<ExcelDynamicColumnDefinition> columns = request.getColumns() == null ? List.of() : request.getColumns();
+        if (columns.isEmpty()) {
+            throw new IllegalArgumentException("dynamic paged excel export requires columns");
+        }
+        List<ExcelExportColumnDefinition> columnDefinitions = toColumnDefinitions(columns);
+        String sheetName = normalizeSheetName(request.getSheetName());
+        String title = request.getTitle() == null || request.getTitle().isBlank()
+                ? sheetName : request.getTitle().trim();
+        try (ExcelWriter writer = EasyExcel.write(outputStream)
+                .autoCloseStream(false)
+                .head(buildDynamicHead(columns))
+                .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
+                .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
+                .registerWriteHandler(new ExcelColumnStyleWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelColumnWidthWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelTitleWriteHandler(
+                        title,
+                        request.getOperator(),
+                        request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
+                        request.getQuerySummary(),
+                        columns.size(),
+                        messageResolver,
+                        locale
+                ))
+                .build()) {
+            WriteSheet sheet = EasyExcel.writerSheet(sheetName).build();
+            for (int pageNo = 1; ; pageNo++) {
+                List<Map<String, Object>> page = request.getPageLoader().apply(pageNo);
+                if (page == null || page.isEmpty()) {
+                    if (pageNo == 1) {
+                        writer.write(List.of(), sheet);
+                    }
+                    break;
+                }
+                writer.write(toDynamicRowData(page, columns, locale), sheet);
+                if (page.size() < request.getPageSize()) {
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
      * 将导出对象列表转换为按列顺序排列的 Map 行数据。
      *
      * @param dataList 导出对象列表
@@ -228,7 +287,7 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         for (T data : dataList) {
             List<Object> row = new ArrayList<>(columns.size());
             for (ExcelExportColumnDefinition column : columns) {
-                row.add(readValue(data, column.field(), locale));
+                row.add(readValue(data, column, locale));
             }
             rows.add(row);
         }
@@ -305,16 +364,31 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      * 读取导出字段值。
      *
      * @param data 数据对象
-     * @param field 字段
+     * @param column 列定义
      * @return 字段值
      */
-    private Object readValue(Object data, Field field, Locale locale) {
+    private Object readValue(Object data, ExcelExportColumnDefinition column, Locale locale) {
+        Field field = column.field();
         try {
-            Object value = field.get(data);
-            return formatValue(value, locale);
+            Object value = formatValue(field.get(data), locale);
+            return column.forceText() ? toPlainText(value) : value;
         } catch (IllegalAccessException exception) {
             throw new IllegalStateException("read export field failed: " + field.getName(), exception);
         }
+    }
+
+    /**
+     * 在 Excel 文件边界将强制文本列转换为稳定字符串，避免长编号丢失精度，
+     * 也避免精确十进制金额被工作表以科学计数法展示。
+     *
+     * @param value 已完成通用格式化的单元格值
+     * @return 可精确写入文本单元格的字符串
+     */
+    private String toPlainText(Object value) {
+        if (value instanceof BigDecimal decimal) {
+            return decimal.toPlainString();
+        }
+        return value == null ? "" : value.toString();
     }
 
     /**

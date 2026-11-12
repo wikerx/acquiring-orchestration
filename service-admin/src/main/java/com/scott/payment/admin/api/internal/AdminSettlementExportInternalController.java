@@ -5,6 +5,10 @@ import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReservePageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementPostingPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementPostingPageResponse;
 import com.scott.payment.component.core.model.CommonResult;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,5 +50,23 @@ public class AdminSettlementExportInternalController {
     public CommonResult<SettlementReservePageResponse> reservePage(
             @Valid @RequestBody SettlementReservePageRequest request) {
         return success(applicationService.pageReserves(request));
+    }
+
+    /**
+     * 按冻结范围分页读取结算审核单安全投影。
+     */
+    @PostMapping("/review-orders/export-page")
+    public CommonResult<SettlementReviewPageResponse> reviewPage(
+            @Valid @RequestBody SettlementReviewPageRequest request) {
+        return success(applicationService.pageReviews(request));
+    }
+
+    /**
+     * 按冻结范围分页读取结算入账流水安全投影。
+     */
+    @PostMapping("/postings/export-page")
+    public CommonResult<SettlementPostingPageResponse> postingPage(
+            @Valid @RequestBody SettlementPostingPageRequest request) {
+        return success(applicationService.pagePostings(request));
     }
 }

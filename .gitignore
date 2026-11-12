@@ -53,6 +53,7 @@ audit/*secret*.json
 **/.nacos-runtime.env
 runtime/nacos-backups/
 /runtime/secrets/
+/runtime/
 docs/nacos/*.zip
 
 # Generated

@@ -12,11 +12,18 @@ import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundPageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundRow;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.ChannelMatchAbnormalPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.ChannelMatchAbnormalPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.ChannelMatchAbnormalRow;
+import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalQuery;
+import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord;
+import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
+import com.scott.payment.admin.service.AdminChannelMatchAbnormalQueryService;
 import com.scott.payment.admin.service.AdminRefundQueryService;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.model.PageResult;
@@ -30,15 +37,18 @@ import org.springframework.util.StringUtils;
 public class AdminTransactionExportSourceApplicationService {
     private final AdminTransactionQueryService transactionQueryService;
     private final AdminRefundQueryService refundQueryService;
+    private final AdminChannelMatchAbnormalQueryService channelMatchAbnormalQueryService;
 
     /**
      * 创建交易主单与退款异步导出来源服务。
      */
     public AdminTransactionExportSourceApplicationService(
             AdminTransactionQueryService transactionQueryService,
-            AdminRefundQueryService refundQueryService) {
+            AdminRefundQueryService refundQueryService,
+            AdminChannelMatchAbnormalQueryService channelMatchAbnormalQueryService) {
         this.transactionQueryService = transactionQueryService;
         this.refundQueryService = refundQueryService;
+        this.channelMatchAbnormalQueryService = channelMatchAbnormalQueryService;
     }
 
     /**
@@ -97,6 +107,25 @@ public class AdminTransactionExportSourceApplicationService {
         response.setPageNo(page.getPageNo());
         response.setPageSize(page.getPageSize());
         response.setRecords(page.getRecords().stream().map(this::toMerchantNotificationRow).toList());
+        return response;
+    }
+
+    /**
+     * 按冻结条件和商户范围读取一页渠道勾兑异常安全投影。
+     */
+    public ChannelMatchAbnormalPageResponse pageChannelMatchAbnormalities(
+            ChannelMatchAbnormalPageRequest request) {
+        AbnormalSearchResponse searchResponse = channelMatchAbnormalQueryService.search(
+                toChannelMatchAbnormalQuery(request),
+                dataScope(request.isAllMerchants(), request.getMerchantIds()));
+        PageResult<AbnormalRecord> page = searchResponse.getPage();
+        ChannelMatchAbnormalPageResponse response = new ChannelMatchAbnormalPageResponse();
+        response.setTotal(page.getTotal());
+        response.setPageNo(page.getPageNo());
+        response.setPageSize(page.getPageSize());
+        response.setRecords(page.getRecords().stream()
+                .map(this::toChannelMatchAbnormalRow)
+                .toList());
         return response;
     }
 
@@ -199,6 +228,34 @@ public class AdminTransactionExportSourceApplicationService {
         target.setEndTime(source.getEndTime());
         target.setCompleteBeginTime(source.getCompleteBeginTime());
         target.setCompleteEndTime(source.getCompleteEndTime());
+        target.setQueryTimeZone(source.getQueryTimeZone());
+        target.setPageNo(request.getPageNo());
+        target.setPageSize(request.getPageSize());
+        return target;
+    }
+
+    /**
+     * 将渠道勾兑异常冻结条件恢复为现有查询对象并覆盖内部页码。
+     */
+    private AbnormalQuery toChannelMatchAbnormalQuery(ChannelMatchAbnormalPageRequest request) {
+        var source = request.getQuery();
+        AbnormalQuery target = new AbnormalQuery();
+        target.setEventId(source.getEventId());
+        target.setTransactionId(source.getTransactionId());
+        target.setMerchantId(source.getMerchantId());
+        target.setMerchantOrderNo(source.getMerchantOrderNo());
+        target.setAbnormalType(source.getAbnormalType());
+        target.setAbnormalLevel(source.getAbnormalLevel());
+        target.setEventStatus(source.getEventStatus());
+        target.setTransactionType(source.getTransactionType());
+        target.setPlatformStatus(source.getPlatformStatus());
+        target.setChannelCode(source.getChannelCode());
+        target.setChannelOrderNo(source.getChannelOrderNo());
+        target.setAssignedToId(source.getAssignedToId());
+        target.setDetectSource(source.getDetectSource());
+        target.setMinimumOccurrenceCount(source.getMinimumOccurrenceCount());
+        target.setBeginTime(source.getBeginTime());
+        target.setEndTime(source.getEndTime());
         target.setQueryTimeZone(source.getQueryTimeZone());
         target.setPageNo(request.getPageNo());
         target.setPageSize(request.getPageSize());
@@ -332,6 +389,30 @@ public class AdminTransactionExportSourceApplicationService {
         row.setTransactionDateTime(source.getTransactionDateTime());
         row.setCreateTime(source.getCreateTime());
         row.setUpdateTime(source.getUpdateTime());
+        return row;
+    }
+
+    /**
+     * 将勾兑异常裁剪为导出安全字段，明确排除渠道原始引用报文。
+     */
+    private ChannelMatchAbnormalRow toChannelMatchAbnormalRow(AbnormalRecord source) {
+        ChannelMatchAbnormalRow row = new ChannelMatchAbnormalRow();
+        row.setAbnormalEventId(source.getAbnormalEventId());
+        row.setTransactionId(source.getTransactionId());
+        row.setMerchantId(source.getMerchantId());
+        row.setMerchantOrderNo(source.getMerchantOrderNo());
+        row.setAbnormalType(source.getAbnormalType());
+        row.setAbnormalLevel(source.getAbnormalLevel());
+        row.setEventStatus(source.getEventStatus());
+        row.setPlatformStatus(source.getPlatformStatus());
+        row.setChannelCode(source.getChannelCode());
+        row.setChannelStatus(source.getChannelStatus());
+        row.setPlatformAmount(source.getPlatformAmount());
+        row.setPlatformCurrency(source.getPlatformCurrency());
+        row.setOccurrenceCount(source.getOccurrenceCount());
+        row.setAssignedToName(source.getAssignedToName());
+        row.setFirstSeenTime(source.getFirstSeenTime());
+        row.setLastSeenTime(source.getLastSeenTime());
         return row;
     }
 }

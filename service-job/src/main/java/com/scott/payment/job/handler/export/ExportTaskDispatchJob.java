@@ -43,7 +43,7 @@ public class ExportTaskDispatchJob implements JobHandler {
     }
 
     /**
-     * 声明同步且禁止同一任务并发执行的 Data 导出调度处理器。
+     * 声明同步且禁止同一调度命令并发执行的 Data 导出领取处理器。
      */
     @Override
     public JobHandlerDescriptor descriptor() {
@@ -71,8 +71,9 @@ public class ExportTaskDispatchJob implements JobHandler {
                     "service-data export dispatch result is empty");
         }
         String message = "export task dispatch finished, claimed=" + value(response.getClaimedCount())
-                + ", success=" + value(response.getSuccessCount())
-                + ", failed=" + value(response.getFailedCount())
+                + ", submitted=" + value(response.getSubmittedCount())
+                + ", deferred=" + value(response.getDeferredCount())
+                + ", recovered=" + value(response.getRecoveredCount())
                 + ", expired=" + value(response.getExpiredCount());
         return JobExecuteResult.success(message, response);
     }

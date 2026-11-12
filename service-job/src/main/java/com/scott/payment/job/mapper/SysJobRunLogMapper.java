@@ -1,6 +1,7 @@
 package com.scott.payment.job.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.scott.payment.job.api.internal.dto.JobExecutionTrendResponse;
 import com.scott.payment.job.entity.SysJobRunLogDO;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -59,4 +60,29 @@ public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
             LIMIT 100
             """)
     List<SysJobRunLogDO> selectTimeoutCandidates();
+
+    /**
+     * 按任务完成日期聚合指定半开时间区间内的成功和失败终态。
+     *
+     * <p>使用结束时间确定终态归属日期，兼容历史记录时回退更新时间；
+     * 非终态日志不会进入结果。</p>
+     *
+     * @param startTime 开始时间，包含
+     * @param endTime   结束时间，不包含
+     * @return 仅包含存在终态日志日期的聚合结果
+     */
+    @Select("""
+            SELECT DATE(COALESCE(end_time, update_time)) AS date,
+                   SUM(CASE WHEN run_status = 'SUCCESS' THEN 1 ELSE 0 END) AS success_count,
+                   SUM(CASE WHEN run_status IN ('FAILED', 'TIMEOUT', 'CANCELLED') THEN 1 ELSE 0 END) AS failed_count
+            FROM sys_job_run_log
+            WHERE COALESCE(end_time, update_time) >= #{startTime}
+              AND COALESCE(end_time, update_time) < #{endTime}
+              AND run_status IN ('SUCCESS', 'FAILED', 'TIMEOUT', 'CANCELLED')
+            GROUP BY DATE(COALESCE(end_time, update_time))
+            ORDER BY date ASC
+            """)
+    List<JobExecutionTrendResponse.DailyPoint> selectDailyTrend(
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
 }

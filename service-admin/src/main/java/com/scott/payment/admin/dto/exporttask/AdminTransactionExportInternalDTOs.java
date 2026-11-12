@@ -354,4 +354,79 @@ public final class AdminTransactionExportInternalDTOs {
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
     }
+
+    /** 任务创建时冻结的渠道勾兑异常查询条件。 */
+    @Data
+    public static class ChannelMatchAbnormalQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String eventId;
+        private String transactionId;
+        private String merchantId;
+        private String merchantOrderNo;
+        private String abnormalType;
+        private String abnormalLevel;
+        private String eventStatus;
+        private String transactionType;
+        private String platformStatus;
+        private String channelCode;
+        private String channelOrderNo;
+        private String assignedToId;
+        private String detectSource;
+        private Integer minimumOccurrenceCount;
+        private LocalDateTime beginTime;
+        private LocalDateTime endTime;
+        private String queryTimeZone;
+    }
+
+    /** 渠道勾兑异常导出源分页请求，商户范围来自任务快照。 */
+    @Data
+    public static class ChannelMatchAbnormalPageRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotNull
+        private Long creatorAccountId;
+        private boolean allMerchants;
+        private Set<String> merchantIds = new LinkedHashSet<>();
+        @Valid
+        @NotNull
+        private ChannelMatchAbnormalQuery query;
+        @NotNull
+        @Min(1)
+        private Integer pageNo;
+        @NotNull
+        @Min(1)
+        @Max(100)
+        private Integer pageSize;
+    }
+
+    /** 一页渠道勾兑异常安全投影。 */
+    @Data
+    public static class ChannelMatchAbnormalPageResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private long total;
+        private long pageNo;
+        private long pageSize;
+        private List<ChannelMatchAbnormalRow> records = new ArrayList<>();
+    }
+
+    /** 渠道勾兑异常导出安全行，不包含渠道原始报文。 */
+    @Data
+    public static class ChannelMatchAbnormalRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String abnormalEventId;
+        private String transactionId;
+        private String merchantId;
+        private String merchantOrderNo;
+        private String abnormalType;
+        private String abnormalLevel;
+        private String eventStatus;
+        private String platformStatus;
+        private String channelCode;
+        private String channelStatus;
+        private BigDecimal platformAmount;
+        private String platformCurrency;
+        private Integer occurrenceCount;
+        private String assignedToName;
+        private LocalDateTime firstSeenTime;
+        private LocalDateTime lastSeenTime;
+    }
 }

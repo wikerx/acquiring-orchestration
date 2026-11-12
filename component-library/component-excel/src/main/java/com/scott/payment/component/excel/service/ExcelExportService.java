@@ -2,6 +2,7 @@ package com.scott.payment.component.excel.service;
 
 import jakarta.servlet.http.HttpServletResponse;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
+import com.scott.payment.component.excel.model.ExcelDynamicPagedExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 
@@ -48,4 +49,14 @@ public interface ExcelExportService {
      * @param response HTTP 响应
      */
     void exportDynamic(ExcelDynamicExportRequest request, HttpServletResponse response);
+
+    /**
+     * 分页加载动态列数据并写入调用方管理的输出流。
+     *
+     * <p>该方法不关闭输出流，调用方负责流生命周期。</p>
+     *
+     * @param request 动态列分页导出请求
+     * @param outputStream 调用方管理的输出流
+     */
+    void exportDynamicPaged(ExcelDynamicPagedExportRequest request, OutputStream outputStream);
 }

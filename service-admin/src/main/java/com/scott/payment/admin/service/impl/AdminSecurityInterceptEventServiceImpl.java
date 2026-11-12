@@ -10,6 +10,7 @@ import com.scott.payment.admin.dto.security.SecurityInterceptEventDTOs.SecurityI
 import com.scott.payment.admin.dto.security.SecurityInterceptEventDTOs.SecurityInterceptEventQuery;
 import com.scott.payment.admin.dto.security.SecurityInterceptEventDTOs.SecurityInterceptEventResponse;
 import com.scott.payment.admin.service.AdminSecurityInterceptEventService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -58,10 +59,23 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<SecurityInterceptEventResponse> pageEvents(SecurityInterceptEventQuery query) {
+        return pageEvents(query, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围分页查询安全事件，空有限范围不会返回任何记录。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<SecurityInterceptEventResponse> pageEvents(
+            SecurityInterceptEventQuery query,
+            AdminMerchantDataScope dataScope) {
         SecurityInterceptEventQuery condition = query == null ? new SecurityInterceptEventQuery() : query;
+        AdminMerchantDataScope safeScope = dataScope == null
+                ? AdminMerchantDataScope.limited(java.util.Set.of()) : dataScope;
         IPage<SecurityInterceptEventDO> page = eventMapper.selectPage(
                 new Page<>(condition.safePageNo(), condition.safePageSize()),
-                buildWrapper(condition)
+                buildWrapper(condition, safeScope)
         );
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream()
                 .map(this::toResponse)
@@ -78,7 +92,8 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     @DS(DataSourceName.SLAVE)
     public List<SecurityInterceptEventResponse> listEvents(SecurityInterceptEventQuery query) {
         SecurityInterceptEventQuery condition = query == null ? new SecurityInterceptEventQuery() : query;
-        LambdaQueryWrapper<SecurityInterceptEventDO> wrapper = buildWrapper(condition)
+        LambdaQueryWrapper<SecurityInterceptEventDO> wrapper = buildWrapper(
+                condition, AdminMerchantDataScope.all())
                 .last("LIMIT " + EXPORT_LIMIT);
         return eventMapper.selectList(wrapper).stream()
                 .map(this::toResponse)
@@ -130,7 +145,9 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
      * @param query 已补齐默认值的安全拦截事件查询
      * @return 按事件时间和主键倒序的查询条件
      */
-    private LambdaQueryWrapper<SecurityInterceptEventDO> buildWrapper(SecurityInterceptEventQuery query) {
+    private LambdaQueryWrapper<SecurityInterceptEventDO> buildWrapper(
+            SecurityInterceptEventQuery query,
+            AdminMerchantDataScope dataScope) {
         String eventNo = trimToNull(query.getEventNo());
         String sourceLayer = trimToNull(query.getSourceLayer());
         String eventType = trimToNull(query.getEventType());
@@ -143,7 +160,7 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         String requestId = trimToNull(query.getRequestId());
         String hitRuleCode = trimToNull(query.getHitRuleCode());
         QueryTimeRange timeRange = normalizeQueryTimeRange(query.getBeginTime(), query.getEndTime(), query.getQueryTimeZone());
-        return Wrappers.<SecurityInterceptEventDO>lambdaQuery()
+        LambdaQueryWrapper<SecurityInterceptEventDO> wrapper = Wrappers.<SecurityInterceptEventDO>lambdaQuery()
                 .eq(StringUtils.hasText(eventNo), SecurityInterceptEventDO::getEventNo, eventNo)
                 .eq(StringUtils.hasText(sourceLayer), SecurityInterceptEventDO::getSourceLayer, sourceLayer)
                 .eq(StringUtils.hasText(eventType), SecurityInterceptEventDO::getEventType, eventType)
@@ -157,8 +174,13 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
                 .eq(StringUtils.hasText(hitRuleCode), SecurityInterceptEventDO::getHitRuleCode, hitRuleCode)
                 .eq(query.getProcessStatus() != null, SecurityInterceptEventDO::getProcessStatus, normalizeQueryProcessStatus(query.getProcessStatus()))
                 .ge(timeRange.beginTime() != null, SecurityInterceptEventDO::getEventTime, timeRange.beginTime())
-                .le(timeRange.endTime() != null, SecurityInterceptEventDO::getEventTime, timeRange.endTime())
-                .orderByDesc(SecurityInterceptEventDO::getEventTime)
+                .le(timeRange.endTime() != null, SecurityInterceptEventDO::getEventTime, timeRange.endTime());
+        if (dataScope.empty()) {
+            wrapper.apply("1 = 0");
+        } else if (!dataScope.allMerchants()) {
+            wrapper.in(SecurityInterceptEventDO::getMerchantId, dataScope.merchantIds());
+        }
+        return wrapper.orderByDesc(SecurityInterceptEventDO::getEventTime)
                 .orderByDesc(SecurityInterceptEventDO::getId);
     }
 

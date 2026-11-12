@@ -4,12 +4,21 @@ import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReserveQuery;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionQuery;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewQuery;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementPostingPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementPostingQuery;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
+import com.scott.payment.admin.service.AdminSettlementReviewQueryService;
 import com.scott.payment.component.core.model.PageResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -48,7 +57,8 @@ class AdminSettlementExportSourceApplicationServiceTest {
         when(queryService.searchResultItems(any(), any()))
                 .thenReturn(PageResult.of(1L, 3L, 50L, List.of(source)));
         AdminSettlementExportSourceApplicationService service =
-                new AdminSettlementExportSourceApplicationService(queryService);
+                new AdminSettlementExportSourceApplicationService(queryService,
+                        mock(AdminSettlementReviewQueryService.class));
         SettlementTransactionQuery query = new SettlementTransactionQuery();
         query.setSettlementBatchNo("STB1001");
         query.setBeginBusinessDate(LocalDate.of(2026, 11, 1));
@@ -99,7 +109,8 @@ class AdminSettlementExportSourceApplicationServiceTest {
         when(queryService.searchReserveItems(any(), any()))
                 .thenReturn(PageResult.of(1L, 2L, 100L, List.of(source)));
         AdminSettlementExportSourceApplicationService service =
-                new AdminSettlementExportSourceApplicationService(queryService);
+                new AdminSettlementExportSourceApplicationService(queryService,
+                        mock(AdminSettlementReviewQueryService.class));
         SettlementReserveQuery query = new SettlementReserveQuery();
         query.setReserveNo("RSV2001");
         query.setBeginBusinessDate(LocalDate.of(2026, 11, 1));
@@ -128,5 +139,75 @@ class AdminSettlementExportSourceApplicationServiceTest {
         assertThat(response.getRecords().get(0).getClass().getDeclaredFields())
                 .extracting(java.lang.reflect.Field::getName)
                 .doesNotContain("accountId", "accountNo", "sourceBusinessNo");
+    }
+
+    /**
+     * 结算审核单与入账流水必须复用冻结商户范围并保持权威资金事实。
+     */
+    @Test
+    void shouldPageSettlementReviewAndPostingWithinFrozenScope() {
+        AdminSettlementReportingQueryService reportingService =
+                mock(AdminSettlementReportingQueryService.class);
+        AdminSettlementReviewQueryService reviewService =
+                mock(AdminSettlementReviewQueryService.class);
+        ReviewSummary review = new ReviewSummary();
+        review.setReviewOrderNo("RVW-5001");
+        review.setMerchantId("M5001");
+        review.setNetAmount(new BigDecimal("120.00"));
+        review.setTargetCurrency("USD");
+        PostingSummary posting = new PostingSummary();
+        posting.setLedgerNo("LDG-5001");
+        posting.setMerchantId("M5001");
+        posting.setAmount(new BigDecimal("120.00"));
+        posting.setBalanceBefore(new BigDecimal("20.00"));
+        posting.setBalanceAfter(new BigDecimal("140.00"));
+        when(reviewService.searchReviews(any(), any()))
+                .thenReturn(PageResult.of(1L, 1L, 100L, List.of(review)));
+        when(reportingService.searchPostings(any(), any()))
+                .thenReturn(PageResult.of(1L, 1L, 100L, List.of(posting)));
+        AdminSettlementExportSourceApplicationService service =
+                new AdminSettlementExportSourceApplicationService(reportingService, reviewService);
+
+        SettlementReviewQuery reviewQuery = new SettlementReviewQuery();
+        reviewQuery.setReviewStatus("PENDING_APPROVAL");
+        SettlementReviewPageRequest reviewRequest = new SettlementReviewPageRequest();
+        reviewRequest.setCreatorAccountId(88L);
+        reviewRequest.setMerchantIds(Set.of("M5001"));
+        reviewRequest.setQuery(reviewQuery);
+        reviewRequest.setPageNo(1);
+        reviewRequest.setPageSize(100);
+        SettlementPostingQuery postingQuery = new SettlementPostingQuery();
+        postingQuery.setCurrency("USD");
+        SettlementPostingPageRequest postingRequest = new SettlementPostingPageRequest();
+        postingRequest.setCreatorAccountId(88L);
+        postingRequest.setMerchantIds(Set.of("M5001"));
+        postingRequest.setQuery(postingQuery);
+        postingRequest.setPageNo(1);
+        postingRequest.setPageSize(100);
+
+        var reviewResponse = service.pageReviews(reviewRequest);
+        var postingResponse = service.pagePostings(postingRequest);
+
+        ArgumentCaptor<ReviewSearchRequest> reviewCaptor =
+                ArgumentCaptor.forClass(ReviewSearchRequest.class);
+        ArgumentCaptor<PostingSearchRequest> postingCaptor =
+                ArgumentCaptor.forClass(PostingSearchRequest.class);
+        ArgumentCaptor<AdminMerchantDataScope> reviewScope =
+                ArgumentCaptor.forClass(AdminMerchantDataScope.class);
+        ArgumentCaptor<AdminMerchantDataScope> postingScope =
+                ArgumentCaptor.forClass(AdminMerchantDataScope.class);
+        verify(reviewService).searchReviews(reviewCaptor.capture(), reviewScope.capture());
+        verify(reportingService).searchPostings(postingCaptor.capture(), postingScope.capture());
+        assertThat(reviewCaptor.getValue().getReviewStatus()).isEqualTo("PENDING_APPROVAL");
+        assertThat(postingCaptor.getValue().getCurrency()).isEqualTo("USD");
+        assertThat(reviewScope.getValue().merchantIds()).containsExactly("M5001");
+        assertThat(postingScope.getValue().merchantIds()).containsExactly("M5001");
+        assertThat(reviewResponse.getRecords()).singleElement()
+                .satisfies(row -> assertThat(row.getNetAmount()).isEqualByComparingTo("120.00"));
+        assertThat(postingResponse.getRecords()).singleElement().satisfies(row -> {
+            assertThat(row.getAmount()).isEqualByComparingTo("120.00");
+            assertThat(row.getBalanceBefore()).isEqualByComparingTo("20.00");
+            assertThat(row.getBalanceAfter()).isEqualByComparingTo("140.00");
+        });
     }
 }

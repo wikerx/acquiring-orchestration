@@ -9,6 +9,8 @@ import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.MerchantNotificationPageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.ChannelMatchAbnormalPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.ChannelMatchAbnormalPageResponse;
 import com.scott.payment.component.core.model.CommonResult;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -66,5 +68,14 @@ public class AdminTransactionExportInternalController {
     @PostMapping("/refunds/export-page")
     public CommonResult<RefundPageResponse> refundPage(@Valid @RequestBody RefundPageRequest request) {
         return success(applicationService.pageRefunds(request));
+    }
+
+    /**
+     * 按冻结范围分页读取渠道勾兑异常安全投影。
+     */
+    @PostMapping("/channel-match-abnormalities/export-page")
+    public CommonResult<ChannelMatchAbnormalPageResponse> channelMatchAbnormalPage(
+            @Valid @RequestBody ChannelMatchAbnormalPageRequest request) {
+        return success(applicationService.pageChannelMatchAbnormalities(request));
     }
 }

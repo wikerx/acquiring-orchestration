@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS data_export_task (
     task_type VARCHAR(64) NOT NULL COMMENT '任务类型',
     task_name VARCHAR(128) NOT NULL COMMENT '用户可见任务名称',
     source_service VARCHAR(64) NOT NULL COMMENT '创建任务的来源服务',
-    creator_account_id BIGINT NOT NULL COMMENT '创建人管理账号ID',
+    creator_app_code VARCHAR(32) NOT NULL DEFAULT 'ADMIN' COMMENT '创建账号所属应用ADMIN/MERCHANT',
+    creator_account_id BIGINT NOT NULL COMMENT '创建人账号ID',
+    merchant_id VARCHAR(64) NULL COMMENT '商户任务所属商户号，管理任务为空',
     creator_account_name VARCHAR(128) NOT NULL COMMENT '创建人名称快照',
     locale VARCHAR(16) NOT NULL COMMENT '创建时语言标签',
     timezone VARCHAR(64) NOT NULL COMMENT '创建时时区',
@@ -40,9 +42,9 @@ CREATE TABLE IF NOT EXISTS data_export_task (
     update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_data_export_task_no (task_no),
-    UNIQUE KEY uk_data_export_task_request (creator_account_id, request_id),
+    UNIQUE KEY uk_data_export_task_request (creator_app_code, creator_account_id, request_id),
     KEY idx_data_export_task_dispatch (status, next_retry_time, lease_until, id),
-    KEY idx_data_export_task_creator_time (creator_account_id, create_time, id),
+    KEY idx_data_export_task_creator_time (creator_app_code, creator_account_id, merchant_id, create_time, id),
     KEY idx_data_export_task_expiry (status, expires_at, id),
     CONSTRAINT chk_data_export_task_status CHECK (
         status IN ('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED', 'EXPIRED')
@@ -56,7 +58,9 @@ CREATE TABLE IF NOT EXISTS data_export_download_audit (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '物理主键',
     audit_no VARCHAR(64) NOT NULL COMMENT '下载审计号',
     task_no VARCHAR(64) NOT NULL COMMENT '导出任务号',
-    operator_account_id BIGINT NOT NULL COMMENT '下载操作人管理账号ID',
+    operator_app_code VARCHAR(32) NOT NULL DEFAULT 'ADMIN' COMMENT '下载操作人所属应用ADMIN/MERCHANT',
+    operator_account_id BIGINT NOT NULL COMMENT '下载操作人账号ID',
+    merchant_id VARCHAR(64) NULL COMMENT '商户下载所属商户号，管理下载为空',
     operator_account_name VARCHAR(128) NULL COMMENT '下载操作人名称快照',
     client_ip VARCHAR(64) NULL COMMENT '浏览器连接来源IP',
     result_status VARCHAR(16) NOT NULL COMMENT 'REQUESTED/SUCCESS/FAILED',
@@ -68,7 +72,7 @@ CREATE TABLE IF NOT EXISTS data_export_download_audit (
     PRIMARY KEY (id),
     UNIQUE KEY uk_data_export_download_audit_no (audit_no),
     KEY idx_data_export_download_task_time (task_no, requested_at, id),
-    KEY idx_data_export_download_operator_time (operator_account_id, requested_at, id),
+    KEY idx_data_export_download_operator_time (operator_app_code, operator_account_id, merchant_id, requested_at, id),
     CONSTRAINT chk_data_export_download_status CHECK (
         result_status IN ('REQUESTED', 'SUCCESS', 'FAILED')
     )

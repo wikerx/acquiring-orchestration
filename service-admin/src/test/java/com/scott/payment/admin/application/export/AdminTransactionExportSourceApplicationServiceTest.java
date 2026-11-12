@@ -5,12 +5,17 @@ import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.MerchantNotificationPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.RefundPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.TransactionOrderQuery;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.ChannelMatchAbnormalPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminTransactionExportInternalDTOs.ChannelMatchAbnormalQuery;
+import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord;
+import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
+import com.scott.payment.admin.service.AdminChannelMatchAbnormalQueryService;
 import com.scott.payment.admin.service.AdminRefundQueryService;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.model.PageResult;
@@ -49,7 +54,8 @@ class AdminTransactionExportSourceApplicationServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(PageResult.of(1L, 3L, 50L, List.of(source)));
         AdminTransactionExportSourceApplicationService service =
-                new AdminTransactionExportSourceApplicationService(transactionService, refundService);
+                new AdminTransactionExportSourceApplicationService(transactionService, refundService,
+                        mock(AdminChannelMatchAbnormalQueryService.class));
         OrderPageRequest request = new OrderPageRequest();
         request.setCreatorAccountId(88L);
         request.setAllMerchants(false);
@@ -101,7 +107,8 @@ class AdminTransactionExportSourceApplicationServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(PageResult.of(1L, 2L, 50L, List.of(source)));
         AdminTransactionExportSourceApplicationService service =
-                new AdminTransactionExportSourceApplicationService(transactionService, refundService);
+                new AdminTransactionExportSourceApplicationService(transactionService, refundService,
+                        mock(AdminChannelMatchAbnormalQueryService.class));
         OperationPageRequest request = new OperationPageRequest();
         request.setCreatorAccountId(88L);
         request.setAllMerchants(false);
@@ -147,7 +154,8 @@ class AdminTransactionExportSourceApplicationServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(PageResult.of(1L, 1L, 100L, List.of(source)));
         AdminTransactionExportSourceApplicationService service =
-                new AdminTransactionExportSourceApplicationService(transactionService, refundService);
+                new AdminTransactionExportSourceApplicationService(transactionService, refundService,
+                        mock(AdminChannelMatchAbnormalQueryService.class));
         MerchantNotificationPageRequest request = new MerchantNotificationPageRequest();
         request.setCreatorAccountId(88L);
         request.setAllMerchants(false);
@@ -198,7 +206,8 @@ class AdminTransactionExportSourceApplicationServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(PageResult.of(1L, 1L, 100L, List.of(source)));
         AdminTransactionExportSourceApplicationService service =
-                new AdminTransactionExportSourceApplicationService(transactionService, refundService);
+                new AdminTransactionExportSourceApplicationService(transactionService, refundService,
+                        mock(AdminChannelMatchAbnormalQueryService.class));
         RefundPageRequest request = new RefundPageRequest();
         request.setCreatorAccountId(88L);
         request.setAllMerchants(true);
@@ -226,5 +235,58 @@ class AdminTransactionExportSourceApplicationServiceTest {
             assertThat(row.getTransactionCurrency()).isEqualTo("USD");
             assertThat(row.getApprovalStatus()).isEqualTo("APPROVED");
         });
+    }
+
+    /**
+     * 渠道勾兑异常来源必须使用冻结商户范围，并排除渠道原始引用证据。
+     */
+    @Test
+    void shouldPageChannelMatchAbnormalitiesWithinFrozenScope() {
+        AdminTransactionQueryService transactionService = mock(AdminTransactionQueryService.class);
+        AdminRefundQueryService refundService = mock(AdminRefundQueryService.class);
+        AdminChannelMatchAbnormalQueryService abnormalService =
+                mock(AdminChannelMatchAbnormalQueryService.class);
+        AbnormalRecord source = new AbnormalRecord();
+        source.setAbnormalEventId("ABN-5001");
+        source.setMerchantId("M5001");
+        source.setTransactionId("TXN-5001");
+        source.setPlatformAmount(new BigDecimal("88.50"));
+        source.setPlatformCurrency("EUR");
+        source.setRawReferenceJson("{\"channelPayload\":\"must-not-export\"}");
+        AbnormalSearchResponse searchResponse = new AbnormalSearchResponse();
+        searchResponse.setPage(PageResult.of(1L, 2L, 100L, List.of(source)));
+        when(abnormalService.search(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(searchResponse);
+        AdminTransactionExportSourceApplicationService service =
+                new AdminTransactionExportSourceApplicationService(
+                        transactionService, refundService, abnormalService);
+        ChannelMatchAbnormalQuery query = new ChannelMatchAbnormalQuery();
+        query.setEventStatus("OPEN");
+        ChannelMatchAbnormalPageRequest request = new ChannelMatchAbnormalPageRequest();
+        request.setCreatorAccountId(88L);
+        request.setMerchantIds(Set.of("M5001"));
+        request.setQuery(query);
+        request.setPageNo(2);
+        request.setPageSize(100);
+
+        var response = service.pageChannelMatchAbnormalities(request);
+
+        ArgumentCaptor<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalQuery>
+                queryCaptor = ArgumentCaptor.forClass(
+                com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalQuery.class);
+        ArgumentCaptor<AdminMerchantDataScope> scopeCaptor =
+                ArgumentCaptor.forClass(AdminMerchantDataScope.class);
+        verify(abnormalService).search(queryCaptor.capture(), scopeCaptor.capture());
+        assertThat(queryCaptor.getValue().getEventStatus()).isEqualTo("OPEN");
+        assertThat(queryCaptor.getValue().getPageNo()).isEqualTo(2);
+        assertThat(scopeCaptor.getValue().merchantIds()).containsExactly("M5001");
+        assertThat(response.getRecords()).singleElement().satisfies(row -> {
+            assertThat(row.getAbnormalEventId()).isEqualTo("ABN-5001");
+            assertThat(row.getPlatformAmount()).isEqualByComparingTo("88.50");
+            assertThat(row.getPlatformCurrency()).isEqualTo("EUR");
+        });
+        assertThat(response.getRecords().get(0).getClass().getDeclaredFields())
+                .extracting(java.lang.reflect.Field::getName)
+                .doesNotContain("rawReferenceJson", "channelOrderNo", "channelTransactionId");
     }
 }

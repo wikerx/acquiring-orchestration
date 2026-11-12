@@ -1,7 +1,9 @@
 package com.scott.payment.data.service.export;
 
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
+import com.scott.payment.component.excel.model.ExcelDynamicPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelDynamicColumnDefinition;
 import com.scott.payment.data.config.export.DataExportProperties;
 import com.scott.payment.data.entity.export.DataExportTaskDO;
 import com.scott.payment.data.infrastructure.export.ExportObjectStorageService;
@@ -17,6 +19,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntFunction;
 
@@ -66,6 +70,92 @@ public class ExcelExportArtifactWriter {
                                     String englishSheetName,
                                     Class<T> rowClass,
                                     IntFunction<ExportPage<T>> pageLoader) {
+        return write(task, storage, progressListener, now, titleKey, chineseSheetName,
+                englishSheetName, rowClass, properties.getPageSize(), pageLoader);
+    }
+
+    /**
+     * 使用动态列和分页 Map 数据生成工作簿，适用于风控等不同功能拥有不同列结构的导出任务。
+     *
+     * @param task 已领取任务
+     * @param storage 私有对象存储
+     * @param progressListener 进度监听器
+     * @param now 本轮执行时间
+     * @param chineseTitle 中文标题
+     * @param englishTitle 英文标题
+     * @param columns 动态列定义
+     * @param pageLoader 权威分页加载器
+     * @return 最终文件元数据
+     */
+    public ExportArtifact writeDynamic(DataExportTaskDO task,
+                                       ExportObjectStorageService storage,
+                                       ExportProgressListener progressListener,
+                                       LocalDateTime now,
+                                       String chineseTitle,
+                                       String englishTitle,
+                                       List<ExcelDynamicColumnDefinition> columns,
+                                       IntFunction<ExportPage<Map<String, Object>>> pageLoader) {
+        Locale locale = resolveLocale(task.getLocale());
+        String title = Locale.CHINESE.getLanguage().equals(locale.getLanguage())
+                ? chineseTitle : englishTitle;
+        AtomicLong totalRows = new AtomicLong();
+        AtomicLong processedRows = new AtomicLong();
+        Path file = null;
+        try {
+            file = Files.createTempFile("vexra-export-", ".xlsx");
+            try (OutputStream output = Files.newOutputStream(file)) {
+                excelExportService.exportDynamicPaged(ExcelDynamicPagedExportRequest.builder()
+                        .fileName(task.getTaskName())
+                        .sheetName(title)
+                        .title(title)
+                        .operator(task.getCreatorAccountName())
+                        .exportTime(now)
+                        .locale(locale)
+                        .querySummary(Locale.CHINESE.getLanguage().equals(locale.getLanguage())
+                                ? "查询条件已在任务创建时冻结" : "Filters were frozen when the task was created")
+                        .columns(columns)
+                        .pageSize(properties.getPageSize())
+                        .pageLoader(pageNo -> loadPage(
+                                pageLoader, pageNo, totalRows, processedRows, progressListener))
+                        .build(), output);
+            }
+            return uploadArtifact(task, storage, now, file, processedRows.get());
+        } catch (IOException exception) {
+            throw new IllegalStateException("dynamic export temporary file failed", exception);
+        } finally {
+            deleteQuietly(file);
+        }
+    }
+
+    /**
+     * 使用指定内部页大小生成工作簿，供经过容量评审的大数据来源减少跨服务请求。
+     *
+     * @param task 已领取任务
+     * @param storage 私有对象存储
+     * @param progressListener 进度监听器
+     * @param now 本轮执行时间
+     * @param titleKey Excel 标题国际化键
+     * @param chineseSheetName 中文工作表名称
+     * @param englishSheetName 英文工作表名称
+     * @param rowClass 导出行模型
+     * @param pageSize 内部分页大小
+     * @param pageLoader 权威分页加载器
+     * @param <T> 导出行类型
+     * @return 最终文件元数据
+     */
+    public <T> ExportArtifact write(DataExportTaskDO task,
+                                    ExportObjectStorageService storage,
+                                    ExportProgressListener progressListener,
+                                    LocalDateTime now,
+                                    String titleKey,
+                                    String chineseSheetName,
+                                    String englishSheetName,
+                                    Class<T> rowClass,
+                                    int pageSize,
+                                    IntFunction<ExportPage<T>> pageLoader) {
+        if (pageSize <= 0) {
+            throw new IllegalArgumentException("export page size must be positive");
+        }
         Locale locale = resolveLocale(task.getLocale());
         AtomicLong totalRows = new AtomicLong();
         AtomicLong processedRows = new AtomicLong();
@@ -84,28 +174,39 @@ public class ExcelExportArtifactWriter {
                         .querySummary(Locale.CHINESE.getLanguage().equals(locale.getLanguage())
                                 ? "查询条件已在任务创建时冻结" : "Filters were frozen when the task was created")
                         .rowClass(rowClass)
-                        .pageSize(properties.getPageSize())
+                        .pageSize(pageSize)
                         .pageLoader(pageNo -> loadPage(
                                 pageLoader, pageNo, totalRows, processedRows, progressListener))
                         .build(), output);
             }
-            long fileSize = Files.size(file);
-            if (fileSize > properties.getMaxFileSizeBytes()) {
-                throw new IllegalStateException("export file exceeds configured size limit");
-            }
-            String fileName = safeFileName(task.getTaskName()) + "_" + FILE_TIME.format(now) + ".xlsx";
-            String objectKey = "exports/admin/" + now.getYear() + "/"
-                    + String.format(Locale.ROOT, "%02d", now.getMonthValue()) + "/"
-                    + task.getTaskNo() + "/" + fileName;
-            String fileSha256 = sha256(file);
-            storage.put(objectKey, CONTENT_TYPE, file);
-            return new ExportArtifact(fileName, CONTENT_TYPE, objectKey, fileSize, fileSha256,
-                    processedRows.get(), totalRows.get(), now.plus(properties.getFileRetention()));
+            return uploadArtifact(task, storage, now, file, processedRows.get());
         } catch (IOException exception) {
             throw new IllegalStateException("export temporary file failed", exception);
         } finally {
             deleteQuietly(file);
         }
+    }
+
+    /**
+     * 校验临时文件并上传对象存储，统一生成文件名、摘要和保留期限。
+     */
+    private ExportArtifact uploadArtifact(DataExportTaskDO task,
+                                          ExportObjectStorageService storage,
+                                          LocalDateTime now,
+                                          Path file,
+                                          long processedRows) throws IOException {
+        long fileSize = Files.size(file);
+        if (fileSize > properties.getMaxFileSizeBytes()) {
+            throw new IllegalStateException("export file exceeds configured size limit");
+        }
+        String fileName = safeFileName(task.getTaskName()) + "_" + FILE_TIME.format(now) + ".xlsx";
+        String objectKey = "exports/admin/" + now.getYear() + "/"
+                + String.format(Locale.ROOT, "%02d", now.getMonthValue()) + "/"
+                + task.getTaskNo() + "/" + fileName;
+        String fileSha256 = sha256(file);
+        storage.put(objectKey, CONTENT_TYPE, file);
+        return new ExportArtifact(fileName, CONTENT_TYPE, objectKey, fileSize, fileSha256,
+                processedRows, processedRows, now.plus(properties.getFileRetention()));
     }
 
     /**

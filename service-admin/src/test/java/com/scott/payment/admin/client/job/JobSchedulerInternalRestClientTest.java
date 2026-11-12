@@ -4,9 +4,13 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.scott.payment.admin.config.JobSchedulerClientProperties;
+import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
+import com.scott.payment.admin.dto.monitor.JobRunLogResponse;
+import com.scott.payment.admin.dto.monitor.JobExecutionTrendResponse;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.PageResult;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +30,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,6 +103,56 @@ class JobSchedulerInternalRestClientTest {
         client.listHandlers();
 
         assertThat(capturedRequest(restTemplate).getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).isNull();
+    }
+
+    /**
+     * 后台导出线程必须使用专用 HMAC 内部路径，不依赖浏览器管理员会话。
+     */
+    @Test
+    void shouldUseHmacOnlyRunLogExportPathWithoutBrowserAuthorization() {
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        when(restTemplate.exchange(
+                any(URI.class), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(CommonResult.success(
+                        PageResult.of(0L, 1L, 500L, List.<JobRunLogResponse>of())))));
+        JobSchedulerInternalRestClient client = client(restTemplate);
+        RequestContextHolder.resetRequestAttributes();
+
+        client.pageRunLogsForExport(new JobRunLogQueryRequest());
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ArgumentCaptor<HttpEntity<Object>> entityCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(
+                uriCaptor.capture(), eq(HttpMethod.POST), entityCaptor.capture(), eq(String.class));
+        assertThat(uriCaptor.getValue().getPath()).isEqualTo("/internal/job/logs/export/search");
+        assertThat(entityCaptor.getValue().getHeaders().getFirst(HttpHeaders.AUTHORIZATION)).isNull();
+        assertThat(entityCaptor.getValue().getHeaders().getFirst("X-Internal-Caller")).isNotBlank();
+        assertThat(entityCaptor.getValue().getHeaders().getFirst("X-Internal-Signature")).isNotBlank();
+    }
+
+    /**
+     * 最近七日趋势必须通过受保护的 Job 内部 GET 入口读取真实聚合结果。
+     */
+    @Test
+    void shouldRequestExecutionTrendFromJobInternalEndpoint() {
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        JobExecutionTrendResponse response = new JobExecutionTrendResponse();
+        response.setStartDate(LocalDate.of(2026, 11, 5));
+        response.setEndDate(LocalDate.of(2026, 11, 11));
+        when(restTemplate.exchange(
+                any(URI.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(CommonResult.success(response))));
+        JobSchedulerInternalRestClient client = client(restTemplate);
+
+        JobExecutionTrendResponse actual = client.executionTrend();
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(restTemplate).exchange(
+                uriCaptor.capture(), eq(HttpMethod.GET), any(HttpEntity.class), eq(String.class));
+        assertThat(uriCaptor.getValue().getPath()).isEqualTo("/internal/job/logs/trend");
+        assertThat(actual.getStartDate()).isEqualTo(LocalDate.of(2026, 11, 5));
+        assertThat(actual.getEndDate()).isEqualTo(LocalDate.of(2026, 11, 11));
     }
 
     /**

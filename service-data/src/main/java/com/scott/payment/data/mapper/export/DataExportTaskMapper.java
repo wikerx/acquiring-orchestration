@@ -15,7 +15,7 @@ import java.util.List;
 public interface DataExportTaskMapper {
 
     String COLUMNS = "id, task_no, request_id, task_type, task_name, source_service, "
-            + "creator_account_id, creator_account_name, locale, timezone, query_snapshot, "
+            + "creator_app_code, creator_account_id, merchant_id, creator_account_name, locale, timezone, query_snapshot, "
             + "data_scope_snapshot, status, progress_percent, processed_rows, total_rows, "
             + "file_name, content_type, object_key, file_size_bytes, file_sha256, expires_at, "
             + "failure_code, failure_reason, retry_count, max_retry_count, next_retry_time, "
@@ -27,13 +27,13 @@ public interface DataExportTaskMapper {
     @Insert("""
             INSERT INTO data_export_task (
                 task_no, request_id, task_type, task_name, source_service,
-                creator_account_id, creator_account_name, locale, timezone,
+                creator_app_code, creator_account_id, merchant_id, creator_account_name, locale, timezone,
                 query_snapshot, data_scope_snapshot, status, progress_percent,
                 processed_rows, total_rows, retry_count, max_retry_count,
                 next_retry_time, version, create_time, update_time
             ) VALUES (
                 #{taskNo}, #{requestId}, #{taskType}, #{taskName}, #{sourceService},
-                #{creatorAccountId}, #{creatorAccountName}, #{locale}, #{timezone},
+                #{creatorAppCode}, #{creatorAccountId}, #{merchantId}, #{creatorAccountName}, #{locale}, #{timezone},
                 #{querySnapshot}, #{dataScopeSnapshot}, #{status}, #{progressPercent},
                 #{processedRows}, #{totalRows}, #{retryCount}, #{maxRetryCount},
                 #{nextRetryTime}, #{version}, #{createTime}, #{updateTime}
@@ -44,18 +44,24 @@ public interface DataExportTaskMapper {
     /**
      * 按创建账号和请求键查询幂等任务。
      */
-    @Select("SELECT " + COLUMNS + " FROM data_export_task WHERE creator_account_id = #{accountId} "
+    @Select("SELECT " + COLUMNS + " FROM data_export_task WHERE creator_app_code = #{appCode} "
+            + "AND creator_account_id = #{accountId} AND (merchant_id <=> #{merchantId}) "
             + "AND request_id = #{requestId} LIMIT 1")
-    DataExportTaskDO selectByRequestId(@Param("accountId") Long accountId,
+    DataExportTaskDO selectByRequestId(@Param("appCode") String appCode,
+                                       @Param("accountId") Long accountId,
+                                       @Param("merchantId") String merchantId,
                                        @Param("requestId") String requestId);
 
     /**
      * 按任务号和创建账号读取任务，禁止跨账号枚举下载记录。
      */
     @Select("SELECT " + COLUMNS + " FROM data_export_task WHERE task_no = #{taskNo} "
-            + "AND creator_account_id = #{accountId} LIMIT 1")
+            + "AND creator_app_code = #{appCode} AND creator_account_id = #{accountId} "
+            + "AND (merchant_id <=> #{merchantId}) LIMIT 1")
     DataExportTaskDO selectOwned(@Param("taskNo") String taskNo,
-                                 @Param("accountId") Long accountId);
+                                 @Param("appCode") String appCode,
+                                 @Param("accountId") Long accountId,
+                                 @Param("merchantId") String merchantId);
 
     /**
      * 按数据库主键读取领取后的任务快照。
@@ -69,14 +75,18 @@ public interface DataExportTaskMapper {
     @Select("""
             <script>
             SELECT COUNT(1) FROM data_export_task
-            WHERE creator_account_id = #{accountId}
+            WHERE creator_app_code = #{appCode}
+              AND creator_account_id = #{accountId}
+              AND (merchant_id &lt;=&gt; #{merchantId})
             <if test="taskType != null and taskType != ''">AND task_type = #{taskType}</if>
             <if test="status != null and status != ''">AND status = #{status}</if>
             <if test="startTime != null">AND create_time &gt;= #{startTime}</if>
             <if test="endTime != null">AND create_time &lt;= #{endTime}</if>
             </script>
             """)
-    long countOwned(@Param("accountId") Long accountId,
+    long countOwned(@Param("appCode") String appCode,
+                    @Param("accountId") Long accountId,
+                    @Param("merchantId") String merchantId,
                     @Param("taskType") String taskType,
                     @Param("status") String status,
                     @Param("startTime") LocalDateTime startTime,
@@ -87,7 +97,9 @@ public interface DataExportTaskMapper {
      */
     @Select("<script>SELECT " + COLUMNS + " FROM data_export_task " +
             """
-            WHERE creator_account_id = #{accountId}
+            WHERE creator_app_code = #{appCode}
+              AND creator_account_id = #{accountId}
+              AND (merchant_id &lt;=&gt; #{merchantId})
             <if test="taskType != null and taskType != ''">AND task_type = #{taskType}</if>
             <if test="status != null and status != ''">AND status = #{status}</if>
             <if test="startTime != null">AND create_time &gt;= #{startTime}</if>
@@ -96,7 +108,9 @@ public interface DataExportTaskMapper {
             LIMIT #{offset}, #{limit}
             </script>
             """)
-    List<DataExportTaskDO> selectOwnedPage(@Param("accountId") Long accountId,
+    List<DataExportTaskDO> selectOwnedPage(@Param("appCode") String appCode,
+                                           @Param("accountId") Long accountId,
+                                           @Param("merchantId") String merchantId,
                                            @Param("taskType") String taskType,
                                            @Param("status") String status,
                                            @Param("startTime") LocalDateTime startTime,
@@ -140,6 +154,22 @@ public interface DataExportTaskMapper {
               @Param("leaseOwner") String leaseOwner,
               @Param("leaseUntil") LocalDateTime leaseUntil,
               @Param("now") LocalDateTime now);
+
+    /**
+     * 执行器容量不足时释放当前领取，不增加业务重试次数并延后再次领取。
+     */
+    @Update("""
+            UPDATE data_export_task
+            SET status = 'PENDING', next_retry_time = #{nextRetryTime},
+                lease_owner = NULL, lease_until = NULL, version = version + 1, update_time = #{now}
+            WHERE id = #{id} AND version = #{processingVersion}
+              AND status = 'PROCESSING' AND lease_owner = #{leaseOwner}
+            """)
+    int deferClaim(@Param("id") Long id,
+                   @Param("processingVersion") Long processingVersion,
+                   @Param("leaseOwner") String leaseOwner,
+                   @Param("nextRetryTime") LocalDateTime nextRetryTime,
+                   @Param("now") LocalDateTime now);
 
     /**
      * 更新当前执行者的分页进度并延长租约，避免长导出被另一节点回收。
@@ -219,11 +249,14 @@ public interface DataExportTaskMapper {
             SET status = 'PENDING', next_retry_time = #{now}, failure_code = NULL,
                 failure_reason = NULL, finished_at = NULL, progress_percent = 0,
                 processed_rows = 0, retry_count = 0, version = version + 1, update_time = #{now}
-            WHERE task_no = #{taskNo} AND creator_account_id = #{accountId}
+            WHERE task_no = #{taskNo} AND creator_app_code = #{appCode}
+              AND creator_account_id = #{accountId} AND (merchant_id <=> #{merchantId})
               AND status = 'FAILED' AND version = #{expectedVersion}
             """)
     int retry(@Param("taskNo") String taskNo,
+              @Param("appCode") String appCode,
               @Param("accountId") Long accountId,
+              @Param("merchantId") String merchantId,
               @Param("expectedVersion") Long expectedVersion,
               @Param("now") LocalDateTime now);
 

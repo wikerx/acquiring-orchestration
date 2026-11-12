@@ -12,7 +12,9 @@ public class DataExportDownloadAuditDO {
     private Long id;
     private String auditNo;
     private String taskNo;
+    private String operatorAppCode;
     private Long operatorAccountId;
+    private String merchantId;
     private String operatorAccountName;
     private String clientIp;
     private String resultStatus;

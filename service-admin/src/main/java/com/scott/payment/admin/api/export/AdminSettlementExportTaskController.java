@@ -2,6 +2,8 @@ package com.scott.payment.admin.api.export;
 
 import com.scott.payment.admin.application.export.AdminExportTaskApplicationService;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementPostingSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReviewSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementTransactionSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
 import com.scott.payment.component.core.model.CommonResult;
@@ -53,5 +55,25 @@ public class AdminSettlementExportTaskController {
     public CommonResult<TaskSummary> submitReserves(
             @Valid @RequestBody SettlementReserveSubmitRequest request) {
         return success(applicationService.submitSettlementReserves(request));
+    }
+
+    /** 冻结结算审核单查询和当前账号数据范围并创建后台任务。 */
+    @PostMapping("/review-orders/export-task")
+    @RequiresPermission("settlement:review-order:export")
+    @OperationLog(moduleName = "结算审核", businessType = OperationTypeConstants.EXPORT,
+            operation = "创建结算审核单导出任务")
+    public CommonResult<TaskSummary> submitReviews(
+            @Valid @RequestBody SettlementReviewSubmitRequest request) {
+        return success(applicationService.submitSettlementReviews(request));
+    }
+
+    /** 冻结结算入账流水查询和当前账号数据范围并创建后台任务。 */
+    @PostMapping("/postings/export-task")
+    @RequiresPermission("settlement:posting:export")
+    @OperationLog(moduleName = "结算入账流水", businessType = OperationTypeConstants.EXPORT,
+            operation = "创建结算入账流水导出任务")
+    public CommonResult<TaskSummary> submitPostings(
+            @Valid @RequestBody SettlementPostingSubmitRequest request) {
+        return success(applicationService.submitSettlementPostings(request));
     }
 }

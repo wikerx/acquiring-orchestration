@@ -265,11 +265,42 @@ public class AdminFeeApplicationService {
         exportPaged("excel.fee.simulationTitle", FeeSimulationExportRow.class, pageNo -> {
             query.setPageNo(pageNo);
             query.setPageSize(EXPORT_PAGE_SIZE);
-            return feeService.pageSimulationRecords(query).getRecords().stream()
-                    .flatMap(source -> toSimulationExportRows(
-                            source, transactionTypes, paymentTypes, paymentMethods, locale).stream())
-                    .toList();
+            return toSimulationExportRows(feeService.pageSimulationRecords(query).getRecords(),
+                    transactionTypes, paymentTypes, paymentMethods, locale);
         }, simulationQuerySummary(query), response);
+    }
+
+    /**
+     * 将费用试算记录批量转换为逐项导出行，并按任务冻结语言解析字典标签。
+     *
+     * @param sources 费用试算记录及其明细快照
+     * @param locale 任务创建时冻结的语言
+     * @return 可供内部异步导出源复用的逐项行
+     */
+    public List<FeeSimulationExportRow> toSimulationExportRows(
+            List<FeeSimulationRecordResponse> sources, Locale locale) {
+        Map<String, String> transactionTypes = dictionaryLabels("transaction_type", locale);
+        Map<String, String> paymentTypes = dictionaryLabels("acquiring_payment_method", locale);
+        Map<String, String> paymentMethods = dictionaryLabels("card_brand", locale);
+        return toSimulationExportRows(sources, transactionTypes, paymentTypes, paymentMethods, locale);
+    }
+
+    /**
+     * 使用一次加载的字典快照批量生成费用试算导出行，避免同一分页重复读取字典。
+     */
+    private List<FeeSimulationExportRow> toSimulationExportRows(
+            List<FeeSimulationRecordResponse> sources,
+            Map<String, String> transactionTypes,
+            Map<String, String> paymentTypes,
+            Map<String, String> paymentMethods,
+            Locale locale) {
+        if (sources == null || sources.isEmpty()) {
+            return List.of();
+        }
+        return sources.stream()
+                .flatMap(source -> toSimulationExportRows(
+                        source, transactionTypes, paymentTypes, paymentMethods, locale).stream())
+                .toList();
     }
 
     /**

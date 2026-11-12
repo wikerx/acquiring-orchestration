@@ -17,10 +17,12 @@ public interface DataExportDownloadAuditMapper {
      */
     @Insert("""
             INSERT INTO data_export_download_audit (
-                audit_no, task_no, operator_account_id, operator_account_name, client_ip,
+                audit_no, task_no, operator_app_code, operator_account_id, merchant_id,
+                operator_account_name, client_ip,
                 result_status, failure_reason, file_sha256, requested_at, update_time
             ) VALUES (
-                #{auditNo}, #{taskNo}, #{operatorAccountId}, #{operatorAccountName}, #{clientIp},
+                #{auditNo}, #{taskNo}, #{operatorAppCode}, #{operatorAccountId}, #{merchantId},
+                #{operatorAccountName}, #{clientIp},
                 #{resultStatus}, #{failureReason}, #{fileSha256}, #{requestedAt}, #{updateTime}
             )
             """)

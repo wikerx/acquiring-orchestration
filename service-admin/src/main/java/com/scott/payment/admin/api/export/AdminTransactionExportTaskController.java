@@ -2,6 +2,7 @@ package com.scott.payment.admin.api.export;
 
 import com.scott.payment.admin.application.export.AdminExportTaskApplicationService;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RefundSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.ChannelMatchAbnormalSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotificationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOperationSubmitRequest;
@@ -78,5 +79,15 @@ public class AdminTransactionExportTaskController {
             operation = "创建退款导出任务")
     public CommonResult<TaskSummary> submitRefunds(@Valid @RequestBody RefundSubmitRequest request) {
         return success(applicationService.submitRefunds(request));
+    }
+
+    /** 冻结渠道勾兑异常查询和当前账号数据范围并创建后台任务。 */
+    @PostMapping("/channel-match-abnormalities/export-task")
+    @RequiresPermission("transaction:match-abnormal:export")
+    @OperationLog(moduleName = "渠道勾兑异常", businessType = OperationTypeConstants.EXPORT,
+            operation = "创建渠道勾兑异常导出任务")
+    public CommonResult<TaskSummary> submitChannelMatchAbnormalities(
+            @Valid @RequestBody ChannelMatchAbnormalSubmitRequest request) {
+        return success(applicationService.submitChannelMatchAbnormalities(request));
     }
 }

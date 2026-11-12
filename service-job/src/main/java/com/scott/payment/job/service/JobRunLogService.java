@@ -2,12 +2,14 @@ package com.scott.payment.job.service;
 
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
+import com.scott.payment.job.api.internal.dto.JobExecutionTrendResponse;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.job.api.internal.dto.JobRunLogQueryRequest;
 import com.scott.payment.job.entity.SysJobRunLogDO;
 import com.scott.payment.job.entity.SysJobTaskDO;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * 任务运行日志服务接口
@@ -94,4 +96,14 @@ public interface JobRunLogService {
      * @return 超时候选日志列表
      */
     List<SysJobRunLogDO> selectTimeoutCandidates();
+
+    /**
+     * 聚合指定半开时间区间内的任务执行终态。
+     *
+     * @param startTime 开始时间，包含
+     * @param endTime   结束时间，不包含
+     * @return 按自然日升序排列的数据库聚合结果
+     */
+    List<JobExecutionTrendResponse.DailyPoint> summarizeExecutionTrend(
+            LocalDateTime startTime, LocalDateTime endTime);
 }

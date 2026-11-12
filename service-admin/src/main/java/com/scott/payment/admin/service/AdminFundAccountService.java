@@ -23,6 +23,16 @@ public interface AdminFundAccountService {
      * @return 资金账户分页结果
      */
     PageResult<FundAccountResponse> pageAccounts(FundAccountQuery query);
+
+    /**
+     * 按冻结商户范围分页读取资金账户，专供异步导出来源使用。
+     *
+     * @param query 账户筛选和分页条件
+     * @param scope 创建任务时冻结的商户数据范围
+     * @return 范围内资金账户分页结果
+     */
+    PageResult<FundAccountResponse> pageAccountsForExport(
+            FundAccountQuery query, AdminMerchantDataScope scope);
     /**
      * 查询账户详情，并实时汇总该商户的在途余额和账户保证金。
      *
@@ -38,6 +48,17 @@ public interface AdminFundAccountService {
      * @return 指定账户的余额流水分页结果
      */
     PageResult<FundLedgerResponse> pageLedgers(Long accountId, FundDetailQuery query);
+
+    /**
+     * 校验账户归属后分页读取指定账户余额流水，专供异步导出来源使用。
+     *
+     * @param accountId 资金账户主键
+     * @param query 流水筛选和分页条件
+     * @param scope 创建任务时冻结的商户数据范围
+     * @return 范围内指定账户流水分页结果
+     */
+    PageResult<FundLedgerResponse> pageLedgersForExport(
+            Long accountId, FundDetailQuery query, AdminMerchantDataScope scope);
     /**
      * 分页查询所有商户、所有账户的不可变余额流水。
      *
@@ -45,6 +66,16 @@ public interface AdminFundAccountService {
      * @return 全局余额流水分页结果
      */
     PageResult<FundLedgerResponse> pageAllLedgers(FundDetailQuery query);
+
+    /**
+     * 按冻结商户范围分页读取全局余额流水，专供异步导出来源使用。
+     *
+     * @param query 全局流水筛选和分页条件
+     * @param scope 创建任务时冻结的商户数据范围
+     * @return 范围内全局流水分页结果
+     */
+    PageResult<FundLedgerResponse> pageAllLedgersForExport(
+            FundDetailQuery query, AdminMerchantDataScope scope);
     /**
      * 分页查询充值申请及完整审批状态。
      *
@@ -52,6 +83,16 @@ public interface AdminFundAccountService {
      * @return 充值申请分页结果
      */
     PageResult<FundRechargeResponse> pageRecharges(FundRechargeQuery query);
+
+    /**
+     * 按冻结商户范围分页读取充值申请，专供异步导出来源使用。
+     *
+     * @param query 充值申请筛选和分页条件
+     * @param scope 创建任务时冻结的商户数据范围
+     * @return 范围内充值申请分页结果
+     */
+    PageResult<FundRechargeResponse> pageRechargesForExport(
+            FundRechargeQuery query, AdminMerchantDataScope scope);
     /**
      * 创建待审核充值申请，同一请求号、账户和金额的重试返回原申请。
      *
@@ -107,6 +148,16 @@ public interface AdminFundAccountService {
      * @return 账户扣减申请分页结果
      */
     PageResult<FundDeductionResponse> pageDeductions(FundDeductionQuery query);
+
+    /**
+     * 按冻结商户范围分页读取扣减申请，专供异步导出来源使用。
+     *
+     * @param query 扣减申请筛选和分页条件
+     * @param scope 创建任务时冻结的商户数据范围
+     * @return 范围内扣减申请分页结果
+     */
+    PageResult<FundDeductionResponse> pageDeductionsForExport(
+            FundDeductionQuery query, AdminMerchantDataScope scope);
 
     /**
      * 查询账户扣减申请详情。

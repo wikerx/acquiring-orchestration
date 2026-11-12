@@ -22,6 +22,7 @@ import com.scott.payment.data.mapper.export.DataExportDownloadAuditMapper;
 import com.scott.payment.data.mapper.export.DataExportTaskMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -31,6 +32,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 
 /**
  * 异步导出任务领域服务，负责提交幂等、租约领取、状态迁移、文件清理和下载审计。
@@ -38,6 +42,8 @@ import java.util.Set;
 @Slf4j
 @Service
 public class DataExportTaskService {
+    public static final String APP_ADMIN = "ADMIN";
+    public static final String APP_MERCHANT = "MERCHANT";
     public static final String ADMIN_OPERATIONAL_WORK_ITEM = "ADMIN_OPERATIONAL_WORK_ITEM";
     public static final String ADMIN_TRANSACTION_ORDER = "ADMIN_TRANSACTION_ORDER";
     public static final String ADMIN_TRANSACTION_OPERATION = "ADMIN_TRANSACTION_OPERATION";
@@ -45,10 +51,69 @@ public class DataExportTaskService {
     public static final String ADMIN_REFUND = "ADMIN_REFUND";
     public static final String ADMIN_SETTLEMENT_TRANSACTION = "ADMIN_SETTLEMENT_TRANSACTION";
     public static final String ADMIN_SETTLEMENT_RESERVE = "ADMIN_SETTLEMENT_RESERVE";
+    public static final String ADMIN_CARD_BIN = "ADMIN_CARD_BIN";
+    public static final String ADMIN_COUNTRY = "ADMIN_COUNTRY";
+    public static final String ADMIN_CURRENCY = "ADMIN_CURRENCY";
+    public static final String ADMIN_REGION_CURRENCY = "ADMIN_REGION_CURRENCY";
+    public static final String ADMIN_MCC_CODE = "ADMIN_MCC_CODE";
+    public static final String ADMIN_DEPARTMENT = "ADMIN_DEPARTMENT";
+    public static final String ADMIN_POST = "ADMIN_POST";
+    public static final String ADMIN_DICT_TYPE = "ADMIN_DICT_TYPE";
+    public static final String ADMIN_DICT_DATA = "ADMIN_DICT_DATA";
+    public static final String ADMIN_HOLIDAY_CALENDAR = "ADMIN_HOLIDAY_CALENDAR";
+    public static final String ADMIN_JOB_RUN_LOG = "ADMIN_JOB_RUN_LOG";
+    public static final String ADMIN_CHANNEL_MATCH_ABNORMAL = "ADMIN_CHANNEL_MATCH_ABNORMAL";
+    public static final String ADMIN_SETTLEMENT_REVIEW = "ADMIN_SETTLEMENT_REVIEW";
+    public static final String ADMIN_SETTLEMENT_POSTING = "ADMIN_SETTLEMENT_POSTING";
+    public static final String ADMIN_SECURITY_INTERCEPT_EVENT = "ADMIN_SECURITY_INTERCEPT_EVENT";
+    public static final String ADMIN_FUND_ACCOUNT = "ADMIN_FUND_ACCOUNT";
+    public static final String ADMIN_FUND_LEDGER = "ADMIN_FUND_LEDGER";
+    public static final String ADMIN_FUND_RECHARGE = "ADMIN_FUND_RECHARGE";
+    public static final String ADMIN_FUND_DEDUCTION = "ADMIN_FUND_DEDUCTION";
+    public static final String ADMIN_EXCHANGE_RAW_RATE = "ADMIN_EXCHANGE_RAW_RATE";
+    public static final String ADMIN_EXCHANGE_BUSINESS_RATE = "ADMIN_EXCHANGE_BUSINESS_RATE";
+    public static final String ADMIN_EXCHANGE_USAGE_SNAPSHOT = "ADMIN_EXCHANGE_USAGE_SNAPSHOT";
+    public static final String ADMIN_EXCHANGE_SOURCE = "ADMIN_EXCHANGE_SOURCE";
+    public static final String ADMIN_EXCHANGE_RULE = "ADMIN_EXCHANGE_RULE";
+    public static final String ADMIN_EXCHANGE_VOLATILITY = "ADMIN_EXCHANGE_VOLATILITY";
+    public static final String ADMIN_EXCHANGE_ALERT_RULE = "ADMIN_EXCHANGE_ALERT_RULE";
+    public static final String ADMIN_EXCHANGE_ALERT_EVENT = "ADMIN_EXCHANGE_ALERT_EVENT";
+    public static final String ADMIN_FEE_TEMPLATE = "ADMIN_FEE_TEMPLATE";
+    public static final String ADMIN_MERCHANT_FEE = "ADMIN_MERCHANT_FEE";
+    public static final String ADMIN_FEE_REVIEW = "ADMIN_FEE_REVIEW";
+    public static final String ADMIN_FEE_SIMULATION = "ADMIN_FEE_SIMULATION";
+    public static final String ADMIN_SYSTEM_USER = "ADMIN_SYSTEM_USER";
+    public static final String ADMIN_SYSTEM_CONFIG = "ADMIN_SYSTEM_CONFIG";
+    public static final String ADMIN_MERCHANT_IP_WHITELIST = "ADMIN_MERCHANT_IP_WHITELIST";
+    public static final String ADMIN_RISK_CONFIG = "ADMIN_RISK_CONFIG";
+    public static final String ADMIN_DATASOURCE_SNAPSHOT = "ADMIN_DATASOURCE_SNAPSHOT";
+    public static final String MERCHANT_TRANSACTION_OPERATION = "MERCHANT_TRANSACTION_OPERATION";
+    public static final String MERCHANT_REFUND = "MERCHANT_REFUND";
+    public static final String MERCHANT_SETTLEMENT_BATCH = "MERCHANT_SETTLEMENT_BATCH";
+    public static final String MERCHANT_SETTLEMENT_SUMMARY = "MERCHANT_SETTLEMENT_SUMMARY";
+    public static final String MERCHANT_SETTLEMENT_TRANSACTION = "MERCHANT_SETTLEMENT_TRANSACTION";
+    public static final String MERCHANT_SETTLEMENT_RESERVE = "MERCHANT_SETTLEMENT_RESERVE";
+    public static final String MERCHANT_FUND_LEDGER = "MERCHANT_FUND_LEDGER";
     private static final Set<String> SUPPORTED_TASK_TYPES = Set.of(
             ADMIN_OPERATIONAL_WORK_ITEM, ADMIN_TRANSACTION_ORDER, ADMIN_TRANSACTION_OPERATION,
             ADMIN_MERCHANT_NOTIFICATION, ADMIN_REFUND,
-            ADMIN_SETTLEMENT_TRANSACTION, ADMIN_SETTLEMENT_RESERVE);
+            ADMIN_SETTLEMENT_TRANSACTION, ADMIN_SETTLEMENT_RESERVE,
+            ADMIN_CARD_BIN, ADMIN_COUNTRY, ADMIN_CURRENCY, ADMIN_REGION_CURRENCY, ADMIN_MCC_CODE,
+            ADMIN_DEPARTMENT, ADMIN_POST, ADMIN_DICT_TYPE, ADMIN_DICT_DATA, ADMIN_HOLIDAY_CALENDAR,
+            ADMIN_JOB_RUN_LOG, ADMIN_CHANNEL_MATCH_ABNORMAL,
+            ADMIN_SETTLEMENT_REVIEW, ADMIN_SETTLEMENT_POSTING, ADMIN_SECURITY_INTERCEPT_EVENT,
+            ADMIN_FUND_ACCOUNT, ADMIN_FUND_LEDGER, ADMIN_FUND_RECHARGE, ADMIN_FUND_DEDUCTION,
+            ADMIN_EXCHANGE_RAW_RATE, ADMIN_EXCHANGE_BUSINESS_RATE, ADMIN_EXCHANGE_USAGE_SNAPSHOT,
+            ADMIN_EXCHANGE_SOURCE, ADMIN_EXCHANGE_RULE, ADMIN_EXCHANGE_VOLATILITY,
+            ADMIN_EXCHANGE_ALERT_RULE, ADMIN_EXCHANGE_ALERT_EVENT,
+            ADMIN_FEE_TEMPLATE, ADMIN_MERCHANT_FEE, ADMIN_FEE_REVIEW, ADMIN_FEE_SIMULATION,
+            ADMIN_SYSTEM_USER, ADMIN_SYSTEM_CONFIG, ADMIN_MERCHANT_IP_WHITELIST,
+            ADMIN_RISK_CONFIG, ADMIN_DATASOURCE_SNAPSHOT,
+            MERCHANT_TRANSACTION_OPERATION, MERCHANT_REFUND,
+            MERCHANT_SETTLEMENT_BATCH, MERCHANT_SETTLEMENT_SUMMARY,
+            MERCHANT_SETTLEMENT_TRANSACTION, MERCHANT_SETTLEMENT_RESERVE,
+            MERCHANT_FUND_LEDGER);
+    private static final Set<String> OWNER_APP_CODES = Set.of(APP_ADMIN, APP_MERCHANT);
     private static final String PENDING = "PENDING";
     private static final String PROCESSING = "PROCESSING";
     private static final String SUCCESS = "SUCCESS";
@@ -61,6 +126,8 @@ public class DataExportTaskService {
     private final DataExportProperties properties;
     private final ObjectProvider<ExportObjectStorageService> storageProvider;
     private final ExportTaskProcessorRegistry processorRegistry;
+    private final Executor taskExecutor;
+    private final Semaphore executionSlots;
 
     /**
      * 创建异步导出任务服务。
@@ -70,24 +137,29 @@ public class DataExportTaskService {
                                  GlobalIdGenerator globalIdGenerator,
                                  DataExportProperties properties,
                                  ObjectProvider<ExportObjectStorageService> storageProvider,
-                                 ExportTaskProcessorRegistry processorRegistry) {
+                                 ExportTaskProcessorRegistry processorRegistry,
+                                 @Qualifier("dataExportTaskExecutor") Executor taskExecutor) {
         this.taskMapper = taskMapper;
         this.auditMapper = auditMapper;
         this.globalIdGenerator = globalIdGenerator;
         this.properties = properties;
         this.storageProvider = storageProvider;
         this.processorRegistry = processorRegistry;
+        this.taskExecutor = taskExecutor;
+        this.executionSlots = new Semaphore(properties.getDispatchConcurrency());
     }
 
     /**
-     * 幂等创建受支持的管理端异步导出任务。
+     * 幂等创建受支持的管理端或商户端异步导出任务。
      */
     @DS(DataSourceName.MASTER)
     public TaskSummary submit(CreateRequest request) {
         requireCreateRequest(request);
         properties.validate();
+        String creatorAppCode = normalizeAppCode(request.getCreatorAppCode());
+        String merchantId = normalizeMerchantId(creatorAppCode, request.getMerchantId());
         DataExportTaskDO existing = taskMapper.selectByRequestId(
-                request.getCreatorAccountId(), request.getRequestId().trim());
+                creatorAppCode, request.getCreatorAccountId(), merchantId, request.getRequestId().trim());
         if (existing != null) {
             return toSummary(existing);
         }
@@ -97,16 +169,15 @@ public class DataExportTaskService {
         task.setRequestId(request.getRequestId().trim());
         task.setTaskType(request.getTaskType().trim());
         task.setTaskName(truncate(request.getTaskName(), 128));
-        task.setSourceService("service-admin");
+        task.setSourceService(APP_MERCHANT.equals(creatorAppCode) ? "service-merchant" : "service-admin");
+        task.setCreatorAppCode(creatorAppCode);
         task.setCreatorAccountId(request.getCreatorAccountId());
+        task.setMerchantId(merchantId);
         task.setCreatorAccountName(truncate(request.getCreatorAccountName(), 128));
         task.setLocale(normalizeLocale(request.getLocale()));
         task.setTimezone(normalizeTimezone(request.getTimezone()));
         task.setQuerySnapshot(JsonUtils.toJsonString(querySnapshot(request)));
-        AdminExportScopeSnapshot scope = new AdminExportScopeSnapshot();
-        scope.setAllMerchants(request.isAllMerchants());
-        scope.setMerchantIds(request.getMerchantIds());
-        task.setDataScopeSnapshot(JsonUtils.toJsonString(scope));
+        task.setDataScopeSnapshot(JsonUtils.toJsonString(scopeSnapshot(request, creatorAppCode, merchantId)));
         task.setStatus(PENDING);
         task.setProgressPercent(0);
         task.setProcessedRows(0L);
@@ -123,15 +194,17 @@ public class DataExportTaskService {
             }
         } catch (DuplicateKeyException exception) {
             DataExportTaskDO duplicate = taskMapper.selectByRequestId(
-                    request.getCreatorAccountId(), request.getRequestId().trim());
+                    creatorAppCode, request.getCreatorAccountId(), merchantId, request.getRequestId().trim());
             if (duplicate == null) {
                 throw exception;
             }
             return toSummary(duplicate);
         }
-        log.info("异步导出任务已创建, event: DATA_EXPORT_TASK_CREATED, taskNo: {}, taskType: {}, creatorAccountId: {}",
-                task.getTaskNo(), task.getTaskType(), task.getCreatorAccountId());
-        return toSummary(taskMapper.selectOwned(task.getTaskNo(), task.getCreatorAccountId()));
+        log.info("异步导出任务已创建, event: DATA_EXPORT_TASK_CREATED, taskNo: {}, taskType: {}, creatorAppCode: {}, creatorAccountId: {}, merchantId: {}",
+                task.getTaskNo(), task.getTaskType(), task.getCreatorAppCode(),
+                task.getCreatorAccountId(), task.getMerchantId());
+        return toSummary(taskMapper.selectOwned(task.getTaskNo(), task.getCreatorAppCode(),
+                task.getCreatorAccountId(), task.getMerchantId()));
     }
 
     /**
@@ -142,6 +215,8 @@ public class DataExportTaskService {
         if (request == null || request.getCreatorAccountId() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        String creatorAppCode = normalizeAppCode(request.getCreatorAppCode());
+        String merchantId = normalizeMerchantId(creatorAppCode, request.getMerchantId());
         String status = normalizeStatus(request.getStatus());
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
         int pageSize = request.getPageSize() == null ? 20 : request.getPageSize();
@@ -149,11 +224,11 @@ public class DataExportTaskService {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
         String taskType = StringUtils.hasText(request.getTaskType()) ? request.getTaskType().trim() : null;
-        long total = taskMapper.countOwned(request.getCreatorAccountId(), taskType, status,
+        long total = taskMapper.countOwned(creatorAppCode, request.getCreatorAccountId(), merchantId, taskType, status,
                 request.getCreatedStartTime(), request.getCreatedEndTime());
         long offset = (long) (pageNo - 1) * pageSize;
         List<TaskSummary> records = offset >= total ? List.of() : taskMapper.selectOwnedPage(
-                        request.getCreatorAccountId(), taskType, status,
+                        creatorAppCode, request.getCreatorAccountId(), merchantId, taskType, status,
                         request.getCreatedStartTime(), request.getCreatedEndTime(), offset, pageSize)
                 .stream().map(this::toSummary).toList();
         return PageResult.of(total, pageNo, pageSize, records);
@@ -174,17 +249,19 @@ public class DataExportTaskService {
     public TaskSummary retry(TaskRequest request) {
         DataExportTaskDO task = requiredOwned(request);
         if (!FAILED.equals(task.getStatus()) || request.getExpectedVersion() == null
-                || taskMapper.retry(task.getTaskNo(), task.getCreatorAccountId(),
+                || taskMapper.retry(task.getTaskNo(), task.getCreatorAppCode(), task.getCreatorAccountId(),
+                task.getMerchantId(),
                 request.getExpectedVersion(), LocalDateTime.now()) != 1) {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "export task cannot be retried");
         }
-        log.info("异步导出任务已人工重试, event: DATA_EXPORT_TASK_RETRIED, taskNo: {}, creatorAccountId: {}",
-                task.getTaskNo(), task.getCreatorAccountId());
-        return toSummary(taskMapper.selectOwned(task.getTaskNo(), task.getCreatorAccountId()));
+        log.info("异步导出任务已人工重试, event: DATA_EXPORT_TASK_RETRIED, taskNo: {}, creatorAppCode: {}, creatorAccountId: {}, merchantId: {}",
+                task.getTaskNo(), task.getCreatorAppCode(), task.getCreatorAccountId(), task.getMerchantId());
+        return toSummary(taskMapper.selectOwned(task.getTaskNo(), task.getCreatorAppCode(),
+                task.getCreatorAccountId(), task.getMerchantId()));
     }
 
     /**
-     * 由 Job 触发一轮有界领取、执行和过期清理；单个任务失败不会阻断同批其他任务。
+     * 由 Job 触发一轮有界领取、异步提交和过期清理，不等待文件生成后才释放内部请求。
      */
     @DS(DataSourceName.MASTER)
     public DispatchResult dispatch(DispatchRequest request) {
@@ -197,49 +274,112 @@ public class DataExportTaskService {
         if (batchSize < 1 || batchSize > 50) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        int claimed = 0;
-        int succeeded = 0;
-        int failed = recoverStaleProcessing(request.getDispatchTime(), batchSize);
+        int recovered = recoverStaleProcessing(request.getDispatchTime(), batchSize);
         ExportObjectStorageService storage = requireStorage();
-        for (DataExportTaskDO candidate : taskMapper.selectDispatchCandidates(request.getDispatchTime(), batchSize)) {
+        int claimed = 0;
+        int submitted = 0;
+        int deferred = 0;
+        int claimLimit = Math.min(batchSize, executionSlots.availablePermits());
+        for (DataExportTaskDO candidate : taskMapper.selectDispatchCandidates(request.getDispatchTime(), claimLimit)) {
+            if (!executionSlots.tryAcquire()) {
+                break;
+            }
             String leaseOwner = request.getRequestId().trim() + ":" + candidate.getTaskNo();
             LocalDateTime leaseUntil = request.getDispatchTime().plus(properties.getProcessingLease());
             if (taskMapper.claim(candidate.getId(), candidate.getVersion(), leaseOwner,
                     leaseUntil, request.getDispatchTime()) != 1) {
+                executionSlots.release();
                 continue;
             }
             claimed++;
             DataExportTaskDO task = taskMapper.selectById(candidate.getId());
-            long processingVersion = task.getVersion();
-            try {
-                ExportArtifact artifact = process(task, storage, leaseOwner, processingVersion);
-                int updated = taskMapper.markSuccess(task.getId(), processingVersion, leaseOwner,
-                        artifact.processedRows(), artifact.totalRows(), artifact.fileName(), artifact.contentType(),
-                        artifact.objectKey(), artifact.fileSizeBytes(), artifact.fileSha256(),
-                        artifact.expiresAt(), LocalDateTime.now());
-                if (updated != 1) {
-                    storage.delete(artifact.objectKey());
-                    throw new IllegalStateException("export task success state conflict");
-                }
-                succeeded++;
-                log.info("异步导出任务完成, event: DATA_EXPORT_TASK_SUCCEEDED, taskNo: {}, processedRows: {}, fileSizeBytes: {}",
-                        task.getTaskNo(), artifact.processedRows(), artifact.fileSizeBytes());
-            } catch (RuntimeException exception) {
-                failed++;
-                recordFailure(task, processingVersion, leaseOwner,
-                        exception.getClass().getSimpleName(), executionFailureReason(task), LocalDateTime.now());
-                log.warn("异步导出任务执行失败, event: DATA_EXPORT_TASK_FAILED, taskNo: {}, exceptionType: {}",
-                        task.getTaskNo(), exception.getClass().getSimpleName());
+            long processingVersion = task == null ? candidate.getVersion() + 1 : task.getVersion();
+            ClaimedTask claimedTask = new ClaimedTask(task, leaseOwner, processingVersion);
+            if (task == null || !submitClaimedTask(claimedTask, storage)) {
+                deferClaimedTask(candidate.getId(), processingVersion, leaseOwner, LocalDateTime.now());
+                executionSlots.release();
+                deferred++;
+                continue;
             }
+            submitted++;
         }
         int expired = cleanupExpired(request.getDispatchTime(), Math.max(batchSize * 2, 10), storage);
         DispatchResult result = new DispatchResult();
         result.setRequestId(request.getRequestId().trim());
         result.setClaimedCount(claimed);
-        result.setSuccessCount(succeeded);
-        result.setFailedCount(failed);
+        result.setSubmittedCount(submitted);
+        result.setDeferredCount(deferred);
+        result.setRecoveredCount(recovered);
         result.setExpiredCount(expired);
         return result;
+    }
+
+    /**
+     * 将已领取任务提交至专用线程池；提交成功后由执行线程归还并发槽位。
+     */
+    private boolean submitClaimedTask(ClaimedTask claimedTask, ExportObjectStorageService storage) {
+        try {
+            taskExecutor.execute(() -> {
+                try {
+                    executeClaimedTask(claimedTask, storage);
+                } finally {
+                    executionSlots.release();
+                }
+            });
+            return true;
+        } catch (RejectedExecutionException exception) {
+            log.warn("异步导出执行器繁忙，任务已延后, event: DATA_EXPORT_TASK_EXECUTOR_BUSY, taskNo: {}",
+                    claimedTask.task() == null ? null : claimedTask.task().getTaskNo());
+            return false;
+        } catch (RuntimeException exception) {
+            log.error("异步导出任务提交异常，任务已延后, event: DATA_EXPORT_TASK_SUBMIT_FAILED, taskNo: {}, exceptionType: {}",
+                    claimedTask.task() == null ? null : claimedTask.task().getTaskNo(),
+                    exception.getClass().getSimpleName(), exception);
+            return false;
+        }
+    }
+
+    /**
+     * 执行器未接受任务时按原重试次数延后，避免容量背压被误记为业务执行失败。
+     */
+    private void deferClaimedTask(Long taskId,
+                                  long processingVersion,
+                                  String leaseOwner,
+                                  LocalDateTime now) {
+        int updated = taskMapper.deferClaim(taskId, processingVersion, leaseOwner,
+                now.plus(properties.getRetryDelay()), now);
+        if (updated != 1) {
+            log.error("异步导出任务延后失败, event: DATA_EXPORT_TASK_DEFER_CONFLICT, taskId: {}", taskId);
+        }
+    }
+
+    /**
+     * 执行一个已领取任务并独立提交最终状态，失败不会中断同一批次的其他任务。
+     *
+     * @param claimedTask 已冻结租约所有者和版本的任务
+     * @param storage 私有对象存储
+     */
+    private void executeClaimedTask(ClaimedTask claimedTask, ExportObjectStorageService storage) {
+        DataExportTaskDO task = claimedTask.task();
+        try {
+            ExportArtifact artifact = process(
+                    task, storage, claimedTask.leaseOwner(), claimedTask.processingVersion());
+            int updated = taskMapper.markSuccess(task.getId(), claimedTask.processingVersion(),
+                    claimedTask.leaseOwner(), artifact.processedRows(), artifact.totalRows(),
+                    artifact.fileName(), artifact.contentType(), artifact.objectKey(), artifact.fileSizeBytes(),
+                    artifact.fileSha256(), artifact.expiresAt(), LocalDateTime.now());
+            if (updated != 1) {
+                storage.delete(artifact.objectKey());
+                throw new IllegalStateException("export task success state conflict");
+            }
+            log.info("异步导出任务完成, event: DATA_EXPORT_TASK_SUCCEEDED, taskNo: {}, processedRows: {}, fileSizeBytes: {}",
+                    task.getTaskNo(), artifact.processedRows(), artifact.fileSizeBytes());
+        } catch (RuntimeException exception) {
+            recordFailure(task, claimedTask.processingVersion(), claimedTask.leaseOwner(),
+                    exception.getClass().getSimpleName(), executionFailureReason(task), LocalDateTime.now());
+            log.warn("异步导出任务执行失败, event: DATA_EXPORT_TASK_FAILED, taskNo: {}, exceptionType: {}",
+                    task.getTaskNo(), exception.getClass().getSimpleName());
+        }
     }
 
     /**
@@ -348,7 +488,9 @@ public class DataExportTaskService {
         DataExportDownloadAuditDO audit = new DataExportDownloadAuditDO();
         audit.setAuditNo("DLA" + globalIdGenerator.nextId());
         audit.setTaskNo(task.getTaskNo());
+        audit.setOperatorAppCode(task.getCreatorAppCode());
         audit.setOperatorAccountId(request.getCreatorAccountId());
+        audit.setMerchantId(task.getMerchantId());
         audit.setOperatorAccountName(truncate(request.getOperatorName(), 128));
         audit.setClientIp(truncate(request.getClientIp(), 64));
         audit.setResultStatus("REQUESTED");
@@ -380,7 +522,10 @@ public class DataExportTaskService {
                 || request.getCreatorAccountId() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        DataExportTaskDO task = taskMapper.selectOwned(request.getTaskNo().trim(), request.getCreatorAccountId());
+        String creatorAppCode = normalizeAppCode(request.getCreatorAppCode());
+        String merchantId = normalizeMerchantId(creatorAppCode, request.getMerchantId());
+        DataExportTaskDO task = taskMapper.selectOwned(
+                request.getTaskNo().trim(), creatorAppCode, request.getCreatorAccountId(), merchantId);
         if (task == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND);
         }
@@ -405,8 +550,14 @@ public class DataExportTaskService {
         if (request == null || !StringUtils.hasText(request.getRequestId())
                 || !SUPPORTED_TASK_TYPES.contains(request.getTaskType())
                 || request.getCreatorAccountId() == null || !StringUtils.hasText(request.getCreatorAccountName())
-                || querySnapshot(request) == null
-                || !request.isAllMerchants() && (request.getMerchantIds() == null || request.getMerchantIds().isEmpty())) {
+                || querySnapshot(request) == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        String creatorAppCode = normalizeAppCode(request.getCreatorAppCode());
+        normalizeMerchantId(creatorAppCode, request.getMerchantId());
+        if (APP_ADMIN.equals(creatorAppCode)
+                && !request.isAllMerchants()
+                && (request.getMerchantIds() == null || request.getMerchantIds().isEmpty())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
@@ -426,8 +577,96 @@ public class DataExportTaskService {
             case ADMIN_REFUND -> request.getRefundQuery();
             case ADMIN_SETTLEMENT_TRANSACTION -> request.getSettlementTransactionQuery();
             case ADMIN_SETTLEMENT_RESERVE -> request.getSettlementReserveQuery();
+            case ADMIN_CARD_BIN -> request.getCardBinQuery();
+            case ADMIN_COUNTRY -> request.getCountryQuery();
+            case ADMIN_CURRENCY -> request.getCurrencyQuery();
+            case ADMIN_REGION_CURRENCY -> request.getRegionCurrencyQuery();
+            case ADMIN_MCC_CODE -> request.getMccCodeQuery();
+            case ADMIN_DEPARTMENT -> request.getDepartmentQuery();
+            case ADMIN_POST -> request.getPostQuery();
+            case ADMIN_DICT_TYPE -> request.getDictTypeQuery();
+            case ADMIN_DICT_DATA -> request.getDictDataQuery();
+            case ADMIN_HOLIDAY_CALENDAR -> request.getHolidayCalendarQuery();
+            case ADMIN_JOB_RUN_LOG -> request.getJobRunLogQuery();
+            case ADMIN_CHANNEL_MATCH_ABNORMAL -> request.getChannelMatchAbnormalQuery();
+            case ADMIN_SETTLEMENT_REVIEW -> request.getSettlementReviewQuery();
+            case ADMIN_SETTLEMENT_POSTING -> request.getSettlementPostingQuery();
+            case ADMIN_SECURITY_INTERCEPT_EVENT -> request.getSecurityInterceptEventQuery();
+            case ADMIN_FUND_ACCOUNT -> request.getFundAccountQuery();
+            case ADMIN_FUND_LEDGER -> request.getFundLedgerQuery();
+            case ADMIN_FUND_RECHARGE -> request.getFundRechargeQuery();
+            case ADMIN_FUND_DEDUCTION -> request.getFundDeductionQuery();
+            case ADMIN_EXCHANGE_RAW_RATE -> request.getExchangeRawRateQuery();
+            case ADMIN_EXCHANGE_BUSINESS_RATE -> request.getExchangeBusinessRateQuery();
+            case ADMIN_EXCHANGE_USAGE_SNAPSHOT -> request.getExchangeUsageSnapshotQuery();
+            case ADMIN_EXCHANGE_SOURCE -> request.getExchangeSourceQuery();
+            case ADMIN_EXCHANGE_RULE -> request.getExchangeRuleQuery();
+            case ADMIN_EXCHANGE_VOLATILITY -> request.getExchangeVolatilityQuery();
+            case ADMIN_EXCHANGE_ALERT_RULE -> request.getExchangeAlertRuleQuery();
+            case ADMIN_EXCHANGE_ALERT_EVENT -> request.getExchangeAlertEventQuery();
+            case ADMIN_FEE_TEMPLATE -> request.getFeeTemplateQuery();
+            case ADMIN_MERCHANT_FEE -> request.getMerchantFeeQuery();
+            case ADMIN_FEE_REVIEW -> request.getFeeReviewQuery();
+            case ADMIN_FEE_SIMULATION -> request.getFeeSimulationQuery();
+            case ADMIN_SYSTEM_USER -> request.getSystemUserQuery();
+            case ADMIN_SYSTEM_CONFIG -> request.getSystemConfigQuery();
+            case ADMIN_MERCHANT_IP_WHITELIST -> request.getMerchantIpWhitelistQuery();
+            case ADMIN_RISK_CONFIG -> request.getRiskConfigQuery();
+            case ADMIN_DATASOURCE_SNAPSHOT -> request.getDatasourceSnapshotQuery();
+            case MERCHANT_TRANSACTION_OPERATION -> request.getMerchantTransactionQuery();
+            case MERCHANT_REFUND -> request.getMerchantRefundQuery();
+            case MERCHANT_SETTLEMENT_BATCH -> request.getMerchantSettlementBatchQuery();
+            case MERCHANT_SETTLEMENT_SUMMARY -> request.getMerchantSettlementSummaryQuery();
+            case MERCHANT_SETTLEMENT_TRANSACTION -> request.getMerchantSettlementTransactionQuery();
+            case MERCHANT_SETTLEMENT_RESERVE -> request.getMerchantSettlementReserveQuery();
+            case MERCHANT_FUND_LEDGER -> request.getMerchantFundLedgerQuery();
             default -> null;
         };
+    }
+
+    /**
+     * 根据可信应用身份冻结对应的数据范围；商户任务只能包含一个认证商户号。
+     */
+    private Object scopeSnapshot(CreateRequest request, String creatorAppCode, String merchantId) {
+        if (APP_MERCHANT.equals(creatorAppCode)) {
+            MerchantExportScopeSnapshot scope = new MerchantExportScopeSnapshot();
+            scope.setMerchantId(merchantId);
+            return scope;
+        }
+        AdminExportScopeSnapshot scope = new AdminExportScopeSnapshot();
+        scope.setAllMerchants(request.isAllMerchants());
+        scope.setMerchantIds(request.getMerchantIds());
+        return scope;
+    }
+
+    /**
+     * 规整任务创建应用，拒绝未知应用绕过账号命名空间隔离。
+     */
+    private String normalizeAppCode(String appCode) {
+        if (!StringUtils.hasText(appCode)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        String normalized = appCode.trim().toUpperCase(Locale.ROOT);
+        if (!OWNER_APP_CODES.contains(normalized)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return normalized;
+    }
+
+    /**
+     * 校验应用与商户归属组合：Admin 不绑定商户，Merchant 必须绑定唯一商户。
+     */
+    private String normalizeMerchantId(String appCode, String merchantId) {
+        if (APP_ADMIN.equals(appCode)) {
+            if (StringUtils.hasText(merchantId)) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+            }
+            return null;
+        }
+        if (!StringUtils.hasText(merchantId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return merchantId.trim();
     }
 
     /**
@@ -525,5 +764,15 @@ public class DataExportTaskService {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    /**
+     * 已领取任务的不可变执行上下文，确保并发线程使用同一租约版本提交状态。
+     *
+     * @param task 已切换为处理中的任务
+     * @param leaseOwner 本轮唯一租约所有者
+     * @param processingVersion 领取成功后的乐观锁版本
+     */
+    private record ClaimedTask(DataExportTaskDO task, String leaseOwner, long processingVersion) {
     }
 }

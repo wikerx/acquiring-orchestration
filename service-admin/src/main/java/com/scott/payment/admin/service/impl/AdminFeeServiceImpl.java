@@ -35,6 +35,7 @@ import com.scott.payment.admin.mapper.FeeSimulationRecordMapper;
 import com.scott.payment.admin.mapper.FeeSimulationRecordDetailMapper;
 import com.scott.payment.admin.service.impl.AdminSettlementRateResolver.ResolvedSettlementRate;
 import com.scott.payment.admin.service.AdminFeeService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -364,16 +365,37 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FeePlanSummaryResponse> pageMerchantFees(FeePlanQuery request) {
+        return pageMerchantFeesForExport(request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围分页查询商户费率；有限空范围直接返回空页，绝不解释为全量。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FeePlanSummaryResponse> pageMerchantFeesForExport(
+            FeePlanQuery request, AdminMerchantDataScope dataScope) {
         FeePlanQuery query = request == null ? new FeePlanQuery() : request;
-        List<FeePlanDO> configuredPlans = planMapper.selectList(Wrappers.<FeePlanDO>lambdaQuery()
+        AdminMerchantDataScope scope = requireDataScope(dataScope);
+        if (scope.empty()) {
+            return PageResult.of(0, query.safePageNo(), query.safePageSize(), List.of());
+        }
+        LambdaQueryWrapper<FeePlanDO> planWrapper = Wrappers.<FeePlanDO>lambdaQuery()
                 .eq(FeePlanDO::getPlanType, MERCHANT)
-                .eq(FeePlanDO::getDeleted, NOT_DELETED));
+                .eq(FeePlanDO::getDeleted, NOT_DELETED);
+        if (!scope.allMerchants()) {
+            planWrapper.in(FeePlanDO::getMerchantId, scope.merchantIds());
+        }
+        List<FeePlanDO> configuredPlans = planMapper.selectList(planWrapper);
         Map<String, FeePlanDO> planByMerchant = configuredPlans.stream()
                 .collect(Collectors.toMap(FeePlanDO::getMerchantId, Function.identity(), (left, right) -> left));
 
         LambdaQueryWrapper<BaseMerchantInfoDO> merchantWrapper = Wrappers.<BaseMerchantInfoDO>lambdaQuery()
                 .eq(BaseMerchantInfoDO::getDeleted, 0)
                 .orderByDesc(BaseMerchantInfoDO::getGmtCreate);
+        if (!scope.allMerchants()) {
+            merchantWrapper.in(BaseMerchantInfoDO::getMerchantId, scope.merchantIds());
+        }
         if (StringUtils.hasText(query.getKeyword())) {
             String keyword = query.getKeyword().trim();
             merchantWrapper.and(value -> value.like(BaseMerchantInfoDO::getMerchantId, keyword)
@@ -477,13 +499,42 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FeeReviewResponse> pageReviews(FeePlanQuery request) {
+        return pageReviewsForExport(request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围分页查询复核记录，模板复核始终可见，商户复核仅限授权商户。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FeeReviewResponse> pageReviewsForExport(
+            FeePlanQuery request, AdminMerchantDataScope dataScope) {
         FeePlanQuery query = request == null ? new FeePlanQuery() : request;
-        Page<FeePlanVersionDO> page = versionMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
-                Wrappers.<FeePlanVersionDO>lambdaQuery()
-                        .eq(FeePlanVersionDO::getVersionStatus,
-                                StringUtils.hasText(query.getVersionStatus()) ? upper(query.getVersionStatus()) : PENDING_REVIEW)
-                        .eq(FeePlanVersionDO::getDeleted, NOT_DELETED)
-                        .orderByAsc(FeePlanVersionDO::getSubmitTime));
+        AdminMerchantDataScope scope = requireDataScope(dataScope);
+        LambdaQueryWrapper<FeePlanVersionDO> versionWrapper = Wrappers.<FeePlanVersionDO>lambdaQuery()
+                .eq(FeePlanVersionDO::getVersionStatus,
+                        StringUtils.hasText(query.getVersionStatus())
+                                ? upper(query.getVersionStatus()) : PENDING_REVIEW)
+                .eq(FeePlanVersionDO::getDeleted, NOT_DELETED)
+                .orderByAsc(FeePlanVersionDO::getSubmitTime);
+        if (!scope.allMerchants()) {
+            List<Long> visiblePlanIds = planMapper.selectList(Wrappers.<FeePlanDO>lambdaQuery()
+                            .select(FeePlanDO::getId)
+                            .eq(FeePlanDO::getDeleted, NOT_DELETED)
+                            .and(wrapper -> {
+                                wrapper.eq(FeePlanDO::getPlanType, TEMPLATE);
+                                if (!scope.merchantIds().isEmpty()) {
+                                    wrapper.or().in(FeePlanDO::getMerchantId, scope.merchantIds());
+                                }
+                            }))
+                    .stream().map(FeePlanDO::getId).filter(Objects::nonNull).toList();
+            if (visiblePlanIds.isEmpty()) {
+                return PageResult.of(0, query.safePageNo(), query.safePageSize(), List.of());
+            }
+            versionWrapper.in(FeePlanVersionDO::getPlanId, visiblePlanIds);
+        }
+        Page<FeePlanVersionDO> page = versionMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()), versionWrapper);
         Set<Long> planIds = page.getRecords().stream().map(FeePlanVersionDO::getPlanId).collect(Collectors.toSet());
         Map<Long, FeePlanDO> plans = planIds.isEmpty() ? Map.of() : planMapper.selectByIds(planIds).stream()
                 .collect(Collectors.toMap(FeePlanDO::getId, Function.identity()));
@@ -1055,7 +1106,21 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FeeSimulationRecordResponse> pageSimulationRecords(FeeSimulationRecordQuery request) {
+        return pageSimulationRecordsForExport(request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围分页查询费用试算审计记录，有限空范围直接返回空页。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FeeSimulationRecordResponse> pageSimulationRecordsForExport(
+            FeeSimulationRecordQuery request, AdminMerchantDataScope dataScope) {
         FeeSimulationRecordQuery query = request == null ? new FeeSimulationRecordQuery() : request;
+        AdminMerchantDataScope scope = requireDataScope(dataScope);
+        if (scope.empty()) {
+            return PageResult.of(0, query.safePageNo(), query.safePageSize(), List.of());
+        }
         LambdaQueryWrapper<FeeSimulationRecordDO> wrapper = Wrappers.<FeeSimulationRecordDO>lambdaQuery()
                 .eq(StringUtils.hasText(query.getMerchantId()), FeeSimulationRecordDO::getMerchantId,
                         query.getMerchantId() == null ? null : query.getMerchantId().trim())
@@ -1063,6 +1128,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                         upper(query.getTransactionType()))
                 .orderByDesc(FeeSimulationRecordDO::getCreateTime)
                 .orderByDesc(FeeSimulationRecordDO::getId);
+        if (!scope.allMerchants()) {
+            wrapper.in(FeeSimulationRecordDO::getMerchantId, scope.merchantIds());
+        }
         if (StringUtils.hasText(query.getKeyword())) {
             wrapper.like(FeeSimulationRecordDO::getSimulationNo, query.getKeyword().trim());
         }
@@ -1092,6 +1160,16 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                         .map(row -> toSimulationRecordResponse(
                                 row, detailSnapshots.getOrDefault(row.getId(), List.of())))
                         .toList());
+    }
+
+    /**
+     * 校验异步任务传入的数据范围，禁止缺失范围被解释为平台全量权限。
+     */
+    private AdminMerchantDataScope requireDataScope(AdminMerchantDataScope dataScope) {
+        if (dataScope == null) {
+            throw new IllegalArgumentException("merchant data scope is required");
+        }
+        return dataScope;
     }
 
     /**

@@ -1,6 +1,10 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.SysDictDataDTO;
 import com.scott.payment.admin.dto.base.MccRequests;
 import com.scott.payment.admin.dto.base.MccVO;
@@ -22,7 +26,9 @@ import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -31,6 +37,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -72,6 +80,8 @@ class AdminBaseMccApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
+        TableInfoHelper.initTableInfo(assistant, MccEntities.BaseMccCodeDO.class);
         service = new AdminBaseMccApplicationService(
                 level1Mapper,
                 level2Mapper,
@@ -104,6 +114,62 @@ class AdminBaseMccApplicationServiceTest {
         assertThat(level2.getChildren()).hasSize(1);
         assertThat(level2.getChildren().get(0).getNodeType()).isEqualTo("MCC_CODE");
         assertThat(level2.getChildren().get(0).getLevel()).isEqualTo(3);
+    }
+
+    /**
+     * 一级和二级分类筛选不代表 MCC 编码筛选，异步导出必须返回空页而不是误导出全部编码。
+     */
+    @Test
+    void shouldReturnEmptyExportPageForCategoryNodeType() {
+        MccRequests.MccTreeQueryRequest request = new MccRequests.MccTreeQueryRequest();
+        request.setNodeType("LEVEL1");
+
+        var result = service.pageCodesForExport(3, 50, request);
+
+        assertThat(result.getTotal()).isZero();
+        assertThat(result.getPageNo()).isEqualTo(3L);
+        assertThat(result.getPageSize()).isEqualTo(50L);
+        assertThat(result.getRecords()).isEmpty();
+        verify(codeMapper, never()).selectPage(any(), any());
+    }
+
+    /**
+     * MCC 编码异步导出必须保留页面冻结的筛选条件和内部分页边界。
+     */
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void shouldApplyFiltersAndPaginationWhenExportingMccCodes() {
+        Page<MccEntities.BaseMccCodeDO> sourcePage = new Page<>(3, 50, 1);
+        sourcePage.setRecords(List.of(mccCode()));
+        when(codeMapper.selectPage(any(Page.class), any())).thenReturn(sourcePage);
+        MccRequests.MccTreeQueryRequest request = new MccRequests.MccTreeQueryRequest();
+        request.setNodeType("MCC_CODE");
+        request.setKeyword(" grocery ");
+        request.setMccCode(" 5411 ");
+        request.setNameCn(" 杂货 ");
+        request.setNameEn(" Grocery ");
+        request.setRiskLevel(" HIGH ");
+        request.setStatus(1);
+
+        var result = service.pageCodesForExport(3, 50, request);
+
+        ArgumentCaptor<Page<MccEntities.BaseMccCodeDO>> pageCaptor = ArgumentCaptor.forClass(Page.class);
+        ArgumentCaptor<LambdaQueryWrapper<MccEntities.BaseMccCodeDO>> wrapperCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(codeMapper).selectPage(pageCaptor.capture(), wrapperCaptor.capture());
+        assertThat(pageCaptor.getValue().getCurrent()).isEqualTo(3L);
+        assertThat(pageCaptor.getValue().getSize()).isEqualTo(50L);
+        assertThat(wrapperCaptor.getValue().getSqlSegment()).isNotBlank();
+        assertThat(wrapperCaptor.getValue().getParamNameValuePairs().values())
+                .extracting(String::valueOf)
+                .anyMatch(value -> value.contains("grocery"))
+                .anyMatch(value -> value.contains("5411"))
+                .anyMatch(value -> value.contains("杂货"))
+                .anyMatch(value -> value.contains("Grocery"))
+                .contains("HIGH", "1");
+        assertThat(result.getRecords()).singleElement()
+                .extracting(MccVO.MccCodeVO::getMccCode)
+                .isEqualTo("5411");
     }
 
     @Test

@@ -6,12 +6,23 @@ import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionPageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionRow;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewRow;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementPostingPageRequest;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementPostingPageResponse;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementPostingRow;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSummary;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
+import com.scott.payment.admin.service.AdminSettlementReviewQueryService;
 import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
@@ -21,13 +32,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminSettlementExportSourceApplicationService {
     private final AdminSettlementReportingQueryService reportingQueryService;
+    private final AdminSettlementReviewQueryService reviewQueryService;
 
     /**
      * 创建结算异步导出来源服务。
      */
     public AdminSettlementExportSourceApplicationService(
-            AdminSettlementReportingQueryService reportingQueryService) {
+            AdminSettlementReportingQueryService reportingQueryService,
+            AdminSettlementReviewQueryService reviewQueryService) {
         this.reportingQueryService = reportingQueryService;
+        this.reviewQueryService = reviewQueryService;
     }
 
     /**
@@ -56,6 +70,34 @@ public class AdminSettlementExportSourceApplicationService {
         response.setPageNo(page.getPageNo());
         response.setPageSize(page.getPageSize());
         response.setRecords(page.getRecords().stream().map(this::toReserveRow).toList());
+        return response;
+    }
+
+    /**
+     * 按冻结条件和商户范围读取一页结算审核单安全投影。
+     */
+    public SettlementReviewPageResponse pageReviews(SettlementReviewPageRequest request) {
+        PageResult<ReviewSummary> page = reviewQueryService.searchReviews(
+                toReviewQuery(request), dataScope(request.isAllMerchants(), request.getMerchantIds()));
+        SettlementReviewPageResponse response = new SettlementReviewPageResponse();
+        response.setTotal(page.getTotal());
+        response.setPageNo(page.getPageNo());
+        response.setPageSize(page.getPageSize());
+        response.setRecords(page.getRecords().stream().map(this::toReviewRow).toList());
+        return response;
+    }
+
+    /**
+     * 按冻结条件和商户范围读取一页结算入账流水安全投影。
+     */
+    public SettlementPostingPageResponse pagePostings(SettlementPostingPageRequest request) {
+        PageResult<PostingSummary> page = reportingQueryService.searchPostings(
+                toPostingQuery(request), dataScope(request.isAllMerchants(), request.getMerchantIds()));
+        SettlementPostingPageResponse response = new SettlementPostingPageResponse();
+        response.setTotal(page.getTotal());
+        response.setPageNo(page.getPageNo());
+        response.setPageSize(page.getPageSize());
+        response.setRecords(page.getRecords().stream().map(this::toPostingRow).toList());
         return response;
     }
 
@@ -104,6 +146,42 @@ public class AdminSettlementExportSourceApplicationService {
         target.setEndExpectedReleaseDate(source.getEndExpectedReleaseDate());
         target.setBeginBusinessDate(source.getBeginBusinessDate());
         target.setEndBusinessDate(source.getEndBusinessDate());
+        target.setPageNo(request.getPageNo());
+        target.setPageSize(request.getPageSize());
+        return target;
+    }
+
+    /**
+     * 恢复结算审核单冻结筛选并覆盖内部分页参数。
+     */
+    private ReviewSearchRequest toReviewQuery(SettlementReviewPageRequest request) {
+        var source = request.getQuery();
+        ReviewSearchRequest target = new ReviewSearchRequest();
+        target.setReviewOrderNo(source.getReviewOrderNo());
+        target.setMerchantId(source.getMerchantId());
+        target.setReviewType(source.getReviewType());
+        target.setReviewStatus(source.getReviewStatus());
+        target.setBeginBusinessDate(source.getBeginBusinessDate());
+        target.setEndBusinessDate(source.getEndBusinessDate());
+        target.setPageNo(request.getPageNo());
+        target.setPageSize(request.getPageSize());
+        return target;
+    }
+
+    /**
+     * 恢复结算入账流水冻结筛选并覆盖内部分页参数。
+     */
+    private PostingSearchRequest toPostingQuery(SettlementPostingPageRequest request) {
+        var source = request.getQuery();
+        PostingSearchRequest target = new PostingSearchRequest();
+        target.setSettlementBatchNo(source.getSettlementBatchNo());
+        target.setMerchantId(source.getMerchantId());
+        target.setLedgerNo(source.getLedgerNo());
+        target.setDirection(source.getDirection());
+        target.setOperationMode(source.getOperationMode());
+        target.setCurrency(source.getCurrency());
+        target.setBeginPostedTime(source.getBeginPostedTime());
+        target.setEndPostedTime(source.getEndPostedTime());
         target.setPageNo(request.getPageNo());
         target.setPageSize(request.getPageSize());
         return target;
@@ -160,6 +238,57 @@ public class AdminSettlementExportSourceApplicationService {
         row.setReserveStatus(source.getReserveStatus());
         row.setExpectedReleaseDate(source.getExpectedReleaseDate());
         row.setActionTime(source.getActionTime());
+        return row;
+    }
+
+    /**
+     * 将结算审核单查询结果投影为导出安全行。
+     */
+    private SettlementReviewRow toReviewRow(ReviewSummary source) {
+        SettlementReviewRow row = new SettlementReviewRow();
+        row.setReviewOrderNo(source.getReviewOrderNo());
+        row.setReviewType(source.getReviewType());
+        row.setCreateMode(source.getCreateMode());
+        row.setMerchantId(source.getMerchantId());
+        row.setBusinessDate(source.getBusinessDate());
+        row.setTargetCurrency(source.getTargetCurrency());
+        row.setCandidateCount(source.getCandidateCount());
+        row.setNetDirection(source.getNetDirection());
+        row.setNetAmount(source.getNetAmount());
+        row.setReviewStatus(source.getReviewStatus());
+        row.setSubmittedByAccountName(source.getSubmittedByAccountName());
+        row.setSubmittedTime(source.getSubmittedTime());
+        row.setDecidedByAccountName(source.getDecidedByAccountName());
+        row.setDecisionAction(source.getDecisionAction());
+        row.setDecisionTime(source.getDecisionTime());
+        row.setSettlementBatchNo(source.getSettlementBatchNo());
+        return row;
+    }
+
+    /**
+     * 将结算入账流水查询结果投影为导出安全行。
+     */
+    private SettlementPostingRow toPostingRow(PostingSummary source) {
+        SettlementPostingRow row = new SettlementPostingRow();
+        row.setLedgerNo(source.getLedgerNo());
+        row.setSettlementBatchNo(source.getSettlementBatchNo());
+        row.setMerchantId(source.getMerchantId());
+        row.setAccountId(source.getAccountId());
+        row.setBusinessType(source.getBusinessType());
+        row.setDirection(source.getDirection());
+        row.setAmount(source.getAmount());
+        row.setCurrency(source.getCurrency());
+        row.setBalanceBefore(source.getBalanceBefore());
+        row.setBalanceAfter(source.getBalanceAfter());
+        row.setAccountSequence(source.getAccountSequence());
+        row.setOperationMode(source.getOperationMode());
+        row.setOperatorName(source.getOperatorName());
+        row.setReviewerName(source.getReviewerName());
+        row.setOperationReason(source.getOperationReason());
+        row.setReviewComment(source.getReviewComment());
+        row.setPostedTime(source.getPostedTime());
+        row.setIdempotencyKey(source.getIdempotencyKey());
+        row.setReversalOfLedgerId(source.getReversalOfLedgerId());
         return row;
     }
 }

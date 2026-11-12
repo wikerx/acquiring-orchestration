@@ -2,6 +2,7 @@ package com.scott.payment.component.excel.service.impl;
 
 import com.scott.payment.component.excel.annotation.ExcelExportColumn;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
+import com.scott.payment.component.excel.model.ExcelDynamicPagedExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.support.ExcelDynamicColumnDefinition;
@@ -24,6 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -53,6 +55,22 @@ class ExcelExportServiceImplTest {
                 resolver.resolve("excel.settlement.reserveTitle", Locale.SIMPLIFIED_CHINESE));
         Assertions.assertEquals("Reserve Settlement Details",
                 resolver.resolve("excel.settlement.reserveTitle", Locale.US));
+    }
+
+    /**
+     * 验证无活动预警时的波动状态在维护语言中均可解析，避免 Excel 暴露协议代码 NORMAL。
+     */
+    @Test
+    void shouldResolveNormalExchangeAlertStatusForMaintainedLocales() {
+        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
+        messageSource.setBasenames("messages");
+        messageSource.setDefaultEncoding("UTF-8");
+        ExcelI18nMessageResolver resolver = new ExcelI18nMessageResolver(messageSource);
+
+        Assertions.assertEquals("正常",
+                resolver.resolve("excel.exchange.enum.alertStatus.NORMAL", Locale.SIMPLIFIED_CHINESE));
+        Assertions.assertEquals("Normal",
+                resolver.resolve("excel.exchange.enum.alertStatus.NORMAL", Locale.US));
     }
 
     /**
@@ -200,6 +218,48 @@ class ExcelExportServiceImplTest {
     }
 
     /**
+     * 验证动态列异步导出连续写入多页 Map 数据，并保持调用方输出流可继续使用。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldWriteDynamicPagedRowsWithoutClosingCallerOwnedStream() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        TrackingOutputStream outputStream = new TrackingOutputStream();
+        List<ExcelDynamicColumnDefinition> columns = List.of(
+                new ExcelDynamicColumnDefinition("ruleName", "规则名称", 24, HorizontalAlignment.LEFT),
+                new ExcelDynamicColumnDefinition("status", "状态", 12, HorizontalAlignment.CENTER));
+
+        service.exportDynamicPaged(
+                ExcelDynamicPagedExportRequest.builder()
+                        .fileName("risk-config")
+                        .sheetName("风险配置")
+                        .title("风险配置")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .columns(columns)
+                        .pageSize(1)
+                        .pageLoader(pageNo -> switch (pageNo) {
+                            case 1 -> List.of(new LinkedHashMap<>(Map.of(
+                                    "ruleName", "单笔限额", "status", "启用")));
+                            case 2 -> List.of(new LinkedHashMap<>(Map.of(
+                                    "ruleName", "频率限制", "status", "停用")));
+                            default -> List.of();
+                        })
+                        .build(),
+                outputStream);
+
+        Assertions.assertFalse(outputStream.closed, "动态异步导出不得关闭调用方管理的输出流");
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.body.toByteArray()))) {
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("规则名称", sheet.getRow(2).getCell(0).getStringCellValue());
+            Assertions.assertEquals("单笔限额", sheet.getRow(3).getCell(0).getStringCellValue());
+            Assertions.assertEquals("频率限制", sheet.getRow(4).getCell(0).getStringCellValue());
+        }
+    }
+
+    /**
      * 验证超长业务标识使用文本格式，避免 Excel 显示为科学计数法。
      */
     @Test
@@ -224,6 +284,44 @@ class ExcelExportServiceImplTest {
             var cell = workbook.getSheetAt(0).getRow(3).getCell(0);
             Assertions.assertEquals("202608271446158230848", cell.getStringCellValue());
             Assertions.assertEquals("@", cell.getCellStyle().getDataFormatString());
+        }
+    }
+
+    /**
+     * 验证强制文本的精确十进制值按普通十进制原值写入，避免科学计数法和尾数丢失。
+     */
+    @Test
+    void shouldWriteForcedTextDecimalsWithoutScientificNotation() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        service.exportPaged(
+                ExcelPagedExportRequest.<DecimalExportRow>builder()
+                        .fileName("decimal-demo")
+                        .sheetName("decimal-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .rowClass(DecimalExportRow.class)
+                        .pageSize(100)
+                        .pageLoader(pageNo -> pageNo == 1
+                                ? List.of(new DecimalExportRow(
+                                        new BigDecimal("0.00000001"),
+                                        new BigDecimal("100.12000000"),
+                                        new BigDecimal("100.12000001")))
+                                : List.of())
+                        .build(),
+                outputStream);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.toByteArray()))) {
+            Row dataRow = workbook.getSheetAt(0).getRow(3);
+            Assertions.assertEquals("0.00000001", dataRow.getCell(0).getStringCellValue());
+            Assertions.assertEquals("100.12000000", dataRow.getCell(1).getStringCellValue());
+            Assertions.assertEquals("100.12000001", dataRow.getCell(2).getStringCellValue());
+            Assertions.assertEquals("@", dataRow.getCell(0).getCellStyle().getDataFormatString());
+            Assertions.assertEquals("@", dataRow.getCell(1).getCellStyle().getDataFormatString());
+            Assertions.assertEquals("@", dataRow.getCell(2).getCellStyle().getDataFormatString());
         }
     }
 
@@ -333,6 +431,27 @@ class ExcelExportServiceImplTest {
         TextIdentifierExportRow(String transactionId, String status) {
             this.transactionId = transactionId;
             this.status = status;
+        }
+    }
+
+    /**
+     * 测试精确十进制文本导出行。
+     */
+    public static class DecimalExportRow {
+
+        @ExcelExportColumn(order = 1, headerKey = "excel.fund.amount", forceText = true)
+        private final BigDecimal amount;
+
+        @ExcelExportColumn(order = 2, headerKey = "excel.fund.balanceBefore", forceText = true)
+        private final BigDecimal balanceBefore;
+
+        @ExcelExportColumn(order = 3, headerKey = "excel.fund.balanceAfter", forceText = true)
+        private final BigDecimal balanceAfter;
+
+        DecimalExportRow(BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter) {
+            this.amount = amount;
+            this.balanceBefore = balanceBefore;
+            this.balanceAfter = balanceAfter;
         }
     }
 

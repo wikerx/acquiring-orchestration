@@ -180,7 +180,7 @@ internal-service:
         # 参数说明：Data-Admin 密钥滚动轮换期间接受的上一版密钥；平时为空。
         previous-secret: ${acquiring.internal-auth.edges.data-admin.previous-secret:}
         allowed-paths:
-          # 路径说明：仅允许分页读取冻结范围内的待办和交易域导出数据。
+          # 路径说明：仅允许分页读取冻结范围内的待办、交易、结算、平台、资金、汇率和系统基础配置导出数据。
           - /internal/admin/operations/work-items/export-page
           - /internal/admin/transactions/orders/export-page
           - /internal/admin/transactions/operations/export-page
@@ -188,6 +188,42 @@ internal-service:
           - /internal/admin/transactions/refunds/export-page
           - /internal/admin/settlement/result-items/export-page
           - /internal/admin/settlement/reserve-items/export-page
+          - /internal/admin/base/card-bin/export-page
+          - /internal/admin/base/countries/export-page
+          - /internal/admin/base/currencies/export-page
+          - /internal/admin/base/region-currencies/export-page
+          - /internal/admin/base/mcc-codes/export-page
+          - /internal/admin/monitor/job-logs/export-page
+          - /internal/admin/transactions/channel-match-abnormalities/export-page
+          - /internal/admin/settlement/review-orders/export-page
+          - /internal/admin/settlement/postings/export-page
+          - /internal/admin/security/intercept-events/export-page
+          - /internal/admin/fund/accounts/export-page
+          - /internal/admin/fund/ledgers/export-page
+          - /internal/admin/fund/recharges/export-page
+          - /internal/admin/fund/deductions/export-page
+          - /internal/admin/exchange/raw-rates/export-page
+          - /internal/admin/exchange/business-rates/export-page
+          - /internal/admin/exchange/usage-snapshots/export-page
+          - /internal/admin/exchange/sources/export-page
+          - /internal/admin/exchange/rules/export-page
+          - /internal/admin/exchange/volatility/export-page
+          - /internal/admin/exchange/alert-rules/export-page
+          - /internal/admin/exchange/alert-events/export-page
+          - /internal/admin/fees/templates/export-page
+          - /internal/admin/fees/merchants/export-page
+          - /internal/admin/fees/reviews/export-page
+          - /internal/admin/fees/simulation-records/export-page
+          - /internal/admin/system/departments/export-page
+          - /internal/admin/system/posts/export-page
+          - /internal/admin/system/dict-types/export-page
+          - /internal/admin/system/dict-data/export-page
+          - /internal/admin/system/holiday-calendar/export-page
+          - /internal/admin/system/users/export-page
+          - /internal/admin/system/configs/export-page
+          - /internal/admin/merchant/ip-whitelists/export-page
+          - /internal/admin/risk/configs/export-page
+          - /internal/admin/monitor/datasource-snapshot/export-page
       service-merchant:
         # 参数说明：遗留 Merchant 到 Admin 兼容接口的当前验签密钥；正常商户查询不得走该远程链路。
         active-secret: ${acquiring.internal-auth.edges.merchant-admin.active-secret}

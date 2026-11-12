@@ -3,6 +3,7 @@ package com.scott.payment.job.service.impl;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
 import com.scott.payment.job.mapper.SysJobRunLogMapper;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Select;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -52,5 +53,18 @@ class JobRunLogServiceImplTests {
         assertThat(sql).contains("end_time = GREATEST(#{endTime}, start_time)");
         assertThat(sql).contains("update_time = GREATEST(#{endTime}, start_time)");
         assertThat(sql).doesNotContain("NOW()");
+    }
+
+    @Test
+    void trendQueryShouldCountOnlyTerminalStatusesInHalfOpenRange() throws NoSuchMethodException {
+        Select select = SysJobRunLogMapper.class.getMethod(
+                "selectDailyTrend", LocalDateTime.class, LocalDateTime.class).getAnnotation(Select.class);
+        String sql = String.join(" ", select.value());
+
+        assertThat(sql).contains("COALESCE(end_time, update_time) >= #{startTime}");
+        assertThat(sql).contains("COALESCE(end_time, update_time) < #{endTime}");
+        assertThat(sql).contains("run_status = 'SUCCESS'");
+        assertThat(sql).contains("'FAILED', 'TIMEOUT', 'CANCELLED'");
+        assertThat(sql).doesNotContain("'WAITING'").doesNotContain("'RUNNING'");
     }
 }

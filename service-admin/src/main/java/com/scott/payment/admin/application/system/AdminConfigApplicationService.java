@@ -38,6 +38,7 @@ public class AdminConfigApplicationService {
      * 系统参数配置对象转换器。
      */
     private final ConfigConverter configConverter;
+    private final SystemConfigExportValuePolicy exportValuePolicy;
 
     /**
      * 创建后台系统配置应用服务。
@@ -47,17 +48,20 @@ public class AdminConfigApplicationService {
      * @param excelI18nMessageResolver Excel 文案解析器
      * @param excelLocaleResolver      Excel 语言解析器
      * @param configConverter          系统参数配置对象转换器
+     * @param exportValuePolicy        系统参数导出值安全策略
      */
     public AdminConfigApplicationService(AdminConfigService adminConfigService,
                                          ExcelExportService excelExportService,
                                          ExcelI18nMessageResolver excelI18nMessageResolver,
                                          ExcelLocaleResolver excelLocaleResolver,
-                                         ConfigConverter configConverter) {
+                                         ConfigConverter configConverter,
+                                         SystemConfigExportValuePolicy exportValuePolicy) {
         this.adminConfigService = adminConfigService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
         this.configConverter = configConverter;
+        this.exportValuePolicy = exportValuePolicy;
     }
 
     /**
@@ -106,7 +110,7 @@ public class AdminConfigApplicationService {
                               HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<SysConfigExportRow> rows = adminConfigService.listConfigs(request).stream()
-                .map(configConverter::toExportRow)
+                .map(dto -> toSafeExportRow(dto))
                 .peek(row -> fillConfigDisplayValue(row, locale))
                 .toList();
         excelExportService.export(
@@ -123,6 +127,13 @@ public class AdminConfigApplicationService {
                         .build(),
                 response
         );
+    }
+
+    /** 将系统参数转换为导出行，并在映射边界清除敏感原值。 */
+    private SysConfigExportRow toSafeExportRow(SysConfigDTO dto) {
+        SysConfigExportRow row = configConverter.toExportRow(dto);
+        row.setConfigValue(exportValuePolicy.exportValue(dto));
+        return row;
     }
 
     /**
