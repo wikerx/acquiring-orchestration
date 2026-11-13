@@ -5,6 +5,11 @@ SELECT id, app_code, app_name, status
 FROM sys_app
 WHERE app_code = 'MERCHANT' AND deleted = 0;
 
+SELECT menu.id, menu.menu_code, menu.menu_name, menu.menu_type, menu.status
+FROM sys_menu menu
+JOIN sys_app app ON app.id = menu.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
+WHERE menu.menu_code = 'merchant_system_catalog_v1' AND menu.deleted = 0;
+
 SELECT role_code, COUNT(*) AS role_count
 FROM sys_role role
 JOIN sys_app app ON app.id = role.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0

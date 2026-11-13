@@ -2,16 +2,25 @@
 SET NAMES utf8mb4;
 
 SELECT menu.menu_code, CONVERT(menu.menu_name USING utf8mb4) AS menu_name,
+       parent.menu_code AS parent_menu_code,
        menu.menu_type, menu.route_path, menu.component_path, menu.permission_code,
        menu.sort_no, menu.visible, menu.status
 FROM sys_menu menu
 JOIN sys_app app ON app.id = menu.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
+LEFT JOIN sys_menu parent ON parent.id = menu.parent_id AND parent.app_id = menu.app_id AND parent.deleted = 0
 WHERE menu.deleted = 0
   AND menu.menu_code IN (
       'merchant_export_task_center_v1', 'merchant_export_task_detail_v1',
       'merchant_export_task_download_v1', 'merchant_export_task_retry_v1'
   )
 ORDER BY menu.sort_no;
+
+SELECT CASE WHEN COUNT(*) = 1 THEN 'PASS' ELSE 'FAIL' END AS download_center_parent_check
+FROM sys_menu menu
+JOIN sys_app app ON app.id = menu.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_menu parent ON parent.id = menu.parent_id AND parent.app_id = menu.app_id AND parent.deleted = 0
+WHERE menu.menu_code = 'merchant_export_task_center_v1' AND menu.deleted = 0
+  AND parent.menu_code = 'merchant_system_catalog_v1' AND parent.menu_type = 'CATALOG';
 
 SELECT permission.permission_code, CONVERT(permission.permission_name USING utf8mb4) AS permission_name,
        permission.resource_method, permission.resource_path, permission.status

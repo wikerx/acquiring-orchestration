@@ -6,15 +6,21 @@ START TRANSACTION;
 SET @merchant_app_id = (
     SELECT id FROM sys_app WHERE app_code = 'MERCHANT' AND deleted = 0 ORDER BY id LIMIT 1
 );
+SET @merchant_system_catalog_id = (
+    SELECT id FROM sys_menu
+    WHERE app_id = @merchant_app_id AND menu_code = 'merchant_system_catalog_v1'
+      AND menu_type = 'CATALOG' AND deleted = 0
+    ORDER BY id LIMIT 1
+);
 
 INSERT INTO sys_menu (
     app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
     permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
 )
-SELECT @merchant_app_id, 0, 'merchant_export_task_center_v1', '下载中心', 'MENU',
+SELECT @merchant_app_id, @merchant_system_catalog_id, 'merchant_export_task_center_v1', '下载中心', 'MENU',
        '/operations/export-tasks', 'operations/export-task',
-       'merchant:operations:export-task:list', 'Download', 1, 0, 0, 10, 1, 0
-WHERE @merchant_app_id IS NOT NULL
+       'merchant:operations:export-task:list', 'Download', 1, 0, 0, 96, 1, 0
+WHERE @merchant_app_id IS NOT NULL AND @merchant_system_catalog_id IS NOT NULL
   AND NOT EXISTS (
       SELECT 1 FROM sys_menu
       WHERE app_id = @merchant_app_id
@@ -22,13 +28,14 @@ WHERE @merchant_app_id IS NOT NULL
   );
 
 UPDATE sys_menu
-SET parent_id = 0, menu_name = BINARY '下载中心', menu_type = 'MENU',
+SET parent_id = @merchant_system_catalog_id, menu_name = BINARY '下载中心', menu_type = 'MENU',
     route_path = '/operations/export-tasks', component_path = 'operations/export-task',
     permission_code = 'merchant:operations:export-task:list', icon = 'Download',
-    visible = 1, keep_alive = 0, external_link = 0, sort_no = 10, status = 1,
+    visible = 1, keep_alive = 0, external_link = 0, sort_no = 96, status = 1,
     updated_at = CURRENT_TIMESTAMP(3)
 WHERE app_id = @merchant_app_id
-  AND menu_code = 'merchant_export_task_center_v1' AND deleted = 0;
+  AND menu_code = 'merchant_export_task_center_v1' AND deleted = 0
+  AND @merchant_system_catalog_id IS NOT NULL;
 
 INSERT INTO sys_menu (
     app_id, parent_id, menu_code, menu_name, menu_type, permission_code,
