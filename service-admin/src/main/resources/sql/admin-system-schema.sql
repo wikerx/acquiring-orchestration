@@ -1594,6 +1594,7 @@ CREATE TABLE IF NOT EXISTS channel_mid_config (
     transaction_type_scope VARCHAR(512) NOT NULL COMMENT '支持交易类型，ALL或逗号分隔',
     currency_scope VARCHAR(512) NOT NULL COMMENT '支持交易币种，ALL或逗号分隔',
     allowed_country_scope VARCHAR(512) NOT NULL COMMENT '允许交易国家，ALL或逗号分隔',
+    default_transaction_currency CHAR(3) NOT NULL COMMENT '默认交易币种；标签币种不受支持时用于未来初始交易换汇',
     default_settlement_currency CHAR(3) NOT NULL COMMENT '默认结算币种',
     settlement_cycle VARCHAR(32) NOT NULL COMMENT '结算周期：T0/T1/T2',
     settlement_cutoff_time TIME NULL COMMENT '结算日切时间',
@@ -1637,6 +1638,144 @@ CREATE TABLE IF NOT EXISTS merchant_channel_mid_binding (
     KEY idx_merchant_channel_status (merchant_id, channel_id, binding_status, deleted),
     KEY idx_binding_mid (mid_config_id, binding_status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户渠道MID绑定表';
+
+CREATE TABLE IF NOT EXISTS payment_route_rule (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_code VARCHAR(64) NOT NULL COMMENT '稳定路由规则编码',
+    rule_name VARCHAR(128) NOT NULL COMMENT '路由规则名称',
+    rule_type VARCHAR(32) NOT NULL COMMENT '规则类型：FIXED、PRIORITY、WEIGHT、HISTORY_AFFINITY',
+    scope_type VARCHAR(32) NOT NULL COMMENT '作用范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NULL COMMENT '商户号，MERCHANT范围时必填',
+    business_type VARCHAR(32) NOT NULL DEFAULT 'ACQUIRING' COMMENT '业务类型；阶段1A仅支持ACQUIRING',
+    payment_method VARCHAR(64) NULL COMMENT '支付方式，空表示不限',
+    transaction_type VARCHAR(64) NULL COMMENT '交易类型，空表示不限',
+    card_brand VARCHAR(64) NULL COMMENT '卡品牌，空表示不限',
+    label_currency CHAR(3) NULL COMMENT '商户标签币种，空表示不限',
+    issuer_country_scope VARCHAR(1024) NOT NULL DEFAULT 'ALL' COMMENT '发卡国家范围，ALL或ISO Alpha-2逗号分隔',
+    billing_country_scope VARCHAR(1024) NOT NULL DEFAULT 'ALL' COMMENT '账单国家范围，ALL或ISO Alpha-2逗号分隔',
+    amount_min DECIMAL(24,8) NULL COMMENT '标签金额下限，包含边界',
+    amount_max DECIMAL(24,8) NULL COMMENT '标签金额上限，包含边界',
+    rule_priority INT NOT NULL COMMENT '第一层规则优先级，数值越小优先级越高',
+    unavailable_policy VARCHAR(32) NOT NULL COMMENT '候选不可用策略：FALLBACK回退、REJECT拒绝',
+    rule_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT' COMMENT '生命周期：DRAFT、ENABLED、DISABLED',
+    version INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+    remark VARCHAR(500) NULL COMMENT '运营备注',
+    published_by VARCHAR(64) NULL COMMENT '最近发布人',
+    published_time DATETIME(3) NULL COMMENT '最近发布时间',
+    disabled_by VARCHAR(64) NULL COMMENT '最近停用人',
+    disabled_time DATETIME(3) NULL COMMENT '最近停用时间',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_route_rule_code_deleted (rule_code, deleted),
+    KEY idx_payment_route_rule_status_priority (rule_status, business_type, rule_priority, deleted),
+    KEY idx_payment_route_rule_merchant (scope_type, merchant_id, rule_status, deleted),
+    KEY idx_payment_route_rule_dimension (payment_method, transaction_type, card_brand, label_currency, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则配置表；阶段1A不接入支付链路';
+
+CREATE TABLE IF NOT EXISTS payment_route_rule_merchant (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_id BIGINT NOT NULL COMMENT '支付路由规则ID',
+    merchant_id VARCHAR(32) NOT NULL COMMENT '平台商户号',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_route_rule_merchant_deleted (rule_id, merchant_id, deleted),
+    KEY idx_payment_route_rule_merchant_lookup (merchant_id, rule_id, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则指定商户关联表';
+
+CREATE TABLE IF NOT EXISTS payment_route_method (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_id BIGINT NOT NULL COMMENT '支付路由规则ID',
+    payment_method VARCHAR(64) NOT NULL COMMENT '规则适用的收单支付方式',
+    card_brand VARCHAR(64) NOT NULL DEFAULT 'NONE' COMMENT '银行卡品牌；非银行卡支付方式为NONE',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_route_method_rule_scope_deleted (rule_id, payment_method, card_brand, deleted),
+    KEY idx_payment_route_method_scope_rule (payment_method, card_brand, rule_id, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则适用支付方式表';
+
+CREATE TABLE IF NOT EXISTS payment_route_transaction_type (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_id BIGINT NOT NULL COMMENT '支付路由规则ID',
+    transaction_type VARCHAR(64) NOT NULL COMMENT '规则适用的收单交易类型',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_route_transaction_rule_type_deleted (rule_id, transaction_type, deleted),
+    KEY idx_payment_route_transaction_type_rule (transaction_type, rule_id, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则适用交易类型表；无有效记录表示全部交易类型';
+
+CREATE TABLE IF NOT EXISTS payment_route_strategy (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_id BIGINT NOT NULL COMMENT '支付路由规则ID',
+    strategy_type VARCHAR(32) NOT NULL COMMENT '类型专属配置类型，与规则类型一致',
+    strategy_priority INT NOT NULL DEFAULT 100 COMMENT '首版结构兼容字段，不再作为业务优先级',
+    history_lookback_months INT NULL COMMENT '历史成功MID路由回看月数，其他类型为空',
+    strategy_status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_route_strategy_rule_type_deleted (rule_id, strategy_type, deleted),
+    KEY idx_payment_route_strategy_rule_status (rule_id, strategy_status, strategy_priority, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由策略配置表';
+
+CREATE TABLE IF NOT EXISTS payment_route_candidate (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_id BIGINT NOT NULL COMMENT '支付路由规则ID',
+    payment_method VARCHAR(64) NOT NULL COMMENT '候选所属收单支付方式',
+    card_brand VARCHAR(64) NOT NULL DEFAULT 'NONE' COMMENT '银行卡品牌；非银行卡支付方式为NONE',
+    channel_id BIGINT NOT NULL COMMENT '渠道ID，关联channel_info.id',
+    mid_config_id BIGINT NOT NULL COMMENT '渠道MID配置ID，关联channel_mid_config.id',
+    candidate_priority INT NOT NULL COMMENT '候选稳定顺序；仅PRIORITY类型用于选路优先级',
+    candidate_weight DECIMAL(5,2) NULL COMMENT 'WEIGHT类型候选权重，按支付方式合计100.00',
+    candidate_status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_route_candidate_mid_deleted (rule_id, payment_method, card_brand, mid_config_id, deleted),
+    UNIQUE KEY uk_payment_route_candidate_priority_deleted (rule_id, payment_method, card_brand, candidate_priority, deleted),
+    KEY idx_payment_route_candidate_scope (payment_method, card_brand, candidate_status, deleted),
+    KEY idx_payment_route_candidate_channel (channel_id, candidate_status, deleted),
+    KEY idx_payment_route_candidate_mid (mid_config_id, candidate_status, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由候选MID配置表';
+
+CREATE TABLE IF NOT EXISTS payment_route_change_log (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_id BIGINT NOT NULL COMMENT '支付路由规则ID',
+    rule_code VARCHAR(64) NOT NULL COMMENT '规则编码审计冗余',
+    action_type VARCHAR(32) NOT NULL COMMENT '操作类型：CREATE、UPDATE、COPY、PUBLISH、DISABLE、DELETE',
+    before_version INT NULL COMMENT '变更前版本',
+    after_version INT NULL COMMENT '变更后版本',
+    before_snapshot_json JSON NULL COMMENT '变更前非敏感配置快照',
+    after_snapshot_json JSON NULL COMMENT '变更后非敏感配置快照',
+    operator_account_id BIGINT NULL COMMENT '可信登录账号ID',
+    operator_name VARCHAR(64) NOT NULL COMMENT '可信操作人名称',
+    operation_reason VARCHAR(500) NOT NULL COMMENT '操作原因',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '操作时间',
+    PRIMARY KEY (id),
+    KEY idx_payment_route_change_rule_time (rule_id, create_time, id),
+    KEY idx_payment_route_change_operator_time (operator_account_id, create_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由配置不可变变更日志表';
 
 CREATE TABLE IF NOT EXISTS channel_payment_capability (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -3310,6 +3449,99 @@ WHERE permission.app_id = 1
 
 -- ===================== 全球 IP 库管理（查询） =====================
 SET NAMES utf8mb4;
+
+-- 支付路由配置中心菜单和权限。阶段1A仅提供管理能力，不接入支付服务运行时。
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
+    permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
+)
+SELECT 1, parent.id, 'admin_payment_route_v1', '支付路由', 'MENU', '/channel/route', 'channel/route',
+       'channel:route:list', 'Guide', 1, 0, 0, 46, 1, 0
+FROM sys_menu parent
+WHERE parent.app_id = 1
+  AND parent.menu_code = 'admin_channel_catalog_v1'
+  AND parent.deleted = 0
+ON DUPLICATE KEY UPDATE parent_id=VALUES(parent_id), menu_name=VALUES(menu_name), route_path=VALUES(route_path),
+    component_path=VALUES(component_path), permission_code=VALUES(permission_code), icon=VALUES(icon),
+    visible=VALUES(visible), sort_no=VALUES(sort_no), status=VALUES(status), deleted=0;
+
+UPDATE sys_menu
+SET sort_no = CASE menu_code
+    WHEN 'admin_channel_alert_rule_v1' THEN 47
+    WHEN 'admin_channel_alert_event_v1' THEN 48
+END
+WHERE app_id = 1
+  AND menu_code IN ('admin_channel_alert_rule_v1', 'admin_channel_alert_event_v1')
+  AND deleted = 0;
+
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
+    permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
+)
+SELECT 1, parent.id, item.menu_code, item.menu_name, 'BUTTON', NULL, NULL,
+       item.permission_code, NULL, 0, 0, 0, item.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_payment_route_detail_v1' menu_code, '支付路由详情' menu_name, 'channel:route:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_payment_route_add_v1', '支付路由新增', 'channel:route:add', 2
+    UNION ALL SELECT 'admin_payment_route_edit_v1', '支付路由修改', 'channel:route:edit', 3
+    UNION ALL SELECT 'admin_payment_route_copy_v1', '支付路由复制', 'channel:route:copy', 4
+    UNION ALL SELECT 'admin_payment_route_publish_v1', '支付路由发布', 'channel:route:publish', 5
+    UNION ALL SELECT 'admin_payment_route_disable_v1', '支付路由停用', 'channel:route:disable', 6
+    UNION ALL SELECT 'admin_payment_route_remove_v1', '支付路由删除', 'channel:route:remove', 7
+    UNION ALL SELECT 'admin_payment_route_validate_v1', '支付路由校验', 'channel:route:validate', 8
+    UNION ALL SELECT 'admin_payment_route_history_v1', '支付路由变更历史', 'channel:route:history', 9
+) item ON 1 = 1
+WHERE parent.app_id = 1
+  AND parent.menu_code = 'admin_payment_route_v1'
+  AND parent.deleted = 0
+ON DUPLICATE KEY UPDATE parent_id=VALUES(parent_id), menu_name=VALUES(menu_name),
+    permission_code=VALUES(permission_code), visible=VALUES(visible), sort_no=VALUES(sort_no), status=VALUES(status), deleted=0;
+
+INSERT INTO sys_permission (
+    app_id, menu_id, permission_code, permission_name, permission_type,
+    resource_method, resource_path, status, deleted
+)
+SELECT 1, menu.id, item.permission_code, item.permission_name, item.permission_type,
+       item.resource_method, item.resource_path, 1, 0
+FROM sys_menu menu
+JOIN (
+    SELECT 'admin_payment_route_v1' menu_code, 'channel:route:list' permission_code, '支付路由查询' permission_name, 'MENU' permission_type, 'POST' resource_method, '/admin/channel/routes/search' resource_path
+    UNION ALL SELECT 'admin_payment_route_detail_v1', 'channel:route:detail', '支付路由详情', 'BUTTON', 'GET', '/admin/channel/routes/*'
+    UNION ALL SELECT 'admin_payment_route_add_v1', 'channel:route:add', '支付路由新增', 'BUTTON', 'POST', '/admin/channel/routes'
+    UNION ALL SELECT 'admin_payment_route_edit_v1', 'channel:route:edit', '支付路由修改', 'BUTTON', 'PUT', '/admin/channel/routes/*'
+    UNION ALL SELECT 'admin_payment_route_copy_v1', 'channel:route:copy', '支付路由复制', 'BUTTON', 'POST', '/admin/channel/routes/*/copy'
+    UNION ALL SELECT 'admin_payment_route_publish_v1', 'channel:route:publish', '支付路由发布', 'BUTTON', 'POST', '/admin/channel/routes/*/publish'
+    UNION ALL SELECT 'admin_payment_route_disable_v1', 'channel:route:disable', '支付路由停用', 'BUTTON', 'POST', '/admin/channel/routes/*/disable'
+    UNION ALL SELECT 'admin_payment_route_remove_v1', 'channel:route:remove', '支付路由删除', 'BUTTON', 'DELETE', '/admin/channel/routes/*'
+    UNION ALL SELECT 'admin_payment_route_validate_v1', 'channel:route:validate', '支付路由校验', 'BUTTON', 'GET', '/admin/channel/routes/*/validation'
+    UNION ALL SELECT 'admin_payment_route_history_v1', 'channel:route:history', '支付路由变更历史', 'BUTTON', 'POST', '/admin/channel/routes/*/change-logs/search'
+) item ON item.menu_code = menu.menu_code
+WHERE menu.app_id = 1
+  AND menu.deleted = 0
+ON DUPLICATE KEY UPDATE menu_id=VALUES(menu_id), permission_name=VALUES(permission_name),
+    permission_type=VALUES(permission_type), resource_method=VALUES(resource_method),
+    resource_path=VALUES(resource_path), status=VALUES(status), deleted=0;
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT 1, role.id, menu.id, 0
+FROM sys_role role
+JOIN sys_menu menu ON menu.app_id = role.app_id
+WHERE role.app_id = 1
+  AND (role.id = 1 OR role.role_code IN ('ADMIN', 'ADMIN_OPERATOR'))
+  AND role.deleted = 0
+  AND (menu.menu_code = 'admin_payment_route_v1' OR menu.menu_code LIKE 'admin_payment_route_%_v1')
+  AND menu.deleted = 0;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT 1, role.id, permission.id, 0
+FROM sys_role role
+JOIN sys_permission permission ON permission.app_id = role.app_id
+WHERE role.app_id = 1
+  AND (role.id = 1 OR role.role_code IN ('ADMIN', 'ADMIN_OPERATOR'))
+  AND role.deleted = 0
+  AND permission.permission_code LIKE 'channel:route:%'
+  AND permission.deleted = 0;
 
 CREATE TABLE IF NOT EXISTS ip_library_split_model (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增主键',

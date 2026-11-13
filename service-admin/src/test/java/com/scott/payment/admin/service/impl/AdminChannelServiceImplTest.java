@@ -1,6 +1,8 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
@@ -37,6 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -97,6 +100,9 @@ class AdminChannelServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "admin-channel-test"),
+                ChannelCapabilityCurrencyDO.class);
         service = new AdminChannelServiceImpl(
                 channelInfoMapper,
                 metadataSchemaMapper,
@@ -663,6 +669,7 @@ class AdminChannelServiceImplTest {
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
         when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency(101L, "USD")));
         when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
         when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
         when(midConfigMapper.selectCount(any())).thenReturn(0L);
@@ -683,6 +690,8 @@ class AdminChannelServiceImplTest {
         assertThat(captor.getValue().getCardBrandScope()).isEqualTo("VISA,MASTERCARD");
         assertThat(captor.getValue().getTransactionTypeScope()).isEqualTo("PAYMENT,AUTHORIZATION");
         assertThat(captor.getValue().getCurrencyScope()).isEqualTo("USD");
+        assertThat(captor.getValue().getDefaultTransactionCurrency()).isEqualTo("USD");
+        assertThat(captor.getValue().getDefaultSettlementCurrency()).isEqualTo("USD");
         assertThat(captor.getValue().getAllowedCountryScope()).isEqualTo("ALL");
         assertThat(captor.getValue().getSettlementCycle()).isEqualTo("T+1");
         assertThat(response.getChannelMid()).isEqualTo("TESTDEVMER031");
@@ -697,6 +706,7 @@ class AdminChannelServiceImplTest {
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
         when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency(101L, "USD")));
         when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
         when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
         when(midConfigMapper.selectCount(any())).thenReturn(0L);
@@ -708,6 +718,44 @@ class AdminChannelServiceImplTest {
         ArgumentCaptor<ChannelMidConfigDO> captor = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
         verify(midConfigMapper).insert(captor.capture());
         assertThat(captor.getValue().getMidName()).isEqualTo("TESTDEVMER031");
+    }
+
+    /** Settlement currency is an independent required configuration and need not equal the MID transaction scope. */
+    @Test
+    void shouldKeepMidSettlementCurrencyIndependentFromTransactionCurrency() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency(101L, "USD")));
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
+        when(midConfigMapper.selectCount(any())).thenReturn(0L);
+        ChannelMidConfigSaveRequest request = midRequest();
+        request.setDefaultSettlementCurrency("eur");
+
+        service.createMid(request);
+
+        ArgumentCaptor<ChannelMidConfigDO> captor = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
+        verify(midConfigMapper).insert(captor.capture());
+        assertThat(captor.getValue().getDefaultTransactionCurrency()).isEqualTo("USD");
+        assertThat(captor.getValue().getDefaultSettlementCurrency()).isEqualTo("EUR");
+    }
+
+    /** The future initial-transaction currency must remain inside the MID transaction currency scope. */
+    @Test
+    void shouldRejectMidDefaultTransactionCurrencyOutsideTransactionScope() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        ChannelMidConfigSaveRequest request = midRequest();
+        request.setDefaultTransactionCurrency("jpy");
+
+        assertThatThrownBy(() -> service.createMid(request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("默认交易币种必须属于允许交易币种");
     }
 
     /**
@@ -811,6 +859,7 @@ class AdminChannelServiceImplTest {
         request.setTransactionTypeScope("authorization,capture");
         request.setCurrencyScope("usd");
         request.setAllowedCountryScope("all");
+        request.setDefaultTransactionCurrency("usd");
         request.setDefaultSettlementCurrency("usd");
         request.setSettlementCycle("t1");
         request.setSettlementTimeZone("Asia/Shanghai");
@@ -893,6 +942,14 @@ class AdminChannelServiceImplTest {
     private ChannelCapabilityCurrencyDO currency(String code) {
         ChannelCapabilityCurrencyDO row = new ChannelCapabilityCurrencyDO();
         row.setCurrencyCode(code);
+        return row;
+    }
+
+    private ChannelCapabilityCurrencyDO currency(long capabilityId, String code) {
+        ChannelCapabilityCurrencyDO row = currency(code);
+        row.setCapabilityId(capabilityId);
+        row.setCurrencyStatus(1);
+        row.setDeleted(0L);
         return row;
     }
 

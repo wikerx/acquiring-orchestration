@@ -980,6 +980,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         request.setAllowedCountryScope(normalizeScope(request.getAllowedCountryScope(), "允许交易国家范围"));
         validatePaymentMethodScope(channel.getId(), businessType, request.getPaymentMethodScope());
         validateCurrencyScope(request.getCurrencyScope());
+        request.setDefaultTransactionCurrency(normalizeCode(request.getDefaultTransactionCurrency()));
+        assertDictValue("iso_currency", request.getDefaultTransactionCurrency(), true);
+        validateDefaultTransactionCurrency(
+                channel.getId(),
+                businessType,
+                request.getPaymentMethodScope(),
+                request.getCurrencyScope(),
+                request.getDefaultTransactionCurrency()
+        );
         request.setDefaultSettlementCurrency(normalizeCode(request.getDefaultSettlementCurrency()));
         assertDictValue("iso_currency", request.getDefaultSettlementCurrency(), true);
         request.setSettlementCycle(normalizeSettlementCycle(request.getSettlementCycle()));
@@ -1403,6 +1412,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setTransactionTypeScope(request.getTransactionTypeScope());
         entity.setCurrencyScope(request.getCurrencyScope());
         entity.setAllowedCountryScope(request.getAllowedCountryScope());
+        entity.setDefaultTransactionCurrency(request.getDefaultTransactionCurrency());
         entity.setDefaultSettlementCurrency(request.getDefaultSettlementCurrency());
         entity.setSettlementCycle(request.getSettlementCycle());
         entity.setSettlementCutoffTime(request.getSettlementCutoffTime());
@@ -1530,6 +1540,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         response.setTransactionTypeScope(entity.getTransactionTypeScope());
         response.setCurrencyScope(entity.getCurrencyScope());
         response.setAllowedCountryScope(entity.getAllowedCountryScope());
+        response.setDefaultTransactionCurrency(entity.getDefaultTransactionCurrency());
         response.setDefaultSettlementCurrency(entity.getDefaultSettlementCurrency());
         response.setSettlementCycle(entity.getSettlementCycle());
         response.setSettlementCutoffTime(entity.getSettlementCutoffTime());
@@ -1670,10 +1681,19 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     private LambdaQueryWrapper<ChannelMidConfigDO> buildMidQuery(ChannelMidConfigQuery query) {
         return Wrappers.<ChannelMidConfigDO>lambdaQuery()
                 .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
+                .and(StringUtils.hasText(query.getKeyword()), wrapper -> wrapper
+                        .like(ChannelMidConfigDO::getChannelMid, trim(query.getKeyword()))
+                        .or().like(ChannelMidConfigDO::getMidName, trim(query.getKeyword())))
                 .eq(query.getChannelId() != null, ChannelMidConfigDO::getChannelId, query.getChannelId())
                 .eq(StringUtils.hasText(query.getChannelCode()), ChannelMidConfigDO::getChannelCode, normalizeCode(query.getChannelCode()))
                 .like(StringUtils.hasText(query.getChannelMid()), ChannelMidConfigDO::getChannelMid, trim(query.getChannelMid()))
                 .eq(StringUtils.hasText(query.getBusinessType()), ChannelMidConfigDO::getBusinessType, normalizeCode(query.getBusinessType()))
+                .and(StringUtils.hasText(query.getPaymentMethod()), wrapper -> wrapper
+                        .eq(ChannelMidConfigDO::getPaymentMethodScope, "ALL")
+                        .or().apply("FIND_IN_SET({0}, payment_method_scope) > 0", normalizeCode(query.getPaymentMethod())))
+                .and(StringUtils.hasText(query.getCardBrand()), wrapper -> wrapper
+                        .eq(ChannelMidConfigDO::getCardBrandScope, "ALL")
+                        .or().apply("FIND_IN_SET({0}, card_brand_scope) > 0", normalizeCode(query.getCardBrand())))
                 .eq(query.getMidStatus() != null, ChannelMidConfigDO::getMidStatus, query.getMidStatus())
                 .orderByDesc(ChannelMidConfigDO::getUpdateTime);
     }
@@ -2357,6 +2377,36 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
         for (String value : splitScope(scope)) {
             assertDictValue("iso_currency", value, true);
+        }
+    }
+
+    /**
+     * 默认交易币种必须同时落在 MID 交易币种范围和每个所选支付能力的启用币种中。
+     */
+    private void validateDefaultTransactionCurrency(Long channelId,
+                                                    String businessType,
+                                                    String paymentMethodScope,
+                                                    String currencyScope,
+                                                    String defaultTransactionCurrency) {
+        if (!ALL.equals(currencyScope) && !splitScope(currencyScope).contains(defaultTransactionCurrency)) {
+            throw badRequest("默认交易币种必须属于允许交易币种");
+        }
+        List<ChannelPaymentCapabilityDO> capabilities = filterMidCapabilities(channelId, businessType, paymentMethodScope);
+        Set<Long> capabilityIds = capabilities.stream()
+                .map(ChannelPaymentCapabilityDO::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Long> supportedCapabilityIds = capabilityCurrencyMapper.selectList(
+                        Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
+                                .select(ChannelCapabilityCurrencyDO::getCapabilityId)
+                                .in(ChannelCapabilityCurrencyDO::getCapabilityId, capabilityIds)
+                                .eq(ChannelCapabilityCurrencyDO::getCurrencyCode, defaultTransactionCurrency)
+                                .eq(ChannelCapabilityCurrencyDO::getCurrencyStatus, ENABLED)
+                                .eq(ChannelCapabilityCurrencyDO::getDeleted, NOT_DELETED))
+                .stream()
+                .map(ChannelCapabilityCurrencyDO::getCapabilityId)
+                .collect(Collectors.toSet());
+        if (!supportedCapabilityIds.containsAll(capabilityIds)) {
+            throw badRequest("默认交易币种必须被所选支付方式的渠道能力共同支持");
         }
     }
 

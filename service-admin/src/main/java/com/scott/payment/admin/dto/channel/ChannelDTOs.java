@@ -187,6 +187,8 @@ public final class ChannelDTOs {
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class ChannelMidConfigQuery extends PageRequest {
+        /** 渠道 MID 或后台展示名称关键字。 */
+        private String keyword;
         /**
          * 渠道ID。
          */
@@ -203,6 +205,10 @@ public final class ChannelDTOs {
          * 业务类型：ACQUIRING/PAYOUT。
          */
         private String businessType;
+        /** MID 必须支持的收单支付方式；按逗号分隔能力范围精确匹配。 */
+        private String paymentMethod;
+        /** 银行卡支付方式下 MID 必须支持的卡品牌；非银行卡支付方式不传。 */
+        private String cardBrand;
         /**
          * MID 状态：0停用，1启用。
          */
@@ -259,6 +265,11 @@ public final class ChannelDTOs {
          */
         @NotBlank(message = "allowedCountryScope is required")
         private String allowedCountryScope;
+        /**
+         * 默认交易币种；必须属于 MID 允许交易币种并被所选渠道能力支持。
+         */
+        @NotBlank(message = "defaultTransactionCurrency is required")
+        private String defaultTransactionCurrency;
         /**
          * 默认结算币种。
          */
@@ -336,6 +347,7 @@ public final class ChannelDTOs {
         private String transactionTypeScope;
         private String currencyScope;
         private String allowedCountryScope;
+        private String defaultTransactionCurrency;
         private String defaultSettlementCurrency;
         private String settlementCycle;
         private LocalTime settlementCutoffTime;

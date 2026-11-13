@@ -137,6 +137,10 @@ public final class ChannelEntities {
          */
         private String allowedCountryScope;
         /**
+         * 默认交易币种；标签币种不被渠道支持时，未来初始交易转换为该币种。
+         */
+        private String defaultTransactionCurrency;
+        /**
          * 默认结算币种。
          */
         private String defaultSettlementCurrency;

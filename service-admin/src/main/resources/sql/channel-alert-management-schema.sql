@@ -263,8 +263,8 @@ INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_
 SELECT 1, parent.id, item.menu_code, item.menu_name, 'MENU', item.route_path, item.component_path, item.permission_code, item.icon, 1, item.sort_no, 1, 0
 FROM sys_menu parent
 JOIN (
-    SELECT 'admin_channel_alert_rule_v1' menu_code, '渠道预警规则' menu_name, '/channel/alert-rule' route_path, 'channel/alert-rule' component_path, 'channel:alert-rule:list' permission_code, 'Bell' icon, 46 sort_no
-    UNION ALL SELECT 'admin_channel_alert_event_v1', '渠道预警事件', '/channel/alert-event', 'channel/alert-event', 'channel:alert-event:list', 'WarningFilled', 47
+    SELECT 'admin_channel_alert_rule_v1' menu_code, '渠道预警规则' menu_name, '/channel/alert-rule' route_path, 'channel/alert-rule' component_path, 'channel:alert-rule:list' permission_code, 'Bell' icon, 47 sort_no
+    UNION ALL SELECT 'admin_channel_alert_event_v1', '渠道预警事件', '/channel/alert-event', 'channel/alert-event', 'channel:alert-event:list', 'WarningFilled', 48
 ) item ON 1 = 1
 WHERE parent.app_id = 1
   AND parent.menu_code = 'admin_channel_catalog_v1'
