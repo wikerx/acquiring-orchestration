@@ -16,11 +16,12 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
     /** 仅当原批次、汇率、日期和金额全部匹配时修正指定清分修订的财务状态。 */
     @Update("""
             UPDATE transaction_finance_state
-            SET settlement_amount = #{correctedAmount}, version = version + 1, update_time = #{now}
+            SET settlement_amount = #{correctedAmount}, settlement_rate = #{correctedRate},
+                version = version + 1, update_time = #{now}
             WHERE transaction_id = #{transactionId} AND transaction_date_time = #{transactionDateTime}
               AND clearing_revision = #{clearingRevision} AND settlement_status = 'SETTLED'
               AND settlement_currency = #{currency} AND settlement_amount = #{originalAmount}
-              AND settlement_rate = #{rate} AND settlement_date = #{settlementDate}
+              AND settlement_rate = #{originalRate} AND settlement_date = #{settlementDate}
               AND settlement_batch_no = #{batchNo} AND deleted = 0
             """)
     int correctFinanceState(@Param("transactionId") String transactionId,
@@ -29,7 +30,8 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
                             @Param("currency") String currency,
                             @Param("originalAmount") BigDecimal originalAmount,
                             @Param("correctedAmount") BigDecimal correctedAmount,
-                            @Param("rate") BigDecimal rate,
+                            @Param("originalRate") BigDecimal originalRate,
+                            @Param("correctedRate") BigDecimal correctedRate,
                             @Param("settlementDate") LocalDate settlementDate,
                             @Param("batchNo") String batchNo,
                             @Param("now") LocalDateTime now);
@@ -40,7 +42,7 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
             WHERE transaction_id = #{transactionId} AND transaction_date_time = #{transactionDateTime}
               AND clearing_revision = #{clearingRevision} AND settlement_status = 'SETTLED'
               AND settlement_currency = #{currency} AND settlement_amount = #{correctedAmount}
-              AND settlement_rate = #{rate} AND settlement_date = #{settlementDate}
+              AND settlement_rate = #{correctedRate} AND settlement_date = #{settlementDate}
               AND settlement_batch_no = #{batchNo} AND deleted = 0
             """)
     int countCorrectedFinanceState(@Param("transactionId") String transactionId,
@@ -48,17 +50,18 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
                                    @Param("clearingRevision") int clearingRevision,
                                    @Param("currency") String currency,
                                    @Param("correctedAmount") BigDecimal correctedAmount,
-                                   @Param("rate") BigDecimal rate,
+                                   @Param("correctedRate") BigDecimal correctedRate,
                                    @Param("settlementDate") LocalDate settlementDate,
                                    @Param("batchNo") String batchNo);
 
     /** 仅当原结算快照完全匹配时修正动作单金额。 */
     @Update("""
             UPDATE transaction_operation
-            SET settlement_amount = #{correctedAmount}, version = version + 1, update_time = #{now}
+            SET settlement_amount = #{correctedAmount}, settlement_rate = #{correctedRate},
+                version = version + 1, update_time = #{now}
             WHERE transaction_id = #{transactionId} AND transaction_date_time = #{transactionDateTime}
               AND settlement_status = 'SETTLED' AND settlement_currency = #{currency}
-              AND settlement_amount = #{originalAmount} AND settlement_rate = #{rate}
+              AND settlement_amount = #{originalAmount} AND settlement_rate = #{originalRate}
               AND settlement_date = #{settlementDate} AND settlement_batch_no = #{batchNo}
               AND deleted = 0
             """)
@@ -67,7 +70,8 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
                          @Param("currency") String currency,
                          @Param("originalAmount") BigDecimal originalAmount,
                          @Param("correctedAmount") BigDecimal correctedAmount,
-                         @Param("rate") BigDecimal rate,
+                         @Param("originalRate") BigDecimal originalRate,
+                         @Param("correctedRate") BigDecimal correctedRate,
                          @Param("settlementDate") LocalDate settlementDate,
                          @Param("batchNo") String batchNo,
                          @Param("now") LocalDateTime now);
@@ -77,7 +81,7 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
             SELECT COUNT(1) FROM transaction_operation
             WHERE transaction_id = #{transactionId} AND transaction_date_time = #{transactionDateTime}
               AND settlement_status = 'SETTLED' AND settlement_currency = #{currency}
-              AND settlement_amount = #{correctedAmount} AND settlement_rate = #{rate}
+              AND settlement_amount = #{correctedAmount} AND settlement_rate = #{correctedRate}
               AND settlement_date = #{settlementDate} AND settlement_batch_no = #{batchNo}
               AND deleted = 0
             """)
@@ -85,19 +89,20 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
                                 @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                 @Param("currency") String currency,
                                 @Param("correctedAmount") BigDecimal correctedAmount,
-                                @Param("rate") BigDecimal rate,
+                                @Param("correctedRate") BigDecimal correctedRate,
                                 @Param("settlementDate") LocalDate settlementDate,
                                 @Param("batchNo") String batchNo);
 
     /** 当前生命周期主单仍指向该动作且原快照匹配时修正展示金额。 */
     @Update("""
             UPDATE transaction_order
-            SET settlement_amount = #{correctedAmount}, version = version + 1, update_time = #{now}
+            SET settlement_amount = #{correctedAmount}, settlement_rate = #{correctedRate},
+                version = version + 1, update_time = #{now}
             WHERE operation_id = #{operationId} AND transaction_date_time = #{rootTransactionDateTime}
               AND settlement_transaction_id = #{transactionId}
               AND settlement_transaction_date_time = #{transactionDateTime}
               AND settlement_status = 'SETTLED' AND settlement_currency = #{currency}
-              AND settlement_amount = #{originalAmount} AND settlement_rate = #{rate}
+              AND settlement_amount = #{originalAmount} AND settlement_rate = #{originalRate}
               AND settlement_date = #{settlementDate} AND settlement_batch_no = #{batchNo}
               AND deleted = 0
             """)
@@ -108,7 +113,8 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
                      @Param("currency") String currency,
                      @Param("originalAmount") BigDecimal originalAmount,
                      @Param("correctedAmount") BigDecimal correctedAmount,
-                     @Param("rate") BigDecimal rate,
+                     @Param("originalRate") BigDecimal originalRate,
+                     @Param("correctedRate") BigDecimal correctedRate,
                      @Param("settlementDate") LocalDate settlementDate,
                      @Param("batchNo") String batchNo,
                      @Param("now") LocalDateTime now);
@@ -120,7 +126,7 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
               AND settlement_transaction_id = #{transactionId}
               AND settlement_transaction_date_time = #{transactionDateTime}
               AND settlement_status = 'SETTLED' AND settlement_currency = #{currency}
-              AND settlement_amount = #{correctedAmount} AND settlement_rate = #{rate}
+              AND settlement_amount = #{correctedAmount} AND settlement_rate = #{correctedRate}
               AND settlement_date = #{settlementDate} AND settlement_batch_no = #{batchNo}
               AND deleted = 0
             """)
@@ -130,7 +136,7 @@ public interface SettlementPrincipalCorrectionProjectionMapper {
                             @Param("transactionDateTime") LocalDateTime transactionDateTime,
                             @Param("currency") String currency,
                             @Param("correctedAmount") BigDecimal correctedAmount,
-                            @Param("rate") BigDecimal rate,
+                            @Param("correctedRate") BigDecimal correctedRate,
                             @Param("settlementDate") LocalDate settlementDate,
                             @Param("batchNo") String batchNo);
 }

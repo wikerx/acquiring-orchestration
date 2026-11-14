@@ -43,6 +43,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -191,7 +192,7 @@ public class SettlementPrincipalCorrectionApplicationService {
         }
         applyDecision(order, command);
         if ("REJECT".equals(command.decision())) {
-            int cancelled = correctionMapper.cancelItems(order.getCorrectionNo(), command.operator().operationTime());
+            int cancelled = correctionMapper.cancelItems(order.getCorrectionNo(), order.getDecisionTime());
             if (cancelled != order.getItemCount()
                     || correctionMapper.reject(order, command.expectedVersion()) != 1) {
                 throw new IllegalStateException("principal correction rejection CAS failed");
@@ -210,8 +211,8 @@ public class SettlementPrincipalCorrectionApplicationService {
         List<SettlementPrincipalCorrectionItemDO> storedItems = correctionMapper
                 .selectItemsForUpdate(order.getCorrectionNo());
         verifyStoredItems(storedItems, source.items());
-        order.setCorrectionLedgerId(postLedger(order, command.operator().operationTime()));
-        if (correctionMapper.activateItems(order.getCorrectionNo(), command.operator().operationTime())
+        order.setCorrectionLedgerId(postLedger(order, order.getDecisionTime()));
+        if (correctionMapper.activateItems(order.getCorrectionNo(), order.getDecisionTime())
                 != order.getItemCount()
                 || correctionMapper.execute(order, command.expectedVersion()) != 1) {
             throw new IllegalStateException("principal correction execution CAS failed");
@@ -585,7 +586,7 @@ public class SettlementPrincipalCorrectionApplicationService {
         row.setSubmitTime(order.getSubmittedTime());
         row.setReviewTime(order.getDecisionTime());
         row.setPostedTime(now);
-        row.setRequestId(order.getDecisionRequestKey());
+        row.setRequestId(correctionLedgerRequestId(order));
         row.setIdempotencyKey(idempotencyKey);
         row.setCreateTime(now);
         return row;
@@ -601,7 +602,8 @@ public class SettlementPrincipalCorrectionApplicationService {
         int financeUpdated = correctionProjectionMapper.correctFinanceState(
                 item.getTransactionId(), item.getTransactionDateTime(), item.getClearingRevision(),
                 item.getTargetCurrency(), item.getOriginalProjectionAmount(),
-                item.getCorrectedProjectionAmount(), item.getLabelLockedDirectRate(),
+                item.getCorrectedProjectionAmount(), item.getOriginalLockedDirectRate(),
+                item.getLabelLockedDirectRate(),
                 item.getSettlementDate(), originalBatchNo, now);
         if (financeUpdated == 0 && correctionProjectionMapper.countCorrectedFinanceState(
                 item.getTransactionId(), item.getTransactionDateTime(), item.getClearingRevision(),
@@ -613,7 +615,8 @@ public class SettlementPrincipalCorrectionApplicationService {
         int operationUpdated = correctionProjectionMapper.correctOperation(
                 item.getTransactionId(), item.getTransactionDateTime(), item.getTargetCurrency(),
                 item.getOriginalProjectionAmount(), item.getCorrectedProjectionAmount(),
-                item.getLabelLockedDirectRate(), item.getSettlementDate(), originalBatchNo, now);
+                item.getOriginalLockedDirectRate(), item.getLabelLockedDirectRate(),
+                item.getSettlementDate(), originalBatchNo, now);
         if (operationUpdated == 0 && correctionProjectionMapper.countCorrectedOperation(
                 item.getTransactionId(), item.getTransactionDateTime(), item.getTargetCurrency(),
                 item.getCorrectedProjectionAmount(), item.getLabelLockedDirectRate(),
@@ -624,7 +627,8 @@ public class SettlementPrincipalCorrectionApplicationService {
         int orderUpdated = correctionProjectionMapper.correctOrder(
                 item.getOperationId(), operation.getRootTransactionDateTime(), item.getTransactionId(),
                 item.getTransactionDateTime(), item.getTargetCurrency(), item.getOriginalProjectionAmount(),
-                item.getCorrectedProjectionAmount(), item.getLabelLockedDirectRate(),
+                item.getCorrectedProjectionAmount(), item.getOriginalLockedDirectRate(),
+                item.getLabelLockedDirectRate(),
                 item.getSettlementDate(),
                 originalBatchNo, now);
         if (orderUpdated == 0 && correctionProjectionMapper.countCorrectedOrder(
@@ -638,14 +642,15 @@ public class SettlementPrincipalCorrectionApplicationService {
         }
     }
 
-    /** 投影执行前重新确认动作单仍属于同一商户、生命周期和标签币种。 */
+    /** 投影执行前重新确认动作单仍属于同一商户、生命周期、原币种和标签币种。 */
     private void validateProjectionIdentity(SettlementPrincipalCorrectionItemDO item,
                                             SettlementOperationIdentityDO operation) {
         if (operation == null || operation.getRootTransactionDateTime() == null
                 || !Objects.equals(operation.getTransactionId(), item.getTransactionId())
                 || !Objects.equals(operation.getOperationId(), item.getOperationId())
                 || !Objects.equals(operation.getMerchantId(), item.getMerchantId())
-                || !Objects.equals(operation.getTransactionCurrency(), item.getLabelCurrency())
+                || !Objects.equals(operation.getTransactionCurrency(), item.getOriginalSourceCurrency())
+                || !Objects.equals(operation.getLabelCurrency(), item.getLabelCurrency())
                 || !"SETTLED".equals(operation.getSettlementStatus())) {
             throw new IllegalStateException("principal correction projection identity is inconsistent");
         }
@@ -747,7 +752,7 @@ public class SettlementPrincipalCorrectionApplicationService {
         order.setDecisionAction(command.decision());
         order.setDecisionRequestKey(command.requestKey());
         order.setDecisionComment(command.comment());
-        order.setDecisionTime(operator.operationTime());
+        order.setDecisionTime(operator.operationTime().truncatedTo(ChronoUnit.MILLIS));
     }
 
     /** 审批时对比重新锁读来源的总额、条数、原流水及完整指纹。 */
@@ -865,12 +870,17 @@ public class SettlementPrincipalCorrectionApplicationService {
                 && Objects.equals(ledger.getBusinessTime(), order.getSubmittedTime())
                 && Objects.equals(ledger.getSubmitTime(), order.getSubmittedTime())
                 && Objects.equals(ledger.getReviewTime(), order.getDecisionTime())
-                && Objects.equals(ledger.getRequestId(), order.getDecisionRequestKey())
+                && Objects.equals(ledger.getRequestId(), correctionLedgerRequestId(order))
                 && Objects.equals(ledger.getIdempotencyKey(),
                         "SETTLEMENT_PRINCIPAL_CORRECTION:" + order.getCorrectionNo());
         if (!matches) {
             throw new IllegalStateException("principal correction ledger identity is inconsistent");
         }
+    }
+
+    /** 资金流水请求号遵守 64 位字段边界；完整审批幂等键仍保存在调整单。 */
+    private String correctionLedgerRequestId(SettlementPrincipalCorrectionOrderDO order) {
+        return stableId("SPCR", order.getDecisionRequestKey());
     }
 
     /** 同一 Maker 幂等键只能表达相同批次、版本、原因和操作账号。 */

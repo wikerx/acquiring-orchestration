@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,6 +94,55 @@ class SettlementPrincipalCorrectionApplicationServiceTest {
     }
 
     @Test
+    void shouldBoundLedgerRequestIdWithoutLosingDecisionIdempotencyKey() {
+        Fixture fixture = new Fixture(new BigDecimal("66.00"));
+        SettlementPrincipalCorrectionCommandResult submitted = fixture.submit(88L);
+        fixture.prepareApproval();
+        String decisionRequestKey = "principal-correction-approve-20261114-"
+                + "SPCbdbd8c57988072fa791336c96c13cbc7";
+
+        fixture.service.decide(submitted.correctionNo(), decision(99L, decisionRequestKey));
+
+        assertThat(fixture.order.getDecisionRequestKey()).isEqualTo(decisionRequestKey);
+        assertThat(fixture.insertedLedger.getRequestId())
+                .startsWith("SPCR")
+                .hasSizeLessThanOrEqualTo(64)
+                .isNotEqualTo(decisionRequestKey);
+        assertThat(fixture.insertedLedger.getIdempotencyKey())
+                .isEqualTo("SETTLEMENT_PRINCIPAL_CORRECTION:" + submitted.correctionNo());
+    }
+
+    @Test
+    void shouldAcceptLedgerReloadWithDatabaseMillisecondPrecision() {
+        Fixture fixture = new Fixture(new BigDecimal("66.00"));
+        SettlementPrincipalCorrectionCommandResult submitted = fixture.submit(88L);
+        fixture.prepareApproval();
+        LocalDateTime decisionTime = NOW.plusMinutes(5).plusNanos(123_456_789);
+        when(fixture.fundMapper.selectLedgerByIdempotencyForUpdate(
+                "SETTLEMENT_PRINCIPAL_CORRECTION:" + submitted.correctionNo()))
+                .thenAnswer(invocation -> {
+                    if (fixture.insertedLedger == null) {
+                        return null;
+                    }
+                    fixture.insertedLedger.setReviewTime(
+                            fixture.insertedLedger.getReviewTime().truncatedTo(ChronoUnit.MILLIS));
+                    return fixture.insertedLedger;
+                });
+
+        SettlementPrincipalCorrectionCommandResult executed = fixture.service.decide(
+                submitted.correctionNo(),
+                new SettlementPrincipalCorrectionDecisionCommand(
+                        "DECIDE-PC-MILLIS", 0L, "APPROVE", "frozen facts checked",
+                        operator(99L, decisionTime)));
+
+        assertThat(executed.correctionStatus()).isEqualTo("EXECUTED");
+        assertThat(fixture.order.getDecisionTime())
+                .isEqualTo(decisionTime.truncatedTo(ChronoUnit.MILLIS));
+        assertThat(fixture.insertedLedger.getReviewTime())
+                .isEqualTo(decisionTime.truncatedTo(ChronoUnit.MILLIS));
+    }
+
+    @Test
     void zeroDifferenceShouldKeepAuditAndSkipZeroLedger() {
         Fixture fixture = new Fixture(new BigDecimal("65.00"));
         SettlementPrincipalCorrectionCommandResult submitted = fixture.submit(88L);
@@ -140,17 +190,18 @@ class SettlementPrincipalCorrectionApplicationServiceTest {
         operation.setTransactionId(item.getTransactionId());
         operation.setOperationId(item.getOperationId());
         operation.setMerchantId(item.getMerchantId());
-        operation.setTransactionCurrency("AUD");
+        operation.setTransactionCurrency("USD");
+        operation.setLabelCurrency("AUD");
         operation.setSettlementStatus("SETTLED");
         operation.setRootTransactionDateTime(NOW.minusDays(1));
         when(fixture.projectionMapper.selectOperationIdentity(
                 item.getTransactionId(), item.getTransactionDateTime())).thenReturn(operation);
         when(fixture.correctionProjectionMapper.correctFinanceState(
-                any(), any(), anyInt(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+                any(), any(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
         when(fixture.correctionProjectionMapper.correctOperation(
-                any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
         when(fixture.correctionProjectionMapper.correctOrder(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
         when(fixture.correctionMapper.markProjectionCompleted(
                 item.getCorrectionItemNo(), 2L, NOW.plusHours(1))).thenReturn(1);
         when(fixture.correctionMapper.incrementProjectionCompleted(
@@ -161,8 +212,26 @@ class SettlementPrincipalCorrectionApplicationServiceTest {
         verify(fixture.correctionProjectionMapper).correctFinanceState(
                 eq(item.getTransactionId()), eq(item.getTransactionDateTime()),
                 eq(1), eq("USD"), eq(new BigDecimal("60.00")),
-                eq(new BigDecimal("59.00")), eq(new BigDecimal("0.650000000000")),
+                eq(new BigDecimal("59.00")), eq(new BigDecimal("1.000000000000")),
+                eq(new BigDecimal("0.650000000000")),
                 eq(LocalDate.of(2026, 10, 31)), eq("SB20261031-00000001"), any());
+        verify(fixture.correctionProjectionMapper).correctOperation(
+                eq(item.getTransactionId()), eq(item.getTransactionDateTime()), eq("USD"),
+                eq(new BigDecimal("60.00")), eq(new BigDecimal("59.00")),
+                eq(new BigDecimal("1.000000000000")), eq(new BigDecimal("0.650000000000")),
+                eq(LocalDate.of(2026, 10, 31)), eq("SB20261031-00000001"), any());
+        verify(fixture.correctionProjectionMapper).correctOrder(
+                eq(item.getOperationId()), eq(NOW.minusDays(1)),
+                eq(item.getTransactionId()), eq(item.getTransactionDateTime()), eq("USD"),
+                eq(new BigDecimal("60.00")), eq(new BigDecimal("59.00")),
+                eq(new BigDecimal("1.000000000000")), eq(new BigDecimal("0.650000000000")),
+                eq(LocalDate.of(2026, 10, 31)), eq("SB20261031-00000001"), any());
+    }
+
+    @Test
+    void shouldRejectProjectionWhenOperationCurrenciesDoNotMatchFrozenCurrencies() {
+        assertProjectionCurrencyIdentityRejected("AUD", "AUD");
+        assertProjectionCurrencyIdentityRejected("USD", "CAD");
     }
 
     @Test
@@ -382,9 +451,46 @@ class SettlementPrincipalCorrectionApplicationServiceTest {
     }
 
     private SettlementPrincipalCorrectionDecisionCommand decision(long accountId) {
+        return decision(accountId, "DECIDE-PC-1");
+    }
+
+    private SettlementPrincipalCorrectionDecisionCommand decision(long accountId,
+                                                                    String requestKey) {
         return new SettlementPrincipalCorrectionDecisionCommand(
-                "DECIDE-PC-1", 0L, "APPROVE", "frozen facts checked",
+                requestKey, 0L, "APPROVE", "frozen facts checked",
                 operator(accountId, NOW.plusMinutes(5)));
+    }
+
+    private void assertProjectionCurrencyIdentityRejected(String transactionCurrency,
+                                                           String labelCurrency) {
+        Fixture fixture = new Fixture(new BigDecimal("66.00"));
+        fixture.submit(88L);
+        SettlementPrincipalCorrectionItemDO item = fixture.insertedItems.get(0);
+        item.setProjectionStatus("INIT");
+        item.setRetryCount(0);
+        item.setVersion(1L);
+        LocalDateTime processingTime = NOW.plusHours(1);
+        when(fixture.correctionMapper.selectNextProjectionForUpdate(processingTime)).thenReturn(item);
+        when(fixture.correctionMapper.markProjectionProcessing(
+                item.getCorrectionItemNo(), 1L, processingTime)).thenReturn(1);
+        SettlementOperationIdentityDO operation = new SettlementOperationIdentityDO();
+        operation.setTransactionId(item.getTransactionId());
+        operation.setOperationId(item.getOperationId());
+        operation.setMerchantId(item.getMerchantId());
+        operation.setTransactionCurrency(transactionCurrency);
+        operation.setLabelCurrency(labelCurrency);
+        operation.setSettlementStatus("SETTLED");
+        operation.setRootTransactionDateTime(NOW.minusDays(1));
+        when(fixture.projectionMapper.selectOperationIdentity(
+                item.getTransactionId(), item.getTransactionDateTime())).thenReturn(operation);
+
+        SettlementPrincipalCorrectionProjectionException failure = assertThrows(
+                SettlementPrincipalCorrectionProjectionException.class,
+                () -> fixture.service.processNextProjection(processingTime));
+
+        assertThat(failure.getCause())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("projection identity is inconsistent");
     }
 
     private SettlementOperatorSnapshot operator(long accountId, LocalDateTime time) {
