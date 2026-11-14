@@ -87,7 +87,7 @@ acquiring:
 | `merchant-admin` | 已停用的兼容边界 | `service-admin` | 仅保护仍保留的旧 `/internal/merchant/**` 接口，不作为商户后台正常查询链路 |
 | `admin-job` | `service-admin` | `service-job` | 后台任务管理命令；同时保留可信登录操作人的 RBAC 上下文 |
 | `job-admin` | `service-job` | `service-admin` | 汇率波动幂等评估命令；仅允许固定评估路径 |
-| `admin-payment` | `service-admin` | `service-payment` | 后台支付状态变更、审批和异常处置命令 |
+| `admin-payment` | `service-admin` | `service-payment` | 后台支付状态变更、审批、异常处置及系统交易黑名单事实解析命令 |
 | `admin-clearing` | `service-admin` | `service-clearing` | 人工清分执行与补偿命令；管理页面查询仍由 Admin 本地数据源完成 |
 | `admin-settlement` | `service-admin` | `service-settlement` | 手工结算、预审、审批、拒绝、取消和冲正命令 |
 | `job-payment` | `service-job` | `service-payment` | 支付到期任务和补偿命令 |

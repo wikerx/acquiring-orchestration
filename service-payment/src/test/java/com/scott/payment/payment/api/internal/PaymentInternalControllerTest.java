@@ -3,6 +3,7 @@ package com.scott.payment.payment.api.internal;
 import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
 import com.scott.payment.payment.application.TransactionCallbackInboxApplicationService;
+import com.scott.payment.payment.application.TradeBlackTransactionFactApplicationService;
 import com.scott.payment.payment.api.internal.dto.TransactionCallbackInboxAcceptResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
@@ -47,7 +48,7 @@ class PaymentInternalControllerTest {
                 .thenReturn(result);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PaymentInternalController(
                 transactionApplicationService, checkoutApplicationService,
-                callbackInboxApplicationService)).build();
+                callbackInboxApplicationService, mock(TradeBlackTransactionFactApplicationService.class))).build();
         String content = """
                 {
                   "channelCode":"MPGS",
@@ -88,7 +89,7 @@ class PaymentInternalControllerTest {
                 .thenReturn(result);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PaymentInternalController(
                 transactionApplicationService, checkoutApplicationService,
-                callbackInboxApplicationService)).build();
+                callbackInboxApplicationService, mock(TradeBlackTransactionFactApplicationService.class))).build();
 
         mockMvc.perform(post("/internal/payment/channel-match/TX202608210001/requery")
                         .contentType("application/json")
@@ -117,7 +118,7 @@ class PaymentInternalControllerTest {
         when(checkoutApplicationService.expireDue(any(LocalDateTime.class), eq(120))).thenReturn(3);
         PaymentInternalController controller = new PaymentInternalController(
                 transactionApplicationService, checkoutApplicationService,
-                callbackInboxApplicationService);
+                callbackInboxApplicationService, mock(TradeBlackTransactionFactApplicationService.class));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         mockMvc.perform(post("/internal/payment/checkout/session/expire-due")

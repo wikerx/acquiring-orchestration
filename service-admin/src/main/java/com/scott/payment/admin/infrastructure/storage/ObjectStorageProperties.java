@@ -36,6 +36,11 @@ public class ObjectStorageProperties {
     private String bucket;
 
     /**
+     * 系统文件模板专用私有 Bucket；模板正文与商户资料、导出结果物理隔离。
+     */
+    private String templateBucket = "vexra-template-files";
+
+    /**
      * 是否启用 Path Style；MinIO 通常为 true，AWS S3 可按部署环境调整。
      */
     private boolean pathStyleAccess = true;

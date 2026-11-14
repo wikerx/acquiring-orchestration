@@ -34,6 +34,7 @@ public class ObjectStorageConfiguration {
         requireText(properties.getAccessKey(), "OBJECT_STORAGE_ACCESS_KEY");
         requireText(properties.getSecretKey(), "OBJECT_STORAGE_SECRET_KEY");
         requireText(properties.getBucket(), "acquiring.object-storage.bucket");
+        requireText(properties.getTemplateBucket(), "acquiring.object-storage.template-bucket");
         S3ClientBuilder builder = S3Client.builder()
                 .httpClientBuilder(UrlConnectionHttpClient.builder())
                 .credentialsProvider(StaticCredentialsProvider.create(

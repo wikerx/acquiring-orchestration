@@ -156,6 +156,7 @@ public class AdminExportTaskApplicationService {
     private static final String SYSTEM_CONFIG = "ADMIN_SYSTEM_CONFIG";
     private static final String MERCHANT_IP_WHITELIST = "ADMIN_MERCHANT_IP_WHITELIST";
     private static final String RISK_CONFIG = "ADMIN_RISK_CONFIG";
+    private static final String TRADE_BLACK_RECORD = "ADMIN_TRADE_BLACK_RECORD";
     private static final String DATASOURCE_SNAPSHOT = "ADMIN_DATASOURCE_SNAPSHOT";
     private final DataExportTaskInternalClient dataClient;
     private final AdminMerchantDataScopeResolver dataScopeResolver;
@@ -394,6 +395,16 @@ public class AdminExportTaskApplicationService {
         AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
         CreateRequest command = createRequest(request.getRequestId(), RISK_CONFIG, account, scope);
         command.setRiskConfigQuery(toRiskConfigQuery(request));
+        return dataClient.submit(command);
+    }
+
+    /** 冻结系统交易加黑筛选条件后创建异步导出任务。 */
+    public TaskSummary submitTradeBlack(
+            com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TradeBlackSubmitRequest request) {
+        InternalAuthAccount account = currentAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        CreateRequest command = createRequest(request.getRequestId(), TRADE_BLACK_RECORD, account, scope);
+        command.setRiskConfigQuery(toTradeBlackQuery(request.getQuery()));
         return dataClient.submit(command);
     }
 
@@ -741,6 +752,23 @@ public class AdminExportTaskApplicationService {
         target.setStatus(query.getStatus());
         target.setApprovalStatus(query.getApprovalStatus());
         target.setSubmitSource(query.getSubmitSource());
+        return target;
+    }
+
+    /** 将交易加黑页面筛选条件冻结到通用风控导出快照。 */
+    private com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.RiskConfigQuery toTradeBlackQuery(
+            com.scott.payment.admin.dto.risk.RiskDTOs.TradeBlackQueryRequest source) {
+        var target = new com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.RiskConfigQuery();
+        target.setModuleType("TRADE_BLACK");
+        target.setFunctionCode("system");
+        target.setMerchantId(source.getMerchantId());
+        target.setMerchantOrderNo(source.getMerchantOrderNo());
+        target.setPaymentOrderNo(source.getPaymentOrderNo());
+        target.setBlackTargetType(source.getBlackTargetType());
+        target.setStatus(source.getStatus());
+        target.setOperator(source.getOperator());
+        target.setOperationStartTime(source.getOperationStartTime());
+        target.setOperationEndTimeExclusive(source.getOperationEndTimeExclusive());
         return target;
     }
 
@@ -1357,6 +1385,7 @@ public class AdminExportTaskApplicationService {
             case SYSTEM_CONFIG -> chinese ? "系统参数导出" : "System Configuration Export";
             case MERCHANT_IP_WHITELIST -> chinese ? "商户 IP 白名单导出" : "Merchant IP Whitelist Export";
             case RISK_CONFIG -> chinese ? "风控配置导出" : "Risk Configuration Export";
+            case TRADE_BLACK_RECORD -> chinese ? "系统交易加黑记录导出" : "Transaction Blacklist Record Export";
             case DATASOURCE_SNAPSHOT -> chinese ? "数据源监控快照导出" : "Datasource Monitor Snapshot Export";
             default -> chinese ? "统一运营待办导出" : "Operational Work Item Export";
         };

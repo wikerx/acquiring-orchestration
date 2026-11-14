@@ -846,6 +846,12 @@ public final class ExportTaskInternalDTOs {
         private Integer status;
         private Integer approvalStatus;
         private String submitSource;
+        private String merchantOrderNo;
+        private String paymentOrderNo;
+        private String blackTargetType;
+        private String operator;
+        private LocalDateTime operationStartTime;
+        private LocalDateTime operationEndTimeExclusive;
     }
 
     /** 数据源快照空查询标记，禁止冻结连接凭据或其他基础设施秘密。 */

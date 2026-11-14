@@ -78,6 +78,7 @@ import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SYSTEM_CONFIG;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_MERCHANT_IP_WHITELIST;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_RISK_CONFIG;
+import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_TRADE_BLACK_RECORD;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_DATASOURCE_SNAPSHOT;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_TRANSACTION_ORDER;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_TRANSACTION_OPERATION;
@@ -652,6 +653,42 @@ class DataExportTaskServiceTest {
         assertThat(datasourceFixture.insertedTask.getValue().getTaskType())
                 .isEqualTo(ADMIN_DATASOURCE_SNAPSHOT);
         assertThat(datasourceFixture.insertedTask.getValue().getQuerySnapshot()).isEqualTo("{}");
+    }
+
+    /**
+     * 系统交易加黑任务必须冻结全部列表筛选字段，避免异步执行时退化为全量导出。
+     */
+    @Test
+    void shouldPersistTradeBlackTaskFilters() {
+        Fixture fixture = fixture();
+        CreateRequest request = createRequest();
+        request.setRequestId("request-trade-black-record");
+        request.setTaskType(ADMIN_TRADE_BLACK_RECORD);
+        request.setWorkItemQuery(null);
+        RiskConfigQuery query = new RiskConfigQuery();
+        query.setModuleType("TRADE_BLACK");
+        query.setFunctionCode("system");
+        query.setMerchantId("M7001");
+        query.setMerchantOrderNo("ORDER-7001");
+        query.setBlackTargetType("cardNo");
+        query.setOperator("Scott");
+        query.setOperationStartTime(LocalDateTime.of(2026, 11, 14, 9, 0));
+        query.setOperationEndTimeExclusive(LocalDateTime.of(2026, 11, 15, 0, 0));
+        request.setRiskConfigQuery(query);
+        when(fixture.taskMapper.selectOwned(anyString(), eq(APP_ADMIN), eq(88L), isNull()))
+                .thenAnswer(invocation -> {
+                    DataExportTaskDO task = fixture.insertedTask.getValue();
+                    task.setId(35L);
+                    return task;
+                });
+
+        fixture.service.submit(request);
+
+        DataExportTaskDO inserted = fixture.insertedTask.getValue();
+        assertThat(inserted.getTaskType()).isEqualTo(ADMIN_TRADE_BLACK_RECORD);
+        assertThat(inserted.getQuerySnapshot())
+                .contains("TRADE_BLACK", "system", "M7001", "ORDER-7001", "cardNo", "Scott")
+                .doesNotContain("pageNo", "pageSize", "matchValueHash");
     }
 
     /**

@@ -1680,7 +1680,7 @@ public final class RiskDTOs {
         private String paymentOrderNo;
 
         /**
-         * 加黑对象类型：CARD、CARD_FINGERPRINT、EMAIL、PHONE、IP、DEVICE、CUSTOMER，允许为空。
+         * 黑名单功能编码，例如 cardNo、cardBin、issuerCountry、emailDomain、billingAddress，允许为空。
          */
         private String blackTargetType;
 
@@ -1688,6 +1688,21 @@ public final class RiskDTOs {
          * 状态：0 已解除，1 已加黑，允许为空。
          */
         private Integer status;
+
+        /**
+         * 最近操作人，支持模糊查询，允许为空。
+         */
+        private String operator;
+
+        /**
+         * 操作时间起点，包含该时间点，允许为空。
+         */
+        private LocalDateTime operationStartTime;
+
+        /**
+         * 操作时间终点，不包含该时间点，允许为空。
+         */
+        private LocalDateTime operationEndTimeExclusive;
     }
 
     /**
@@ -1716,7 +1731,7 @@ public final class RiskDTOs {
         private String paymentOrderNo;
 
         /**
-         * 加黑对象类型：CARD、CARD_FINGERPRINT、EMAIL、PHONE、IP、DEVICE、CUSTOMER，必填。
+         * 黑名单功能编码，例如 cardNo、cardBin、issuerCountry、emailDomain、billingAddress，必填。
          */
         @NotBlank(message = "请选择加黑对象")
         private String blackTargetType;

@@ -272,6 +272,23 @@ public interface RiskManagementMapper {
                             @Param("matchValueHash") String matchValueHash,
                             @Param("excludeId") Long excludeId);
 
+    /** 查询指定作用域和归一化哈希对应的启用名单记录。 */
+    @Select("""
+            SELECT id
+            FROM ${tableName}
+            WHERE deleted = 0
+              AND status = 1
+              AND merchant_scope = #{merchantScope}
+              AND COALESCE(merchant_id, '') = COALESCE(#{merchantId}, '')
+              AND match_value_hash = #{matchValueHash}
+            ORDER BY id ASC
+            LIMIT 1
+            """)
+    Long selectActiveListIdByHash(@Param("tableName") String tableName,
+                                  @Param("merchantScope") String merchantScope,
+                                  @Param("merchantId") String merchantId,
+                                  @Param("matchValueHash") String matchValueHash);
+
     /**
      * 查询来源网址 AML 重复记录数。AML 来源网址是全局名单，唯一口径为 URL host。
      *
@@ -595,6 +612,28 @@ public interface RiskManagementMapper {
                               @Param("stateProvinceName") String stateProvinceName,
                               @Param("cityName") String cityName,
                               @Param("excludeId") Long excludeId);
+
+    /** 查询指定作用域和区域层级对应的启用高风险区域记录。 */
+    @Select("""
+            SELECT id
+            FROM risk_black_region
+            WHERE deleted = 0
+              AND status = 1
+              AND merchant_scope = #{merchantScope}
+              AND COALESCE(merchant_id, '') = COALESCE(#{merchantId}, '')
+              AND region_match_level = #{regionMatchLevel}
+              AND country_alpha3 = #{countryAlpha3}
+              AND COALESCE(state_province_name, '') = COALESCE(#{stateProvinceName}, '')
+              AND COALESCE(city_name, '') = COALESCE(#{cityName}, '')
+            ORDER BY id ASC
+            LIMIT 1
+            """)
+    Long selectActiveRegionId(@Param("merchantScope") String merchantScope,
+                              @Param("merchantId") String merchantId,
+                              @Param("regionMatchLevel") String regionMatchLevel,
+                              @Param("countryAlpha3") String countryAlpha3,
+                              @Param("stateProvinceName") String stateProvinceName,
+                              @Param("cityName") String cityName);
 
     /**
      * 软删除名单或规则记录。
@@ -1666,6 +1705,9 @@ public interface RiskManagementMapper {
      * @param paymentOrderNo  平台支付订单号，允许为空
      * @param blackTargetType 加黑对象类型，允许为空
      * @param status          状态，允许为空
+     * @param operator        最近操作人，允许为空并支持模糊匹配
+     * @param operationStartTime 操作时间起点，包含该时间点
+     * @param operationEndTimeExclusive 操作时间终点，不包含该时间点
      * @return 交易加黑记录数量
      */
     @Select("""
@@ -1678,13 +1720,19 @@ public interface RiskManagementMapper {
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
             <if test="blackTargetType != null and blackTargetType != ''">AND black_target_type = #{blackTargetType}</if>
             <if test="status != null">AND status = #{status}</if>
+            <if test="operator != null and operator != ''">AND operator LIKE CONCAT('%', #{operator}, '%')</if>
+            <if test="operationStartTime != null">AND update_time &gt;= #{operationStartTime}</if>
+            <if test="operationEndTimeExclusive != null">AND update_time &lt; #{operationEndTimeExclusive}</if>
             </script>
             """)
     long countTradeBlack(@Param("merchantId") String merchantId,
                          @Param("merchantOrderNo") String merchantOrderNo,
                          @Param("paymentOrderNo") String paymentOrderNo,
                          @Param("blackTargetType") String blackTargetType,
-                         @Param("status") Integer status);
+                         @Param("status") Integer status,
+                         @Param("operator") String operator,
+                         @Param("operationStartTime") java.time.LocalDateTime operationStartTime,
+                         @Param("operationEndTimeExclusive") java.time.LocalDateTime operationEndTimeExclusive);
 
     /**
      * 分页查询交易加黑。
@@ -1694,6 +1742,9 @@ public interface RiskManagementMapper {
      * @param paymentOrderNo  平台支付订单号，允许为空
      * @param blackTargetType 加黑对象类型，允许为空
      * @param status          状态，允许为空
+     * @param operator        最近操作人，允许为空并支持模糊匹配
+     * @param operationStartTime 操作时间起点，包含该时间点
+     * @param operationEndTimeExclusive 操作时间终点，不包含该时间点
      * @param offset          分页偏移量
      * @param pageSize        每页记录数
      * @return 交易加黑记录列表
@@ -1721,6 +1772,9 @@ public interface RiskManagementMapper {
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
             <if test="blackTargetType != null and blackTargetType != ''">AND black_target_type = #{blackTargetType}</if>
             <if test="status != null">AND status = #{status}</if>
+            <if test="operator != null and operator != ''">AND operator LIKE CONCAT('%', #{operator}, '%')</if>
+            <if test="operationStartTime != null">AND update_time &gt;= #{operationStartTime}</if>
+            <if test="operationEndTimeExclusive != null">AND update_time &lt; #{operationEndTimeExclusive}</if>
             ORDER BY update_time DESC, id DESC
             LIMIT #{offset}, #{pageSize}
             </script>
@@ -1730,6 +1784,9 @@ public interface RiskManagementMapper {
                                                @Param("paymentOrderNo") String paymentOrderNo,
                                                @Param("blackTargetType") String blackTargetType,
                                                @Param("status") Integer status,
+                                               @Param("operator") String operator,
+                                               @Param("operationStartTime") java.time.LocalDateTime operationStartTime,
+                                               @Param("operationEndTimeExclusive") java.time.LocalDateTime operationEndTimeExclusive,
                                                @Param("offset") long offset,
                                                @Param("pageSize") long pageSize);
 
@@ -1744,11 +1801,11 @@ public interface RiskManagementMapper {
             INSERT INTO risk_trade_black_record (
                 merchant_id, merchant_name, merchant_order_no, payment_order_no, black_target_type,
                 black_target_value_masked, black_target_hash, source_type, action_type,
-                action_reason, status, operator, deleted
+                action_reason, batch_no, candidate_key, status, operator, deleted
             ) VALUES (
                 #{data.merchantId}, #{data.merchantName}, #{data.merchantOrderNo}, #{data.paymentOrderNo}, #{data.blackTargetType},
                 #{data.blackTargetValueMasked}, #{data.blackTargetHash}, #{data.sourceType}, #{data.actionType},
-                #{data.actionReason}, #{data.status}, #{operator}, 0
+                #{data.actionReason}, #{data.batchNo}, #{data.candidateKey}, #{data.status}, #{operator}, 0
             )
             """)
     int insertTradeBlack(@Param("data") Map<String, Object> data, @Param("operator") String operator);

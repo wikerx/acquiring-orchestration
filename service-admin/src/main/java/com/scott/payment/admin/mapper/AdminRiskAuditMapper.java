@@ -239,8 +239,8 @@ public interface AdminRiskAuditMapper {
                    SUM(CASE WHEN decision_result = 'REJECT' THEN 1 ELSE 0 END) AS reject_count,
                    MAX(evaluation_time) AS latest_evaluation_time
             FROM risk_evaluation_record
-            WHERE evaluation_time &gt;= #{evaluationStartTime}
-              AND evaluation_time &lt; #{evaluationEndTimeExclusive}
+            WHERE evaluation_time >= #{evaluationStartTime}
+              AND evaluation_time < #{evaluationEndTimeExclusive}
             GROUP BY COALESCE(NULLIF(merchant_id, ''), '-'), COALESCE(NULLIF(merchant_name, ''), '-')
             ORDER BY high_risk_count DESC, risk_count DESC, latest_evaluation_time DESC
             LIMIT #{limit}

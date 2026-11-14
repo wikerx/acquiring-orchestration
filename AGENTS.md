@@ -101,6 +101,23 @@ After implementation:
   focused startup verification for every affected service. Security hardening is incomplete when it
   only removes a fallback and leaves approved local development unable to start.
 
+### File Template Governance
+
+- Reusable Admin and Merchant upload/input templates are governed by Template Center. New business
+  controllers must not serve independently generated template files or expose object-storage URLs.
+- Business functions reference a stable `templateCode`. Published version assets are immutable;
+  changes create a higher version and switch the current pointer with idempotency and optimistic
+  concurrency protection.
+- Localized names are extension-free base download filenames. The server appends the immutable
+  extension. Template objects stay in the dedicated private template bucket and are streamed only
+  after server-side system and permission checks.
+- Every template download method must carry `@ManagedFileTemplateEndpoint`. A pre-existing adapter
+  may use `@LegacyFileTemplateAdapter` only with a registered code rule and removal date; expiry
+  must fail the governance test.
+- The executable and operational contract is
+  `docs/standards/file-template-center-governance.md`; do not weaken its migration, security, or
+  release gates to make a feature pass.
+
 ## Architecture And Code Rules
 
 - API/Controller code adapts protocols and triggers validation; Application services orchestrate

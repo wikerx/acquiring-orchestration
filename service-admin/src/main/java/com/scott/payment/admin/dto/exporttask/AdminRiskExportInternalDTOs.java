@@ -3,6 +3,7 @@ package com.scott.payment.admin.dto.exporttask;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +48,12 @@ public final class AdminRiskExportInternalDTOs {
         private Integer status;
         private Integer approvalStatus;
         private String submitSource;
+        private String merchantOrderNo;
+        private String paymentOrderNo;
+        private String blackTargetType;
+        private String operator;
+        private LocalDateTime operationStartTime;
+        private LocalDateTime operationEndTimeExclusive;
     }
 
     /** 风控配置动态列定义。 */

@@ -57,6 +57,8 @@ acquiring:
     region: ${OBJECT_STORAGE_REGION:us-east-1}
     # 私有 Bucket 必须与 MinIO 初始化策略保持一致。
     bucket: ${OBJECT_STORAGE_BUCKET:vexra-merchant-documents}
+    # 管理端和商户端系统模板使用独立私有 Bucket，与商户资料和异步导出物理隔离。
+    template-bucket: ${OBJECT_STORAGE_TEMPLATE_BUCKET:vexra-template-files}
     # MinIO 使用路径风格寻址；迁移 AWS S3 后通常设置为 false。
     path-style-access: ${OBJECT_STORAGE_PATH_STYLE_ACCESS:true}
     # 单文件最大字节数，与 Spring Multipart 限制保持一致。

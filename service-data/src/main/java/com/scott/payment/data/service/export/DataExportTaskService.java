@@ -86,6 +86,7 @@ public class DataExportTaskService {
     public static final String ADMIN_SYSTEM_CONFIG = "ADMIN_SYSTEM_CONFIG";
     public static final String ADMIN_MERCHANT_IP_WHITELIST = "ADMIN_MERCHANT_IP_WHITELIST";
     public static final String ADMIN_RISK_CONFIG = "ADMIN_RISK_CONFIG";
+    public static final String ADMIN_TRADE_BLACK_RECORD = "ADMIN_TRADE_BLACK_RECORD";
     public static final String ADMIN_DATASOURCE_SNAPSHOT = "ADMIN_DATASOURCE_SNAPSHOT";
     public static final String MERCHANT_TRANSACTION_OPERATION = "MERCHANT_TRANSACTION_OPERATION";
     public static final String MERCHANT_REFUND = "MERCHANT_REFUND";
@@ -108,7 +109,7 @@ public class DataExportTaskService {
             ADMIN_EXCHANGE_ALERT_RULE, ADMIN_EXCHANGE_ALERT_EVENT,
             ADMIN_FEE_TEMPLATE, ADMIN_MERCHANT_FEE, ADMIN_FEE_REVIEW, ADMIN_FEE_SIMULATION,
             ADMIN_SYSTEM_USER, ADMIN_SYSTEM_CONFIG, ADMIN_MERCHANT_IP_WHITELIST,
-            ADMIN_RISK_CONFIG, ADMIN_DATASOURCE_SNAPSHOT,
+            ADMIN_RISK_CONFIG, ADMIN_TRADE_BLACK_RECORD, ADMIN_DATASOURCE_SNAPSHOT,
             MERCHANT_TRANSACTION_OPERATION, MERCHANT_REFUND,
             MERCHANT_SETTLEMENT_BATCH, MERCHANT_SETTLEMENT_SUMMARY,
             MERCHANT_SETTLEMENT_TRANSACTION, MERCHANT_SETTLEMENT_RESERVE,
@@ -611,7 +612,7 @@ public class DataExportTaskService {
             case ADMIN_SYSTEM_USER -> request.getSystemUserQuery();
             case ADMIN_SYSTEM_CONFIG -> request.getSystemConfigQuery();
             case ADMIN_MERCHANT_IP_WHITELIST -> request.getMerchantIpWhitelistQuery();
-            case ADMIN_RISK_CONFIG -> request.getRiskConfigQuery();
+            case ADMIN_RISK_CONFIG, ADMIN_TRADE_BLACK_RECORD -> request.getRiskConfigQuery();
             case ADMIN_DATASOURCE_SNAPSHOT -> request.getDatasourceSnapshotQuery();
             case MERCHANT_TRANSACTION_OPERATION -> request.getMerchantTransactionQuery();
             case MERCHANT_REFUND -> request.getMerchantRefundQuery();

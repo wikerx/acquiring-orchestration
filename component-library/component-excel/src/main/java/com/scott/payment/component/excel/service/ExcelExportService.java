@@ -51,6 +51,16 @@ public interface ExcelExportService {
     void exportDynamic(ExcelDynamicExportRequest request, HttpServletResponse response);
 
     /**
+     * 按统一样式将动态列 Excel 写入调用方提供的输出流。
+     *
+     * <p>该方法不关闭输出流，适用于系统内置模板初始化、异步任务和对象存储写入。</p>
+     *
+     * @param request 动态列导出请求
+     * @param outputStream 调用方管理的输出流
+     */
+    void exportDynamic(ExcelDynamicExportRequest request, OutputStream outputStream);
+
+    /**
      * 分页加载动态列数据并写入调用方管理的输出流。
      *
      * <p>该方法不关闭输出流，调用方负责流生命周期。</p>

@@ -1,0 +1,55 @@
+-- 系统交易加黑新版工作流：新增批次和逐候选审计，不迁移或回填历史 risk_trade_black_record。
+SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS risk_trade_black_batch (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    batch_no VARCHAR(64) NOT NULL COMMENT '操作批次号',
+    request_id VARCHAR(64) NOT NULL COMMENT '客户端请求幂等号',
+    request_fingerprint CHAR(64) NOT NULL COMMENT '规范化请求摘要，用于拒绝同一幂等号承载不同操作',
+    input_mode VARCHAR(16) NOT NULL COMMENT '录入方式：SINGLE、PASTE、FILE',
+    scope_type VARCHAR(16) NOT NULL COMMENT '目标作用域：GLOBAL、MERCHANT',
+    action_type VARCHAR(16) NOT NULL COMMENT '操作：ADD、RELEASE',
+    function_count INT NOT NULL DEFAULT 0 COMMENT '选择的黑名单功能数',
+    order_count INT NOT NULL DEFAULT 0 COMMENT '输入订单数',
+    status VARCHAR(24) NOT NULL COMMENT 'PROCESSING、SUCCESS、PARTIAL_SUCCESS、FAILED',
+    total_count INT NOT NULL DEFAULT 0 COMMENT '候选项总数',
+    success_count INT NOT NULL DEFAULT 0 COMMENT '实际变更成功数',
+    skipped_count INT NOT NULL DEFAULT 0 COMMENT '幂等跳过数',
+    failure_count INT NOT NULL DEFAULT 0 COMMENT '失败数',
+    operator_account_id BIGINT NOT NULL COMMENT '操作账号ID，用于审计归属和失败明细授权',
+    operator VARCHAR(64) NULL COMMENT '操作人',
+    finish_time DATETIME(3) NULL COMMENT '完成时间',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_trade_black_batch_no (batch_no),
+    UNIQUE KEY uk_trade_black_request_account (operator_account_id, request_id),
+    KEY idx_trade_black_batch_time (create_time, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统交易加黑操作批次';
+
+CREATE TABLE IF NOT EXISTS risk_trade_black_batch_item (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    batch_no VARCHAR(64) NOT NULL COMMENT '操作批次号',
+    candidate_key VARCHAR(64) NOT NULL COMMENT '服务端候选项稳定键',
+    row_no INT NULL COMMENT '来源文件或输入行号',
+    input_order_no VARCHAR(128) NULL COMMENT '输入订单号',
+    transaction_id VARCHAR(64) NULL COMMENT '解析到的系统交易号',
+    source_merchant_id VARCHAR(32) NULL COMMENT '交易所属商户',
+    merchant_order_no VARCHAR(64) NULL COMMENT '交易商户订单号',
+    function_code VARCHAR(64) NOT NULL COMMENT '黑名单功能编码',
+    function_name VARCHAR(128) NOT NULL COMMENT '黑名单功能名称',
+    source_field VARCHAR(64) NULL COMMENT '交易事实来源字段',
+    target_scope VARCHAR(16) NOT NULL COMMENT '目标作用域',
+    target_merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '目标商户号',
+    match_value_masked VARCHAR(255) NULL COMMENT '脱敏展示值',
+    result_code VARCHAR(32) NOT NULL COMMENT 'ADDED、RELEASED、ALREADY_EXISTS、ALREADY_MISSING、FAILED',
+    result_message VARCHAR(500) NULL COMMENT '结果说明',
+    operator VARCHAR(64) NULL COMMENT '操作人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_trade_black_batch_candidate (batch_no, candidate_key, deleted),
+    KEY idx_trade_black_item_transaction (transaction_id, create_time),
+    KEY idx_trade_black_item_result (batch_no, result_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统交易加黑候选项执行明细';

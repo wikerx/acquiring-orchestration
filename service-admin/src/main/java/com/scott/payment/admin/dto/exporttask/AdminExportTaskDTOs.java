@@ -30,6 +30,7 @@ import com.scott.payment.admin.dto.exchange.ExchangeRateVolatilityDTOs.AlertRule
 import com.scott.payment.admin.dto.exchange.ExchangeRateVolatilityDTOs.VolatilityQuery;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeePlanQuery;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRecordQuery;
+import com.scott.payment.admin.dto.risk.RiskDTOs;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -65,6 +66,18 @@ public final class AdminExportTaskDTOs {
         @Valid
         @NotNull
         private RiskConfigQuery query;
+    }
+
+    /** 系统交易加黑记录异步导出提交命令。 */
+    @Data
+    public static class TradeBlackSubmitRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank
+        @Size(max = 128)
+        private String requestId;
+        @Valid
+        @NotNull
+        private RiskDTOs.TradeBlackQueryRequest query;
     }
 
     /** 数据源运行快照异步导出提交命令，不接受浏览器指定数据源连接信息。 */

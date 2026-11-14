@@ -102,6 +102,12 @@ public final class AdminDataExportTaskClientDTOs {
         private Integer status;
         private Integer approvalStatus;
         private String submitSource;
+        private String merchantOrderNo;
+        private String paymentOrderNo;
+        private String blackTargetType;
+        private String operator;
+        private LocalDateTime operationStartTime;
+        private LocalDateTime operationEndTimeExclusive;
     }
 
     /** 数据源快照空查询标记，实际数据只允许从服务端实时快照读取。 */

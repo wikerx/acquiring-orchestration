@@ -16,6 +16,7 @@ import com.scott.payment.data.entity.export.DataExportTaskDO;
 import com.scott.payment.data.infrastructure.export.ExportObjectStorageService;
 import com.scott.payment.data.service.export.impl.DatasourceSnapshotExportProcessor;
 import com.scott.payment.data.service.export.impl.RiskConfigExportProcessor;
+import com.scott.payment.data.service.export.impl.TradeBlackExportProcessor;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -27,6 +28,7 @@ import java.util.function.IntFunction;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_DATASOURCE_SNAPSHOT;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_RISK_CONFIG;
+import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_TRADE_BLACK_RECORD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -41,6 +43,68 @@ import static org.mockito.Mockito.when;
  * 风控配置与数据源监控异步导出处理器契约测试。
  */
 class RiskMonitorExportProcessorTest {
+
+    /**
+     * 系统交易加黑导出必须保留冻结筛选条件，并且只写入服务端返回的脱敏安全行。
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldExportTradeBlackMaskedRowsWithFrozenFilters() {
+        AdminPlatformExportSourceClient sourceClient = mock(AdminPlatformExportSourceClient.class);
+        ExcelExportArtifactWriter writer = mock(ExcelExportArtifactWriter.class);
+        ExportObjectStorageService storage = mock(ExportObjectStorageService.class);
+        ExportProgressListener listener = mock(ExportProgressListener.class);
+        DataExportProperties properties = new DataExportProperties();
+        properties.setPageSize(67);
+        RiskPageResponse source = new RiskPageResponse();
+        source.setTotal(1L);
+        source.setTitle("系统交易加黑记录");
+        DynamicColumn column = new DynamicColumn();
+        column.setKey("black_target_value_masked");
+        column.setHeader("对象脱敏值");
+        column.setWidth(28);
+        column.setAlign("LEFT");
+        source.setColumns(List.of(column));
+        source.setRecords(List.of(new LinkedHashMap<>(Map.of(
+                "black_target_value_masked", "4111****1111"))));
+        when(sourceClient.loadRiskConfigPage(any())).thenReturn(source);
+        ExportArtifact expected = artifact("trade-black.xlsx");
+        when(writer.writeDynamic(any(), same(storage), same(listener), any(),
+                anyString(), anyString(), anyList(), any())).thenAnswer(invocation -> {
+            List<ExcelDynamicColumnDefinition> columns = invocation.getArgument(6);
+            IntFunction<ExportPage<Map<String, Object>>> loader = invocation.getArgument(7);
+            ExportPage<Map<String, Object>> page = loader.apply(1);
+            assertThat(columns).singleElement().satisfies(item -> {
+                assertThat(item.key()).isEqualTo("black_target_value_masked");
+                assertThat(item.header()).isEqualTo("对象脱敏值");
+            });
+            assertThat(page.records()).singleElement().satisfies(row -> {
+                assertThat(row.get("black_target_value_masked")).isEqualTo("4111****1111");
+                assertThat(row.toString()).doesNotContain("4111111111111111", "matchValueHash");
+            });
+            return expected;
+        });
+        RiskConfigQuery query = new RiskConfigQuery();
+        query.setModuleType("TRADE_BLACK");
+        query.setFunctionCode("system");
+        query.setOperator("Scott");
+        query.setBlackTargetType("cardNo");
+        DataExportTaskDO task = task(ADMIN_TRADE_BLACK_RECORD, query);
+
+        ExportArtifact actual = new TradeBlackExportProcessor(sourceClient, writer, properties)
+                .process(task, storage, listener, LocalDateTime.of(2026, 11, 14, 15, 0));
+
+        ArgumentCaptor<RiskPageRequest> requestCaptor = ArgumentCaptor.forClass(RiskPageRequest.class);
+        verify(sourceClient).loadRiskConfigPage(requestCaptor.capture());
+        RiskPageRequest request = requestCaptor.getValue();
+        assertThat(request.getModuleType()).isEqualTo("TRADE_BLACK");
+        assertThat(request.getFunctionCode()).isEqualTo("system");
+        assertThat(request.getQuery().getOperator()).isEqualTo("Scott");
+        assertThat(request.getQuery().getBlackTargetType()).isEqualTo("cardNo");
+        assertThat(request.getPageNo()).isEqualTo(1);
+        assertThat(request.getPageSize()).isEqualTo(67);
+        assertThat(actual).isSameAs(expected);
+    }
 
     /**
      * 风控配置导出必须传递冻结的功能身份、分页容量、动态列和已脱敏行。

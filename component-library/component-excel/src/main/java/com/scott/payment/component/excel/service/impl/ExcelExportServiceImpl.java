@@ -180,36 +180,47 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     @Override
     public void exportDynamic(ExcelDynamicExportRequest request, HttpServletResponse response) {
+        try {
+            prepareResponse(response, normalizeFileName(request.getFileName()));
+            exportDynamic(request, response.getOutputStream());
+        } catch (IOException exception) {
+            throw new IllegalStateException("excel export failed", exception);
+        }
+    }
+
+    /**
+     * 将动态列工作簿写入调用方管理的输出流，供模板中心初始化和异步导出复用。
+     */
+    @Override
+    public void exportDynamic(ExcelDynamicExportRequest request, OutputStream outputStream) {
+        if (outputStream == null) {
+            throw new IllegalArgumentException("dynamic excel export requires outputStream");
+        }
         Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
         List<ExcelDynamicColumnDefinition> columns = request.getColumns() == null ? List.of() : request.getColumns();
         List<List<String>> head = buildDynamicHead(columns);
         List<List<Object>> rows = toDynamicRowData(request.getDataList(), columns, locale);
         List<ExcelExportColumnDefinition> columnDefinitions = toColumnDefinitions(columns);
-        String fileName = normalizeFileName(request.getFileName());
         String sheetName = normalizeSheetName(request.getSheetName());
         String title = request.getTitle() == null || request.getTitle().isBlank() ? sheetName : request.getTitle().trim();
-        try {
-            prepareResponse(response, fileName);
-            ExcelWriterSheetBuilder sheetBuilder = EasyExcel.write(response.getOutputStream())
-                    .head(head)
-                    .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
-                    .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
-                    .registerWriteHandler(new ExcelColumnStyleWriteHandler(columnDefinitions))
-                    .registerWriteHandler(new ExcelColumnWidthWriteHandler(columnDefinitions))
-                    .registerWriteHandler(new ExcelTitleWriteHandler(
-                            title,
-                            request.getOperator(),
-                            request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
-                            request.getQuerySummary(),
-                            Math.max(columns.size(), 1),
-                            messageResolver,
-                            locale
-                    ))
-                    .sheet(sheetName);
-            sheetBuilder.doWrite(rows);
-        } catch (IOException exception) {
-            throw new IllegalStateException("excel export failed", exception);
-        }
+        ExcelWriterSheetBuilder sheetBuilder = EasyExcel.write(outputStream)
+                .autoCloseStream(false)
+                .head(head)
+                .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
+                .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
+                .registerWriteHandler(new ExcelColumnStyleWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelColumnWidthWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelTitleWriteHandler(
+                        title,
+                        request.getOperator(),
+                        request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
+                        request.getQuerySummary(),
+                        Math.max(columns.size(), 1),
+                        messageResolver,
+                        locale
+                ))
+                .sheet(sheetName);
+        sheetBuilder.doWrite(rows);
     }
 
     /**
@@ -341,7 +352,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         for (Map<String, Object> data : dataList) {
             List<Object> row = new ArrayList<>(columns.size());
             for (ExcelDynamicColumnDefinition column : columns) {
-                row.add(formatValue(data.get(column.key()), locale));
+                Object value = formatValue(data.get(column.key()), locale);
+                row.add(column.forceText() ? toPlainText(value) : value);
             }
             rows.add(row);
         }
@@ -356,7 +368,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     private List<ExcelExportColumnDefinition> toColumnDefinitions(List<ExcelDynamicColumnDefinition> columns) {
         return columns.stream()
-                .map(column -> new ExcelExportColumnDefinition(null, 0, "", column.width(), column.align(), false))
+                .map(column -> new ExcelExportColumnDefinition(
+                        null, 0, "", column.width(), column.align(), column.forceText()))
                 .toList();
     }
 
@@ -426,7 +439,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setHeader(
                 "Content-Disposition",
-                "attachment;filename*=utf-8''" + URLEncoder.encode(fileName + ".xlsx", StandardCharsets.UTF_8)
+                "attachment;filename*=utf-8''"
+                        + URLEncoder.encode(fileName + ".xlsx", StandardCharsets.UTF_8).replace("+", "%20")
         );
     }
 

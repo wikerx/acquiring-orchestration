@@ -4,6 +4,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
 import com.scott.payment.payment.application.TransactionCallbackInboxApplicationService;
+import com.scott.payment.payment.application.TradeBlackTransactionFactApplicationService;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -23,6 +24,8 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommand
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchRequeryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
+import com.scott.payment.payment.api.internal.dto.TradeBlackTransactionFactsDTO;
+import com.scott.payment.payment.api.internal.dto.TradeBlackTransactionResolveCommandDTO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,6 +60,9 @@ public class PaymentInternalController {
      */
     private final TransactionCallbackInboxApplicationService callbackInboxApplicationService;
 
+    /** 管理端系统交易加黑的可信交易事实查询服务。 */
+    private final TradeBlackTransactionFactApplicationService tradeBlackTransactionFactApplicationService;
+
     /**
      * 创建内部交易接口控制器。
      *
@@ -66,10 +72,23 @@ public class PaymentInternalController {
      */
     public PaymentInternalController(PaymentTransactionApplicationService paymentTransactionApplicationService,
                                      PaymentCheckoutApplicationService paymentCheckoutApplicationService,
-                                     TransactionCallbackInboxApplicationService callbackInboxApplicationService) {
+                                     TransactionCallbackInboxApplicationService callbackInboxApplicationService,
+                                     TradeBlackTransactionFactApplicationService tradeBlackTransactionFactApplicationService) {
         this.paymentTransactionApplicationService = paymentTransactionApplicationService;
         this.paymentCheckoutApplicationService = paymentCheckoutApplicationService;
         this.callbackInboxApplicationService = callbackInboxApplicationService;
+        this.tradeBlackTransactionFactApplicationService = tradeBlackTransactionFactApplicationService;
+    }
+
+    /**
+     * 为管理端系统交易加黑解析交易事实。
+     *
+     * <p>该入口只允许内部签名调用；返回中的个人信息不得转发给浏览器。</p>
+     */
+    @PostMapping("/risk/trade-black/transactions/resolve")
+    public CommonResult<TradeBlackTransactionFactsDTO> resolveTradeBlackTransactions(
+            @Valid @RequestBody TradeBlackTransactionResolveCommandDTO commandDTO) {
+        return success(tradeBlackTransactionFactApplicationService.resolve(commandDTO));
     }
 
     /**

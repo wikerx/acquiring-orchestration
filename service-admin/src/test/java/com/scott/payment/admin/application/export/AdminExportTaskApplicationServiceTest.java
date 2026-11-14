@@ -31,6 +31,7 @@ import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotifi
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementTransactionSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TradeBlackSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOrderSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TransactionOperationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.WorkItemSubmitRequest;
@@ -42,6 +43,7 @@ import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SearchReque
 import com.scott.payment.admin.dto.base.CardBinDTOs.CardBinQueryRequest;
 import com.scott.payment.admin.dto.base.MccRequests.MccTreeQueryRequest;
 import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
+import com.scott.payment.admin.dto.risk.RiskDTOs.TradeBlackQueryRequest;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeePlanQuery;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRecordQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
@@ -65,6 +67,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Set;
 
@@ -127,6 +130,51 @@ class AdminExportTaskApplicationServiceTest {
         assertThat(java.util.Arrays.stream(command.getWorkItemQuery().getClass().getDeclaredFields())
                 .map(java.lang.reflect.Field::getName))
                 .doesNotContain("pageNo", "pageSize");
+    }
+
+    /** 系统交易加黑导出必须冻结当前筛选条件并剔除浏览器分页参数。 */
+    @Test
+    void shouldFreezeTradeBlackFiltersForAsyncExport() {
+        DataExportTaskInternalClient client = mock(DataExportTaskInternalClient.class);
+        AdminMerchantDataScopeResolver resolver = mock(AdminMerchantDataScopeResolver.class);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(resolver.resolve(account)).thenReturn(AdminMerchantDataScope.all());
+        when(client.submit(org.mockito.ArgumentMatchers.any())).thenReturn(new TaskSummary());
+        AdminExportTaskApplicationService service = new AdminExportTaskApplicationService(client, resolver);
+        TradeBlackQueryRequest query = new TradeBlackQueryRequest();
+        query.setMerchantId("M7001");
+        query.setMerchantOrderNo("ORDER-7001");
+        query.setBlackTargetType("issuerCountry");
+        query.setOperator("Scott");
+        query.setOperationStartTime(LocalDateTime.of(2026, 11, 14, 9, 0));
+        query.setOperationEndTimeExclusive(LocalDateTime.of(2026, 11, 15, 0, 0));
+        query.setPageNo(9);
+        query.setPageSize(100);
+        TradeBlackSubmitRequest request = new TradeBlackSubmitRequest();
+        request.setRequestId("trade-black-export-001");
+        request.setQuery(query);
+
+        service.submitTradeBlack(request);
+
+        ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
+        verify(client).submit(captor.capture());
+        CreateRequest command = captor.getValue();
+        assertThat(command.getTaskType()).isEqualTo("ADMIN_TRADE_BLACK_RECORD");
+        assertThat(command.isAllMerchants()).isTrue();
+        assertThat(command.getRiskConfigQuery()).satisfies(snapshot -> {
+            assertThat(snapshot.getModuleType()).isEqualTo("TRADE_BLACK");
+            assertThat(snapshot.getFunctionCode()).isEqualTo("system");
+            assertThat(snapshot.getMerchantId()).isEqualTo("M7001");
+            assertThat(snapshot.getMerchantOrderNo()).isEqualTo("ORDER-7001");
+            assertThat(snapshot.getBlackTargetType()).isEqualTo("issuerCountry");
+            assertThat(snapshot.getOperator()).isEqualTo("Scott");
+            assertThat(snapshot.getOperationStartTime()).isEqualTo(LocalDateTime.of(2026, 11, 14, 9, 0));
+            assertThat(snapshot.getOperationEndTimeExclusive()).isEqualTo(LocalDateTime.of(2026, 11, 15, 0, 0));
+        });
+        assertThat(java.util.Arrays.stream(command.getRiskConfigQuery().getClass().getDeclaredFields())
+                .map(java.lang.reflect.Field::getName))
+                .doesNotContain("pageNo", "pageSize", "blackTargetHash");
     }
 
     /**

@@ -373,6 +373,81 @@ class ExcelExportServiceImplTest {
     }
 
     /**
+     * RFC 5987 文件名中的空格必须编码为 %20，避免浏览器把英文文件名保存为带加号的名称。
+     *
+     * @throws IOException 写入工作簿异常
+     */
+    @Test
+    void shouldEncodeSpacesAsPercent20InDownloadFilename() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        service.exportDynamic(
+                ExcelDynamicExportRequest.builder()
+                        .fileName("Transaction Blacklist Import Template")
+                        .sheetName("Import Template")
+                        .title("Import Template")
+                        .operator("tester")
+                        .exportTime(LocalDateTime.of(2026, 11, 14, 0, 0, 0))
+                        .locale(Locale.ENGLISH)
+                        .querySummary("Template")
+                        .columns(List.of(
+                                new ExcelDynamicColumnDefinition(
+                                        "identifierType", "Identifier Type", 20, HorizontalAlignment.LEFT, true),
+                                new ExcelDynamicColumnDefinition(
+                                        "orderNo", "Order Number", 24, HorizontalAlignment.LEFT, true)))
+                        .dataList(List.of(Map.of(
+                                "identifierType", "System Order Number",
+                                "orderNo", "202611141040357845269")))
+                        .build(),
+                response
+        );
+
+        Assertions.assertEquals(
+                "attachment;filename*=utf-8''Transaction%20Blacklist%20Import%20Template.xlsx",
+                response.getHeader("Content-Disposition")
+        );
+    }
+
+    /**
+     * 动态文本列必须保留超长业务标识并写入文本格式，避免 Excel 科学计数法和精度丢失。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldPreserveDynamicTextColumn() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        service.exportDynamic(
+                ExcelDynamicExportRequest.builder()
+                        .fileName("trade-black-template")
+                        .sheetName("导入模板")
+                        .title("导入模板")
+                        .operator("tester")
+                        .exportTime(LocalDateTime.of(2026, 11, 14, 0, 0, 0))
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .querySummary("订单号必须按文本处理")
+                        .columns(List.of(
+                                new ExcelDynamicColumnDefinition(
+                                        "identifierType", "订单号类型", 24, HorizontalAlignment.LEFT, true),
+                                new ExcelDynamicColumnDefinition(
+                                        "orderNo", "订单号", 34, HorizontalAlignment.LEFT, true)))
+                        .dataList(List.of(Map.of(
+                                "identifierType", "系统订单号",
+                                "orderNo", "202611141040357845269")))
+                        .build(),
+                response
+        );
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(response.body.toByteArray()))) {
+            Row dataRow = workbook.getSheetAt(0).getRow(3);
+            Assertions.assertEquals("202611141040357845269", dataRow.getCell(1).getStringCellValue());
+            Assertions.assertEquals("@", dataRow.getCell(1).getCellStyle().getDataFormatString());
+        }
+    }
+
+    /**
      * 创建带测试 MessageSource 的 Excel 导出服务。
      *
      * @return Excel 导出服务
@@ -489,6 +564,9 @@ class ExcelExportServiceImplTest {
          */
         private final ByteArrayOutputStream body = new ByteArrayOutputStream();
 
+        /** 响应头缓存，用于验证文件名与内容类型。 */
+        private final Map<String, String> headers = new LinkedHashMap<>();
+
         /**
          * 返回写入内存缓存的 Servlet 输出流，供用例解析并断言导出的 Excel 字节。
          */
@@ -529,7 +607,7 @@ class ExcelExportServiceImplTest {
         @Override public void setLocale(Locale loc) { }
         @Override public Locale getLocale() { return Locale.SIMPLIFIED_CHINESE; }
         @Override public void addCookie(Cookie cookie) { }
-        @Override public boolean containsHeader(String name) { return false; }
+        @Override public boolean containsHeader(String name) { return headers.containsKey(name); }
         @Override public String encodeURL(String url) { return url; }
         @Override public String encodeRedirectURL(String url) { return url; }
         @Override public void sendError(int sc, String msg) { }
@@ -537,14 +615,17 @@ class ExcelExportServiceImplTest {
         @Override public void sendRedirect(String location) { }
         @Override public void setDateHeader(String name, long date) { }
         @Override public void addDateHeader(String name, long date) { }
-        @Override public void setHeader(String name, String value) { }
-        @Override public void addHeader(String name, String value) { }
+        @Override public void setHeader(String name, String value) { headers.put(name, value); }
+        @Override public void addHeader(String name, String value) { headers.put(name, value); }
         @Override public void setIntHeader(String name, int value) { }
         @Override public void addIntHeader(String name, int value) { }
         @Override public void setStatus(int sc) { }
         @Override public int getStatus() { return 200; }
-        @Override public String getHeader(String name) { return null; }
-        @Override public Collection<String> getHeaders(String name) { return List.of(); }
-        @Override public Collection<String> getHeaderNames() { return List.of(); }
+        @Override public String getHeader(String name) { return headers.get(name); }
+        @Override public Collection<String> getHeaders(String name) {
+            String value = headers.get(name);
+            return value == null ? List.of() : List.of(value);
+        }
+        @Override public Collection<String> getHeaderNames() { return headers.keySet(); }
     }
 }

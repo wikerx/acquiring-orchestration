@@ -14,6 +14,7 @@ import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -93,6 +94,7 @@ class AdminRiskManagementApplicationServiceTests {
                 mapper,
                 mock(AdminRiskAuditMapper.class),
                 disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
@@ -127,6 +129,7 @@ class AdminRiskManagementApplicationServiceTests {
                 mapper,
                 mock(AdminRiskAuditMapper.class),
                 disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
@@ -145,6 +148,40 @@ class AdminRiskManagementApplicationServiceTests {
         request.setPageSize(20);
 
         assertThat(service.pageEvaluations(request).getTotal()).isOne();
+    }
+
+    @Test
+    void shouldDisplayMerchantMasterNameWhenRankingSnapshotNameIsMissing() {
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        BaseMerchantInfoMapper merchantMapper = mock(BaseMerchantInfoMapper.class);
+        Map<String, Object> ranking = new LinkedHashMap<>();
+        ranking.put("merchant_id", "200045");
+        ranking.put("merchant_name", "-");
+        when(mapper.selectMerchantRiskRanking(20)).thenReturn(List.of(ranking));
+        BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
+        merchant.setMerchantId("200045");
+        merchant.setMerchantName("Scott Payment Merchant 200045");
+        when(merchantMapper.selectList(any())).thenReturn(List.of(merchant));
+        AdminRiskManagementApplicationService service = new AdminRiskManagementApplicationService(
+                mapper,
+                mock(AdminRiskAuditMapper.class),
+                disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
+                mock(RiskListValueNormalizer.class),
+                mock(AdminRiskImportLogService.class),
+                mock(RiskRuleCacheInvalidationCoordinator.class),
+                mock(ExcelExportService.class),
+                mock(ExcelI18nMessageResolver.class),
+                mock(ExcelLocaleResolver.class),
+                merchantMapper,
+                mock(MerchantAccessApprovalNotificationService.class)
+        );
+
+        List<RiskDTOs.MerchantRiskRankingResponse> result = service.merchantRiskRanking();
+
+        assertThat(result).singleElement()
+                .satisfies(row -> assertThat(row.getMerchantName())
+                        .isEqualTo("Scott Payment Merchant 200045"));
     }
 
     @Test
@@ -199,6 +236,22 @@ class AdminRiskManagementApplicationServiceTests {
         assertThatThrownBy(() -> service.pageEvaluationDetails("  ", null))
                 .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class)
                 .hasMessageContaining("风控记录号不能为空");
+    }
+
+    @Test
+    void shouldKeepTrustedPaymentBrandForDerivedCardNumber() {
+        InternalAuthAccount operator = new InternalAuthAccount();
+        operator.setPermissions(List.of("*:*:*"));
+        InternalAuthContextHolder.set(operator);
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        AdminRiskManagementApplicationService service = service(mapper);
+        RiskDTOs.RiskListSaveRequest request = new RiskDTOs.RiskListSaveRequest();
+
+        AdminRiskManagementApplicationService.DerivedListPlan plan = service.prepareDerivedList(
+                "cardNo", "GLOBAL", null, request,
+                "344676******3887", "trusted-card-hash", "AMEX", "ADD");
+
+        assertThat(plan.data()).containsEntry("cardBrand", "AMEX");
     }
 
     /**
@@ -260,6 +313,7 @@ class AdminRiskManagementApplicationServiceTests {
                 mapper,
                 mock(AdminRiskAuditMapper.class),
                 disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
@@ -347,6 +401,7 @@ class AdminRiskManagementApplicationServiceTests {
                 mapper,
                 auditMapper,
                 properties,
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
