@@ -22,6 +22,8 @@ import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.S
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementReservePageResponse;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementTransactionPageRequest;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementTransactionPageResponse;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementBatchSummaryPageRequest;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementBatchSummaryPageResponse;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementPostingPageRequest;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementPostingPageResponse;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementReviewPageRequest;
@@ -247,6 +249,16 @@ public class AdminWorkItemExportSourceRestClient
             SettlementTransactionPageRequest request) {
         return post(SETTLEMENT_TRANSACTION_PATH, request,
                 new TypeReference<CommonResult<SettlementTransactionPageResponse>>() { });
+    }
+
+    /**
+     * 复用已批准的结算结果内部路径读取批次摘要投影，避免扩大内部网络白名单。
+     */
+    @Override
+    public SettlementBatchSummaryPageResponse loadSettlementBatchSummaryPage(
+            SettlementBatchSummaryPageRequest request) {
+        return post(SETTLEMENT_TRANSACTION_PATH, request,
+                new TypeReference<CommonResult<SettlementBatchSummaryPageResponse>>() { });
     }
 
     /**

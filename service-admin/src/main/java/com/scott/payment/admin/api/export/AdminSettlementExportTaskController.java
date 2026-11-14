@@ -2,6 +2,7 @@ package com.scott.payment.admin.api.export;
 
 import com.scott.payment.admin.application.export.AdminExportTaskApplicationService;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementBatchSummarySubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementPostingSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReviewSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementTransactionSubmitRequest;
@@ -43,6 +44,16 @@ public class AdminSettlementExportTaskController {
     public CommonResult<TaskSummary> submitTransactions(
             @Valid @RequestBody SettlementTransactionSubmitRequest request) {
         return success(applicationService.submitSettlementTransactions(request));
+    }
+
+    /** 冻结批次号和当前账号数据范围并创建结算结果摘要后台导出任务。 */
+    @PostMapping("/batch-summaries/export-task")
+    @RequiresPermission("settlement:batch:summary:export")
+    @OperationLog(moduleName = "结算批次摘要", businessType = OperationTypeConstants.EXPORT,
+            operation = "创建结算批次摘要导出任务")
+    public CommonResult<TaskSummary> submitBatchSummary(
+            @Valid @RequestBody SettlementBatchSummarySubmitRequest request) {
+        return success(applicationService.submitSettlementBatchSummary(request));
     }
 
     /**

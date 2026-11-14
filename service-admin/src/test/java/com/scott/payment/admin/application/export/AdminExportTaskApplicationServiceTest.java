@@ -29,6 +29,7 @@ import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RegionCurrency
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.JobRunLogSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotificationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementBatchSummarySubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementTransactionSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TaskSummary;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.TradeBlackSubmitRequest;
@@ -320,6 +321,11 @@ class AdminExportTaskApplicationServiceTest {
         transactionRequest.setQuery(transactionQuery);
         service.submitSettlementTransactions(transactionRequest);
 
+        SettlementBatchSummarySubmitRequest summaryRequest = new SettlementBatchSummarySubmitRequest();
+        summaryRequest.setRequestId("settlement-summary-export-1");
+        summaryRequest.setSettlementBatchNo(" STB4001 ");
+        service.submitSettlementBatchSummary(summaryRequest);
+
         ReserveItemSearchRequest reserveQuery = new ReserveItemSearchRequest();
         reserveQuery.setReserveNo("RSV4001");
         reserveQuery.setCurrency("USD");
@@ -333,9 +339,10 @@ class AdminExportTaskApplicationServiceTest {
         service.submitSettlementReserves(reserveRequest);
 
         ArgumentCaptor<CreateRequest> captor = ArgumentCaptor.forClass(CreateRequest.class);
-        verify(client, org.mockito.Mockito.times(2)).submit(captor.capture());
+        verify(client, org.mockito.Mockito.times(3)).submit(captor.capture());
         CreateRequest transactionCommand = captor.getAllValues().get(0);
-        CreateRequest reserveCommand = captor.getAllValues().get(1);
+        CreateRequest summaryCommand = captor.getAllValues().get(1);
+        CreateRequest reserveCommand = captor.getAllValues().get(2);
         assertThat(transactionCommand.getTaskType()).isEqualTo("ADMIN_SETTLEMENT_TRANSACTION");
         assertThat(transactionCommand.getSettlementTransactionQuery().getSettlementBatchNo())
                 .isEqualTo("STB4001");
@@ -343,6 +350,10 @@ class AdminExportTaskApplicationServiceTest {
         assertThat(java.util.Arrays.stream(transactionCommand.getSettlementTransactionQuery()
                         .getClass().getDeclaredFields()).map(java.lang.reflect.Field::getName))
                 .doesNotContain("pageNo", "pageSize");
+        assertThat(summaryCommand.getTaskType()).isEqualTo("ADMIN_SETTLEMENT_BATCH_SUMMARY");
+        assertThat(summaryCommand.getSettlementBatchSummaryQuery().getSettlementBatchNo())
+                .isEqualTo("STB4001");
+        assertThat(summaryCommand.getMerchantIds()).containsExactly("M4001");
         assertThat(reserveCommand.getTaskType()).isEqualTo("ADMIN_SETTLEMENT_RESERVE");
         assertThat(reserveCommand.getSettlementReserveQuery().getReserveNo()).isEqualTo("RSV4001");
         assertThat(reserveCommand.getSettlementReserveQuery().getCurrency()).isEqualTo("USD");

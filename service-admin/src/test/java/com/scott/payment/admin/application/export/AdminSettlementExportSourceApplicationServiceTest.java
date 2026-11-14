@@ -11,6 +11,7 @@ import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultSummaryLine;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
@@ -19,6 +20,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearch
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
 import com.scott.payment.admin.service.AdminSettlementReviewQueryService;
+import com.scott.payment.admin.service.AdminSettlementQueryService;
 import com.scott.payment.component.core.model.PageResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -58,7 +60,8 @@ class AdminSettlementExportSourceApplicationServiceTest {
                 .thenReturn(PageResult.of(1L, 3L, 50L, List.of(source)));
         AdminSettlementExportSourceApplicationService service =
                 new AdminSettlementExportSourceApplicationService(queryService,
-                        mock(AdminSettlementReviewQueryService.class));
+                        mock(AdminSettlementReviewQueryService.class),
+                        mock(AdminSettlementQueryService.class));
         SettlementTransactionQuery query = new SettlementTransactionQuery();
         query.setSettlementBatchNo("STB1001");
         query.setBeginBusinessDate(LocalDate.of(2026, 11, 1));
@@ -110,7 +113,8 @@ class AdminSettlementExportSourceApplicationServiceTest {
                 .thenReturn(PageResult.of(1L, 2L, 100L, List.of(source)));
         AdminSettlementExportSourceApplicationService service =
                 new AdminSettlementExportSourceApplicationService(queryService,
-                        mock(AdminSettlementReviewQueryService.class));
+                        mock(AdminSettlementReviewQueryService.class),
+                        mock(AdminSettlementQueryService.class));
         SettlementReserveQuery query = new SettlementReserveQuery();
         query.setReserveNo("RSV2001");
         query.setBeginBusinessDate(LocalDate.of(2026, 11, 1));
@@ -166,7 +170,8 @@ class AdminSettlementExportSourceApplicationServiceTest {
         when(reportingService.searchPostings(any(), any()))
                 .thenReturn(PageResult.of(1L, 1L, 100L, List.of(posting)));
         AdminSettlementExportSourceApplicationService service =
-                new AdminSettlementExportSourceApplicationService(reportingService, reviewService);
+                new AdminSettlementExportSourceApplicationService(reportingService, reviewService,
+                        mock(AdminSettlementQueryService.class));
 
         SettlementReviewQuery reviewQuery = new SettlementReviewQuery();
         reviewQuery.setReviewStatus("PENDING_APPROVAL");
@@ -208,6 +213,51 @@ class AdminSettlementExportSourceApplicationServiceTest {
             assertThat(row.getAmount()).isEqualByComparingTo("120.00");
             assertThat(row.getBalanceBefore()).isEqualByComparingTo("20.00");
             assertThat(row.getBalanceAfter()).isEqualByComparingTo("140.00");
+        });
+    }
+
+    /** 批次摘要投影必须复用冻结商户范围并直接透传不可变聚合金额。 */
+    @Test
+    void shouldPageBatchSummaryThroughFrozenScopeProjection() {
+        AdminSettlementQueryService batchQueryService = mock(AdminSettlementQueryService.class);
+        ResultSummaryLine source = new ResultSummaryLine();
+        source.setPaymentType("CARD");
+        source.setPaymentMethod("VISA");
+        source.setSourceCurrency("EUR");
+        source.setSourceAmount(new BigDecimal("80.00"));
+        source.setTargetCurrency("USD");
+        source.setTargetAmount(new BigDecimal("88.00"));
+        source.setTransactionCount(4L);
+        when(batchQueryService.searchResultSummaries(any(), any(), any(), any()))
+                .thenReturn(PageResult.of(1L, 2L, 50L, List.of(source)));
+        AdminSettlementExportSourceApplicationService service =
+                new AdminSettlementExportSourceApplicationService(
+                        mock(AdminSettlementReportingQueryService.class),
+                        mock(AdminSettlementReviewQueryService.class), batchQueryService);
+        SettlementTransactionQuery query = new SettlementTransactionQuery();
+        query.setSettlementBatchNo("STB-SUMMARY-1");
+        SettlementTransactionPageRequest request = new SettlementTransactionPageRequest();
+        request.setCreatorAccountId(88L);
+        request.setMerchantIds(Set.of("M8001"));
+        request.setSummaryProjection(true);
+        request.setQuery(query);
+        request.setPageNo(2);
+        request.setPageSize(50);
+
+        var response = service.pageTransactions(request);
+
+        ArgumentCaptor<AdminMerchantDataScope> scopeCaptor =
+                ArgumentCaptor.forClass(AdminMerchantDataScope.class);
+        verify(batchQueryService).searchResultSummaries(
+                org.mockito.ArgumentMatchers.eq("STB-SUMMARY-1"),
+                org.mockito.ArgumentMatchers.eq(2),
+                org.mockito.ArgumentMatchers.eq(50), scopeCaptor.capture());
+        assertThat(scopeCaptor.getValue().merchantIds()).containsExactly("M8001");
+        assertThat(response.getRecords()).isEmpty();
+        assertThat(response.getSummaryRecords()).singleElement().satisfies(row -> {
+            assertThat(row.getSourceAmount()).isEqualByComparingTo("80.00");
+            assertThat(row.getTargetAmount()).isEqualByComparingTo("88.00");
+            assertThat(row.getTransactionCount()).isEqualTo(4L);
         });
     }
 }

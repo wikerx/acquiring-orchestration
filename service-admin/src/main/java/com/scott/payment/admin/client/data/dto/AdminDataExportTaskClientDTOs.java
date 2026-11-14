@@ -40,6 +40,7 @@ public final class AdminDataExportTaskClientDTOs {
         private MerchantNotificationQuery merchantNotificationQuery;
         private RefundQuery refundQuery;
         private SettlementTransactionQuery settlementTransactionQuery;
+        private SettlementBatchSummaryQuery settlementBatchSummaryQuery;
         private SettlementReserveQuery settlementReserveQuery;
         private CardBinQuery cardBinQuery;
         private CountryQuery countryQuery;
@@ -230,6 +231,13 @@ public final class AdminDataExportTaskClientDTOs {
         private String sourceDetailType;
         private LocalDate beginBusinessDate;
         private LocalDate endBusinessDate;
+    }
+
+    /** 单个结算批次结果摘要导出快照。 */
+    @Data
+    public static class SettlementBatchSummaryQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String settlementBatchNo;
     }
 
     /**

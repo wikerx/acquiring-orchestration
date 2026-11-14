@@ -143,6 +143,15 @@ public final class ExportTaskInternalDTOs {
         private LocalDate endBusinessDate;
     }
 
+    /** 管理端单个结算批次结果摘要导出快照。 */
+    @Data
+    public static class SettlementBatchSummaryQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank
+        @Size(max = 64)
+        private String settlementBatchNo;
+    }
+
     /**
      * 管理端保证金结算明细导出条件快照，不包含页面分页参数和可信商户范围。
      */
@@ -733,6 +742,8 @@ public final class ExportTaskInternalDTOs {
         private RefundQuery refundQuery;
         @Valid
         private SettlementTransactionQuery settlementTransactionQuery;
+        @Valid
+        private SettlementBatchSummaryQuery settlementBatchSummaryQuery;
         @Valid
         private SettlementReserveQuery settlementReserveQuery;
         @Valid

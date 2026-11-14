@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,9 @@ class TransactionPersistenceMapperContractTests {
         Map<String, Object> governance = childMap(sharding, "governance");
         Map<String, Object> maintenance = childMap(governance, "table-maintenance");
         Map<String, Object> tables = childMap(governance, "tables");
+        Map<String, Object> riskAuditSharding = childMap(root, "risk-audit-sharding");
+        List<String> governedLogicTables = new ArrayList<>(TransactionShardingProperties.defaultLogicTables());
+        governedLogicTables.addAll(childList(riskAuditSharding, "logic-tables"));
 
         assertThat(root).doesNotContainKey("global-payment");
         assertThat(sharding).doesNotContainKey("mode");
@@ -57,16 +61,21 @@ class TransactionPersistenceMapperContractTests {
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
         assertThat(maintenance).containsEntry("allow-create-from-template-table", true)
                 .containsEntry("allow-alter-existing-table", false);
-        assertThat(tables).hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT);
+        assertThat(tables).hasSize(governedLogicTables.size());
         assertThat(tables.values()).allSatisfy(value -> {
             assertThat(value).isInstanceOf(Map.class);
             @SuppressWarnings("unchecked")
             Map<String, Object> rule = (Map<String, Object>) value;
             assertThat(rule.get("logical-table"))
-                    .isIn(TransactionShardingProperties.defaultLogicTables().toArray());
+                    .isIn(governedLogicTables.toArray());
             assertThat(rule).containsEntry("template-table", rule.get("logical-table"))
                     .containsEntry("end-year", 2099);
         });
+        List<String> configuredGovernanceTables = tables.values().stream()
+                .map(value -> String.valueOf(((Map<?, ?>) value).get("logical-table")))
+                .toList();
+        assertThat(configuredGovernanceTables)
+                .containsExactlyInAnyOrderElementsOf(governedLogicTables);
     }
 
     @Test

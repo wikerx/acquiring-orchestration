@@ -4,6 +4,8 @@ import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.S
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementReservePageResponse;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementTransactionPageRequest;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementTransactionPageResponse;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementBatchSummaryPageRequest;
+import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementBatchSummaryPageResponse;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementPostingPageRequest;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementPostingPageResponse;
 import com.scott.payment.data.client.admin.dto.AdminSettlementExportSourceDTOs.SettlementReviewPageRequest;
@@ -19,6 +21,10 @@ public interface AdminSettlementExportSourceClient {
      */
     SettlementTransactionPageResponse loadSettlementTransactionPage(
             SettlementTransactionPageRequest request);
+
+    /** 按冻结批次号和商户范围读取一页结算结果摘要。 */
+    SettlementBatchSummaryPageResponse loadSettlementBatchSummaryPage(
+            SettlementBatchSummaryPageRequest request);
 
     /**
      * 按冻结条件和商户范围读取一页保证金结算明细。

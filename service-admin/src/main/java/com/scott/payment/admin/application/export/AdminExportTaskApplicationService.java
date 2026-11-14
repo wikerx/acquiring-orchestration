@@ -41,6 +41,7 @@ import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.Wor
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.TransactionOrderQuery;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.SettlementReserveQuery;
+import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.SettlementBatchSummaryQuery;
 import com.scott.payment.admin.client.data.dto.AdminDataExportTaskClientDTOs.SettlementTransactionQuery;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.MerchantNotificationSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.CardBinSubmitRequest;
@@ -78,6 +79,7 @@ import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RefundSubmitRe
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.RetryRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SearchRequestDTO;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReserveSubmitRequest;
+import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementBatchSummarySubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SecurityInterceptEventSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementPostingSubmitRequest;
 import com.scott.payment.admin.dto.exporttask.AdminExportTaskDTOs.SettlementReviewSubmitRequest;
@@ -120,6 +122,7 @@ public class AdminExportTaskApplicationService {
     private static final String MERCHANT_NOTIFICATION = "ADMIN_MERCHANT_NOTIFICATION";
     private static final String REFUND = "ADMIN_REFUND";
     private static final String SETTLEMENT_TRANSACTION = "ADMIN_SETTLEMENT_TRANSACTION";
+    private static final String SETTLEMENT_BATCH_SUMMARY = "ADMIN_SETTLEMENT_BATCH_SUMMARY";
     private static final String SETTLEMENT_RESERVE = "ADMIN_SETTLEMENT_RESERVE";
     private static final String CARD_BIN = "ADMIN_CARD_BIN";
     private static final String COUNTRY = "ADMIN_COUNTRY";
@@ -234,6 +237,20 @@ public class AdminExportTaskApplicationService {
         CreateRequest command = createRequest(
                 request.getRequestId(), SETTLEMENT_TRANSACTION, account, scope);
         command.setSettlementTransactionQuery(toSettlementTransactionQuery(request.getQuery()));
+        return dataClient.submit(command);
+    }
+
+    /**
+     * 冻结结算批次号和当前账号商户范围后幂等创建结果摘要导出任务。
+     */
+    public TaskSummary submitSettlementBatchSummary(SettlementBatchSummarySubmitRequest request) {
+        InternalAuthAccount account = currentAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        CreateRequest command = createRequest(
+                request.getRequestId(), SETTLEMENT_BATCH_SUMMARY, account, scope);
+        SettlementBatchSummaryQuery query = new SettlementBatchSummaryQuery();
+        query.setSettlementBatchNo(request.getSettlementBatchNo().trim());
+        command.setSettlementBatchSummaryQuery(query);
         return dataClient.submit(command);
     }
 
@@ -1349,6 +1366,7 @@ public class AdminExportTaskApplicationService {
             case MERCHANT_NOTIFICATION -> chinese ? "商户通知记录导出" : "Merchant Notification Export";
             case REFUND -> chinese ? "退款管理导出" : "Refund Management Export";
             case SETTLEMENT_TRANSACTION -> chinese ? "结算交易明细导出" : "Settlement Transaction Export";
+            case SETTLEMENT_BATCH_SUMMARY -> chinese ? "结算批次摘要导出" : "Settlement Batch Summary Export";
             case SETTLEMENT_RESERVE -> chinese ? "保证金结算明细导出" : "Settlement Reserve Export";
             case CARD_BIN -> chinese ? "卡 BIN 库导出" : "Card BIN Export";
             case COUNTRY -> chinese ? "国家和地区导出" : "Country and Region Export";

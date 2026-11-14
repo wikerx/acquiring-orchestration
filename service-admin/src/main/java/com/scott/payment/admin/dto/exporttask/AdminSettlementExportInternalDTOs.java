@@ -80,6 +80,8 @@ public final class AdminSettlementExportInternalDTOs {
         private Long creatorAccountId;
         private boolean allMerchants;
         private Set<String> merchantIds = new LinkedHashSet<>();
+        /** true 时返回批次结果摘要投影，复用既有签名白名单路径。 */
+        private boolean summaryProjection;
         @Valid
         @NotNull
         private SettlementTransactionQuery query;
@@ -124,6 +126,7 @@ public final class AdminSettlementExportInternalDTOs {
         private long pageNo;
         private long pageSize;
         private List<SettlementTransactionRow> records = new ArrayList<>();
+        private List<SettlementBatchSummaryRow> summaryRecords = new ArrayList<>();
     }
 
     /**
@@ -161,6 +164,23 @@ public final class AdminSettlementExportInternalDTOs {
         private BigDecimal netTargetAmount;
         private String targetCurrency;
         private LocalDateTime postedTime;
+    }
+
+    /** 结算批次结果摘要安全行，不包含内部主键或渠道原始数据。 */
+    @Data
+    public static class SettlementBatchSummaryRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String paymentType;
+        private String paymentMethod;
+        private String transactionType;
+        private String resultItemType;
+        private String feeCategory;
+        private String direction;
+        private String sourceCurrency;
+        private BigDecimal sourceAmount;
+        private String targetCurrency;
+        private BigDecimal targetAmount;
+        private Long transactionCount;
     }
 
     /**

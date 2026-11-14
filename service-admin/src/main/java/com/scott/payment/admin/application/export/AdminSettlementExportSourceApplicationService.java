@@ -6,6 +6,7 @@ import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionPageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementTransactionRow;
+import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementBatchSummaryRow;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewPageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewPageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReviewRow;
@@ -16,6 +17,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSe
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultSummaryLine;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
@@ -23,6 +25,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSummar
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
 import com.scott.payment.admin.service.AdminSettlementReviewQueryService;
+import com.scott.payment.admin.service.AdminSettlementQueryService;
 import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
@@ -33,15 +36,18 @@ import org.springframework.stereotype.Service;
 public class AdminSettlementExportSourceApplicationService {
     private final AdminSettlementReportingQueryService reportingQueryService;
     private final AdminSettlementReviewQueryService reviewQueryService;
+    private final AdminSettlementQueryService batchQueryService;
 
     /**
      * 创建结算异步导出来源服务。
      */
     public AdminSettlementExportSourceApplicationService(
             AdminSettlementReportingQueryService reportingQueryService,
-            AdminSettlementReviewQueryService reviewQueryService) {
+            AdminSettlementReviewQueryService reviewQueryService,
+            AdminSettlementQueryService batchQueryService) {
         this.reportingQueryService = reportingQueryService;
         this.reviewQueryService = reviewQueryService;
+        this.batchQueryService = batchQueryService;
     }
 
     /**
@@ -49,6 +55,9 @@ public class AdminSettlementExportSourceApplicationService {
      */
     public SettlementTransactionPageResponse pageTransactions(
             SettlementTransactionPageRequest request) {
+        if (request.isSummaryProjection()) {
+            return pageBatchSummary(request);
+        }
         PageResult<TransactionSettlementSummary> page = reportingQueryService.searchResultItems(
                 toTransactionQuery(request), dataScope(request.isAllMerchants(), request.getMerchantIds()));
         SettlementTransactionPageResponse response = new SettlementTransactionPageResponse();
@@ -56,6 +65,22 @@ public class AdminSettlementExportSourceApplicationService {
         response.setPageNo(page.getPageNo());
         response.setPageSize(page.getPageSize());
         response.setRecords(page.getRecords().stream().map(this::toTransactionRow).toList());
+        return response;
+    }
+
+    /**
+     * 在既有签名白名单路径上分页返回单批次结果摘要，批次归属仍由查询服务按冻结范围复核。
+     */
+    private SettlementTransactionPageResponse pageBatchSummary(
+            SettlementTransactionPageRequest request) {
+        PageResult<ResultSummaryLine> page = batchQueryService.searchResultSummaries(
+                request.getQuery().getSettlementBatchNo(), request.getPageNo(), request.getPageSize(),
+                dataScope(request.isAllMerchants(), request.getMerchantIds()));
+        SettlementTransactionPageResponse response = new SettlementTransactionPageResponse();
+        response.setTotal(page.getTotal());
+        response.setPageNo(page.getPageNo());
+        response.setPageSize(page.getPageSize());
+        response.setSummaryRecords(page.getRecords().stream().map(this::toBatchSummaryRow).toList());
         return response;
     }
 
@@ -216,6 +241,23 @@ public class AdminSettlementExportSourceApplicationService {
         row.setNetTargetAmount(source.getNetTargetAmount());
         row.setTargetCurrency(source.getTargetCurrency());
         row.setPostedTime(source.getPostedTime());
+        return row;
+    }
+
+    /** 将聚合结果投影为不重新计算金额的批次摘要安全行。 */
+    private SettlementBatchSummaryRow toBatchSummaryRow(ResultSummaryLine source) {
+        SettlementBatchSummaryRow row = new SettlementBatchSummaryRow();
+        row.setPaymentType(source.getPaymentType());
+        row.setPaymentMethod(source.getPaymentMethod());
+        row.setTransactionType(source.getTransactionType());
+        row.setResultItemType(source.getResultItemType());
+        row.setFeeCategory(source.getFeeCategory());
+        row.setDirection(source.getDirection());
+        row.setSourceCurrency(source.getSourceCurrency());
+        row.setSourceAmount(source.getSourceAmount());
+        row.setTargetCurrency(source.getTargetCurrency());
+        row.setTargetAmount(source.getTargetAmount());
+        row.setTransactionCount(source.getTransactionCount());
         return row;
     }
 

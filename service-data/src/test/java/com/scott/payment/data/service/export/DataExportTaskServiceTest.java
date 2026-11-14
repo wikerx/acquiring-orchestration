@@ -32,6 +32,7 @@ import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantIp
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.RiskConfigQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.DatasourceSnapshotQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementReserveQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementBatchSummaryQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementTransactionQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.TransactionOrderQuery;
 import com.scott.payment.data.config.export.DataExportProperties;
@@ -86,6 +87,7 @@ import static com.scott.payment.data.service.export.DataExportTaskService.APP_AD
 import static com.scott.payment.data.service.export.DataExportTaskService.APP_MERCHANT;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_MERCHANT_NOTIFICATION;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SETTLEMENT_RESERVE;
+import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SETTLEMENT_BATCH_SUMMARY;
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SETTLEMENT_TRANSACTION;
 import static com.scott.payment.data.service.export.DataExportTaskService.MERCHANT_TRANSACTION_OPERATION;
 import static com.scott.payment.data.service.export.DataExportTaskService.MERCHANT_SETTLEMENT_RESERVE;
@@ -372,6 +374,28 @@ class DataExportTaskServiceTest {
         assertThat(transactionTask.getTaskType()).isEqualTo(ADMIN_SETTLEMENT_TRANSACTION);
         assertThat(transactionTask.getQuerySnapshot()).contains("STB5001");
         assertThat(transactionTask.getQuerySnapshot()).doesNotContain("workItemNo");
+
+        Fixture summaryFixture = fixture();
+        CreateRequest summaryRequest = createRequest();
+        summaryRequest.setRequestId("request-summary-001");
+        summaryRequest.setTaskType(ADMIN_SETTLEMENT_BATCH_SUMMARY);
+        summaryRequest.setWorkItemQuery(null);
+        SettlementBatchSummaryQuery summaryQuery = new SettlementBatchSummaryQuery();
+        summaryQuery.setSettlementBatchNo("STB-SUMMARY-5001");
+        summaryRequest.setSettlementBatchSummaryQuery(summaryQuery);
+        when(summaryFixture.taskMapper.selectOwned(anyString(), eq(APP_ADMIN), eq(88L), isNull()))
+                .thenAnswer(invocation -> {
+                    DataExportTaskDO task = summaryFixture.insertedTask.getValue();
+                    task.setId(13L);
+                    return task;
+                });
+
+        summaryFixture.service.submit(summaryRequest);
+
+        DataExportTaskDO summaryTask = summaryFixture.insertedTask.getValue();
+        assertThat(summaryTask.getTaskType()).isEqualTo(ADMIN_SETTLEMENT_BATCH_SUMMARY);
+        assertThat(summaryTask.getQuerySnapshot()).contains("STB-SUMMARY-5001");
+        assertThat(summaryTask.getQuerySnapshot()).doesNotContain("workItemNo");
 
         Fixture reserveFixture = fixture();
         CreateRequest reserveRequest = createRequest();

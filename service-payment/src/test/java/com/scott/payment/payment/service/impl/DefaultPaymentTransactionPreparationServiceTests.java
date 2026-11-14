@@ -228,6 +228,10 @@ class DefaultPaymentTransactionPreparationServiceTests {
                     .thenReturn(Optional.of(new IsoCurrencyInfo(
                             "USD", "840", "US Dollar", "美元", 2, 100L,
                             new BigDecimal("0.01"), "$")));
+            when(isoDictionaryService.getCurrency("EUR"))
+                    .thenReturn(Optional.of(new IsoCurrencyInfo(
+                            "EUR", "978", "Euro", "欧元", 2, 100L,
+                            new BigDecimal("0.01"), "€")));
             when(isoDictionaryService.toMinorUnit(any(BigDecimal.class), eq("USD")))
                     .thenAnswer(invocation -> ((BigDecimal) invocation.getArgument(0))
                             .movePointRight(2).longValueExact());

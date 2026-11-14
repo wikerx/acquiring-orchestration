@@ -4,6 +4,7 @@ import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.Settlement
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementPostingQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementReviewQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementTransactionQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementBatchSummaryQuery;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -36,6 +37,7 @@ public final class AdminSettlementExportSourceDTOs {
         private boolean allMerchants;
         private Set<String> merchantIds = new LinkedHashSet<>();
         private SettlementTransactionQuery query;
+        private boolean summaryProjection;
         private Integer pageNo;
         private Integer pageSize;
     }
@@ -64,6 +66,30 @@ public final class AdminSettlementExportSourceDTOs {
         private long pageNo;
         private long pageSize;
         private List<SettlementTransactionRow> records = new ArrayList<>();
+        private List<SettlementBatchSummaryRow> summaryRecords = new ArrayList<>();
+    }
+
+    /** 一页结算批次结果摘要来源请求。 */
+    @Data
+    public static class SettlementBatchSummaryPageRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private Long creatorAccountId;
+        private boolean allMerchants;
+        private Set<String> merchantIds = new LinkedHashSet<>();
+        private boolean summaryProjection = true;
+        private SettlementBatchSummaryQuery query;
+        private Integer pageNo;
+        private Integer pageSize;
+    }
+
+    /** 一页结算批次结果摘要及总行数。 */
+    @Data
+    public static class SettlementBatchSummaryPageResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private long total;
+        private long pageNo;
+        private long pageSize;
+        private List<SettlementBatchSummaryRow> summaryRecords = new ArrayList<>();
     }
 
     /**
@@ -101,6 +127,23 @@ public final class AdminSettlementExportSourceDTOs {
         private BigDecimal netTargetAmount;
         private String targetCurrency;
         private LocalDateTime postedTime;
+    }
+
+    /** 结算批次结果摘要安全行。 */
+    @Data
+    public static class SettlementBatchSummaryRow implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String paymentType;
+        private String paymentMethod;
+        private String transactionType;
+        private String resultItemType;
+        private String feeCategory;
+        private String direction;
+        private String sourceCurrency;
+        private BigDecimal sourceAmount;
+        private String targetCurrency;
+        private BigDecimal targetAmount;
+        private Long transactionCount;
     }
 
     /**

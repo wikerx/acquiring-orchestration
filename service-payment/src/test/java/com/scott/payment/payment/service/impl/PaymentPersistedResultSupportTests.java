@@ -128,6 +128,14 @@ class PaymentPersistedResultSupportTests {
 
     private TransactionOrderDO successfulPaymentOrder() {
         TransactionOrderDO order = new TransactionOrderDO();
+        order.setLabelCurrency("USD");
+        order.setLabelCurrencyExponent(2);
+        order.setLabelAmount(new java.math.BigDecimal("12.34"));
+        order.setLabelAuthorizedAmount(new java.math.BigDecimal("12.34"));
+        order.setLabelAuthorizedCancelAmount(java.math.BigDecimal.ZERO);
+        order.setLabelCapturedAmount(new java.math.BigDecimal("12.34"));
+        order.setLabelRefundedAmount(java.math.BigDecimal.ZERO);
+        order.setLabelChargebackAmount(java.math.BigDecimal.ZERO);
         order.setTransactionAmount(new java.math.BigDecimal("12.34"));
         order.setCapturedAmount(new java.math.BigDecimal("12.34"));
         order.setAuthorizedAmount(new java.math.BigDecimal("12.34"));
@@ -139,6 +147,8 @@ class PaymentPersistedResultSupportTests {
 
     private TransactionOrderDO failedPaymentOrder() {
         TransactionOrderDO order = successfulPaymentOrder();
+        order.setLabelCapturedAmount(java.math.BigDecimal.ZERO);
+        order.setLabelAuthorizedAmount(java.math.BigDecimal.ZERO);
         order.setCapturedAmount(java.math.BigDecimal.ZERO);
         order.setAuthorizedAmount(java.math.BigDecimal.ZERO);
         return order;

@@ -153,14 +153,14 @@ public class PaymentTransactionLogicalMapperPocTest {
         direct.update("""
                 INSERT INTO transaction_operation_202603
                 (operation_id, transaction_id, transaction_status, process_stage,
-                 transaction_date_time, version, deleted)
-                VALUES (?, ?, 'PROCESSING', 'CHANNEL_REQUESTING', ?, 0, 0)
+                 label_currency_exponent, transaction_date_time, version, deleted)
+                VALUES (?, ?, 'PROCESSING', 'CHANNEL_REQUESTING', 2, ?, 0, 0)
                 """, "OP-FAIL-001", "TX-FAIL-001", transactionTime);
         direct.update("""
                 INSERT INTO transaction_order_202603
                 (operation_id, transaction_status, process_stage,
-                 transaction_date_time, version, deleted)
-                VALUES (?, 'PROCESSING', 'CHANNEL_REQUESTING', ?, 0, 0)
+                 label_currency_exponent, transaction_date_time, version, deleted)
+                VALUES (?, 'PROCESSING', 'CHANNEL_REQUESTING', 2, ?, 0, 0)
                 """, "OP-FAIL-001", transactionTime);
 
         try (SqlSession session = sqlSessionFactory().openSession(false)) {
@@ -262,6 +262,7 @@ public class PaymentTransactionLogicalMapperPocTest {
         TransactionOrderDO result = new TransactionOrderDO();
         result.setOperationId(operationId);
         result.setTransactionStatus("PROCESSING");
+        result.setLabelCurrencyExponent(2);
         result.setTransactionDateTime(transactionDateTime);
         result.setVersion(0);
         result.setDeleted(0);
@@ -275,6 +276,7 @@ public class PaymentTransactionLogicalMapperPocTest {
         result.setOperationId(operationId);
         result.setTransactionId(transactionId);
         result.setTransactionStatus("PROCESSING");
+        result.setLabelCurrencyExponent(2);
         result.setTransactionDateTime(transactionDateTime);
         result.setVersion(0);
         result.setDeleted(0);
@@ -338,13 +340,20 @@ public class PaymentTransactionLogicalMapperPocTest {
                     + "transaction_status VARCHAR(32), process_stage VARCHAR(64), pending_reason_code VARCHAR(64), "
                     + "fail_reason_code VARCHAR(64), fail_reason_message VARCHAR(512), "
                     + "merchant_visible_message VARCHAR(512), payer_visible_message VARCHAR(512), "
-                    + "label_currency CHAR(3), label_amount DECIMAL(20,6), "
+                    + "label_currency CHAR(3), label_amount DECIMAL(20,6), label_currency_exponent TINYINT NOT NULL, "
                     + "transaction_currency CHAR(3), transaction_amount DECIMAL(20,6), "
                     + "channel_request_currency CHAR(3), channel_request_amount DECIMAL(20,6), "
                     + "settlement_currency CHAR(3), settlement_amount DECIMAL(24,8), "
                     + "settlement_rate DECIMAL(24,12), settlement_date DATE, "
                     + "currency_exponent INT, dcc_enabled INT, edc_enabled INT, "
                     + "transaction_rate DECIMAL(24,12), rate_source VARCHAR(64), rate_time TIMESTAMP(3), "
+                    + "label_authorized_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000, "
+                    + "label_authorized_cancel_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000, "
+                    + "label_captured_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000, "
+                    + "label_refunded_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000, "
+                    + "label_chargeback_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000, "
+                    + "label_available_capture_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000, "
+                    + "label_available_refund_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000, "
                     + "authorized_amount DECIMAL(20,6), authorized_cancel_amount DECIMAL(20,6), "
                     + "captured_amount DECIMAL(20,6), refunded_amount DECIMAL(20,6), "
                     + "chargeback_amount DECIMAL(20,6), available_capture_amount DECIMAL(20,6), "
@@ -374,7 +383,7 @@ public class PaymentTransactionLogicalMapperPocTest {
                     + "applicant_name VARCHAR(128), execution_mode VARCHAR(32), operation_sequence INT, "
                     + "transaction_type VARCHAR(32), transaction_status VARCHAR(32), process_stage VARCHAR(64), "
                     + "pending_reason_code VARCHAR(64), fail_reason_code VARCHAR(64), fail_reason_message VARCHAR(512), "
-                    + "label_currency CHAR(3), label_amount DECIMAL(20,6), "
+                    + "label_currency CHAR(3), label_amount DECIMAL(20,6), label_currency_exponent TINYINT NOT NULL, "
                     + "transaction_currency CHAR(3), transaction_amount DECIMAL(20,6), "
                     + "approved_currency CHAR(3), approved_amount DECIMAL(20,6), "
                     + "channel_request_currency CHAR(3), channel_request_amount DECIMAL(20,6), "

@@ -50,6 +50,7 @@ public class DataExportTaskService {
     public static final String ADMIN_MERCHANT_NOTIFICATION = "ADMIN_MERCHANT_NOTIFICATION";
     public static final String ADMIN_REFUND = "ADMIN_REFUND";
     public static final String ADMIN_SETTLEMENT_TRANSACTION = "ADMIN_SETTLEMENT_TRANSACTION";
+    public static final String ADMIN_SETTLEMENT_BATCH_SUMMARY = "ADMIN_SETTLEMENT_BATCH_SUMMARY";
     public static final String ADMIN_SETTLEMENT_RESERVE = "ADMIN_SETTLEMENT_RESERVE";
     public static final String ADMIN_CARD_BIN = "ADMIN_CARD_BIN";
     public static final String ADMIN_COUNTRY = "ADMIN_COUNTRY";
@@ -98,7 +99,7 @@ public class DataExportTaskService {
     private static final Set<String> SUPPORTED_TASK_TYPES = Set.of(
             ADMIN_OPERATIONAL_WORK_ITEM, ADMIN_TRANSACTION_ORDER, ADMIN_TRANSACTION_OPERATION,
             ADMIN_MERCHANT_NOTIFICATION, ADMIN_REFUND,
-            ADMIN_SETTLEMENT_TRANSACTION, ADMIN_SETTLEMENT_RESERVE,
+            ADMIN_SETTLEMENT_TRANSACTION, ADMIN_SETTLEMENT_BATCH_SUMMARY, ADMIN_SETTLEMENT_RESERVE,
             ADMIN_CARD_BIN, ADMIN_COUNTRY, ADMIN_CURRENCY, ADMIN_REGION_CURRENCY, ADMIN_MCC_CODE,
             ADMIN_DEPARTMENT, ADMIN_POST, ADMIN_DICT_TYPE, ADMIN_DICT_DATA, ADMIN_HOLIDAY_CALENDAR,
             ADMIN_JOB_RUN_LOG, ADMIN_CHANNEL_MATCH_ABNORMAL,
@@ -577,6 +578,7 @@ public class DataExportTaskService {
             case ADMIN_MERCHANT_NOTIFICATION -> request.getMerchantNotificationQuery();
             case ADMIN_REFUND -> request.getRefundQuery();
             case ADMIN_SETTLEMENT_TRANSACTION -> request.getSettlementTransactionQuery();
+            case ADMIN_SETTLEMENT_BATCH_SUMMARY -> request.getSettlementBatchSummaryQuery();
             case ADMIN_SETTLEMENT_RESERVE -> request.getSettlementReserveQuery();
             case ADMIN_CARD_BIN -> request.getCardBinQuery();
             case ADMIN_COUNTRY -> request.getCountryQuery();

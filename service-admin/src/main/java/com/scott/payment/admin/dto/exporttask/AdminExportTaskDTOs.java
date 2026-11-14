@@ -197,6 +197,20 @@ public final class AdminExportTaskDTOs {
     }
 
     /**
+     * 单个结算批次结果摘要异步导出提交命令，批次归属和数据范围由服务端复核。
+     */
+    @Data
+    public static class SettlementBatchSummarySubmitRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank
+        @Size(max = 128)
+        private String requestId;
+        @NotBlank
+        @Size(max = 64)
+        private String settlementBatchNo;
+    }
+
+    /**
      * 保证金结算明细异步导出提交命令，账号和商户范围由服务端可信上下文补齐。
      */
     @Data
