@@ -34,6 +34,8 @@ public final class ChannelEntities {
          */
         private String channelCode;
         private String channelCnName;
+        @com.baomidou.mybatisplus.annotation.TableField(updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.NEVER)
+        private String logoObjectKey;
         private String channelEnName;
         private Integer channelStatus;
         private Integer supportAcquiring;

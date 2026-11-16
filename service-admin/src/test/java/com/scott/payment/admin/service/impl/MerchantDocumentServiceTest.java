@@ -79,7 +79,10 @@ class MerchantDocumentServiceTest {
         properties.setEnabled(true);
         properties.setProvider("MINIO");
         properties.setBucket("merchant-documents-test");
-        service = new MerchantDocumentService(merchantInfoMapper, documentMapper, storageProvider, properties);
+        var uploads = org.mockito.Mockito.mock(com.scott.payment.component.web.upload.UploadSecurityService.class);
+        org.mockito.Mockito.lenient().when(uploads.validate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anySet(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(call -> call.getArgument(0));
+        service = new MerchantDocumentService(merchantInfoMapper, documentMapper, storageProvider, properties, uploads);
     }
 
     /**

@@ -43,6 +43,8 @@ import java.util.UUID;
 @Service
 public class MerchantDocumentService {
 
+    private final com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity;
+
     /**
      * 未删除标识；固定为 0，非敏感。
      */
@@ -94,7 +96,9 @@ public class MerchantDocumentService {
     public MerchantDocumentService(BaseMerchantInfoMapper merchantInfoMapper,
                                    BizDocumentMapper documentMapper,
                                    ObjectProvider<ObjectStorageService> objectStorageProvider,
-                                   ObjectStorageProperties storageProperties) {
+                                   ObjectStorageProperties storageProperties,
+            com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity) {
+        this.uploadSecurity = uploadSecurity;
         this.merchantInfoMapper = merchantInfoMapper;
         this.documentMapper = documentMapper;
         this.objectStorageProvider = objectStorageProvider;
@@ -116,6 +120,7 @@ public class MerchantDocumentService {
                                                   MultipartFile file) {
         String normalizedMerchantId = requireMerchant(merchantId).getMerchantId();
         String normalizedDocumentType = normalizeDocumentType(documentType);
+        file = uploadSecurity.validate(file, java.util.Set.of("pdf", "png", "jpg", "jpeg"), storageProperties.getMaxFileSizeBytes());
         byte[] content = readAndValidate(file);
         DetectedFileType fileType = detectFileType(content);
         String originalFilename = safeFilename(file == null ? null : file.getOriginalFilename(), fileType.extension());

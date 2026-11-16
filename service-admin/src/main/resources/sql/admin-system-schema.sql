@@ -1534,6 +1534,7 @@ CREATE TABLE IF NOT EXISTS channel_info (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码，全局唯一',
     channel_cn_name VARCHAR(128) NOT NULL COMMENT '渠道中文名称',
+    logo_object_key VARCHAR(500) NULL COMMENT '通过安全扫描的私有渠道Logo对象引用',
     channel_en_name VARCHAR(128) NOT NULL COMMENT '渠道英文名称',
     channel_status TINYINT NOT NULL DEFAULT 1 COMMENT '渠道状态：0停用，1启用',
     support_acquiring TINYINT NOT NULL DEFAULT 0 COMMENT '是否支持收单：0否，1是',

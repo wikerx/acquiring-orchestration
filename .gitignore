@@ -61,6 +61,7 @@ coverage/
 reports/
 outputs/
 docs/sql/*
+!docs/sql/20261116_channel_logo_migration.sql
 !docs/sql/
 !docs/sql/transaction-core-schema.sql
 !docs/sql/bug-001-05g-ddl-persistence-alignment-migration.sql

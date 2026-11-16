@@ -506,6 +506,17 @@ public class AdminTradeBlackWorkflowApplicationService {
         return target;
     }
 
+    /** 文件解码和安全扫描前检查操作及目标名单功能权限。 */
+    public void authorizeFileUpload(TradeBlackWorkflowDTOs.PreviewRequest request) {
+        if (request == null) throw invalid("文件上传参数不能为空");
+        ensureSystemTradePermission("FILE", request.getActionType());
+        for (String code : distinctFunctions(request)) {
+            RiskFunctionDefinition definition = RiskFunctionDefinition.require("BLACK", code);
+            // 用既有预览计划的权限入口，避免从客户端功能编码推导授权。
+            riskManagementApplicationService.authorizeTradeBlackFunction(definition, request.getActionType());
+        }
+    }
+
     private void validate(TradeBlackWorkflowDTOs.PreviewRequest request) {
         if (request == null || request.getOrders() == null || request.getOrders().isEmpty()) {
             throw invalid("请输入交易订单号");

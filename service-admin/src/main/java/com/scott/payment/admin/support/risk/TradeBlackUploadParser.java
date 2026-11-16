@@ -28,6 +28,10 @@ import java.util.Set;
 @Component
 public class TradeBlackUploadParser {
 
+    private final com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity;
+    public TradeBlackUploadParser(com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity) {
+        this.uploadSecurity = uploadSecurity;
+    }
     private static final long MAX_FILE_SIZE = 5L * 1024L * 1024L;
 
     /** 将元数据和 XLSX/XLS/CSV 文件合并成统一预览请求。 */
@@ -48,6 +52,7 @@ public class TradeBlackUploadParser {
             throw invalid("文件上传参数不能为空");
         }
         request.setInputMode("FILE");
+        file = uploadSecurity.validate(file, Set.of("csv", "xls", "xlsx"), MAX_FILE_SIZE);
         request.setOrders(isExcel(file) ? readExcel(file) : readCsv(file));
         if (request.getOrders().isEmpty()) {
             throw invalid("文件中没有可处理的交易记录");

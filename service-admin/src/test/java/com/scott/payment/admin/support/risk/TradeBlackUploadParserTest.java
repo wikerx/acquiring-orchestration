@@ -14,7 +14,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TradeBlackUploadParserTest {
 
-    private final TradeBlackUploadParser parser = new TradeBlackUploadParser();
+    private final TradeBlackUploadParser parser = new TradeBlackUploadParser(domainUploadMock());
+    private static com.scott.payment.component.web.upload.UploadSecurityService domainUploadMock() {
+        var uploads = org.mockito.Mockito.mock(com.scott.payment.component.web.upload.UploadSecurityService.class);
+        org.mockito.Mockito.when(uploads.validate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anySet(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(call -> call.getArgument(0));
+        return uploads;
+    }
 
     @Test
     void shouldParseOnlyTransactionLocatorColumnsFromCsv() {

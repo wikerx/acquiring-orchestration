@@ -56,7 +56,7 @@ class AdminFileTemplateApplicationServiceTest {
     void setUp() {
         service = new AdminFileTemplateApplicationService(templateMapper, versionMapper, assetMapper,
                 fileValidator, storageProvider, new ObjectStorageProperties(), globalIdGenerator,
-                appMapper, permissionMapper);
+                appMapper, permissionMapper, org.mockito.Mockito.mock(com.scott.payment.component.web.upload.UploadSecurityService.class));
     }
 
     /** 未选择隶属系统表示查询全部，不应进入必填校验。 */

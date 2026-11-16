@@ -90,6 +90,8 @@ public final class ChannelDTOs {
      */
     @Data
     public static class ChannelInfoResponse {
+        /** 图片版本号，不包含对象存储地址。 */
+        private String logoVersion;
         private Long id;
         /**
          * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。

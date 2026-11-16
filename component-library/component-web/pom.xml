@@ -18,6 +18,10 @@
         网关使用 WebFlux 技术栈，不应直接依赖本 Servlet 组件。
     -->
     <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
         <!--复用统一响应、异常、枚举和链路字段。-->
         <dependency>
             <groupId>com.scott.payment</groupId>

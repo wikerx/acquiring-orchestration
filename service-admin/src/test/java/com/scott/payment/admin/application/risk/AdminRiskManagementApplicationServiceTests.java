@@ -102,7 +102,8 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 mock(BaseMerchantInfoMapper.class),
-                mock(MerchantAccessApprovalNotificationService.class)
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
 
         RiskDTOs.EvaluationQueryRequest request = new RiskDTOs.EvaluationQueryRequest();
@@ -137,7 +138,8 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 mock(BaseMerchantInfoMapper.class),
-                mock(MerchantAccessApprovalNotificationService.class)
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
         RiskDTOs.EvaluationQueryRequest request = new RiskDTOs.EvaluationQueryRequest();
         request.setMerchantId("M1001");
@@ -174,7 +176,8 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 merchantMapper,
-                mock(MerchantAccessApprovalNotificationService.class)
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
 
         List<RiskDTOs.MerchantRiskRankingResponse> result = service.merchantRiskRanking();
@@ -321,7 +324,8 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 merchantMapper,
-                notificationService
+                notificationService,
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
         authenticateSourceUrlApprover();
         Map<String, Object> before = sourceUrlRecord(0, 0);
@@ -409,7 +413,8 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 mock(BaseMerchantInfoMapper.class),
-                mock(MerchantAccessApprovalNotificationService.class)
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
     }
 

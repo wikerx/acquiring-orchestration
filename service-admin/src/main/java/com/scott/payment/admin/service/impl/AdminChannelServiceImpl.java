@@ -1502,6 +1502,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         response.setId(entity.getId());
         response.setChannelCode(entity.getChannelCode());
         response.setChannelCnName(entity.getChannelCnName());
+        response.setLogoVersion(com.scott.payment.component.core.model.ManagedImageReference.version(entity.getLogoObjectKey()));
         response.setChannelEnName(entity.getChannelEnName());
         response.setChannelStatus(entity.getChannelStatus());
         response.setSupportAcquiring(entity.getSupportAcquiring());

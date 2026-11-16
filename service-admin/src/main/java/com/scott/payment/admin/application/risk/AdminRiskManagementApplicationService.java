@@ -81,6 +81,8 @@ import java.util.stream.Stream;
 @Slf4j
 public class AdminRiskManagementApplicationService {
 
+    private final com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity;
+
     /**
      * 风控动态 JSON 对象的类型令牌，保留规则异构字段并避免原始类型转换。
      */
@@ -484,7 +486,9 @@ public class AdminRiskManagementApplicationService {
                                                  ExcelI18nMessageResolver excelI18nMessageResolver,
                                                  ExcelLocaleResolver excelLocaleResolver,
                                                  BaseMerchantInfoMapper merchantInfoMapper,
-                                                 MerchantAccessApprovalNotificationService approvalNotificationService) {
+                                                 MerchantAccessApprovalNotificationService approvalNotificationService,
+            com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity) {
+        this.uploadSecurity = uploadSecurity;
         this.riskManagementMapper = riskManagementMapper;
         this.riskAuditMapper = riskAuditMapper;
         this.riskAuditShardingProperties = riskAuditShardingProperties;
@@ -2143,6 +2147,10 @@ public class AdminRiskManagementApplicationService {
      * @param file         CSV 或 Excel 文件
      * @return 导入结果
      */
+    public void authorizeTradeBlackFunction(RiskFunctionDefinition definition, String actionType) {
+        ensureFunctionPermission(definition, tradeBlackPermissionAction(actionType));
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public RiskDTOs.ImportResultResponse importCsv(String moduleType, String functionCode, MultipartFile file) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
@@ -2150,6 +2158,7 @@ public class AdminRiskManagementApplicationService {
         if (file == null || file.isEmpty()) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请选择需要导入的文件");
         }
+        file = uploadSecurity.validate(file, java.util.Set.of("csv", "xls", "xlsx"), 5L * 1024 * 1024);
         List<ImportRow> rows = readImportRows(file);
         cacheInvalidationCoordinator.prepare();
         String batchNo = importBatchNo(definition);

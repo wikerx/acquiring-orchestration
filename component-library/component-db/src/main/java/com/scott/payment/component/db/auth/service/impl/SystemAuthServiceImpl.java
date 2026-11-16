@@ -2230,6 +2230,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         dto.setLoginAccount(account.getLoginAccount());
         dto.setRealName(user.getRealName());
         dto.setNickname(user.getNickname());
+        dto.setAvatarVersion(com.scott.payment.component.core.model.ManagedImageReference.version(user.getAvatarUrl()));
         dto.setMobile(firstText(user.getMobile(), account.getMobile()));
         dto.setEmail(firstText(user.getEmail(), account.getEmail()));
         dto.setPendingEmail(account.getPendingEmail());

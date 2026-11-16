@@ -104,6 +104,7 @@ public class AdminRiskTradeBlackController {
     public CommonResult<TradeBlackWorkflowDTOs.PreviewResponse> previewFile(
             @RequestPart("metadata") String metadata,
             @RequestPart("file") MultipartFile file) {
+        authorizeUpload(metadata);
         return success(workflowApplicationService.preview(uploadParser.parse(metadata, file)));
     }
 
@@ -127,9 +128,18 @@ public class AdminRiskTradeBlackController {
             @RequestPart("file") MultipartFile file) {
         TradeBlackWorkflowDTOs.ExecuteRequest request = new TradeBlackWorkflowDTOs.ExecuteRequest();
         request.setRequestId(requestId);
+        authorizeUpload(metadata);
         request.setWorkflow(uploadParser.parse(metadata, file));
         request.setSelectedCandidateKeys(JsonUtils.parseArray(selectedCandidateKeys, String.class));
         return success(workflowApplicationService.execute(request));
+    }
+
+    private void authorizeUpload(String metadata) {
+        TradeBlackWorkflowDTOs.PreviewRequest request;
+        try { request = JsonUtils.parseObject(metadata, TradeBlackWorkflowDTOs.PreviewRequest.class); }
+        catch (RuntimeException exception) { throw new com.scott.payment.component.core.exception.ServiceException(
+                com.scott.payment.component.core.enums.ApiResultEnum.PARAM_INVALID.getCode(), "文件上传参数格式不正确"); }
+        workflowApplicationService.authorizeFileUpload(request);
     }
 
     /** 下载只包含交易定位字段的国际化 Excel 模板，不包含敏感值、脱敏值或哈希列。 */

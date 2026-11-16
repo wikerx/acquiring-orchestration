@@ -43,6 +43,8 @@ public class ObjectStorageProperties {
     /**
      * 是否启用 Path Style；MinIO 通常为 true，AWS S3 可按部署环境调整。
      */
+    /** 头像和渠道 Logo 使用的独立私有 Bucket。 */
+    private String mediaBucket = "vexra-media-files";
     private boolean pathStyleAccess = true;
 
     /**

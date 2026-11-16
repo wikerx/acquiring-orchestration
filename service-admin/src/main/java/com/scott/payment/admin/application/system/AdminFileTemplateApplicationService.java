@@ -71,6 +71,8 @@ import java.util.UUID;
 @Service
 public class AdminFileTemplateApplicationService {
 
+    private final com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity;
+
     private static final long NOT_DELETED = 0L;
     private static final int ENABLED = 1;
     private static final Set<String> OWNER_SYSTEMS = Set.of("ADMIN", "MERCHANT", "SHARED");
@@ -93,7 +95,9 @@ public class AdminFileTemplateApplicationService {
                                                ObjectStorageProperties storageProperties,
                                                GlobalIdGenerator globalIdGenerator,
                                                SysAppMapper appMapper,
-                                               SysPermissionMapper permissionMapper) {
+                                               SysPermissionMapper permissionMapper,
+            com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity) {
+        this.uploadSecurity = uploadSecurity;
         this.templateMapper = templateMapper;
         this.versionMapper = versionMapper;
         this.assetMapper = assetMapper;
@@ -250,6 +254,8 @@ public class AdminFileTemplateApplicationService {
         if (sameVersion != null) {
             throw invalid("该模板版本号已存在");
         }
+        zhFile = uploadSecurity.validate(zhFile, java.util.Set.of(template.getFileExtension().toLowerCase(java.util.Locale.ROOT)), storageProperties.getMaxFileSizeBytes());
+        enFile = uploadSecurity.validate(enFile, java.util.Set.of(template.getFileExtension().toLowerCase(java.util.Locale.ROOT)), storageProperties.getMaxFileSizeBytes());
         ValidatedFile zh = fileValidator.validate(zhFile, template.getFileExtension());
         ValidatedFile en = fileValidator.validate(enFile, template.getFileExtension());
         TemplateObjectStorageService storage = requireStorage();
