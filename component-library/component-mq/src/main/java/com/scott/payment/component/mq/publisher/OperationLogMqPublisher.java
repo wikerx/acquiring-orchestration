@@ -2,6 +2,7 @@ package com.scott.payment.component.mq.publisher;
 
 import com.scott.payment.component.mq.enums.OperationLogSystemCode;
 import com.scott.payment.component.mq.message.OperationLogMessage;
+import com.scott.payment.component.mq.observability.OperationLogOperationalMetrics;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import com.scott.payment.component.web.operation.service.OperationLogPublisher;
@@ -9,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -52,6 +52,11 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
     private final OperationLogMessageSanitizer messageSanitizer;
 
     /**
+     * 操作日志链路低基数指标。
+     */
+    private final OperationLogOperationalMetrics operationalMetrics;
+
+    /**
      * 创建 RocketMQ 操作日志发布器。
      *
      * @param mqPublisher 可靠消息发布器
@@ -62,12 +67,14 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
                                    OperationLogMqProperties properties,
                                    OperationLogSystemCode systemCode,
                                    OperationLogTopicResolver topicResolver,
-                                   OperationLogMessageSanitizer messageSanitizer) {
+                                   OperationLogMessageSanitizer messageSanitizer,
+                                   OperationLogOperationalMetrics operationalMetrics) {
         this.mqPublisher = mqPublisher;
         this.properties = properties;
         this.systemCode = systemCode;
         this.topicResolver = topicResolver;
         this.messageSanitizer = messageSanitizer;
+        this.operationalMetrics = operationalMetrics;
     }
 
     /**
@@ -82,6 +89,7 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
         }
         OperationLogMessage message = buildMessage(record);
         mqPublisher.publish(resolveTopic(), null, message);
+        operationalMetrics.recordEvent(systemCode.name(), "queued");
         log.info("操作日志消息已进入可靠投递队列, event: OPERATION_LOG_MQ_QUEUED, systemCode: {}, topic: {}, messageId: {}, requestId: {}",
                 systemCode.name(),
                 resolveTopic(),
@@ -124,7 +132,7 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
         message.setOperationTime(operationTime);
         message.setErrorCode(messageSanitizer.sanitize(
                 record.getErrorCode(), OperationLogMessage.ERROR_CODE_MAX_LENGTH));
-        message.setIdempotentKey(buildIdempotentKey(record, operationTime));
+        message.setIdempotentKey(buildIdempotentKey(message.getMessageId()));
         return message;
     }
 
@@ -140,31 +148,11 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
     /**
      * 构造消费幂等键。
      *
-     * @param record 操作日志记录
-     * @param operationTime 操作时间
+     * @param messageId 发布前生成的稳定消息号
      * @return 幂等键
      */
-    private String buildIdempotentKey(OperationLogRecord record, LocalDateTime operationTime) {
-        if (!StringUtils.hasText(record.getRequestId())) {
-            return systemCode.name() + ":" + messageIdFallback(record) + ":" + operationTime;
-        }
-        return systemCode.name() + ":" + record.getRequestId() + ":" + record.getMethodName() + ":" + operationTime;
-    }
-
-    /**
-     * 在 requestId 缺失时生成兜底幂等片段。
-     *
-     * @param record 操作日志记录
-     * @return 兜底幂等片段
-     */
-    private String messageIdFallback(OperationLogRecord record) {
-        if (StringUtils.hasText(record.getTraceId())) {
-            return "trace:" + record.getTraceId();
-        }
-        if (StringUtils.hasText(record.getMethodName())) {
-            return "method:" + record.getMethodName();
-        }
-        return "message:" + UUID.randomUUID();
+    private String buildIdempotentKey(String messageId) {
+        return systemCode.name() + ':' + messageId;
     }
 
     /**

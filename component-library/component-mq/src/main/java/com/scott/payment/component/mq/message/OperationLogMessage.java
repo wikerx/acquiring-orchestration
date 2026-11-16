@@ -16,6 +16,11 @@ import java.time.LocalDateTime;
 public class OperationLogMessage extends BaseMqMessage {
 
     /**
+     * 消费幂等键最大字符数，与 sys_oper_log.idempotent_key 的 VARCHAR(255) 契约一致。
+     */
+    public static final int IDEMPOTENT_KEY_MAX_LENGTH = 255;
+
+    /**
      * 错误码最大字符数，与 sys_oper_log.error_code 的 VARCHAR(32) 契约一致。
      */
     public static final int ERROR_CODE_MAX_LENGTH = 32;

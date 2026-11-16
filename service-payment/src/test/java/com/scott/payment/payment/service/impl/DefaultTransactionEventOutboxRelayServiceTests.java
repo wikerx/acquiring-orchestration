@@ -7,10 +7,13 @@ import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessag
 import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.observability.MqOutboxOperationalMetrics;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -20,14 +23,47 @@ import java.time.ZoneOffset;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Default Transaction Event Outbox Relay Service Tests 自动化测试类，位于 支付核心服务，验证当前模块的正常路径、异常边界和回归场景。
  */
 class DefaultTransactionEventOutboxRelayServiceTests {
+
+    @Test
+    void shouldRecordTransactionSnapshotRefreshSuccessAndFailure() {
+        TransactionEventOutboxService eventOutboxService = mock(TransactionEventOutboxService.class);
+        MqProducer mqProducer = mock(MqProducer.class);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MqOutboxOperationalMetrics metrics =
+                new MqOutboxOperationalMetrics(Optional.of(registry));
+        LocalDateTime quarter = LocalDateTime.of(2026, 7, 1, 0, 0);
+        TransactionEventOutboxMetricsSnapshot snapshot = new TransactionEventOutboxMetricsSnapshot();
+        snapshot.setClosedCount(56L);
+        when(eventOutboxService.metricsSnapshot(quarter))
+                .thenReturn(snapshot)
+                .thenThrow(new IllegalStateException("database unavailable"));
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(
+                        eventOutboxService, mqProducer, 120L, metrics);
+
+        relayService.refreshMetrics(List.of(quarter));
+
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "transaction", "outcome", "success")
+                .counter().count()).isEqualTo(1D);
+        assertThatThrownBy(() -> relayService.refreshMetrics(List.of(quarter)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "transaction", "outcome", "failed")
+                .counter().count()).isEqualTo(1D);
+    }
 
     @Test
     void shouldPublishDueEventAndMarkSent() {

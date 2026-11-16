@@ -1,0 +1,200 @@
+groups:
+  - name: acquiring-audit-export-reliability-p1
+    interval: 30s
+    rules:
+      - alert: AcquiringReliabilityTargetDown
+        expr: |
+          up{job=~"acquiring-(admin|merchant|openapi|payment|payout|risk|data|clearing|settlement)"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "可靠性监控目标不可用"
+          description: "job={{ $labels.job }} instance={{ $labels.instance }} 连续两分钟无法采集；先确认服务健康、Actuator 暴露范围和采集网络。"
+
+      - alert: AcquiringIndependentAuditOutboxPersistenceFailed
+        expr: |
+          sum by (job, instance, application, environment) (
+            increase(acquiring_mq_outbox_independent_persistence_total{outcome="failed"}[5m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "独立审计 Outbox 入库失败"
+          description: "job={{ $labels.job }} instance={{ $labels.instance }} 出现审计 Outbox 入库失败；原业务结果未被覆盖，但审计证据可能缺失。"
+
+      - alert: AcquiringOperationLogConsumeFailed
+        expr: |
+          sum by (job, instance, application, environment, system, event) (
+            increase(acquiring_operation_log_event_total{event=~"failed|invalid"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "操作日志消费失败或消息不合规"
+          description: "{{ $labels.system }} 操作日志出现 {{ $labels.event }}；检查来源校验、数据库、Broker 重试与 Consumer Group 死信队列。"
+
+      - alert: AcquiringMqOutboxClosedDetected
+        expr: |
+          max by (job, instance, application, environment, outbox_type) (
+            acquiring_mq_outbox_closed_count
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "MQ Outbox 存在重试耗尽记录"
+          description: "{{ $labels.outbox_type }} Outbox 存在 CLOSED 记录；先核对数据库事实与 Broker，再执行受控补偿。"
+
+      - alert: AcquiringMqOutboxBacklogTooOld
+        expr: |
+          max by (job, instance, application, environment, outbox_type) (
+            acquiring_mq_outbox_oldest_age_seconds
+          ) > 900
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "MQ Outbox 最老未完成消息超过 15 分钟"
+          description: "{{ $labels.outbox_type }} Outbox 长时间未推进；检查 Relay、PROCESSING 租约、数据库、Broker 和下游消费者。"
+
+      - alert: AcquiringTransactionOutboxFailedBacklog
+        expr: |
+          max by (job, instance, application, environment) (
+            acquiring_mq_outbox_pending_count{outbox_type="transaction",status="FAILED"}
+          ) > 0
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "交易 Outbox 存在持续失败消息"
+          description: "交易事件仍处于 FAILED；禁止直接改库或批量重放，先核对交易状态、最终事实、Broker 和下游幂等。"
+
+      - alert: AcquiringMqOutboxMetricsRefreshFailed
+        expr: |
+          sum by (job, instance, application, environment, outbox_type) (
+            increase(acquiring_mq_outbox_snapshot_refresh_total{outcome="failed"}[10m])
+          ) >= 2
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "MQ Outbox 指标快照连续刷新失败"
+          description: "{{ $labels.outbox_type }} Outbox Gauge 可能保留旧快照；检查主库、分片节点和聚合查询。"
+
+      - alert: AcquiringExportTaskBacklogTooOld
+        expr: |
+          max by (job, instance, application, environment) (
+            acquiring_data_export_task_oldest_unfinished_age_seconds
+          ) > 900
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-operations
+        annotations:
+          summary: "异步导出最老未完成任务超过 15 分钟"
+          description: "检查 DATA_EXPORT_TASK_DISPATCH、专用执行器、来源分页接口、对象存储与数据库租约。"
+
+      - alert: AcquiringExportTaskFailedBacklog
+        expr: |
+          max by (job, instance, application, environment) (
+            acquiring_data_export_task_status_count{status="FAILED"}
+          ) > 0
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-operations
+        annotations:
+          summary: "异步导出存在最终失败任务"
+          description: "任务已耗尽自动重试；在下载中心核对脱敏失败摘要和版本后由原创建人执行人工重试。"
+
+      - alert: AcquiringExportMetricsRefreshFailed
+        expr: |
+          sum by (job, instance, application, environment) (
+            increase(acquiring_data_export_event_total{event="snapshot_refresh_failed"}[10m])
+          ) >= 2
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "异步导出积压指标连续刷新失败"
+          description: "当前 Gauge 保留旧快照；检查 service-data 主库连接和 data_export_task 聚合查询。"
+
+  - name: acquiring-audit-export-reliability-p2
+    interval: 30s
+    rules:
+      - alert: AcquiringIndependentAuditOutboxExecutorRejected
+        expr: |
+          sum by (job, instance, application, environment) (
+            increase(acquiring_mq_outbox_independent_persistence_total{outcome="schedule_rejected"}[10m])
+          ) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-platform
+        annotations:
+          summary: "独立审计 Outbox 执行器持续拒绝任务"
+          description: "系统已回退当前线程入库；检查 reliableMqOutboxRelayExecutor 容量和数据库连接池压力。"
+
+      - alert: AcquiringMqOutboxPendingBacklog
+        expr: |
+          sum by (job, instance, application, environment, outbox_type) (
+            acquiring_mq_outbox_pending_count{status=~"INIT|PROCESSING|RETRY_WAIT|FAILED"}
+          ) > 0
+        for: 15m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-platform
+        annotations:
+          summary: "MQ Outbox 持续存在未完成消息"
+          description: "{{ $labels.outbox_type }} Outbox 连续十五分钟未排空；结合最老年龄和各状态指标判断是否需要介入。"
+
+      - alert: AcquiringMqOutboxBatchSaturatedRepeated
+        expr: |
+          sum by (job, instance, application, environment, outbox_type) (
+            increase(acquiring_mq_outbox_batch_saturated_total[10m])
+          ) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-platform
+        annotations:
+          summary: "MQ Outbox 扫描批次持续达到上限"
+          description: "{{ $labels.outbox_type }} Outbox 在十分钟内至少三次达到批量上限；检查流量、Relay 预算和 Broker 吞吐。"
+
+      - alert: AcquiringExportExecutionFailuresRepeated
+        expr: |
+          sum by (job, instance, application, environment) (
+            increase(acquiring_data_export_event_total{event="execution_failed"}[15m])
+          ) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-operations
+        annotations:
+          summary: "异步导出执行连续失败"
+          description: "15 分钟内至少 3 次执行失败；检查来源分页、文件大小上限、对象存储和自动重试状态。"

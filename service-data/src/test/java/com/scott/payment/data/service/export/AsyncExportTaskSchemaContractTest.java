@@ -1,8 +1,15 @@
 package com.scott.payment.data.service.export;
 
+import com.scott.payment.data.DataApplication;
 import com.scott.payment.data.mapper.export.DataExportTaskMapper;
+import com.scott.payment.data.observability.export.DataExportOperationalMetricsRefresher;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Select;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -146,6 +153,71 @@ class AsyncExportTaskSchemaContractTest {
         assertThat(update).isNotNull();
         assertThat(String.join(" ", update.value()))
                 .contains("lease_owner = #{leaseOwner} OR (lease_owner IS NULL AND #{leaseOwner} IS NULL)");
+    }
+
+    /**
+     * 运行指标必须由固定状态聚合生成，禁止按任务号、账号或商户号制造时间序列。
+     */
+    @Test
+    void shouldDefineLowCardinalityMetricsSnapshotQuery() throws NoSuchMethodException {
+        Method method = DataExportTaskMapper.class.getDeclaredMethod("selectMetricsSnapshot");
+        Select select = method.getAnnotation(Select.class);
+
+        assertThat(select).isNotNull();
+        assertThat(String.join(" ", select.value()))
+                .contains("status = 'PENDING'", "status = 'PROCESSING'", "status = 'SUCCESS'",
+                        "status = 'FAILED'", "status = 'EXPIRED'", "oldestUnfinishedTime")
+                .doesNotContain("merchant_id", "creator_account_id", "task_no");
+    }
+
+    /**
+     * 导出 Gauge 必须在服务就绪时装载真实快照，并独立于任务派发持续刷新。
+     */
+    @Test
+    void shouldRefreshOperationalMetricsAfterStartupAndOnSchedule() throws NoSuchMethodException {
+        Method startup = DataExportOperationalMetricsRefresher.class
+                .getDeclaredMethod("refreshAfterStartup");
+        EventListener eventListener = startup.getAnnotation(EventListener.class);
+        Method scheduled = DataExportOperationalMetricsRefresher.class
+                .getDeclaredMethod("refreshScheduled");
+        Scheduled schedule = scheduled.getAnnotation(Scheduled.class);
+
+        assertThat(DataApplication.class.getAnnotation(EnableScheduling.class)).isNotNull();
+        assertThat(eventListener).isNotNull();
+        assertThat(eventListener.value()).containsExactly(ApplicationReadyEvent.class);
+        assertThat(schedule).isNotNull();
+        assertThat(schedule.initialDelayString())
+                .isEqualTo("${acquiring.data-export.metrics-refresh-delay-ms:30000}");
+        assertThat(schedule.fixedDelayString())
+                .isEqualTo("${acquiring.data-export.metrics-refresh-delay-ms:30000}");
+    }
+
+    /**
+     * 可靠性告警必须覆盖审计 Outbox、操作日志和导出积压，并明确生产证据边界。
+     */
+    @Test
+    void shouldDeliverReliabilityAlertRulesAndRunbook() throws IOException {
+        String rules = readProjectFile("docs/deployment/prometheus/reliability-alert-rules.yml");
+        String runbook = readProjectFile("docs/deployment/prometheus/reliability-monitoring-runbook.md");
+
+        assertThat(rules).contains(
+                "acquiring_mq_outbox_independent_persistence_total",
+                "acquiring_operation_log_event_total",
+                "acquiring_mq_outbox_closed_count",
+                "acquiring_data_export_task_oldest_unfinished_age_seconds",
+                "acquiring_data_export_task_status_count",
+                "acquiring_data_export_event_total",
+                "job, instance, application, environment");
+        assertThat(rules).doesNotContain(
+                "merchant_id=", "creator_account_id=", "task_no=", "message_id=");
+        assertThat(runbook).contains(
+                "规则文件是部署制品，不代表当前环境已经加载",
+                "不得暴露公网",
+                "告警规则始终保留 `job`、`instance`",
+                "数据库事实优先于 Redis 占用",
+                "就绪后立即装载一次数据库快照",
+                "acquiring.data-export.metrics-refresh-delay-ms",
+                "未执行");
     }
 
     /**

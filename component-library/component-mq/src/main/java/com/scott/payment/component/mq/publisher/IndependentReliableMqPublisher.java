@@ -2,6 +2,7 @@ package com.scott.payment.component.mq.publisher;
 
 import com.scott.payment.component.db.outbox.entity.ReliableMqOutboxDO;
 import com.scott.payment.component.mq.message.BaseMqMessage;
+import com.scott.payment.component.mq.observability.MqOutboxOperationalMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
@@ -24,15 +25,21 @@ public class IndependentReliableMqPublisher {
      * 事务完成后执行独立 Outbox 持久化的受控线程池。
      */
     private final TaskExecutor outboxExecutor;
+    /**
+     * 独立 Outbox 入库结果指标。
+     */
+    private final MqOutboxOperationalMetrics operationalMetrics;
 
     /**
      * 创建独立事务可靠发布器。
      */
     public IndependentReliableMqPublisher(
             ReliableMqPublisher delegate,
-            @Qualifier("reliableMqOutboxRelayExecutor") TaskExecutor outboxExecutor) {
+            @Qualifier("reliableMqOutboxRelayExecutor") TaskExecutor outboxExecutor,
+            MqOutboxOperationalMetrics operationalMetrics) {
         this.delegate = delegate;
         this.outboxExecutor = outboxExecutor;
+        this.operationalMetrics = operationalMetrics;
     }
 
     /**
@@ -46,7 +53,7 @@ public class IndependentReliableMqPublisher {
     public String publish(String topic, String tag, BaseMqMessage message) {
         ReliableMqOutboxDO event = delegate.prepareEvent(topic, tag, message);
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            return delegate.publishPreparedEvent(event);
+            return persistDirect(event);
         }
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -67,12 +74,27 @@ public class IndependentReliableMqPublisher {
     }
 
     /**
+     * 无外层事务时同步执行独立事务并保留原异常语义，同时记录入库结果。
+     */
+    private String persistDirect(ReliableMqOutboxDO event) {
+        try {
+            String eventId = delegate.publishPreparedEvent(event);
+            operationalMetrics.recordIndependentPersistence("persisted");
+            return eventId;
+        } catch (RuntimeException exception) {
+            operationalMetrics.recordIndependentPersistence("failed");
+            throw exception;
+        }
+    }
+
+    /**
      * 将冻结消息交给独立线程，避免调用方事务连接与独立事务形成连接池嵌套占用。
      */
     private void schedulePersistence(ReliableMqOutboxDO event) {
         try {
             outboxExecutor.execute(() -> persistSafely(event));
         } catch (RuntimeException exception) {
+            operationalMetrics.recordIndependentPersistence("schedule_rejected");
             log.warn("独立 Outbox 持久化任务被拒绝, event: INDEPENDENT_MQ_OUTBOX_SCHEDULE_REJECTED, eventId: {}, exceptionType: {}",
                     event.getEventId(), exception.getClass().getSimpleName());
             persistSafely(event);
@@ -85,7 +107,9 @@ public class IndependentReliableMqPublisher {
     private void persistSafely(ReliableMqOutboxDO event) {
         try {
             delegate.publishPreparedEvent(event);
+            operationalMetrics.recordIndependentPersistence("persisted");
         } catch (RuntimeException exception) {
+            operationalMetrics.recordIndependentPersistence("failed");
             log.warn("独立 Outbox 事件持久化失败, event: INDEPENDENT_MQ_OUTBOX_PERSIST_FAILED, eventId: {}, exceptionType: {}",
                     event.getEventId(), exception.getClass().getSimpleName());
         }

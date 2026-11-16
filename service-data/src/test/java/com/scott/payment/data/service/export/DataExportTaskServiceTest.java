@@ -41,6 +41,8 @@ import com.scott.payment.data.entity.export.DataExportTaskDO;
 import com.scott.payment.data.infrastructure.export.ExportObjectStorageService;
 import com.scott.payment.data.mapper.export.DataExportDownloadAuditMapper;
 import com.scott.payment.data.mapper.export.DataExportTaskMapper;
+import com.scott.payment.data.observability.export.DataExportOperationalMetrics;
+import com.scott.payment.data.observability.export.DataExportOperationalMetricsRefresher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterAll;
 import org.mockito.ArgumentCaptor;
@@ -137,6 +139,7 @@ class DataExportTaskServiceTest {
 
         assertThat(result.getTaskNo()).isEqualTo(existing.getTaskNo());
         verify(fixture.taskMapper, never()).insert(any());
+        verify(fixture.operationalMetrics).recordEvent("duplicate");
     }
 
     /**
@@ -894,6 +897,7 @@ class DataExportTaskServiceTest {
         assertThat(result.getDeferredCount()).isZero();
         assertThat(result.getRecoveredCount()).isZero();
         assertThat(result.getExpiredCount()).isEqualTo(1);
+        verify(fixture.operationalMetricsRefresher).refresh(any(LocalDateTime.class));
         verify(fixture.storage).delete("exports/admin/expired.xlsx");
         verify(fixture.taskMapper, timeout(1000)).markSuccess(eq(processing.getId()), eq(1L), any(),
                 eq(20L), eq(20L), eq(artifact.fileName()), eq(artifact.contentType()),
@@ -1126,6 +1130,7 @@ class DataExportTaskServiceTest {
 
         assertThat(result.getStatus()).isEqualTo("PENDING");
         assertThat(result.getVersion()).isEqualTo(8L);
+        verify(fixture.operationalMetrics).recordEvent("retried");
     }
 
     /**
@@ -1173,6 +1178,7 @@ class DataExportTaskServiceTest {
         assertThat(auditCaptor.getValue().getOperatorAccountId()).isEqualTo(88L);
         assertThat(output.toByteArray()).containsExactly(1, 2, 3);
         verify(fixture.auditMapper).complete(eq("DLA1001"), eq("SUCCESS"), isNull(), any());
+        verify(fixture.operationalMetrics).recordEvent("download_success");
     }
 
     /**
@@ -1221,13 +1227,17 @@ class DataExportTaskServiceTest {
         when(storageProvider.getIfAvailable()).thenReturn(storage);
         ExportTaskProcessorRegistry processorRegistry = mock(ExportTaskProcessorRegistry.class);
         ExportTaskProcessor processor = mock(ExportTaskProcessor.class);
+        DataExportOperationalMetrics operationalMetrics = mock(DataExportOperationalMetrics.class);
+        DataExportOperationalMetricsRefresher operationalMetricsRefresher =
+                mock(DataExportOperationalMetricsRefresher.class);
         when(processorRegistry.required(anyString())).thenReturn(processor);
         ArgumentCaptor<DataExportTaskDO> insertedTask = ArgumentCaptor.forClass(DataExportTaskDO.class);
         when(taskMapper.insert(insertedTask.capture())).thenReturn(1);
         DataExportTaskService service = new DataExportTaskService(
                 taskMapper, auditMapper, idGenerator, properties, storageProvider, processorRegistry,
-                taskExecutor);
-        return new Fixture(service, taskMapper, auditMapper, storage, processor, insertedTask);
+                taskExecutor, operationalMetrics, operationalMetricsRefresher);
+        return new Fixture(service, taskMapper, auditMapper, storage, processor,
+                operationalMetrics, operationalMetricsRefresher, insertedTask);
     }
 
     /**
@@ -1338,6 +1348,8 @@ class DataExportTaskServiceTest {
                            DataExportDownloadAuditMapper auditMapper,
                            ExportObjectStorageService storage,
                            ExportTaskProcessor processor,
+                           DataExportOperationalMetrics operationalMetrics,
+                           DataExportOperationalMetricsRefresher operationalMetricsRefresher,
                            ArgumentCaptor<DataExportTaskDO> insertedTask) {
     }
 }

@@ -58,4 +58,43 @@ class MqOutboxOperationalMetricsTests {
         assertThat(registry.find(MqOutboxOperationalMetrics.OLDEST_AGE_SECONDS)
                 .tag("outbox_type", "transaction").gauge().value()).isEqualTo(90D);
     }
+
+    @Test
+    void shouldExposeIndependentPersistenceOutcomesWithFixedLabels() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MqOutboxOperationalMetrics metrics =
+                new MqOutboxOperationalMetrics(Optional.of(registry));
+
+        metrics.recordIndependentPersistence("persisted");
+        metrics.recordIndependentPersistence("schedule_rejected");
+        metrics.recordIndependentPersistence("unexpected");
+
+        assertThat(registry.find(MqOutboxOperationalMetrics.INDEPENDENT_PERSISTENCE)
+                .tag("outcome", "persisted").counter().count()).isEqualTo(1D);
+        assertThat(registry.find(MqOutboxOperationalMetrics.INDEPENDENT_PERSISTENCE)
+                .tag("outcome", "schedule_rejected").counter().count()).isEqualTo(1D);
+        assertThat(registry.find(MqOutboxOperationalMetrics.INDEPENDENT_PERSISTENCE)
+                .tag("outcome", "failed").counter().count()).isEqualTo(1D);
+    }
+
+    @Test
+    void shouldExposeSnapshotRefreshWithOnlyFixedLabels() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MqOutboxOperationalMetrics metrics =
+                new MqOutboxOperationalMetrics(Optional.of(registry));
+
+        metrics.recordSnapshotRefresh(MqOutboxOperationalMetrics.RELIABLE_OUTBOX, "success");
+        metrics.recordSnapshotRefresh(MqOutboxOperationalMetrics.TRANSACTION_OUTBOX, "failed");
+        metrics.recordSnapshotRefresh("unexpected", "unexpected");
+
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "reliable", "outcome", "success")
+                .counter().count()).isEqualTo(1D);
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "transaction", "outcome", "failed")
+                .counter().count()).isEqualTo(1D);
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "reliable", "outcome", "failed")
+                .counter().count()).isEqualTo(1D);
+    }
 }

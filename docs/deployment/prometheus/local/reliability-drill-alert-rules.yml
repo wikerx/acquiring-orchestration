@@ -1,0 +1,14 @@
+groups:
+  - name: acquiring-reliability-local-drill
+    interval: 5s
+    rules:
+      - alert: AcquiringReliabilityDeliveryDrill
+        expr: acquiring_reliability_delivery_drill == 1
+        for: 0m
+        labels:
+          severity: info
+          priority: DRILL
+          owner: payment-platform
+        annotations:
+          summary: "本机可靠性告警通知演练"
+          description: "只用于验证 Prometheus 到 Alertmanager 再到本机 Webhook 的触发与恢复闭环。"

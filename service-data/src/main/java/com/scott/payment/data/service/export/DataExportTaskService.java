@@ -20,6 +20,8 @@ import com.scott.payment.data.entity.export.DataExportTaskDO;
 import com.scott.payment.data.infrastructure.export.ExportObjectStorageService;
 import com.scott.payment.data.mapper.export.DataExportDownloadAuditMapper;
 import com.scott.payment.data.mapper.export.DataExportTaskMapper;
+import com.scott.payment.data.observability.export.DataExportOperationalMetrics;
+import com.scott.payment.data.observability.export.DataExportOperationalMetricsRefresher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -129,6 +131,8 @@ public class DataExportTaskService {
     private final ObjectProvider<ExportObjectStorageService> storageProvider;
     private final ExportTaskProcessorRegistry processorRegistry;
     private final Executor taskExecutor;
+    private final DataExportOperationalMetrics operationalMetrics;
+    private final DataExportOperationalMetricsRefresher operationalMetricsRefresher;
     private final Semaphore executionSlots;
 
     /**
@@ -140,7 +144,9 @@ public class DataExportTaskService {
                                  DataExportProperties properties,
                                  ObjectProvider<ExportObjectStorageService> storageProvider,
                                  ExportTaskProcessorRegistry processorRegistry,
-                                 @Qualifier("dataExportTaskExecutor") Executor taskExecutor) {
+                                 @Qualifier("dataExportTaskExecutor") Executor taskExecutor,
+                                 DataExportOperationalMetrics operationalMetrics,
+                                 DataExportOperationalMetricsRefresher operationalMetricsRefresher) {
         this.taskMapper = taskMapper;
         this.auditMapper = auditMapper;
         this.globalIdGenerator = globalIdGenerator;
@@ -148,6 +154,8 @@ public class DataExportTaskService {
         this.storageProvider = storageProvider;
         this.processorRegistry = processorRegistry;
         this.taskExecutor = taskExecutor;
+        this.operationalMetrics = operationalMetrics;
+        this.operationalMetricsRefresher = operationalMetricsRefresher;
         this.executionSlots = new Semaphore(properties.getDispatchConcurrency());
     }
 
@@ -163,6 +171,7 @@ public class DataExportTaskService {
         DataExportTaskDO existing = taskMapper.selectByRequestId(
                 creatorAppCode, request.getCreatorAccountId(), merchantId, request.getRequestId().trim());
         if (existing != null) {
+            operationalMetrics.recordEvent("duplicate");
             return toSummary(existing);
         }
         LocalDateTime now = LocalDateTime.now();
@@ -200,8 +209,10 @@ public class DataExportTaskService {
             if (duplicate == null) {
                 throw exception;
             }
+            operationalMetrics.recordEvent("duplicate");
             return toSummary(duplicate);
         }
+        operationalMetrics.recordEvent("created");
         log.info("异步导出任务已创建, event: DATA_EXPORT_TASK_CREATED, taskNo: {}, taskType: {}, creatorAppCode: {}, creatorAccountId: {}, merchantId: {}",
                 task.getTaskNo(), task.getTaskType(), task.getCreatorAppCode(),
                 task.getCreatorAccountId(), task.getMerchantId());
@@ -258,6 +269,7 @@ public class DataExportTaskService {
         }
         log.info("异步导出任务已人工重试, event: DATA_EXPORT_TASK_RETRIED, taskNo: {}, creatorAppCode: {}, creatorAccountId: {}, merchantId: {}",
                 task.getTaskNo(), task.getCreatorAppCode(), task.getCreatorAccountId(), task.getMerchantId());
+        operationalMetrics.recordEvent("retried");
         return toSummary(taskMapper.selectOwned(task.getTaskNo(), task.getCreatorAppCode(),
                 task.getCreatorAccountId(), task.getMerchantId()));
     }
@@ -276,6 +288,7 @@ public class DataExportTaskService {
         if (batchSize < 1 || batchSize > 50) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        operationalMetricsRefresher.refresh(request.getDispatchTime());
         int recovered = recoverStaleProcessing(request.getDispatchTime(), batchSize);
         ExportObjectStorageService storage = requireStorage();
         int claimed = 0;
@@ -313,6 +326,11 @@ public class DataExportTaskService {
         result.setDeferredCount(deferred);
         result.setRecoveredCount(recovered);
         result.setExpiredCount(expired);
+        operationalMetrics.recordEvents("claimed", claimed);
+        operationalMetrics.recordEvents("submitted", submitted);
+        operationalMetrics.recordEvents("deferred", deferred);
+        operationalMetrics.recordEvents("lease_recovered", recovered);
+        operationalMetrics.recordEvents("expired", expired);
         return result;
     }
 
@@ -363,6 +381,8 @@ public class DataExportTaskService {
      */
     private void executeClaimedTask(ClaimedTask claimedTask, ExportObjectStorageService storage) {
         DataExportTaskDO task = claimedTask.task();
+        long startNanos = System.nanoTime();
+        String outcome = "failure";
         try {
             ExportArtifact artifact = process(
                     task, storage, claimedTask.leaseOwner(), claimedTask.processingVersion());
@@ -376,11 +396,16 @@ public class DataExportTaskService {
             }
             log.info("异步导出任务完成, event: DATA_EXPORT_TASK_SUCCEEDED, taskNo: {}, processedRows: {}, fileSizeBytes: {}",
                     task.getTaskNo(), artifact.processedRows(), artifact.fileSizeBytes());
+            outcome = "success";
+            operationalMetrics.recordEvent("execution_success");
         } catch (RuntimeException exception) {
             recordFailure(task, claimedTask.processingVersion(), claimedTask.leaseOwner(),
                     exception.getClass().getSimpleName(), executionFailureReason(task), LocalDateTime.now());
             log.warn("异步导出任务执行失败, event: DATA_EXPORT_TASK_FAILED, taskNo: {}, exceptionType: {}",
                     task.getTaskNo(), exception.getClass().getSimpleName());
+            operationalMetrics.recordEvent("execution_failed");
+        } finally {
+            operationalMetrics.recordExecution(outcome, System.nanoTime() - startNanos);
         }
     }
 
@@ -399,9 +424,11 @@ public class DataExportTaskService {
         try {
             requireStorage().copyTo(task.getObjectKey(), outputStream);
             completeAudit(auditNo, "SUCCESS", null);
+            operationalMetrics.recordEvent("download_success");
             return toSummary(task);
         } catch (RuntimeException exception) {
             completeAudit(auditNo, "FAILED", downloadFailureReason(task));
+            operationalMetrics.recordEvent("download_failed");
             throw exception;
         }
     }
@@ -474,6 +501,7 @@ public class DataExportTaskService {
                     expired++;
                 }
             } catch (RuntimeException exception) {
+                operationalMetrics.recordEvent("cleanup_failed");
                 log.warn("过期导出文件清理失败, event: DATA_EXPORT_FILE_CLEANUP_FAILED, taskNo: {}, exceptionType: {}",
                         task.getTaskNo(), exception.getClass().getSimpleName());
             }

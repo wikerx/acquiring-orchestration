@@ -198,28 +198,34 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     @Override
     public void refreshMetrics(List<LocalDateTime> publishedQuarters) {
-        long init = 0L;
-        long processing = 0L;
-        long failed = 0L;
-        long closed = 0L;
-        LocalDateTime oldest = null;
-        if (publishedQuarters != null) {
-            for (LocalDateTime quarter : publishedQuarters) {
-                TransactionEventOutboxMetricsSnapshot snapshot = eventOutboxService.metricsSnapshot(quarter);
-                if (snapshot == null) {
-                    continue;
-                }
-                init += count(snapshot.getInitCount());
-                processing += count(snapshot.getProcessingCount());
-                failed += count(snapshot.getFailedCount());
-                closed += count(snapshot.getClosedCount());
-                if (snapshot.getOldestPendingTime() != null
-                        && (oldest == null || snapshot.getOldestPendingTime().isBefore(oldest))) {
-                    oldest = snapshot.getOldestPendingTime();
+        try {
+            long init = 0L;
+            long processing = 0L;
+            long failed = 0L;
+            long closed = 0L;
+            LocalDateTime oldest = null;
+            if (publishedQuarters != null) {
+                for (LocalDateTime quarter : publishedQuarters) {
+                    TransactionEventOutboxMetricsSnapshot snapshot = eventOutboxService.metricsSnapshot(quarter);
+                    if (snapshot == null) {
+                        continue;
+                    }
+                    init += count(snapshot.getInitCount());
+                    processing += count(snapshot.getProcessingCount());
+                    failed += count(snapshot.getFailedCount());
+                    closed += count(snapshot.getClosedCount());
+                    if (snapshot.getOldestPendingTime() != null
+                            && (oldest == null || snapshot.getOldestPendingTime().isBefore(oldest))) {
+                        oldest = snapshot.getOldestPendingTime();
+                    }
                 }
             }
+            metrics.updateTransaction(init, processing, failed, closed, oldest, LocalDateTime.now());
+            metrics.recordSnapshotRefresh(MqOutboxOperationalMetrics.TRANSACTION_OUTBOX, "success");
+        } catch (RuntimeException exception) {
+            metrics.recordSnapshotRefresh(MqOutboxOperationalMetrics.TRANSACTION_OUTBOX, "failed");
+            throw exception;
         }
-        metrics.updateTransaction(init, processing, failed, closed, oldest, LocalDateTime.now());
     }
 
     /**

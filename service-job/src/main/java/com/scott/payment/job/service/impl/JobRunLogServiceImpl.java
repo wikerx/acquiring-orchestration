@@ -5,6 +5,8 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
 import com.scott.payment.job.api.internal.dto.JobExecutionTrendResponse;
 import com.scott.payment.component.job.executor.JobExecuteContext;
@@ -24,6 +26,8 @@ import java.util.List;
  */
 @Service
 public class JobRunLogServiceImpl implements JobRunLogService {
+
+    private static final int LEGACY_SYNC_EXPORT_MAX_ROWS = 5_000;
 
     private final SysJobRunLogMapper sysJobRunLogMapper;
 
@@ -187,7 +191,14 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     @Override
     @DS(DataSourceName.SLAVE)
     public List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request) {
-        return sysJobRunLogMapper.selectList(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
+        List<SysJobRunLogDO> rows = sysJobRunLogMapper.selectList(
+                buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request)
+                        .last("LIMIT " + (LEGACY_SYNC_EXPORT_MAX_ROWS + 1)));
+        if (rows.size() > LEGACY_SYNC_EXPORT_MAX_ROWS) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
+                    "同步导出最多支持 5000 条，请使用下载中心的异步导出");
+        }
+        return rows;
     }
 
     /**

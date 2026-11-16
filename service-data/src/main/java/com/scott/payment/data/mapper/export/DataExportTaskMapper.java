@@ -1,6 +1,7 @@
 package com.scott.payment.data.mapper.export;
 
 import com.scott.payment.data.entity.export.DataExportTaskDO;
+import com.scott.payment.data.model.export.DataExportTaskMetricsSnapshot;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -40,6 +41,21 @@ public interface DataExportTaskMapper {
             )
             """)
     int insert(DataExportTaskDO task);
+
+    /**
+     * 聚合全局任务状态和最早未完成时间，供低基数运行指标刷新使用。
+     */
+    @Select("""
+            SELECT
+                (SELECT COUNT(1) FROM data_export_task WHERE status = 'PENDING') AS pendingCount,
+                (SELECT COUNT(1) FROM data_export_task WHERE status = 'PROCESSING') AS processingCount,
+                (SELECT COUNT(1) FROM data_export_task WHERE status = 'SUCCESS') AS successCount,
+                (SELECT COUNT(1) FROM data_export_task WHERE status = 'FAILED') AS failedCount,
+                (SELECT COUNT(1) FROM data_export_task WHERE status = 'EXPIRED') AS expiredCount,
+                (SELECT MIN(COALESCE(next_retry_time, started_at, create_time))
+                 FROM data_export_task WHERE status IN ('PENDING', 'PROCESSING')) AS oldestUnfinishedTime
+            """)
+    DataExportTaskMetricsSnapshot selectMetricsSnapshot();
 
     /**
      * 按创建账号和请求键查询幂等任务。

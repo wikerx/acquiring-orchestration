@@ -1,15 +1,20 @@
 package com.scott.payment.component.mq.publisher;
 
 import com.scott.payment.component.db.outbox.entity.ReliableMqOutboxDO;
+import com.scott.payment.component.db.outbox.model.ReliableMqOutboxMetricsSnapshot;
 import com.scott.payment.component.db.outbox.service.ReliableMqOutboxStore;
+import com.scott.payment.component.mq.observability.MqOutboxOperationalMetrics;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.component.mq.properties.ReliableMqOutboxProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -92,6 +97,33 @@ class ReliableMqOutboxRelayServiceTests {
 
         verify(store, never()).claim(any(), any(), any());
         verifyNoInteractions(producer);
+    }
+
+    @Test
+    void shouldRecordReliableSnapshotRefreshSuccessAndFailure() {
+        ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
+        MqProducer producer = mock(MqProducer.class);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MqOutboxOperationalMetrics metrics =
+                new MqOutboxOperationalMetrics(Optional.of(registry));
+        ReliableMqOutboxMetricsSnapshot snapshot = new ReliableMqOutboxMetricsSnapshot();
+        snapshot.setInitCount(1L);
+        when(store.metricsSnapshot("service-admin"))
+                .thenReturn(snapshot)
+                .thenThrow(new IllegalStateException("database unavailable"));
+        ReliableMqOutboxRelayService service = new ReliableMqOutboxRelayService(
+                store, producer, new ReliableMqOutboxProperties(), metrics, "service-admin");
+
+        service.refreshMetrics();
+
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "reliable", "outcome", "success")
+                .counter().count()).isEqualTo(1D);
+        assertThatThrownBy(service::refreshMetrics)
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "reliable", "outcome", "failed")
+                .counter().count()).isEqualTo(1D);
     }
 
     /**
