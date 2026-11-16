@@ -3,6 +3,8 @@ package com.scott.payment.job.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
+import com.scott.payment.component.db.sharding.RiskAuditShardingRuleChecksum;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementRange;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
@@ -48,6 +50,11 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      * 当前已发布交易逻辑规则，用于生成仅增加已验证季度的候选版本。
      */
     private final TransactionShardingProperties transactionShardingProperties;
+
+    /**
+     * 当前已发布风控审计规则，用于独立生成双表候选版本和季度节点。
+     */
+    private final RiskAuditShardingProperties riskAuditShardingProperties;
     private final ShardingQuarterResolver quarterResolver;
     private final ShardingPhysicalTableNameResolver tableNameResolver;
     private final ShardingAutoIncrementValueCalculator autoIncrementValueCalculator;
@@ -60,6 +67,8 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      * 创建分表物理表预创建服务。
      *
      * @param shardingProperties           分表配置
+     * @param transactionShardingProperties 当前已发布交易分片规则
+     * @param riskAuditShardingProperties 当前已发布风控审计分片规则
      * @param quarterResolver              季度解析器
      * @param tableNameResolver            表名解析器
      * @param autoIncrementValueCalculator AUTO_INCREMENT 计算器
@@ -70,6 +79,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      */
     public ShardingTablePreCreateServiceImpl(TransactionShardingGovernanceProperties shardingProperties,
                                              TransactionShardingProperties transactionShardingProperties,
+                                             RiskAuditShardingProperties riskAuditShardingProperties,
                                              ShardingQuarterResolver quarterResolver,
                                              ShardingPhysicalTableNameResolver tableNameResolver,
                                              ShardingAutoIncrementValueCalculator autoIncrementValueCalculator,
@@ -79,6 +89,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
                                              SysShardingTableCreateLogMapper createLogMapper) {
         this.shardingProperties = shardingProperties;
         this.transactionShardingProperties = transactionShardingProperties;
+        this.riskAuditShardingProperties = riskAuditShardingProperties;
         this.quarterResolver = quarterResolver;
         this.tableNameResolver = tableNameResolver;
         this.autoIncrementValueCalculator = autoIncrementValueCalculator;
@@ -145,32 +156,49 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         if (!"quarter".equalsIgnoreCase(shardingProperties.getStrategy())) {
             throw new IllegalStateException("transaction governance strategy must be quarter");
         }
-        if (shardingProperties.getTables().size() != expectedTables.size()) {
-            throw new IllegalStateException("transaction governance rules must contain exactly "
-                    + TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT + " formal tables");
-        }
-        Set<String> configuredTables = new LinkedHashSet<>();
+        Set<String> riskAuditTables = new LinkedHashSet<>(RiskAuditShardingProperties.defaultLogicTables());
+        Set<String> configuredTransactionTables = new LinkedHashSet<>();
+        Set<String> configuredRiskAuditTables = new LinkedHashSet<>();
         for (TransactionShardingGovernanceProperties.TableRule rule : shardingProperties.getTables().values()) {
             if (rule == null || !Boolean.TRUE.equals(rule.getEnabled()) || !StringUtils.hasText(rule.getLogicalTable())) {
-                throw new IllegalStateException("all transaction governance table rules must be enabled and named");
+                throw new IllegalStateException("all sharding governance table rules must be enabled and named");
             }
-            if (!configuredTables.add(rule.getLogicalTable())) {
-                throw new IllegalStateException("duplicate transaction governance logic table rule");
-            }
-            if (!TransactionShardingProperties.REQUIRED_SHARDING_COLUMN.equals(rule.getShardingColumn())) {
-                throw new IllegalStateException("transaction governance rule sharding column must be transaction_date_time");
+            if (expectedTables.contains(rule.getLogicalTable())) {
+                if (!configuredTransactionTables.add(rule.getLogicalTable())) {
+                    throw new IllegalStateException("duplicate transaction governance logic table rule");
+                }
+                if (!TransactionShardingProperties.REQUIRED_SHARDING_COLUMN.equals(rule.getShardingColumn())) {
+                    throw new IllegalStateException("transaction governance rule sharding column must be transaction_date_time");
+                }
+            } else if (riskAuditTables.contains(rule.getLogicalTable())) {
+                if (!configuredRiskAuditTables.add(rule.getLogicalTable())) {
+                    throw new IllegalStateException("duplicate risk audit governance logic table rule");
+                }
+                if (!RiskAuditShardingProperties.REQUIRED_SHARDING_COLUMN.equals(rule.getShardingColumn())) {
+                    throw new IllegalStateException("risk audit governance rule sharding column must be evaluation_time");
+                }
+            } else {
+                throw new IllegalStateException("sharding governance contains an unknown logic table");
             }
             if (!"master".equals(rule.getActualDataSource())) {
-                throw new IllegalStateException("transaction governance DDL data source must be master");
+                throw new IllegalStateException("sharding governance DDL data source must be master");
             }
         }
-        if (!configuredTables.equals(expectedTables)) {
+        if (!configuredTransactionTables.equals(expectedTables)) {
             throw new IllegalStateException("transaction governance rules differ from the formal logic tables");
         }
+        if (!configuredRiskAuditTables.isEmpty() && !configuredRiskAuditTables.equals(riskAuditTables)) {
+            throw new IllegalStateException("risk audit governance rules must contain both formal logic tables");
+        }
+        if (riskAuditShardingProperties.isEnabled() && configuredRiskAuditTables.isEmpty()) {
+            throw new IllegalStateException("enabled risk audit sharding requires both governance table rules");
+        }
+        Set<String> configuredTables = new LinkedHashSet<>(configuredTransactionTables);
+        configuredTables.addAll(configuredRiskAuditTables);
         Set<String> requestedTables = new LinkedHashSet<>(request.getLogicalTables() == null
                 ? List.of() : request.getLogicalTables());
-        if (!expectedTables.containsAll(requestedTables)) {
-            throw new IllegalStateException("pre-create request contains an unknown transaction logic table");
+        if (!configuredTables.containsAll(requestedTables)) {
+            throw new IllegalStateException("pre-create request contains an unknown sharding logic table");
         }
     }
 
@@ -264,6 +292,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         ShardingTablePreCreateTableResult tableResult = new ShardingTablePreCreateTableResult();
         String physicalTable = tableNameResolver.physicalTableName(rule, quarter);
         ShardingAutoIncrementRange range = autoIncrementValueCalculator.calculate(shardingProperties, quarter);
+        tableResult.setTableFamily(tableFamily(rule.getLogicalTable()));
         tableResult.setLogicalTable(rule.getLogicalTable());
         tableResult.setTemplateTable(tableNameResolver.templateTableName(rule));
         tableResult.setPhysicalTable(physicalTable);
@@ -359,6 +388,34 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
             ShardingTablePreCreateResult result,
             List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules,
             List<ShardingQuarter> targetQuarters) {
+        List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> transactionRules = rules.stream()
+                .filter(entry -> TransactionShardingProperties.defaultLogicTables()
+                        .contains(entry.getValue().getLogicalTable()))
+                .toList();
+        List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> riskAuditRules = rules.stream()
+                .filter(entry -> RiskAuditShardingProperties.defaultLogicTables()
+                        .contains(entry.getValue().getLogicalTable()))
+                .toList();
+        boolean transactionReady = completeTransactionRuleCandidate(result, transactionRules, targetQuarters);
+        boolean riskAuditReady = completeRiskAuditRuleCandidate(result, riskAuditRules, targetQuarters);
+        result.setPublicationReady(transactionReady && riskAuditReady);
+        result.setNextAction(Boolean.TRUE.equals(result.getPublicationReady())
+                ? "REVIEW_AND_PUBLISH_VERSIONED_NACOS_THEN_ROLLING_RESTART"
+                : "FIX_BLOCKERS_AND_REPEAT_DRY_RUN");
+    }
+
+    /**
+     * 计算交易 28 表候选版本，不把风控审计表计入交易节点完整性判断。
+     *
+     * @return 当前请求中的交易表族是否具备人工发布条件
+     */
+    private boolean completeTransactionRuleCandidate(
+            ShardingTablePreCreateResult result,
+            List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules,
+            List<ShardingQuarter> targetQuarters) {
+        if (rules.isEmpty()) {
+            return true;
+        }
         Set<String> expectedTables = new LinkedHashSet<>(TransactionShardingProperties.defaultLogicTables());
         Set<String> selectedTables = new LinkedHashSet<>();
         rules.forEach(entry -> selectedTables.add(entry.getValue().getLogicalTable()));
@@ -380,6 +437,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         for (ShardingQuarter quarter : targetQuarters) {
             List<ShardingTablePreCreateTableResult> quarterResults = result.getTableResults().stream()
                     .filter(item -> quarter.displayName().equals(item.getTargetQuarter()))
+                    .filter(item -> "TRANSACTION".equals(item.getTableFamily()))
                     .toList();
             Set<String> quarterTables = new LinkedHashSet<>();
             quarterResults.forEach(item -> quarterTables.add(item.getLogicalTable()));
@@ -401,10 +459,59 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         TransactionShardingProperties candidate = copyTransactionRule(candidateVersion, verifiedNodes);
         result.setCandidateRuleVersion(candidateVersion);
         result.setCandidateRuleChecksum(TransactionShardingRuleChecksum.calculate(candidate));
-        result.setPublicationReady(result.getPublicationBlockers().isEmpty());
-        result.setNextAction(Boolean.TRUE.equals(result.getPublicationReady())
-                ? "REVIEW_AND_PUBLISH_VERSIONED_NACOS_THEN_ROLLING_RESTART"
-                : "FIX_BLOCKERS_AND_REPEAT_DRY_RUN");
+        return result.getPublicationBlockers().isEmpty();
+    }
+
+    /**
+     * 计算风控审计双表候选版本，节点只有在主记录和执行明细同时通过门禁时才加入。
+     *
+     * @return 当前请求中的风控审计表族是否具备人工发布条件
+     */
+    private boolean completeRiskAuditRuleCandidate(
+            ShardingTablePreCreateResult result,
+            List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules,
+            List<ShardingQuarter> targetQuarters) {
+        if (rules.isEmpty()) {
+            return true;
+        }
+        Set<String> expectedTables = new LinkedHashSet<>(RiskAuditShardingProperties.defaultLogicTables());
+        Set<String> selectedTables = rules.stream()
+                .map(entry -> entry.getValue().getLogicalTable())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (!selectedTables.equals(expectedTables)) {
+            result.getRiskAuditPublicationBlockers().add(
+                    "risk audit candidate publication requires both formal logic tables");
+        }
+        Set<String> verifiedNodes = new LinkedHashSet<>(riskAuditShardingProperties.getPhysicalNodes());
+        for (ShardingQuarter quarter : targetQuarters) {
+            List<ShardingTablePreCreateTableResult> quarterResults = result.getTableResults().stream()
+                    .filter(item -> quarter.displayName().equals(item.getTargetQuarter()))
+                    .filter(item -> "RISK_AUDIT".equals(item.getTableFamily()))
+                    .toList();
+            Set<String> quarterTables = quarterResults.stream()
+                    .map(ShardingTablePreCreateTableResult::getLogicalTable)
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            boolean ready = quarterTables.equals(expectedTables)
+                    && quarterResults.stream().allMatch(this::isPublicationReadyTable);
+            if (ready) {
+                verifiedNodes.add(quarter.suffix());
+            } else {
+                result.getRiskAuditPublicationBlockers().add(
+                        "risk audit quarter " + quarter.displayName()
+                                + " has missing or unverified physical tables");
+            }
+        }
+        result.setRiskAuditVerifiedPhysicalNodes(new ArrayList<>(verifiedNodes));
+        String versionSuffix = verifiedNodes.isEmpty() ? "none"
+                : new ArrayList<>(verifiedNodes).get(verifiedNodes.size() - 1);
+        String currentVersion = StringUtils.hasText(riskAuditShardingProperties.getRuleVersion())
+                ? riskAuditShardingProperties.getRuleVersion() : "unpublished";
+        String candidateVersion = currentVersion + "-candidate-" + versionSuffix;
+        RiskAuditShardingProperties candidate = copyRiskAuditRule(candidateVersion, verifiedNodes);
+        result.setRiskAuditCandidateRuleVersion(candidateVersion);
+        result.setRiskAuditCandidateRuleChecksum(RiskAuditShardingRuleChecksum.calculate(candidate));
+        result.setRiskAuditPublicationReady(result.getRiskAuditPublicationBlockers().isEmpty());
+        return Boolean.TRUE.equals(result.getRiskAuditPublicationReady());
     }
 
     /**
@@ -438,6 +545,29 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
                 transactionShardingProperties.getQueryBudget().getMaxConcurrentExportsPerUser());
         candidate.setQueryBudget(budget);
         return candidate;
+    }
+
+    /**
+     * 复制影响风控审计 checksum 的字段，候选对象不继承运行开关和服务白名单策略。
+     */
+    private RiskAuditShardingProperties copyRiskAuditRule(String candidateVersion, Set<String> verifiedNodes) {
+        RiskAuditShardingProperties candidate = new RiskAuditShardingProperties();
+        candidate.setRuleVersion(candidateVersion);
+        candidate.setDatabaseZoneId(riskAuditShardingProperties.getDatabaseZoneId());
+        candidate.setShardingColumn(riskAuditShardingProperties.getShardingColumn());
+        candidate.setPrimaryDataSource(riskAuditShardingProperties.getPrimaryDataSource());
+        candidate.setReplicaDataSources(riskAuditShardingProperties.getReplicaDataSources());
+        candidate.setPhysicalNodes(new ArrayList<>(verifiedNodes));
+        candidate.setLogicTables(RiskAuditShardingProperties.defaultLogicTables());
+        return candidate;
+    }
+
+    /**
+     * 根据逻辑表返回稳定表族编码，供任务结果和管理页面区分运行版本。
+     */
+    private String tableFamily(String logicalTable) {
+        return RiskAuditShardingProperties.defaultLogicTables().contains(logicalTable)
+                ? "RISK_AUDIT" : "TRANSACTION";
     }
 
     /**

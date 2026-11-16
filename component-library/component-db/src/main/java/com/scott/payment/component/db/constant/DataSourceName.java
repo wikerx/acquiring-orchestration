@@ -21,6 +21,12 @@ public final class DataSourceName {
     public static final String TRANSACTION = "transaction";
 
     /**
+     * 风控审计逻辑数据源名称。该复合数据源只承载风控评估主记录、执行明细和定位表，
+     * 不参与实时风控规则计算。
+     */
+    public static final String RISK_AUDIT = "riskAudit";
+
+    /**
      * 禁止实例化动态数据源名称常量类。
      */
     private DataSourceName() {

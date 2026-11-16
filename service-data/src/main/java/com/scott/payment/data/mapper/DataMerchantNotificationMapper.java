@@ -145,6 +145,41 @@ public interface DataMerchantNotificationMapper {
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
+     * 按商户、任务号、交易号和分片时间读取一条可人工重发的通知任务。
+     *
+     * <p>该查询用于商户端人工重发消费的二次归属校验。只接受自动计划已经结束的 SUCCESS、CLOSED，
+     * 或者不存在下次自动重试时间的 FAILED 任务，避免人工操作截断自动计划。</p>
+     *
+     * @param transactionId 平台交易号
+     * @param notifyId 商户通知任务号
+     * @param merchantId 通知任务所属商户号
+     * @param transactionDateTime 原交易分片时间
+     * @return 精确匹配且可人工重发的通知任务；不存在时返回空
+     */
+    @Select("""
+            SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
+                   callback_url, payload_json, target_url_hash, target_url_masked,
+                   payload_json_masked, sign_type, last_attempt_no, max_retry_count,
+                   transaction_date_time, version
+            FROM transaction_merchant_notification
+            WHERE transaction_id = #{transactionId}
+              AND notify_id = #{notifyId}
+              AND merchant_id = #{merchantId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND deleted = 0
+              AND (
+                    notify_status IN ('SUCCESS', 'CLOSED')
+                    OR (notify_status = 'FAILED' AND next_retry_time IS NULL)
+                  )
+            LIMIT 1
+            """)
+    DataMerchantNotificationTaskDO selectRetryableNotification(
+            @Param("transactionId") String transactionId,
+            @Param("notifyId") String notifyId,
+            @Param("merchantId") String merchantId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
      * 查询人工重发竞争判断所需的当前任务状态。
      *
      * @param transactionId 平台交易 ID
@@ -163,6 +198,32 @@ public interface DataMerchantNotificationMapper {
             """)
     DataMerchantNotificationTaskDO selectCurrentStateByTransactionId(
             @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
+     * 按商户端重发命令的完整业务身份读取当前通知状态。
+     *
+     * @param transactionId 平台交易号
+     * @param notifyId 商户通知任务号
+     * @param merchantId 通知任务所属商户号
+     * @param transactionDateTime 原交易分片时间
+     * @return 当前精确任务状态；不存在或不属于该商户时返回空
+     */
+    @Select("""
+            SELECT id, notify_status, next_retry_time, processing_mode, processing_event_id,
+                   transaction_date_time, version
+            FROM transaction_merchant_notification
+            WHERE transaction_id = #{transactionId}
+              AND notify_id = #{notifyId}
+              AND merchant_id = #{merchantId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND deleted = 0
+            LIMIT 1
+            """)
+    DataMerchantNotificationTaskDO selectCurrentStateByNotification(
+            @Param("transactionId") String transactionId,
+            @Param("notifyId") String notifyId,
+            @Param("merchantId") String merchantId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**

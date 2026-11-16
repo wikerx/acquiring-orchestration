@@ -76,6 +76,11 @@ public final class MqTag {
     public static final String MERCHANT_NOTIFICATION_RETRY_DUE = "MERCHANT_NOTIFICATION_RETRY_DUE";
 
     /**
+     * OpenAPI 响应加密完成后的商户交互审计回写标签。
+     */
+    public static final String MERCHANT_API_RESPONSE_AUDIT = "MERCHANT_API_RESPONSE_AUDIT";
+
+    /**
      * 退款审批通过后的渠道执行请求标签。
      */
     public static final String REFUND_EXECUTION_REQUESTED = "REFUND_EXECUTION_REQUESTED";

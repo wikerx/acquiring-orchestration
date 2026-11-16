@@ -52,6 +52,66 @@ public class TransactionAmountChangeLogDO implements Serializable {
     private BigDecimal changeAmount;
 
     /**
+     * 本次金额变动对应的商户标签币种。
+     */
+    private String labelAmountCurrency;
+
+    /**
+     * 本次金额变动对应的商户标签金额。
+     */
+    private BigDecimal labelChangeAmount;
+
+    /**
+     * 变动前累计标签授权金额。
+     */
+    private BigDecimal labelAuthorizedBefore;
+
+    /**
+     * 变动后累计标签授权金额。
+     */
+    private BigDecimal labelAuthorizedAfter;
+
+    /**
+     * 变动前累计标签请款金额。
+     */
+    private BigDecimal labelCapturedBefore;
+
+    /**
+     * 变动后累计标签请款金额。
+     */
+    private BigDecimal labelCapturedAfter;
+
+    /**
+     * 变动前累计标签退款金额。
+     */
+    private BigDecimal labelRefundedBefore;
+
+    /**
+     * 变动后累计标签退款金额。
+     */
+    private BigDecimal labelRefundedAfter;
+
+    /**
+     * 变动前标签可请款金额。
+     */
+    private BigDecimal labelAvailableCaptureBefore;
+
+    /**
+     * 变动后标签可请款金额。
+     */
+    private BigDecimal labelAvailableCaptureAfter;
+
+    /**
+     * 变动前标签可退款金额。
+     */
+    private BigDecimal labelAvailableRefundBefore;
+
+    /**
+     * 变动后标签可退款金额。
+     */
+    private BigDecimal labelAvailableRefundAfter;
+
+    /**
      * 持久化的{@code authorizedBefore}，用于还原当前记录的业务事实。
      */
     private BigDecimal authorizedBefore;

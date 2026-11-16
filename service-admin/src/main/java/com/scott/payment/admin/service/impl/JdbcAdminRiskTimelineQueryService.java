@@ -1,9 +1,9 @@
 package com.scott.payment.admin.service.impl;
 
-import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.RiskTimelineEventResponse;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
-import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -27,12 +27,28 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     /**
+     * 风控审计逻辑数据源执行器，避免时间轴查询沿用交易分片上下文。
+     */
+    private final RiskAuditLogicalReadExecutor riskAuditReadExecutor;
+
+    /**
+     * 风控审计分片开关，用于迁移期间兼容尚未增加 evaluation_time 的旧明细表。
+     */
+    private final RiskAuditShardingProperties riskAuditShardingProperties;
+
+    /**
      * 创建管理端风控时间轴查询服务。
      *
      * @param jdbcTemplate 支持命名参数的 JDBC 查询模板
+     * @param riskAuditReadExecutor 风控审计逻辑数据源执行器
+     * @param riskAuditShardingProperties 风控审计分片运行配置
      */
-    public JdbcAdminRiskTimelineQueryService(NamedParameterJdbcTemplate jdbcTemplate) {
+    public JdbcAdminRiskTimelineQueryService(NamedParameterJdbcTemplate jdbcTemplate,
+                                             RiskAuditLogicalReadExecutor riskAuditReadExecutor,
+                                             RiskAuditShardingProperties riskAuditShardingProperties) {
         this.jdbcTemplate = jdbcTemplate;
+        this.riskAuditReadExecutor = riskAuditReadExecutor;
+        this.riskAuditShardingProperties = riskAuditShardingProperties;
     }
 
     /**
@@ -45,12 +61,14 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
      * @return 风控时间轴事件；参数为空或无记录时返回空集合
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public List<RiskTimelineEventResponse> findRiskEvents(String paymentOrderNo) {
         if (!StringUtils.hasText(paymentOrderNo)) {
             return List.of();
         }
-        List<RiskTimelineEventResponse> events = jdbcTemplate.query("""
+        String detailJoin = riskAuditShardingProperties.isEnabled()
+                ? "ON d.risk_record_no = r.risk_record_no AND d.evaluation_time = r.evaluation_time"
+                : "ON d.risk_record_no = r.risk_record_no";
+        String sql = """
                 SELECT d.id AS risk_event_id,
                        r.risk_record_no,
                        r.payment_order_no,
@@ -73,14 +91,17 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
                        d.decision_effect
                 FROM risk_evaluation_record r
                 INNER JOIN risk_evaluation_hit_detail d
-                        ON d.risk_record_no = r.risk_record_no
+                        %s
                 WHERE r.payment_order_no = :paymentOrderNo
                 ORDER BY r.evaluation_time ASC,
                          COALESCE(d.stage_order, 9999) ASC,
                          d.decision_time ASC,
                          d.id ASC
-                """, new MapSqlParameterSource("paymentOrderNo", paymentOrderNo.trim()),
-                this::mapTimelineEvent);
+                """.formatted(detailJoin);
+        List<RiskTimelineEventResponse> events = riskAuditReadExecutor.read(() -> jdbcTemplate.query(
+                sql,
+                new MapSqlParameterSource("paymentOrderNo", paymentOrderNo.trim()),
+                this::mapTimelineEvent));
         return events == null ? List.of() : events;
     }
 

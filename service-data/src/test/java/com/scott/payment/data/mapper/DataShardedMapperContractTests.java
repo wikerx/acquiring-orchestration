@@ -26,11 +26,29 @@ class DataShardedMapperContractTests {
                 DataMerchantNotificationMapper.class,
                 DataMerchantNotificationLogMapper.class,
                 DataMerchantNotificationRetryOutboxMapper.class,
-                DataCheckoutCardVaultMapper.class);
+                DataCheckoutCardVaultMapper.class,
+                DataMerchantApiResponseAuditMapper.class);
 
         mapperTypes.stream()
                 .flatMap(type -> Arrays.stream(type.getMethods()))
                 .forEach(this::assertShardingContract);
+    }
+
+    /**
+     * 商户响应审计只能补齐空摘要，禁止重复消息改写首次响应事实。
+     *
+     * @throws NoSuchMethodException Mapper 方法签名发生非兼容变化时测试失败
+     */
+    @Test
+    void merchantResponseAuditShouldOnlyWriteFirstResponse() throws NoSuchMethodException {
+        Method method = DataMerchantApiResponseAuditMapper.class.getMethod(
+                "updateFirstResponseAudit",
+                com.scott.payment.data.entity.DataMerchantApiResponseAuditDO.class);
+        String sql = annotationValue(method.getAnnotation(Update.class));
+
+        assertThat(sql)
+                .contains("response_cipher_digest IS NULL")
+                .doesNotContain("OR response_cipher_digest");
     }
 
     /**

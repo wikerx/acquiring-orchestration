@@ -78,7 +78,7 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
      * @return 待激活通知任务；不存在时返回 null
      */
     @Select("""
-            SELECT notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
+            SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
                    transaction_date_time, version
             FROM transaction_merchant_notification
             WHERE transaction_id = #{transactionId}
@@ -95,8 +95,12 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             @Param("expectedVersion") Integer expectedVersion);
 
     /**
-     * 激活逻辑表中指定交易分片的终态商户通知。
+     * 通过物理主键激活逻辑表中指定交易分片的终态商户通知。
+     * <p>
+     * 主键来自同一事务内的待激活任务查询；更新仍保留交易 ID、分片时间、版本和当前状态条件，
+     * 既固定 InnoDB 的主键访问路径，又防止过期任务或异常分片被误更新。
      *
+     * @param id 待激活通知任务物理主键
      * @param transactionId 平台当前交易 ID
      * @param transactionDateTime 交易分片时间
      * @param expectedVersion 当前通知版本号
@@ -113,14 +117,16 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
                 next_retry_time = #{nextRetryTime},
                 version = version + 1,
                 update_time = #{now}
-            WHERE transaction_id = #{transactionId}
+            WHERE id = #{id}
+              AND transaction_id = #{transactionId}
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
               AND notify_status = 'INIT'
               AND next_retry_time IS NULL
               AND deleted = 0
             """)
-    int activateByTransactionId(@Param("transactionId") String transactionId,
+    int activateByTransactionId(@Param("id") Long id,
+                                @Param("transactionId") String transactionId,
                                 @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                 @Param("expectedVersion") Integer expectedVersion,
                                 @Param("callbackPayloadJson") String callbackPayloadJson,

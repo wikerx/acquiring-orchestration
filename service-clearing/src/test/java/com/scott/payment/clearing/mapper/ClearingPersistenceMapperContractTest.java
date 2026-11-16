@@ -31,6 +31,9 @@ class ClearingPersistenceMapperContractTest {
             ClearingTransactionOperationMapper.class,
             ClearingTransactionAbnormalEventMapper.class,
             ClearingSettlementCandidateMapper.class,
+            ClearingLabelPrincipalRepairMapper.class,
+            ClearingLabelPrincipalRepairDependencyAuditMapper.class,
+            ClearingLabelPrincipalRepairReserveStateAuditMapper.class,
             ClearingTierPeriodReplayMapper.class,
             ClearingCompensationMapper.class);
 
@@ -76,6 +79,8 @@ class ClearingPersistenceMapperContractTest {
     void financeStateMutationsShouldRequireStatusOwnerAndVersionCas() {
         String claim = sql(methodNamed(ClearingTransactionFinanceStateMapper.class, "claimProcessing"));
         assertThat(claim)
+                .contains("id = #{id}")
+                .contains("transaction_id = #{transactionId}")
                 .contains("transaction_date_time = #{transactionDateTime}")
                 .contains("clearing_status IN ('NOT_CLEARED', 'PENDING', 'WAITING_SOURCE', 'FAILED')")
                 .contains("processing_owner = #{processingOwner}")
@@ -85,6 +90,8 @@ class ClearingPersistenceMapperContractTest {
 
         String complete = sql(methodNamed(ClearingTransactionFinanceStateMapper.class, "completeProcessing"));
         assertThat(complete)
+                .contains("id = #{id}")
+                .contains("transaction_id = #{transactionId}")
                 .contains("clearing_status = 'PROCESSING'")
                 .contains("processing_owner = #{processingOwner}")
                 .contains("processing_deadline >= #{now}")
@@ -93,6 +100,8 @@ class ClearingPersistenceMapperContractTest {
 
         String failure = sql(methodNamed(ClearingTransactionFinanceStateMapper.class, "recordFailure"));
         assertThat(failure)
+                .contains("id = #{id}")
+                .contains("transaction_id = #{transactionId}")
                 .contains("clearing_status = 'PROCESSING'")
                 .contains("processing_owner = #{processingOwner}")
                 .contains("version = #{expectedVersion}")
@@ -181,6 +190,38 @@ class ClearingPersistenceMapperContractTest {
     }
 
     @Test
+    void labelPrincipalDependencyMigrationShouldRequireFrozenUnclaimedReserveRelease() {
+        String migration = sql(methodNamed(
+                ClearingSettlementCandidateMapper.class, "migrateReserveHoldDependency"));
+
+        assertThat(migration)
+                .contains("dependency.id = #{dependencyId}")
+                .contains("dependency.dependency_type = 'RESERVE_HOLD_POSTED'")
+                .contains("dependent.source_type = 'RESERVE_RELEASE'")
+                .contains("dependent.candidate_status = 'READY'")
+                .contains("dependent.settlement_batch_no IS NULL")
+                .contains("dependent.claimed_time IS NULL")
+                .contains("dependent.posted_time IS NULL")
+                .contains("dependent.version = #{expectedDependentCandidateVersion}");
+    }
+
+    @Test
+    void labelPrincipalReserveStateMigrationShouldOnlyChangeFrozenHoldReference() {
+        String migration = sql(methodNamed(ClearingReserveMapper.class, "migrateHoldReference"));
+
+        assertThat(migration)
+                .contains("original_hold_detail_no = #{newHoldDetailNo}")
+                .contains("version = version + 1")
+                .contains("id = #{reserveStateRowId}")
+                .contains("reserve_state_id = #{reserveStateId}")
+                .contains("original_transaction_id = #{originalTransactionId}")
+                .contains("transaction_date_time = #{originalTransactionDateTime}")
+                .contains("original_hold_detail_no = #{oldHoldDetailNo}")
+                .contains("version = #{expectedVersion}")
+                .doesNotContain("remaining_amount =", "retained_amount =", "reserve_status =");
+    }
+
+    @Test
     void tierAccumulatorDeltaShouldBatchRuleUpdatesWithIndependentVersionCas() {
         String applyDelta = sql(methodNamed(ClearingFeeTierAccumulatorMapper.class, "applyDeltas"));
 
@@ -224,6 +265,12 @@ class ClearingPersistenceMapperContractTest {
 
     @Test
     void operationAndOrderProjectionUpdatesShouldUseShardAndVersionCas() {
+        String operationRead = sql(methodNamed(
+                ClearingTransactionOperationMapper.class, "selectByTransaction"));
+        assertThat(operationRead)
+                .contains("label_currency", "label_amount", "label_currency_exponent")
+                .contains("transaction_currency", "transaction_amount", "currency_exponent");
+
         String operationUpdate = sql(methodNamed(
                 ClearingTransactionOperationMapper.class, "updateClearingProjection"));
         assertThat(operationUpdate)

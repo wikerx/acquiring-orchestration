@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 public class AdminBaseCardBinApplicationService {
 
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final int LEGACY_SYNC_EXPORT_MAX_ROWS = 5_000;
     private static final DateTimeFormatter BATCH_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final long NOT_DELETED = AuthConstants.NOT_DELETED;
     private static final int STATUS_DISABLED = 0;
@@ -346,8 +347,15 @@ public class AdminBaseCardBinApplicationService {
     @DS(DataSourceName.SLAVE)
     public void export(CardBinDTOs.CardBinQueryRequest request, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
+        List<CardBinEntities.BaseCardBinRangeDO> sourceRows = cardBinRangeMapper.selectPage(
+                new Page<>(1, LEGACY_SYNC_EXPORT_MAX_ROWS + 1, false),
+                buildListQuery(request == null ? new CardBinDTOs.CardBinQueryRequest() : request)
+        ).getRecords();
+        if (sourceRows.size() > LEGACY_SYNC_EXPORT_MAX_ROWS) {
+            throw badRequest("同步导出最多支持 5000 条，请使用下载中心的异步导出");
+        }
         DictLabels labels = loadDictLabels();
-        List<CardBinExportRow> rows = cardBinRangeMapper.selectList(buildListQuery(request == null ? new CardBinDTOs.CardBinQueryRequest() : request))
+        List<CardBinExportRow> rows = sourceRows
                 .stream()
                 .map(row -> toExportRow(row, labels))
                 .toList();

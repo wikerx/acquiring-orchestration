@@ -46,6 +46,36 @@ final class OriginalTransactionRouteResolver {
     }
 
     /**
+     * 在主单短事务建立前完成原交易路由恢复。
+     *
+     * <p>完整冻结快照只做本地解析；旧交易需要读取当前渠道与 MID 配置时，也必须在持有原订单
+     * 行锁之前完成。原交易不可继续属于可持久化的业务拒绝，因此转换为规划结果而不是直接吞掉。</p>
+     *
+     * @param routeService 原渠道与 MID 恢复服务
+     * @param sourceOrder 原交易主单快照
+     * @param sourceOperation 原交易动作快照
+     * @return 可执行路由或原交易拒绝规划
+     */
+    static Resolution plan(PaymentChannelRouteService routeService,
+                           TransactionOrderDO sourceOrder,
+                           TransactionOperationDO sourceOperation) {
+        try {
+            return Resolution.routed(restore(routeService, sourceOrder, sourceOperation));
+        } catch (ServiceException exception) {
+            if (OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
+                try {
+                    return Resolution.rejected(snapshot(sourceOrder, sourceOperation));
+                } catch (RuntimeException snapshotFailure) {
+                    return Resolution.failed(snapshotFailure);
+                }
+            }
+            return Resolution.failed(exception);
+        } catch (RuntimeException exception) {
+            return Resolution.failed(exception);
+        }
+    }
+
+    /**
      * 构建原交易渠道路由快照。
      */
     static PaymentRouteResultDTO snapshot(TransactionOrderDO sourceOrder,
@@ -133,5 +163,46 @@ final class OriginalTransactionRouteResolver {
             }
         }
         return null;
+    }
+
+    /**
+     * 后续资金动作的事务外路由规划结果。
+     *
+     * @param routeResult 原交易冻结路由；拒绝场景保留最小身份用于审计落库
+     * @param rejected 原交易渠道身份是否已确定不可继续
+     * @param failure 事务外规划异常；延迟到原业务校验完成后按既有顺序抛出
+     */
+    record Resolution(PaymentRouteResultDTO routeResult, boolean rejected, RuntimeException failure) {
+
+        /**
+         * 构造可继续执行渠道调用的规划结果。
+         */
+        private static Resolution routed(PaymentRouteResultDTO routeResult) {
+            return new Resolution(routeResult, false, null);
+        }
+
+        /**
+         * 构造需要在本地持久化稳定失败结果的规划结果。
+         */
+        private static Resolution rejected(PaymentRouteResultDTO routeResult) {
+            return new Resolution(routeResult, true, null);
+        }
+
+        /**
+         * 保存事务外读取异常，避免改变锁内状态机和额度校验的原有错误优先级。
+         */
+        private static Resolution failed(RuntimeException failure) {
+            return new Resolution(null, false, failure);
+        }
+
+        /**
+         * 在原有路由恢复位置返回规划结果或重新抛出事务外读取异常。
+         */
+        PaymentRouteResultDTO requireRouteResult() {
+            if (failure != null) {
+                throw failure;
+            }
+            return routeResult;
+        }
     }
 }

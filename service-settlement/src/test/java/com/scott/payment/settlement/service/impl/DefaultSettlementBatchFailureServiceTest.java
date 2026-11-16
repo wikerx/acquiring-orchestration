@@ -86,6 +86,40 @@ class DefaultSettlementBatchFailureServiceTest {
     }
 
     /**
+     * 本金与商户标签口径冲突属于稳定资金事实错误，必须直接转人工复核而不是自动重试。
+     */
+    @Test
+    void shouldMovePrincipalLabelMismatchToManualReview() {
+        LocalDateTime now = LocalDateTime.of(2026, 11, 6, 10, 0);
+        SettlementBatchDO batch = batch(now, 0, 1);
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(batchMapper.recordManualReview(
+                batch.getSettlementBatchNo(), "worker-1", 0, 9L,
+                "FACT_LOADING", "SETTLEMENT_PRINCIPAL_LABEL_MISMATCH",
+                "principal clearing fact differs from merchant label facts", now)).thenReturn(1);
+        when(candidateMapper.markBatchManualReview(batch.getSettlementBatchNo(), now)).thenReturn(1);
+        when(relationMapper.markBatchManualReview(batch.getSettlementBatchNo(), now)).thenReturn(1);
+
+        service.recordFailure(batch.getSettlementBatchNo(), "worker-1",
+                new SettlementProcessingException(SettlementFailureStage.FACT_LOADING,
+                        "SETTLEMENT_PRINCIPAL_LABEL_MISMATCH", false,
+                        "principal clearing fact differs from merchant label facts"), now);
+
+        verify(batchMapper).recordManualReview(
+                batch.getSettlementBatchNo(), "worker-1", 0, 9L,
+                "FACT_LOADING", "SETTLEMENT_PRINCIPAL_LABEL_MISMATCH",
+                "principal clearing fact differs from merchant label facts", now);
+        verify(candidateMapper).markBatchManualReview(batch.getSettlementBatchNo(), now);
+        verify(relationMapper).markBatchManualReview(batch.getSettlementBatchNo(), now);
+        verify(batchMapper, never()).recordRetryableFailure(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    /**
      * 预审正式结果指纹失配必须直接迁移批次和全部候选到人工复核。
      */
     @Test

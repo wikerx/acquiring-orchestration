@@ -3,11 +3,13 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.converter.DeptConverter;
 import com.scott.payment.admin.dto.SysDeptDTO;
 import com.scott.payment.admin.service.AdminDeptService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
@@ -98,6 +100,26 @@ public class AdminDeptServiceImpl implements AdminDeptService {
                         .eq(SysDeptDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysDeptDO::getSortNo)
         );
+    }
+
+    /**
+     * 分页读取未删除部门，排序规则与现有部门树和同步导出保持一致。
+     *
+     * @param pageNo 页码
+     * @param pageSize 每页数量
+     * @return 部门分页
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<SysDeptDO> pageDepts(int pageNo, int pageSize) {
+        Page<SysDeptDO> page = sysDeptMapper.selectPage(
+                new Page<>(pageNo, pageSize),
+                Wrappers.<SysDeptDO>lambdaQuery()
+                        .eq(SysDeptDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .orderByAsc(SysDeptDO::getSortNo)
+                        .orderByAsc(SysDeptDO::getId)
+        );
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
     /**

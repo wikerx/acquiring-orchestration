@@ -93,6 +93,11 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     private static final int ENABLED = 1;
 
     /**
+     * 允许进入 OpenAPI 交易链路的商户激活状态。
+     */
+    private static final String ACTIVE_ACTIVATION_STATUS = "ACTIVE";
+
+    /**
      * 默认商户业务时区。
      */
     private static final String DEFAULT_TIMEZONE = "Asia/Shanghai";
@@ -421,7 +426,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                 merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId.trim());
         if (runtimeProfile == null
                 || !Integer.valueOf(MerchantStatusEnum.ACTIVE.getCode())
-                .equals(runtimeProfile.getMerchantStatus())) {
+                .equals(runtimeProfile.getMerchantStatus())
+                || !ACTIVE_ACTIVATION_STATUS.equals(runtimeProfile.getActivationStatus())) {
             throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, merchantId);
         }
         return toMerchantInfoDO(runtimeProfile);
@@ -518,6 +524,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setBillingDescriptor(seedDTO.getMerchantName());
         entity.setMerchantShortName(defaultIfBlank(seedDTO.getMerchantShortName(), seedDTO.getMerchantName()));
         entity.setMerchantStatus(MerchantStatusEnum.ACTIVE.getCode());
+        entity.setActivationStatus(ACTIVE_ACTIVATION_STATUS);
         entity.setDefaultLocale(com.scott.payment.component.db.auth.support.MerchantLocaleSupport.CHINESE);
         entity.setMerchantCategoryCode(defaultIfBlank(seedDTO.getMerchantCategoryCode(), "5311"));
         entity.setCountryCode(defaultIfBlank(seedDTO.getCountryCode(), "USA"));

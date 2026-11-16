@@ -2,8 +2,11 @@ package com.scott.payment.component.excel.service;
 
 import jakarta.servlet.http.HttpServletResponse;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
+import com.scott.payment.component.excel.model.ExcelDynamicPagedExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
+
+import java.io.OutputStream;
 
 /**
  * Excel 导出服务接口
@@ -29,10 +32,41 @@ public interface ExcelExportService {
     <T> void exportPaged(ExcelPagedExportRequest<T> request, HttpServletResponse response);
 
     /**
+     * 分页加载并流式写入调用方提供的输出流，供异步导出任务直接写入临时文件或对象存储上传流。
+     *
+     * <p>该方法不关闭输出流，流的生命周期由调用方负责；分页读取和工作簿内存边界与 HTTP 导出一致。</p>
+     *
+     * @param request 分页导出请求
+     * @param outputStream 调用方管理的输出流
+     * @param <T> 行类型
+     */
+    <T> void exportPaged(ExcelPagedExportRequest<T> request, OutputStream outputStream);
+
+    /**
      * 按统一样式导出动态列 Excel 文件。
      *
      * @param request 动态列导出请求
      * @param response HTTP 响应
      */
     void exportDynamic(ExcelDynamicExportRequest request, HttpServletResponse response);
+
+    /**
+     * 按统一样式将动态列 Excel 写入调用方提供的输出流。
+     *
+     * <p>该方法不关闭输出流，适用于系统内置模板初始化、异步任务和对象存储写入。</p>
+     *
+     * @param request 动态列导出请求
+     * @param outputStream 调用方管理的输出流
+     */
+    void exportDynamic(ExcelDynamicExportRequest request, OutputStream outputStream);
+
+    /**
+     * 分页加载动态列数据并写入调用方管理的输出流。
+     *
+     * <p>该方法不关闭输出流，调用方负责流生命周期。</p>
+     *
+     * @param request 动态列分页导出请求
+     * @param outputStream 调用方管理的输出流
+     */
+    void exportDynamicPaged(ExcelDynamicPagedExportRequest request, OutputStream outputStream);
 }

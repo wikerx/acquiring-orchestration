@@ -99,7 +99,8 @@ public interface SettlementProjectionMapper {
             SELECT operation.transaction_id, operation.operation_id, operation.merchant_id,
                    operation.merchant_order_no, operation.transaction_type,
                    operation.transaction_status, operation.transaction_currency,
-                   operation.settlement_status, locator.root_transaction_date_time
+                   operation.label_currency, operation.settlement_status,
+                   locator.root_transaction_date_time
             FROM transaction_operation operation
             JOIN transaction_locator locator
               ON locator.transaction_id = operation.transaction_id

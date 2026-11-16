@@ -188,6 +188,58 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     public boolean retryTransaction(LocalDateTime transactionDateTime,
                                     String transactionId,
                                     String callbackEventId) {
+        return retryManual(
+                transactionDateTime, transactionId, null, null, callbackEventId);
+    }
+
+    /**
+     * 按商户、任务号、交易号和分片时间精确执行一次人工重发。
+     *
+     * <p>该兼容扩展专供商户端重发消息使用。任务归属在消费阶段再次校验，避免 API 校验完成后
+     * 到消息消费之间选中同交易的其他通知任务；其余幂等、CAS 和尝试日志规则与管理端人工重发一致。</p>
+     *
+     * @param transactionDateTime 原交易分片时间
+     * @param transactionId 平台交易号
+     * @param notifyId 商户通知任务号
+     * @param merchantId 通知任务所属商户号
+     * @param callbackEventId 人工重发命令的稳定事件号
+     * @return true 表示该人工事件已经获得成功确认
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public boolean retryNotification(LocalDateTime transactionDateTime,
+                                     String transactionId,
+                                     String notifyId,
+                                     String merchantId,
+                                     String callbackEventId) {
+        if (!StringUtils.hasText(notifyId) || !StringUtils.hasText(merchantId)) {
+            throw new ServiceException(
+                    ApiResultEnum.PARAM_MISSING.getCode(),
+                    "notify_id and merchant_id are required");
+        }
+        return retryManual(
+                transactionDateTime,
+                transactionId,
+                notifyId.trim(),
+                merchantId.trim(),
+                callbackEventId);
+    }
+
+    /**
+     * 执行管理端兼容命令或商户端精确命令的共同人工重发状态机。
+     *
+     * @param transactionDateTime 原交易分片时间
+     * @param transactionId 平台交易号
+     * @param notifyId 商户通知任务号；管理端兼容命令为空
+     * @param merchantId 通知任务所属商户号；管理端兼容命令为空
+     * @param callbackEventId 人工重发命令的稳定事件号
+     * @return true 表示商户已经确认成功
+     */
+    private boolean retryManual(LocalDateTime transactionDateTime,
+                                String transactionId,
+                                String notifyId,
+                                String merchantId,
+                                String callbackEventId) {
         validateTransactionDateTime(transactionDateTime);
         if (!StringUtils.hasText(transactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
@@ -204,23 +256,32 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                         TraceContext.getTraceId(), callbackEventId, transactionId, committedOutcome == 1);
                 return committedOutcome == 1;
             }
-            task = notificationMapper.selectRetryableByTransactionId(transactionId, transactionDateTime);
+            boolean exactMerchantTask = StringUtils.hasText(notifyId) && StringUtils.hasText(merchantId);
+            task = exactMerchantTask
+                    ? notificationMapper.selectRetryableNotification(
+                            transactionId, notifyId, merchantId, transactionDateTime)
+                    : notificationMapper.selectRetryableByTransactionId(
+                            transactionId, transactionDateTime);
             if (task == null) {
-                DataMerchantNotificationTaskDO current = notificationMapper.selectCurrentStateByTransactionId(
-                        transactionId, transactionDateTime);
+                DataMerchantNotificationTaskDO current = exactMerchantTask
+                        ? notificationMapper.selectCurrentStateByNotification(
+                                transactionId, notifyId, merchantId, transactionDateTime)
+                        : notificationMapper.selectCurrentStateByTransactionId(
+                                transactionId, transactionDateTime);
                 if (current != null && "PROCESSING".equals(current.getNotifyStatus())) {
                     throw new IllegalStateException("merchant notification manual retry is processing");
                 }
                 // 管理端校验到 MQ 消费之间可能发生状态变化；未落尝试日志的人工命令不能被静默确认。
-                log.warn("人工重发任务已不具备执行资格, event: DATA_MERCHANT_NOTIFY_MANUAL_INELIGIBLE, traceId: {}, callbackEventId: {}, transactionId: {}, currentStatus: {}",
-                        TraceContext.getTraceId(), callbackEventId, transactionId,
+                log.warn("人工重发任务已不具备执行资格, event: DATA_MERCHANT_NOTIFY_MANUAL_INELIGIBLE, traceId: {}, callbackEventId: {}, notifyId: {}, transactionId: {}, merchantId: {}, currentStatus: {}",
+                        TraceContext.getTraceId(), callbackEventId, notifyId, transactionId, merchantId,
                         current == null ? null : current.getNotifyStatus());
                 throw new IllegalStateException("merchant notification manual retry task is no longer eligible");
             }
         }
         boolean notified = notifySingle(task, callbackEventId, true);
-        log.info("人工重发通知处理完成, event: DATA_MERCHANT_NOTIFY_MANUAL_RETRY_END, traceId: {}, callbackEventId: {}, transactionId: {}, taskFound: {}, notified: {}, routeTable: {}",
-                TraceContext.getTraceId(), callbackEventId, transactionId, task != null, notified, NOTIFICATION_TABLE);
+        log.info("人工重发通知处理完成, event: DATA_MERCHANT_NOTIFY_MANUAL_RETRY_END, traceId: {}, callbackEventId: {}, notifyId: {}, transactionId: {}, merchantId: {}, taskFound: {}, notified: {}, routeTable: {}",
+                TraceContext.getTraceId(), callbackEventId, task.getNotifyId(), transactionId,
+                task.getMerchantId(), true, notified, NOTIFICATION_TABLE);
         return notified;
     }
 

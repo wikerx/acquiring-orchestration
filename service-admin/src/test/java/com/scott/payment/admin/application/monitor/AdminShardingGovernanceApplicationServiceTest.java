@@ -11,6 +11,7 @@ import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalcula
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarter;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ class AdminShardingGovernanceApplicationServiceTest {
         AdminShardingGovernanceApplicationService service = new AdminShardingGovernanceApplicationService(
                 governance,
                 transaction,
+                new RiskAuditShardingProperties(),
                 quarterResolver,
                 new ShardingPhysicalTableNameResolver(),
                 new ShardingAutoIncrementValueCalculator(),
@@ -87,6 +89,7 @@ class AdminShardingGovernanceApplicationServiceTest {
         AdminShardingGovernanceApplicationService service = new AdminShardingGovernanceApplicationService(
                 governance,
                 transaction,
+                new RiskAuditShardingProperties(),
                 mock(ShardingQuarterResolver.class),
                 new ShardingPhysicalTableNameResolver(),
                 new ShardingAutoIncrementValueCalculator(),
@@ -96,6 +99,47 @@ class AdminShardingGovernanceApplicationServiceTest {
                 converter);
 
         assertThat(service.getPhysicalTable(1L).getNodeRegistered()).isFalse();
+    }
+
+    /**
+     * 风控审计表展示独立版本、checksum 和已验收节点，不得借用交易 28 表的运行元数据。
+     */
+    @Test
+    void shouldExposeIndependentRiskAuditRuleMetadata() {
+        TransactionShardingGovernanceProperties governance = new TransactionShardingGovernanceProperties();
+        governance.setTables(new LinkedHashMap<>());
+        governance.getTables().put("risk_evaluation_record", rule("risk_evaluation_record"));
+        TransactionShardingProperties transaction = new TransactionShardingProperties();
+        transaction.setRuleVersion("transaction-version");
+        transaction.setPhysicalNodes(List.of("202603"));
+        RiskAuditShardingProperties riskAudit = new RiskAuditShardingProperties();
+        riskAudit.setRuleVersion("2026.11.08-001");
+        riskAudit.setRuleChecksum("sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
+        riskAudit.setPhysicalNodes(List.of("202604"));
+        ShardingQuarterResolver quarterResolver = mock(ShardingQuarterResolver.class);
+        ShardingQuarter currentQuarter = new ShardingQuarter(2026, 4);
+        when(quarterResolver.currentQuarter(governance)).thenReturn(currentQuarter);
+        when(quarterResolver.inRange(any(), any())).thenReturn(true);
+
+        AdminShardingGovernanceApplicationService service = new AdminShardingGovernanceApplicationService(
+                governance,
+                transaction,
+                riskAudit,
+                quarterResolver,
+                new ShardingPhysicalTableNameResolver(),
+                new ShardingAutoIncrementValueCalculator(),
+                mock(SysShardingPhysicalTableMapper.class),
+                mock(SysShardingTableCreateLogMapper.class),
+                mock(JobSchedulerInternalClient.class),
+                mock(ShardingGovernanceConverter.class));
+
+        assertThat(service.listRules()).singleElement().satisfies(response -> {
+            assertThat(response.getTableFamily()).isEqualTo("RISK_AUDIT");
+            assertThat(response.getRuleVersion()).isEqualTo("2026.11.08-001");
+            assertThat(response.getRuleChecksumPrefix()).isEqualTo("sha256:1234567890ab");
+            assertThat(response.getVerifiedPhysicalNodes()).containsExactly("202604");
+            assertThat(response.getCurrentNodeRegistered()).isTrue();
+        });
     }
 
     private TransactionShardingGovernanceProperties.TableRule rule(String logicalTable) {

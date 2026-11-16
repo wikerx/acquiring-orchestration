@@ -132,7 +132,7 @@ class DefaultTierPeriodReplayServiceTest {
 
     @Test
     void runDueShouldRecalculateNextItemWithFrozenVersionAndStableReplayIdentity() {
-        LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 30);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 26, 18, 30);
         ClearingTierPeriodReplayDO replay = replay();
         replay.setReplayStatus("RUNNING");
         replay.setItemCount(1);

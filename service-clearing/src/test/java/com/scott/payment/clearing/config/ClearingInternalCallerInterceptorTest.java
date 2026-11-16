@@ -66,4 +66,33 @@ class ClearingInternalCallerInterceptorTest {
         assertThat(interceptor.preHandle(
                 adminCompensation, new MockHttpServletResponse(), new Object())).isFalse();
     }
+
+    /**
+     * 历史标签本金修复只向管理服务开放，任务服务即使持有独立 HMAC 凭据也不得调用。
+     */
+    @Test
+    void shouldAllowOnlyAdminCallerForLabelPrincipalRepair() throws Exception {
+        ClearingProperties properties = new ClearingProperties();
+        properties.setInternalAllowedCallers(List.of("service-admin", "service-job"));
+        ClearingInternalCallerInterceptor interceptor = new ClearingInternalCallerInterceptor(properties);
+
+        MockHttpServletRequest adminSubmit = new MockHttpServletRequest();
+        adminSubmit.setRequestURI("/internal/clearing/v1/principal-repairs");
+        adminSubmit.addHeader(InternalServiceSignature.HEADER_CALLER, "service-admin");
+        assertThat(interceptor.preHandle(
+                adminSubmit, new MockHttpServletResponse(), new Object())).isTrue();
+
+        MockHttpServletRequest adminReview = new MockHttpServletRequest();
+        adminReview.setRequestURI("/internal/clearing/v1/principal-repairs/LPR-1/review");
+        adminReview.addHeader(InternalServiceSignature.HEADER_CALLER, "service-admin");
+        assertThat(interceptor.preHandle(
+                adminReview, new MockHttpServletResponse(), new Object())).isTrue();
+
+        MockHttpServletRequest jobRepair = new MockHttpServletRequest();
+        jobRepair.setRequestURI("/internal/clearing/v1/principal-repairs/LPR-1/review");
+        jobRepair.addHeader(InternalServiceSignature.HEADER_CALLER, "service-job");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(jobRepair, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
 }

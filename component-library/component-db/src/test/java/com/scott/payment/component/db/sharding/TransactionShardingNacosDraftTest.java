@@ -33,11 +33,31 @@ class TransactionShardingNacosDraftTest {
         assertThat(properties.usesFormalLogicTableTopology()).isTrue();
         assertThat(properties.getLogicTables())
                 .containsExactlyElementsOf(TransactionShardingProperties.defaultLogicTables());
-        assertThat(properties.getPhysicalNodes()).containsExactly("202603", "202604");
+        assertThat(properties.getPhysicalNodes()).containsExactly("202603", "202604", "202701");
         assertThat(properties.getDirectAccessServices()).contains("service-clearing", "service-settlement");
         assertThat(properties.isSqlShow()).isFalse();
         assertThat(properties.getRuleChecksum())
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(properties));
+    }
+
+    /**
+     * dev 风控审计草案必须保持双表、已验收季度节点、服务白名单和 checksum 的完整激活契约。
+     */
+    @Test
+    void shouldValidateVersionedRiskAuditDevNacosDraft() throws Exception {
+        RiskAuditShardingProperties properties = bind(
+                "sharding-dev.yaml", "risk-audit-sharding", RiskAuditShardingProperties.class);
+
+        properties.setEnabled(true);
+        properties.validateForActivation();
+        assertThat(properties.getLogicTables())
+                .containsExactlyElementsOf(RiskAuditShardingProperties.defaultLogicTables());
+        assertThat(properties.getPhysicalNodes()).containsExactly("202603", "202604", "202701");
+        assertThat(properties.getDirectAccessServices())
+                .containsExactly("service-data", "service-admin");
+        assertThat(properties.isSqlShow()).isFalse();
+        assertThat(properties.getRuleChecksum())
+                .isEqualTo(RiskAuditShardingRuleChecksum.calculate(properties));
     }
 
     /**

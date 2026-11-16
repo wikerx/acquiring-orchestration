@@ -14,6 +14,9 @@ import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.SearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalTierPeriodReplayReviewRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.InternalTierPeriodReplaySubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TierPeriodReplayResponse;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.InternalReviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.InternalSubmitRequest;
+import com.scott.payment.admin.dto.transaction.AdminLabelPrincipalRepairDTOs.Response;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -48,6 +51,8 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
     private static final String TRANSACTIONS = ROOT + "/transactions";
     private static final String RESERVE_ADJUSTMENTS = ROOT + "/reserve-adjustments";
     private static final String TIER_PERIOD_REPLAYS = ROOT + "/tier-period-replays";
+    private static final String PRINCIPAL_REPAIRS = ROOT + "/principal-repairs";
+    private static final Pattern PRINCIPAL_REPAIR_NO_PATTERN = Pattern.compile("^LPR[0-9a-f]{32}$");
 
     private final RestTemplate direct;
     private final RestTemplate loadBalanced;
@@ -148,6 +153,27 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
             String replayNo, InternalTierPeriodReplayReviewRequest request) {
         return post(TIER_PERIOD_REPLAYS + "/" + replayNo + "/review", request,
                 new TypeReference<CommonResult<TierPeriodReplayResponse>>() { });
+    }
+
+    /**
+     * 调用清分内部接口提交历史标签本金修复申请。
+     */
+    @Override
+    public Response submitLabelPrincipalRepair(InternalSubmitRequest request) {
+        return post(PRINCIPAL_REPAIRS, request,
+                new TypeReference<CommonResult<Response>>() { });
+    }
+
+    /**
+     * 调用清分内部接口复核历史标签本金修复申请。
+     */
+    @Override
+    public Response reviewLabelPrincipalRepair(String repairNo, InternalReviewRequest request) {
+        if (repairNo == null || !PRINCIPAL_REPAIR_NO_PATTERN.matcher(repairNo).matches()) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return post(PRINCIPAL_REPAIRS + "/" + repairNo + "/review", request,
+                new TypeReference<CommonResult<Response>>() { });
     }
 
     /**

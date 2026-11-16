@@ -9,6 +9,11 @@ import lombok.Data;
 public class ShardingTablePreCreateTableResult {
 
     /**
+     * 表族：TRANSACTION 或 RISK_AUDIT。
+     */
+    private String tableFamily;
+
+    /**
      * 逻辑表名。
      */
     private String logicalTable;

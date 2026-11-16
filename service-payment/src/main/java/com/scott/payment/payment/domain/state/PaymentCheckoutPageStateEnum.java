@@ -21,6 +21,10 @@ public enum PaymentCheckoutPageStateEnum {
      */
     PROCESSING("PROCESSING"),
     /**
+     * 支付请求已受理且交易仍为待处理，前端应提示付款人避免重复支付并继续轮询。
+     */
+    PENDING("PENDING"),
+    /**
      * 支付已成功，可展示成功结果。
      */
     SUCCEEDED("SUCCEEDED"),

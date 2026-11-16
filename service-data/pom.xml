@@ -62,6 +62,26 @@
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--异步导出使用统一表头、样式和分页流式工作簿实现。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-excel</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--Data 回调来源服务分页读取经过权限冻结的导出数据。-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <!--导出文件通过独立私有 Bucket 保存到 MinIO 或 AWS S3。-->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+        </dependency>
         <!-- 商户回调客户端在实际建连解析阶段执行 SSRF 地址策略，禁止 DNS 重绑定绕过。 -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>

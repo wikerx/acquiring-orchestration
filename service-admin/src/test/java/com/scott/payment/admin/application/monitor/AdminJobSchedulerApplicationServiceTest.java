@@ -3,6 +3,7 @@ package com.scott.payment.admin.application.monitor;
 import com.scott.payment.admin.client.job.JobSchedulerInternalClient;
 import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
 import com.scott.payment.admin.converter.JobSchedulerConverterImpl;
+import com.scott.payment.admin.dto.monitor.JobExecutionTrendResponse;
 import com.scott.payment.admin.dto.monitor.JobTaskResponse;
 import com.scott.payment.admin.dto.monitor.JobTaskSaveRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
@@ -96,6 +97,20 @@ class AdminJobSchedulerApplicationServiceTest {
         assertThat(remoteRequest.getParams()).isEqualTo("{\"closeWindow\":30}");
         assertThat(remoteRequest.getCronExpression()).isNull();
         assertThat(remoteRequest.getStatus()).isEqualTo("ENABLED");
+    }
+
+    /**
+     * 最近七日趋势必须直接返回 Job 服务的权威聚合，不在 Admin 侧生成占位数据。
+     */
+    @Test
+    void shouldDelegateExecutionTrendToJobService() {
+        JobExecutionTrendResponse expected = new JobExecutionTrendResponse();
+        when(jobSchedulerInternalClient.executionTrend()).thenReturn(expected);
+
+        JobExecutionTrendResponse actual = adminJobSchedulerApplicationService.executionTrend();
+
+        assertThat(actual).isSameAs(expected);
+        verify(jobSchedulerInternalClient).executionTrend();
     }
 
     /**

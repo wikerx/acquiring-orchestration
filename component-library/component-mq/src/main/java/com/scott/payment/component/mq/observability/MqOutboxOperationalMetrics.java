@@ -47,6 +47,16 @@ public class MqOutboxOperationalMetrics {
     public static final String BATCH_SATURATED = "acquiring.mq.outbox.batch.saturated";
 
     /**
+     * 独立审计 Outbox 入库过程计数指标名称。
+     */
+    public static final String INDEPENDENT_PERSISTENCE = "acquiring.mq.outbox.independent.persistence";
+
+    /**
+     * Outbox 数据库状态快照刷新结果指标名称。
+     */
+    public static final String SNAPSHOT_REFRESH = "acquiring.mq.outbox.snapshot.refresh";
+
+    /**
      * 通用可靠消息 Outbox 的低基数指标标签值。
      */
     public static final String RELIABLE_OUTBOX = "reliable";
@@ -64,6 +74,8 @@ public class MqOutboxOperationalMetrics {
     private final Map<String, AtomicLong> oldestAge = new ConcurrentHashMap<>();
     private final Map<String, Counter> saturated = new ConcurrentHashMap<>();
     private final Map<String, Timer> relayTimers = new ConcurrentHashMap<>();
+    private final Map<String, Counter> independentPersistence = new ConcurrentHashMap<>();
+    private final Map<String, Counter> snapshotRefresh = new ConcurrentHashMap<>();
 
     /**
      * 创建可选 Micrometer 指标汇聚器。
@@ -135,6 +147,49 @@ public class MqOutboxOperationalMetrics {
                         .tag("outcome", normalizedOutcome)
                         .register(meterRegistry));
         timer.record(Math.max(durationNanos, 0L), TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * 记录独立审计 Outbox 入库过程，结果标签固定为 persisted、failed 或 schedule_rejected。
+     *
+     * @param outcome 固定结果
+     */
+    public void recordIndependentPersistence(String outcome) {
+        if (meterRegistry == null) {
+            return;
+        }
+        String normalizedOutcome = switch (outcome) {
+            case "persisted", "schedule_rejected" -> outcome;
+            default -> "failed";
+        };
+        independentPersistence.computeIfAbsent(normalizedOutcome,
+                        ignored -> Counter.builder(INDEPENDENT_PERSISTENCE)
+                                .description("Independent audit Outbox persistence outcomes")
+                                .tag("outcome", normalizedOutcome)
+                                .register(meterRegistry))
+                .increment();
+    }
+
+    /**
+     * 记录通用或交易 Outbox 数据库快照刷新结果，标签只允许固定类型和固定结果。
+     *
+     * @param outboxType reliable 或 transaction
+     * @param outcome success 或 failed
+     */
+    public void recordSnapshotRefresh(String outboxType, String outcome) {
+        if (meterRegistry == null) {
+            return;
+        }
+        String normalizedType = TRANSACTION_OUTBOX.equals(outboxType)
+                ? TRANSACTION_OUTBOX : RELIABLE_OUTBOX;
+        String normalizedOutcome = "success".equals(outcome) ? "success" : "failed";
+        snapshotRefresh.computeIfAbsent(normalizedType + ':' + normalizedOutcome,
+                        ignored -> Counter.builder(SNAPSHOT_REFRESH)
+                                .description("MQ Outbox database snapshot refresh outcomes")
+                                .tag("outbox_type", normalizedType)
+                                .tag("outcome", normalizedOutcome)
+                                .register(meterRegistry))
+                .increment();
     }
 
     /**

@@ -4,7 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界
+ * 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界。
+ *
+ * <p>所有开关均由环境显式覆盖，代码默认值必须保留安全兼容行为。</p>
  */
 @Data
 @ConfigurationProperties(prefix = "risk.evaluation")
@@ -29,6 +31,13 @@ public class RiskEvaluationProperties {
      * 三个只读规则组共享的最大等待毫秒数，超时后按风控不可用失败关闭。
      */
     private long readOnlyTimeoutMillis = 3_000;
+
+    /**
+     * 是否合并一次评估内重复的只读规则查询和规则启用状态读取。
+     *
+     * <p>代码默认关闭，环境完成结果一致性和容量验证后再显式开启。</p>
+     */
+    private boolean readQueryConsolidationEnabled;
 
     /**
      * Redis 命中缓存秒数。

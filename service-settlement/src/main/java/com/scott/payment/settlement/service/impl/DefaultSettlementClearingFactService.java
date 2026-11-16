@@ -43,6 +43,7 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
     private static final String RESERVE_RELEASE = "RESERVE_RELEASE";
 
     private static final String ADJUSTMENT = "ADJUSTMENT";
+    private static final String PRINCIPAL = "PRINCIPAL";
     private static final Set<String> SOURCE_TYPES = Set.of(
             CLEARING_REVISION, RESERVE_RELEASE, ADJUSTMENT);
     private static final Set<String> DIRECTIONS = Set.of("CREDIT", "DEBIT");
@@ -250,7 +251,27 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
             throw failure("SETTLEMENT_TRANSACTION_FACT_INCONSISTENT",
                     "transaction clearing fact is incomplete or inconsistent");
         }
+        validatePrincipalLabelFact(row);
         return key;
+    }
+
+    /**
+     * 阻断使用渠道交易口径生成的历史本金事实，避免其进入商户结算、余额和账务。
+     *
+     * <p>本金必须与清分时冻结的标签金额、标签币种及 ISO exponent 完全一致。历史不一致事实不可在
+     * 结算侧静默替换或改写，只能作为不可重试失败进入人工复核并通过新清分修订或审计调整处理。</p>
+     */
+    private void validatePrincipalLabelFact(SettlementTransactionClearingDetailDO row) {
+        if (!PRINCIPAL.equals(row.getItemType())) {
+            return;
+        }
+        boolean amountMatches = row.getLabelAmount() != null
+                && row.getAmount().compareTo(row.getLabelAmount()) == 0;
+        if (!amountMatches || !Objects.equals(row.getCurrency(), row.getLabelCurrency())
+                || !Objects.equals(row.getCurrencyExponent(), row.getLabelCurrencyExponent())) {
+            throw failure("SETTLEMENT_PRINCIPAL_LABEL_MISMATCH",
+                    "principal clearing fact differs from merchant label facts");
+        }
     }
 
     /**

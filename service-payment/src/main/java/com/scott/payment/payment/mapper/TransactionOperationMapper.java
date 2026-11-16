@@ -24,7 +24,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             request_source, description, refund_scope, request_reason, applicant_type, applicant_id,
             applicant_name, execution_mode, operation_sequence, transaction_type, transaction_status,
             process_stage, pending_reason_code, fail_reason_code, fail_reason_message,
-            label_currency, label_amount, transaction_currency, transaction_amount,
+            label_currency, label_amount, label_currency_exponent, transaction_currency, transaction_amount,
             approved_currency, approved_amount, channel_request_currency, channel_request_amount,
             settlement_currency, settlement_amount, settlement_rate, settlement_date, settlement_batch_no,
             currency_exponent, dcc_enabled, edc_enabled, transaction_rate,

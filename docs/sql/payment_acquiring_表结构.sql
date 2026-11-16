@@ -634,6 +634,7 @@ CREATE TABLE `channel_mid_config` (
   `transaction_type_scope` varchar(512) NOT NULL COMMENT '支持交易类型，ALL或逗号分隔',
   `currency_scope` varchar(512) NOT NULL COMMENT '支持交易币种，ALL或逗号分隔',
   `allowed_country_scope` varchar(512) NOT NULL COMMENT '允许交易国家，ALL或逗号分隔',
+  `default_transaction_currency` char(3) NOT NULL COMMENT '默认交易币种；标签币种不受支持时用于未来初始交易换汇',
   `default_settlement_currency` char(3) NOT NULL COMMENT '默认结算币种',
   `settlement_cycle` varchar(32) NOT NULL COMMENT '结算周期：T0/T1/T2',
   `settlement_cutoff_time` time DEFAULT NULL COMMENT '结算日切时间',
@@ -1950,6 +1951,172 @@ CREATE TABLE `payment_checkout_token` (
 ) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Hosted Checkout URL 令牌表，支持不保存 token 明文的幂等重试、令牌轮换和吊销。';
 
 -- ----------------------------
+-- Table structure for payment_route_rule
+-- ----------------------------
+DROP TABLE IF EXISTS `payment_route_rule`;
+CREATE TABLE `payment_route_rule` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_code` varchar(64) NOT NULL COMMENT '稳定路由规则编码',
+  `rule_name` varchar(128) NOT NULL COMMENT '路由规则名称',
+  `rule_type` varchar(32) NOT NULL COMMENT '规则类型：FIXED、PRIORITY、WEIGHT、HISTORY_AFFINITY',
+  `scope_type` varchar(32) NOT NULL COMMENT '作用范围：GLOBAL全局、MERCHANT商户',
+  `merchant_id` varchar(32) DEFAULT NULL COMMENT '商户号，MERCHANT范围时必填',
+  `business_type` varchar(32) NOT NULL DEFAULT 'ACQUIRING' COMMENT '业务类型；阶段1A仅支持ACQUIRING',
+  `payment_method` varchar(64) DEFAULT NULL COMMENT '支付方式，空表示不限',
+  `transaction_type` varchar(64) DEFAULT NULL COMMENT '交易类型，空表示不限',
+  `card_brand` varchar(64) DEFAULT NULL COMMENT '卡品牌，空表示不限',
+  `label_currency` char(3) DEFAULT NULL COMMENT '商户标签币种，空表示不限',
+  `issuer_country_scope` varchar(1024) NOT NULL DEFAULT 'ALL' COMMENT '发卡国家范围，ALL或ISO Alpha-2逗号分隔',
+  `billing_country_scope` varchar(1024) NOT NULL DEFAULT 'ALL' COMMENT '账单国家范围，ALL或ISO Alpha-2逗号分隔',
+  `amount_min` decimal(24,8) DEFAULT NULL COMMENT '标签金额下限，包含边界',
+  `amount_max` decimal(24,8) DEFAULT NULL COMMENT '标签金额上限，包含边界',
+  `rule_priority` int NOT NULL COMMENT '第一层规则优先级，数值越小优先级越高',
+  `unavailable_policy` varchar(32) NOT NULL COMMENT '候选不可用策略：FALLBACK回退、REJECT拒绝',
+  `rule_status` varchar(32) NOT NULL DEFAULT 'DRAFT' COMMENT '生命周期：DRAFT、ENABLED、DISABLED',
+  `version` int NOT NULL DEFAULT '0' COMMENT '乐观锁版本',
+  `remark` varchar(500) DEFAULT NULL COMMENT '运营备注',
+  `published_by` varchar(64) DEFAULT NULL COMMENT '最近发布人',
+  `published_time` datetime(3) DEFAULT NULL COMMENT '最近发布时间',
+  `disabled_by` varchar(64) DEFAULT NULL COMMENT '最近停用人',
+  `disabled_time` datetime(3) DEFAULT NULL COMMENT '最近停用时间',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payment_route_rule_code_deleted` (`rule_code`,`deleted`),
+  KEY `idx_payment_route_rule_status_priority` (`rule_status`,`business_type`,`rule_priority`,`deleted`),
+  KEY `idx_payment_route_rule_merchant` (`scope_type`,`merchant_id`,`rule_status`,`deleted`),
+  KEY `idx_payment_route_rule_dimension` (`payment_method`,`transaction_type`,`card_brand`,`label_currency`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则配置表；阶段1A不接入支付链路';
+
+-- ----------------------------
+-- Table structure for payment_route_rule_merchant
+-- ----------------------------
+DROP TABLE IF EXISTS `payment_route_rule_merchant`;
+CREATE TABLE `payment_route_rule_merchant` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_id` bigint NOT NULL COMMENT '支付路由规则ID',
+  `merchant_id` varchar(32) NOT NULL COMMENT '平台商户号',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payment_route_rule_merchant_deleted` (`rule_id`,`merchant_id`,`deleted`),
+  KEY `idx_payment_route_rule_merchant_lookup` (`merchant_id`,`rule_id`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则指定商户关联表';
+
+-- ----------------------------
+-- Table structure for payment_route_method
+-- ----------------------------
+DROP TABLE IF EXISTS `payment_route_method`;
+CREATE TABLE `payment_route_method` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_id` bigint NOT NULL COMMENT '支付路由规则ID',
+  `payment_method` varchar(64) NOT NULL COMMENT '规则适用的收单支付方式',
+  `card_brand` varchar(64) NOT NULL DEFAULT 'NONE' COMMENT '银行卡品牌；非银行卡支付方式为NONE',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payment_route_method_rule_scope_deleted` (`rule_id`,`payment_method`,`card_brand`,`deleted`),
+  KEY `idx_payment_route_method_scope_rule` (`payment_method`,`card_brand`,`rule_id`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则适用支付方式表';
+
+-- ----------------------------
+-- Table structure for payment_route_transaction_type
+-- ----------------------------
+DROP TABLE IF EXISTS `payment_route_transaction_type`;
+CREATE TABLE `payment_route_transaction_type` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_id` bigint NOT NULL COMMENT '支付路由规则ID',
+  `transaction_type` varchar(64) NOT NULL COMMENT '规则适用的收单交易类型',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payment_route_transaction_rule_type_deleted` (`rule_id`,`transaction_type`,`deleted`),
+  KEY `idx_payment_route_transaction_type_rule` (`transaction_type`,`rule_id`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由规则适用交易类型表；无有效记录表示全部交易类型';
+
+-- ----------------------------
+-- Table structure for payment_route_strategy
+-- ----------------------------
+DROP TABLE IF EXISTS `payment_route_strategy`;
+CREATE TABLE `payment_route_strategy` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_id` bigint NOT NULL COMMENT '支付路由规则ID',
+  `strategy_type` varchar(32) NOT NULL COMMENT '类型专属配置类型，与规则类型一致',
+  `strategy_priority` int NOT NULL DEFAULT '100' COMMENT '首版结构兼容字段，不再作为业务优先级',
+  `history_lookback_months` int DEFAULT NULL COMMENT '历史成功MID路由回看月数，其他类型为空',
+  `strategy_status` tinyint NOT NULL DEFAULT '1' COMMENT '状态：0停用，1启用',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payment_route_strategy_rule_type_deleted` (`rule_id`,`strategy_type`,`deleted`),
+  KEY `idx_payment_route_strategy_rule_status` (`rule_id`,`strategy_status`,`strategy_priority`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由策略配置表';
+
+-- ----------------------------
+-- Table structure for payment_route_candidate
+-- ----------------------------
+DROP TABLE IF EXISTS `payment_route_candidate`;
+CREATE TABLE `payment_route_candidate` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_id` bigint NOT NULL COMMENT '支付路由规则ID',
+  `payment_method` varchar(64) NOT NULL COMMENT '候选所属收单支付方式',
+  `card_brand` varchar(64) NOT NULL DEFAULT 'NONE' COMMENT '银行卡品牌；非银行卡支付方式为NONE',
+  `channel_id` bigint NOT NULL COMMENT '渠道ID，关联channel_info.id',
+  `mid_config_id` bigint NOT NULL COMMENT '渠道MID配置ID，关联channel_mid_config.id',
+  `candidate_priority` int NOT NULL COMMENT '候选稳定顺序；仅PRIORITY类型用于选路优先级',
+  `candidate_weight` decimal(5,2) DEFAULT NULL COMMENT 'WEIGHT类型候选权重，按支付方式合计100.00',
+  `candidate_status` tinyint NOT NULL DEFAULT '1' COMMENT '状态：0停用，1启用',
+  `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_payment_route_candidate_mid_deleted` (`rule_id`,`payment_method`,`card_brand`,`mid_config_id`,`deleted`),
+  UNIQUE KEY `uk_payment_route_candidate_priority_deleted` (`rule_id`,`payment_method`,`card_brand`,`candidate_priority`,`deleted`),
+  KEY `idx_payment_route_candidate_scope` (`payment_method`,`card_brand`,`candidate_status`,`deleted`),
+  KEY `idx_payment_route_candidate_channel` (`channel_id`,`candidate_status`,`deleted`),
+  KEY `idx_payment_route_candidate_mid` (`mid_config_id`,`candidate_status`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由候选MID配置表';
+
+-- ----------------------------
+-- Table structure for payment_route_change_log
+-- ----------------------------
+DROP TABLE IF EXISTS `payment_route_change_log`;
+CREATE TABLE `payment_route_change_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_id` bigint NOT NULL COMMENT '支付路由规则ID',
+  `rule_code` varchar(64) NOT NULL COMMENT '规则编码审计冗余',
+  `action_type` varchar(32) NOT NULL COMMENT '操作类型：CREATE、UPDATE、COPY、PUBLISH、DISABLE、DELETE',
+  `before_version` int DEFAULT NULL COMMENT '变更前版本',
+  `after_version` int DEFAULT NULL COMMENT '变更后版本',
+  `before_snapshot_json` json DEFAULT NULL COMMENT '变更前非敏感配置快照',
+  `after_snapshot_json` json DEFAULT NULL COMMENT '变更后非敏感配置快照',
+  `operator_account_id` bigint DEFAULT NULL COMMENT '可信登录账号ID',
+  `operator_name` varchar(64) NOT NULL COMMENT '可信操作人名称',
+  `operation_reason` varchar(500) NOT NULL COMMENT '操作原因',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '操作时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_payment_route_change_rule_time` (`rule_id`,`create_time`,`id`),
+  KEY `idx_payment_route_change_operator_time` (`operator_account_id`,`create_time`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付路由配置不可变变更日志表';
+
+-- ----------------------------
 -- Table structure for risk_aml_card
 -- ----------------------------
 DROP TABLE IF EXISTS `risk_aml_card`;
@@ -3031,6 +3198,7 @@ DROP TABLE IF EXISTS `risk_evaluation_hit_detail`;
 CREATE TABLE `risk_evaluation_hit_detail` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `risk_record_no` varchar(64) NOT NULL COMMENT '风控记录号',
+  `evaluation_time` datetime(3) NOT NULL COMMENT '所属风控评估时间，也是季度分片路由键',
   `module_type` varchar(32) NOT NULL COMMENT '命中模块类型：AML、BLACK、WHITE、RULE',
   `function_code` varchar(64) NOT NULL COMMENT '命中功能编码',
   `function_name` varchar(128) DEFAULT NULL COMMENT '命中功能名称',
@@ -3053,6 +3221,7 @@ CREATE TABLE `risk_evaluation_hit_detail` (
   `decision_effect` varchar(32) DEFAULT NULL COMMENT '当前明细对最终决策的影响：ALLOW、BLOCK、REVIEW、CHALLENGE、NONE',
   PRIMARY KEY (`id`),
   KEY `idx_risk_hit_record` (`risk_record_no`),
+  KEY `idx_risk_hit_time_record` (`evaluation_time`,`risk_record_no`,`id`),
   KEY `idx_risk_hit_function_time` (`module_type`,`function_code`,`decision_time`),
   KEY `idx_risk_hit_record_stage` (`risk_record_no`,`stage_order`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=15823 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控评估命中明细表';
@@ -3086,6 +3255,36 @@ CREATE TABLE `risk_evaluation_record` (
   KEY `idx_risk_eval_level_time` (`risk_level`,`evaluation_time`,`id`),
   KEY `idx_risk_eval_time_id` (`evaluation_time`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=671 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控评估记录表';
+
+-- ----------------------------
+-- Table structure for risk_evaluation_locator
+-- ----------------------------
+DROP TABLE IF EXISTS `risk_evaluation_locator`;
+CREATE TABLE `risk_evaluation_locator` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `risk_record_no` varchar(64) NOT NULL COMMENT '全局唯一风控记录号',
+  `evaluation_time` datetime(3) NOT NULL COMMENT '原始评估时间，用于精确定位季度分片',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_risk_evaluation_locator_record` (`risk_record_no`),
+  KEY `idx_risk_evaluation_locator_time` (`evaluation_time`,`risk_record_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控记录号季度定位与跨季度幂等表';
+
+-- ----------------------------
+-- Physical tables for risk audit quarter sharding
+-- ----------------------------
+DROP TABLE IF EXISTS `risk_evaluation_record_202603`;
+CREATE TABLE `risk_evaluation_record_202603` LIKE `risk_evaluation_record`;
+ALTER TABLE `risk_evaluation_record_202603` AUTO_INCREMENT = 202603000000000001;
+DROP TABLE IF EXISTS `risk_evaluation_hit_detail_202603`;
+CREATE TABLE `risk_evaluation_hit_detail_202603` LIKE `risk_evaluation_hit_detail`;
+ALTER TABLE `risk_evaluation_hit_detail_202603` AUTO_INCREMENT = 202603000000000001;
+DROP TABLE IF EXISTS `risk_evaluation_record_202604`;
+CREATE TABLE `risk_evaluation_record_202604` LIKE `risk_evaluation_record`;
+ALTER TABLE `risk_evaluation_record_202604` AUTO_INCREMENT = 202604000000000001;
+DROP TABLE IF EXISTS `risk_evaluation_hit_detail_202604`;
+CREATE TABLE `risk_evaluation_hit_detail_202604` LIKE `risk_evaluation_hit_detail`;
+ALTER TABLE `risk_evaluation_hit_detail_202604` AUTO_INCREMENT = 202604000000000001;
 
 -- ----------------------------
 -- Table structure for risk_import_batch
@@ -5194,6 +5393,18 @@ CREATE TABLE `transaction_amount_change_log` (
   `change_type` varchar(64) NOT NULL COMMENT '变动类型：AUTH_INCREASE、CAPTURE、REFUND、VOID、CHARGEBACK。',
   `amount_currency` char(3) NOT NULL COMMENT '金额币种。',
   `change_amount` decimal(20,6) NOT NULL COMMENT '本次变动金额，可正可负。',
+  `label_amount_currency` char(3) NOT NULL COMMENT '本次变动的标签币种。',
+  `label_change_amount` decimal(20,6) NOT NULL COMMENT '本次变动的标签金额。',
+  `label_authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签授权金额。',
+  `label_authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签授权金额。',
+  `label_captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签请款金额。',
+  `label_captured_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签请款金额。',
+  `label_refunded_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签退款金额。',
+  `label_refunded_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签退款金额。',
+  `label_available_capture_before` decimal(20,6) NOT NULL COMMENT '变动前标签可请款金额。',
+  `label_available_capture_after` decimal(20,6) NOT NULL COMMENT '变动后标签可请款金额。',
+  `label_available_refund_before` decimal(20,6) NOT NULL COMMENT '变动前标签可退款金额。',
+  `label_available_refund_after` decimal(20,6) NOT NULL COMMENT '变动后标签可退款金额。',
   `authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计授权金额。',
   `authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计授权金额。',
   `captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计请款金额。',
@@ -5231,6 +5442,18 @@ CREATE TABLE `transaction_amount_change_log_202603` (
   `change_type` varchar(64) NOT NULL COMMENT '变动类型：AUTH_INCREASE、CAPTURE、REFUND、VOID、CHARGEBACK。',
   `amount_currency` char(3) NOT NULL COMMENT '金额币种。',
   `change_amount` decimal(20,6) NOT NULL COMMENT '本次变动金额，可正可负。',
+  `label_amount_currency` char(3) NOT NULL COMMENT '本次变动的标签币种。',
+  `label_change_amount` decimal(20,6) NOT NULL COMMENT '本次变动的标签金额。',
+  `label_authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签授权金额。',
+  `label_authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签授权金额。',
+  `label_captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签请款金额。',
+  `label_captured_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签请款金额。',
+  `label_refunded_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签退款金额。',
+  `label_refunded_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签退款金额。',
+  `label_available_capture_before` decimal(20,6) NOT NULL COMMENT '变动前标签可请款金额。',
+  `label_available_capture_after` decimal(20,6) NOT NULL COMMENT '变动后标签可请款金额。',
+  `label_available_refund_before` decimal(20,6) NOT NULL COMMENT '变动前标签可退款金额。',
+  `label_available_refund_after` decimal(20,6) NOT NULL COMMENT '变动后标签可退款金额。',
   `authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计授权金额。',
   `authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计授权金额。',
   `captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计请款金额。',
@@ -5268,6 +5491,18 @@ CREATE TABLE `transaction_amount_change_log_202604` (
   `change_type` varchar(64) NOT NULL COMMENT '变动类型：AUTH_INCREASE、CAPTURE、REFUND、VOID、CHARGEBACK。',
   `amount_currency` char(3) NOT NULL COMMENT '金额币种。',
   `change_amount` decimal(20,6) NOT NULL COMMENT '本次变动金额，可正可负。',
+  `label_amount_currency` char(3) NOT NULL COMMENT '本次变动的标签币种。',
+  `label_change_amount` decimal(20,6) NOT NULL COMMENT '本次变动的标签金额。',
+  `label_authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签授权金额。',
+  `label_authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签授权金额。',
+  `label_captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签请款金额。',
+  `label_captured_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签请款金额。',
+  `label_refunded_before` decimal(20,6) NOT NULL COMMENT '变动前累计标签退款金额。',
+  `label_refunded_after` decimal(20,6) NOT NULL COMMENT '变动后累计标签退款金额。',
+  `label_available_capture_before` decimal(20,6) NOT NULL COMMENT '变动前标签可请款金额。',
+  `label_available_capture_after` decimal(20,6) NOT NULL COMMENT '变动后标签可请款金额。',
+  `label_available_refund_before` decimal(20,6) NOT NULL COMMENT '变动前标签可退款金额。',
+  `label_available_refund_after` decimal(20,6) NOT NULL COMMENT '变动后标签可退款金额。',
   `authorized_before` decimal(20,6) NOT NULL COMMENT '变动前累计授权金额。',
   `authorized_after` decimal(20,6) NOT NULL COMMENT '变动后累计授权金额。',
   `captured_before` decimal(20,6) NOT NULL COMMENT '变动前累计请款金额。',
@@ -7249,6 +7484,7 @@ CREATE TABLE `transaction_operation` (
   `fail_reason_message` varchar(512) DEFAULT NULL COMMENT '后台可见失败原因描述。',
   `label_currency` char(3) NOT NULL COMMENT '商户上送/标签币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '商户上送/标签金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额。',
   `approved_currency` char(3) DEFAULT NULL COMMENT '渠道批准或最终成功币种。',
@@ -7348,6 +7584,7 @@ CREATE TABLE `transaction_operation_202603` (
   `fail_reason_message` varchar(512) DEFAULT NULL COMMENT '后台可见失败原因描述。',
   `label_currency` char(3) NOT NULL COMMENT '商户上送/标签币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '商户上送/标签金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额。',
   `approved_currency` char(3) DEFAULT NULL COMMENT '渠道批准或最终成功币种。',
@@ -7447,6 +7684,7 @@ CREATE TABLE `transaction_operation_202604` (
   `fail_reason_message` varchar(512) DEFAULT NULL COMMENT '后台可见失败原因描述。',
   `label_currency` char(3) NOT NULL COMMENT '商户上送/标签币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '商户上送/标签金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额。',
   `approved_currency` char(3) DEFAULT NULL COMMENT '渠道批准或最终成功币种。',
@@ -7539,6 +7777,7 @@ CREATE TABLE `transaction_order` (
   `payer_visible_message` varchar(512) DEFAULT NULL COMMENT '付款人可见的模糊失败原因。',
   `label_currency` char(3) NOT NULL COMMENT '标签币种，即商户上送/页面展示的原始交易币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '标签金额，即商户上送/页面展示的原始交易金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种，经过 DCC/EDC 后用于交易核心处理。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额，经过 DCC/EDC 后用于交易核心处理。',
   `channel_request_currency` char(3) DEFAULT NULL COMMENT '上送渠道的币种。',
@@ -7553,6 +7792,13 @@ CREATE TABLE `transaction_order` (
   `transaction_rate` decimal(24,12) DEFAULT NULL COMMENT '标签金额转交易金额使用的汇率。',
   `rate_source` varchar(64) DEFAULT NULL COMMENT '汇率来源，如 PLATFORM、CHANNEL、MERCHANT。',
   `rate_time` datetime(3) DEFAULT NULL COMMENT '汇率生效或报价时间。',
+  `label_authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，标签币种单位。',
+  `label_authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，标签币种单位。',
+  `label_captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，标签币种单位。',
+  `label_refunded_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计退款成功金额，标签币种单位。',
+  `label_chargeback_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计拒付金额，标签币种单位。',
+  `label_available_capture_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可请款金额，标签币种单位。',
+  `label_available_refund_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可退款金额，标签币种单位。',
   `authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，交易币种单位。',
   `authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。',
   `captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，交易币种单位。',
@@ -7633,6 +7879,7 @@ CREATE TABLE `transaction_order_202603` (
   `payer_visible_message` varchar(512) DEFAULT NULL COMMENT '付款人可见的模糊失败原因。',
   `label_currency` char(3) NOT NULL COMMENT '标签币种，即商户上送/页面展示的原始交易币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '标签金额，即商户上送/页面展示的原始交易金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种，经过 DCC/EDC 后用于交易核心处理。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额，经过 DCC/EDC 后用于交易核心处理。',
   `channel_request_currency` char(3) DEFAULT NULL COMMENT '上送渠道的币种。',
@@ -7647,6 +7894,13 @@ CREATE TABLE `transaction_order_202603` (
   `transaction_rate` decimal(24,12) DEFAULT NULL COMMENT '标签金额转交易金额使用的汇率。',
   `rate_source` varchar(64) DEFAULT NULL COMMENT '汇率来源，如 PLATFORM、CHANNEL、MERCHANT。',
   `rate_time` datetime(3) DEFAULT NULL COMMENT '汇率生效或报价时间。',
+  `label_authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，标签币种单位。',
+  `label_authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，标签币种单位。',
+  `label_captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，标签币种单位。',
+  `label_refunded_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计退款成功金额，标签币种单位。',
+  `label_chargeback_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计拒付金额，标签币种单位。',
+  `label_available_capture_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可请款金额，标签币种单位。',
+  `label_available_refund_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可退款金额，标签币种单位。',
   `authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，交易币种单位。',
   `authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。',
   `captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，交易币种单位。',
@@ -7727,6 +7981,7 @@ CREATE TABLE `transaction_order_202604` (
   `payer_visible_message` varchar(512) DEFAULT NULL COMMENT '付款人可见的模糊失败原因。',
   `label_currency` char(3) NOT NULL COMMENT '标签币种，即商户上送/页面展示的原始交易币种。',
   `label_amount` decimal(20,6) NOT NULL COMMENT '标签金额，即商户上送/页面展示的原始交易金额。',
+  `label_currency_exponent` tinyint NOT NULL COMMENT '标签币种 ISO 4217 小数位精度。',
   `transaction_currency` char(3) NOT NULL COMMENT '系统交易币种，经过 DCC/EDC 后用于交易核心处理。',
   `transaction_amount` decimal(20,6) NOT NULL COMMENT '系统交易金额，经过 DCC/EDC 后用于交易核心处理。',
   `channel_request_currency` char(3) DEFAULT NULL COMMENT '上送渠道的币种。',
@@ -7741,6 +7996,13 @@ CREATE TABLE `transaction_order_202604` (
   `transaction_rate` decimal(24,12) DEFAULT NULL COMMENT '标签金额转交易金额使用的汇率。',
   `rate_source` varchar(64) DEFAULT NULL COMMENT '汇率来源，如 PLATFORM、CHANNEL、MERCHANT。',
   `rate_time` datetime(3) DEFAULT NULL COMMENT '汇率生效或报价时间。',
+  `label_authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，标签币种单位。',
+  `label_authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，标签币种单位。',
+  `label_captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，标签币种单位。',
+  `label_refunded_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计退款成功金额，标签币种单位。',
+  `label_chargeback_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计拒付金额，标签币种单位。',
+  `label_available_capture_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可请款金额，标签币种单位。',
+  `label_available_refund_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '当前可退款金额，标签币种单位。',
   `authorized_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权成功金额，交易币种单位。',
   `authorized_cancel_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。',
   `captured_amount` decimal(20,6) NOT NULL DEFAULT '0.000000' COMMENT '累计请款成功金额，交易币种单位。',

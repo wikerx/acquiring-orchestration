@@ -15,6 +15,13 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManua
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewTaskResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalProfileCreateRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalProfileVersionCreateRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileCommandResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileReadinessResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementPrincipalCorrectionDTOs.CommandResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementPrincipalCorrectionDTOs.InternalDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementPrincipalCorrectionDTOs.InternalSubmitRequest;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -47,6 +54,9 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
     private static final String BATCHES = "/internal/settlement/v1/batches";
     private static final String REVIEWS = "/internal/settlement/v1/reviews";
     private static final String REVERSALS = "/internal/settlement/v1/reversal-orders";
+    private static final String PROFILES = "/internal/settlement/v1/profiles";
+    private static final String PRINCIPAL_CORRECTIONS =
+            "/internal/settlement/v1/principal-corrections";
 
     private final RestTemplate direct;
     private final RestTemplate loadBalanced;
@@ -62,6 +72,34 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
         this.direct = direct;
         this.loadBalanced = loadBalanced;
         this.properties = properties;
+    }
+
+    /**
+     * 调用结算内部接口创建商户首个活动档案。
+     */
+    @Override
+    public ProfileCommandResponse createProfile(InternalProfileCreateRequest request) {
+        return post(PROFILES, request,
+                new TypeReference<CommonResult<ProfileCommandResponse>>() { });
+    }
+
+    /**
+     * 调用结算内部接口从当前活动档案创建新版本。
+     */
+    @Override
+    public ProfileCommandResponse createProfileVersion(
+            String settlementProfileNo, InternalProfileVersionCreateRequest request) {
+        return post(PROFILES + "/" + settlementProfileNo + "/versions", request,
+                new TypeReference<CommonResult<ProfileCommandResponse>>() { });
+    }
+
+    /**
+     * 查询商户结算档案和目标账户 readiness。
+     */
+    @Override
+    public ProfileReadinessResponse getProfileReadiness(String merchantId) {
+        return get(PROFILES + "/merchants/" + merchantId + "/readiness",
+                new TypeReference<CommonResult<ProfileReadinessResponse>>() { });
     }
 
     /**
@@ -205,6 +243,25 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                                                   InternalReversalDecisionRequest request) {
         return post(REVERSALS + "/" + reversalOrderNo + "/decisions", request,
                 new TypeReference<CommonResult<ReversalCommandResponse>>() { });
+    }
+
+    /**
+     * 调用结算内部接口冻结已入账历史标签本金差额。
+     */
+    @Override
+    public CommandResponse submitPrincipalCorrection(InternalSubmitRequest request) {
+        return post(PRINCIPAL_CORRECTIONS, request,
+                new TypeReference<CommonResult<CommandResponse>>() { });
+    }
+
+    /**
+     * 调用结算内部接口复核并执行或拒绝历史标签本金差额调整。
+     */
+    @Override
+    public CommandResponse decidePrincipalCorrection(
+            String correctionNo, InternalDecisionRequest request) {
+        return post(PRINCIPAL_CORRECTIONS + "/" + correctionNo + "/decisions", request,
+                new TypeReference<CommonResult<CommandResponse>>() { });
     }
 
     /**

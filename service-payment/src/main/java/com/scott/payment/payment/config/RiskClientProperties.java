@@ -23,6 +23,36 @@ public class RiskClientProperties {
     private int readTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_READ_TIMEOUT_MILLIS;
 
     /**
+     * 风控内部客户端连接池允许同时持有的最大连接总数。
+     */
+    private int maxConnectionsTotal = 64;
+
+    /**
+     * 单个 service-risk 实例允许同时持有的最大连接数。
+     */
+    private int maxConnectionsPerRoute = 32;
+
+    /**
+     * 从连接池等待可用连接的最长时间，单位毫秒。
+     */
+    private int connectionRequestTimeoutMillis = 3_000;
+
+    /**
+     * 复用连接前执行存活校验的空闲阈值，单位毫秒。
+     */
+    private int validateAfterInactivityMillis = 5_000;
+
+    /**
+     * 池内连接的最长生命周期，单位毫秒。
+     */
+    private int connectionTimeToLiveMillis = 300_000;
+
+    /**
+     * 后台清理空闲连接的时间阈值，单位毫秒。
+     */
+    private int idleConnectionEvictMillis = 30_000;
+
+    /**
      * 内部服务调用方标识。
      */
     private String internalCaller = "service-payment";
@@ -40,5 +70,36 @@ public class RiskClientProperties {
                 "payment risk-client", "service-payment", internalCaller, internalSecret);
         InternalHttpTimeoutPolicy.validate(
                 "payment risk-client", connectTimeoutMillis, readTimeoutMillis);
+        validateConnectionPool();
+    }
+
+    /**
+     * 校验连接池容量和连接生命周期，避免错误配置形成无界等待或无效连接复用。
+     */
+    private void validateConnectionPool() {
+        if (maxConnectionsTotal <= 0 || maxConnectionsTotal > 2_048) {
+            throw new IllegalStateException(
+                    "payment risk-client max connections total must be between 1 and 2048");
+        }
+        if (maxConnectionsPerRoute <= 0 || maxConnectionsPerRoute > maxConnectionsTotal) {
+            throw new IllegalStateException(
+                    "payment risk-client max connections per route must be between 1 and max connections total");
+        }
+        if (connectionRequestTimeoutMillis <= 0 || connectionRequestTimeoutMillis > 60_000) {
+            throw new IllegalStateException(
+                    "payment risk-client connection request timeout must be between 1ms and 60000ms");
+        }
+        if (validateAfterInactivityMillis <= 0 || validateAfterInactivityMillis > 60_000) {
+            throw new IllegalStateException(
+                    "payment risk-client validate-after-inactivity must be between 1ms and 60000ms");
+        }
+        if (connectionTimeToLiveMillis < 1_000 || connectionTimeToLiveMillis > 3_600_000) {
+            throw new IllegalStateException(
+                    "payment risk-client connection time-to-live must be between 1000ms and 3600000ms");
+        }
+        if (idleConnectionEvictMillis < 1_000 || idleConnectionEvictMillis > connectionTimeToLiveMillis) {
+            throw new IllegalStateException(
+                    "payment risk-client idle connection eviction must be between 1000ms and connection time-to-live");
+        }
     }
 }

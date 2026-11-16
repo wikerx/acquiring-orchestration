@@ -354,6 +354,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setDeleted(NOT_DELETED);
         prepareRuntimeProfileInvalidation(merchantId);
         merchantInfoMapper.insert(row);
+        merchantOnboardingService.provisionOnboardingPortalAccessIfPossible(row);
         merchantOnboardingService.replaceRelatedPersons(merchantId, request.getRelatedPersons(), now);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         return toDetailDTO(row);
@@ -394,6 +395,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setGmtModified(now);
         prepareRuntimeProfileInvalidation(row.getMerchantId());
         merchantInfoMapper.updateById(row);
+        merchantOnboardingService.provisionOnboardingPortalAccessIfPossible(row);
         merchantOnboardingService.replaceRelatedPersons(row.getMerchantId(), request.getRelatedPersons(), now);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         return toDetailDTO(row);
@@ -1181,6 +1183,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         profile.setBillingDescriptor(row.getBillingDescriptor());
         profile.setMerchantShortName(row.getMerchantShortName());
         profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setActivationStatus(row.getActivationStatus());
         profile.setDefaultLocale(MerchantLocaleSupport.normalize(row.getDefaultLocale()));
         profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
         profile.setCountryCode(row.getCountryCode());

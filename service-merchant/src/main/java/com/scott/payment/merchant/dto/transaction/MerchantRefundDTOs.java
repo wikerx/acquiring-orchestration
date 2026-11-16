@@ -54,8 +54,13 @@ public final class MerchantRefundDTOs {
         private String transactionStatus;
         private String requestSource;
         private String labelCurrency;
-        private String transactionCurrency;
+        /**
+         * 商户标签金额下限；字段名保留现有请求契约，查询层不得改用渠道交易金额。
+         */
         private BigDecimal minimumTransactionAmount;
+        /**
+         * 商户标签金额上限；字段名保留现有请求契约，查询层不得改用渠道交易金额。
+         */
         private BigDecimal maximumTransactionAmount;
         private LocalDateTime beginTime;
         private LocalDateTime endTime;
@@ -109,10 +114,8 @@ public final class MerchantRefundDTOs {
         private String processStage;
         private String labelCurrency;
         private BigDecimal labelAmount;
-        private String transactionCurrency;
-        private BigDecimal transactionAmount;
         /**
-         * 交易币种的小数位数，用于主币种单位与最小货币单位之间的精确转换。
+         * 标签币种的小数位数，用于主币种单位与最小货币单位之间的精确转换。
          */
         private Integer currencyExponent;
         private String paymentMethod;

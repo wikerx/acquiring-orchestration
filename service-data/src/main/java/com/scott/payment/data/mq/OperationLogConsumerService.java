@@ -3,6 +3,7 @@ package com.scott.payment.data.mq;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.message.OperationLogMessage;
+import com.scott.payment.component.mq.observability.OperationLogOperationalMetrics;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 import com.scott.payment.component.redis.idempotent.IdempotentAcquireResult;
 import com.scott.payment.component.redis.idempotent.IdempotentService;
@@ -10,6 +11,11 @@ import com.scott.payment.data.service.OperationLogPersistenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /**
  * Admin 与 Merchant 操作日志共享消费编排，统一处理反序列化、辅助幂等、失败释放和追踪上下文
@@ -34,6 +40,11 @@ public class OperationLogConsumerService {
     private final OperationLogMqProperties properties;
 
     /**
+     * 操作日志消费链路低基数指标。
+     */
+    private final OperationLogOperationalMetrics operationalMetrics;
+
+    /**
      * 创建操作日志共享消费服务。
      *
      * @param persistenceService 操作日志事务写入服务
@@ -42,10 +53,12 @@ public class OperationLogConsumerService {
      */
     public OperationLogConsumerService(OperationLogPersistenceService persistenceService,
                                        IdempotentService idempotentService,
-                                       OperationLogMqProperties properties) {
+                                       OperationLogMqProperties properties,
+                                       OperationLogOperationalMetrics operationalMetrics) {
         this.persistenceService = persistenceService;
         this.idempotentService = idempotentService;
         this.properties = properties;
+        this.operationalMetrics = operationalMetrics;
     }
 
     /**
@@ -59,10 +72,27 @@ public class OperationLogConsumerService {
      */
     public void consume(OperationLogSource source, String payload) {
         long startNanos = System.nanoTime();
-        OperationLogMessage message = parseMessage(source, payload);
-        TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
+        OperationLogMessage message;
         try {
-            String idempotentKey = resolveIdempotentKey(message);
+            message = parseMessage(source, payload);
+            validateSource(source, message);
+        } catch (RuntimeException exception) {
+            operationalMetrics.recordEvent(systemCode(source), "invalid");
+            operationalMetrics.recordConsumeDuration(systemCode(source), "invalid",
+                    System.nanoTime() - startNanos);
+            throw exception;
+        }
+        TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
+        String outcome = "failure";
+        try {
+            String idempotentKey;
+            try {
+                idempotentKey = resolveIdempotentKey(source, message);
+            } catch (IllegalArgumentException exception) {
+                outcome = "invalid";
+                operationalMetrics.recordEvent(source.name(), "invalid");
+                throw exception;
+            }
             IdempotentAcquireResult acquireResult = idempotentService.acquireMq(
                     source.getIdempotentNamespace(),
                     idempotentKey,
@@ -70,16 +100,20 @@ public class OperationLogConsumerService {
             );
             if (acquireResult == IdempotentAcquireResult.DUPLICATE) {
                 if (persistenceService.existsByIdempotentKey(idempotentKey)) {
+                    outcome = "duplicate";
+                    operationalMetrics.recordEvent(source.name(), "duplicate");
                     log.info("操作日志消息幂等命中, event: DATA_OPERATION_LOG_DUPLICATE, source: {}, traceId: {}, messageId: {}, durationMs: {}",
                             source, TraceContext.getTraceId(), message.getMessageId(), elapsedMillis(startNanos));
                     return;
                 }
                 log.warn("操作日志 Redis 占用与数据库事实不一致, event: DATA_OPERATION_LOG_STALE_REDIS_CLAIM, source: {}, traceId: {}, messageId: {}, action: continueToDatabaseUniqueConstraint",
                         source, TraceContext.getTraceId(), message.getMessageId());
+                operationalMetrics.recordEvent(source.name(), "stale_claim");
             }
             if (acquireResult == IdempotentAcquireResult.FALLBACK) {
                 log.warn("操作日志 Redis 幂等服务降级, event: DATA_OPERATION_LOG_IDEMPOTENT_FALLBACK, source: {}, traceId: {}, messageId: {}, action: continueToDatabaseUniqueConstraint",
                         source, TraceContext.getTraceId(), message.getMessageId());
+                operationalMetrics.recordEvent(source.name(), "redis_fallback");
             }
             try {
                 persistenceService.persist(message, idempotentKey);
@@ -87,6 +121,8 @@ public class OperationLogConsumerService {
                 releaseForRetry(source, idempotentKey, acquireResult, message, exception);
                 throw exception;
             }
+            outcome = "success";
+            operationalMetrics.recordEvent(source.name(), "consumed");
             log.info("操作日志消息消费完成, event: DATA_OPERATION_LOG_CONSUMED, source: {}, traceId: {}, messageId: {}, merchantId: {}, module: {}, operation: {}, status: {}, durationMs: {}",
                     source,
                     TraceContext.getTraceId(),
@@ -96,7 +132,14 @@ public class OperationLogConsumerService {
                     message.getOperationName(),
                     message.getOperationStatus(),
                     elapsedMillis(startNanos));
+        } catch (RuntimeException exception) {
+            if (!"invalid".equals(outcome)) {
+                operationalMetrics.recordEvent(source.name(), "failed");
+            }
+            throw exception;
         } finally {
+            operationalMetrics.recordConsumeDuration(source.name(), outcome,
+                    System.nanoTime() - startNanos);
             TraceContext.clear();
         }
     }
@@ -128,14 +171,48 @@ public class OperationLogConsumerService {
      * @param message 操作日志消息
      * @return 非空幂等键
      */
-    private String resolveIdempotentKey(OperationLogMessage message) {
+    private String resolveIdempotentKey(OperationLogSource source, OperationLogMessage message) {
         if (StringUtils.hasText(message.getIdempotentKey())) {
-            return message.getIdempotentKey().trim();
+            return normalizeIdempotentKey(source, message.getIdempotentKey().trim());
         }
         if (StringUtils.hasText(message.getMessageId())) {
-            return message.getMessageId().trim();
+            return normalizeIdempotentKey(source, source.name() + ':' + message.getMessageId().trim());
         }
         throw new IllegalArgumentException("operation log message must provide idempotentKey or messageId");
+    }
+
+    /**
+     * 校验 Topic 来源和消息声明系统一致，禁止跨系统消息落入错误审计域。
+     */
+    private void validateSource(OperationLogSource source, OperationLogMessage message) {
+        if (source == null || message == null || !source.name().equals(message.getSystemCode())) {
+            log.error("操作日志消息来源不匹配, event: DATA_OPERATION_LOG_SOURCE_MISMATCH, source: {}, declaredSystem: {}",
+                    source, message == null ? null : message.getSystemCode());
+            throw new IllegalArgumentException("operation log source does not match declared system");
+        }
+    }
+
+    /**
+     * 将旧生产者可能生成的超长幂等键稳定哈希到数据库字段范围，避免永久重试毒消息。
+     */
+    private String normalizeIdempotentKey(OperationLogSource source, String idempotentKey) {
+        if (idempotentKey.length() <= OperationLogMessage.IDEMPOTENT_KEY_MAX_LENGTH) {
+            return idempotentKey;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(idempotentKey.getBytes(StandardCharsets.UTF_8));
+            return source.name() + ":sha256:" + HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    /**
+     * 安全获取固定系统标签；空来源统一收敛为 UNKNOWN。
+     */
+    private String systemCode(OperationLogSource source) {
+        return source == null ? "UNKNOWN" : source.name();
     }
 
     /**

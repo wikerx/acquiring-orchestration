@@ -2,6 +2,7 @@ package com.scott.payment.component.excel.service.impl;
 
 import com.scott.payment.component.excel.annotation.ExcelExportColumn;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
+import com.scott.payment.component.excel.model.ExcelDynamicPagedExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.support.ExcelDynamicColumnDefinition;
@@ -22,7 +23,9 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -37,6 +40,38 @@ import java.util.Map;
  * 避免标题处理器变更后再次出现“文件能下载但表格为空”的回归问题。</p>
  */
 class ExcelExportServiceImplTest {
+
+    /**
+     * 验证保证金结算异步导出的标题在维护语言中均可解析，避免国际化键直接写入文件。
+     */
+    @Test
+    void shouldResolveSettlementReserveTitleForMaintainedLocales() {
+        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
+        messageSource.setBasenames("messages");
+        messageSource.setDefaultEncoding("UTF-8");
+        ExcelI18nMessageResolver resolver = new ExcelI18nMessageResolver(messageSource);
+
+        Assertions.assertEquals("保证金结算明细",
+                resolver.resolve("excel.settlement.reserveTitle", Locale.SIMPLIFIED_CHINESE));
+        Assertions.assertEquals("Reserve Settlement Details",
+                resolver.resolve("excel.settlement.reserveTitle", Locale.US));
+    }
+
+    /**
+     * 验证无活动预警时的波动状态在维护语言中均可解析，避免 Excel 暴露协议代码 NORMAL。
+     */
+    @Test
+    void shouldResolveNormalExchangeAlertStatusForMaintainedLocales() {
+        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
+        messageSource.setBasenames("messages");
+        messageSource.setDefaultEncoding("UTF-8");
+        ExcelI18nMessageResolver resolver = new ExcelI18nMessageResolver(messageSource);
+
+        Assertions.assertEquals("正常",
+                resolver.resolve("excel.exchange.enum.alertStatus.NORMAL", Locale.SIMPLIFIED_CHINESE));
+        Assertions.assertEquals("Normal",
+                resolver.resolve("excel.exchange.enum.alertStatus.NORMAL", Locale.US));
+    }
 
     /**
      * 验证导出结果同时包含标题、表头和数据。
@@ -112,6 +147,119 @@ class ExcelExportServiceImplTest {
     }
 
     /**
+     * 验证首个分页没有数据时仍生成包含标题和表头的可用工作表。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldWriteTitleAndHeaderWhenFirstPageIsEmpty() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        service.exportPaged(
+                ExcelPagedExportRequest.<DemoExportRow>builder()
+                        .fileName("empty-paged-demo")
+                        .sheetName("empty-paged-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .querySummary("无匹配数据")
+                        .rowClass(DemoExportRow.class)
+                        .pageSize(100)
+                        .pageLoader(pageNo -> List.of())
+                        .build(),
+                outputStream);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.toByteArray()))) {
+            Assertions.assertEquals(1, workbook.getNumberOfSheets());
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("用户列表导出", sheet.getRow(0).getCell(0).getStringCellValue());
+            Assertions.assertEquals("登录账号", sheet.getRow(2).getCell(0).getStringCellValue());
+            Assertions.assertEquals("状态", sheet.getRow(2).getCell(1).getStringCellValue());
+            Assertions.assertNull(sheet.getRow(3), "空结果不得伪造业务数据行");
+        }
+    }
+
+    /**
+     * 验证异步导出可直接写入调用方输出流，并且服务完成后不会关闭该流。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldWritePagedRowsToCallerOwnedOutputStreamWithoutClosingIt() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        TrackingOutputStream outputStream = new TrackingOutputStream();
+
+        service.exportPaged(
+                ExcelPagedExportRequest.<DemoExportRow>builder()
+                        .fileName("async-paged-demo")
+                        .sheetName("async-paged-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .rowClass(DemoExportRow.class)
+                        .pageSize(1)
+                        .pageLoader(pageNo -> switch (pageNo) {
+                            case 1 -> List.of(new DemoExportRow("alice", "启用"));
+                            case 2 -> List.of(new DemoExportRow("bob", "停用"));
+                            default -> List.of();
+                        })
+                        .build(),
+                outputStream);
+
+        Assertions.assertFalse(outputStream.closed, "异步导出不得关闭调用方管理的输出流");
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.body.toByteArray()))) {
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("alice", sheet.getRow(3).getCell(0).getStringCellValue());
+            Assertions.assertEquals("bob", sheet.getRow(4).getCell(0).getStringCellValue());
+        }
+    }
+
+    /**
+     * 验证动态列异步导出连续写入多页 Map 数据，并保持调用方输出流可继续使用。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldWriteDynamicPagedRowsWithoutClosingCallerOwnedStream() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        TrackingOutputStream outputStream = new TrackingOutputStream();
+        List<ExcelDynamicColumnDefinition> columns = List.of(
+                new ExcelDynamicColumnDefinition("ruleName", "规则名称", 24, HorizontalAlignment.LEFT),
+                new ExcelDynamicColumnDefinition("status", "状态", 12, HorizontalAlignment.CENTER));
+
+        service.exportDynamicPaged(
+                ExcelDynamicPagedExportRequest.builder()
+                        .fileName("risk-config")
+                        .sheetName("风险配置")
+                        .title("风险配置")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .columns(columns)
+                        .pageSize(1)
+                        .pageLoader(pageNo -> switch (pageNo) {
+                            case 1 -> List.of(new LinkedHashMap<>(Map.of(
+                                    "ruleName", "单笔限额", "status", "启用")));
+                            case 2 -> List.of(new LinkedHashMap<>(Map.of(
+                                    "ruleName", "频率限制", "status", "停用")));
+                            default -> List.of();
+                        })
+                        .build(),
+                outputStream);
+
+        Assertions.assertFalse(outputStream.closed, "动态异步导出不得关闭调用方管理的输出流");
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.body.toByteArray()))) {
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("规则名称", sheet.getRow(2).getCell(0).getStringCellValue());
+            Assertions.assertEquals("单笔限额", sheet.getRow(3).getCell(0).getStringCellValue());
+            Assertions.assertEquals("频率限制", sheet.getRow(4).getCell(0).getStringCellValue());
+        }
+    }
+
+    /**
      * 验证超长业务标识使用文本格式，避免 Excel 显示为科学计数法。
      */
     @Test
@@ -136,6 +284,44 @@ class ExcelExportServiceImplTest {
             var cell = workbook.getSheetAt(0).getRow(3).getCell(0);
             Assertions.assertEquals("202608271446158230848", cell.getStringCellValue());
             Assertions.assertEquals("@", cell.getCellStyle().getDataFormatString());
+        }
+    }
+
+    /**
+     * 验证强制文本的精确十进制值按普通十进制原值写入，避免科学计数法和尾数丢失。
+     */
+    @Test
+    void shouldWriteForcedTextDecimalsWithoutScientificNotation() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        service.exportPaged(
+                ExcelPagedExportRequest.<DecimalExportRow>builder()
+                        .fileName("decimal-demo")
+                        .sheetName("decimal-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .rowClass(DecimalExportRow.class)
+                        .pageSize(100)
+                        .pageLoader(pageNo -> pageNo == 1
+                                ? List.of(new DecimalExportRow(
+                                        new BigDecimal("0.00000001"),
+                                        new BigDecimal("100.12000000"),
+                                        new BigDecimal("100.12000001")))
+                                : List.of())
+                        .build(),
+                outputStream);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(outputStream.toByteArray()))) {
+            Row dataRow = workbook.getSheetAt(0).getRow(3);
+            Assertions.assertEquals("0.00000001", dataRow.getCell(0).getStringCellValue());
+            Assertions.assertEquals("100.12000000", dataRow.getCell(1).getStringCellValue());
+            Assertions.assertEquals("100.12000001", dataRow.getCell(2).getStringCellValue());
+            Assertions.assertEquals("@", dataRow.getCell(0).getCellStyle().getDataFormatString());
+            Assertions.assertEquals("@", dataRow.getCell(1).getCellStyle().getDataFormatString());
+            Assertions.assertEquals("@", dataRow.getCell(2).getCellStyle().getDataFormatString());
         }
     }
 
@@ -183,6 +369,81 @@ class ExcelExportServiceImplTest {
             Assertions.assertEquals("启用", dataRow.getCell(1).getStringCellValue());
             Assertions.assertEquals(HorizontalAlignment.CENTER, dataRow.getCell(0).getCellStyle().getAlignment());
             Assertions.assertEquals(HorizontalAlignment.CENTER, dataRow.getCell(1).getCellStyle().getAlignment());
+        }
+    }
+
+    /**
+     * RFC 5987 文件名中的空格必须编码为 %20，避免浏览器把英文文件名保存为带加号的名称。
+     *
+     * @throws IOException 写入工作簿异常
+     */
+    @Test
+    void shouldEncodeSpacesAsPercent20InDownloadFilename() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        service.exportDynamic(
+                ExcelDynamicExportRequest.builder()
+                        .fileName("Transaction Blacklist Import Template")
+                        .sheetName("Import Template")
+                        .title("Import Template")
+                        .operator("tester")
+                        .exportTime(LocalDateTime.of(2026, 11, 14, 0, 0, 0))
+                        .locale(Locale.ENGLISH)
+                        .querySummary("Template")
+                        .columns(List.of(
+                                new ExcelDynamicColumnDefinition(
+                                        "identifierType", "Identifier Type", 20, HorizontalAlignment.LEFT, true),
+                                new ExcelDynamicColumnDefinition(
+                                        "orderNo", "Order Number", 24, HorizontalAlignment.LEFT, true)))
+                        .dataList(List.of(Map.of(
+                                "identifierType", "System Order Number",
+                                "orderNo", "202611141040357845269")))
+                        .build(),
+                response
+        );
+
+        Assertions.assertEquals(
+                "attachment;filename*=utf-8''Transaction%20Blacklist%20Import%20Template.xlsx",
+                response.getHeader("Content-Disposition")
+        );
+    }
+
+    /**
+     * 动态文本列必须保留超长业务标识并写入文本格式，避免 Excel 科学计数法和精度丢失。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldPreserveDynamicTextColumn() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        service.exportDynamic(
+                ExcelDynamicExportRequest.builder()
+                        .fileName("trade-black-template")
+                        .sheetName("导入模板")
+                        .title("导入模板")
+                        .operator("tester")
+                        .exportTime(LocalDateTime.of(2026, 11, 14, 0, 0, 0))
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .querySummary("订单号必须按文本处理")
+                        .columns(List.of(
+                                new ExcelDynamicColumnDefinition(
+                                        "identifierType", "订单号类型", 24, HorizontalAlignment.LEFT, true),
+                                new ExcelDynamicColumnDefinition(
+                                        "orderNo", "订单号", 34, HorizontalAlignment.LEFT, true)))
+                        .dataList(List.of(Map.of(
+                                "identifierType", "系统订单号",
+                                "orderNo", "202611141040357845269")))
+                        .build(),
+                response
+        );
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(response.body.toByteArray()))) {
+            Row dataRow = workbook.getSheetAt(0).getRow(3);
+            Assertions.assertEquals("202611141040357845269", dataRow.getCell(1).getStringCellValue());
+            Assertions.assertEquals("@", dataRow.getCell(1).getCellStyle().getDataFormatString());
         }
     }
 
@@ -249,6 +510,51 @@ class ExcelExportServiceImplTest {
     }
 
     /**
+     * 测试精确十进制文本导出行。
+     */
+    public static class DecimalExportRow {
+
+        @ExcelExportColumn(order = 1, headerKey = "excel.fund.amount", forceText = true)
+        private final BigDecimal amount;
+
+        @ExcelExportColumn(order = 2, headerKey = "excel.fund.balanceBefore", forceText = true)
+        private final BigDecimal balanceBefore;
+
+        @ExcelExportColumn(order = 3, headerKey = "excel.fund.balanceAfter", forceText = true)
+        private final BigDecimal balanceAfter;
+
+        DecimalExportRow(BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter) {
+            this.amount = amount;
+            this.balanceBefore = balanceBefore;
+            this.balanceAfter = balanceAfter;
+        }
+    }
+
+    /**
+     * 记录输出内容和关闭动作的测试流，用于验证异步导出的流所有权契约。
+     */
+    private static final class TrackingOutputStream extends OutputStream {
+        private final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        private boolean closed;
+
+        /**
+         * 将导出字节写入内存工作簿缓存。
+         */
+        @Override
+        public void write(int value) {
+            body.write(value);
+        }
+
+        /**
+         * 仅记录关闭动作，保留缓存供测试解析。
+         */
+        @Override
+        public void close() {
+            closed = true;
+        }
+    }
+
+    /**
      * 极简 HTTP 响应桩对象，仅用于承接导出字节流。
      */
     private static final class MockHttpServletResponse implements HttpServletResponse {
@@ -257,6 +563,9 @@ class ExcelExportServiceImplTest {
          * Excel 二进制输出缓存。
          */
         private final ByteArrayOutputStream body = new ByteArrayOutputStream();
+
+        /** 响应头缓存，用于验证文件名与内容类型。 */
+        private final Map<String, String> headers = new LinkedHashMap<>();
 
         /**
          * 返回写入内存缓存的 Servlet 输出流，供用例解析并断言导出的 Excel 字节。
@@ -298,7 +607,7 @@ class ExcelExportServiceImplTest {
         @Override public void setLocale(Locale loc) { }
         @Override public Locale getLocale() { return Locale.SIMPLIFIED_CHINESE; }
         @Override public void addCookie(Cookie cookie) { }
-        @Override public boolean containsHeader(String name) { return false; }
+        @Override public boolean containsHeader(String name) { return headers.containsKey(name); }
         @Override public String encodeURL(String url) { return url; }
         @Override public String encodeRedirectURL(String url) { return url; }
         @Override public void sendError(int sc, String msg) { }
@@ -306,14 +615,17 @@ class ExcelExportServiceImplTest {
         @Override public void sendRedirect(String location) { }
         @Override public void setDateHeader(String name, long date) { }
         @Override public void addDateHeader(String name, long date) { }
-        @Override public void setHeader(String name, String value) { }
-        @Override public void addHeader(String name, String value) { }
+        @Override public void setHeader(String name, String value) { headers.put(name, value); }
+        @Override public void addHeader(String name, String value) { headers.put(name, value); }
         @Override public void setIntHeader(String name, int value) { }
         @Override public void addIntHeader(String name, int value) { }
         @Override public void setStatus(int sc) { }
         @Override public int getStatus() { return 200; }
-        @Override public String getHeader(String name) { return null; }
-        @Override public Collection<String> getHeaders(String name) { return List.of(); }
-        @Override public Collection<String> getHeaderNames() { return List.of(); }
+        @Override public String getHeader(String name) { return headers.get(name); }
+        @Override public Collection<String> getHeaders(String name) {
+            String value = headers.get(name);
+            return value == null ? List.of() : List.of(value);
+        }
+        @Override public Collection<String> getHeaderNames() { return headers.keySet(); }
     }
 }

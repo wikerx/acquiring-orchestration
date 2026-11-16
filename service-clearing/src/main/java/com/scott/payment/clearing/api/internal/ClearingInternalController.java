@@ -21,6 +21,7 @@ import com.scott.payment.clearing.service.ClearingQueryService;
 import com.scott.payment.clearing.service.ReserveAdjustmentService;
 import com.scott.payment.clearing.service.ReserveAdjustmentService.ReviewDecision;
 import com.scott.payment.clearing.service.TierPeriodReplayService;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.finance.reserve.model.ReserveCalculationModels.ReserveAdjustmentDirection;
 import com.scott.payment.component.core.model.CommonResult;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -144,7 +145,7 @@ public class ClearingInternalController {
     @PostMapping("/compensations/scan")
     public CommonResult<CompensationScanResponse> compensate(
             @RequestBody CompensationScanRequest request) {
-        return success(compensationService.scan(request, LocalDateTime.now(java.time.Clock.systemUTC())));
+        return success(compensationService.scan(request, ClearingTimeSupport.now(java.time.Clock.systemUTC())));
     }
 
     /**

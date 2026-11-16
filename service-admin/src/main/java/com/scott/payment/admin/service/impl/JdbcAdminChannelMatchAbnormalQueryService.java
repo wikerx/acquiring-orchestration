@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Abn
 import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSummary;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.service.AdminChannelMatchAbnormalQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -128,8 +129,18 @@ public class JdbcAdminChannelMatchAbnormalQueryService
      */
     @Override
     public AbnormalSearchResponse search(AbnormalQuery query) {
+        return search(query, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围查询案件；有限空集合保持无数据语义，绝不退化为全量。
+     */
+    @Override
+    public AbnormalSearchResponse search(AbnormalQuery query, AdminMerchantDataScope dataScope) {
         AbnormalQuery safeQuery = normalize(query);
-        return transactionLogicalReadExecutor.read(() -> searchNormalized(safeQuery));
+        AdminMerchantDataScope safeScope = dataScope == null
+                ? AdminMerchantDataScope.limited(java.util.Set.of()) : dataScope;
+        return transactionLogicalReadExecutor.read(() -> searchNormalized(safeQuery, safeScope));
     }
 
     /**
@@ -151,9 +162,10 @@ public class JdbcAdminChannelMatchAbnormalQueryService
     /**
      * 在已归一化的存储时区范围内执行案件分页和统计查询。
      */
-    private AbnormalSearchResponse searchNormalized(AbnormalQuery query) {
-        String whereSql = whereSql(query);
-        MapSqlParameterSource parameters = parameters(query);
+    private AbnormalSearchResponse searchNormalized(AbnormalQuery query,
+                                                     AdminMerchantDataScope dataScope) {
+        String whereSql = whereSql(query, dataScope);
+        MapSqlParameterSource parameters = parameters(query, dataScope);
         Long count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM transaction_abnormal_event " + whereSql,
                 parameters, Long.class);
@@ -261,7 +273,7 @@ public class JdbcAdminChannelMatchAbnormalQueryService
     /**
      * 构建固定字段白名单下的案件筛选 SQL。
      */
-    private String whereSql(AbnormalQuery query) {
+    private String whereSql(AbnormalQuery query, AdminMerchantDataScope dataScope) {
         StringBuilder sql = new StringBuilder("""
                 WHERE deleted = 0
                   AND transaction_date_time >= :beginTime
@@ -283,13 +295,19 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         if (query.getMinimumOccurrenceCount() != null) {
             sql.append(" AND occurrence_count >= :minimumOccurrenceCount");
         }
+        if (dataScope.empty()) {
+            sql.append(" AND 1 = 0");
+        } else if (!dataScope.allMerchants()) {
+            sql.append(" AND merchant_id IN (:scopeMerchantIds)");
+        }
         return sql.toString();
     }
 
     /**
      * 构造案件查询全部命名参数，未启用的可空参数不会拼入 SQL。
      */
-    private MapSqlParameterSource parameters(AbnormalQuery query) {
+    private MapSqlParameterSource parameters(AbnormalQuery query,
+                                              AdminMerchantDataScope dataScope) {
         return new MapSqlParameterSource()
                 .addValue("beginTime", query.getBeginTime())
                 .addValue("endTimeExclusive", exclusiveEnd(query.getEndTime()))
@@ -306,7 +324,8 @@ public class JdbcAdminChannelMatchAbnormalQueryService
                 .addValue("channelOrderNo", query.getChannelOrderNo())
                 .addValue("assignedToId", query.getAssignedToId())
                 .addValue("detectSource", query.getDetectSource())
-                .addValue("minimumOccurrenceCount", query.getMinimumOccurrenceCount());
+                .addValue("minimumOccurrenceCount", query.getMinimumOccurrenceCount())
+                .addValue("scopeMerchantIds", dataScope.merchantIds());
     }
 
     /**

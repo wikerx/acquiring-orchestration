@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.SysDeptDTO;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
 
 import java.util.List;
@@ -33,6 +34,15 @@ public interface AdminDeptService {
      * @return 部门列表
      */
     List<SysDeptDO> exportDepts();
+
+    /**
+     * 分页读取未删除部门供异步导出，避免一次把全部部门加载到任务执行链路。
+     *
+     * @param pageNo 页码
+     * @param pageSize 每页数量
+     * @return 部门分页
+     */
+    PageResult<SysDeptDO> pageDepts(int pageNo, int pageSize);
 
     /**
      * 新增部门。

@@ -5,6 +5,7 @@ import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.builder.ExcelWriterSheetBuilder;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
+import com.scott.payment.component.excel.model.ExcelDynamicPagedExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
@@ -21,7 +22,9 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -111,18 +114,32 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     @Override
     public <T> void exportPaged(ExcelPagedExportRequest<T> request, HttpServletResponse response) {
+        try {
+            prepareResponse(response, normalizeFileName(request.getFileName()));
+            exportPaged(request, response.getOutputStream());
+        } catch (IOException exception) {
+            throw new IllegalStateException("paged excel export failed", exception);
+        }
+    }
+
+    /**
+     * 分页加载并写入调用方输出流；异步任务使用该边界生成文件而不依赖 Servlet 响应。
+     */
+    @Override
+    public <T> void exportPaged(ExcelPagedExportRequest<T> request, OutputStream outputStream) {
         if (request.getPageLoader() == null || request.getPageSize() <= 0) {
             throw new IllegalArgumentException("paged excel export requires pageLoader and positive pageSize");
+        }
+        if (outputStream == null) {
+            throw new IllegalArgumentException("paged excel export requires outputStream");
         }
         Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
         List<ExcelExportColumnDefinition> columns = metadataResolver.resolveColumns(request.getRowClass());
         List<List<String>> head = buildHead(columns, locale);
-        String fileName = normalizeFileName(request.getFileName());
         String sheetName = normalizeSheetName(request.getSheetName());
         String title = messageResolver.resolve(request.getTitleKey(), locale);
-        try {
-            prepareResponse(response, fileName);
-            try (ExcelWriter writer = EasyExcel.write(response.getOutputStream())
+        try (ExcelWriter writer = EasyExcel.write(outputStream)
+                    .autoCloseStream(false)
                     .head(head)
                     .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
                     .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
@@ -138,20 +155,20 @@ public class ExcelExportServiceImpl implements ExcelExportService {
                             locale
                     ))
                     .build()) {
-                WriteSheet sheet = EasyExcel.writerSheet(sheetName).build();
-                for (int pageNo = 1; ; pageNo++) {
-                    List<T> page = request.getPageLoader().apply(pageNo);
-                    if (page == null || page.isEmpty()) {
-                        break;
+            WriteSheet sheet = EasyExcel.writerSheet(sheetName).build();
+            for (int pageNo = 1; ; pageNo++) {
+                List<T> page = request.getPageLoader().apply(pageNo);
+                if (page == null || page.isEmpty()) {
+                    if (pageNo == 1) {
+                        writer.write(List.of(), sheet);
                     }
-                    writer.write(toRowData(page, columns, locale), sheet);
-                    if (page.size() < request.getPageSize()) {
-                        break;
-                    }
+                    break;
+                }
+                writer.write(toRowData(page, columns, locale), sheet);
+                if (page.size() < request.getPageSize()) {
+                    break;
                 }
             }
-        } catch (IOException exception) {
-            throw new IllegalStateException("paged excel export failed", exception);
         }
     }
 
@@ -163,35 +180,103 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     @Override
     public void exportDynamic(ExcelDynamicExportRequest request, HttpServletResponse response) {
+        try {
+            prepareResponse(response, normalizeFileName(request.getFileName()));
+            exportDynamic(request, response.getOutputStream());
+        } catch (IOException exception) {
+            throw new IllegalStateException("excel export failed", exception);
+        }
+    }
+
+    /**
+     * 将动态列工作簿写入调用方管理的输出流，供模板中心初始化和异步导出复用。
+     */
+    @Override
+    public void exportDynamic(ExcelDynamicExportRequest request, OutputStream outputStream) {
+        if (outputStream == null) {
+            throw new IllegalArgumentException("dynamic excel export requires outputStream");
+        }
         Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
         List<ExcelDynamicColumnDefinition> columns = request.getColumns() == null ? List.of() : request.getColumns();
         List<List<String>> head = buildDynamicHead(columns);
         List<List<Object>> rows = toDynamicRowData(request.getDataList(), columns, locale);
         List<ExcelExportColumnDefinition> columnDefinitions = toColumnDefinitions(columns);
-        String fileName = normalizeFileName(request.getFileName());
         String sheetName = normalizeSheetName(request.getSheetName());
         String title = request.getTitle() == null || request.getTitle().isBlank() ? sheetName : request.getTitle().trim();
-        try {
-            prepareResponse(response, fileName);
-            ExcelWriterSheetBuilder sheetBuilder = EasyExcel.write(response.getOutputStream())
-                    .head(head)
-                    .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
-                    .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
-                    .registerWriteHandler(new ExcelColumnStyleWriteHandler(columnDefinitions))
-                    .registerWriteHandler(new ExcelColumnWidthWriteHandler(columnDefinitions))
-                    .registerWriteHandler(new ExcelTitleWriteHandler(
-                            title,
-                            request.getOperator(),
-                            request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
-                            request.getQuerySummary(),
-                            Math.max(columns.size(), 1),
-                            messageResolver,
-                            locale
-                    ))
-                    .sheet(sheetName);
-            sheetBuilder.doWrite(rows);
-        } catch (IOException exception) {
-            throw new IllegalStateException("excel export failed", exception);
+        ExcelWriterSheetBuilder sheetBuilder = EasyExcel.write(outputStream)
+                .autoCloseStream(false)
+                .head(head)
+                .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
+                .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
+                .registerWriteHandler(new ExcelColumnStyleWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelColumnWidthWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelTitleWriteHandler(
+                        title,
+                        request.getOperator(),
+                        request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
+                        request.getQuerySummary(),
+                        Math.max(columns.size(), 1),
+                        messageResolver,
+                        locale
+                ))
+                .sheet(sheetName);
+        sheetBuilder.doWrite(rows);
+    }
+
+    /**
+     * 分页加载动态列行并持续写入同一工作簿，输出流由异步任务持有且不会在本方法关闭。
+     *
+     * @param request 动态列分页导出请求
+     * @param outputStream 调用方管理的输出流
+     */
+    @Override
+    public void exportDynamicPaged(ExcelDynamicPagedExportRequest request, OutputStream outputStream) {
+        if (request.getPageLoader() == null || request.getPageSize() <= 0) {
+            throw new IllegalArgumentException("dynamic paged excel export requires pageLoader and positive pageSize");
+        }
+        if (outputStream == null) {
+            throw new IllegalArgumentException("dynamic paged excel export requires outputStream");
+        }
+        Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
+        List<ExcelDynamicColumnDefinition> columns = request.getColumns() == null ? List.of() : request.getColumns();
+        if (columns.isEmpty()) {
+            throw new IllegalArgumentException("dynamic paged excel export requires columns");
+        }
+        List<ExcelExportColumnDefinition> columnDefinitions = toColumnDefinitions(columns);
+        String sheetName = normalizeSheetName(request.getSheetName());
+        String title = request.getTitle() == null || request.getTitle().isBlank()
+                ? sheetName : request.getTitle().trim();
+        try (ExcelWriter writer = EasyExcel.write(outputStream)
+                .autoCloseStream(false)
+                .head(buildDynamicHead(columns))
+                .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
+                .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
+                .registerWriteHandler(new ExcelColumnStyleWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelColumnWidthWriteHandler(columnDefinitions))
+                .registerWriteHandler(new ExcelTitleWriteHandler(
+                        title,
+                        request.getOperator(),
+                        request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
+                        request.getQuerySummary(),
+                        columns.size(),
+                        messageResolver,
+                        locale
+                ))
+                .build()) {
+            WriteSheet sheet = EasyExcel.writerSheet(sheetName).build();
+            for (int pageNo = 1; ; pageNo++) {
+                List<Map<String, Object>> page = request.getPageLoader().apply(pageNo);
+                if (page == null || page.isEmpty()) {
+                    if (pageNo == 1) {
+                        writer.write(List.of(), sheet);
+                    }
+                    break;
+                }
+                writer.write(toDynamicRowData(page, columns, locale), sheet);
+                if (page.size() < request.getPageSize()) {
+                    break;
+                }
+            }
         }
     }
 
@@ -213,7 +298,7 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         for (T data : dataList) {
             List<Object> row = new ArrayList<>(columns.size());
             for (ExcelExportColumnDefinition column : columns) {
-                row.add(readValue(data, column.field(), locale));
+                row.add(readValue(data, column, locale));
             }
             rows.add(row);
         }
@@ -267,7 +352,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         for (Map<String, Object> data : dataList) {
             List<Object> row = new ArrayList<>(columns.size());
             for (ExcelDynamicColumnDefinition column : columns) {
-                row.add(formatValue(data.get(column.key()), locale));
+                Object value = formatValue(data.get(column.key()), locale);
+                row.add(column.forceText() ? toPlainText(value) : value);
             }
             rows.add(row);
         }
@@ -282,7 +368,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     private List<ExcelExportColumnDefinition> toColumnDefinitions(List<ExcelDynamicColumnDefinition> columns) {
         return columns.stream()
-                .map(column -> new ExcelExportColumnDefinition(null, 0, "", column.width(), column.align(), false))
+                .map(column -> new ExcelExportColumnDefinition(
+                        null, 0, "", column.width(), column.align(), column.forceText()))
                 .toList();
     }
 
@@ -290,16 +377,31 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      * 读取导出字段值。
      *
      * @param data 数据对象
-     * @param field 字段
+     * @param column 列定义
      * @return 字段值
      */
-    private Object readValue(Object data, Field field, Locale locale) {
+    private Object readValue(Object data, ExcelExportColumnDefinition column, Locale locale) {
+        Field field = column.field();
         try {
-            Object value = field.get(data);
-            return formatValue(value, locale);
+            Object value = formatValue(field.get(data), locale);
+            return column.forceText() ? toPlainText(value) : value;
         } catch (IllegalAccessException exception) {
             throw new IllegalStateException("read export field failed: " + field.getName(), exception);
         }
+    }
+
+    /**
+     * 在 Excel 文件边界将强制文本列转换为稳定字符串，避免长编号丢失精度，
+     * 也避免精确十进制金额被工作表以科学计数法展示。
+     *
+     * @param value 已完成通用格式化的单元格值
+     * @return 可精确写入文本单元格的字符串
+     */
+    private String toPlainText(Object value) {
+        if (value instanceof BigDecimal decimal) {
+            return decimal.toPlainString();
+        }
+        return value == null ? "" : value.toString();
     }
 
     /**
@@ -337,7 +439,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setHeader(
                 "Content-Disposition",
-                "attachment;filename*=utf-8''" + URLEncoder.encode(fileName + ".xlsx", StandardCharsets.UTF_8)
+                "attachment;filename*=utf-8''"
+                        + URLEncoder.encode(fileName + ".xlsx", StandardCharsets.UTF_8).replace("+", "%20")
         );
     }
 

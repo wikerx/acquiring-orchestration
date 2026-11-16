@@ -4,6 +4,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionA
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
 import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClientRequestDTO;
+import com.scott.payment.admin.client.payment.dto.TradeBlackPaymentClientDTOs;
 
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalClientRequest;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalResult;
@@ -18,6 +19,10 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Res
  * service-payment 内部命令客户端契约，只承载需要支付核心修改交易、退款审批或异常案件状态的操作。
  */
 public interface PaymentInternalClient {
+
+    /** 解析系统交易加黑所需的可信交易事实。 */
+    TradeBlackPaymentClientDTOs.FactsResult resolveTradeBlackTransactions(
+            TradeBlackPaymentClientDTOs.ResolveCommand command);
 
     /**
      * 审批通过退款。

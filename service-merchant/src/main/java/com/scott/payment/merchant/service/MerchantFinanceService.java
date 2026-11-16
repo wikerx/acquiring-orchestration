@@ -32,4 +32,14 @@ public interface MerchantFinanceService {
      * @return 当前商户余额流水分页结果
      */
     PageResult<FundLedgerResponse> pageLedgers(String merchantId, DetailQuery query);
+
+    /**
+     * 按冻结商户号和资金账户主键分页查询余额流水，供异步导出来源使用。
+     *
+     * @param merchantId 任务冻结的认证商户号
+     * @param accountId 任务提交时冻结的资金账户主键
+     * @param query 流水筛选和分页条件
+     * @return 同时属于指定商户和账户的余额流水分页结果
+     */
+    PageResult<FundLedgerResponse> pageLedgers(String merchantId, Long accountId, DetailQuery query);
 }

@@ -1,8 +1,10 @@
 package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.DetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.ReserveLine;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.SearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.Summary;
+import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.TransactionLine;
 import com.scott.payment.admin.dto.transaction.AdminClearingDTOs.RecalculateBatchItem;
 import com.scott.payment.component.core.model.PageResult;
 
@@ -30,6 +32,34 @@ public interface AdminClearingQueryService {
      * @return 清分汇总、交易费用明细和独立保证金明细
      */
     DetailResponse detail(String transactionId, LocalDateTime transactionDateTime);
+
+    /**
+     * 分页读取当前清分修订的本金和费用明细。
+     *
+     * @param transactionId 动作级交易号
+     * @param transactionDateTime 真实交易分片时间
+     * @param pageNo 页码，从 1 开始
+     * @param pageSize 页大小，最大 100 且受查询预算限制
+     * @return 当前修订的交易清分明细分页
+     */
+    PageResult<TransactionLine> searchTransactionDetails(String transactionId,
+                                                         LocalDateTime transactionDateTime,
+                                                         Integer pageNo,
+                                                         Integer pageSize);
+
+    /**
+     * 分页读取当前清分修订的保证金明细。
+     *
+     * @param transactionId 动作级交易号
+     * @param transactionDateTime 真实交易分片时间
+     * @param pageNo 页码，从 1 开始
+     * @param pageSize 页大小，最大 100 且受查询预算限制
+     * @return 当前修订的保证金清分明细分页
+     */
+    PageResult<ReserveLine> searchReserveDetails(String transactionId,
+                                                 LocalDateTime transactionDateTime,
+                                                 Integer pageNo,
+                                                 Integer pageSize);
 
     /**
      * 一次读取批量重算目标的当前清分状态，避免按交易逐笔查询管理库。

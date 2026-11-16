@@ -19,6 +19,7 @@ class AdminSettlementProfileControllerContractTest {
         Map<String, String> expected = Map.of(
                 "search", "settlement:profile:list",
                 "detail", "settlement:profile:detail",
+                "create", "settlement:profile:create",
                 "update", "settlement:profile:update");
 
         expected.forEach((methodName, permission) -> {

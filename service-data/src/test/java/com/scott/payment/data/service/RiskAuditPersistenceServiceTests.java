@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -24,21 +25,24 @@ import static org.mockito.Mockito.when;
 class RiskAuditPersistenceServiceTests {
 
     /**
-     * 主记录唯一键冲突时不得重复插入任何命中明细。
+     * 定位表唯一键冲突且分片主事实存在时不得重复插入主记录和任何命中明细。
      */
     @Test
     void shouldTreatExistingRiskRecordAsCompletedDuplicate() {
         log.info("测试风控审计数据库最终幂等，关键输入: risk_record_no 唯一键冲突");
         DataRiskAuditMapper mapper = mock(DataRiskAuditMapper.class);
-        when(mapper.insertEvaluationRecord(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        LocalDateTime evaluationTime = LocalDateTime.of(2026, 8, 1, 10, 30);
+        when(mapper.insertEvaluationLocator("RK202608010001", evaluationTime))
                 .thenThrow(new DuplicateKeyException("duplicate risk record"));
-        when(mapper.countByRiskRecordNo("RK202608010001")).thenReturn(1);
+        when(mapper.selectEvaluationTime("RK202608010001")).thenReturn(evaluationTime);
+        when(mapper.countByRiskRecordNo("RK202608010001", evaluationTime)).thenReturn(1);
         RiskAuditPersistenceService service = new RiskAuditPersistenceService(mapper);
 
         assertThatCode(() -> service.persist(message())).doesNotThrowAnyException();
 
-        verify(mapper, never()).insertEvaluationHit(any(), any(), any());
+        verify(mapper, never()).insertEvaluationRecord(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(mapper, never()).insertEvaluationHit(any(), any(), any(), any());
         log.info("风控审计数据库最终幂等完成，结果: 未重复写入命中明细");
     }
 
@@ -49,10 +53,11 @@ class RiskAuditPersistenceServiceTests {
     void shouldRethrowConflictWhenRiskRecordDoesNotExist() {
         DataRiskAuditMapper mapper = mock(DataRiskAuditMapper.class);
         DuplicateKeyException conflict = new DuplicateKeyException("unrelated unique key");
-        when(mapper.insertEvaluationRecord(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        LocalDateTime evaluationTime = LocalDateTime.of(2026, 8, 1, 10, 30);
+        when(mapper.insertEvaluationLocator("RK202608010001", evaluationTime))
                 .thenThrow(conflict);
-        when(mapper.countByRiskRecordNo("RK202608010001")).thenReturn(0);
+        when(mapper.selectEvaluationTime("RK202608010001")).thenReturn(evaluationTime);
+        when(mapper.countByRiskRecordNo("RK202608010001", evaluationTime)).thenReturn(0);
         RiskAuditPersistenceService service = new RiskAuditPersistenceService(mapper);
 
         assertThatThrownBy(() -> service.persist(message())).isSameAs(conflict);
@@ -70,11 +75,14 @@ class RiskAuditPersistenceServiceTests {
 
         service.persist(message);
 
+        verify(mapper).insertEvaluationLocator(
+                org.mockito.ArgumentMatchers.eq("RK202608010001"), any());
         verify(mapper).insertEvaluationRecord(
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(mapper).insertEvaluationHit(
                 org.mockito.ArgumentMatchers.eq("RK202608010001"),
                 org.mockito.ArgumentMatchers.eq(message.getHits().get(0)),
+                any(),
                 any());
         log.info("风控审计完整写入完成，结果: 主记录和有效明细均已提交给 Mapper");
     }
@@ -92,6 +100,7 @@ class RiskAuditPersistenceServiceTests {
         message.setRiskRecordNo("RK202608010001");
         message.setDecisionResult("BLOCK");
         message.setDecisionReasonCode("BLACKLIST_HIT");
+        message.setEvaluationTime(LocalDateTime.of(2026, 8, 1, 10, 30));
         message.setHits(List.of(hit, new RiskAuditHitMessage()));
         return message;
     }

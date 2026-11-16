@@ -23,7 +23,8 @@ public interface ClearingTransactionOperationMapper extends BaseMapper<ClearingT
     @Select("""
             SELECT id, transaction_id, operation_id, source_transaction_id,
                    merchant_id, merchant_order_no, transaction_type, transaction_status,
-                   label_currency, label_amount, approved_currency, approved_amount,
+                   label_currency, label_amount, label_currency_exponent,
+                   approved_currency, approved_amount,
                    transaction_currency, transaction_amount, currency_exponent,
                    transaction_date_time, transaction_utc_time, transaction_time_zone, version
             FROM transaction_operation

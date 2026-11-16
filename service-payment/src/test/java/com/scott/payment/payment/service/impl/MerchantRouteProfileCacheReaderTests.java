@@ -81,7 +81,7 @@ class MerchantRouteProfileCacheReaderTests {
         when(midMapper.selectList(any())).thenReturn(List.of(mid()));
         when(channelMapper.selectList(any())).thenReturn(List.of(channel()));
         when(capabilityMapper.selectList(any())).thenReturn(List.of(capability()));
-        when(currencyMapper.selectList(any())).thenReturn(List.of(currency()));
+        when(currencyMapper.selectList(any())).thenReturn(List.of(currency(40L, "USD"), currency(41L, "EUR")));
         when(cardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand()));
         MerchantRouteProfileCacheReader reader = new MerchantRouteProfileCacheReader(
                 bindingMapper,
@@ -103,9 +103,10 @@ class MerchantRouteProfileCacheReaderTests {
             assertThat(option.getCapabilitySupportedCardBrands()).containsExactly("VISA");
             assertThat(option.getCapabilitySupport3ds()).isEqualTo(1);
             assertThat(option.getCapabilitySupportIncrementalAuthorization()).isZero();
-            assertThat(option.getSupportedCurrencies()).containsExactly("USD");
-            assertThat(option.getDefaultTransactionCurrency()).isEqualTo("USD");
+            assertThat(option.getSupportedCurrencies()).containsExactly("USD", "EUR");
+            assertThat(option.getDefaultTransactionCurrency()).isEqualTo("EUR");
         });
+        assertThat(profile.getSchemaVersion()).isEqualTo(4);
         assertThat(List.of(MerchantRouteProfile.RouteOption.class.getDeclaredFields()))
                 .extracting(Field::getName)
                 .doesNotContain("metadataValueJson");
@@ -143,8 +144,9 @@ class MerchantRouteProfileCacheReaderTests {
         row.setPaymentMethodScope("ALL");
         row.setCardBrandScope("VISA,MASTERCARD");
         row.setTransactionTypeScope("ALL");
-        row.setCurrencyScope("USD");
+        row.setCurrencyScope("USD,EUR");
         row.setAllowedCountryScope("ALL");
+        row.setDefaultTransactionCurrency("EUR");
         row.setMetadataValueJson("{\"password\":\"must-not-enter-redis\"}");
         row.setMidStatus(1);
         row.setUpdateTime(LocalDateTime.of(2026, 8, 1, 15, 40));
@@ -191,11 +193,11 @@ class MerchantRouteProfileCacheReaderTests {
     /**
      * 构造能力支持币种。
      */
-    private ChannelCapabilityCurrencyDO currency() {
+    private ChannelCapabilityCurrencyDO currency(long id, String currencyCode) {
         ChannelCapabilityCurrencyDO row = new ChannelCapabilityCurrencyDO();
-        row.setId(40L);
+        row.setId(id);
         row.setCapabilityId(30L);
-        row.setCurrencyCode("USD");
+        row.setCurrencyCode(currencyCode);
         row.setCurrencyStatus(1);
         row.setDeleted(0L);
         return row;

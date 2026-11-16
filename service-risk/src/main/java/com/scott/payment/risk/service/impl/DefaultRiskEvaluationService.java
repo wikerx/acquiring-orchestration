@@ -8,11 +8,14 @@ import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
+import com.scott.payment.risk.domain.FrequencyRuleEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
+import com.scott.payment.risk.domain.MerchantLimitReadEvaluation;
 import com.scott.payment.risk.domain.RiskEvaluationOutcome;
 import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
+import com.scott.payment.risk.domain.SourceUrlRuleEvaluation;
 import com.scott.payment.risk.domain.state.RiskDecisionEnum;
 import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
@@ -32,9 +35,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -289,14 +294,15 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                         buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.IP_WHITELIST_MISSED, riskRecordNo),
                         details);
             }
-            Optional<RiskListMatch> sourceUrlMiss = findSourceUrlRestrictionMiss(requestDTO, context);
+            SourceUrlRuleEvaluation sourceUrlEvaluation = evaluateSourceUrlRules(requestDTO, context);
+            Optional<RiskListMatch> sourceUrlMiss = sourceUrlEvaluation.restrictionMiss();
             sourceUrlMiss.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_MISS)));
             if (sourceUrlMiss.isPresent()) {
                 return RiskEvaluationOutcome.of(
                         buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.SOURCE_URL_NOT_ALLOWED, riskRecordNo),
                         details);
             }
-            Optional<RiskListMatch> sourceUrlRule = findSourceUrlRule(requestDTO, context);
+            Optional<RiskListMatch> sourceUrlRule = sourceUrlEvaluation.allowedRule();
             sourceUrlRule.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_HIT)));
             if (sourceUrlRule.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(sourceUrlRule.get().getDecisionAction())) {
                 return RiskEvaluationOutcome.of(
@@ -329,10 +335,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                             RiskReasonCodeEnum.BLACKLIST_HIT, riskRecordNo),
                     details);
         }
-        MerchantLimitReadOnlyEvaluation merchantLimitEvaluation = readOnlyEvaluation == null
+        MerchantLimitReadEvaluation merchantLimitEvaluation = readOnlyEvaluation == null
                 ? evaluateMerchantLimitReadOnly(requestDTO)
                 : readOnlyEvaluation.merchantLimitEvaluation();
-        Optional<RiskListMatch> limitHit = merchantLimitEvaluation.limitHit();
+        Optional<RiskListMatch> limitHit = merchantLimitEvaluation.singleLimitHit();
         limitHit.ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_LIMIT, MATCH_HIT)));
         if (limitHit.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(limitHit.get().getDecisionAction())) {
             return RiskEvaluationOutcome.of(
@@ -356,12 +362,13 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                     details);
         }
         if (limitHit.isEmpty() && cumulativeLimitDetails.isEmpty()
-                && merchantLimitEvaluation.activeMerchantLimitRule()) {
+                && merchantLimitEvaluation.activeRule()) {
             details.add(checkpoint(STAGE_MERCHANT_LIMIT, MATCH_PASS, RiskDecisionEnum.PASS, "本笔交易未触发商户交易限额，放行"));
         }
         boolean retainFrequencySuccessReservations = false;
         try {
-            List<RiskListMatch> frequencyDetails = evaluateFrequencyRules(requestDTO, context).stream()
+            FrequencyRuleEvaluation frequencyEvaluation = evaluateFrequencyRules(requestDTO, context);
+            List<RiskListMatch> frequencyDetails = frequencyEvaluation.details().stream()
                     .map(match -> stage(
                             match,
                             STAGE_FREQUENCY,
@@ -379,7 +386,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                 RiskReasonCodeEnum.FREQUENCY_LIMIT_HIT, riskRecordNo),
                         details);
             }
-            if (frequencyDetails.isEmpty() && hasActiveFrequencyRule(requestDTO)) {
+            if (frequencyDetails.isEmpty() && frequencyEvaluation.activeRules()) {
                 details.add(checkpoint(STAGE_FREQUENCY, MATCH_PASS, RiskDecisionEnum.PASS, "本笔交易未触发交易频率限定，放行"));
             }
             Optional<RiskListMatch> threeDsRule = findThreeDsRule(
@@ -526,7 +533,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 payerIdLookup, shippingAddressLookup, shippingZipLookup, shippingCountryLookup,
                 shippingNameLookup, shippingEmailLookup, shippingEmailDomainLookup,
                 shippingEmailUsernameLookup, shippingPhoneLookup, shippingRegionLookup, customerIdLookup,
-                deviceFingerprintLookup, enabledMerchantFunctions);
+                deviceFingerprintLookup, enabledMerchantFunctions, new ConcurrentHashMap<>());
     }
 
     /**
@@ -565,6 +572,32 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
+     * 按开关选择合并或兼容的来源网址只读查询路径。
+     *
+     * <p>合并路径由仓储保证同一规则视图；关闭开关时严格保留先判断限制未命中、再查询
+     * 允许规则的旧短路顺序。</p>
+     *
+     * @param requestDTO 当前支付风控请求
+     * @param context 已规范化的只读查询上下文
+     * @return 允许命中和限制未命中的组合结果
+     */
+    private SourceUrlRuleEvaluation evaluateSourceUrlRules(RiskPaymentEvaluateRequestDTO requestDTO,
+                                                            LookupContext context) {
+        if (riskListRuntimeRepository == null) {
+            return SourceUrlRuleEvaluation.empty();
+        }
+        if (properties.isReadQueryConsolidationEnabled()) {
+            return riskListRuntimeRepository.evaluateSourceUrlRules(
+                    requestDTO.getMerchantId(), context.sourceHostLookup());
+        }
+        Optional<RiskListMatch> restrictionMiss = findSourceUrlRestrictionMiss(requestDTO, context);
+        Optional<RiskListMatch> allowedRule = restrictionMiss.isPresent()
+                ? Optional.empty()
+                : findSourceUrlRule(requestDTO, context);
+        return new SourceUrlRuleEvaluation(allowedRule, restrictionMiss);
+    }
+
+    /**
      * 判断当前请求是否由平台 Hosted Checkout 内部链路发起。
      *
      * @param requestDTO 支付风控请求
@@ -583,7 +616,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     private List<RiskListMatch> evaluateWhitelistChecks(RiskPaymentEvaluateRequestDTO requestDTO,
                                                         LookupContext context) {
         return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE,
-                context.enabledMerchantFunctions(), List.of(
+                context.enabledMerchantFunctions(), context.activeListRules(), List.of(
                 new ListCheck(RiskListFunction.WHITE_MERCHANT, valueNormalizer.merchant(requestDTO.getMerchantId())),
                 new ListCheck(RiskListFunction.WHITE_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.WHITE_CARD_FINGERPRINT, context.cardFingerprintLookup()),
@@ -617,7 +650,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     private List<RiskListMatch> evaluateBlacklistChecks(RiskPaymentEvaluateRequestDTO requestDTO,
                                                         LookupContext context) {
         return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE,
-                context.enabledMerchantFunctions(), List.of(
+                context.enabledMerchantFunctions(), context.activeListRules(), List.of(
                 new ListCheck(RiskListFunction.BLACK_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.BLACK_CARD_FINGERPRINT, context.cardFingerprintLookup()),
                 new ListCheck(RiskListFunction.BLACK_IP, context.ipLookup(), "payerIp"),
@@ -727,7 +760,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     private List<RiskListMatch> evaluateAmlChecks(RiskPaymentEvaluateRequestDTO requestDTO,
                                                  LookupContext context) {
         return evaluateListChecks(requestDTO.getMerchantId(), STAGE_AML,
-                context.enabledMerchantFunctions(), List.of(
+                context.enabledMerchantFunctions(), context.activeListRules(), List.of(
                 new ListCheck(RiskListFunction.AML_CARD, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.AML_CARD_BIN, context.cardBinLookup()),
                 new ListCheck(RiskListFunction.AML_COUNTRY, context.issuerCountryLookup(), "issuerCountry"),
@@ -783,9 +816,16 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      * @param requestDTO 当前支付风控请求
      * @return 单笔规则命中及启用状态快照
      */
-    private MerchantLimitReadOnlyEvaluation evaluateMerchantLimitReadOnly(
+    private MerchantLimitReadEvaluation evaluateMerchantLimitReadOnly(
             RiskPaymentEvaluateRequestDTO requestDTO) {
-        return new MerchantLimitReadOnlyEvaluation(
+        if (riskListRuntimeRepository == null) {
+            return MerchantLimitReadEvaluation.empty();
+        }
+        if (properties.isReadQueryConsolidationEnabled()) {
+            return riskListRuntimeRepository.evaluateMerchantLimitRules(
+                    requestDTO.getMerchantId(), requestDTO.getAmount(), requestDTO.getCurrency());
+        }
+        return new MerchantLimitReadEvaluation(
                 findMerchantLimitRule(requestDTO),
                 hasActiveMerchantLimitRule(requestDTO));
     }
@@ -814,7 +854,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                     () -> evaluateBlackWhiteChecks(requestDTO, context),
                     readOnlyEvaluationExecutor);
             futures.add(blackWhiteFuture);
-            CompletableFuture<MerchantLimitReadOnlyEvaluation> merchantLimitFuture = CompletableFuture.supplyAsync(
+            CompletableFuture<MerchantLimitReadEvaluation> merchantLimitFuture = CompletableFuture.supplyAsync(
                     () -> evaluateMerchantLimitReadOnly(requestDTO),
                     readOnlyEvaluationExecutor);
             futures.add(merchantLimitFuture);
@@ -945,12 +985,24 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      *
      * @return PASS、HIT 或 ERROR 逐规则明细；仓储未装配时返回空集合
      */
-    private List<RiskListMatch> evaluateFrequencyRules(RiskPaymentEvaluateRequestDTO requestDTO,
-                                                       LookupContext context) {
+    private FrequencyRuleEvaluation evaluateFrequencyRules(RiskPaymentEvaluateRequestDTO requestDTO,
+                                                            LookupContext context) {
         if (riskListRuntimeRepository == null) {
-            return List.of();
+            return FrequencyRuleEvaluation.empty();
         }
-        return riskListRuntimeRepository.evaluateFrequencyRules(
+        if (properties.isReadQueryConsolidationEnabled()) {
+            return riskListRuntimeRepository.evaluateFrequencyRulesWithStatus(
+                    requestDTO.getMerchantId(),
+                    requestDTO,
+                    context.cardNoLookup(),
+                    context.cardFingerprintLookup(),
+                    context.ipLookup(),
+                    context.billingEmailLookup(),
+                    context.billingPhoneLookup(),
+                    context.customerIdLookup(),
+                    context.deviceFingerprintLookup());
+        }
+        List<RiskListMatch> details = riskListRuntimeRepository.evaluateFrequencyRules(
                 requestDTO.getMerchantId(),
                 requestDTO,
                 context.cardNoLookup(),
@@ -959,8 +1011,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 context.billingEmailLookup(),
                 context.billingPhoneLookup(),
                 context.customerIdLookup(),
-                context.deviceFingerprintLookup()
-        );
+                context.deviceFingerprintLookup());
+        return new FrequencyRuleEvaluation(details, hasActiveFrequencyRule(requestDTO));
     }
 
     /**
@@ -991,11 +1043,12 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     private List<RiskListMatch> evaluateListChecks(String merchantId,
                                                    Stage stage,
                                                    Set<RiskListFunction> enabledMerchantFunctions,
+                                                   Map<RiskListFunction, Boolean> activeListRules,
                                                    List<ListCheck> checks) {
         List<RiskListMatch> details = new ArrayList<>();
         for (ListCheck check : checks) {
             if (check.lookupValue() == null) {
-                if (hasActiveListRule(check.function(), merchantId)) {
+                if (hasActiveListRule(check.function(), merchantId, activeListRules)) {
                     details.add(listSkip(check.function(), null, check.auditElement(), stage,
                             RiskReasonCodeEnum.INPUT_MISSING));
                 }
@@ -1009,7 +1062,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 details.add(stage(detail, stage, MATCH_HIT));
                 continue;
             }
-            if (hasActiveListRule(check.function(), merchantId)) {
+            if (hasActiveListRule(check.function(), merchantId, activeListRules)) {
                 details.add(listMiss(check.function(), check.lookupValue(), check.auditElement(), stage));
             } else {
                 RiskReasonCodeEnum reasonCode = enabledMerchantFunctions.contains(check.function())
@@ -1034,9 +1087,18 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     /**
      * 判断名单节点是否存在当前商户可用的启用规则。
      */
-    private boolean hasActiveListRule(RiskListFunction function, String merchantId) {
-        return riskListRuntimeRepository != null
-                && riskListRuntimeRepository.hasActiveListRule(function, merchantId);
+    private boolean hasActiveListRule(RiskListFunction function,
+                                      String merchantId,
+                                      Map<RiskListFunction, Boolean> activeListRules) {
+        if (riskListRuntimeRepository == null) {
+            return false;
+        }
+        if (!properties.isReadQueryConsolidationEnabled()) {
+            return riskListRuntimeRepository.hasActiveListRule(function, merchantId);
+        }
+        return activeListRules.computeIfAbsent(
+                function,
+                ignored -> riskListRuntimeRepository.hasActiveListRule(function, merchantId));
     }
 
     /**
@@ -1510,7 +1572,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  RiskRuntimeLookupValue shippingRegionLookup,
                                  RiskRuntimeLookupValue customerIdLookup,
                                  RiskRuntimeLookupValue deviceFingerprintLookup,
-                                 Set<RiskListFunction> enabledMerchantFunctions) {
+                                 Set<RiskListFunction> enabledMerchantFunctions,
+                                 Map<RiskListFunction, Boolean> activeListRules) {
     }
 
     /**
@@ -1518,7 +1581,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private record ReadOnlyEvaluation(List<RiskListMatch> amlDetails,
                                       BlackWhiteEvaluation blackWhiteEvaluation,
-                                      MerchantLimitReadOnlyEvaluation merchantLimitEvaluation) {
+                                      MerchantLimitReadEvaluation merchantLimitEvaluation) {
     }
 
     /**
@@ -1526,13 +1589,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private record BlackWhiteEvaluation(List<RiskListMatch> whitelistDetails,
                                         List<RiskListMatch> blacklistDetails) {
-    }
-
-    /**
-     * 单笔限额命中和启用状态，不包含累计限额预占结果。
-     */
-    private record MerchantLimitReadOnlyEvaluation(Optional<RiskListMatch> limitHit,
-                                                   boolean activeMerchantLimitRule) {
     }
 
     /**

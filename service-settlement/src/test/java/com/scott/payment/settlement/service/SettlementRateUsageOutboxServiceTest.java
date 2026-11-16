@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.service;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.JSONWriter;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
@@ -114,6 +115,27 @@ class SettlementRateUsageOutboxServiceTest {
     }
 
     /**
+     * MySQL 规范化 JSON 数字后，真实汇率发生变化仍必须中断事务，禁止放宽资金事实校验。
+     */
+    @Test
+    void shouldRejectDifferentRateAfterDatabaseNormalization() {
+        SettlementEventOutboxMapper mapper = mock(SettlementEventOutboxMapper.class);
+        AtomicReference<SettlementEventOutboxDO> inserted = new AtomicReference<>();
+        when(mapper.insertRateUsageIdempotent(any())).thenAnswer(invocation -> {
+            inserted.set(invocation.getArgument(0));
+            return 1;
+        });
+        when(mapper.selectByEventNo(any())).thenAnswer(invocation ->
+                databaseRow(inserted.get(), new BigDecimal("1.081")));
+        SettlementRateUsageOutboxService service = new SettlementRateUsageOutboxService(mapper);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 1, 12, 0);
+
+        assertThatThrownBy(() -> service.saveForCalculatedBatch(batch(), rates(now), now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("different persisted outbox fact");
+    }
+
+    /**
      * 创建测试结算批次身份。
      */
     private SettlementBatchDO batch() {
@@ -138,9 +160,17 @@ class SettlementRateUsageOutboxServiceTest {
     }
 
     /**
-     * 模拟 MySQL JSON 列对字段间空白的规范化，同时保持其余冻结身份不变。
+     * 模拟 MySQL JSON 列对尾随零和字段空白的规范化，同时保持其余冻结身份不变。
      */
     private SettlementEventOutboxDO databaseRow(SettlementEventOutboxDO source) {
+        return databaseRow(source, new BigDecimal("1.08"));
+    }
+
+    /**
+     * 模拟 MySQL JSON 列对 BigDecimal 尾随零和字段空白的规范化。
+     */
+    private SettlementEventOutboxDO databaseRow(SettlementEventOutboxDO source,
+                                                 BigDecimal storedRate) {
         SettlementEventOutboxDO row = new SettlementEventOutboxDO();
         row.setEventNo(source.getEventNo());
         row.setSettlementBatchNo(source.getSettlementBatchNo());
@@ -149,7 +179,9 @@ class SettlementRateUsageOutboxServiceTest {
         row.setTopic(source.getTopic());
         row.setTag(source.getTag());
         row.setMessageKey(source.getMessageKey());
-        row.setPayloadJson(JSON.toJSONString(JSON.parse(source.getPayloadJson()),
+        JSONObject payload = JSON.parseObject(source.getPayloadJson());
+        payload.put("usedRate", storedRate);
+        row.setPayloadJson(JSON.toJSONString(payload,
                 JSONWriter.Feature.PrettyFormat));
         return row;
     }

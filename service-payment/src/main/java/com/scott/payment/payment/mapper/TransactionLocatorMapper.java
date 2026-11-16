@@ -11,6 +11,22 @@ import org.apache.ibatis.annotations.Select;
 public interface TransactionLocatorMapper extends BaseMapper<TransactionLocatorDO> {
 
     /**
+     * 按全局唯一的平台交易 ID 定位交易，专供已签名的管理端内部接口使用。
+     *
+     * <p>普通商户查询仍必须使用携带 merchant_id 的方法；本方法不得暴露到商户 API。</p>
+     */
+    @Select("""
+            SELECT id, transaction_id, operation_id, root_transaction_id,
+                   merchant_id, merchant_order_no, transaction_type,
+                   transaction_date_time, root_transaction_date_time,
+                   create_time, update_time
+            FROM transaction_locator
+            WHERE transaction_id = #{transactionId}
+            LIMIT 1
+            """)
+    TransactionLocatorDO selectByTransactionIdForAdmin(@Param("transactionId") String transactionId);
+
+    /**
      * 按商户和平台交易 ID 定位单笔动作。
      *
      * @param merchantId 平台商户号

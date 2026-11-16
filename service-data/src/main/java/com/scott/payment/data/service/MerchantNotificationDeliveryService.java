@@ -38,6 +38,25 @@ public interface MerchantNotificationDeliveryService {
                              String callbackEventId);
 
     /**
+     * 按通知任务号和商户号精确执行一次人工重发。
+     *
+     * <p>该入口供商户端重发命令使用，任务号和商户号必须同时匹配冻结的通知快照。独立人工事件号
+     * 仍是商户可见的幂等键；执行结果只推进通知任务和尝试日志，不修改支付交易事实。</p>
+     *
+     * @param transactionDateTime 交易业务时间，用于精确定位季度分表
+     * @param transactionId 平台交易号
+     * @param notifyId 商户通知任务号
+     * @param merchantId 通知任务所属商户号
+     * @param callbackEventId MQ 消息唯一号，同时作为回调稳定事件 ID
+     * @return true 表示商户返回 HTTP 200 和 succeed，false 表示回调失败
+     */
+    boolean retryNotification(LocalDateTime transactionDateTime,
+                              String transactionId,
+                              String notifyId,
+                              String merchantId,
+                              String callbackEventId);
+
+    /**
      * 按自动重试事件携带的任务版本和 attempt 精确投递，重复或过期消息不执行 HTTP。
      *
      * @param transactionDateTime 交易业务时间

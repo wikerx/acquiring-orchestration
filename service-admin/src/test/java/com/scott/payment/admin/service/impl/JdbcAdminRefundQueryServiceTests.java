@@ -5,6 +5,7 @@ import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSummary;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +38,29 @@ import static org.mockito.Mockito.when;
  */
 @Slf4j
 class JdbcAdminRefundQueryServiceTests {
+
+    /**
+     * 异步退款导出必须把有限商户集合落实为 SQL IN 条件且不额外执行统计。
+     */
+    @Test
+    void refundExportShouldApplyFrozenMerchantScopeInSql() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        TransactionLogicalReadExecutor readExecutor = executingReadExecutor();
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+        JdbcAdminRefundQueryService service = new JdbcAdminRefundQueryService(
+                jdbcTemplate, readExecutor, mock(AdminTransactionQueryService.class),
+                new TransactionShardingProperties());
+
+        service.pageForExport(query(), AdminMerchantDataScope.limited(Set.of("M3001", "M3002")));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), params.capture(), eq(Long.class));
+        assertThat(sql.getValue()).contains("o.merchant_id IN (:scopeMerchantIds)");
+        assertThat(params.getValue().getValue("scopeMerchantIds"))
+                .isEqualTo(Set.of("M3001", "M3002"));
+    }
 
     /**
      * 退款分页和统计必须在 transaction 普通读作用域内使用同一组筛选条件。

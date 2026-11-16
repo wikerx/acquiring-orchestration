@@ -2,12 +2,14 @@ package com.scott.payment.data.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.OperationLogMessage;
+import com.scott.payment.component.mq.observability.OperationLogOperationalMetrics;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 import com.scott.payment.component.redis.idempotent.IdempotentAcquireResult;
 import com.scott.payment.component.redis.idempotent.IdempotentService;
 import com.scott.payment.data.service.OperationLogPersistenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -98,6 +100,46 @@ class OperationLogConsumerServiceTests {
     }
 
     /**
+     * Topic 来源与消息声明系统不一致时必须拒绝，避免跨系统审计污染。
+     */
+    @Test
+    void shouldRejectMismatchedDeclaredSystem() {
+        Fixture fixture = fixture(OperationLogSource.ADMIN, "ADMIN-LOG-MISMATCH", IdempotentAcquireResult.ACQUIRED);
+        fixture.message().setSystemCode(OperationLogSource.MERCHANT.name());
+
+        assertThatThrownBy(() -> fixture.service().consume(
+                OperationLogSource.ADMIN, JsonUtils.toJsonString(fixture.message())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("operation log source does not match declared system");
+
+        verify(fixture.persistenceService(), never()).persist(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    /**
+     * 旧生产者超长幂等键必须稳定收敛到数据库字段范围，不能形成永久重试毒消息。
+     */
+    @Test
+    void shouldHashOversizedLegacyIdempotentKey() {
+        Fixture fixture = fixture(OperationLogSource.ADMIN, "ADMIN-LOG-LONG", IdempotentAcquireResult.ACQUIRED);
+        fixture.message().setIdempotentKey("legacy-key-" + "x".repeat(400));
+        when(fixture.idempotentService().acquireMq(
+                org.mockito.ArgumentMatchers.eq("admin-operation-log"),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong()
+        )).thenReturn(IdempotentAcquireResult.ACQUIRED);
+
+        fixture.service().consume(OperationLogSource.ADMIN, JsonUtils.toJsonString(fixture.message()));
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(fixture.persistenceService()).persist(
+                org.mockito.ArgumentMatchers.eq(fixture.message()), keyCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(keyCaptor.getValue())
+                .startsWith("ADMIN:sha256:")
+                .hasSizeLessThanOrEqualTo(OperationLogMessage.IDEMPOTENT_KEY_MAX_LENGTH);
+    }
+
+    /**
      * Redis 不可用时必须继续依赖数据库唯一键，不能丢弃审计消息。
      */
     @Test
@@ -153,7 +195,7 @@ class OperationLogConsumerServiceTests {
                 properties.getConsumeIdempotentTtlSeconds()
         )).thenReturn(acquireResult);
         OperationLogConsumerService service = new OperationLogConsumerService(
-                persistenceService, idempotentService, properties);
+                persistenceService, idempotentService, properties, OperationLogOperationalMetrics.noop());
         return new Fixture(
                 service,
                 persistenceService,

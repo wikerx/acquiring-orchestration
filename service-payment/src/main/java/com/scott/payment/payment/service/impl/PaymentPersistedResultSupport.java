@@ -53,12 +53,12 @@ final class PaymentPersistedResultSupport {
         result.setMerchantResponseCode(projection.resultCode().getCode());
         result.setMerchantResponseMessage(projection.message(
                 OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
-        // 生命周期累计金额属于主单事实，和动作单状态一起覆盖才能返回一致的闭环快照。
-        result.setTotalAuthorizedAmount(order.getAuthorizedAmount());
-        result.setTotalAuthorizedCancelAmount(order.getAuthorizedCancelAmount());
-        result.setTotalCapturedAmount(order.getCapturedAmount());
-        result.setTotalRefundAmount(order.getRefundedAmount());
-        result.setTotalRefuseAmount(order.getChargebackAmount());
+        // 商户响应的生命周期累计必须读标签口径，渠道口径只用于平台内部执行和对账。
+        result.setTotalAuthorizedAmount(order.getLabelAuthorizedAmount());
+        result.setTotalAuthorizedCancelAmount(order.getLabelAuthorizedCancelAmount());
+        result.setTotalCapturedAmount(order.getLabelCapturedAmount());
+        result.setTotalRefundAmount(order.getLabelRefundedAmount());
+        result.setTotalRefuseAmount(order.getLabelChargebackAmount());
         return result;
     }
 

@@ -33,13 +33,16 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 public class AdminChannelInfoController {
 
     private final AdminChannelApplicationService channelApplicationService;
+    private final com.scott.payment.admin.application.channel.AdminChannelImageApplicationService channelImages;
 
     /**
      * 创建渠道基础信息管理控制器。
      *
      * @param channelApplicationService 渠道配置应用服务
      */
-    public AdminChannelInfoController(AdminChannelApplicationService channelApplicationService) {
+    public AdminChannelInfoController(AdminChannelApplicationService channelApplicationService,
+            com.scott.payment.admin.application.channel.AdminChannelImageApplicationService channelImages) {
+        this.channelImages = channelImages;
         this.channelApplicationService = channelApplicationService;
     }
 
@@ -131,7 +134,30 @@ public class AdminChannelInfoController {
     @RequiresPermission("channel:info:remove")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道")
     public CommonResult<Void> deleteChannel(@PathVariable("id") Long id) {
-        channelApplicationService.deleteChannel(id);
+        channelImages.delete(id);
         return success();
+    }
+
+    @PostMapping(value = "/with-logo", consumes = "multipart/form-data")
+    @RequiresPermission("channel:info:add")
+    @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道及 Logo")
+    public CommonResult<ChannelInfoResponse> createWithLogo(
+            @Valid @org.springframework.web.bind.annotation.RequestPart("metadata") ChannelInfoSaveRequest request,
+            @org.springframework.web.bind.annotation.RequestPart(value = "file", required = false) org.springframework.web.multipart.MultipartFile file) {
+        return success(channelImages.save(null, request, file, false));
+    }
+    @PutMapping(value = "/{id}/with-logo", consumes = "multipart/form-data")
+    @RequiresPermission("channel:info:edit")
+    @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道及 Logo")
+    public CommonResult<ChannelInfoResponse> updateWithLogo(@PathVariable("id") Long id,
+            @Valid @org.springframework.web.bind.annotation.RequestPart("metadata") ChannelInfoSaveRequest request,
+            @org.springframework.web.bind.annotation.RequestPart(value = "file", required = false) org.springframework.web.multipart.MultipartFile file,
+            @org.springframework.web.bind.annotation.RequestParam(value = "removeLogo", defaultValue = "false") boolean removeLogo) {
+        return success(channelImages.save(id, request, file, removeLogo));
+    }
+    @GetMapping("/{id}/logo")
+    @RequiresPermission("channel:info:list")
+    public org.springframework.http.ResponseEntity<byte[]> logo(@PathVariable("id") Long id) {
+        return com.scott.payment.component.web.upload.ImageResponses.png(channelImages.read(id));
     }
 }

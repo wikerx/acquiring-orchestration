@@ -5,6 +5,8 @@ import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchDet
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchSummary;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingDetail;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingReserveLine;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingTransactionLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReconciliationRecord;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItem;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemQuery;
@@ -105,6 +107,26 @@ public interface MerchantSettlementQueryService {
             String merchantId,
             String transactionId,
             LocalDateTime transactionDateTime);
+
+    /**
+     * 分页查询当前认证商户指定交易的本金和费用清分行。
+     */
+    PageResult<ClearingTransactionLine> searchClearingTransactionLinesByTransaction(
+            String merchantId,
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            Integer pageNo,
+            Integer pageSize);
+
+    /**
+     * 分页查询当前认证商户指定交易的保证金清分行。
+     */
+    PageResult<ClearingReserveLine> searchClearingReserveLinesByTransaction(
+            String merchantId,
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            Integer pageNo,
+            Integer pageSize);
 
     /**
      * 按真实交易身份查询跨批次结算财务组件，不受列表业务日期窗口限制。

@@ -15,6 +15,10 @@ public class ObjectStorageProperties {
     private String endpoint;
     private String region = "us-east-1";
     private String bucket;
+    /** 系统文件模板专用私有 Bucket。 */
+    private String templateBucket = "vexra-template-files";
+    /** 头像和渠道 Logo 使用的独立私有 Bucket。 */
+    private String mediaBucket = "vexra-media-files";
     private boolean pathStyleAccess = true;
     private long maxFileSizeBytes = 20L * 1024 * 1024;
     private String accessKey;

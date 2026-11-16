@@ -12,6 +12,7 @@ import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionIdempotencyMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionOperationMapper;
 import com.scott.payment.clearing.service.ClearingPersistenceService;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
@@ -22,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.Set;
 
@@ -115,7 +115,7 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
 
         LocalDateTime deadline = now.plusSeconds(properties.getProcessingTimeoutSeconds());
         int claimed = financeStateMapper.claimProcessing(
-                operation.getTransactionId(), operation.getTransactionDateTime(), state.getVersion(),
+                state.getId(), operation.getTransactionId(), operation.getTransactionDateTime(), state.getVersion(),
                 processingOwner, now, deadline, message.getMessageId());
         if (claimed != 1) {
             return result(ClearingClaimResult.Outcome.BUSY, state, facts, false);
@@ -145,12 +145,13 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
                 && Objects.equals(state.getLastFailureCode(), retryMessage.getRetryReasonCode())
                 && state.getNextRetryTime() != null
                 && retryMessage.getDeliverAt() != null
-                && Objects.equals(state.getNextRetryTime().toInstant(ZoneOffset.UTC), retryMessage.getDeliverAt());
+                && Objects.equals(ClearingTimeSupport.toInstant(state.getNextRetryTime()),
+                        retryMessage.getDeliverAt());
         if (!controlsMatch) {
             return RetryClaimDecision.STALE;
         }
         return state.getNextRetryTime().isAfter(now)
-                || retryMessage.getDeliverAt().isAfter(now.toInstant(ZoneOffset.UTC))
+                || retryMessage.getDeliverAt().isAfter(ClearingTimeSupport.toInstant(now))
                 ? RetryClaimDecision.NOT_DUE : RetryClaimDecision.DUE;
     }
 
@@ -221,7 +222,8 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
         if (state == null) {
             throw new IllegalStateException("transaction finance state is missing");
         }
-        if (!StringUtils.hasText(state.getFinanceStateId())
+        if (state.getId() == null
+                || !StringUtils.hasText(state.getFinanceStateId())
                 || !Objects.equals(operation.getTransactionId(), state.getTransactionId())
                 || !Objects.equals(operation.getOperationId(), state.getOperationId())
                 || !Objects.equals(operation.getMerchantId(), state.getMerchantId())

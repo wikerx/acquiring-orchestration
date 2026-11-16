@@ -386,22 +386,7 @@ Authorization: Bearer {jwt}
 - 币种使用 ISO 4217 三位大写字母代码。
 - 国家或地区代码按具体字段使用 ISO 3166-1 alpha-2 或 alpha-3，不得混用。
 
-当标签币种和交易币种不同时，平台按下式计算：
-
-```text
-transactionRate = 1 单位 labelCurrency 可兑换的 transactionCurrency 数量
-transactionAmount = round(labelAmount * transactionRate, transactionCurrency 支持精度)
-```
-
-当交易币种和结算币种不同时，平台按下式计算：
-
-```text
-settlementRate = 1 单位 transactionCurrency 可兑换的 settlementCurrency 数量
-grossSettlementAmount = transactionAmount * settlementRate
-settlementAmount = round(grossSettlementAmount - settlementFeeAmount, settlementCurrency 支持精度)
-```
-
-汇率使用十进制定点数，传输精度最多 8 位小数；中间计算至少保留 12 位小数，只在生成对应币种的最终金额时使用 `HALF_UP` 舍入。实际计费方向、汇率来源和费用明细以响应 `billingInfo` 为准，商户不得用展示汇率反推记账金额。
+商户请求、响应、查询和终态回调始终使用商户上送的标签币种与标签金额。平台为适配渠道而执行的币种转换、渠道交易金额、交易汇率、汇率来源和报价时间属于平台内部成本事实，不进入商户 OpenAPI 契约。已形成的商户结算金额、结算币种和费用明细按 `billingInfo` 返回；商户不得根据展示信息反推平台内部渠道成本。
 
 代付最小单位换算示例：
 
@@ -954,7 +939,7 @@ POST /api/rest/card-bin/v1/query
 | riskInfo | Object | 首次交易可选 | 预留对象；当前版本不参与风控决策，响应不返回 |
 | payerInfo | Object | 首次交易和 Hosted Checkout 必传 | 付款人信息；仅 `ipAddress` 必填，其余子字段可选 |
 | shippingInfo | Object | 首次交易可选 | 收货信息；提供后参与收货资料风控并作为快照返回 |
-| billingInfo | Object | 仅响应 | 平台计算的交易、换汇、结算和费用信息 |
+| billingInfo | Object | 仅响应 | 商户标签金额及已形成的结算和费用信息 |
 
 **字段来源与返回规则**
 
@@ -1227,18 +1212,13 @@ POST /api/rest/card-bin/v1/query
 | ------------------- | ------------------- | --------------------------------------------------------- |
 | labelAmount         | BigDecimal（12,2） | 商户上送或页面展示金额                                    |
 | labelCurrency       | String（3）         | 商户上送或页面展示币种                                    |
-| transactionAmount   | BigDecimal（12,2） | 平台发送渠道/卡组/收单行的交易金额                        |
-| transactionCurrency | String（3）         | 平台发送渠道/卡组/收单行的交易币种                        |
-| transactionRate     | BigDecimal（18,8） | 标签金额转换为交易金额的汇率；未换汇时通常为 `1.00000000` |
-| rateSource | String（32） | 汇率来源编码，发生换汇时返回 |
-| rateTime | String（64） | 汇率报价或生效时间，ISO-8601 offset datetime |
 | settlementRate | BigDecimal（18,8） | 1 单位交易币种兑换的结算币种数量 |
 | settlementAmount    | BigDecimal（12,2） | 预计或最终结算金额，适用时存在                            |
 | settlementCurrency  | String（3）         | 预计或最终结算币种，适用时存在                            |
 | settlementFeeAmount | BigDecimal（12,2） | 从毛结算金额中扣除的结算费用合计，适用时存在 |
 | feeItems            | List<Object>        | 费用类目；结算完成后展示                                  |
 
-凡外层 `data` 返回收单业务对象，顶层 `billingInfo` 必须存在。尚未形成结算的授权、预授权、增量授权和撤销等动作，仍返回 `labelAmount`、`labelCurrency`、`transactionAmount`、`transactionCurrency` 和 `transactionRate`；`settlementRate`、`settlementAmount`、`settlementCurrency`、`settlementFeeAmount` 和 `feeItems` 仅在平台已完成对应计算时返回，不得为了补齐字段而伪造结算结果。
+凡外层 `data` 返回收单业务对象，顶层 `billingInfo` 必须存在，并始终返回 `labelAmount`、`labelCurrency`。`settlementRate`、`settlementAmount`、`settlementCurrency`、`settlementFeeAmount` 和 `feeItems` 仅在平台已完成对应商户结算计算时返回，不得为了补齐字段而伪造结算结果。平台内部渠道交易金额、币种和换汇事实不得出现在响应、查询或终态回调中。
 
 ##### 7.1.10.1 feeItems 子参数
 
@@ -1557,7 +1537,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -1704,11 +1684,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -1832,9 +1807,6 @@ POST /api/rest/card-bin/v1/query
   "billingInfo": {
     "labelAmount": 10.25,
     "labelCurrency": "USD",
-    "transactionAmount": 10.25,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0,
     "settlementRate": 1.0,
     "settlementAmount": 9.95,
     "settlementCurrency": "USD",
@@ -2148,7 +2120,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -2295,11 +2267,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -2421,10 +2388,7 @@ POST /api/rest/card-bin/v1/query
   },
   "billingInfo": {
     "labelAmount": 120.0,
-    "labelCurrency": "USD",
-    "transactionAmount": 120.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0
+    "labelCurrency": "USD"
   }
 }
 ```
@@ -2726,7 +2690,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -2873,11 +2837,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -2999,10 +2958,7 @@ POST /api/rest/card-bin/v1/query
   },
   "billingInfo": {
     "labelAmount": 200.0,
-    "labelCurrency": "USD",
-    "transactionAmount": 200.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0
+    "labelCurrency": "USD"
   }
 }
 ```
@@ -3122,7 +3078,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -3269,11 +3225,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -3397,10 +3348,7 @@ POST /api/rest/card-bin/v1/query
   },
   "billingInfo": {
     "labelAmount": 20.0,
-    "labelCurrency": "USD",
-    "transactionAmount": 20.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0
+    "labelCurrency": "USD"
   }
 }
 ```
@@ -3520,7 +3468,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -3667,11 +3615,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -3795,9 +3738,6 @@ POST /api/rest/card-bin/v1/query
   "billingInfo": {
     "labelAmount": 180.0,
     "labelCurrency": "USD",
-    "transactionAmount": 180.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0,
     "settlementRate": 1.0,
     "settlementAmount": 179.7,
     "settlementCurrency": "USD",
@@ -3929,7 +3869,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -4076,11 +4016,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -4205,9 +4140,6 @@ POST /api/rest/card-bin/v1/query
   "billingInfo": {
     "labelAmount": 80.0,
     "labelCurrency": "USD",
-    "transactionAmount": 80.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0,
     "settlementRate": 1.0,
     "settlementAmount": 79.7,
     "settlementCurrency": "USD",
@@ -4339,7 +4271,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -4486,11 +4418,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -4613,10 +4540,7 @@ POST /api/rest/card-bin/v1/query
   },
   "billingInfo": {
     "labelAmount": 2.5,
-    "labelCurrency": "USD",
-    "transactionAmount": 2.5,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0
+    "labelCurrency": "USD"
   }
 }
 ```
@@ -4732,7 +4656,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Object | M | 本次业务动作结果 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -4879,11 +4803,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -5006,10 +4925,7 @@ POST /api/rest/card-bin/v1/query
   },
   "billingInfo": {
     "labelAmount": 120.0,
-    "labelCurrency": "USD",
-    "transactionAmount": 120.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0
+    "labelCurrency": "USD"
   }
 }
 ```
@@ -5138,7 +5054,7 @@ POST /api/rest/card-bin/v1/query
 | `shippingInfo` | Object | C | 首次交易提供收货人快照时必须完整返回 |
 | `threeDSInfo` | Object | C | 交易存在 3DS 安全结果时返回 |
 | `transactionInfo` | Array<Object> | M | 符合条件的完整交易动作列表 |
-| `billingInfo` | Object | M | 平台计算的金额、换汇、结算及费用信息 |
+| `billingInfo` | Object | M | 商户标签金额及已形成的结算和费用信息 |
 
 
 ##### merchantInfo 子参数
@@ -5285,11 +5201,6 @@ POST /api/rest/card-bin/v1/query
 | --- | --- | --- | --- |
 | `labelAmount` | BigDecimal（12,2） | M | 商户上送或页面展示金额 |
 | `labelCurrency` | String（3） | M | 商户上送或页面展示币种 |
-| `transactionAmount` | BigDecimal（12,2） | M | 发送至渠道的交易金额 |
-| `transactionCurrency` | String（3） | M | 发送至渠道的交易币种 |
-| `transactionRate` | BigDecimal（18,8） | M | 标签币种转换为交易币种的汇率；未换汇为 `1` |
-| `rateSource` | String（32） | C | 发生换汇并有来源编码时返回 |
-| `rateTime` | String（64） | C | 发生换汇并有报价时间时返回 |
 | `settlementRate` | BigDecimal（18,8） | C | 已计算结算换汇时返回 |
 | `settlementAmount` | BigDecimal（12,2） | C | 已形成预计或最终结算金额时返回 |
 | `settlementCurrency` | String（3） | C | 返回结算金额时必须同时返回 |
@@ -5448,9 +5359,6 @@ POST /api/rest/card-bin/v1/query
   "billingInfo": {
     "labelAmount": 80.0,
     "labelCurrency": "USD",
-    "transactionAmount": 80.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0,
     "settlementRate": 1.0,
     "settlementAmount": 79.7,
     "settlementCurrency": "USD",
@@ -5610,9 +5518,6 @@ RequestBody 仍使用平台响应加密方案，外层只有 `data`：
   "billingInfo": {
     "labelAmount": 10.0,
     "labelCurrency": "USD",
-    "transactionAmount": 10.0,
-    "transactionCurrency": "USD",
-    "transactionRate": 1.0,
     "settlementRate": 1.0,
     "settlementAmount": 9.7,
     "settlementCurrency": "USD",

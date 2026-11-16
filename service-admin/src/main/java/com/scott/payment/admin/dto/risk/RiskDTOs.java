@@ -1680,7 +1680,7 @@ public final class RiskDTOs {
         private String paymentOrderNo;
 
         /**
-         * 加黑对象类型：CARD、CARD_FINGERPRINT、EMAIL、PHONE、IP、DEVICE、CUSTOMER，允许为空。
+         * 黑名单功能编码，例如 cardNo、cardBin、issuerCountry、emailDomain、billingAddress，允许为空。
          */
         private String blackTargetType;
 
@@ -1688,6 +1688,21 @@ public final class RiskDTOs {
          * 状态：0 已解除，1 已加黑，允许为空。
          */
         private Integer status;
+
+        /**
+         * 最近操作人，支持模糊查询，允许为空。
+         */
+        private String operator;
+
+        /**
+         * 操作时间起点，包含该时间点，允许为空。
+         */
+        private LocalDateTime operationStartTime;
+
+        /**
+         * 操作时间终点，不包含该时间点，允许为空。
+         */
+        private LocalDateTime operationEndTimeExclusive;
     }
 
     /**
@@ -1716,7 +1731,7 @@ public final class RiskDTOs {
         private String paymentOrderNo;
 
         /**
-         * 加黑对象类型：CARD、CARD_FINGERPRINT、EMAIL、PHONE、IP、DEVICE、CUSTOMER，必填。
+         * 黑名单功能编码，例如 cardNo、cardBin、issuerCountry、emailDomain、billingAddress，必填。
          */
         @NotBlank(message = "请选择加黑对象")
         private String blackTargetType;
@@ -1760,6 +1775,11 @@ public final class RiskDTOs {
     @EqualsAndHashCode(callSuper = true)
     public static class EvaluationQueryRequest extends PageRequest {
         /**
+         * 风控记录号，允许为空；用于从统一待办精确定位单条评估记录。
+         */
+        private String riskRecordNo;
+
+        /**
          * 商户号，允许为空。
          */
         private String merchantId;
@@ -1793,5 +1813,16 @@ public final class RiskDTOs {
          * 评估时间范围终点（不包含），避免跨天查询出现边界重复。
          */
         private LocalDateTime evaluationEndTimeExclusive;
+    }
+
+    /**
+     * 风控评估执行明细分页请求。
+     *
+     * <p>当前只承载分页参数，后续分表切换时仍由服务端根据风控记录号解析真实分片，
+     * 不允许客户端传入物理表或分片标识。</p>
+     */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class EvaluationDetailQueryRequest extends PageRequest {
     }
 }

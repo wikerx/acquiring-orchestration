@@ -53,6 +53,9 @@ public class AuthAccountDTO implements Serializable {
      */
     private String nickname;
 
+    /** 已受管头像的非敏感版本号，不包含存储地址。 */
+    private String avatarVersion;
+
     /**
      * 用户信息表手机号，用于个人中心资料展示。
      */

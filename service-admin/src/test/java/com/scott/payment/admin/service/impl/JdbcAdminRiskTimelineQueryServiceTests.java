@@ -1,7 +1,10 @@
 package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.RiskTimelineEventResponse;
+import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -60,7 +63,10 @@ class JdbcAdminRiskTimelineQueryServiceTests {
                             mapper.mapRow(blocked, 2),
                             mapper.mapRow(unknown, 3));
                 });
-        JdbcAdminRiskTimelineQueryService service = new JdbcAdminRiskTimelineQueryService(jdbcTemplate);
+        JdbcAdminRiskTimelineQueryService service = new JdbcAdminRiskTimelineQueryService(
+                jdbcTemplate,
+                new RiskAuditLogicalReadExecutor(),
+                new RiskAuditShardingProperties());
 
         List<RiskTimelineEventResponse> events = service.findRiskEvents("202607281055370000179");
 
@@ -83,6 +89,29 @@ class JdbcAdminRiskTimelineQueryServiceTests {
         assertThat(events.get(3).getEventStatus()).isEqualTo("PENDING");
         assertThat(events.get(3).getDecisionEffect()).isEqualTo("FUTURE_EFFECT");
         verify(jdbcTemplate).query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class));
+    }
+
+    /**
+     * 季度分片启用后，主记录与执行明细必须同时使用记录号和原始评估时间关联。
+     */
+    @Test
+    void shouldJoinShardedRiskTimelineByRecordNumberAndEvaluationTime() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of());
+        RiskAuditShardingProperties properties = new RiskAuditShardingProperties();
+        properties.setEnabled(true);
+        JdbcAdminRiskTimelineQueryService service = new JdbcAdminRiskTimelineQueryService(
+                jdbcTemplate,
+                new RiskAuditLogicalReadExecutor(),
+                properties);
+
+        service.findRiskEvents("PAY-202604-001");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getValue())
+                .contains("d.risk_record_no = r.risk_record_no AND d.evaluation_time = r.evaluation_time");
     }
 
     /**

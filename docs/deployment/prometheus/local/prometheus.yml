@@ -1,0 +1,106 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+  external_labels:
+    environment: local
+
+rule_files:
+  - /etc/prometheus/rules/reliability-alert-rules.yml
+  - /etc/prometheus/rules/reliability-drill-alert-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+scrape_configs:
+  - job_name: acquiring-admin
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8001
+        labels:
+          application: service-admin
+          environment: local
+
+  - job_name: acquiring-merchant
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8002
+        labels:
+          application: service-merchant
+          environment: local
+
+  - job_name: acquiring-openapi
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8004
+        labels:
+          application: service-openapi
+          environment: local
+
+  - job_name: acquiring-payment
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8005
+        labels:
+          application: service-payment
+          environment: local
+
+  - job_name: acquiring-payout
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8006
+        labels:
+          application: service-payout
+          environment: local
+
+  - job_name: acquiring-risk
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8008
+        labels:
+          application: service-risk
+          environment: local
+
+  - job_name: acquiring-data
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8009
+        labels:
+          application: service-data
+          environment: local
+
+  - job_name: acquiring-clearing
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8010
+        labels:
+          application: service-clearing
+          environment: local
+
+  - job_name: acquiring-settlement
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8011
+        labels:
+          application: service-settlement
+          environment: local
+
+  - job_name: acquiring-reliability-drill
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:19093
+        labels:
+          application: reliability-drill
+          environment: local

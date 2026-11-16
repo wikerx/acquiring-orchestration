@@ -10,6 +10,8 @@ import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchDet
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchSummary;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingDetail;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingReserveLine;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingTransactionLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReconciliationRecord;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItem;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemQuery;
@@ -169,6 +171,40 @@ public class MerchantSettlementController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime) {
         return success(applicationService.findClearingDetailByTransaction(
                 transactionId, transactionDateTime));
+    }
+
+    /**
+     * 分页查询当前认证商户指定交易的本金和费用清分行。
+     */
+    @GetMapping("/clearing-records/transactions/{transactionId}/transaction-details")
+    @RequiresPermission("merchant:clearing:record:detail")
+    @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.QUERY,
+            operation = "分页查询交易清分明细")
+    public CommonResult<PageResult<ClearingTransactionLine>> clearingTransactionLinesByTransaction(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchClearingTransactionLinesByTransaction(
+                transactionId, transactionDateTime, pageNo, pageSize));
+    }
+
+    /**
+     * 分页查询当前认证商户指定交易的保证金清分行。
+     */
+    @GetMapping("/clearing-records/transactions/{transactionId}/reserve-details")
+    @RequiresPermission("merchant:clearing:record:detail")
+    @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.QUERY,
+            operation = "分页查询保证金清分明细")
+    public CommonResult<PageResult<ClearingReserveLine>> clearingReserveLinesByTransaction(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchClearingReserveLinesByTransaction(
+                transactionId, transactionDateTime, pageNo, pageSize));
     }
 
     /**

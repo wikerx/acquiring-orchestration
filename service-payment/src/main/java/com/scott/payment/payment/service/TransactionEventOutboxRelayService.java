@@ -18,6 +18,19 @@ public interface TransactionEventOutboxRelayService {
     int publishDueEvents(LocalDateTime eventTime, int limit);
 
     /**
+     * 在有界批次数内连续投递指定季度的到期事件。
+     *
+     * <p>实现必须以数据库持久化状态判断是否到期，并保留 claim/CAS 和至少一次投递语义；
+     * {@code maxBatches} 仅控制单次调用的资源预算，不能替代消息重试状态机。</p>
+     *
+     * @param eventTime 事件时间，用于 ShardingSphere 精确定位季度
+     * @param limit 每批最大投递条数
+     * @param maxBatches 单次调用允许处理的最大批次数
+     * @return 本次成功投递总数
+     */
+    int publishDueEvents(LocalDateTime eventTime, int limit, int maxBatches);
+
+    /**
      * 跨指定已发布季度汇总并刷新交易 Outbox 运维指标。
      */
     default void refreshMetrics(List<LocalDateTime> publishedQuarters) {

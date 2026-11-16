@@ -42,6 +42,8 @@ import java.util.Map;
 @Service
 public class AdminExchangeRateVolatilityApplicationService {
 
+    private final com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity;
+
     private static final long MAX_IMPORT_BYTES = 2L * 1024L * 1024L;
     private static final int IMPORT_COLUMN_COUNT = 11;
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -55,7 +57,9 @@ public class AdminExchangeRateVolatilityApplicationService {
     public AdminExchangeRateVolatilityApplicationService(AdminExchangeRateVolatilityService volatilityService,
                                                          ExcelExportService excelExportService,
                                                          ExcelI18nMessageResolver excelI18nMessageResolver,
-                                                         ExcelLocaleResolver excelLocaleResolver) {
+                                                         ExcelLocaleResolver excelLocaleResolver,
+            com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity) {
+        this.uploadSecurity = uploadSecurity;
         this.volatilityService = volatilityService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
@@ -152,6 +156,7 @@ public class AdminExchangeRateVolatilityApplicationService {
      * 从固定列顺序的 Excel 文件读取自定义规则；任一行失败时领域服务不会写入任何行。
      */
     public AlertRuleImportResult importRules(MultipartFile file) {
+        file = uploadSecurity.validate(file, java.util.Set.of("xls", "xlsx"), MAX_IMPORT_BYTES);
         if (file == null || file.isEmpty()) {
             throw invalid("import file is required");
         }

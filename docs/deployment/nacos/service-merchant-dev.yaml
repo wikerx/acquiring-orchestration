@@ -13,11 +13,32 @@ acquiring:
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
 
 merchant:
+  data-client:
+    # 参数说明：Merchant 提交、查询和下载异步导出任务时访问 service-data 的服务地址。
+    base-url: ${MERCHANT_DATA_EXPORT_BASE_URL:http://service-data}
+    connect-timeout-millis: ${MERCHANT_DATA_EXPORT_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${MERCHANT_DATA_EXPORT_READ_TIMEOUT_MILLIS:60000}
+    internal-caller: service-merchant
+    # 参数说明：Merchant 到 Data 的独立调用边密钥，不复用 Merchant-Payment 写操作密钥。
+    internal-secret: ${acquiring.internal-auth.edges.merchant-data.active-secret}
   payment-client:
     # 商户查询留在 service-merchant 本地；退款、撤销和预授权完成等写操作调用 service-payment。
     internal-caller: service-merchant
     # 参数说明：Merchant 到 Payment 调用边的当前 HMAC 密钥引用；只用于交易写操作，禁止用于本地查询。
     internal-secret: ${acquiring.internal-auth.edges.merchant-payment.active-secret}
+
+internal-service:
+  auth:
+    callers:
+      service-data:
+        # 参数说明：Data 分页读取商户安全导出投影时使用的独立验签密钥。
+        active-secret: ${acquiring.internal-auth.edges.data-merchant.active-secret}
+        previous-secret: ${acquiring.internal-auth.edges.data-merchant.previous-secret:}
+        allowed-paths:
+          # 路径说明：只允许读取商户交易和退款安全导出来源，不开放商户浏览器接口。
+          - /internal/merchant/export-sources/**
+    allowed-clock-skew: 5m
+    nonce-ttl: 10m
 
 payment:
   merchant:

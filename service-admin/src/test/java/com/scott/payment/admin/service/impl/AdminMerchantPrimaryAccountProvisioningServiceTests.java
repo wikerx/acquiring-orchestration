@@ -98,7 +98,7 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
                         verificationRequestMapper, emailService, configService
                 );
 
-        service.provision(merchant());
+        service.provisionOnboardingAccess(merchant());
 
         ArgumentCaptor<SysRoleDO> roleCaptor = ArgumentCaptor.forClass(SysRoleDO.class);
         verify(roleMapper).insert(roleCaptor.capture());
@@ -157,7 +157,7 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
         failedEmail.setRecordId(202L);
         failedEmail.setSendStatus(EmailDeliveryStatus.CLOSED.getCode());
         when(emailService.sendByTemplate(any())).thenReturn(failedEmail);
-        assertThatThrownBy(() -> service.provision(merchant()))
+        assertThatThrownBy(() -> service.provisionOnboardingAccess(merchant()))
                 .hasMessage("merchant account activation email could not be prepared");
     }
 
@@ -205,12 +205,14 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
     private SysMenuDO menu(Long id) {
         SysMenuDO menu = new SysMenuDO();
         menu.setId(id);
+        menu.setMenuCode("merchant_profile_maintenance_v1");
         return menu;
     }
 
     private SysPermissionDO permission(Long id) {
         SysPermissionDO permission = new SysPermissionDO();
         permission.setId(id);
+        permission.setPermissionCode("merchant:info:view");
         return permission;
     }
 }

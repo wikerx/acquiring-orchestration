@@ -7,6 +7,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
+import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundRecord;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -46,6 +48,50 @@ class MerchantTransactionShardingTimeSerializationTest {
         assertThat(orderJson.path("rootTransactionDateTime").asText()).isEqualTo("2026-08-02 12:08:36.255");
         assertThat(operationJson.path("transactionDateTime").asText()).isEqualTo("2026-08-02 12:08:36.255");
         assertThat(operationJson.path("rootTransactionDateTime").asText()).isEqualTo("2026-08-02 12:08:36.255");
+    }
+
+    /**
+     * 验证平台与渠道内部的对账状态不会进入商户交易查询契约。
+     *
+     * @throws Exception JSON 序列化失败时抛出
+     */
+    @Test
+    void merchantTransactionContractShouldNotExposeReconciliationStatus() throws Exception {
+        JsonNode queryJson = objectMapper.readTree(objectMapper.writeValueAsString(new TransactionPageQuery()));
+        JsonNode orderJson = objectMapper.readTree(objectMapper.writeValueAsString(new TransactionOrderResponse()));
+        JsonNode operationJson = objectMapper.readTree(objectMapper.writeValueAsString(new TransactionOperationResponse()));
+
+        assertThat(queryJson.has("reconciliationStatus")).isFalse();
+        assertThat(queryJson.has("channelOrderNo")).isFalse();
+        assertThat(orderJson.has("reconciliationStatus")).isFalse();
+        assertThat(orderJson.fieldNames()).toIterable()
+                .doesNotContain("channelCode", "channelOrderNo",
+                        "transactionCurrency", "transactionAmount", "transactionRate",
+                        "dccEnabled", "edcEnabled", "settlementRate");
+        assertThat(operationJson.has("reconciliationStatus")).isFalse();
+        assertThat(operationJson.fieldNames()).toIterable()
+                .doesNotContain("channelCode", "channelOrderNo", "channelTransactionId", "acquirerReferenceNo",
+                        "transactionCurrency", "transactionAmount", "transactionRate",
+                        "dccEnabled", "edcEnabled", "settlementRate");
+    }
+
+    /**
+     * 验证商户退款响应只返回标签金额，不暴露渠道交易金额口径。
+     *
+     * @throws Exception JSON 序列化失败时抛出
+     */
+    @Test
+    void merchantRefundContractShouldOnlyExposeLabelAmount() throws Exception {
+        RefundRecord refund = new RefundRecord();
+        refund.setLabelCurrency("EUR");
+        refund.setLabelAmount(new java.math.BigDecimal("20.00"));
+
+        JsonNode refundJson = objectMapper.readTree(objectMapper.writeValueAsString(refund));
+
+        assertThat(refundJson.path("labelCurrency").asText()).isEqualTo("EUR");
+        assertThat(refundJson.path("labelAmount").decimalValue()).isEqualByComparingTo("20.00");
+        assertThat(refundJson.fieldNames()).toIterable()
+                .doesNotContain("transactionCurrency", "transactionAmount", "transactionRate");
     }
 
     private ObjectMapper secondsConfiguredObjectMapper() {

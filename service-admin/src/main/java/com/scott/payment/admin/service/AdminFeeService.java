@@ -71,6 +71,12 @@ public interface AdminFeeService {
     PageResult<FeePlanSummaryResponse> pageMerchantFees(FeePlanQuery query);
 
     /**
+     * 按异步任务冻结的商户范围分页查询商户费用配置，有限空范围不得退化为全量。
+     */
+    PageResult<FeePlanSummaryResponse> pageMerchantFeesForExport(
+            FeePlanQuery query, AdminMerchantDataScope dataScope);
+
+    /**
      * 按商户号查询费用配置和版本历史。
      */
     FeePlanDetailResponse getMerchantFee(String merchantId);
@@ -85,6 +91,12 @@ public interface AdminFeeService {
      * 分页查询待复核版本。
      */
     PageResult<FeeReviewResponse> pageReviews(FeePlanQuery query);
+
+    /**
+     * 按异步任务冻结的商户范围分页查询费用复核记录；模板复核不受商户范围限制。
+     */
+    PageResult<FeeReviewResponse> pageReviewsForExport(
+            FeePlanQuery query, AdminMerchantDataScope dataScope);
 
     /**
      * 审核通过并在当前系统时间生效。
@@ -105,4 +117,10 @@ public interface AdminFeeService {
      * 分页查询已持久化的费用试算审计记录。
      */
     PageResult<FeeSimulationRecordResponse> pageSimulationRecords(FeeSimulationRecordQuery query);
+
+    /**
+     * 按异步任务冻结的商户范围分页查询费用试算记录，禁止跨范围导出商户费用数据。
+     */
+    PageResult<FeeSimulationRecordResponse> pageSimulationRecordsForExport(
+            FeeSimulationRecordQuery query, AdminMerchantDataScope dataScope);
 }

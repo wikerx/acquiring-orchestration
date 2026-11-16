@@ -32,6 +32,25 @@ public interface SettlementClearingFactMapper {
             @Param("settlementBatchNo") String settlementBatchNo);
 
     /**
+     * 按不可删除批次关系锁定已入账真实交易候选，供历史本金调整冻结原始路由身份。
+     */
+    @Select("""
+            SELECT candidate.*
+            FROM settlement_batch_candidate relation
+            INNER JOIN settlement_candidate candidate
+                    ON candidate.id = relation.candidate_id
+                   AND candidate.settlement_batch_no = relation.settlement_batch_no
+                   AND candidate.candidate_status = 'POSTED'
+            WHERE relation.settlement_batch_no = #{settlementBatchNo}
+              AND relation.relation_status = 'POSTED'
+              AND relation.source_type = 'CLEARING_REVISION'
+            ORDER BY candidate.id ASC
+            FOR UPDATE
+            """)
+    List<SettlementCandidateDO> selectPostedTransactionCandidatesForUpdate(
+            @Param("settlementBatchNo") String settlementBatchNo);
+
+    /**
      * 按预审不可删除关系读取仍被该预审单独占的候选。
      */
     @Select("""

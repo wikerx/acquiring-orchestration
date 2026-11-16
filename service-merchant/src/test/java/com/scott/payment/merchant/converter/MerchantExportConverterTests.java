@@ -50,8 +50,8 @@ class MerchantExportConverterTests {
         source.setMerchantOrderNo("ORDER001");
         source.setTransactionType("REFUND");
         source.setRefundScope("PARTIAL");
-        source.setTransactionAmount(new BigDecimal("1.2300"));
-        source.setTransactionCurrency("EUR");
+        source.setLabelAmount(new BigDecimal("1.2300"));
+        source.setLabelCurrency("EUR");
         source.setTransactionStatus("SUCCESS");
         source.setApprovalStatus("APPROVED");
         source.setMerchantVisibleMessage("Completed");

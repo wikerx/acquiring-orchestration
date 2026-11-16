@@ -78,6 +78,7 @@
         <hutool.version>5.8.46</hutool.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <easyexcel.version>4.0.3</easyexcel.version>
+        <commons-compress.version>1.25.0</commons-compress.version>
         <aws-sdk.version>2.54.17</aws-sdk.version>
 
         <!--Maven 构建插件版本，避免不同开发环境使用隐式默认版本。-->
@@ -215,6 +216,11 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>${commons-lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${commons-compress.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.projectlombok</groupId>

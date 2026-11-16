@@ -10,6 +10,11 @@ import lombok.Data;
 @Data
 public class ShardingTablePreCreateTableResultResponse {
 
+    /**
+     * 表族：TRANSACTION 或 RISK_AUDIT。
+     */
+    private String tableFamily;
+
     private String logicalTable;
 
     private String templateTable;

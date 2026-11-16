@@ -60,10 +60,15 @@ class AdminTransactionApplicationServiceTests {
         source.setTransactionAmount(new BigDecimal("100.00"));
         source.setLabelAmount(new BigDecimal("124.68"));
         source.setLabelCurrency("HKD");
+        source.setTransactionCurrency("USD");
         source.setRefundedAmount(new BigDecimal("10.00"));
         source.setAvailableRefundAmount(new BigDecimal("90.00"));
+        source.setLabelRefundedAmount(new BigDecimal("12.47"));
+        source.setLabelAvailableRefundAmount(new BigDecimal("112.21"));
         TransactionOperationResponse pending = refundOperation("PENDING", "20.00");
+        pending.setLabelAmount(new BigDecimal("24.94"));
         TransactionOperationResponse processing = refundOperation("PROCESSING", "5.00");
+        processing.setLabelAmount(new BigDecimal("6.23"));
         detail.setOperations(List.of(source, pending, processing,
                 refundOperation("SUCCESS", "10.00"), refundOperation("FAILED", "50.00")));
         when(query.detail("TX-REFUND", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
@@ -90,12 +95,17 @@ class AdminTransactionApplicationServiceTests {
         source.setAvailableRefundAmount(new BigDecimal("10"));
         source.setLabelAmount(new BigDecimal("123.456"));
         source.setLabelCurrency("KWD");
+        source.setTransactionCurrency("USD");
+        source.setLabelAvailableRefundAmount(new BigDecimal("12.345"));
         when(query.detail("TX-REFUND", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
         assertThat(service.refundContext("TX-REFUND", actionRequest()).availableRefundAmount()).isEqualByComparingTo("12.345");
         source.setLabelCurrency("JPY");
+        source.setLabelAvailableRefundAmount(new BigDecimal("12.345"));
         assertThat(service.refundContext("TX-REFUND", actionRequest()).currencyExponent()).isZero();
         assertThat(service.refundContext("TX-REFUND", actionRequest()).availableRefundAmount()).isEqualByComparingTo("12");
-        detail.setOperations(List.of(source, refundOperation("PENDING", "11")));
+        TransactionOperationResponse pending = refundOperation("PENDING", "11");
+        pending.setLabelAmount(new BigDecimal("13"));
+        detail.setOperations(List.of(source, pending));
         assertThat(service.refundContext("TX-REFUND", actionRequest()).availableRefundAmount()).isZero();
     }
 
@@ -234,16 +244,24 @@ class AdminTransactionApplicationServiceTests {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
         AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
         AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
+        TransactionDetailResponse detail = detail("TX202607140001", "PAYMENT");
+        TransactionOperationResponse source = detail.getOperations().get(0);
+        source.setLabelCurrency("AUD");
+        source.setLabelAmount(new BigDecimal("59.36"));
+        source.setTransactionCurrency("USD");
+        source.setTransactionAmount(new BigDecimal("42.28"));
+        source.setAvailableRefundAmount(new BigDecimal("42.28"));
         when(transactionQueryService.detail(
                 "TX202607140001", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
-                .thenReturn(detail("TX202607140001", "PAYMENT"));
+                .thenReturn(detail);
         TransactionActionResponse expected = actionResponse("TX202607140002", "REFUND");
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
                 ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
         when(paymentInternalClient.refund(captor.capture())).thenReturn(expected);
 
         TransactionActionRequest request = new TransactionActionRequest();
-        request.setAmount(new BigDecimal("1.23"));
+        request.setAmount(new BigDecimal("10.00"));
+        request.setCurrency("AUD");
         request.setReason("manual refund");
         request.setTransactionDateTime(TRANSACTION_DATE_TIME);
         request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
@@ -254,8 +272,10 @@ class AdminTransactionApplicationServiceTests {
         assertThat(command.getMerchantId()).isEqualTo("M10001");
         assertThat(command.getMerchantOrderNo()).isEqualTo("MO202607140001");
         assertThat(command.getMerchantOrderId()).startsWith("ADMRF");
-        assertThat(command.getAmount()).isEqualByComparingTo("1.23");
-        assertThat(command.getCurrency()).isEqualTo("USD");
+        assertThat(command.getAmount()).isEqualByComparingTo("10.00");
+        assertThat(command.getCurrency()).isEqualTo("AUD");
+        assertThat(command.getLabelAmount()).isEqualByComparingTo("10.00");
+        assertThat(command.getLabelCurrency()).isEqualTo("AUD");
         assertThat(command.getTransactionInfo().getSourceTransactionId()).isEqualTo("TX202607140001");
         assertThat(command.getTransactionInfo().getSourceTransactionDateTime())
                 .isEqualTo(TRANSACTION_DATE_TIME);

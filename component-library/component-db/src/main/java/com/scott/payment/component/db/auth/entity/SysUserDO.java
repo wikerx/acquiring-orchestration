@@ -51,8 +51,9 @@ public class SysUserDO {
     private String email;
 
     /**
-     * 头像地址。
+     * 头像受管引用；历史外部地址保留原值但不通过图片接口读取。
      */
+    @com.baomidou.mybatisplus.annotation.TableField(updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.NEVER)
     private String avatarUrl;
 
     /**

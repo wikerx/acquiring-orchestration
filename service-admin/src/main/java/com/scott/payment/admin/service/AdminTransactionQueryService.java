@@ -5,9 +5,11 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallb
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
@@ -33,6 +35,16 @@ public interface AdminTransactionQueryService {
     PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query);
 
     /**
+     * 按异步任务冻结的管理端商户范围分页查询交易主单。
+     *
+     * @param query 冻结筛选和内部页码
+     * @param dataScope 任务创建时冻结的商户范围
+     * @return 范围收紧后的交易主单分页
+     */
+    PageResult<TransactionOrderResponse> pageOrdersForExport(
+            TransactionPageQuery query, AdminMerchantDataScope dataScope);
+
+    /**
      * 查询交易生命周期主单分页及相同条件下的全量统计。
      *
      * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
@@ -49,6 +61,16 @@ public interface AdminTransactionQueryService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query);
+
+    /**
+     * 按异步任务冻结的管理端商户范围分页查询交易操作流水。
+     *
+     * @param query 冻结筛选和内部页码
+     * @param dataScope 任务创建时冻结的商户范围
+     * @return 范围收紧后的交易操作分页
+     */
+    PageResult<TransactionOperationResponse> pageOperationsForExport(
+            TransactionPageQuery query, AdminMerchantDataScope dataScope);
 
     /**
      * 查询交易动作；筛选条件、分页上限和数据范围由方法参数共同限定。
@@ -70,6 +92,54 @@ public interface AdminTransactionQueryService {
     TransactionDetailResponse detail(String transactionId,
                                      LocalDateTime transactionDateTime,
                                      LocalDateTime rootTransactionDateTime);
+
+    /**
+     * 查询管理端页面首屏所需的交易核心详情，不装配高量日志集合。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 列表返回的真实交易分片时间
+     * @param rootTransactionDateTime 生命周期根主单真实分片时间
+     * @return 订单、动作、参与方和金额等核心详情
+     */
+    TransactionDetailResponse detailSummary(String transactionId,
+                                            LocalDateTime transactionDateTime,
+                                            LocalDateTime rootTransactionDateTime);
+
+    /**
+     * 分页查询交易详情指定板块的脱敏摘要记录。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 列表返回的真实交易分片时间
+     * @param rootTransactionDateTime 生命周期根主单真实分片时间
+     * @param section 详情板块：TIMELINE、CHANNEL、CALLBACK、NOTIFICATION 或 MERCHANT_API
+     * @param pageNo 页码，从 1 开始
+     * @param pageSize 每页记录数，最大 100
+     * @return 按发生时间倒序排列的详情记录分页
+     */
+    PageResult<TransactionDetailRecordResponse> pageDetailRecords(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String section,
+            long pageNo,
+            long pageSize);
+
+    /**
+     * 按业务号读取单条日志的完整脱敏正文。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 列表返回的真实交易分片时间
+     * @param rootTransactionDateTime 生命周期根主单真实分片时间
+     * @param recordType 允许加载正文的稳定记录类型
+     * @param recordId 记录业务号
+     * @return 单条完整脱敏记录
+     */
+    TransactionDetailRecordResponse detailRecordPayload(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            LocalDateTime rootTransactionDateTime,
+            String recordType,
+            String recordId);
 
     /**
      * 查询渠道日志；筛选条件、分页上限和数据范围由方法参数共同限定。
@@ -102,14 +172,39 @@ public interface AdminTransactionQueryService {
     PageResult<MerchantNotificationResponse> pageMerchantNotifications(MerchantNotificationQuery query);
 
     /**
-     * 查询单个商户通知任务及其全部投递尝试日志。
+     * 按异步任务冻结的管理端商户范围分页查询商户通知记录。
+     *
+     * @param query 冻结筛选和内部页码
+     * @param dataScope 任务创建时冻结的商户范围
+     * @return 范围收紧后的商户通知分页
+     */
+    PageResult<MerchantNotificationResponse> pageMerchantNotificationsForExport(
+            MerchantNotificationQuery query, AdminMerchantDataScope dataScope);
+
+    /**
+     * 查询单个商户通知任务快照。
      *
      * @param notifyId 通知任务号
      * @param transactionDateTime 页面列表返回的真实交易分片时间
-     * @return 包含 notification 和 deliveryLogs 的详情视图
+     * @return 通知任务详情；兼容字段 deliveryLogs 固定为空，投递记录使用独立分页接口查询
      */
     MerchantNotificationDetailResponse merchantNotificationDetail(String notifyId,
                                                                    LocalDateTime transactionDateTime);
+
+    /**
+     * 分页查询单个商户通知任务的投递尝试日志，最新尝试优先。
+     *
+     * @param notifyId 通知任务号
+     * @param transactionDateTime 页面列表返回的真实交易分片时间
+     * @param pageNo 页码，从 1 开始
+     * @param pageSize 每页记录数，最大 100
+     * @return 投递日志分页
+     */
+    PageResult<MerchantNotificationDeliveryLogResponse> pageMerchantNotificationDeliveryLogs(
+            String notifyId,
+            LocalDateTime transactionDateTime,
+            long pageNo,
+            long pageSize);
 
     /**
      * 判断精确交易分片中是否存在允许人工重发的终态商户通知。

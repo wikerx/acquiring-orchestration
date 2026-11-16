@@ -4,6 +4,7 @@ import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalcula
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarter;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import com.scott.payment.component.db.sharding.ShardingTableDdlService;
 import com.scott.payment.component.db.sharding.ShardingTableInspectionResult;
 import com.scott.payment.component.db.sharding.ShardingTableSchemaInspector;
@@ -94,7 +95,7 @@ class ShardingTablePreCreateServiceImplTests {
 
         assertThatThrownBy(() -> fixture.service.preCreate(nextQuarterRequest(true), null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("exactly 28 formal tables");
+                .hasMessageContaining("transaction governance rules differ from the formal logic tables");
 
         verify(fixture.ddlService, never()).createPhysicalTableIfAbsent(any(), any(), any());
     }
@@ -130,11 +131,69 @@ class ShardingTablePreCreateServiceImplTests {
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(candidate));
     }
 
+    /**
+     * 风控主记录和执行明细同时通过时，才能生成独立风控候选版本和节点。
+     */
+    @Test
+    void verifiedRiskAuditPairShouldProduceIndependentCandidate() {
+        Fixture fixture = fixture();
+        enableRiskAuditGovernance(fixture);
+        when(fixture.schemaInspector.tableExists(any())).thenReturn(true);
+        when(fixture.ddlService.createPhysicalTableIfAbsent(any(), any(), any()))
+                .thenReturn(validInspection(202_604_000_000_000_001L));
+
+        ShardingTablePreCreateResult result = fixture.service.preCreate(nextQuarterRequest(false), null);
+
+        assertThat(result.getTableResults())
+                .hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT
+                        + RiskAuditShardingProperties.defaultLogicTables().size());
+        assertThat(result.getTableResults())
+                .filteredOn(item -> "RISK_AUDIT".equals(item.getTableFamily()))
+                .hasSize(2)
+                .allMatch(item -> "MATCHED".equals(item.getSchemaCheckStatus()));
+        assertThat(result.getRiskAuditVerifiedPhysicalNodes()).containsExactly("202603", "202604");
+        assertThat(result.getRiskAuditPublicationReady()).isTrue();
+        assertThat(result.getRiskAuditCandidateRuleVersion())
+                .isEqualTo("2026.11.08-001-candidate-202604");
+        assertThat(result.getRiskAuditCandidateRuleChecksum()).startsWith("sha256:");
+    }
+
+    /**
+     * 风控双表中任意一张未通过校验时，整个季度节点都不得进入发布候选。
+     */
+    @Test
+    void invalidRiskAuditDetailShouldBlockWholeRiskQuarter() {
+        Fixture fixture = fixture();
+        enableRiskAuditGovernance(fixture);
+        when(fixture.schemaInspector.tableExists(any())).thenReturn(true);
+        when(fixture.ddlService.createPhysicalTableIfAbsent(any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    TransactionShardingGovernanceProperties.TableRule rule = invocation.getArgument(1);
+                    ShardingTableInspectionResult inspection = validInspection(202_604_000_000_000_001L);
+                    if (RiskAuditShardingProperties.EVALUATION_DETAIL_TABLE.equals(rule.getLogicalTable())) {
+                        inspection.setSchemaMatched(false);
+                        inspection.setSchemaCheckStatus("MISMATCHED");
+                    }
+                    return inspection;
+                });
+
+        ShardingTablePreCreateResult result = fixture.service.preCreate(nextQuarterRequest(false), null);
+
+        assertThat(result.getRiskAuditVerifiedPhysicalNodes()).containsExactly("202603");
+        assertThat(result.getRiskAuditPublicationReady()).isFalse();
+        assertThat(result.getRiskAuditPublicationBlockers())
+                .containsExactly("risk audit quarter 2026-Q4 has missing or unverified physical tables");
+        assertThat(result.getPublicationReady()).isFalse();
+    }
+
     private Fixture fixture() {
         TransactionShardingGovernanceProperties governance = governanceProperties();
         TransactionShardingProperties transaction = new TransactionShardingProperties();
         transaction.setRuleVersion("2026.08.02-001");
         transaction.setPhysicalNodes(List.of("202603"));
+        RiskAuditShardingProperties riskAudit = new RiskAuditShardingProperties();
+        riskAudit.setRuleVersion("2026.11.08-001");
+        riskAudit.setPhysicalNodes(List.of("202603"));
         ShardingQuarterResolver quarterResolver = mock(ShardingQuarterResolver.class);
         when(quarterResolver.currentQuarter(any())).thenReturn(new ShardingQuarter(2026, 3));
         when(quarterResolver.inRange(any(), any())).thenReturn(true);
@@ -147,6 +206,7 @@ class ShardingTablePreCreateServiceImplTests {
         ShardingTablePreCreateServiceImpl service = new ShardingTablePreCreateServiceImpl(
                 governance,
                 transaction,
+                riskAudit,
                 quarterResolver,
                 new ShardingPhysicalTableNameResolver(),
                 new ShardingAutoIncrementValueCalculator(),
@@ -154,7 +214,25 @@ class ShardingTablePreCreateServiceImplTests {
                 ddlService,
                 physicalMapper,
                 createLogMapper);
-        return new Fixture(governance, transaction, inspector, ddlService, createLogMapper, service);
+        return new Fixture(governance, transaction, riskAudit, inspector, ddlService, createLogMapper, service);
+    }
+
+    private void enableRiskAuditGovernance(Fixture fixture) {
+        fixture.riskAuditProperties.setEnabled(true);
+        for (String logicalTable : RiskAuditShardingProperties.defaultLogicTables()) {
+            TransactionShardingGovernanceProperties.TableRule rule =
+                    new TransactionShardingGovernanceProperties.TableRule();
+            rule.setEnabled(true);
+            rule.setLogicalTable(logicalTable);
+            rule.setTemplateTable(logicalTable);
+            rule.setShardingColumn(RiskAuditShardingProperties.REQUIRED_SHARDING_COLUMN);
+            rule.setActualDataSource("master");
+            rule.setStartYear(2026);
+            rule.setStartQuarter(1);
+            rule.setEndYear(2030);
+            rule.setEndQuarter(4);
+            fixture.governanceProperties.getTables().put(logicalTable, rule);
+        }
     }
 
     private TransactionShardingGovernanceProperties governanceProperties() {
@@ -201,6 +279,7 @@ class ShardingTablePreCreateServiceImplTests {
     private record Fixture(
             TransactionShardingGovernanceProperties governanceProperties,
             TransactionShardingProperties transactionProperties,
+            RiskAuditShardingProperties riskAuditProperties,
             ShardingTableSchemaInspector schemaInspector,
             ShardingTableDdlService ddlService,
             SysShardingTableCreateLogMapper createLogMapper,

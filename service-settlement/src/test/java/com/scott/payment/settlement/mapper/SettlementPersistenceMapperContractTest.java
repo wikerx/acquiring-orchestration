@@ -34,6 +34,8 @@ class SettlementPersistenceMapperContractTest {
             SettlementManualReviewTaskMapper.class,
             SettlementReviewSegmentMapper.class,
             SettlementReviewDecisionTaskMapper.class,
+            SettlementProjectionMapper.class,
+            SettlementPrincipalCorrectionProjectionMapper.class,
             SettlementRateQuoteMapper.class,
             SettlementResultMapper.class,
             SettlementFundMapper.class,
@@ -529,6 +531,37 @@ class SettlementPersistenceMapperContractTest {
                 "account_version = #{expectedVersion}",
                 "account_status = 'NORMAL'",
                 "deleted = 0");
+    }
+
+    /**
+     * 历史本金修正必须以冻结原金额、原汇率做 CAS，并将金额、标签汇率一起投影。
+     */
+    @Test
+    void principalCorrectionShouldCasFromOriginalRateToCorrectedRate() {
+        for (String method : List.of("correctFinanceState", "correctOperation", "correctOrder")) {
+            String statement = sql(methodNamed(SettlementPrincipalCorrectionProjectionMapper.class, method));
+            assertThat(statement).contains(
+                    "SET settlement_amount = #{correctedAmount}, settlement_rate = #{correctedRate}",
+                    "settlement_amount = #{originalAmount}",
+                    "settlement_rate = #{originalRate}")
+                    .doesNotContain("settlement_rate = #{rate}");
+        }
+        for (String method : List.of(
+                "countCorrectedFinanceState", "countCorrectedOperation", "countCorrectedOrder")) {
+            assertThat(sql(methodNamed(SettlementPrincipalCorrectionProjectionMapper.class, method)))
+                    .contains("settlement_amount = #{correctedAmount}",
+                            "settlement_rate = #{correctedRate}")
+                    .doesNotContain("settlement_rate = #{rate}");
+        }
+    }
+
+    /**
+     * 投影身份必须同时携带原交易币种和标签币种，禁止以其中一个字段冒充另一个字段。
+     */
+    @Test
+    void projectionIdentityShouldSelectSourceAndLabelCurrencies() {
+        assertThat(sql(methodNamed(SettlementProjectionMapper.class, "selectOperationIdentity")))
+                .contains("operation.transaction_currency", "operation.label_currency");
     }
 
     private static Method methodNamed(Class<?> type, String methodName) {

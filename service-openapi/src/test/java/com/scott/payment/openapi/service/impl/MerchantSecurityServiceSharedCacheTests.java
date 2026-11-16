@@ -64,6 +64,23 @@ class MerchantSecurityServiceSharedCacheTests {
     }
 
     /**
+     * 门户可登录的进件商户仍未取得真实交易资格，OpenAPI 必须按收单开通状态拒绝。
+     */
+    @Test
+    void shouldRejectMerchantBeforeAcquiringActivation() {
+        TestFixture fixture = fixture();
+        MerchantRuntimeProfile profile = runtimeProfile(1);
+        profile.setActivationStatus("READY");
+        when(fixture.runtimeProfileCacheService().findRuntimeProfile("200045")).thenReturn(profile);
+
+        assertThatThrownBy(() -> fixture.service().getActiveMerchant("200045"))
+                .isInstanceOf(ApiException.class)
+                .hasFieldOrPropertyWithValue(
+                        "code", OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE.getCode());
+        verifyNoInteractions(fixture.merchantInfoMapper());
+    }
+
+    /**
      * 验证 JWT 鉴权先校验共享商户状态，再从不落 Redis 的短时密钥缓存读取 Secret。
      */
     @Test
@@ -109,6 +126,7 @@ class MerchantSecurityServiceSharedCacheTests {
         profile.setMerchantName("Acquiring Merchant");
         profile.setMerchantShortName("Acquiring");
         profile.setMerchantStatus(status);
+        profile.setActivationStatus("ACTIVE");
         profile.setCountryCode("USA");
         profile.setSettlementCurrency("USD");
         profile.setTimezone("Asia/Shanghai");

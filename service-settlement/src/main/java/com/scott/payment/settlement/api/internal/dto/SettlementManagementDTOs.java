@@ -5,6 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -14,6 +15,118 @@ import java.util.List;
 public final class SettlementManagementDTOs {
 
     private SettlementManagementDTOs() {
+    }
+
+    /**
+     * 创建初始结算档案的可信内部命令；币种 exponent 由结算服务从 ISO 字典解析。
+     */
+    @Data
+    public static class ProfileCreateRequest {
+        /** 请求幂等键。 */
+        private String requestKey;
+        /** 平台商户号。 */
+        private String merchantId;
+        /** 目标商户资金账户主键。 */
+        private Long settlementAccountId;
+        /** 目标 ISO 结算币种。 */
+        private String targetCurrency;
+        /** 商户日切 IANA 时区。 */
+        private String businessTimeZone;
+        /** 商户本地日切时间。 */
+        private LocalTime dailyCutoffTime;
+        /** AUTO_POST、AUTO_REVIEW 或 MANUAL。 */
+        private String processingMode;
+        /** 人工配置原因。 */
+        private String reason;
+        /** 可信管理账户 ID。 */
+        private Long operatorId;
+        /** 管理账号显示名称快照。 */
+        private String operatorName;
+        /** 操作时角色权限快照。 */
+        private String roleSnapshot;
+        /** 操作客户端 IP。 */
+        private String clientIp;
+        /** 操作客户端 User-Agent。 */
+        private String userAgent;
+        /** 管理端记录的操作时间。 */
+        private LocalDateTime operationTime;
+    }
+
+    /**
+     * 从当前活动档案创建新版本的可信内部命令；账户和币种沿用源档案。
+     */
+    @Data
+    public static class ProfileVersionCreateRequest {
+        /** 请求幂等键。 */
+        private String requestKey;
+        /** 页面读取到的源档案版本。 */
+        private Long expectedVersion;
+        /** 新版本日切 IANA 时区。 */
+        private String businessTimeZone;
+        /** 新版本商户本地日切时间。 */
+        private LocalTime dailyCutoffTime;
+        /** 新版本处理模式。 */
+        private String processingMode;
+        /** 人工变更原因。 */
+        private String reason;
+        /** 可信管理账户 ID。 */
+        private Long operatorId;
+        /** 管理账号显示名称快照。 */
+        private String operatorName;
+        /** 操作时角色权限快照。 */
+        private String roleSnapshot;
+        /** 操作客户端 IP。 */
+        private String clientIp;
+        /** 操作客户端 User-Agent。 */
+        private String userAgent;
+        /** 管理端记录的操作时间。 */
+        private LocalDateTime operationTime;
+    }
+
+    /**
+     * 结算档案命令结果；reused=true 表示返回持久化的幂等结果。
+     */
+    @Data
+    public static class ProfileCommandResponse {
+        /** 新活动档案数据库主键。 */
+        private Long id;
+        /** 新活动档案号。 */
+        private String settlementProfileNo;
+        /** 平台商户号。 */
+        private String merchantId;
+        /** 目标资金账户主键。 */
+        private Long settlementAccountId;
+        /** 目标 ISO 结算币种。 */
+        private String targetCurrency;
+        /** 目标币种 ISO exponent。 */
+        private Integer targetCurrencyExponent;
+        /** 业务时区。 */
+        private String businessTimeZone;
+        /** 每日日切时间。 */
+        private LocalTime dailyCutoffTime;
+        /** 结算处理模式。 */
+        private String processingMode;
+        /** 档案状态。 */
+        private String profileStatus;
+        /** 新活动档案版本。 */
+        private Long version;
+        /** 是否为幂等重放。 */
+        private Boolean reused;
+    }
+
+    /**
+     * 商户最终开通所需的结算档案 readiness。
+     */
+    @Data
+    public static class ProfileReadinessResponse {
+        /** 平台商户号。 */
+        private String merchantId;
+        /** 当前活动档案号；不存在时为空。 */
+        private String settlementProfileNo;
+        /** 是否满足结算档案开通条件。 */
+        private Boolean ready;
+        /** 稳定问题编码，由调用端国际化展示。 */
+        private List<String> issues = Collections.emptyList();
     }
 
     /**

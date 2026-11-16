@@ -24,11 +24,14 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             payment_method, payment_brand, transaction_type, transaction_status, process_stage,
             pending_reason_code, fail_reason_code, fail_reason_message,
             merchant_visible_message, payer_visible_message,
-            label_currency, label_amount, transaction_currency, transaction_amount,
+            label_currency, label_amount, label_currency_exponent, transaction_currency, transaction_amount,
             channel_request_currency, channel_request_amount,
             settlement_currency, settlement_amount, settlement_rate, settlement_date,
             settlement_transaction_id, settlement_transaction_date_time,
             currency_exponent, dcc_enabled, edc_enabled, transaction_rate, rate_source, rate_time,
+            label_authorized_amount, label_authorized_cancel_amount, label_captured_amount,
+            label_refunded_amount, label_chargeback_amount,
+            label_available_capture_amount, label_available_refund_amount,
             authorized_amount, authorized_cancel_amount, captured_amount, refunded_amount,
             chargeback_amount, available_capture_amount, available_refund_amount,
             channel_match_status, settlement_status, reconciliation_status, accounting_status,
@@ -89,9 +92,12 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
     @Update("""
             UPDATE transaction_order
             SET latest_transaction_id = #{latestTransactionId},
-                captured_amount = captured_amount + #{amount},
-                available_capture_amount = available_capture_amount - #{amount},
-                available_refund_amount = available_refund_amount + #{amount},
+                label_captured_amount = label_captured_amount + #{labelAmount},
+                label_available_capture_amount = label_available_capture_amount - #{labelAmount},
+                label_available_refund_amount = label_available_refund_amount + #{labelAmount},
+                captured_amount = captured_amount + #{transactionAmount},
+                available_capture_amount = available_capture_amount - #{transactionAmount},
+                available_refund_amount = available_refund_amount + #{transactionAmount},
                 transaction_status = 'SUCCESS',
                 process_stage = 'FINISHED',
                 last_status_time = CURRENT_TIMESTAMP(3),
@@ -100,14 +106,16 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             WHERE operation_id = #{operationId}
               AND transaction_date_time = #{transactionDateTime}
               AND transaction_status = 'SUCCESS'
-              AND available_capture_amount >= #{amount}
+              AND label_available_capture_amount >= #{labelAmount}
+              AND available_capture_amount >= #{transactionAmount}
               AND version = #{expectedVersion}
               AND deleted = 0
             """)
     int increaseCapturedAmount(@Param("operationId") String operationId,
                                @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                @Param("latestTransactionId") String latestTransactionId,
-                               @Param("amount") BigDecimal amount,
+                               @Param("labelAmount") BigDecimal labelAmount,
+                               @Param("transactionAmount") BigDecimal transactionAmount,
                                @Param("expectedVersion") Integer expectedVersion);
 
     /**
@@ -118,8 +126,10 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
     @Update("""
             UPDATE transaction_order
             SET latest_transaction_id = #{latestTransactionId},
-                refunded_amount = refunded_amount + #{amount},
-                available_refund_amount = available_refund_amount - #{amount},
+                label_refunded_amount = label_refunded_amount + #{labelAmount},
+                label_available_refund_amount = label_available_refund_amount - #{labelAmount},
+                refunded_amount = refunded_amount + #{transactionAmount},
+                available_refund_amount = available_refund_amount - #{transactionAmount},
                 transaction_status = 'SUCCESS',
                 process_stage = 'FINISHED',
                 last_status_time = CURRENT_TIMESTAMP(3),
@@ -128,14 +138,16 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             WHERE operation_id = #{operationId}
               AND transaction_date_time = #{transactionDateTime}
               AND transaction_status = 'SUCCESS'
-              AND available_refund_amount >= #{amount}
+              AND label_available_refund_amount >= #{labelAmount}
+              AND available_refund_amount >= #{transactionAmount}
               AND version = #{expectedVersion}
               AND deleted = 0
             """)
     int increaseRefundedAmount(@Param("operationId") String operationId,
                                @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                @Param("latestTransactionId") String latestTransactionId,
-                               @Param("amount") BigDecimal amount,
+                               @Param("labelAmount") BigDecimal labelAmount,
+                               @Param("transactionAmount") BigDecimal transactionAmount,
                                @Param("expectedVersion") Integer expectedVersion);
 
     /**
@@ -146,9 +158,12 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
     @Update("""
             UPDATE transaction_order
             SET latest_transaction_id = #{latestTransactionId},
-                authorized_amount = authorized_amount + #{amount},
-                transaction_amount = transaction_amount + #{amount},
-                available_capture_amount = available_capture_amount + #{amount},
+                label_authorized_amount = label_authorized_amount + #{labelAmount},
+                label_amount = label_amount + #{labelAmount},
+                label_available_capture_amount = label_available_capture_amount + #{labelAmount},
+                authorized_amount = authorized_amount + #{transactionAmount},
+                transaction_amount = transaction_amount + #{transactionAmount},
+                available_capture_amount = available_capture_amount + #{transactionAmount},
                 transaction_status = 'SUCCESS',
                 process_stage = 'FINISHED',
                 last_status_time = CURRENT_TIMESTAMP(3),
@@ -163,7 +178,8 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
     int increaseAuthorizedAmount(@Param("operationId") String operationId,
                                  @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                  @Param("latestTransactionId") String latestTransactionId,
-                                 @Param("amount") BigDecimal amount,
+                                 @Param("labelAmount") BigDecimal labelAmount,
+                                 @Param("transactionAmount") BigDecimal transactionAmount,
                                  @Param("expectedVersion") Integer expectedVersion);
 
     /**
@@ -174,7 +190,9 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
     @Update("""
             UPDATE transaction_order
             SET latest_transaction_id = #{latestTransactionId},
-                authorized_cancel_amount = authorized_cancel_amount + #{amount},
+                label_authorized_cancel_amount = label_authorized_cancel_amount + #{labelAmount},
+                label_available_capture_amount = 0,
+                authorized_cancel_amount = authorized_cancel_amount + #{transactionAmount},
                 available_capture_amount = 0,
                 transaction_status = 'SUCCESS',
                 process_stage = 'FINISHED',
@@ -186,16 +204,22 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
               AND transaction_status = 'SUCCESS'
               AND captured_amount = 0
               AND refunded_amount = 0
-              AND available_capture_amount >= #{amount}
-              AND authorized_amount - authorized_cancel_amount = #{amount}
-              AND #{amount} > 0
+              AND label_captured_amount = 0
+              AND label_refunded_amount = 0
+              AND label_available_capture_amount >= #{labelAmount}
+              AND label_authorized_amount - label_authorized_cancel_amount = #{labelAmount}
+              AND available_capture_amount >= #{transactionAmount}
+              AND authorized_amount - authorized_cancel_amount = #{transactionAmount}
+              AND #{labelAmount} > 0
+              AND #{transactionAmount} > 0
               AND version = #{expectedVersion}
               AND deleted = 0
             """)
     int markVoidSuccess(@Param("operationId") String operationId,
                         @Param("transactionDateTime") LocalDateTime transactionDateTime,
                         @Param("latestTransactionId") String latestTransactionId,
-                        @Param("amount") BigDecimal amount,
+                        @Param("labelAmount") BigDecimal labelAmount,
+                        @Param("transactionAmount") BigDecimal transactionAmount,
                         @Param("expectedVersion") Integer expectedVersion);
 
     /**
@@ -286,20 +310,36 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                 channel_match_result = 'SUCCESS',
                 next_channel_match_time = NULL,
                 channel_match_fail_reason = NULL,
+                label_authorized_amount = CASE
+                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION', 'PAYMENT') THEN #{labelAmount}
+                    ELSE label_authorized_amount
+                END,
+                label_captured_amount = CASE
+                    WHEN transaction_type = 'PAYMENT' THEN #{labelAmount}
+                    ELSE label_captured_amount
+                END,
+                label_available_capture_amount = CASE
+                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION') THEN #{labelAmount}
+                    ELSE label_available_capture_amount
+                END,
+                label_available_refund_amount = CASE
+                    WHEN transaction_type = 'PAYMENT' THEN #{labelAmount}
+                    ELSE label_available_refund_amount
+                END,
                 authorized_amount = CASE
-                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION', 'PAYMENT') THEN #{amount}
+                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION', 'PAYMENT') THEN #{transactionAmount}
                     ELSE authorized_amount
                 END,
                 captured_amount = CASE
-                    WHEN transaction_type = 'PAYMENT' THEN #{amount}
+                    WHEN transaction_type = 'PAYMENT' THEN #{transactionAmount}
                     ELSE captured_amount
                 END,
                 available_capture_amount = CASE
-                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION') THEN #{amount}
+                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION') THEN #{transactionAmount}
                     ELSE available_capture_amount
                 END,
                 available_refund_amount = CASE
-                    WHEN transaction_type = 'PAYMENT' THEN #{amount}
+                    WHEN transaction_type = 'PAYMENT' THEN #{transactionAmount}
                     ELSE available_refund_amount
                 END,
                 last_status_time = CURRENT_TIMESTAMP(3),
@@ -314,7 +354,8 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
     int markInitialSuccess(@Param("operationId") String operationId,
                            @Param("transactionDateTime") LocalDateTime transactionDateTime,
                            @Param("latestTransactionId") String latestTransactionId,
-                           @Param("amount") BigDecimal amount,
+                           @Param("labelAmount") BigDecimal labelAmount,
+                           @Param("transactionAmount") BigDecimal transactionAmount,
                            @Param("expectedVersion") Integer expectedVersion,
                            @Param("channelMatchStatus") String channelMatchStatus);
 

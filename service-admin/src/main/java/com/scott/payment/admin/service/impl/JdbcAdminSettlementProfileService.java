@@ -1,15 +1,12 @@
 package com.scott.payment.admin.service.impl;
 
-import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileSummary;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileUpdateRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminSettlementProfileService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -18,18 +15,15 @@ import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
-import java.time.DateTimeException;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 /**
- * Admin 结算档案 JDBC 实现；查询和 CAS 更新均限定交易逻辑数据源及 Admin 商户范围。
+ * Admin 结算档案 JDBC 只读实现；查询限定交易逻辑数据源及 Admin 商户范围。
  */
 @Service
 public class JdbcAdminSettlementProfileService implements AdminSettlementProfileService {
@@ -115,46 +109,7 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
                                  AdminMerchantDataScope dataScope) {
         String profileNo = requiredProfileNo(settlementProfileNo);
         AdminMerchantDataScope scope = requiredScope(dataScope);
-        return transactionLogicalReadExecutor.read(() -> requireProfile(profileNo, scope));
-    }
-
-    /**
-     * CAS 更新只改变后续调度参数；事务与动态数据源在同一代理边界建立，避免写入默认库。
-     */
-    @Override
-    @DS(DataSourceName.TRANSACTION)
-    @Transactional(rollbackFor = Exception.class)
-    public ProfileSummary update(String settlementProfileNo,
-                                 ProfileUpdateRequest request,
-                                 AdminMerchantDataScope dataScope) {
-        String profileNo = requiredProfileNo(settlementProfileNo);
-        ProfileUpdateRequest command = normalizeUpdate(request);
-        AdminMerchantDataScope scope = requiredScope(dataScope);
-        if (scope.empty()) {
-            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "结算档案不存在");
-        }
-        MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("settlementProfileNo", profileNo)
-                .addValue("processingMode", command.getProcessingMode())
-                .addValue("businessTimeZone", command.getBusinessTimeZone())
-                .addValue("dailyCutoffTime", command.getDailyCutoffTime())
-                .addValue("expectedVersion", command.getExpectedVersion())
-                .addValue("permittedMerchantIds", scope.merchantIds());
-        int updated = jdbcTemplate.update("""
-                UPDATE merchant_settlement_profile
-                SET processing_mode = :processingMode,
-                    business_time_zone = :businessTimeZone,
-                    daily_cutoff_time = :dailyCutoffTime,
-                    version = version + 1,
-                    update_time = CURRENT_TIMESTAMP(3)
-                WHERE settlement_profile_no = :settlementProfileNo
-                  AND version = :expectedVersion
-                """ + updateMerchantScopeSql(scope), parameters);
-        if (updated != 1) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
-                    "结算档案已被其他操作员修改或不在当前数据范围，请刷新后重试");
-        }
-        return requireProfile(profileNo, scope);
+        return transactionLogicalReadExecutor.readPrimary(() -> requireProfile(profileNo, scope));
     }
 
     /**
@@ -271,13 +226,6 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
     }
 
     /**
-     * 构建结算档案更新语句的商户数据范围条件。
-     */
-    private String updateMerchantScopeSql(AdminMerchantDataScope dataScope) {
-        return dataScope.allMerchants() ? "" : " AND merchant_id IN (:permittedMerchantIds)";
-    }
-
-    /**
      * 规范化输入值。
      */
     private ProfileSearchRequest normalize(ProfileSearchRequest request) {
@@ -302,35 +250,6 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
         query.setPageNo(pageNo);
         query.setPageSize(pageSize);
         return query;
-    }
-
-    /**
-     * 校验并规范化结算配置更新请求。
-     */
-    private ProfileUpdateRequest normalizeUpdate(ProfileUpdateRequest request) {
-        if (request == null) {
-            throw invalid("结算档案修改请求不能为空");
-        }
-        request.setProcessingMode(upper(request.getProcessingMode()));
-        request.setBusinessTimeZone(trimToNull(request.getBusinessTimeZone()));
-        if (!PROCESSING_MODES.contains(request.getProcessingMode())) {
-            throw invalid("结算处理模式不正确");
-        }
-        if (request.getBusinessTimeZone() == null) {
-            throw invalid("业务时区不能为空");
-        }
-        try {
-            ZoneId.of(request.getBusinessTimeZone());
-        } catch (DateTimeException exception) {
-            throw invalid("业务时区必须是有效的 IANA 时区");
-        }
-        if (request.getDailyCutoffTime() == null) {
-            throw invalid("日切时间不能为空");
-        }
-        if (request.getExpectedVersion() == null || request.getExpectedVersion() < 0) {
-            throw invalid("档案版本不正确");
-        }
-        return request;
     }
 
     /**

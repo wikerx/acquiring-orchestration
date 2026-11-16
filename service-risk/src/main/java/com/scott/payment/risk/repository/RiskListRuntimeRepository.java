@@ -1,10 +1,13 @@
 package com.scott.payment.risk.repository;
 
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
+import com.scott.payment.risk.domain.FrequencyRuleEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
+import com.scott.payment.risk.domain.MerchantLimitReadEvaluation;
 import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
+import com.scott.payment.risk.domain.SourceUrlRuleEvaluation;
 
 import java.math.BigDecimal;
 import java.util.EnumSet;
@@ -13,7 +16,10 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * 风控运行时名单和规则查询仓储。
+ * 风控运行时名单、限额、频控和 3DS 规则仓储。
+ *
+ * <p>只读组合方法可以复用同一规则视图；累计限额和频控计数等副作用必须保持同步、
+ * 幂等并在基础设施不可用时失败关闭。</p>
  */
 public interface RiskListRuntimeRepository {
 
@@ -88,6 +94,25 @@ public interface RiskListRuntimeRepository {
     Optional<RiskListMatch> findSourceUrlRestrictionMiss(String merchantId, RiskRuntimeLookupValue lookupValue);
 
     /**
+     * 从同一规则视图评估来源网址允许命中和限制未命中。
+     *
+     * <p>默认实现保留旧仓储兼容行为，并在已拒绝时停止允许规则查询。生产仓储可覆盖为
+     * 单次 generation 与快照读取。</p>
+     *
+     * @param merchantId 当前商户号
+     * @param lookupValue 已规范化的来源主机查询值
+     * @return 允许命中和限制未命中的组合结果
+     */
+    default SourceUrlRuleEvaluation evaluateSourceUrlRules(String merchantId,
+                                                           RiskRuntimeLookupValue lookupValue) {
+        Optional<RiskListMatch> restrictionMiss = findSourceUrlRestrictionMiss(merchantId, lookupValue);
+        Optional<RiskListMatch> allowedRule = restrictionMiss.isPresent()
+                ? Optional.empty()
+                : findSourceUrlRule(merchantId, lookupValue);
+        return new SourceUrlRuleEvaluation(allowedRule, restrictionMiss);
+    }
+
+    /**
      * 查询当前请求 IP 是否命中商户 IP 白名单。
      *
      * @param merchantId 当前商户号
@@ -116,6 +141,25 @@ public interface RiskListRuntimeRepository {
     Optional<RiskListMatch> findMerchantLimitRule(String merchantId,
                                                   BigDecimal amount,
                                                   String currency);
+
+    /**
+     * 从同一规则视图查询单笔限额命中与金额限额启用状态。
+     *
+     * <p>该方法不得执行累计限额预占。默认实现用于兼容旧仓储，生产仓储可在快照模式下
+     * 合并为单次规则集合读取。</p>
+     *
+     * @param merchantId 当前商户号
+     * @param amount 交易金额
+     * @param currency ISO 4217 币种代码
+     * @return 单笔限额命中与规则启用状态
+     */
+    default MerchantLimitReadEvaluation evaluateMerchantLimitRules(String merchantId,
+                                                                   BigDecimal amount,
+                                                                   String currency) {
+        return new MerchantLimitReadEvaluation(
+                findMerchantLimitRule(merchantId, amount, currency),
+                hasActiveMerchantLimitRule(merchantId, currency));
+    }
 
     /**
      * 使用 Redis 原子预留执行日、周、月累计限额。
@@ -210,6 +254,46 @@ public interface RiskListRuntimeRepository {
                 ipLookup, emailLookup, phoneLookup, customerIdLookup, deviceFingerprintLookup)
                 .map(List::of)
                 .orElseGet(List::of);
+    }
+
+    /**
+     * 使用同一规则集合执行频控并返回规则启用状态。
+     *
+     * <p>默认实现兼容旧仓储；生产仓储应覆盖本方法，避免执行计数后再次读取规则集合。
+     * 该方法仍在请求线程同步执行，不得进入只读并发执行器。</p>
+     *
+     * @param merchantId 当前商户号
+     * @param requestDTO 本次交易及风控上下文
+     * @param cardNoLookup 卡号哈希查询值
+     * @param cardFingerprintLookup 卡指纹查询值
+     * @param ipLookup IP 数值查询值
+     * @param emailLookup 邮箱哈希查询值
+     * @param phoneLookup 手机号哈希查询值
+     * @param customerIdLookup 商户客户标识哈希查询值
+     * @param deviceFingerprintLookup 设备指纹哈希查询值
+     * @return 逐规则执行明细及规则启用状态
+     */
+    default FrequencyRuleEvaluation evaluateFrequencyRulesWithStatus(
+            String merchantId,
+            RiskPaymentEvaluateRequestDTO requestDTO,
+            RiskRuntimeLookupValue cardNoLookup,
+            RiskRuntimeLookupValue cardFingerprintLookup,
+            RiskRuntimeLookupValue ipLookup,
+            RiskRuntimeLookupValue emailLookup,
+            RiskRuntimeLookupValue phoneLookup,
+            RiskRuntimeLookupValue customerIdLookup,
+            RiskRuntimeLookupValue deviceFingerprintLookup) {
+        List<RiskListMatch> details = evaluateFrequencyRules(
+                merchantId,
+                requestDTO,
+                cardNoLookup,
+                cardFingerprintLookup,
+                ipLookup,
+                emailLookup,
+                phoneLookup,
+                customerIdLookup,
+                deviceFingerprintLookup);
+        return new FrequencyRuleEvaluation(details, hasActiveFrequencyRule(merchantId));
     }
 
     /**

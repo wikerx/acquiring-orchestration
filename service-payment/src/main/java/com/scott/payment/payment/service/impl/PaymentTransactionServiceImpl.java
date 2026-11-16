@@ -2129,10 +2129,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setOrderAmount(orderDO.getLabelAmount());
         resultDTO.setOrderCurrency(orderDO.getLabelCurrency());
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(orderDO));
-        resultDTO.setTotalAuthorizedCancelAmount(orderDO.getAuthorizedCancelAmount());
+        resultDTO.setTotalAuthorizedCancelAmount(orderDO.getLabelAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(orderDO));
-        resultDTO.setTotalRefundAmount(orderDO.getRefundedAmount());
-        resultDTO.setTotalRefuseAmount(orderDO.getChargebackAmount());
+        resultDTO.setTotalRefundAmount(orderDO.getLabelRefundedAmount());
+        resultDTO.setTotalRefuseAmount(orderDO.getLabelChargebackAmount());
         resultDTO.setLabelAmount(orderDO.getLabelAmount());
         resultDTO.setLabelCurrency(orderDO.getLabelCurrency());
         resultDTO.setTransactionAmount(orderDO.getTransactionAmount());
@@ -2454,16 +2454,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setOrderAmount(commandDTO.getLabelAmount());
         resultDTO.setOrderCurrency(commandDTO.getLabelCurrency());
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
-        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getLabelAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(sourceOrderDO));
-        resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalRefundAmount(sourceOrderDO.getLabelRefundedAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getLabelChargebackAmount());
         resultDTO.setTotalAuthorizedAmount(sumOnSuccess(resultDTO.getTotalAuthorizedAmount(), resultDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION));
         resultDTO.setTotalCapturedAmount(sumCapturedOnSuccess(resultDTO.getTotalCapturedAmount(), resultDTO));
-        resultDTO.setTotalRefundAmount(sumOnSuccess(sourceOrderDO.getRefundedAmount(), resultDTO, PaymentTransactionTypeEnum.REFUND));
+        resultDTO.setTotalRefundAmount(sumOnSuccess(
+                sourceOrderDO.getLabelRefundedAmount(), resultDTO, PaymentTransactionTypeEnum.REFUND));
         if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())
                 && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedAmount());
+            resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getLabelAuthorizedAmount());
         }
     }
 
@@ -2475,9 +2476,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
-            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+            return firstPositive(sourceOrderDO.getLabelCapturedAmount(), sourceOrderDO.getLabelAmount());
         }
-        return sourceOrderDO.getAuthorizedAmount();
+        return sourceOrderDO.getLabelAuthorizedAmount();
     }
 
     /**
@@ -2488,9 +2489,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
-            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+            return firstPositive(sourceOrderDO.getLabelCapturedAmount(), sourceOrderDO.getLabelAmount());
         }
-        return sourceOrderDO.getCapturedAmount();
+        return sourceOrderDO.getLabelCapturedAmount();
     }
 
     /**
@@ -2514,30 +2515,30 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private void fillInitialTotals(PaymentCreateResultDTO resultDTO) {
         if (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
-                || resultDTO.getTransactionAmount() == null) {
+                || resultDTO.getLabelAmount() == null) {
             return;
         }
         if (PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(resultDTO.getTransactionType())) {
-            resultDTO.setTotalAuthorizedAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalAuthorizedAmount(resultDTO.getLabelAmount());
             return;
         }
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType())) {
             if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) {
-                resultDTO.setTotalAuthorizedAmount(resultDTO.getTransactionAmount());
+                resultDTO.setTotalAuthorizedAmount(resultDTO.getLabelAmount());
             }
-            resultDTO.setTotalCapturedAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalCapturedAmount(resultDTO.getLabelAmount());
             return;
         }
         if (PaymentTransactionTypeEnum.REFUND.getCode().equals(resultDTO.getTransactionType())) {
-            resultDTO.setTotalRefundAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalRefundAmount(resultDTO.getLabelAmount());
             return;
         }
         if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())) {
-            resultDTO.setTotalAuthorizedCancelAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalAuthorizedCancelAmount(resultDTO.getLabelAmount());
         }
     }
 
@@ -2555,8 +2556,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         BigDecimal current = existingAmount == null ? BigDecimal.ZERO : existingAmount;
         if (targetTypeEnum.getCode().equals(resultDTO.getTransactionType())
                 && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
-                && resultDTO.getTransactionAmount() != null) {
-            return current.add(resultDTO.getTransactionAmount());
+                && resultDTO.getLabelAmount() != null) {
+            return current.add(resultDTO.getLabelAmount());
         }
         return current;
     }
@@ -2570,8 +2571,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if ((PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType()))
                 && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
-                && resultDTO.getTransactionAmount() != null) {
-            return current.add(resultDTO.getTransactionAmount());
+                && resultDTO.getLabelAmount() != null) {
+            return current.add(resultDTO.getLabelAmount());
         }
         return current;
     }

@@ -1,12 +1,14 @@
 package com.scott.payment.admin.api.risk;
 
 import com.scott.payment.admin.application.risk.AdminRiskManagementApplicationService;
+import com.scott.payment.admin.application.system.LegacyFileTemplateBridge;
 import com.scott.payment.admin.dto.risk.RiskDTOs;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import com.scott.payment.component.web.template.LegacyFileTemplateAdapter;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,14 +34,17 @@ public class AdminRiskRuleController {
     private static final String MODULE_TYPE = "RULE";
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;
+    private final LegacyFileTemplateBridge fileTemplateBridge;
 
     /**
      * 创建内风控规则管理接口。
      *
      * @param riskManagementApplicationService 风控管理应用服务
      */
-    public AdminRiskRuleController(AdminRiskManagementApplicationService riskManagementApplicationService) {
+    public AdminRiskRuleController(AdminRiskManagementApplicationService riskManagementApplicationService,
+                                   LegacyFileTemplateBridge fileTemplateBridge) {
         this.riskManagementApplicationService = riskManagementApplicationService;
+        this.fileTemplateBridge = fileTemplateBridge;
     }
 
     /**
@@ -205,7 +210,12 @@ public class AdminRiskRuleController {
      */
     @GetMapping("/RULE/{functionCode}/template")
     @RequiresPermission("risk:access")
+    @LegacyFileTemplateAdapter(value = "RISK_RULE_{functionCode}_IMPORT", removeAfter = "2026-12-31")
     public void template(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
+        if (fileTemplateBridge.writeIfPublished("RISK_RULE_" + functionCode.trim().toUpperCase(java.util.Locale.ROOT)
+                + "_IMPORT", response)) {
+            return;
+        }
         riskManagementApplicationService.template(MODULE_TYPE, functionCode, response);
     }
 

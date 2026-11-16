@@ -5,7 +5,10 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
+import com.scott.payment.job.api.internal.dto.JobExecutionTrendResponse;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.job.api.internal.dto.JobRunLogQueryRequest;
 import com.scott.payment.job.entity.SysJobRunLogDO;
@@ -23,6 +26,8 @@ import java.util.List;
  */
 @Service
 public class JobRunLogServiceImpl implements JobRunLogService {
+
+    private static final int LEGACY_SYNC_EXPORT_MAX_ROWS = 5_000;
 
     private final SysJobRunLogMapper sysJobRunLogMapper;
 
@@ -186,7 +191,14 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     @Override
     @DS(DataSourceName.SLAVE)
     public List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request) {
-        return sysJobRunLogMapper.selectList(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
+        List<SysJobRunLogDO> rows = sysJobRunLogMapper.selectList(
+                buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request)
+                        .last("LIMIT " + (LEGACY_SYNC_EXPORT_MAX_ROWS + 1)));
+        if (rows.size() > LEGACY_SYNC_EXPORT_MAX_ROWS) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
+                    "同步导出最多支持 5000 条，请使用下载中心的异步导出");
+        }
+        return rows;
     }
 
     /**
@@ -198,6 +210,19 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     @DS(DataSourceName.MASTER)
     public List<SysJobRunLogDO> selectTimeoutCandidates() {
         return sysJobRunLogMapper.selectTimeoutCandidates();
+    }
+
+    /**
+     * 委托 Mapper 在数据库侧完成任务终态自然日聚合，避免读取全部日志到 JVM。
+     *
+     * @param startTime 开始时间，包含
+     * @param endTime   结束时间，不包含
+     * @return 存在终态日志日期的聚合结果
+     */
+    @Override
+    public List<JobExecutionTrendResponse.DailyPoint> summarizeExecutionTrend(
+            LocalDateTime startTime, LocalDateTime endTime) {
+        return sysJobRunLogMapper.selectDailyTrend(startTime, endTime);
     }
 
     /**

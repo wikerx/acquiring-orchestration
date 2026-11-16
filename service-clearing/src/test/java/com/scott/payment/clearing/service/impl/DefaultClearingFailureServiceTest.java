@@ -13,6 +13,7 @@ import com.scott.payment.clearing.mapper.ClearingTransactionEventOutboxMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.service.ClearingProjectionService;
 import com.scott.payment.clearing.service.ClearingAnomalyService;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
@@ -71,7 +72,7 @@ class DefaultClearingFailureServiceTest {
         when(financeStateMapper.selectForUpdate("TX-1", TRANSACTION_TIME))
                 .thenReturn(processingState(0));
         when(financeStateMapper.recordFailure(
-                "TX-1", TRANSACTION_TIME, "worker-1", 5, "WAITING_SOURCE", 1,
+                201L, "TX-1", TRANSACTION_TIME, "worker-1", 5, "WAITING_SOURCE", 1,
                 NOW_UTC.plusMinutes(1), "SOURCE_CLEARING_PENDING",
                 "source transaction clearing is pending", NOW_UTC)).thenReturn(1);
         when(idGenerator.nextId()).thenReturn("9001");
@@ -98,7 +99,8 @@ class DefaultClearingFailureServiceTest {
         assertThat(outbox.getTopic()).isEqualTo(MqTopic.PAYMENT_CLEARING_DELAY);
         assertThat(outbox.getTag()).isEqualTo(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
         assertThat(outbox.getDeliveryMode()).isEqualTo("SCHEDULED");
-        assertThat(outbox.getDeliverAt()).isEqualTo(NOW_UTC.plusMinutes(1));
+        assertThat(outbox.getDeliverAt())
+                .isEqualTo(ClearingTimeSupport.toUtcLocalDateTime(NOW_UTC.plusMinutes(1)));
         assertThat(outbox.getNextRetryTime()).isEqualTo(NOW_UTC);
         assertThat(outbox.getMessageGroup()).isNull();
 
@@ -109,7 +111,7 @@ class DefaultClearingFailureServiceTest {
         assertThat(retryMessage.getClearingRetryCount()).isEqualTo(1);
         assertThat(retryMessage.getRetryReasonCode()).isEqualTo("SOURCE_CLEARING_PENDING");
         assertThat(retryMessage.getDeliverAt())
-                .isEqualTo(NOW_UTC.plusMinutes(1).toInstant(java.time.ZoneOffset.UTC));
+                .isEqualTo(ClearingTimeSupport.toInstant(NOW_UTC.plusMinutes(1)));
     }
 
     @Test
@@ -119,7 +121,7 @@ class DefaultClearingFailureServiceTest {
         when(financeStateMapper.selectForUpdate("TX-1", TRANSACTION_TIME))
                 .thenReturn(processingState(0));
         when(financeStateMapper.recordFailure(
-                "TX-1", TRANSACTION_TIME, "worker-1", 5, "WAITING_SOURCE", 1,
+                201L, "TX-1", TRANSACTION_TIME, "worker-1", 5, "WAITING_SOURCE", 1,
                 expectedDeliverAt, "SOURCE_CLEARING_PENDING",
                 "source transaction clearing is pending", nowWithNanos)).thenReturn(1);
         when(idGenerator.nextId()).thenReturn("9003");
@@ -135,9 +137,10 @@ class DefaultClearingFailureServiceTest {
         ClearingTransactionEventOutboxDO outbox = outboxCaptor.getValue();
         ClearingRetryDueMessage retryMessage = JsonUtils.parseObject(
                 outbox.getPayloadJson(), ClearingRetryDueMessage.class);
-        assertThat(outbox.getDeliverAt()).isEqualTo(expectedDeliverAt);
+        assertThat(outbox.getDeliverAt())
+                .isEqualTo(ClearingTimeSupport.toUtcLocalDateTime(expectedDeliverAt));
         assertThat(retryMessage.getDeliverAt())
-                .isEqualTo(expectedDeliverAt.toInstant(java.time.ZoneOffset.UTC));
+                .isEqualTo(ClearingTimeSupport.toInstant(expectedDeliverAt));
     }
 
     @Test
@@ -146,7 +149,7 @@ class DefaultClearingFailureServiceTest {
         when(financeStateMapper.selectForUpdate("TX-1", TRANSACTION_TIME))
                 .thenReturn(processingState(2));
         when(financeStateMapper.recordFailure(
-                "TX-1", TRANSACTION_TIME, "worker-1", 5, "FAILED", 3,
+                201L, "TX-1", TRANSACTION_TIME, "worker-1", 5, "FAILED", 3,
                 NOW_UTC.plusMinutes(15), "FEE_VERSION_NOT_FOUND",
                 "fee version is not visible", NOW_UTC)).thenReturn(1);
         when(idGenerator.nextId()).thenReturn("9002");
@@ -176,7 +179,7 @@ class DefaultClearingFailureServiceTest {
         when(financeStateMapper.selectForUpdate("TX-1", TRANSACTION_TIME))
                 .thenReturn(processingState(2));
         when(financeStateMapper.recordFailure(
-                "TX-1", TRANSACTION_TIME, "worker-1", 5, "MANUAL_REVIEW", 2,
+                201L, "TX-1", TRANSACTION_TIME, "worker-1", 5, "MANUAL_REVIEW", 2,
                 null, "FEE_SNAPSHOT_HASH_MISMATCH", "x".repeat(512), NOW_UTC)).thenReturn(1);
 
         ClearingFailureResult result = service.recordFailure(
@@ -199,7 +202,7 @@ class DefaultClearingFailureServiceTest {
         when(financeStateMapper.selectForUpdate("TX-1", TRANSACTION_TIME))
                 .thenReturn(processingState(8));
         when(financeStateMapper.recordFailure(
-                "TX-1", TRANSACTION_TIME, "worker-1", 5, "MANUAL_REVIEW", 8,
+                201L, "TX-1", TRANSACTION_TIME, "worker-1", 5, "MANUAL_REVIEW", 8,
                 null, "CLEARING_RETRY_EXHAUSTED",
                 "clearing retry exhausted after 8 attempts; last failure=FEE_SNAPSHOT_MISSING", NOW_UTC))
                 .thenReturn(1);
@@ -223,7 +226,7 @@ class DefaultClearingFailureServiceTest {
         when(financeStateMapper.selectForUpdate("TX-1", TRANSACTION_TIME))
                 .thenReturn(processingState(2));
         when(financeStateMapper.recordFailure(
-                "TX-1", TRANSACTION_TIME, "worker-1", 5, "MANUAL_REVIEW", 2,
+                201L, "TX-1", TRANSACTION_TIME, "worker-1", 5, "MANUAL_REVIEW", 2,
                 null, "FEE_SNAPSHOT_HASH_MISMATCH", "snapshot hash mismatch", NOW_UTC)).thenReturn(1);
         org.mockito.Mockito.doThrow(new ClearingProcessingException(
                         ClearingFailureCodeEnum.TRANSACTION_VERSION_CONFLICT, "locator is unavailable"))
@@ -256,7 +259,7 @@ class DefaultClearingFailureServiceTest {
                 .hasMessageContaining("lease");
 
         verify(financeStateMapper, never()).recordFailure(
-                any(), any(), any(), any(Integer.class), any(), any(Integer.class),
+                any(Long.class), any(), any(), any(), any(Integer.class), any(), any(Integer.class),
                 any(), any(), any(), any());
         verify(outboxMapper, never()).insertLogical(any());
         verify(projectionService, never()).updateResolvingLocator(any(), any(), any(), any());
@@ -298,7 +301,7 @@ class DefaultClearingFailureServiceTest {
         message.setExpectedClearingRevision(0);
         message.setClearingRetryCount(2);
         message.setRetryReasonCode("FEE_VERSION_NOT_FOUND");
-        message.setDeliverAt(NOW_UTC.minusMinutes(1).toInstant(java.time.ZoneOffset.UTC));
+        message.setDeliverAt(ClearingTimeSupport.toInstant(NOW_UTC.minusMinutes(1)));
         return message;
     }
 
@@ -314,6 +317,7 @@ class DefaultClearingFailureServiceTest {
 
     private ClearingTransactionFinanceStateDO processingState(int retryCount) {
         ClearingTransactionFinanceStateDO state = new ClearingTransactionFinanceStateDO();
+        state.setId(201L);
         state.setFinanceStateId("FS-1");
         state.setTransactionId("TX-1");
         state.setOperationId("OP-1");

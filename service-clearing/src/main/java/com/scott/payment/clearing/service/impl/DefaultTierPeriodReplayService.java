@@ -17,6 +17,7 @@ import com.scott.payment.clearing.service.FeeConfigurationSnapshotService;
 import com.scott.payment.clearing.service.TierPeriodReplayService;
 import com.scott.payment.clearing.service.TierPeriodReplayTransactionService;
 import com.scott.payment.clearing.support.ClearingOperationalMetrics;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -35,7 +36,6 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.HexFormat;
@@ -92,7 +92,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
     public ReplayResult submit(SubmitCommand command) {
         validateSubmit(command);
         YearMonth period = parsePeriod(command.periodKey());
-        LocalDateTime now = LocalDateTime.ofInstant(command.requestedInstant(), ZoneOffset.UTC);
+        LocalDateTime now = ClearingTimeSupport.fromInstant(command.requestedInstant());
         ClearingTierPeriodReplayDO row = replayRow(command, period, now);
         replayMapper.insertIdempotent(row);
         ClearingTierPeriodReplayDO persisted = replayMapper.selectByRequestKeyForUpdate(command.requestKey().trim());
@@ -107,7 +107,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
     @Override
     public ReplayResult review(ReviewCommand command) {
         validateReview(command);
-        LocalDateTime now = LocalDateTime.ofInstant(command.reviewInstant(), ZoneOffset.UTC);
+        LocalDateTime now = ClearingTimeSupport.fromInstant(command.reviewInstant());
         if (command.decision() == ReviewDecision.REJECT) {
             ReplayResult result = transactionService.reject(command, now);
             metrics.recordTierReplay("REJECTED");
@@ -139,7 +139,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         if (limit < 1 || limit > 100 || nowInstant == null) {
             throw new IllegalArgumentException("tier replay scan limit and time are invalid");
         }
-        LocalDateTime now = LocalDateTime.ofInstant(nowInstant, ZoneOffset.UTC);
+        LocalDateTime now = ClearingTimeSupport.fromInstant(nowInstant);
         List<ClearingTierPeriodReplayDO> runnable = replayMapper.selectRunnable(now, limit);
         int completed = 0;
         if (runnable == null) {

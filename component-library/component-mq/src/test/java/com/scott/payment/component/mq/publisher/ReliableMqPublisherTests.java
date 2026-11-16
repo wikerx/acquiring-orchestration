@@ -5,6 +5,7 @@ import com.scott.payment.component.db.outbox.service.ReliableMqOutboxStore;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.properties.ReliableMqOutboxProperties;
+import com.scott.payment.component.mq.observability.MqOutboxOperationalMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -126,7 +127,7 @@ class ReliableMqPublisherTests {
                 store, relay, relayExecutor, new ReliableMqOutboxProperties(), "service-admin");
         AtomicReference<Runnable> deferredTask = new AtomicReference<>();
         IndependentReliableMqPublisher publisher = new IndependentReliableMqPublisher(
-                delegate, deferredTask::set);
+                delegate, deferredTask::set, MqOutboxOperationalMetrics.noop());
         BaseMqMessage message = new BaseMqMessage();
         message.setMessageId("MSG-AUDIT-DEFERRED-001");
 
@@ -148,6 +149,27 @@ class ReliableMqPublisherTests {
         deferredTask.get().run();
         verify(store).insert(org.mockito.ArgumentMatchers.any(ReliableMqOutboxDO.class));
         log.info("独立审计延迟入队测试完成，结果: 回滚后冻结消息已持久化");
+    }
+
+    /**
+     * 无外层事务时同步入库也必须记录独立 Outbox 结果，不能形成监控盲区。
+     */
+    @Test
+    void shouldRecordDirectIndependentPersistenceOutcome() {
+        ReliableMqPublisher delegate = mock(ReliableMqPublisher.class);
+        MqOutboxOperationalMetrics metrics = mock(MqOutboxOperationalMetrics.class);
+        ReliableMqOutboxDO event = new ReliableMqOutboxDO();
+        event.setEventId("MSG-AUDIT-DIRECT-001");
+        BaseMqMessage message = new BaseMqMessage();
+        message.setMessageId(event.getEventId());
+        when(delegate.prepareEvent("audit-topic", null, message)).thenReturn(event);
+        when(delegate.publishPreparedEvent(event)).thenReturn(event.getEventId());
+        IndependentReliableMqPublisher publisher = new IndependentReliableMqPublisher(
+                delegate, Runnable::run, metrics);
+
+        assertThat(publisher.publish("audit-topic", null, message)).isEqualTo(event.getEventId());
+
+        verify(metrics).recordIndependentPersistence("persisted");
     }
 
     /**

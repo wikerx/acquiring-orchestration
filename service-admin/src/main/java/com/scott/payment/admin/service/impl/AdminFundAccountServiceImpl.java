@@ -26,6 +26,7 @@ import com.scott.payment.admin.mapper.MerchantFundDeductionMapper;
 import com.scott.payment.admin.mapper.MerchantFundLedgerMapper;
 import com.scott.payment.admin.mapper.MerchantFundRechargeMapper;
 import com.scott.payment.admin.service.AdminFundAccountService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminTransactionFundQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -100,7 +101,21 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundAccountResponse> pageAccounts(FundAccountQuery request) {
+        return pageAccountsForExport(request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按创建任务时冻结的商户范围分页读取资金账户，有限空范围不会退化为全量。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FundAccountResponse> pageAccountsForExport(
+            FundAccountQuery request, AdminMerchantDataScope scope) {
         FundAccountQuery query = request == null ? new FundAccountQuery() : request;
+        AdminMerchantDataScope safeScope = requireScope(scope);
+        if (safeScope.empty()) {
+            return emptyPage(query.safePageNo(), query.safePageSize());
+        }
         LambdaQueryWrapper<MerchantFundAccountDO> wrapper = Wrappers.<MerchantFundAccountDO>lambdaQuery()
                 .eq(MerchantFundAccountDO::getDeleted, 0L)
                 .eq(StringUtils.hasText(query.getAccountStatus()), MerchantFundAccountDO::getAccountStatus,
@@ -108,6 +123,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                 .eq(StringUtils.hasText(query.getSettlementCurrency()), MerchantFundAccountDO::getSettlementCurrency,
                         upper(query.getSettlementCurrency()))
                 .orderByDesc(MerchantFundAccountDO::getUpdateTime);
+        if (!safeScope.allMerchants()) {
+            wrapper.in(MerchantFundAccountDO::getMerchantId, safeScope.merchantIds());
+        }
         if (StringUtils.hasText(query.getKeyword())) {
             String keyword = query.getKeyword().trim();
             Set<String> merchantIds = merchantInfoMapper.selectList(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
@@ -152,8 +170,21 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundLedgerResponse> pageLedgers(Long accountId, FundDetailQuery request) {
+        return pageLedgersForExport(accountId, request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 校验账户归属后读取指定账户流水，越权账户返回空页以避免暴露账户是否存在。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FundLedgerResponse> pageLedgersForExport(
+            Long accountId, FundDetailQuery request, AdminMerchantDataScope scope) {
         MerchantFundAccountDO account = requireAccount(accountId);
         FundDetailQuery query = request == null ? new FundDetailQuery() : request;
+        if (!allowsMerchant(requireScope(scope), account.getMerchantId())) {
+            return emptyPage(query.safePageNo(), query.safePageSize());
+        }
         if (requestsUnsupportedBalanceType(query.getBalanceType())) {
             return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
         }
@@ -193,7 +224,22 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundLedgerResponse> pageAllLedgers(FundDetailQuery request) {
+        return pageAllLedgersForExport(request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围读取全局余额流水，范围约束与页面筛选条件共同生效。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FundLedgerResponse> pageAllLedgersForExport(
+            FundDetailQuery request, AdminMerchantDataScope scope) {
         FundDetailQuery query = request == null ? new FundDetailQuery() : request;
+        AdminMerchantDataScope safeScope = requireScope(scope);
+        if (safeScope.empty() || StringUtils.hasText(query.getMerchantId())
+                && !allowsMerchant(safeScope, query.getMerchantId().trim())) {
+            return emptyPage(query.safePageNo(), query.safePageSize());
+        }
         validatePostedRange(query);
         if (requestsUnsupportedBalanceType(query.getBalanceType())) {
             return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
@@ -213,6 +259,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                         query.getPostedEndTime())
                 .orderByDesc(MerchantFundLedgerDO::getPostedTime)
                 .orderByDesc(MerchantFundLedgerDO::getId);
+        if (!safeScope.allMerchants()) {
+            wrapper.in(MerchantFundLedgerDO::getMerchantId, safeScope.merchantIds());
+        }
         if (StringUtils.hasText(query.getAccountNo())) {
             List<Long> accountIds = accountMapper.selectList(Wrappers.<MerchantFundAccountDO>lambdaQuery()
                             .select(MerchantFundAccountDO::getId)
@@ -253,7 +302,22 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundRechargeResponse> pageRecharges(FundRechargeQuery request) {
+        return pageRechargesForExport(request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围读取充值申请，页面提交的商户号不能扩大可信范围。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FundRechargeResponse> pageRechargesForExport(
+            FundRechargeQuery request, AdminMerchantDataScope scope) {
         FundRechargeQuery query = request == null ? new FundRechargeQuery() : request;
+        AdminMerchantDataScope safeScope = requireScope(scope);
+        if (safeScope.empty() || StringUtils.hasText(query.getMerchantId())
+                && !allowsMerchant(safeScope, query.getMerchantId().trim())) {
+            return emptyPage(query.safePageNo(), query.safePageSize());
+        }
         LambdaQueryWrapper<MerchantFundRechargeDO> wrapper = Wrappers.<MerchantFundRechargeDO>lambdaQuery()
                 .eq(MerchantFundRechargeDO::getDeleted, 0L)
                 .eq(StringUtils.hasText(query.getMerchantId()), MerchantFundRechargeDO::getMerchantId,
@@ -262,6 +326,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                         upper(query.getRechargeStatus()))
                 .orderByDesc(MerchantFundRechargeDO::getCreateTime)
                 .orderByDesc(MerchantFundRechargeDO::getId);
+        if (!safeScope.allMerchants()) {
+            wrapper.in(MerchantFundRechargeDO::getMerchantId, safeScope.merchantIds());
+        }
         if (StringUtils.hasText(query.getKeyword())) {
             String keyword = query.getKeyword().trim();
             wrapper.and(value -> value.like(MerchantFundRechargeDO::getRechargeNo, keyword)
@@ -465,7 +532,22 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<FundDeductionResponse> pageDeductions(FundDeductionQuery request) {
+        return pageDeductionsForExport(request, AdminMerchantDataScope.all());
+    }
+
+    /**
+     * 按冻结商户范围读取扣减申请，页面提交的商户号不能扩大可信范围。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<FundDeductionResponse> pageDeductionsForExport(
+            FundDeductionQuery request, AdminMerchantDataScope scope) {
         FundDeductionQuery query = request == null ? new FundDeductionQuery() : request;
+        AdminMerchantDataScope safeScope = requireScope(scope);
+        if (safeScope.empty() || StringUtils.hasText(query.getMerchantId())
+                && !allowsMerchant(safeScope, query.getMerchantId().trim())) {
+            return emptyPage(query.safePageNo(), query.safePageSize());
+        }
         LambdaQueryWrapper<MerchantFundDeductionDO> wrapper = Wrappers.<MerchantFundDeductionDO>lambdaQuery()
                 .eq(MerchantFundDeductionDO::getDeleted, 0L)
                 .eq(StringUtils.hasText(query.getMerchantId()), MerchantFundDeductionDO::getMerchantId,
@@ -476,6 +558,9 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                         upper(query.getDeductionStatus()))
                 .orderByDesc(MerchantFundDeductionDO::getCreateTime)
                 .orderByDesc(MerchantFundDeductionDO::getId);
+        if (!safeScope.allMerchants()) {
+            wrapper.in(MerchantFundDeductionDO::getMerchantId, safeScope.merchantIds());
+        }
         if (StringUtils.hasText(query.getKeyword())) {
             String keyword = query.getKeyword().trim();
             wrapper.and(value -> value.like(MerchantFundDeductionDO::getDeductionNo, keyword)
@@ -1231,6 +1316,30 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "资金账户不存在");
         }
         return account;
+    }
+
+    /**
+     * 校验异步导出来源必须携带显式商户范围，禁止空对象隐式解释为全量。
+     */
+    private AdminMerchantDataScope requireScope(AdminMerchantDataScope scope) {
+        if (scope == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return scope;
+    }
+
+    /**
+     * 判断商户是否位于冻结范围内；有限空集合始终拒绝访问。
+     */
+    private boolean allowsMerchant(AdminMerchantDataScope scope, String merchantId) {
+        return scope.allMerchants() || scope.merchantIds().contains(merchantId);
+    }
+
+    /**
+     * 构造保留请求分页信息的空页，避免越权条件退化为默认全量查询。
+     */
+    private <T> PageResult<T> emptyPage(long pageNo, long pageSize) {
+        return PageResult.of(0L, pageNo, pageSize, List.of());
     }
 
     /**

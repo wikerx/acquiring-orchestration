@@ -14,17 +14,48 @@ import java.time.LocalDateTime;
 public interface DataRiskAuditMapper {
 
     /**
-     * 按风控评估流水号查询已经提交的主记录数量。
+     * 按风控评估流水号和定位表记录的评估时间查询已经提交的主记录数量。
      *
      * @param riskRecordNo 风控评估流水号
+     * @param evaluationTime 风控评估时间，也是季度分片键
      * @return 0 或 1
      */
     @Select("""
             SELECT COUNT(1)
             FROM risk_evaluation_record
             WHERE risk_record_no = #{riskRecordNo}
+              AND evaluation_time = #{evaluationTime}
             """)
-    int countByRiskRecordNo(@Param("riskRecordNo") String riskRecordNo);
+    int countByRiskRecordNo(@Param("riskRecordNo") String riskRecordNo,
+                            @Param("evaluationTime") LocalDateTime evaluationTime);
+
+    /**
+     * 查询风控记录号对应的稳定季度定位时间。
+     *
+     * @param riskRecordNo 风控评估流水号
+     * @return 已提交定位记录的评估时间，不存在时返回 null
+     */
+    @Select("""
+            SELECT evaluation_time
+            FROM risk_evaluation_locator
+            WHERE risk_record_no = #{riskRecordNo}
+            LIMIT 1
+            """)
+    LocalDateTime selectEvaluationTime(@Param("riskRecordNo") String riskRecordNo);
+
+    /**
+     * 插入非分片风控定位记录，唯一键承担跨季度数据库最终幂等。
+     *
+     * @param riskRecordNo 风控评估流水号
+     * @param evaluationTime 风控评估原始业务时间
+     * @return 成功插入的记录数
+     */
+    @Insert("""
+            INSERT INTO risk_evaluation_locator (risk_record_no, evaluation_time)
+            VALUES (#{riskRecordNo}, #{evaluationTime})
+            """)
+    int insertEvaluationLocator(@Param("riskRecordNo") String riskRecordNo,
+                                @Param("evaluationTime") LocalDateTime evaluationTime);
 
     /**
      * 插入风控评估主审计记录。
@@ -72,18 +103,19 @@ public interface DataRiskAuditMapper {
      *
      * @param riskRecordNo 风控评估流水号
      * @param hit          已脱敏 MQ 命中明细
+     * @param evaluationTime 风控评估时间，也是季度分片键
      * @param decisionTime 规则决策时间
      * @return 成功插入的记录数
      */
     @Insert("""
             INSERT INTO risk_evaluation_hit_detail (
-                risk_record_no, module_type, function_code, function_name, rule_id,
+                risk_record_no, evaluation_time, module_type, function_code, function_name, rule_id,
                 hit_element, hit_value_masked, risk_level, decision_result,
                 reason_code, decision_reason, decision_time, time_window_seconds, threshold_count,
                 elements_json, current_count, stage_code, stage_name, stage_order,
                 match_result, decision_effect
             ) VALUES (
-                #{riskRecordNo}, #{hit.moduleType}, #{hit.functionCode}, #{hit.functionName}, #{hit.ruleId},
+                #{riskRecordNo}, #{evaluationTime}, #{hit.moduleType}, #{hit.functionCode}, #{hit.functionName}, #{hit.ruleId},
                 #{hit.hitElement}, #{hit.hitValueMasked}, #{hit.riskLevel}, #{hit.decisionAction},
                 #{hit.reasonCode}, #{hit.decisionReason}, #{decisionTime}, #{hit.timeWindowSeconds}, #{hit.thresholdCount},
                 #{hit.elementsJson}, #{hit.currentCount}, #{hit.stageCode}, #{hit.stageName}, #{hit.stageOrder},
@@ -92,5 +124,6 @@ public interface DataRiskAuditMapper {
             """)
     int insertEvaluationHit(@Param("riskRecordNo") String riskRecordNo,
                             @Param("hit") RiskAuditHitMessage hit,
+                            @Param("evaluationTime") LocalDateTime evaluationTime,
                             @Param("decisionTime") LocalDateTime decisionTime);
 }

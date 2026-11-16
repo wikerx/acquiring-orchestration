@@ -5,6 +5,8 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.risk.RiskDTOs;
+import com.scott.payment.admin.dto.exporttask.AdminRiskExportInternalDTOs;
+import com.scott.payment.admin.mapper.AdminRiskAuditMapper;
 import com.scott.payment.admin.mapper.RiskManagementMapper;
 import com.scott.payment.admin.service.MerchantAccessApprovalNotificationService;
 import com.scott.payment.admin.support.approval.MerchantAccessApprovalStatus;
@@ -25,6 +27,8 @@ import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
@@ -35,6 +39,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -43,6 +48,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -65,6 +71,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -73,6 +80,8 @@ import java.util.stream.Stream;
 @Service
 @Slf4j
 public class AdminRiskManagementApplicationService {
+
+    private final com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity;
 
     /**
      * 风控动态 JSON 对象的类型令牌，保留规则异构字段并避免原始类型转换。
@@ -117,6 +126,8 @@ public class AdminRiskManagementApplicationService {
      * 文件批量导入的配置来源。
      */
     private static final String SOURCE_IMPORT = "IMPORT";
+    /** 由系统交易加黑工作流从可信交易事实派生。 */
+    private static final String SOURCE_SYSTEM_TRADE = "SYSTEM_TRADE";
     /**
      * AML 强制拦截模块编码。
      */
@@ -412,6 +423,21 @@ public class AdminRiskManagementApplicationService {
     );
 
     private final RiskManagementMapper riskManagementMapper;
+
+    /**
+     * 风控审计季度分片专用数据访问入口。
+     */
+    private final AdminRiskAuditMapper riskAuditMapper;
+
+    /**
+     * 风控审计分片运行配置，用于在迁移窗口内保留原单表兼容查询。
+     */
+    private final RiskAuditShardingProperties riskAuditShardingProperties;
+
+    /**
+     * 风控审计逻辑数据源执行器，用于隔离排行统计查询与商户主数据查询。
+     */
+    private final RiskAuditLogicalReadExecutor riskAuditReadExecutor;
     private final RiskListValueNormalizer riskListValueNormalizer;
     private final AdminRiskImportLogService importLogService;
 
@@ -436,7 +462,10 @@ public class AdminRiskManagementApplicationService {
     /**
      * 创建风控管理应用服务。
      *
-     * @param riskManagementMapper     风控管理数据访问接口
+     * @param riskManagementMapper     风控配置与迁移前审计兼容数据访问接口
+     * @param riskAuditMapper          风控审计季度分片数据访问接口
+     * @param riskAuditShardingProperties 风控审计分片运行配置
+     * @param riskAuditReadExecutor    风控审计逻辑数据源执行器
      * @param riskListValueNormalizer  名单匹配值归一化组件
      * @param importLogService         导入批次日志服务
      * @param cacheInvalidationCoordinator 风控规则缓存失效协调器
@@ -447,6 +476,9 @@ public class AdminRiskManagementApplicationService {
      * @param approvalNotificationService 审批结果通知服务，在事务提交后发送邮件
      */
     public AdminRiskManagementApplicationService(RiskManagementMapper riskManagementMapper,
+                                                 AdminRiskAuditMapper riskAuditMapper,
+                                                 RiskAuditShardingProperties riskAuditShardingProperties,
+                                                 RiskAuditLogicalReadExecutor riskAuditReadExecutor,
                                                  RiskListValueNormalizer riskListValueNormalizer,
                                                  AdminRiskImportLogService importLogService,
                                                  RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator,
@@ -454,8 +486,13 @@ public class AdminRiskManagementApplicationService {
                                                  ExcelI18nMessageResolver excelI18nMessageResolver,
                                                  ExcelLocaleResolver excelLocaleResolver,
                                                  BaseMerchantInfoMapper merchantInfoMapper,
-                                                 MerchantAccessApprovalNotificationService approvalNotificationService) {
+                                                 MerchantAccessApprovalNotificationService approvalNotificationService,
+            com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity) {
+        this.uploadSecurity = uploadSecurity;
         this.riskManagementMapper = riskManagementMapper;
+        this.riskAuditMapper = riskAuditMapper;
+        this.riskAuditShardingProperties = riskAuditShardingProperties;
+        this.riskAuditReadExecutor = riskAuditReadExecutor;
         this.riskListValueNormalizer = riskListValueNormalizer;
         this.importLogService = importLogService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
@@ -473,6 +510,16 @@ public class AdminRiskManagementApplicationService {
      */
     public List<RiskDTOs.FunctionDefinitionResponse> functions() {
         return RiskFunctionDefinition.all().stream().map(this::toDefinitionResponse).toList();
+    }
+
+    /**
+     * 校验当前操作人是否具备指定受控风控功能的导出权限。
+     *
+     * @param moduleType 风控模块类型
+     * @param functionCode 风控功能编码
+     */
+    public void ensureExportPermission(String moduleType, String functionCode) {
+        ensureFunctionPermission(RiskFunctionDefinition.require(moduleType, functionCode), "export");
     }
 
     /**
@@ -677,6 +724,152 @@ public class AdminRiskManagementApplicationService {
             lastData = data;
         }
         return latestListRecord(definition, lastData);
+    }
+
+    /**
+     * 从可信交易事实准备普通黑名单候选项。浏览器不得提供 trustedMasked/trustedHash；
+     * 两者只用于已持久化 PAN 哈希的卡号黑名单，其余功能仍按普通归一化规则计算。
+     */
+    public DerivedListPlan prepareDerivedList(String functionCode,
+                                              String merchantScope,
+                                              String merchantId,
+                                              RiskDTOs.RiskListSaveRequest request,
+                                              String trustedMasked,
+                                              String trustedHash,
+                                              String trustedCardBrand,
+                                              String actionType) {
+        RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_BLACK, functionCode);
+        if (definition.isRegionFunction()) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "高风险区域必须使用区域候选接口");
+        }
+        ensureFunctionPermission(definition, tradeBlackPermissionAction(actionType));
+        request.setMerchantScope(defaultIfBlank(merchantScope, DEFAULT_SCOPE));
+        request.setMerchantId(trim(merchantId));
+        request.setValidityType(VALIDITY_SUPER_LONG);
+        request.setStatus(1);
+        Map<String, Object> data;
+        if ("cardNo".equals(functionCode) && StringUtils.hasText(trustedMasked) && StringUtils.hasText(trustedHash)) {
+            data = listData(definition, request, SOURCE_SYSTEM_TRADE,
+                    RiskListValueNormalizer.NormalizedValue.fixed(trustedMasked.trim(), trustedHash.trim(), null));
+        } else {
+            data = listData(definition, request, SOURCE_SYSTEM_TRADE);
+        }
+        if (("cardNo".equals(functionCode) || "cardBin".equals(functionCode))
+                && StringUtils.hasText(trustedCardBrand)) {
+            data.put("cardBrand", upper(trustedCardBrand));
+        }
+        Long activeId = riskManagementMapper.selectActiveListIdByHash(
+                definition.getTableName(),
+                asString(data.get("merchantScope")),
+                asString(data.get("merchantId")),
+                asString(data.get("matchValueHash")));
+        return new DerivedListPlan(definition, false, data, activeId);
+    }
+
+    /** 从可信交易地址准备高风险区域候选项。 */
+    public DerivedListPlan prepareDerivedRegion(RiskDTOs.RegionSaveRequest request, String actionType) {
+        RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_BLACK, FUNCTION_REGION);
+        ensureFunctionPermission(definition, tradeBlackPermissionAction(actionType));
+        request.setValidityType(VALIDITY_SUPER_LONG);
+        request.setStatus(1);
+        Map<String, Object> data = regionData(request, SOURCE_SYSTEM_TRADE);
+        Long activeId = riskManagementMapper.selectActiveRegionId(
+                asString(data.get("merchantScope")),
+                asString(data.get("merchantId")),
+                asString(data.get("regionMatchLevel")),
+                asString(data.get("countryAlpha3")),
+                asString(data.get("stateProvinceName")),
+                asString(data.get("cityName")));
+        return new DerivedListPlan(definition, true, data, activeId);
+    }
+
+    /**
+     * 幂等执行一个服务端派生候选项。名单表自身的唯一键处理并发重复新增，解除采用软删除。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public String applyDerivedList(DerivedListPlan plan, String actionType, String reason) {
+        if (plan == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "黑名单候选项不能为空");
+        }
+        String permissionAction = tradeBlackPermissionAction(actionType);
+        ensureFunctionPermission(plan.definition(), permissionAction);
+        if ("ADD".equalsIgnoreCase(actionType)) {
+            if (plan.activeId() != null) {
+                return "ALREADY_EXISTS";
+            }
+            cacheInvalidationCoordinator.prepare();
+            plan.data().put("remark", trim(reason));
+            try {
+                int rows = plan.region()
+                        ? riskManagementMapper.insertRegion(plan.data(), currentOperatorName())
+                        : riskManagementMapper.insertListRecord(
+                                plan.definition().getTableName(), plan.data(), currentOperatorName(),
+                                hasRangeFields(plan.definition()), hasCardBrandField(plan.definition()),
+                                hasCountryFields(plan.definition()), hasCountryNumericField(plan.definition()),
+                                hasIpVersionField(plan.definition()), hasSourceHostField(plan.definition()));
+                if (rows != 1) {
+                    throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "写入黑名单失败");
+                }
+                writeChange(plan.definition(), null, CHANGE_OPERATION_CREATE, null, plan.data());
+                return "ADDED";
+            } catch (DuplicateKeyException exception) {
+                return "ALREADY_EXISTS";
+            }
+        }
+        if (plan.activeId() == null) {
+            return "ALREADY_MISSING";
+        }
+        cacheInvalidationCoordinator.prepare();
+        Map<String, Object> before = requireRecord(plan.definition().getTableName(), plan.activeId());
+        int rows = riskManagementMapper.softDelete(
+                plan.definition().getTableName(), plan.activeId(), currentOperatorName());
+        if (rows == 0) {
+            return "ALREADY_MISSING";
+        }
+        writeChange(plan.definition(), plan.activeId(), CHANGE_OPERATION_DELETE, before, null);
+        return "RELEASED";
+    }
+
+    private String tradeBlackPermissionAction(String actionType) {
+        if ("ADD".equalsIgnoreCase(actionType)) {
+            return "add";
+        }
+        if ("RELEASE".equalsIgnoreCase(actionType)) {
+            return "remove";
+        }
+        throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "交易加黑操作类型不正确");
+    }
+
+    /** 服务端派生的实际名单写入计划；不会序列化到浏览器。 */
+    public record DerivedListPlan(RiskFunctionDefinition definition,
+                                  boolean region,
+                                  Map<String, Object> data,
+                                  Long activeId) {
+        public String maskedValue() {
+            if (region) {
+                return List.of(
+                                value(data.get("countryAlpha3")),
+                                value(data.get("stateProvinceName")),
+                                value(data.get("cityName")))
+                        .stream()
+                        .filter(StringUtils::hasText)
+                        .collect(Collectors.joining("/"));
+            }
+            return value(data.get("matchValueMasked"));
+        }
+
+        public String matchKey() {
+            if (region) {
+                return String.join("|",
+                        value(data.get("regionMatchLevel")), value(data.get("countryAlpha3")),
+                        value(data.get("stateProvinceName")), value(data.get("cityName")));
+            }
+            return value(data.get("matchValueHash"));
+        }
+
+        private static String value(Object value) {
+            return value == null ? "" : String.valueOf(value);
+        }
     }
 
     /**
@@ -1241,8 +1434,18 @@ public class AdminRiskManagementApplicationService {
      */
     @DS(DataSourceName.SLAVE)
     public List<RiskDTOs.MerchantRiskRankingResponse> merchantRiskRanking() {
-        List<Map<String, Object>> rows = riskManagementMapper.selectMerchantRiskRanking(20);
-        return rows == null ? List.of() : rows.stream().map(this::toMerchantRiskRankingResponse).toList();
+        LocalDateTime endTimeExclusive = LocalDateTime.now(PLATFORM_ZONE_ID);
+        LocalDateTime startTime = endTimeExclusive.minusDays(30);
+        List<Map<String, Object>> rows = riskAuditReadExecutor.read(() -> riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectMerchantRiskRanking(startTime, endTimeExclusive, 20)
+                : riskManagementMapper.selectMerchantRiskRanking(20));
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> merchantNames = merchantMasterNames(rows);
+        return rows.stream()
+                .map(row -> toMerchantRiskRankingResponse(row, merchantNames))
+                .toList();
     }
 
     /**
@@ -1267,7 +1470,7 @@ public class AdminRiskManagementApplicationService {
      * @param request 商户、订单、风险等级、决策结果、时间范围和分页条件
      * @return 风控评估记录分页数据
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public PageResult<RiskDTOs.RiskEvaluationResponse> pageTodayRiskEvents(
             RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null
@@ -1291,12 +1494,29 @@ public class AdminRiskManagementApplicationService {
      * @param request 查询条件，允许按交易标识、风险等级、决策结果和评估时间范围过滤
      * @return 风控评估记录分页数据
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public PageResult<RiskDTOs.RiskEvaluationResponse> pageEvaluations(
             RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null ? new RiskDTOs.EvaluationQueryRequest() : request;
-        validateEvaluationTimeRange(query);
-        long total = riskManagementMapper.countEvaluations(
+        LocalDateTime exactEvaluationTime = prepareEvaluationQuery(query);
+        if (riskAuditShardingProperties.isEnabled()
+                && StringUtils.hasText(query.getRiskRecordNo())
+                && exactEvaluationTime == null) {
+            return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
+        }
+        long total = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.countEvaluations(
+                query.getRiskRecordNo(),
+                query.getMerchantId(),
+                query.getMerchantOrderNo(),
+                query.getPaymentOrderNo(),
+                query.getDecisionResult(),
+                query.getRiskLevel(),
+                exactEvaluationTime,
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive())
+                : riskManagementMapper.countEvaluations(
+                query.getRiskRecordNo(),
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
@@ -1304,7 +1524,22 @@ public class AdminRiskManagementApplicationService {
                 query.getRiskLevel(),
                 query.getEvaluationStartTime(),
                 query.getEvaluationEndTimeExclusive());
-        List<Map<String, Object>> rows = riskManagementMapper.selectEvaluations(
+        List<Map<String, Object>> rows = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectEvaluations(
+                query.getRiskRecordNo(),
+                query.getMerchantId(),
+                query.getMerchantOrderNo(),
+                query.getPaymentOrderNo(),
+                query.getDecisionResult(),
+                query.getRiskLevel(),
+                exactEvaluationTime,
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive(),
+                offset(query.safePageNo(), query.safePageSize()),
+                query.safePageSize()
+        )
+                : riskManagementMapper.selectEvaluations(
+                query.getRiskRecordNo(),
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
@@ -1313,12 +1548,39 @@ public class AdminRiskManagementApplicationService {
                 query.getEvaluationStartTime(),
                 query.getEvaluationEndTimeExclusive(),
                 offset(query.safePageNo(), query.safePageSize()),
-                query.safePageSize()
-        );
+                query.safePageSize());
         List<RiskDTOs.RiskEvaluationResponse> normalizedRows = rows == null ? List.of() : rows.stream()
                 .map(this::toEvaluationResponse)
                 .toList();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), normalizedRows);
+    }
+
+    /**
+     * 归一化风控记录查询时间：精确记录号优先走定位表，普通列表默认限定平台当天。
+     *
+     * @param query 待归一化查询条件
+     * @return 分片启用时由定位表解析出的精确评估时间；其他场景返回 {@code null}
+     */
+    private LocalDateTime prepareEvaluationQuery(RiskDTOs.EvaluationQueryRequest query) {
+        if (StringUtils.hasText(query.getRiskRecordNo())) {
+            query.setRiskRecordNo(query.getRiskRecordNo().trim());
+            query.setEvaluationStartTime(null);
+            query.setEvaluationEndTimeExclusive(null);
+            return riskAuditShardingProperties.isEnabled()
+                    ? riskAuditMapper.selectEvaluationTime(query.getRiskRecordNo())
+                    : null;
+        }
+        boolean startMissing = query.getEvaluationStartTime() == null;
+        boolean endMissing = query.getEvaluationEndTimeExclusive() == null;
+        if (startMissing && endMissing) {
+            LocalDate platformDate = LocalDate.now(PLATFORM_ZONE_ID);
+            query.setEvaluationStartTime(platformDate.atStartOfDay());
+            query.setEvaluationEndTimeExclusive(platformDate.plusDays(1).atStartOfDay());
+        } else if (startMissing || endMissing) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "评估时间范围必须同时包含开始和结束时间");
+        }
+        validateEvaluationTimeRange(query);
+        return null;
     }
 
     /**
@@ -1338,7 +1600,7 @@ public class AdminRiskManagementApplicationService {
      * @param riskRecordNo 风控记录号
      * @return 命中明细列表
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public List<RiskDTOs.RiskEvaluationDetailResponse> evaluationHits(String riskRecordNo) {
         return evaluationDetails(riskRecordNo);
     }
@@ -1349,31 +1611,95 @@ public class AdminRiskManagementApplicationService {
      * @param riskRecordNo 风控记录号
      * @return 按执行阶段排列的规则评估记录
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.RISK_AUDIT)
     public List<RiskDTOs.RiskEvaluationDetailResponse> evaluationDetails(String riskRecordNo) {
         if (!StringUtils.hasText(riskRecordNo)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控记录号不能为空");
         }
-        List<Map<String, Object>> rows = riskManagementMapper.selectEvaluationHits(riskRecordNo);
+        String normalizedRecordNo = riskRecordNo.trim();
+        List<Map<String, Object>> rows;
+        if (riskAuditShardingProperties.isEnabled()) {
+            LocalDateTime evaluationTime = riskAuditMapper.selectEvaluationTime(normalizedRecordNo);
+            rows = evaluationTime == null
+                    ? List.of()
+                    : riskAuditMapper.selectEvaluationDetails(normalizedRecordNo, evaluationTime);
+        } else {
+            rows = riskManagementMapper.selectEvaluationHits(normalizedRecordNo);
+        }
         return rows == null ? List.of() : rows.stream().map(this::toEvaluationDetailResponse).toList();
+    }
+
+    /**
+     * 分页查询单笔风控评估的全部实际执行明细。
+     *
+     * <p>分页统计和明细读取使用同一风控记录号及稳定排序。分片开启时先通过定位表获取
+     * 原始评估时间，再精确路由到主记录和执行明细所在季度；分片关闭时保留原单表兼容路径。</p>
+     *
+     * @param riskRecordNo 风控记录号
+     * @param request      分页参数，允许为空
+     * @return 风控执行明细分页结果
+     */
+    @DS(DataSourceName.RISK_AUDIT)
+    public PageResult<RiskDTOs.RiskEvaluationDetailResponse> pageEvaluationDetails(
+            String riskRecordNo,
+            RiskDTOs.EvaluationDetailQueryRequest request) {
+        if (!StringUtils.hasText(riskRecordNo)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控记录号不能为空");
+        }
+        String normalizedRecordNo = riskRecordNo.trim();
+        RiskDTOs.EvaluationDetailQueryRequest query = request == null
+                ? new RiskDTOs.EvaluationDetailQueryRequest()
+                : request;
+        LocalDateTime evaluationTime = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectEvaluationTime(normalizedRecordNo)
+                : null;
+        if (riskAuditShardingProperties.isEnabled() && evaluationTime == null) {
+            return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
+        }
+        long total = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.countEvaluationDetails(normalizedRecordNo, evaluationTime)
+                : riskManagementMapper.countEvaluationHits(normalizedRecordNo);
+        if (total == 0L) {
+            return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
+        }
+        List<Map<String, Object>> rows = riskAuditShardingProperties.isEnabled()
+                ? riskAuditMapper.selectEvaluationDetailsPage(
+                normalizedRecordNo,
+                evaluationTime,
+                offset(query.safePageNo(), query.safePageSize()),
+                query.safePageSize())
+                : riskManagementMapper.selectEvaluationHitsPage(
+                normalizedRecordNo,
+                offset(query.safePageNo(), query.safePageSize()),
+                query.safePageSize());
+        List<RiskDTOs.RiskEvaluationDetailResponse> details = rows == null
+                ? List.of()
+                : rows.stream().map(this::toEvaluationDetailResponse).toList();
+        return PageResult.of(total, query.safePageNo(), query.safePageSize(), details);
     }
 
     /**
      * 分页查询系统交易加黑记录。
      *
-     * @param request 查询条件，允许按商户、订单号、加黑对象类型和状态过滤
+     * @param request 查询条件，允许按商户、订单号、加黑对象类型、状态、操作人和操作时间过滤
      * @return 系统交易加黑分页数据
      */
     @DS(DataSourceName.SLAVE)
     public PageResult<RiskDTOs.TradeBlackResponse> pageTradeBlack(RiskDTOs.TradeBlackQueryRequest request) {
         RiskDTOs.TradeBlackQueryRequest query = request == null ? new RiskDTOs.TradeBlackQueryRequest() : request;
-        long total = riskManagementMapper.countTradeBlack(query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(), query.getBlackTargetType(), query.getStatus());
+        long total = riskManagementMapper.countTradeBlack(
+                query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(),
+                query.getBlackTargetType(), query.getStatus(), query.getOperator(),
+                query.getOperationStartTime(), query.getOperationEndTimeExclusive());
         List<Map<String, Object>> sourceRows = riskManagementMapper.selectTradeBlack(
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
                 query.getBlackTargetType(),
                 query.getStatus(),
+                query.getOperator(),
+                query.getOperationStartTime(),
+                query.getOperationEndTimeExclusive(),
                 offset(query.safePageNo(), query.safePageSize()),
                 query.safePageSize()
         );
@@ -1520,6 +1846,262 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
+     * 按异步任务冻结的受控功能和筛选条件返回一页动态列安全投影。
+     *
+     * <p>该内部入口不依赖浏览器会话；功能级导出权限已在任务提交时校验，执行阶段仍会重新
+     * 校验功能定义白名单，且名单匹配值始终使用脱敏字段。</p>
+     *
+     * @param request service-data 内部分页请求
+     * @return 动态列、脱敏行和总行数
+     */
+    @DS(DataSourceName.SLAVE)
+    public AdminRiskExportInternalDTOs.PageResponse pageExport(
+            AdminRiskExportInternalDTOs.PageRequest request) {
+        if (request == null || request.getPageNo() == null || request.getPageNo() < 1
+                || request.getPageSize() == null || request.getPageSize() < 1
+                || request.getPageSize() > 1000) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        Locale previousLocale = LocaleContextHolder.getLocale();
+        Locale locale = StringUtils.hasText(request.getLocale())
+                ? Locale.forLanguageTag(request.getLocale()) : Locale.SIMPLIFIED_CHINESE;
+        LocaleContextHolder.setLocale(locale);
+        try {
+            if ("TRADE_BLACK".equalsIgnoreCase(request.getModuleType())
+                    && "system".equals(request.getFunctionCode())) {
+                return pageTradeBlackExport(request, locale);
+            }
+            RiskFunctionDefinition definition = RiskFunctionDefinition.require(
+                    request.getModuleType(), request.getFunctionCode());
+            RiskExportPage source = definition.isRuleFunction()
+                    ? loadRuleExportPage(definition, request)
+                    : loadListExportPage(definition, request);
+            AdminRiskExportInternalDTOs.PageResponse response = new AdminRiskExportInternalDTOs.PageResponse();
+            response.setTotal(source.total());
+            response.setPageNo(request.getPageNo());
+            response.setPageSize(request.getPageSize());
+            response.setTitle(riskExcelTitle(definition, locale, "excel.risk.exportSuffix"));
+            response.setColumns(excelColumns(definition).stream().map(column -> {
+                AdminRiskExportInternalDTOs.DynamicColumn item = new AdminRiskExportInternalDTOs.DynamicColumn();
+                item.setKey(column.key());
+                item.setHeader(column.header());
+                item.setWidth(column.width());
+                item.setAlign(column.align().name());
+                return item;
+            }).toList());
+            response.setRecords(exportRows(definition, source.rows()));
+            return response;
+        } finally {
+            LocaleContextHolder.setLocale(previousLocale);
+        }
+    }
+
+    /** 按冻结条件返回系统交易加黑记录的脱敏导出页。 */
+    private AdminRiskExportInternalDTOs.PageResponse pageTradeBlackExport(
+            AdminRiskExportInternalDTOs.PageRequest request,
+            Locale locale) {
+        AdminRiskExportInternalDTOs.RiskConfigQuery query = request.getQuery() == null
+                ? new AdminRiskExportInternalDTOs.RiskConfigQuery() : request.getQuery();
+        long total = riskManagementMapper.countTradeBlack(
+                query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(),
+                query.getBlackTargetType(), query.getStatus(), query.getOperator(),
+                query.getOperationStartTime(), query.getOperationEndTimeExclusive());
+        List<Map<String, Object>> sourceRows = riskManagementMapper.selectTradeBlack(
+                query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(),
+                query.getBlackTargetType(), query.getStatus(), query.getOperator(),
+                query.getOperationStartTime(), query.getOperationEndTimeExclusive(),
+                offset(request.getPageNo(), request.getPageSize()), request.getPageSize());
+        AdminRiskExportInternalDTOs.PageResponse response = new AdminRiskExportInternalDTOs.PageResponse();
+        response.setTotal(total);
+        response.setPageNo(request.getPageNo());
+        response.setPageSize(request.getPageSize());
+        response.setTitle(excelI18nMessageResolver.resolve("excel.tradeBlack.record.title", locale));
+        response.setColumns(tradeBlackExportColumns(locale));
+        response.setRecords(sourceRows == null ? List.of()
+                : sourceRows.stream().map(row -> tradeBlackExportRow(row, locale)).toList());
+        return response;
+    }
+
+    /** 构建系统交易加黑导出列。 */
+    private List<AdminRiskExportInternalDTOs.DynamicColumn> tradeBlackExportColumns(Locale locale) {
+        return List.of(
+                dynamicColumn("merchant_id", "excel.tradeBlack.record.merchantId", 18, HorizontalAlignment.LEFT, locale),
+                dynamicColumn("merchant_order_no", "excel.tradeBlack.record.merchantOrderNo", 28, HorizontalAlignment.LEFT, locale),
+                dynamicColumn("payment_order_no", "excel.tradeBlack.record.paymentOrderNo", 28, HorizontalAlignment.LEFT, locale),
+                dynamicColumn("target_type_label", "excel.tradeBlack.record.targetType", 24, HorizontalAlignment.LEFT, locale),
+                dynamicColumn("black_target_value_masked", "excel.tradeBlack.record.maskedValue", 28, HorizontalAlignment.LEFT, locale),
+                dynamicColumn("action_reason", "excel.tradeBlack.record.reason", 32, HorizontalAlignment.LEFT, locale),
+                dynamicColumn("operator", "excel.tradeBlack.record.operator", 18, HorizontalAlignment.LEFT, locale),
+                dynamicColumn("status_label", "excel.tradeBlack.record.status", 14, HorizontalAlignment.CENTER, locale),
+                dynamicColumn("update_time", "excel.tradeBlack.record.operationTime", 22, HorizontalAlignment.CENTER, locale)
+        );
+    }
+
+    /** 创建内部动态列传输对象。 */
+    private AdminRiskExportInternalDTOs.DynamicColumn dynamicColumn(
+            String key, String headerKey, int width, HorizontalAlignment alignment, Locale locale) {
+        AdminRiskExportInternalDTOs.DynamicColumn column = new AdminRiskExportInternalDTOs.DynamicColumn();
+        column.setKey(key);
+        column.setHeader(excelI18nMessageResolver.resolve(headerKey, locale));
+        column.setWidth(width);
+        column.setAlign(alignment.name());
+        return column;
+    }
+
+    /** 将交易加黑数据库行转换为国际化且仅含脱敏值的导出行。 */
+    private Map<String, Object> tradeBlackExportRow(Map<String, Object> source, Locale locale) {
+        Map<String, Object> target = new LinkedHashMap<>(source);
+        String targetType = asString(firstValue(source, "blackTargetType", "black_target_type"));
+        target.put("target_type_label", excelI18nMessageResolver.resolve(
+                "excel.tradeBlack.function." + tradeBlackFunctionCode(targetType), locale));
+        Integer status = asInteger(source.get("status"));
+        target.put("status_label", excelI18nMessageResolver.resolve(
+                status != null && status == 1
+                        ? "excel.tradeBlack.record.status.blackened"
+                        : "excel.tradeBlack.record.status.released", locale));
+        return target;
+    }
+
+    /** 兼容历史大写对象类型并返回当前黑名单功能编码。 */
+    private String tradeBlackFunctionCode(String targetType) {
+        if (!StringUtils.hasText(targetType)) {
+            return "unknown";
+        }
+        return switch (targetType) {
+            case "CARD", "CARD_NO" -> "cardNo";
+            case "CARD_FINGERPRINT" -> "cardFingerprint";
+            case "CARD_BIN" -> "cardBin";
+            case "CARDHOLDER_NAME" -> "cardholderName";
+            case "ISSUER_COUNTRY" -> "issuerCountry";
+            case "EMAIL" -> "email";
+            case "EMAIL_USERNAME" -> "emailUsername";
+            case "EMAIL_DOMAIN" -> "emailDomain";
+            case "PHONE" -> "phone";
+            case "IP" -> "ip";
+            case "DEVICE", "DEVICE_FINGERPRINT" -> "deviceFingerprint";
+            case "BILLING_ADDRESS" -> "billingAddress";
+            case "BILLING_ZIP" -> "billingZip";
+            case "BILLING_COUNTRY" -> "billingCountry";
+            case "SHIPPING_ADDRESS" -> "shippingAddress";
+            case "SHIPPING_ZIP" -> "shippingZip";
+            case "SHIPPING_COUNTRY" -> "shippingCountry";
+            case "REGION" -> "region";
+            case "CUSTOMER" -> "customerId";
+            case "cardNo", "cardFingerprint", "cardBin", "cardholderName", "issuerCountry",
+                    "deviceFingerprint", "phone", "email", "emailUsername", "emailDomain", "ip",
+                    "billingAddress", "billingZip", "billingCountry", "shippingAddress", "shippingZip",
+                    "shippingCountry", "region", "customerId" -> targetType;
+            default -> "unknown";
+        };
+    }
+
+    /** 加载名单类风控配置的一页原始数据。 */
+    private RiskExportPage loadListExportPage(RiskFunctionDefinition definition,
+                                              AdminRiskExportInternalDTOs.PageRequest request) {
+        RiskDTOs.RiskListQueryRequest query = toListExportQuery(request.getQuery());
+        applyAmlGlobalScope(definition, query);
+        long pageOffset = offset(request.getPageNo(), request.getPageSize());
+        if (definition.isRegionFunction()) {
+            String countryAlpha3 = countryAlpha3FromAlpha2(query.getCountryAlpha2());
+            long total = riskManagementMapper.countRegion(query.getMerchantScope(), query.getMerchantId(),
+                    query.getMatchValue(), countryAlpha3, query.getStatus());
+            return new RiskExportPage(total, riskManagementMapper.selectRegionPage(
+                    query.getMerchantScope(), query.getMerchantId(), query.getMatchValue(), countryAlpha3,
+                    query.getStatus(), pageOffset, request.getPageSize()));
+        }
+        String cardBinLookupNumber = cardBinLookupNumber(definition, query.getMatchValue());
+        String countryAlpha3 = hasCountryFields(definition)
+                ? countryAlpha3FromAlpha2(query.getCountryAlpha2()) : query.getCountryAlpha2();
+        long total = riskManagementMapper.countList(definition.getTableName(), query.getMerchantScope(),
+                query.getMerchantId(), query.getMatchValue(), cardBinLookupNumber, countryAlpha3,
+                query.getStatus(), hasCountryFields(definition));
+        return new RiskExportPage(total, riskManagementMapper.selectListPage(
+                definition.getTableName(), query.getMerchantScope(), query.getMerchantId(),
+                query.getMatchValue(), cardBinLookupNumber, countryAlpha3, query.getStatus(), pageOffset,
+                request.getPageSize(), hasCountryFields(definition)));
+    }
+
+    /** 加载规则类风控配置的一页原始数据。 */
+    private RiskExportPage loadRuleExportPage(RiskFunctionDefinition definition,
+                                              AdminRiskExportInternalDTOs.PageRequest request) {
+        RiskDTOs.RiskRuleQueryRequest query = toRuleExportQuery(request.getQuery());
+        long pageOffset = offset(request.getPageNo(), request.getPageSize());
+        if (isSourceUrlRule(definition)) {
+            String sourceHost = normalizeSourceHostQuery(defaultIfBlank(query.getSourceHost(), query.getMatchValue()));
+            long total = riskManagementMapper.countSourceUrlRules(query.getMerchantId(), trim(query.getSourceUrl()),
+                    sourceHost, query.getStatus(), query.getApprovalStatus(), upper(query.getSubmitSource()));
+            return new RiskExportPage(total, riskManagementMapper.selectSourceUrlRulePage(
+                    query.getMerchantId(), trim(query.getSourceUrl()), sourceHost, query.getStatus(),
+                    query.getApprovalStatus(), upper(query.getSubmitSource()), pageOffset, request.getPageSize()));
+        }
+        String matchValue = normalizeRuleQueryMatchValue(definition, query.getMatchValue());
+        if (isMerchantLimitRule(definition)) {
+            long total = riskManagementMapper.countMerchantLimitRules(query.getMerchantScope(), query.getMerchantId(),
+                    query.getRuleName(), matchValue, query.getLimitType(), query.getStatus());
+            return new RiskExportPage(total, riskManagementMapper.selectMerchantLimitRulePage(
+                    query.getMerchantScope(), query.getMerchantId(), query.getRuleName(), matchValue,
+                    query.getLimitType(), query.getStatus(), pageOffset, request.getPageSize()));
+        }
+        if (isThreeDsRule(definition)) {
+            long total = riskManagementMapper.countThreeDsRules(query.getMerchantScope(), query.getMerchantId(),
+                    query.getRuleName(), upper(query.getRuleType()), upper(query.getChannelCode()),
+                    upper(query.getPaymentMethod()), upper(query.getCardBrand()), upper(query.getCurrency()),
+                    upper(query.getTriggerAction()), query.getStatus());
+            return new RiskExportPage(total, riskManagementMapper.selectThreeDsRulePage(
+                    query.getMerchantScope(), query.getMerchantId(), query.getRuleName(), upper(query.getRuleType()),
+                    upper(query.getChannelCode()), upper(query.getPaymentMethod()), upper(query.getCardBrand()),
+                    upper(query.getCurrency()), upper(query.getTriggerAction()), query.getStatus(), pageOffset,
+                    request.getPageSize()));
+        }
+        long total = riskManagementMapper.countRules(definition.getTableName(), query.getMerchantScope(),
+                query.getMerchantId(), query.getRuleName(), matchValue, query.getLimitType(), query.getCurrency(),
+                query.getStatus());
+        return new RiskExportPage(total, riskManagementMapper.selectRulePage(definition.getTableName(),
+                query.getMerchantScope(), query.getMerchantId(), query.getRuleName(), matchValue,
+                query.getLimitType(), query.getCurrency(), query.getStatus(), pageOffset, request.getPageSize()));
+    }
+
+    /** 将内部冻结条件复制到名单查询模型。 */
+    private RiskDTOs.RiskListQueryRequest toListExportQuery(AdminRiskExportInternalDTOs.RiskConfigQuery source) {
+        RiskDTOs.RiskListQueryRequest target = new RiskDTOs.RiskListQueryRequest();
+        if (source == null) {
+            return target;
+        }
+        target.setMerchantScope(source.getMerchantScope());
+        target.setMerchantId(source.getMerchantId());
+        target.setRuleName(source.getRuleName());
+        target.setMatchValue(source.getMatchValue());
+        target.setCountryAlpha2(source.getCountryAlpha2());
+        target.setStatus(source.getStatus());
+        return target;
+    }
+
+    /** 将内部冻结条件复制到规则查询模型。 */
+    private RiskDTOs.RiskRuleQueryRequest toRuleExportQuery(AdminRiskExportInternalDTOs.RiskConfigQuery source) {
+        RiskDTOs.RiskRuleQueryRequest target = new RiskDTOs.RiskRuleQueryRequest();
+        if (source == null) {
+            return target;
+        }
+        target.setMerchantScope(source.getMerchantScope());
+        target.setMerchantId(source.getMerchantId());
+        target.setRuleName(source.getRuleName());
+        target.setMatchValue(source.getMatchValue());
+        target.setSourceUrl(source.getSourceUrl());
+        target.setSourceHost(source.getSourceHost());
+        target.setLimitType(source.getLimitType());
+        target.setRuleType(source.getRuleType());
+        target.setChannelCode(source.getChannelCode());
+        target.setPaymentMethod(source.getPaymentMethod());
+        target.setCardBrand(source.getCardBrand());
+        target.setCurrency(source.getCurrency());
+        target.setTriggerAction(source.getTriggerAction());
+        target.setStatus(source.getStatus());
+        target.setApprovalStatus(source.getApprovalStatus());
+        target.setSubmitSource(source.getSubmitSource());
+        return target;
+    }
+
+    /**
      * 下载导入模板 Excel。
      *
      * @param moduleType   模块类型，只允许 RiskFunctionDefinition 中声明的固定值
@@ -1534,6 +2116,30 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
+     * 为模板中心生成系统内置风控模板正文，不经过浏览器下载响应。
+     *
+     * <p>该入口只供受控的内置模板初始化器调用；模块和功能仍由
+     * {@link RiskFunctionDefinition} 白名单解析，不能由外部请求决定表名或列。</p>
+     */
+    public byte[] builtinTemplateContent(String moduleType, String functionCode, Locale locale) {
+        Locale targetLocale = locale == null ? Locale.SIMPLIFIED_CHINESE : locale;
+        Locale previous = LocaleContextHolder.getLocale();
+        try {
+            LocaleContextHolder.setLocale(targetLocale);
+            RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
+            List<Map<String, Object>> rows = List.of(templateRow(definition));
+            String hint = excelI18nMessageResolver.resolve("excel.risk.templateHint", targetLocale);
+            String title = riskExcelTitle(definition, targetLocale, "excel.risk.templateSuffix");
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            excelExportService.exportDynamic(riskExcelRequest(
+                    definition, rows, hint, title, targetLocale, "SYSTEM"), output);
+            return output.toByteArray();
+        } finally {
+            LocaleContextHolder.setLocale(previous);
+        }
+    }
+
+    /**
      * 批量导入名单或规则 CSV/Excel。导入过程使用同一事务，任一数据行失败则整体回滚，批次与错误明细使用独立事务留痕。
      *
      * @param moduleType   模块类型，只允许 RiskFunctionDefinition 中声明的固定值
@@ -1541,6 +2147,10 @@ public class AdminRiskManagementApplicationService {
      * @param file         CSV 或 Excel 文件
      * @return 导入结果
      */
+    public void authorizeTradeBlackFunction(RiskFunctionDefinition definition, String actionType) {
+        ensureFunctionPermission(definition, tradeBlackPermissionAction(actionType));
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public RiskDTOs.ImportResultResponse importCsv(String moduleType, String functionCode, MultipartFile file) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
@@ -1548,6 +2158,7 @@ public class AdminRiskManagementApplicationService {
         if (file == null || file.isEmpty()) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请选择需要导入的文件");
         }
+        file = uploadSecurity.validate(file, java.util.Set.of("csv", "xls", "xlsx"), 5L * 1024 * 1024);
         List<ImportRow> rows = readImportRows(file);
         cacheInvalidationCoordinator.prepare();
         String batchNo = importBatchNo(definition);
@@ -1628,6 +2239,17 @@ public class AdminRiskManagementApplicationService {
             normalizeCountryListRequest(request);
         }
         RiskListValueNormalizer.NormalizedValue normalizedValue = riskListValueNormalizer.normalize(definition, request);
+        return listData(definition, request, sourceType, normalizedValue);
+    }
+
+    /**
+     * 使用服务端已归一化的可信交易值组装名单字段。该重载只供系统交易加黑使用，
+     * 防止为了卡号名单而把完整 PAN 重新引入管理端或浏览器。
+     */
+    private Map<String, Object> listData(RiskFunctionDefinition definition,
+                                         RiskDTOs.RiskListSaveRequest request,
+                                         String sourceType,
+                                         RiskListValueNormalizer.NormalizedValue normalizedValue) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("merchantScope", defaultIfBlank(request.getMerchantScope(), DEFAULT_SCOPE));
         data.put("merchantId", trim(request.getMerchantId()));
@@ -2196,16 +2818,53 @@ public class AdminRiskManagementApplicationService {
      * @param row Mapper 返回的商户风险统计行
      * @return 高风险商户排行响应
      */
-    private RiskDTOs.MerchantRiskRankingResponse toMerchantRiskRankingResponse(Map<String, Object> row) {
+    private RiskDTOs.MerchantRiskRankingResponse toMerchantRiskRankingResponse(
+            Map<String, Object> row,
+            Map<String, String> merchantNames) {
         RiskDTOs.MerchantRiskRankingResponse response = new RiskDTOs.MerchantRiskRankingResponse();
         response.setMerchantId(asString(firstValue(row, "merchantId", "merchant_id")));
-        response.setMerchantName(asString(firstValue(row, "merchantName", "merchant_name")));
+        response.setMerchantName(merchantRankingName(row, response.getMerchantId(), merchantNames));
         response.setRiskCount(defaultLong(asLong(firstValue(row, "riskCount", "risk_count"))));
         response.setHighRiskCount(defaultLong(asLong(firstValue(row, "highRiskCount", "high_risk_count"))));
         response.setRejectCount(defaultLong(asLong(firstValue(row, "rejectCount", "reject_count"))));
         response.setLatestEvaluationTime(asLocalDateTime(
                 firstValue(row, "latestEvaluationTime", "latest_evaluation_time")));
         return response;
+    }
+
+    /**
+     * 批量查询排行涉及的商户主体名称，避免逐行回查商户主数据。
+     */
+    private Map<String, String> merchantMasterNames(List<Map<String, Object>> rows) {
+        Set<String> merchantIds = rows.stream()
+                .map(row -> asString(firstValue(row, "merchantId", "merchant_id")))
+                .filter(merchantId -> StringUtils.hasText(merchantId) && !"-".equals(merchantId))
+                .collect(Collectors.toSet());
+        if (merchantIds.isEmpty()) {
+            return Map.of();
+        }
+        return merchantInfoMapper.selectList(Wrappers.<BaseMerchantInfoDO>query()
+                        .select("merchant_id", "merchant_name")
+                        .in("merchant_id", merchantIds)
+                        .eq("deleted", 0)).stream()
+                .filter(merchant -> StringUtils.hasText(merchant.getMerchantId())
+                        && StringUtils.hasText(merchant.getMerchantName()))
+                .collect(Collectors.toMap(BaseMerchantInfoDO::getMerchantId,
+                        BaseMerchantInfoDO::getMerchantName, (left, right) -> left));
+    }
+
+    /**
+     * 优先展示当前商户主体名称；主数据不可用时保留有效的风控快照名称。
+     */
+    private String merchantRankingName(Map<String, Object> row,
+                                       String merchantId,
+                                       Map<String, String> merchantNames) {
+        String masterName = merchantNames.get(merchantId);
+        if (StringUtils.hasText(masterName)) {
+            return masterName;
+        }
+        String snapshotName = asString(firstValue(row, "merchantName", "merchant_name"));
+        return "-".equals(snapshotName) ? null : snapshotName;
     }
 
     /**
@@ -4370,20 +5029,28 @@ public class AdminRiskManagementApplicationService {
                                 HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         String exportTitle = riskExcelTitle(definition, locale, titleSuffixKey);
-        excelExportService.exportDynamic(
-                ExcelDynamicExportRequest.builder()
-                        .fileName(exportTitle + "_" + timestampSuffix())
-                        .sheetName(exportTitle)
-                        .title(exportTitle)
-                        .operator(currentOperatorName())
-                        .exportTime(LocalDateTime.now())
-                        .locale(locale)
-                        .querySummary(querySummary)
-                        .columns(excelColumns(definition))
-                        .dataList(rows)
-                        .build(),
-                response
-        );
+        excelExportService.exportDynamic(riskExcelRequest(
+                definition, rows, querySummary, exportTitle, locale, currentOperatorName()), response);
+    }
+
+    /** 构建统一风控模板和导出工作簿请求。 */
+    private ExcelDynamicExportRequest riskExcelRequest(RiskFunctionDefinition definition,
+                                                       List<Map<String, Object>> rows,
+                                                       String querySummary,
+                                                       String exportTitle,
+                                                       Locale locale,
+                                                       String operator) {
+        return ExcelDynamicExportRequest.builder()
+                .fileName(exportTitle + "_" + timestampSuffix())
+                .sheetName(exportTitle)
+                .title(exportTitle)
+                .operator(operator)
+                .exportTime(LocalDateTime.now())
+                .locale(locale)
+                .querySummary(querySummary)
+                .columns(excelColumns(definition))
+                .dataList(rows)
+                .build();
     }
 
     /**
@@ -5216,6 +5883,10 @@ public class AdminRiskManagementApplicationService {
      * 封装 CSV 列编码、标签和取值规则。
      */
     private record CsvColumn(String key, String header, Function<Map<String, Object>, Object> extractor) {
+    }
+
+    /** 数据库聚合总数和当前页原始记录的内部载体。 */
+    private record RiskExportPage(long total, List<Map<String, Object>> rows) {
     }
 
     /**

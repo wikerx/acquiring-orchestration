@@ -268,7 +268,9 @@ public class MerchantNotificationPayload {
     }
 
     /**
-     * 当前交易的金额与汇率信息。
+     * 商户可见的标签金额与结算信息。
+     *
+     * <p>渠道交易金额、币种和交易汇率属于平台内部成本事实，不得进入商户回调载荷。</p>
      */
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -283,31 +285,6 @@ public class MerchantNotificationPayload {
          * 商户标签币种。
          */
         private String labelCurrency;
-
-        /**
-         * 上送渠道的交易金额。
-         */
-        private BigDecimal transactionAmount;
-
-        /**
-         * 上送渠道的交易币种。
-         */
-        private String transactionCurrency;
-
-        /**
-         * 首笔交易锁定的标签币种到交易币种汇率。
-         */
-        private BigDecimal transactionRate;
-
-        /**
-         * 汇率来源。
-         */
-        private String rateSource;
-
-        /**
-         * 带业务时区偏移的汇率锁定时间文本。
-         */
-        private String rateTime;
 
         /**
          * 商户结算币种。

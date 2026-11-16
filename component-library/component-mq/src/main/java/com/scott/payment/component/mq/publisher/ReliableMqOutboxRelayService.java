@@ -158,17 +158,22 @@ public class ReliableMqOutboxRelayService {
      * 从数据库刷新 pending、CLOSED 和最老积压 Gauge。
      */
     public void refreshMetrics() {
-        ReliableMqOutboxMetricsSnapshot snapshot = outboxStore.metricsSnapshot(producerService);
-        if (snapshot == null) {
-            return;
+        try {
+            ReliableMqOutboxMetricsSnapshot snapshot = outboxStore.metricsSnapshot(producerService);
+            if (snapshot != null) {
+                metrics.updateReliable(
+                        count(snapshot.getInitCount()),
+                        count(snapshot.getProcessingCount()),
+                        count(snapshot.getRetryWaitCount()),
+                        count(snapshot.getClosedCount()),
+                        snapshot.getOldestPendingTime(),
+                        LocalDateTime.now());
+            }
+            metrics.recordSnapshotRefresh(MqOutboxOperationalMetrics.RELIABLE_OUTBOX, "success");
+        } catch (RuntimeException exception) {
+            metrics.recordSnapshotRefresh(MqOutboxOperationalMetrics.RELIABLE_OUTBOX, "failed");
+            throw exception;
         }
-        metrics.updateReliable(
-                count(snapshot.getInitCount()),
-                count(snapshot.getProcessingCount()),
-                count(snapshot.getRetryWaitCount()),
-                count(snapshot.getClosedCount()),
-                snapshot.getOldestPendingTime(),
-                LocalDateTime.now());
     }
 
     /**

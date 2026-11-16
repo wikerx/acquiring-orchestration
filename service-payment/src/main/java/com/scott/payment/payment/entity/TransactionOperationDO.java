@@ -166,6 +166,11 @@ public class TransactionOperationDO implements Serializable {
     private BigDecimal labelAmount;
 
     /**
+     * 标签币种 ISO 4217 小数位精度，用于准确格式化商户动作金额。
+     */
+    private Integer labelCurrencyExponent;
+
+    /**
      * 系统交易币种。
      */
     private String transactionCurrency;
@@ -221,7 +226,7 @@ public class TransactionOperationDO implements Serializable {
     private String settlementBatchNo;
 
     /**
-     * 交易币种默认小数位精度。
+     * 渠道交易币种默认小数位精度。
      */
     private Integer currencyExponent;
 

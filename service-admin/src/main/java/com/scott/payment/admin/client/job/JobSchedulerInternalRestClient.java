@@ -5,6 +5,7 @@ import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
 import com.scott.payment.admin.client.job.dto.ShardingTablePreCreateRemoteRequest;
 import com.scott.payment.admin.config.JobSchedulerClientProperties;
 import com.scott.payment.admin.dto.monitor.JobExecutorNodeResponse;
+import com.scott.payment.admin.dto.monitor.JobExecutionTrendResponse;
 import com.scott.payment.admin.dto.monitor.JobHandlerOptionResponse;
 import com.scott.payment.admin.dto.monitor.JobManualTriggerRequest;
 import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
@@ -99,6 +100,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      * 任务运行日志分页查询内部接口。
      */
     private static final String RUN_LOG_SEARCH_PATH = "/internal/job/logs/search";
+
+    /**
+     * 任务运行日志后台导出分页查询内部接口，仅使用服务间 HMAC 鉴权。
+     */
+    private static final String RUN_LOG_EXPORT_SEARCH_PATH = "/internal/job/logs/export/search";
+
+    /**
+     * 最近七个自然日任务执行终态趋势内部接口。
+     */
+    private static final String RUN_LOG_TREND_PATH = "/internal/job/logs/trend";
 
     /**
      * 任务运行日志列表内部接口。
@@ -287,6 +298,42 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         CommonResult<PageResult<JobRunLogResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<PageResult<JobRunLogResponse>>>() {
+                }
+        );
+        return unwrapData(result);
+    }
+
+    /**
+     * 分页查询任务运行日志，供没有 Servlet 请求上下文的后台导出线程使用。
+     * <p>
+     * 请求仍由统一内部客户端附加 HMAC 签名，但不伪造或持久化管理员登录态。
+     * </p>
+     *
+     * @param request 任务、运行状态、时间范围和分页条件
+     * @return 运行日志分页结果
+     */
+    @Override
+    public PageResult<JobRunLogResponse> pageRunLogsForExport(JobRunLogQueryRequest request) {
+        String responseBody = doPost(serviceJobUrl(RUN_LOG_EXPORT_SEARCH_PATH), request);
+        CommonResult<PageResult<JobRunLogResponse>> result = JsonUtils.parseObject(
+                responseBody,
+                new TypeReference<CommonResult<PageResult<JobRunLogResponse>>>() {
+                }
+        );
+        return unwrapData(result);
+    }
+
+    /**
+     * 查询最近七个自然日的任务执行终态趋势。
+     *
+     * @return 固定包含七个日期点的趋势结果
+     */
+    @Override
+    public JobExecutionTrendResponse executionTrend() {
+        String responseBody = doGet(serviceJobUrl(RUN_LOG_TREND_PATH));
+        CommonResult<JobExecutionTrendResponse> result = JsonUtils.parseObject(
+                responseBody,
+                new TypeReference<CommonResult<JobExecutionTrendResponse>>() {
                 }
         );
         return unwrapData(result);

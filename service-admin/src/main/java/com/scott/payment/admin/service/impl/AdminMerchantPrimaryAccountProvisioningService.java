@@ -44,6 +44,7 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.auth.support.MerchantLocaleSupport;
 import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -67,6 +68,7 @@ import java.util.Set;
  * 管理端商户开户应用服务，负责在商户资料事务中创建独立管理员角色、主账号和强制 MFA，并在提交后发送开户通知
  */
 @Service
+@Slf4j
 public class AdminMerchantPrimaryAccountProvisioningService {
 
     private static final String ACCOUNT_ACTIVATION_TEMPLATE = "MERCHANT_ACCOUNT_ACTIVATION";
@@ -83,6 +85,18 @@ public class AdminMerchantPrimaryAccountProvisioningService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
     private static final String DATA_SCOPE_SELF = "SELF";
+    private static final Set<String> ONBOARDING_MENU_CODES = Set.of(
+            "merchant_info_catalog_v1",
+            "merchant_profile_maintenance_v1",
+            "merchant_info_edit_v1",
+            "merchant_access_config_catalog_v1",
+            "merchant_access_overview_v1"
+    );
+    private static final Set<String> ONBOARDING_PERMISSION_CODES = Set.of(
+            "merchant:info:view",
+            "merchant:info:edit",
+            "merchant:access-config:overview:view"
+    );
     /**
      * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
      */
@@ -150,9 +164,11 @@ public class AdminMerchantPrimaryAccountProvisioningService {
      */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public void provision(BaseMerchantInfoDO merchant) {
+    public void provisionOnboardingAccess(BaseMerchantInfoDO merchant) {
         requireProvisioningFields(merchant);
         if (hasProvisionedAccount(merchant.getMerchantId())) {
+            log.debug("商户进件账号已存在, event: MERCHANT_ONBOARDING_ACCOUNT_EXISTS, merchantId: {}",
+                    merchant.getMerchantId());
             return;
         }
         SysAppDO app = merchantApp();
@@ -164,8 +180,8 @@ public class AdminMerchantPrimaryAccountProvisioningService {
 
         LocalDateTime now = LocalDateTime.now();
         SysRoleDO role = createAdministratorRole(app, merchant, roleCode, now);
-        grantMerchantApplication(app.getId(), role.getId(), now);
-        grantMerchantScope(app.getId(), merchant.getMerchantId(), now);
+        grantMerchantApplication(app.getId(), role.getId(), now, false);
+        grantMerchantScope(app.getId(), merchant.getMerchantId(), now, false);
 
         SysUserDO user = createUser(merchant, now);
         SysAccountDO account = createAccount(app, merchant, user, accountLoginName, now);
@@ -173,6 +189,41 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         SysMerchantUserDO merchantUser = createMerchantUser(merchant, user, account, displayLoginAccount, now);
         bindAdministratorRole(app, merchant, merchantUser, role, now);
         createActivationRequestAndScheduleEmail(merchant, account, displayLoginAccount, now);
+        log.info("商户进件账号创建完成, event: MERCHANT_ONBOARDING_ACCOUNT_PROVISIONED, merchantId: {}, accountId: {}",
+                merchant.getMerchantId(), account.getId());
+    }
+
+    /**
+     * 将商户主账号从进件受限权限幂等升级为完整门户权限。
+     *
+     * <p>该动作仅由商户最终开通流程调用。账号尚未创建时会先创建进件账号；已有账号时不会
+     * 重发激活邮件，也不会重复创建用户和角色。</p>
+     *
+     * @param merchant 已通过全部开通门禁的商户资料
+     */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void activateFullAccess(BaseMerchantInfoDO merchant) {
+        requireProvisioningFields(merchant);
+        if (!hasProvisionedAccount(merchant.getMerchantId())) {
+            provisionOnboardingAccess(merchant);
+        }
+        SysAppDO app = merchantApp();
+        String roleCode = AuthConstants.DEFAULT_MERCHANT_ROLE + "_" + merchant.getMerchantId();
+        SysRoleDO role = roleMapper.selectOne(Wrappers.<SysRoleDO>lambdaQuery()
+                .eq(SysRoleDO::getAppId, app.getId())
+                .eq(SysRoleDO::getRoleCode, roleCode)
+                .eq(SysRoleDO::getStatus, AuthConstants.ENABLED)
+                .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
+                .last("LIMIT 1"));
+        if (role == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "商户管理员角色不存在或未启用");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        grantMerchantApplication(app.getId(), role.getId(), now, true);
+        grantMerchantScope(app.getId(), merchant.getMerchantId(), now, true);
+        log.info("商户门户完整权限开通完成, event: MERCHANT_PORTAL_FULL_ACCESS_ACTIVATED, merchantId: {}, roleId: {}",
+                merchant.getMerchantId(), role.getId());
     }
 
     /**
@@ -256,12 +307,26 @@ public class AdminMerchantPrimaryAccountProvisioningService {
     /**
      * 为商户授予允许访问的后台应用。
      */
-    private void grantMerchantApplication(Long appId, Long roleId, LocalDateTime now) {
+    private void grantMerchantApplication(Long appId,
+                                          Long roleId,
+                                          LocalDateTime now,
+                                          boolean fullAccess) {
         List<SysMenuDO> menus = menuMapper.selectList(Wrappers.<SysMenuDO>lambdaQuery()
                 .eq(SysMenuDO::getAppId, appId)
                 .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
                 .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED));
         for (SysMenuDO menu : menus) {
+            if (!fullAccess && !ONBOARDING_MENU_CODES.contains(menu.getMenuCode())) {
+                continue;
+            }
+            Long existingCount = roleMenuMapper.selectCount(Wrappers.<SysRoleMenuDO>lambdaQuery()
+                    .eq(SysRoleMenuDO::getAppId, appId)
+                    .eq(SysRoleMenuDO::getRoleId, roleId)
+                    .eq(SysRoleMenuDO::getMenuId, menu.getId())
+                    .eq(SysRoleMenuDO::getDeleted, AuthConstants.NOT_DELETED));
+            if (existingCount != null && existingCount > 0) {
+                continue;
+            }
             SysRoleMenuDO relation = new SysRoleMenuDO();
             relation.setAppId(appId);
             relation.setRoleId(roleId);
@@ -275,6 +340,17 @@ public class AdminMerchantPrimaryAccountProvisioningService {
                 .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
                 .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED));
         for (SysPermissionDO permission : permissions) {
+            if (!fullAccess && !ONBOARDING_PERMISSION_CODES.contains(permission.getPermissionCode())) {
+                continue;
+            }
+            Long existingCount = rolePermissionMapper.selectCount(Wrappers.<SysRolePermissionDO>lambdaQuery()
+                    .eq(SysRolePermissionDO::getAppId, appId)
+                    .eq(SysRolePermissionDO::getRoleId, roleId)
+                    .eq(SysRolePermissionDO::getPermissionId, permission.getId())
+                    .eq(SysRolePermissionDO::getDeleted, AuthConstants.NOT_DELETED));
+            if (existingCount != null && existingCount > 0) {
+                continue;
+            }
             SysRolePermissionDO relation = new SysRolePermissionDO();
             relation.setAppId(appId);
             relation.setRoleId(roleId);
@@ -295,12 +371,33 @@ public class AdminMerchantPrimaryAccountProvisioningService {
      * @param merchantId 新开户商户号
      * @param now 统一开户时间
      */
-    private void grantMerchantScope(Long appId, String merchantId, LocalDateTime now) {
+    private void grantMerchantScope(Long appId,
+                                    String merchantId,
+                                    LocalDateTime now,
+                                    boolean fullAccess) {
         List<SysMenuDO> menus = menuMapper.selectList(Wrappers.<SysMenuDO>lambdaQuery()
                 .eq(SysMenuDO::getAppId, appId)
                 .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
                 .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED));
         for (SysMenuDO menu : menus) {
+            if (!fullAccess && !ONBOARDING_MENU_CODES.contains(menu.getMenuCode())) {
+                continue;
+            }
+            SysMerchantMenuGrantDO existingGrant = merchantMenuGrantMapper.selectOne(
+                    Wrappers.<SysMerchantMenuGrantDO>lambdaQuery()
+                            .eq(SysMerchantMenuGrantDO::getMerchantId, merchantId)
+                            .eq(SysMerchantMenuGrantDO::getAppId, appId)
+                            .eq(SysMerchantMenuGrantDO::getMenuId, menu.getId())
+                            .eq(SysMerchantMenuGrantDO::getDeleted, AuthConstants.NOT_DELETED)
+                            .last("LIMIT 1"));
+            if (existingGrant != null) {
+                if (!Integer.valueOf(AuthConstants.ENABLED).equals(existingGrant.getStatus())) {
+                    existingGrant.setStatus(AuthConstants.ENABLED);
+                    existingGrant.setUpdatedAt(now);
+                    merchantMenuGrantMapper.updateById(existingGrant);
+                }
+                continue;
+            }
             SysMerchantMenuGrantDO grant = new SysMerchantMenuGrantDO();
             grant.setMerchantId(merchantId);
             grant.setAppId(appId);
@@ -317,6 +414,24 @@ public class AdminMerchantPrimaryAccountProvisioningService {
                 .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
                 .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED));
         for (SysPermissionDO permission : permissions) {
+            if (!fullAccess && !ONBOARDING_PERMISSION_CODES.contains(permission.getPermissionCode())) {
+                continue;
+            }
+            SysMerchantPermissionGrantDO existingGrant = merchantPermissionGrantMapper.selectOne(
+                    Wrappers.<SysMerchantPermissionGrantDO>lambdaQuery()
+                            .eq(SysMerchantPermissionGrantDO::getMerchantId, merchantId)
+                            .eq(SysMerchantPermissionGrantDO::getAppId, appId)
+                            .eq(SysMerchantPermissionGrantDO::getPermissionId, permission.getId())
+                            .eq(SysMerchantPermissionGrantDO::getDeleted, AuthConstants.NOT_DELETED)
+                            .last("LIMIT 1"));
+            if (existingGrant != null) {
+                if (!Integer.valueOf(AuthConstants.ENABLED).equals(existingGrant.getStatus())) {
+                    existingGrant.setStatus(AuthConstants.ENABLED);
+                    existingGrant.setUpdatedAt(now);
+                    merchantPermissionGrantMapper.updateById(existingGrant);
+                }
+                continue;
+            }
             SysMerchantPermissionGrantDO grant = new SysMerchantPermissionGrantDO();
             grant.setMerchantId(merchantId);
             grant.setAppId(appId);

@@ -13,11 +13,34 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManua
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewTaskResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalProfileCreateRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalProfileVersionCreateRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileCommandResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileReadinessResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementPrincipalCorrectionDTOs.CommandResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementPrincipalCorrectionDTOs.InternalDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementPrincipalCorrectionDTOs.InternalSubmitRequest;
 
 /**
  * service-settlement 结算命令内部客户端边界，隔离 Admin 应用层与 HTTP/HMAC 细节。
  */
 public interface SettlementInternalClient {
+
+    /**
+     * 创建商户首个活动结算档案。
+     */
+    ProfileCommandResponse createProfile(InternalProfileCreateRequest request);
+
+    /**
+     * 从当前活动档案创建新版本。
+     */
+    ProfileCommandResponse createProfileVersion(
+            String settlementProfileNo, InternalProfileVersionCreateRequest request);
+
+    /**
+     * 查询商户结算档案和目标账户是否满足最终开通条件。
+     */
+    ProfileReadinessResponse getProfileReadiness(String merchantId);
 
     /**
      * 发送已注入可信操作人与权限快照的批次取消命令。
@@ -114,4 +137,10 @@ public interface SettlementInternalClient {
      */
     ReversalCommandResponse decideReversal(String reversalOrderNo,
                                             InternalReversalDecisionRequest request);
+
+    /** 提交已入账历史标签本金差额调整申请。 */
+    CommandResponse submitPrincipalCorrection(InternalSubmitRequest request);
+
+    /** 复核已入账历史标签本金差额调整申请。 */
+    CommandResponse decidePrincipalCorrection(String correctionNo, InternalDecisionRequest request);
 }

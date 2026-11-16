@@ -4,13 +4,17 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.MerchantOnboardingDTOs;
+import com.scott.payment.admin.client.settlement.SettlementInternalClient;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ProfileReadinessResponse;
 import com.scott.payment.admin.entity.channel.ChannelEntities.MerchantChannelMidBindingDO;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanDO;
+import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanVersionDO;
 import com.scott.payment.admin.entity.merchant.MerchantOnboardingEntities.BizDocumentDO;
 import com.scott.payment.admin.entity.merchant.MerchantOnboardingEntities.MerchantRelatedPersonDO;
 import com.scott.payment.admin.entity.merchant.MerchantOnboardingEntities.MerchantReviewRecordDO;
 import com.scott.payment.admin.mapper.BizDocumentMapper;
 import com.scott.payment.admin.mapper.FeePlanMapper;
+import com.scott.payment.admin.mapper.FeePlanVersionMapper;
 import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import com.scott.payment.admin.mapper.MerchantRelatedPersonMapper;
 import com.scott.payment.admin.mapper.MerchantReviewRecordMapper;
@@ -23,6 +27,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -64,10 +70,34 @@ class MerchantOnboardingServiceTest {
     private FeePlanMapper feePlanMapper;
 
     /**
+     * 生效费率版本数据访问替身。
+     */
+    @Mock
+    private FeePlanVersionMapper feePlanVersionMapper;
+
+    /**
      * 商户渠道绑定数据访问替身。
      */
     @Mock
     private MerchantChannelMidBindingMapper channelMidBindingMapper;
+
+    /**
+     * 商户实际支付能力就绪检查替身。
+     */
+    @Mock
+    private MerchantPaymentCapabilityReadinessService paymentCapabilityReadinessService;
+
+    /**
+     * 商户风险、限额和 3DS 就绪检查替身。
+     */
+    @Mock
+    private MerchantRiskConfigurationReadinessService riskConfigurationReadinessService;
+
+    /**
+     * OpenAPI 技术接入就绪检查替身。
+     */
+    @Mock
+    private MerchantTechnicalAccessReadinessService technicalAccessReadinessService;
 
     /**
      * 相关人员敏感字段加密替身。
@@ -86,6 +116,12 @@ class MerchantOnboardingServiceTest {
      */
     @Mock
     private AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
+
+    /**
+     * 结算档案 readiness 客户端替身。
+     */
+    @Mock
+    private SettlementInternalClient settlementInternalClient;
 
     /**
      * 被测商户开户领域服务。
@@ -109,10 +145,15 @@ class MerchantOnboardingServiceTest {
                 documentMapper,
                 reviewRecordMapper,
                 feePlanMapper,
+                feePlanVersionMapper,
                 channelMidBindingMapper,
+                paymentCapabilityReadinessService,
+                riskConfigurationReadinessService,
+                technicalAccessReadinessService,
                 sensitiveCrypto,
                 primaryAccountProvisioningService,
-                fundAccountProvisioningService);
+                fundAccountProvisioningService,
+                settlementInternalClient);
     }
 
     /**
@@ -150,7 +191,7 @@ class MerchantOnboardingServiceTest {
         assertThat(merchant.getReviewStatus()).isEqualTo(MerchantOnboardingService.REVIEW_PASSED);
         assertThat(merchant.getActivationStatus()).isEqualTo(MerchantOnboardingService.ACTIVATION_NOT_READY);
         verify(reviewRecordMapper).insert(any(MerchantReviewRecordDO.class));
-        verify(primaryAccountProvisioningService, never()).provision(any());
+        verify(primaryAccountProvisioningService, never()).activateFullAccess(any());
         verify(fundAccountProvisioningService, never()).provision(any());
         log.info("商户审核通过状态完成，结果: 审核通过但激活仍被内部配置门禁阻止");
     }
@@ -166,7 +207,7 @@ class MerchantOnboardingServiceTest {
         assertThatThrownBy(() -> service.activate(merchant))
                 .hasMessageContaining("审核尚未通过");
 
-        verify(primaryAccountProvisioningService, never()).provision(any());
+        verify(primaryAccountProvisioningService, never()).activateFullAccess(any());
         verify(fundAccountProvisioningService, never()).provision(any());
         log.info("商户激活审核门禁完成，结果: 未通过审核不创建账号和资金账户");
     }
@@ -182,19 +223,92 @@ class MerchantOnboardingServiceTest {
         merchant.setMerchantCategoryCode("5411");
         merchant.setSettlementCurrency("USD");
         merchant.setRiskLevel(2);
-        when(feePlanMapper.selectOne(any())).thenReturn(new FeePlanDO());
+        FeePlanDO feePlan = new FeePlanDO();
+        feePlan.setCurrentVersionId(8L);
+        when(feePlanMapper.selectOne(any())).thenReturn(feePlan);
+        when(feePlanVersionMapper.selectById(8L)).thenReturn(activeFeeVersion());
         when(channelMidBindingMapper.selectCount(any())).thenReturn(1L);
+        when(paymentCapabilityReadinessService.evaluate(any(), any(), any()))
+                .thenReturn(new MerchantPaymentCapabilityReadinessService.ReadinessResult(
+                        1, 0, List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
+        ProfileReadinessResponse readiness = new ProfileReadinessResponse();
+        readiness.setMerchantId(merchant.getMerchantId());
+        readiness.setReady(true);
+        when(settlementInternalClient.getProfileReadiness(merchant.getMerchantId())).thenReturn(readiness);
+        when(technicalAccessReadinessService.evaluate(any(), any())).thenReturn(List.of());
 
         service.activate(merchant);
 
         InOrder order = inOrder(primaryAccountProvisioningService, fundAccountProvisioningService, reviewRecordMapper);
-        order.verify(primaryAccountProvisioningService).provision(merchant);
+        order.verify(primaryAccountProvisioningService).activateFullAccess(merchant);
         order.verify(fundAccountProvisioningService).provision(merchant);
         order.verify(reviewRecordMapper).insert(any(MerchantReviewRecordDO.class));
         assertThat(merchant.getMerchantStatus()).isEqualTo(1);
         assertThat(merchant.getOnboardingStatus()).isEqualTo(MerchantOnboardingService.ONBOARDING_ACTIVE);
         assertThat(merchant.getActivationStatus()).isEqualTo(MerchantOnboardingService.ACTIVATION_ACTIVE);
         log.info("商户完整激活完成，结果: 账号和资金账户按顺序幂等开户并进入运行态");
+    }
+
+    /**
+     * 技术接入条件不完整时不得激活，即使业务配置已经全部就绪。
+     */
+    @Test
+    void shouldRejectActivationWhenTechnicalAccessIsNotReady() {
+        BaseMerchantInfoDO merchant = pendingMerchant();
+        merchant.setReviewStatus(MerchantOnboardingService.REVIEW_PASSED);
+        merchant.setMerchantCategoryCode("5411");
+        merchant.setSettlementCurrency("USD");
+        merchant.setRiskLevel(2);
+        FeePlanDO feePlan = new FeePlanDO();
+        feePlan.setCurrentVersionId(8L);
+        when(feePlanMapper.selectOne(any())).thenReturn(feePlan);
+        when(feePlanVersionMapper.selectById(8L)).thenReturn(activeFeeVersion());
+        when(channelMidBindingMapper.selectCount(any())).thenReturn(1L);
+        when(paymentCapabilityReadinessService.evaluate(any(), any(), any()))
+                .thenReturn(new MerchantPaymentCapabilityReadinessService.ReadinessResult(
+                        1, 0, List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
+        when(technicalAccessReadinessService.evaluate(any(), any()))
+                .thenReturn(List.of("OPENAPI_IP_WHITELIST_NOT_READY"));
+        ProfileReadinessResponse readiness = new ProfileReadinessResponse();
+        readiness.setReady(true);
+        when(settlementInternalClient.getProfileReadiness(merchant.getMerchantId())).thenReturn(readiness);
+
+        assertThatThrownBy(() -> service.activate(merchant))
+                .hasMessageContaining("IP 白名单");
+        verify(primaryAccountProvisioningService, never()).activateFullAccess(any());
+        verify(fundAccountProvisioningService, never()).provision(any());
+    }
+
+    /**
+     * 支付能力数据暂不可读时，详情应返回稳定阻塞码且最终激活必须失败关闭。
+     */
+    @Test
+    void shouldFailClosedWithoutBreakingDetailWhenPaymentReadinessIsUnavailable() {
+        BaseMerchantInfoDO merchant = pendingMerchant();
+        merchant.setReviewStatus(MerchantOnboardingService.REVIEW_PASSED);
+        merchant.setMerchantCategoryCode("5411");
+        merchant.setSettlementCurrency("USD");
+        merchant.setRiskLevel(2);
+        FeePlanDO feePlan = new FeePlanDO();
+        feePlan.setCurrentVersionId(8L);
+        when(feePlanMapper.selectOne(any())).thenReturn(feePlan);
+        when(feePlanVersionMapper.selectById(8L)).thenReturn(activeFeeVersion());
+        when(channelMidBindingMapper.selectCount(any())).thenReturn(1L);
+        when(paymentCapabilityReadinessService.evaluate(any(), any(), any()))
+                .thenThrow(new IllegalStateException("readiness storage unavailable"));
+        ProfileReadinessResponse readiness = new ProfileReadinessResponse();
+        readiness.setReady(true);
+        when(settlementInternalClient.getProfileReadiness(merchant.getMerchantId())).thenReturn(readiness);
+        AdminMerchantInfoDTO dto = new AdminMerchantInfoDTO();
+
+        service.enrich(merchant, dto);
+
+        assertThat(dto.getActivationReady()).isFalse();
+        assertThat(dto.getReadinessIssues()).containsExactly("PAYMENT_CAPABILITY_READINESS_UNAVAILABLE");
+        assertThatThrownBy(() -> service.activate(merchant))
+                .hasMessageContaining("支付能力检查服务暂不可用");
+        verify(primaryAccountProvisioningService, never()).activateFullAccess(any());
+        verify(fundAccountProvisioningService, never()).provision(any());
     }
 
     /**
@@ -288,5 +402,20 @@ class MerchantOnboardingServiceTest {
         merchant.setActivationStatus(MerchantOnboardingService.ACTIVATION_NOT_READY);
         merchant.setMerchantStatus(2);
         return merchant;
+    }
+
+    /**
+     * 构造结算周期完整且已生效的商户费率版本。
+     */
+    private FeePlanVersionDO activeFeeVersion() {
+        FeePlanVersionDO version = new FeePlanVersionDO();
+        version.setVersionStatus("ACTIVE");
+        version.setSettlementCurrency("USD");
+        version.setInitialDelayUnit("T");
+        version.setInitialDelayDays(2);
+        version.setRegularDelayDays(2);
+        version.setSettlementFrequency("DAILY");
+        version.setFrequencyDay(null);
+        return version;
     }
 }

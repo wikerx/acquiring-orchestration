@@ -7,10 +7,13 @@ import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessag
 import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.observability.MqOutboxOperationalMetrics;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -18,14 +21,49 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Default Transaction Event Outbox Relay Service Tests 自动化测试类，位于 支付核心服务，验证当前模块的正常路径、异常边界和回归场景。
  */
 class DefaultTransactionEventOutboxRelayServiceTests {
+
+    @Test
+    void shouldRecordTransactionSnapshotRefreshSuccessAndFailure() {
+        TransactionEventOutboxService eventOutboxService = mock(TransactionEventOutboxService.class);
+        MqProducer mqProducer = mock(MqProducer.class);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MqOutboxOperationalMetrics metrics =
+                new MqOutboxOperationalMetrics(Optional.of(registry));
+        LocalDateTime quarter = LocalDateTime.of(2026, 7, 1, 0, 0);
+        TransactionEventOutboxMetricsSnapshot snapshot = new TransactionEventOutboxMetricsSnapshot();
+        snapshot.setClosedCount(56L);
+        when(eventOutboxService.metricsSnapshot(quarter))
+                .thenReturn(snapshot)
+                .thenThrow(new IllegalStateException("database unavailable"));
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(
+                        eventOutboxService, mqProducer, 120L, metrics);
+
+        relayService.refreshMetrics(List.of(quarter));
+
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "transaction", "outcome", "success")
+                .counter().count()).isEqualTo(1D);
+        assertThatThrownBy(() -> relayService.refreshMetrics(List.of(quarter)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(registry.find(MqOutboxOperationalMetrics.SNAPSHOT_REFRESH)
+                .tags("outbox_type", "transaction", "outcome", "failed")
+                .counter().count()).isEqualTo(1D);
+    }
 
     @Test
     void shouldPublishDueEventAndMarkSent() {
@@ -46,6 +84,93 @@ class DefaultTransactionEventOutboxRelayServiceTests {
                 .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 0));
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("SENT");
         assertThat(eventOutboxService.eventDO.getSentTime()).isNotNull();
+    }
+
+    @Test
+    void shouldContinueDrainingAfterFullBatchAndStopAfterShortBatch() {
+        BatchingEventOutboxService eventOutboxService = new BatchingEventOutboxService(
+                List.of(event(1L), event(2L), event(3L), event(4L), event(5L)));
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(
+                LocalDateTime.of(2026, 7, 12, 10, 0), 2, 5);
+
+        assertThat(successCount).isEqualTo(5);
+        assertThat(eventOutboxService.scanCount).isEqualTo(3);
+        assertThat(mqProducer.sendCount).isEqualTo(5);
+        assertThat(eventOutboxService.initCount()).isZero();
+    }
+
+    @Test
+    void shouldStopDrainingWhenBatchBudgetIsReached() {
+        BatchingEventOutboxService eventOutboxService = new BatchingEventOutboxService(
+                List.of(event(1L), event(2L), event(3L), event(4L), event(5L), event(6L)));
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(
+                LocalDateTime.of(2026, 7, 12, 10, 0), 2, 2);
+
+        assertThat(successCount).isEqualTo(4);
+        assertThat(eventOutboxService.scanCount).isEqualTo(2);
+        assertThat(mqProducer.sendCount).isEqualTo(4);
+        assertThat(eventOutboxService.initCount()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldNormalizeNonPositiveDrainBudgetToOneBatchOfOneEvent() {
+        BatchingEventOutboxService eventOutboxService = new BatchingEventOutboxService(
+                List.of(event(1L), event(2L), event(3L)));
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(
+                LocalDateTime.of(2026, 7, 12, 10, 0), 0, 0);
+
+        assertThat(successCount).isOne();
+        assertThat(eventOutboxService.scanCount).isOne();
+        assertThat(eventOutboxService.initCount()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldContinueDrainingWhenOneEventFails() {
+        TransactionEventOutboxDO invalidEvent = event(1L);
+        invalidEvent.setPayloadJson("not-json");
+        BatchingEventOutboxService eventOutboxService = new BatchingEventOutboxService(
+                List.of(invalidEvent, event(2L), event(3L)));
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(
+                LocalDateTime.of(2026, 7, 12, 10, 0), 2, 5);
+
+        assertThat(successCount).isEqualTo(2);
+        assertThat(eventOutboxService.scanCount).isEqualTo(2);
+        assertThat(mqProducer.sendCount).isEqualTo(2);
+        assertThat(invalidEvent.getEventStatus()).isEqualTo("FAILED");
+    }
+
+    @Test
+    void shouldNotDuplicateDeliveryWhenClaimConflictOccursDuringDrain() {
+        BatchingEventOutboxService eventOutboxService = new BatchingEventOutboxService(
+                List.of(event(1L), event(2L), event(3L)));
+        eventOutboxService.deniedClaimIds = Set.of(1L);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(
+                LocalDateTime.of(2026, 7, 12, 10, 0), 2, 5);
+
+        assertThat(successCount).isEqualTo(2);
+        assertThat(eventOutboxService.scanCount).isEqualTo(3);
+        assertThat(mqProducer.sendCount).isEqualTo(2);
+        assertThat(eventOutboxService.initCount()).isEqualTo(1);
     }
 
     @Test
@@ -364,6 +489,17 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         return eventDO;
     }
 
+    /**
+     * 创建具有独立数据库主键的测试事件，便于验证多批排空和 claim 冲突。
+     */
+    private TransactionEventOutboxDO event(long id) {
+        TransactionEventOutboxDO eventDO = event();
+        eventDO.setId(id);
+        eventDO.setEventNo(eventDO.getEventNo() + "-" + id);
+        eventDO.setMessageKey(eventDO.getMessageKey() + "-" + id);
+        return eventDO;
+    }
+
     private static class CapturingMqProducer implements MqProducer {
 
         private final RuntimeException failure;
@@ -594,6 +730,80 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             eventDO.setFailReason(failReason);
             eventDO.setVersion(eventDO.getVersion() + 1);
             return true;
+        }
+    }
+
+    /**
+     * 按持久化状态分页返回到期事件的内存替身，用于验证有界连续排空。
+     */
+    private static class BatchingEventOutboxService implements TransactionEventOutboxService {
+
+        private final List<TransactionEventOutboxDO> events;
+        private int scanCount;
+        private Set<Long> deniedClaimIds = Set.of();
+
+        private BatchingEventOutboxService(List<TransactionEventOutboxDO> events) {
+            this.events = new ArrayList<>(events);
+        }
+
+        @Override
+        public void save(TransactionEventOutboxDO eventDO) {
+            events.add(eventDO);
+        }
+
+        @Override
+        public List<TransactionEventOutboxDO> listDueEvents(
+                LocalDateTime eventTime, LocalDateTime now, int limit) {
+            scanCount++;
+            return events.stream()
+                    .filter(eventDO -> "INIT".equals(eventDO.getEventStatus())
+                            || "FAILED".equals(eventDO.getEventStatus()))
+                    .filter(eventDO -> eventDO.getNextRetryTime() == null
+                            || !eventDO.getNextRetryTime().isAfter(now))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public int recoverStaleProcessing(
+                LocalDateTime eventTime, LocalDateTime staleBefore, LocalDateTime now) {
+            return 0;
+        }
+
+        @Override
+        public boolean claimForPublish(TransactionEventOutboxDO eventDO, LocalDateTime claimedTime) {
+            if (deniedClaimIds.contains(eventDO.getId())) {
+                return false;
+            }
+            eventDO.setEventStatus("PROCESSING");
+            eventDO.setVersion(eventDO.getVersion() + 1);
+            return true;
+        }
+
+        @Override
+        public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
+            eventDO.setEventStatus("SENT");
+            eventDO.setSentTime(sentTime);
+            eventDO.setVersion(eventDO.getVersion() + 1);
+            return true;
+        }
+
+        @Override
+        public boolean markFailed(TransactionEventOutboxDO eventDO,
+                                  LocalDateTime nextRetryTime,
+                                  String failReason,
+                                  LocalDateTime now) {
+            eventDO.setEventStatus("FAILED");
+            eventDO.setNextRetryTime(nextRetryTime);
+            eventDO.setFailReason(failReason);
+            eventDO.setVersion(eventDO.getVersion() + 1);
+            return true;
+        }
+
+        private long initCount() {
+            return events.stream()
+                    .filter(eventDO -> "INIT".equals(eventDO.getEventStatus()))
+                    .count();
         }
     }
 }

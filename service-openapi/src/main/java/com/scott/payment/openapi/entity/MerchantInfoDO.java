@@ -44,6 +44,11 @@ public class MerchantInfoDO extends BaseEntity {
     private Integer merchantStatus;
 
     /**
+     * 收单激活状态。只有 ACTIVE 才允许进入 OpenAPI 交易链路。
+     */
+    private String activationStatus;
+
+    /**
      * Default merchant locale.
      */
     private String defaultLocale;

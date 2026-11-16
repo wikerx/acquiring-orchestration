@@ -143,7 +143,8 @@ FROM sys_menu menu
 JOIN (
     SELECT 'risk_trade_black_system' parent_code, 'risk_trade_black_system_add' menu_code, '系统交易加黑新增' menu_name, 'risk:tradeBlack:system:add' permission_code, 101 sort_no
     UNION ALL SELECT 'risk_trade_black_system', 'risk_trade_black_system_release', '系统交易加黑解除', 'risk:tradeBlack:system:release', 102
-    UNION ALL SELECT 'risk_trade_black_system', 'risk_trade_black_system_batch_add', '系统交易批量加黑', 'risk:tradeBlack:system:batchAdd', 103
+    UNION ALL SELECT 'risk_trade_black_system', 'risk_trade_black_system_batch_add', '系统交易黑名单文件导入', 'risk:tradeBlack:system:batchAdd', 103
+    UNION ALL SELECT 'risk_trade_black_system', 'risk_trade_black_system_export', '系统交易加黑导出', 'risk:tradeBlack:system:export', 104
     UNION ALL SELECT 'risk_record_evaluation', 'risk_record_evaluation_detail', '风控记录命中明细', 'risk:record:evaluation:detail', 101
 ) button ON button.parent_code = menu.menu_code
 WHERE menu.app_id = 1 AND menu.deleted = 0

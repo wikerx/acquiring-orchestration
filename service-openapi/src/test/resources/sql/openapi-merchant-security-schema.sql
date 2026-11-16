@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     billing_descriptor VARCHAR(64) NULL COMMENT '账单描述，交易账单或渠道侧展示的商户识别名称',
     merchant_short_name VARCHAR(64) NULL COMMENT '商户简称',
     merchant_status TINYINT NOT NULL DEFAULT 1 COMMENT '商户状态：1正常，2冻结，3关闭',
+    activation_status VARCHAR(24) NOT NULL DEFAULT 'NOT_READY' COMMENT '激活状态',
     default_locale VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '商户系统和邮件默认语言',
     merchant_category_code VARCHAR(4) NOT NULL COMMENT '商户类别码MCC',
     country_code CHAR(3) NOT NULL COMMENT '商户所在国家三字码',

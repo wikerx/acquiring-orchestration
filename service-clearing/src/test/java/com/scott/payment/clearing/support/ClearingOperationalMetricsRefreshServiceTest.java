@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
  */
 class ClearingOperationalMetricsRefreshServiceTest {
 
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 26, 2, 0);
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 26, 10, 0);
     private static final Clock CLOCK = Clock.fixed(
             Instant.parse("2026-08-26T02:00:00Z"), ZoneId.of("Asia/Shanghai"));
 
@@ -86,7 +86,7 @@ class ClearingOperationalMetricsRefreshServiceTest {
     }
 
     @Test
-    void quarterPublicationShouldUseRouteTimezoneWhileAgeUsesUtc() {
+    void quarterPublicationAndAgeShouldUsePlatformTimezone() {
         ClearingOperationalMetricsMapper mapper = mock(ClearingOperationalMetricsMapper.class);
         ClearingOperationalMetrics metrics = mock(ClearingOperationalMetrics.class);
         Clock boundaryClock = Clock.fixed(
@@ -95,13 +95,13 @@ class ClearingOperationalMetricsRefreshServiceTest {
                 mapper, nodes("202603"), metrics, boundaryClock);
         LocalDateTime q3 = LocalDateTime.of(2026, 7, 1, 0, 0);
         LocalDateTime q4 = LocalDateTime.of(2026, 10, 1, 0, 0);
-        LocalDateTime nowUtc = LocalDateTime.of(2026, 6, 30, 16, 30);
-        when(mapper.selectPendingByStatus(q3, q4, nowUtc)).thenReturn(List.of());
+        LocalDateTime platformNow = LocalDateTime.of(2026, 7, 1, 0, 30);
+        when(mapper.selectPendingByStatus(q3, q4, platformNow)).thenReturn(List.of());
         when(mapper.selectReserveRemainingByCurrency(q3, q4)).thenReturn(List.of());
 
         service.refresh();
 
-        verify(mapper).selectPendingByStatus(q3, q4, nowUtc);
+        verify(mapper).selectPendingByStatus(q3, q4, platformNow);
         verify(metrics).recordMetricsRefresh(true);
     }
 

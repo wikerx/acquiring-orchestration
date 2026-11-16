@@ -30,7 +30,14 @@ public class ClearingInternalCallerInterceptor implements HandlerInterceptor {
     /**
      * 仅允许管理服务访问的清分交易查询和人工命令路径。
      */
-    private static final String ADMIN_PATH = "/internal/clearing/v1/transactions/**";
+    private static final String ADMIN_TRANSACTION_PATH = "/internal/clearing/v1/transactions/**";
+    /**
+     * 仅允许管理服务访问的历史标签本金修复路径。
+     */
+    private static final String ADMIN_LABEL_PRINCIPAL_REPAIR_ROOT =
+            "/internal/clearing/v1/principal-repairs";
+    private static final String ADMIN_LABEL_PRINCIPAL_REPAIR_PATH =
+            ADMIN_LABEL_PRINCIPAL_REPAIR_ROOT + "/**";
     /**
      * 仅允许任务调度服务访问的清分补偿扫描路径。
      */
@@ -83,7 +90,10 @@ public class ClearingInternalCallerInterceptor implements HandlerInterceptor {
      * @return 调用方被显式授权访问该路径时返回 true
      */
     private boolean authorizedForPath(String caller, String requestPath) {
-        return ADMIN_CALLER.equals(caller) && PATH_MATCHER.match(ADMIN_PATH, requestPath)
+        return ADMIN_CALLER.equals(caller)
+                && (PATH_MATCHER.match(ADMIN_TRANSACTION_PATH, requestPath)
+                    || ADMIN_LABEL_PRINCIPAL_REPAIR_ROOT.equals(requestPath)
+                    || PATH_MATCHER.match(ADMIN_LABEL_PRINCIPAL_REPAIR_PATH, requestPath))
                 || JOB_CALLER.equals(caller) && PATH_MATCHER.match(JOB_PATH, requestPath);
     }
 }

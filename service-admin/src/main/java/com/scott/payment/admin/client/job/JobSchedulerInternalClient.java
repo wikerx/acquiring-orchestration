@@ -3,6 +3,7 @@ package com.scott.payment.admin.client.job;
 import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
 import com.scott.payment.admin.client.job.dto.ShardingTablePreCreateRemoteRequest;
 import com.scott.payment.admin.dto.monitor.JobExecutorNodeResponse;
+import com.scott.payment.admin.dto.monitor.JobExecutionTrendResponse;
 import com.scott.payment.admin.dto.monitor.JobHandlerOptionResponse;
 import com.scott.payment.admin.dto.monitor.JobManualTriggerRequest;
 import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
@@ -85,6 +86,21 @@ public interface JobSchedulerInternalClient {
      * @return 日志分页结果
      */
     PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request);
+
+    /**
+     * 分页查询执行日志，供没有浏览器会话的后台异步导出线程使用。
+     *
+     * @param request 查询条件
+     * @return 日志分页结果
+     */
+    PageResult<JobRunLogResponse> pageRunLogsForExport(JobRunLogQueryRequest request);
+
+    /**
+     * 查询最近七个自然日的任务执行终态趋势。
+     *
+     * @return 固定包含七个日期点的趋势结果
+     */
+    JobExecutionTrendResponse executionTrend();
 
     /**
      * 按条件查询执行日志列表。

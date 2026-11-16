@@ -34,6 +34,8 @@ public final class ChannelEntities {
          */
         private String channelCode;
         private String channelCnName;
+        @com.baomidou.mybatisplus.annotation.TableField(updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.NEVER)
+        private String logoObjectKey;
         private String channelEnName;
         private Integer channelStatus;
         private Integer supportAcquiring;
@@ -136,6 +138,10 @@ public final class ChannelEntities {
          * 允许交易国家，ALL 或 ISO 国家码逗号分隔。
          */
         private String allowedCountryScope;
+        /**
+         * 默认交易币种；标签币种不被渠道支持时，未来初始交易转换为该币种。
+         */
+        private String defaultTransactionCurrency;
         /**
          * 默认结算币种。
          */

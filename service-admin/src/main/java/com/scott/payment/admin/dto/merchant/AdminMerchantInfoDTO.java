@@ -423,6 +423,11 @@ public class AdminMerchantInfoDTO {
     private List<String> readinessIssues = new ArrayList<>();
 
     /**
+     * 支付能力、路由冲突和费率覆盖摘要；仅详情接口在完成实际能力检查后返回。
+     */
+    private AdminMerchantActivationReadinessDTOs.PaymentCapabilityReadiness paymentCapabilityReadiness;
+
+    /**
      * 商户结算币种代码。
      */
     private String settlementCurrency;

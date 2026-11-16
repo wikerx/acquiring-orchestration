@@ -54,6 +54,9 @@ internal-service:
           - /internal/clearing/v1/reserve-adjustments/**
           # 路径说明：允许 Admin 对阶梯费用周期执行受审计的重放操作。
           - /internal/clearing/v1/tier-period-replays/**
+          # 路径说明：允许 Admin 提交和复核未结算历史标签本金修复，操作人仍由 Admin 登录上下文注入。
+          - /internal/clearing/v1/principal-repairs
+          - /internal/clearing/v1/principal-repairs/**
       service-job:
         # 参数说明：Job 调用清分补偿命令时使用的当前验签密钥引用。
         active-secret: ${acquiring.internal-auth.edges.job-clearing.active-secret}

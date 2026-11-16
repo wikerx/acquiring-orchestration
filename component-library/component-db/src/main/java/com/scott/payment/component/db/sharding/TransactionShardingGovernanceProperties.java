@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 交易季度物理表治理配置，只供 Job/Admin 的模板、DDL、schema 和号段治理链路使用，不参与业务 SQL 路由。
+ * 季度物理表通用治理配置，只供 Job/Admin 的模板、DDL、schema 和号段治理链路使用，不参与业务 SQL 路由。
  */
 @Component
 @ConfigurationProperties(prefix = "transaction-sharding.governance")
@@ -36,7 +36,7 @@ public class TransactionShardingGovernanceProperties {
      */
     private IdGenerator idGenerator = new IdGenerator();
     /**
-     * 28 张正式交易逻辑表的物理治理规则。
+     * 正式交易表与风控审计表的物理治理规则；不同表族的运行版本和候选节点分别计算。
      */
     private Map<String, TableRule> tables = new LinkedHashMap<>();
 
@@ -139,7 +139,7 @@ public class TransactionShardingGovernanceProperties {
     }
 
     /**
-     * 单张正式交易逻辑表的物理表治理规则。
+     * 单张正式季度逻辑表的物理表治理规则。
      */
     @Data
     public static class TableRule {
@@ -160,7 +160,7 @@ public class TransactionShardingGovernanceProperties {
          */
         private String idColumn = "id";
         /**
-         * 固定交易分片列。
+         * 当前表族的固定分片列。
          */
         private String shardingColumn = TransactionShardingProperties.REQUIRED_SHARDING_COLUMN;
         /**

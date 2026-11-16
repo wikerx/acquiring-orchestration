@@ -13,6 +13,9 @@ risk:
     # 三个只读规则组共享的等待上限，超时后抛出受控异常并由 payment 失败关闭。
     # 环境说明：环境变量：RISK_READ_ONLY_TIMEOUT_MILLIS，dev 默认值为 "3000"；其他环境不得高于调用方总超时。
     read-only-timeout-millis: ${RISK_READ_ONLY_TIMEOUT_MILLIS:3000}
+    # 合并同一次评估内重复的规则快照、启用状态和 generation 读取；不合并累计限额或频控预占副作用。
+    # 环境说明：环境变量：RISK_READ_QUERY_CONSOLIDATION_ENABLED，dev 默认值为 "true"；其他环境完成结果一致性和容量验证后开启，关闭并重启可回退旧查询路径。
+    read-query-consolidation-enabled: ${RISK_READ_QUERY_CONSOLIDATION_ENABLED:true}
     # 旧请求级缓存命中秒数；仅 LEGACY/SHADOW 迁移路径使用。
     # 环境说明：环境变量：RISK_CACHE_HIT_TTL_SECONDS，dev 配置默认值为 "300"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     cache-hit-ttl-seconds: ${RISK_CACHE_HIT_TTL_SECONDS:300}

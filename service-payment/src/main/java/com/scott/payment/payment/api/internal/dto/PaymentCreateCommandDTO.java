@@ -44,7 +44,7 @@ public class PaymentCreateCommandDTO implements Serializable {
     /**
      * 支付核心生成的平台当前交易号。
      * <p>
-     * 首次交易在本地准备事务中生成后写入，用于后续风控、路由、渠道和日志链路关联；商户创建请求不需要传入该字段。
+     * 首次交易在事务外业务规划开始时生成，用于后续风控、路由、持久化、渠道和日志链路关联；商户创建请求不需要传入该字段。
      * 非敏感字段，格式遵循平台交易号规则。
      * </p>
      */
@@ -122,6 +122,11 @@ public class PaymentCreateCommandDTO implements Serializable {
      * 商户上送或页面标签展示的原始币种。首次交易默认等于 currency，后续动作在归一化交易币种前保留商户请求值。
      */
     private String labelCurrency;
+
+    /**
+     * 标签币种 ISO 4217 小数位精度，由支付核心根据币种字典解析，不接受商户直接控制。
+     */
+    private Integer labelCurrencyExponent;
 
     /**
      * 平台交易金额，主币种单位；未启用 DCC/EDC 时等于标签金额，启用 EDC 时为换汇后上送渠道的金额。

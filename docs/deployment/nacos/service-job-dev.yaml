@@ -23,8 +23,8 @@ job:
   data-client:
     # service-data 建连超时，单位毫秒。
     connect-timeout-millis: ${JOB_DATA_CLIENT_CONNECT_TIMEOUT_MILLIS:3000}
-    # 单次内部补偿批次必须在 30 秒内返回；长耗时工作由 service-data 异步执行并通过任务状态恢复。
-    read-timeout-millis: ${JOB_DATA_CLIENT_READ_TIMEOUT_MILLIS:30000}
+    # 单次内部调用最长60秒；导出每轮只领取一个文件，超时后由Data租约和任务状态恢复。
+    read-timeout-millis: ${JOB_DATA_CLIENT_READ_TIMEOUT_MILLIS:60000}
     # 参数说明：写入 Data 内部签名头的固定调用方标识，必须保持 service-job。
     internal-caller: service-job
     # 参数说明：Job 到 Data 调用边的当前 HMAC 密钥引用，用于通知和数据补偿命令。

@@ -34,6 +34,7 @@ class AdminConfigApplicationServiceTests {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 

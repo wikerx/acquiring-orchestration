@@ -7,6 +7,7 @@ import com.scott.payment.clearing.entity.ClearingTransactionOperationDO;
 import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionIdempotencyMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionOperationMapper;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
@@ -59,7 +60,7 @@ class DefaultClearingPersistenceServiceTest {
         when(operationMapper.selectByTransaction("TX-1", TRANSACTION_TIME)).thenReturn(operation);
         when(financeStateMapper.selectByTransaction("TX-1", TRANSACTION_TIME)).thenReturn(financeState);
         when(financeStateMapper.claimProcessing(
-                "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1"))
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1"))
                 .thenReturn(1);
         when(operationMapper.updateClearingProjection(
                 "TX-1", TRANSACTION_TIME, 3, "PENDING", null, null, NOW)).thenReturn(1);
@@ -89,7 +90,7 @@ class DefaultClearingPersistenceServiceTest {
         assertThat(result.outcome()).isEqualTo(ClearingClaimResult.Outcome.ALREADY_COMPLETED);
         assertThat(result.clearingRevision()).isEqualTo(2);
         verify(financeStateMapper, never()).claimProcessing(
-                "TX-1", TRANSACTION_TIME, 7, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
+                101L, "TX-1", TRANSACTION_TIME, 7, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
     }
 
     @Test
@@ -120,7 +121,7 @@ class DefaultClearingPersistenceServiceTest {
                 .thenReturn(null, created);
         when(globalIdGenerator.nextId()).thenReturn("2026082609000000000001");
         when(financeStateMapper.claimProcessing(
-                "TX-1", TRANSACTION_TIME, 0, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1"))
+                101L, "TX-1", TRANSACTION_TIME, 0, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1"))
                 .thenReturn(1);
         when(operationMapper.updateClearingProjection(
                 "TX-1", TRANSACTION_TIME, 3, "PENDING", null, null, NOW)).thenReturn(1);
@@ -142,7 +143,7 @@ class DefaultClearingPersistenceServiceTest {
         when(financeStateMapper.selectByTransaction("TX-1", TRANSACTION_TIME))
                 .thenReturn(financeState("PENDING", 4, 0));
         when(financeStateMapper.claimProcessing(
-                "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1"))
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1"))
                 .thenReturn(1);
         when(operationMapper.updateClearingProjection(
                 "TX-1", TRANSACTION_TIME, 3, "PENDING", null, null, NOW)).thenReturn(0);
@@ -167,7 +168,7 @@ class DefaultClearingPersistenceServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("identity");
         verify(financeStateMapper, never()).claimProcessing(
-                "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
     }
 
     @Test
@@ -185,7 +186,7 @@ class DefaultClearingPersistenceServiceTest {
 
         assertThat(result.outcome()).isEqualTo(ClearingClaimResult.Outcome.RETRY_ALREADY_SCHEDULED);
         verify(financeStateMapper, never()).claimProcessing(
-                "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
     }
 
     @Test
@@ -200,7 +201,57 @@ class DefaultClearingPersistenceServiceTest {
 
         assertThat(result.outcome()).isEqualTo(ClearingClaimResult.Outcome.MANUAL_REVIEW_REQUIRED);
         verify(financeStateMapper, never()).claimProcessing(
-                "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "MSG-1");
+    }
+
+    /**
+     * 到期重试的数据库本地时间与消息 Instant 一致时允许重新领取处理租约。
+     */
+    @Test
+    void dueRetryShouldMatchPlatformTimeAndAcquireLease() {
+        LocalDateTime dueTime = NOW.minusMinutes(1);
+        ClearingRetryDueMessage message = retryMessage("RETRY-DUE", 1, dueTime);
+        ClearingTransactionFinanceStateDO state = financeState("WAITING_SOURCE", 4, 0);
+        state.setClearingRetryCount(1);
+        state.setNextRetryTime(dueTime);
+        state.setLastFailureCode("SOURCE_CLEARING_PENDING");
+        when(idempotencyMapper.existsSuccessfulConsumption(
+                "service-clearing-transaction-status:RETRY-DUE")).thenReturn(false);
+        when(operationMapper.selectByTransaction("TX-1", TRANSACTION_TIME)).thenReturn(operation("SUCCESS"));
+        when(financeStateMapper.selectByTransaction("TX-1", TRANSACTION_TIME)).thenReturn(state);
+        when(financeStateMapper.claimProcessing(
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1",
+                NOW, NOW.plusSeconds(120), "RETRY-DUE")).thenReturn(1);
+        when(operationMapper.updateClearingProjection(
+                "TX-1", TRANSACTION_TIME, 3, "PENDING", null, null, NOW)).thenReturn(1);
+
+        ClearingClaimResult result = service.claim(message, "worker-1", NOW);
+
+        assertThat(result.outcome()).isEqualTo(ClearingClaimResult.Outcome.ACQUIRED);
+    }
+
+    /**
+     * 即使消息提前到达，只要数据库本地到期时间仍在未来就不得抢占租约。
+     */
+    @Test
+    void futureRetryShouldRemainBusyWithoutTakingLease() {
+        LocalDateTime dueTime = NOW.plusMinutes(1);
+        ClearingRetryDueMessage message = retryMessage("RETRY-FUTURE", 1, dueTime);
+        ClearingTransactionFinanceStateDO state = financeState("FAILED", 4, 0);
+        state.setClearingRetryCount(1);
+        state.setNextRetryTime(dueTime);
+        state.setLastFailureCode("SOURCE_CLEARING_PENDING");
+        when(idempotencyMapper.existsSuccessfulConsumption(
+                "service-clearing-transaction-status:RETRY-FUTURE")).thenReturn(false);
+        when(operationMapper.selectByTransaction("TX-1", TRANSACTION_TIME)).thenReturn(operation("SUCCESS"));
+        when(financeStateMapper.selectByTransaction("TX-1", TRANSACTION_TIME)).thenReturn(state);
+
+        ClearingClaimResult result = service.claim(message, "worker-1", NOW);
+
+        assertThat(result.outcome()).isEqualTo(ClearingClaimResult.Outcome.BUSY);
+        verify(financeStateMapper, never()).claimProcessing(
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1",
+                NOW, NOW.plusSeconds(120), "RETRY-FUTURE");
     }
 
     @Test
@@ -219,7 +270,7 @@ class DefaultClearingPersistenceServiceTest {
         message.setExpectedClearingRevision(0);
         message.setClearingRetryCount(1);
         message.setRetryReasonCode("SOURCE_CLEARING_PENDING");
-        message.setDeliverAt(NOW.minusMinutes(1).toInstant(java.time.ZoneOffset.UTC));
+        message.setDeliverAt(ClearingTimeSupport.toInstant(NOW.minusMinutes(1)));
         ClearingTransactionFinanceStateDO state = financeState("WAITING_SOURCE", 4, 0);
         state.setClearingRetryCount(2);
         state.setNextRetryTime(NOW.minusMinutes(1));
@@ -233,7 +284,36 @@ class DefaultClearingPersistenceServiceTest {
 
         assertThat(result.outcome()).isEqualTo(ClearingClaimResult.Outcome.STALE_RETRY);
         verify(financeStateMapper, never()).claimProcessing(
-                "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "RETRY-2");
+                101L, "TX-1", TRANSACTION_TIME, 4, "worker-1", NOW, NOW.plusSeconds(120), "RETRY-2");
+    }
+
+    /**
+     * 构造与数据库重试控制字段完全一致的到期消息。
+     *
+     * @param messageId 消息唯一号
+     * @param retryCount 清分业务重试次数
+     * @param deliverAt 平台本地到期时间
+     * @return 携带绝对投递时刻的重试消息
+     */
+    private ClearingRetryDueMessage retryMessage(String messageId,
+                                                 int retryCount,
+                                                 LocalDateTime deliverAt) {
+        PaymentTransactionEventMessage source = message();
+        ClearingRetryDueMessage message = new ClearingRetryDueMessage();
+        message.setMessageId(messageId);
+        message.setEventType(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
+        message.setTransactionId(source.getTransactionId());
+        message.setOperationId(source.getOperationId());
+        message.setMerchantId(source.getMerchantId());
+        message.setMerchantOrderNo(source.getMerchantOrderNo());
+        message.setTransactionType(source.getTransactionType());
+        message.setTransactionDateTime(source.getTransactionDateTime());
+        message.setSourceEventNo("MSG-1");
+        message.setExpectedClearingRevision(0);
+        message.setClearingRetryCount(retryCount);
+        message.setRetryReasonCode("SOURCE_CLEARING_PENDING");
+        message.setDeliverAt(ClearingTimeSupport.toInstant(deliverAt));
+        return message;
     }
 
     private PaymentTransactionEventMessage message() {
@@ -268,6 +348,7 @@ class DefaultClearingPersistenceServiceTest {
 
     private ClearingTransactionFinanceStateDO financeState(String status, int version, int revision) {
         ClearingTransactionFinanceStateDO state = new ClearingTransactionFinanceStateDO();
+        state.setId(101L);
         state.setFinanceStateId("FS-1");
         state.setTransactionId("TX-1");
         state.setOperationId("OP-1");

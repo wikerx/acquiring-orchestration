@@ -2,6 +2,7 @@ package com.scott.payment.admin.application.risk;
 
 import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.risk.RiskDTOs;
+import com.scott.payment.admin.mapper.AdminRiskAuditMapper;
 import com.scott.payment.admin.mapper.RiskManagementMapper;
 import com.scott.payment.admin.service.MerchantAccessApprovalNotificationService;
 import com.scott.payment.admin.support.approval.MerchantAccessApprovalStatus;
@@ -13,6 +14,8 @@ import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
+import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -48,7 +51,7 @@ class AdminRiskManagementApplicationServiceTests {
     @Test
     void shouldDefaultTodayEventsToShanghaiCurrentDay() {
         RiskManagementMapper mapper = mock(RiskManagementMapper.class);
-        when(mapper.countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(),
+        when(mapper.countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
         AdminRiskManagementApplicationService service = service(mapper);
 
@@ -56,7 +59,7 @@ class AdminRiskManagementApplicationServiceTests {
 
         ArgumentCaptor<LocalDateTime> startCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<LocalDateTime> endCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(mapper).countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(),
+        verify(mapper).countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 startCaptor.capture(), endCaptor.capture());
         LocalDateTime start = startCaptor.getValue();
         assertThat(start.toLocalTime()).isEqualTo(LocalTime.MIDNIGHT);
@@ -80,11 +83,18 @@ class AdminRiskManagementApplicationServiceTests {
         RiskManagementMapper mapper = mock(RiskManagementMapper.class);
         Map<String, Object> rejected = evaluation("REJECT", 7);
         Map<String, Object> passed = evaluation("PASS", 3);
-        when(mapper.countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull())).thenReturn(2L);
-        when(mapper.selectEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyLong(), anyLong()))
+        LocalDateTime start = LocalDateTime.of(2026, 7, 1, 0, 0);
+        LocalDateTime endExclusive = start.plusMonths(1);
+        when(mapper.countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(start), eq(endExclusive))).thenReturn(2L);
+        when(mapper.selectEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(start), eq(endExclusive), anyLong(), anyLong()))
                 .thenReturn(List.of(rejected, passed));
         AdminRiskManagementApplicationService service = new AdminRiskManagementApplicationService(
                 mapper,
+                mock(AdminRiskAuditMapper.class),
+                disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
@@ -92,11 +102,14 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 mock(BaseMerchantInfoMapper.class),
-                mock(MerchantAccessApprovalNotificationService.class)
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
 
-        List<RiskDTOs.RiskEvaluationResponse> records = service.pageEvaluations(
-                        new RiskDTOs.EvaluationQueryRequest())
+        RiskDTOs.EvaluationQueryRequest request = new RiskDTOs.EvaluationQueryRequest();
+        request.setEvaluationStartTime(start);
+        request.setEvaluationEndTimeExclusive(endExclusive);
+        List<RiskDTOs.RiskEvaluationResponse> records = service.pageEvaluations(request)
                 .getRecords();
 
         assertThat(records).hasSize(2);
@@ -109,12 +122,15 @@ class AdminRiskManagementApplicationServiceTests {
         RiskManagementMapper mapper = mock(RiskManagementMapper.class);
         LocalDateTime start = LocalDateTime.of(2026, 8, 4, 0, 0);
         LocalDateTime endExclusive = start.plusDays(1);
-        when(mapper.countEvaluations("M1001", null, null, "REJECT", "HIGH", start, endExclusive))
+        when(mapper.countEvaluations(null, "M1001", null, null, "REJECT", "HIGH", start, endExclusive))
                 .thenReturn(1L);
-        when(mapper.selectEvaluations("M1001", null, null, "REJECT", "HIGH", start, endExclusive, 0, 20))
+        when(mapper.selectEvaluations(null, "M1001", null, null, "REJECT", "HIGH", start, endExclusive, 0, 20))
                 .thenReturn(List.of(evaluation("REJECT", 1)));
         AdminRiskManagementApplicationService service = new AdminRiskManagementApplicationService(
                 mapper,
+                mock(AdminRiskAuditMapper.class),
+                disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
@@ -122,7 +138,8 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 mock(BaseMerchantInfoMapper.class),
-                mock(MerchantAccessApprovalNotificationService.class)
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
         RiskDTOs.EvaluationQueryRequest request = new RiskDTOs.EvaluationQueryRequest();
         request.setMerchantId("M1001");
@@ -136,13 +153,22 @@ class AdminRiskManagementApplicationServiceTests {
     }
 
     @Test
-    void shouldApprovePendingSourceUrlWithAllowedTransactionByDefault() {
+    void shouldDisplayMerchantMasterNameWhenRankingSnapshotNameIsMissing() {
         RiskManagementMapper mapper = mock(RiskManagementMapper.class);
         BaseMerchantInfoMapper merchantMapper = mock(BaseMerchantInfoMapper.class);
-        MerchantAccessApprovalNotificationService notificationService =
-                mock(MerchantAccessApprovalNotificationService.class);
+        Map<String, Object> ranking = new LinkedHashMap<>();
+        ranking.put("merchant_id", "200045");
+        ranking.put("merchant_name", "-");
+        when(mapper.selectMerchantRiskRanking(20)).thenReturn(List.of(ranking));
+        BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
+        merchant.setMerchantId("200045");
+        merchant.setMerchantName("Scott Payment Merchant 200045");
+        when(merchantMapper.selectList(any())).thenReturn(List.of(merchant));
         AdminRiskManagementApplicationService service = new AdminRiskManagementApplicationService(
                 mapper,
+                mock(AdminRiskAuditMapper.class),
+                disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
@@ -150,7 +176,156 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 merchantMapper,
-                notificationService
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
+        );
+
+        List<RiskDTOs.MerchantRiskRankingResponse> result = service.merchantRiskRanking();
+
+        assertThat(result).singleElement()
+                .satisfies(row -> assertThat(row.getMerchantName())
+                        .isEqualTo("Scott Payment Merchant 200045"));
+    }
+
+    @Test
+    void shouldPageEvaluationDetailsWithStableOffsetAndRecordNumber() {
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("id", 101L);
+        detail.put("risk_record_no", "RK202611080001");
+        detail.put("stage_order", 21);
+        detail.put("function_code", "TRANSACTION_FREQUENCY");
+        detail.put("decision_result", "PASS");
+        when(mapper.countEvaluationHits("RK202611080001")).thenReturn(52L);
+        when(mapper.selectEvaluationHitsPage("RK202611080001", 20L, 20L)).thenReturn(List.of(detail));
+        AdminRiskManagementApplicationService service = service(mapper);
+        RiskDTOs.EvaluationDetailQueryRequest request = new RiskDTOs.EvaluationDetailQueryRequest();
+        request.setPageNo(2);
+        request.setPageSize(20);
+
+        var result = service.pageEvaluationDetails("  RK202611080001  ", request);
+
+        assertThat(result.getTotal()).isEqualTo(52L);
+        assertThat(result.getPageNo()).isEqualTo(2L);
+        assertThat(result.getPageSize()).isEqualTo(20L);
+        assertThat(result.getPages()).isEqualTo(3L);
+        assertThat(result.getRecords()).singleElement()
+                .satisfies(row -> {
+                    assertThat(row.getRiskRecordNo()).isEqualTo("RK202611080001");
+                    assertThat(row.getFunctionCode()).isEqualTo("TRANSACTION_FREQUENCY");
+                    assertThat(row.getStageOrder()).isEqualTo(21);
+                });
+    }
+
+    @Test
+    void shouldSkipDetailPageSelectWhenEvaluationHasNoDetails() {
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        when(mapper.countEvaluationHits("RK-NO-DETAIL")).thenReturn(0L);
+        AdminRiskManagementApplicationService service = service(mapper);
+
+        var result = service.pageEvaluationDetails("RK-NO-DETAIL", null);
+
+        assertThat(result.getTotal()).isZero();
+        assertThat(result.getPageNo()).isOne();
+        assertThat(result.getPageSize()).isEqualTo(20L);
+        assertThat(result.getRecords()).isEmpty();
+        verify(mapper, never()).selectEvaluationHitsPage(any(), anyLong(), anyLong());
+    }
+
+    @Test
+    void shouldRejectBlankRiskRecordNumberForDetailPage() {
+        AdminRiskManagementApplicationService service = service(mock(RiskManagementMapper.class));
+
+        assertThatThrownBy(() -> service.pageEvaluationDetails("  ", null))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class)
+                .hasMessageContaining("风控记录号不能为空");
+    }
+
+    @Test
+    void shouldKeepTrustedPaymentBrandForDerivedCardNumber() {
+        InternalAuthAccount operator = new InternalAuthAccount();
+        operator.setPermissions(List.of("*:*:*"));
+        InternalAuthContextHolder.set(operator);
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        AdminRiskManagementApplicationService service = service(mapper);
+        RiskDTOs.RiskListSaveRequest request = new RiskDTOs.RiskListSaveRequest();
+
+        AdminRiskManagementApplicationService.DerivedListPlan plan = service.prepareDerivedList(
+                "cardNo", "GLOBAL", null, request,
+                "344676******3887", "trusted-card-hash", "AMEX", "ADD");
+
+        assertThat(plan.data()).containsEntry("cardBrand", "AMEX");
+    }
+
+    /**
+     * 分片开启后必须先通过定位表取得原始评估时间，再用同一时间路由执行明细。
+     */
+    @Test
+    void shouldRouteShardedEvaluationDetailsWithLocatorTime() {
+        RiskManagementMapper legacyMapper = mock(RiskManagementMapper.class);
+        AdminRiskAuditMapper auditMapper = mock(AdminRiskAuditMapper.class);
+        LocalDateTime evaluationTime = LocalDateTime.of(2026, 4, 18, 9, 30, 12);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("risk_record_no", "RISK-202604-001");
+        detail.put("function_code", "TRANSACTION_FREQUENCY");
+        when(auditMapper.selectEvaluationTime("RISK-202604-001")).thenReturn(evaluationTime);
+        when(auditMapper.countEvaluationDetails("RISK-202604-001", evaluationTime)).thenReturn(1L);
+        when(auditMapper.selectEvaluationDetailsPage("RISK-202604-001", evaluationTime, 0L, 20L))
+                .thenReturn(List.of(detail));
+        AdminRiskManagementApplicationService service = service(
+                legacyMapper, auditMapper, enabledRiskAuditSharding());
+
+        var result = service.pageEvaluationDetails(" RISK-202604-001 ", null);
+
+        assertThat(result.getTotal()).isOne();
+        assertThat(result.getRecords()).singleElement()
+                .satisfies(row -> assertThat(row.getRiskRecordNo()).isEqualTo("RISK-202604-001"));
+        verify(legacyMapper, never()).countEvaluationHits(any());
+    }
+
+    /**
+     * 精确记录号无定位事实时直接返回空页，禁止退化为跨季度广播。
+     */
+    @Test
+    void shouldReturnEmptyPageWhenShardedLocatorIsMissing() {
+        RiskManagementMapper legacyMapper = mock(RiskManagementMapper.class);
+        AdminRiskAuditMapper auditMapper = mock(AdminRiskAuditMapper.class);
+        AdminRiskManagementApplicationService service = service(
+                legacyMapper, auditMapper, enabledRiskAuditSharding());
+        RiskDTOs.EvaluationQueryRequest request = new RiskDTOs.EvaluationQueryRequest();
+        request.setRiskRecordNo("RISK-MISSING");
+
+        var result = service.pageEvaluations(request);
+
+        assertThat(result.getTotal()).isZero();
+        assertThat(result.getRecords()).isEmpty();
+        verify(auditMapper).selectEvaluationTime("RISK-MISSING");
+        verify(auditMapper, never()).countEvaluations(any(), any(), any(), any(), any(), any(),
+                any(), any(), any());
+        verify(legacyMapper, never()).countEvaluations(any(), any(), any(), any(), any(), any(),
+                any(), any());
+    }
+
+    @Test
+    void shouldApprovePendingSourceUrlWithAllowedTransactionByDefault() {
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        BaseMerchantInfoMapper merchantMapper = mock(BaseMerchantInfoMapper.class);
+        MerchantAccessApprovalNotificationService notificationService =
+                mock(MerchantAccessApprovalNotificationService.class);
+        AdminRiskManagementApplicationService service = new AdminRiskManagementApplicationService(
+                mapper,
+                mock(AdminRiskAuditMapper.class),
+                disabledRiskAuditSharding(),
+                new RiskAuditLogicalReadExecutor(),
+                mock(RiskListValueNormalizer.class),
+                mock(AdminRiskImportLogService.class),
+                mock(RiskRuleCacheInvalidationCoordinator.class),
+                mock(ExcelExportService.class),
+                mock(ExcelI18nMessageResolver.class),
+                mock(ExcelLocaleResolver.class),
+                merchantMapper,
+                notificationService,
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
         authenticateSourceUrlApprover();
         Map<String, Object> before = sourceUrlRecord(0, 0);
@@ -220,8 +395,17 @@ class AdminRiskManagementApplicationServiceTests {
     }
 
     private AdminRiskManagementApplicationService service(RiskManagementMapper mapper) {
+        return service(mapper, mock(AdminRiskAuditMapper.class), disabledRiskAuditSharding());
+    }
+
+    private AdminRiskManagementApplicationService service(RiskManagementMapper mapper,
+                                                           AdminRiskAuditMapper auditMapper,
+                                                           RiskAuditShardingProperties properties) {
         return new AdminRiskManagementApplicationService(
                 mapper,
+                auditMapper,
+                properties,
+                new RiskAuditLogicalReadExecutor(),
                 mock(RiskListValueNormalizer.class),
                 mock(AdminRiskImportLogService.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
@@ -229,7 +413,18 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 mock(BaseMerchantInfoMapper.class),
-                mock(MerchantAccessApprovalNotificationService.class)
+                mock(MerchantAccessApprovalNotificationService.class),
+                mock(com.scott.payment.component.web.upload.UploadSecurityService.class)
         );
+    }
+
+    private RiskAuditShardingProperties disabledRiskAuditSharding() {
+        return new RiskAuditShardingProperties();
+    }
+
+    private RiskAuditShardingProperties enabledRiskAuditSharding() {
+        RiskAuditShardingProperties properties = new RiskAuditShardingProperties();
+        properties.setEnabled(true);
+        return properties;
     }
 }

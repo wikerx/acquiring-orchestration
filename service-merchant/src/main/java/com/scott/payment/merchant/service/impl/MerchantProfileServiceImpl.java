@@ -289,6 +289,7 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         profile.setBillingDescriptor(row.getBillingDescriptor());
         profile.setMerchantShortName(row.getMerchantShortName());
         profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setActivationStatus(row.getActivationStatus());
         profile.setDefaultLocale(row.getDefaultLocale());
         profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
         profile.setCountryCode(row.getCountryCode());

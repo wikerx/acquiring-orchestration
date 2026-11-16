@@ -8,6 +8,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.job.client.admin.dto.ExchangeRateAlertEvaluationClientDTOs.Request;
 import com.scott.payment.job.client.admin.dto.ExchangeRateAlertEvaluationClientDTOs.Response;
+import com.scott.payment.job.client.admin.dto.OperationalWorkItemSyncClientDTOs;
 import com.scott.payment.job.config.AdminInternalClientProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -38,6 +39,9 @@ public class AdminInternalRestClient implements AdminInternalClient {
 
     /** 汇率波动评估内部接口路径。 */
     private static final String EVALUATE_ALERTS_PATH = "/internal/admin/exchange/alerts/evaluate";
+
+    /** 统一运营待办同步内部接口路径。 */
+    private static final String SYNC_OPERATIONAL_WORK_ITEMS_PATH = "/internal/admin/operations/work-items/sync";
 
     private final RestTemplate directRestTemplate;
     private final RestTemplate loadBalancedRestTemplate;
@@ -98,10 +102,46 @@ public class AdminInternalRestClient implements AdminInternalClient {
         }
     }
 
+    /** 调用管理服务幂等同步统一运营待办。 */
+    @Override
+    public OperationalWorkItemSyncClientDTOs.Response synchronizeOperationalWorkItems(
+            OperationalWorkItemSyncClientDTOs.Request request) {
+        URI uri = URI.create(SERVICE_ADMIN_BASE_URL + SYNC_OPERATIONAL_WORK_ITEMS_PATH);
+        try {
+            String responseBody = chooseRestTemplate(uri).exchange(
+                    uri,
+                    HttpMethod.POST,
+                    buildSignedEntity(uri, request),
+                    String.class).getBody();
+            CommonResult<OperationalWorkItemSyncClientDTOs.Response> result =
+                    JsonUtils.parseObject(responseBody,
+                            new TypeReference<CommonResult<OperationalWorkItemSyncClientDTOs.Response>>() {
+                            });
+            if (result == null || result.getData() == null) {
+                throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
+                        "service-admin response is empty");
+            }
+            if (!CommonResult.isSuccess(result)) {
+                throw new ServiceException(result.getCode(), result.getMessage());
+            }
+            return result.getData();
+        } catch (HttpStatusCodeException exception) {
+            log.warn("管理服务统一运营待办同步调用被拒绝, event: JOB_ADMIN_WORK_ITEM_SYNC_REJECTED, targetPath: {}, httpStatus: {}",
+                    uri.getPath(), exception.getStatusCode().value());
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
+                    "service-admin operational work item sync rejected");
+        } catch (RestClientException exception) {
+            log.warn("管理服务统一运营待办同步调用失败, event: JOB_ADMIN_WORK_ITEM_SYNC_FAILED, targetPath: {}, exceptionType: {}",
+                    uri.getPath(), exception.getClass().getSimpleName());
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
+                    "service-admin operational work item sync failed");
+        }
+    }
+
     /**
      * 构造绑定方法、路径、请求体、时间戳和 nonce 的签名请求。
      */
-    private HttpEntity<String> buildSignedEntity(URI uri, Request request) {
+    private HttpEntity<String> buildSignedEntity(URI uri, Object request) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String body = JsonUtils.toJsonString(request);

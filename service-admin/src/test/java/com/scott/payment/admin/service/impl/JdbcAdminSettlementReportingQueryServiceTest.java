@@ -111,32 +111,29 @@ class JdbcAdminSettlementReportingQueryServiceTest {
         request.setBeginBusinessDate(LocalDate.of(2026, 8, 1));
         request.setEndBusinessDate(LocalDate.of(2026, 8, 31));
         request.setSourceTransactionId("T-RETURN-1003");
+        request.setBeginTransactionTime(LocalDateTime.of(2026, 8, 10, 0, 0));
+        request.setEndTransactionTime(LocalDateTime.of(2026, 8, 11, 0, 0));
 
         service(jdbc).searchReserveItems(request, AdminMerchantDataScope.limited(Set.of("M1003")));
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbc).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
         assertThat(sql.getValue()).contains(
                 "fund_account.account_no AS account_no",
-                "reserve_detail.original_transaction_id AS source_transaction_id",
-                "COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time)",
-                "AS source_transaction_date_time",
-                "reserve_detail.original_transaction_id = :transactionId",
+                "reserve.source_transaction_id AS source_transaction_id",
+                "locator.transaction_date_time AS source_transaction_date_time",
+                "reserve.source_transaction_id = :transactionId",
+                "locator.transaction_date_time >= :beginTransactionTime",
+                "locator.transaction_date_time < :endTransactionTime",
                 "JOIN settlement_candidate candidate",
                 "candidate.merchant_id = reserve.merchant_id",
-                "LEFT JOIN merchant_reserve_action source_action",
-                "source_action.id = action.reversal_of_action_id",
-                "JOIN transaction_reserve_clearing_detail reserve_detail",
-                "reserve_detail.transaction_id = candidate.source_transaction_id",
-                "reserve_detail.transaction_date_time = candidate.source_transaction_date_time",
-                "reserve_detail.clearing_revision = candidate.source_revision",
-                "reserve_detail.reserve_clearing_detail_no = COALESCE(",
-                "source_action.source_reserve_detail_no",
-                "action.source_reserve_detail_no",
                 "LEFT JOIN merchant_fund_account fund_account",
                 "fund_account.id = reserve.account_id",
                 "fund_account.merchant_id = reserve.merchant_id",
                 "fund_account.deleted = 0",
+                "LEFT JOIN transaction_locator locator",
+                "locator.transaction_id = reserve.source_transaction_id",
                 "LEFT JOIN base_iso_currency currency",
                 "AS currency_exponent",
                 "reserve.reserve_status = 'HELD'",
@@ -148,7 +145,14 @@ class JdbcAdminSettlementReportingQueryServiceTest {
         assertThat(sql.getValue()).doesNotContain(
                 "candidate.source_transaction_id,\n",
                 "candidate.source_transaction_date_time,",
-                "candidate.source_transaction_id = :transactionId");
+                "candidate.source_transaction_id = :transactionId",
+                "reserve_detail.original_transaction_date_time",
+                "JOIN transaction_reserve_clearing_detail reserve_detail",
+                "LEFT JOIN merchant_reserve_action source_action");
+        assertThat(parameters.getValue().getValue("beginTransactionTime"))
+                .isEqualTo(LocalDateTime.of(2026, 8, 10, 0, 0));
+        assertThat(parameters.getValue().getValue("endTransactionTime"))
+                .isEqualTo(LocalDateTime.of(2026, 8, 11, 0, 0));
     }
 
     @Test

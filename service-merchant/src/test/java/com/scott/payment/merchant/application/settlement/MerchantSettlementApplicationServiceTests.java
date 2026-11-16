@@ -88,17 +88,29 @@ class MerchantSettlementApplicationServiceTests {
                 "M10000001", "T-1001", transactionDateTime)).thenReturn(List.of());
         when(queryService.findClearingDetailByTransaction(
                 "M10000001", "T-1001", transactionDateTime)).thenReturn(new ClearingDetail());
+        when(queryService.searchClearingTransactionLinesByTransaction(
+                "M10000001", "T-1001", transactionDateTime, 2, 20))
+                .thenReturn(PageResult.of(0L, 2, 20, List.of()));
+        when(queryService.searchClearingReserveLinesByTransaction(
+                "M10000001", "T-1001", transactionDateTime, 3, 50))
+                .thenReturn(PageResult.of(0L, 3, 50, List.of()));
         when(queryService.searchReserveItemsByTransaction(
                 "M10000001", "T-1001", transactionDateTime, 1, 20))
                 .thenReturn(PageResult.of(0L, 1, 20, List.of()));
 
         service.findClearingDetailByTransaction("T-1001", transactionDateTime);
+        service.searchClearingTransactionLinesByTransaction("T-1001", transactionDateTime, 2, 20);
+        service.searchClearingReserveLinesByTransaction("T-1001", transactionDateTime, 3, 50);
         service.findReconciliationRecordsByTransaction("T-1001", transactionDateTime);
         service.searchTransactionItemsByTransaction("T-1001", transactionDateTime, 1, 20);
         service.searchReserveItemsByTransaction("T-1001", transactionDateTime, 1, 20);
 
         verify(queryService).findClearingDetailByTransaction(
                 "M10000001", "T-1001", transactionDateTime);
+        verify(queryService).searchClearingTransactionLinesByTransaction(
+                "M10000001", "T-1001", transactionDateTime, 2, 20);
+        verify(queryService).searchClearingReserveLinesByTransaction(
+                "M10000001", "T-1001", transactionDateTime, 3, 50);
         verify(queryService).findReconciliationRecordsByTransaction(
                 "M10000001", "T-1001", transactionDateTime);
         verify(queryService).searchTransactionItemsByTransaction(

@@ -2,9 +2,11 @@ package com.scott.payment.settlement.config;
 
 import com.scott.payment.settlement.application.SettlementAutomaticProcessingApplicationService;
 import com.scott.payment.settlement.application.SettlementProjectionApplicationService;
+import com.scott.payment.settlement.application.SettlementPrincipalCorrectionApplicationService;
 import com.scott.payment.settlement.application.SettlementManualReviewApplicationService;
 import com.scott.payment.settlement.application.SettlementReviewDecisionApplicationService;
 import com.scott.payment.settlement.exception.SettlementProjectionProcessingException;
+import com.scott.payment.settlement.exception.SettlementPrincipalCorrectionProjectionException;
 import com.scott.payment.settlement.service.SettlementEventPublisherService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,12 +33,22 @@ public class SettlementAutomaticScheduler {
     private final SettlementEventPublisherService eventPublisherService;
     private final SettlementManualReviewApplicationService manualReviewService;
     private final SettlementReviewDecisionApplicationService reviewDecisionService;
+    private final SettlementPrincipalCorrectionApplicationService principalCorrectionService;
 
     public SettlementAutomaticScheduler(SettlementAutomaticProcessingApplicationService applicationService,
                                         SettlementProjectionApplicationService projectionService,
                                         SettlementEventPublisherService eventPublisherService,
                                         SettlementManualReviewApplicationService manualReviewService) {
-        this(applicationService, projectionService, eventPublisherService, manualReviewService, null);
+        this(applicationService, projectionService, eventPublisherService, manualReviewService, null, null);
+    }
+
+    public SettlementAutomaticScheduler(SettlementAutomaticProcessingApplicationService applicationService,
+                                        SettlementProjectionApplicationService projectionService,
+                                        SettlementEventPublisherService eventPublisherService,
+                                        SettlementManualReviewApplicationService manualReviewService,
+                                        SettlementReviewDecisionApplicationService reviewDecisionService) {
+        this(applicationService, projectionService, eventPublisherService, manualReviewService,
+                reviewDecisionService, null);
     }
 
     @Autowired
@@ -44,12 +56,14 @@ public class SettlementAutomaticScheduler {
                                         SettlementProjectionApplicationService projectionService,
                                         SettlementEventPublisherService eventPublisherService,
                                         SettlementManualReviewApplicationService manualReviewService,
-                                        SettlementReviewDecisionApplicationService reviewDecisionService) {
+                                        SettlementReviewDecisionApplicationService reviewDecisionService,
+                                        SettlementPrincipalCorrectionApplicationService principalCorrectionService) {
         this.applicationService = applicationService;
         this.projectionService = projectionService;
         this.eventPublisherService = eventPublisherService;
         this.manualReviewService = manualReviewService;
         this.reviewDecisionService = reviewDecisionService;
+        this.principalCorrectionService = principalCorrectionService;
     }
 
     /**
@@ -149,6 +163,31 @@ public class SettlementAutomaticScheduler {
     }
 
     /**
+     * 有界推进已批准历史标签本金调整的三层交易投影，失败后独立记录退避。
+     */
+    @Scheduled(initialDelay = 13_000L,
+            fixedDelayString = "${settlement.automatic-scheduler.worker-fixed-delay-ms:1000}")
+    public void projectPrincipalCorrections() {
+        if (principalCorrectionService == null) {
+            return;
+        }
+        for (int index = 0; index < 50; index++) {
+            try {
+                if (!principalCorrectionService.processNextProjection(java.time.LocalDateTime.now())) {
+                    return;
+                }
+            } catch (SettlementPrincipalCorrectionProjectionException exception) {
+                recordPrincipalCorrectionFailure(exception);
+                return;
+            } catch (RuntimeException exception) {
+                LOGGER.error("历史标签本金投影修正调度失败, event: SETTLEMENT_SCHEDULER_PRINCIPAL_CORRECTION_FAILED, exceptionType: {}",
+                        exception.getClass().getSimpleName(), exception);
+                return;
+            }
+        }
+    }
+
+    /**
      * 按工作循环周期有界发布结算完成 FIFO Outbox，MQ 异常不阻塞批次资金处理。
      */
     @Scheduled(initialDelay = 15_000L,
@@ -180,6 +219,22 @@ public class SettlementAutomaticScheduler {
         } catch (RuntimeException recordException) {
             LOGGER.error("结算投影失败状态持久化失败, event: SETTLEMENT_PROJECTION_FAILURE_PERSIST_FAILED, taskNo: {}, failureCode: {}, exceptionType: {}",
                     exception.getTaskNo(), exception.getFailureCode(),
+                    recordException.getClass().getSimpleName(), recordException);
+        }
+    }
+
+    private void recordPrincipalCorrectionFailure(
+            SettlementPrincipalCorrectionProjectionException exception) {
+        try {
+            boolean recorded = principalCorrectionService.recordProjectionFailure(
+                    exception, java.time.LocalDateTime.now());
+            if (!recorded) {
+                LOGGER.warn("历史标签本金投影失败状态已被并发推进, event: SETTLEMENT_PRINCIPAL_CORRECTION_FAILURE_CAS_SKIPPED, correctionItemNo: {}, failureCode: {}",
+                        exception.getCorrectionItemNo(), exception.getFailureCode());
+            }
+        } catch (RuntimeException recordException) {
+            LOGGER.error("历史标签本金投影失败状态持久化失败, event: SETTLEMENT_PRINCIPAL_CORRECTION_FAILURE_PERSIST_FAILED, correctionItemNo: {}, failureCode: {}, exceptionType: {}",
+                    exception.getCorrectionItemNo(), exception.getFailureCode(),
                     recordException.getClass().getSimpleName(), recordException);
         }
     }

@@ -4,6 +4,7 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingRuleChecksum;
+import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.impl.DefaultCaptureChannelResultTransactionService;
 import com.scott.payment.payment.service.impl.DefaultCaptureTransactionPreparationService;
 import com.scott.payment.payment.service.impl.DefaultIncrementalAuthorizationChannelResultTransactionService;
@@ -21,6 +22,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.yaml.snakeyaml.Yaml;
 
@@ -28,6 +30,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,9 @@ class TransactionPersistenceMapperContractTests {
         Map<String, Object> governance = childMap(sharding, "governance");
         Map<String, Object> maintenance = childMap(governance, "table-maintenance");
         Map<String, Object> tables = childMap(governance, "tables");
+        Map<String, Object> riskAuditSharding = childMap(root, "risk-audit-sharding");
+        List<String> governedLogicTables = new ArrayList<>(TransactionShardingProperties.defaultLogicTables());
+        governedLogicTables.addAll(childList(riskAuditSharding, "logic-tables"));
 
         assertThat(root).doesNotContainKey("global-payment");
         assertThat(sharding).doesNotContainKey("mode");
@@ -55,16 +61,21 @@ class TransactionPersistenceMapperContractTests {
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
         assertThat(maintenance).containsEntry("allow-create-from-template-table", true)
                 .containsEntry("allow-alter-existing-table", false);
-        assertThat(tables).hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT);
+        assertThat(tables).hasSize(governedLogicTables.size());
         assertThat(tables.values()).allSatisfy(value -> {
             assertThat(value).isInstanceOf(Map.class);
             @SuppressWarnings("unchecked")
             Map<String, Object> rule = (Map<String, Object>) value;
             assertThat(rule.get("logical-table"))
-                    .isIn(TransactionShardingProperties.defaultLogicTables().toArray());
+                    .isIn(governedLogicTables.toArray());
             assertThat(rule).containsEntry("template-table", rule.get("logical-table"))
                     .containsEntry("end-year", 2099);
         });
+        List<String> configuredGovernanceTables = tables.values().stream()
+                .map(value -> String.valueOf(((Map<?, ?>) value).get("logical-table")))
+                .toList();
+        assertThat(configuredGovernanceTables)
+                .containsExactlyInAnyOrderElementsOf(governedLogicTables);
     }
 
     @Test
@@ -169,6 +180,117 @@ class TransactionPersistenceMapperContractTests {
                 .contains("`description` varchar(128)");
     }
 
+    /**
+     * 标签金额是商户额度事实，渠道交易金额是平台执行事实；请款、退款和撤销必须同时保护两套余额。
+     */
+    @Test
+    void amountLifecycleCasShouldProtectLabelAndTransactionBalances() {
+        String captureSql = annotationValue(
+                methodNamed(TransactionOrderMapper.class, "increaseCapturedAmount"), Update.class);
+        String refundSql = annotationValue(
+                methodNamed(TransactionOrderMapper.class, "increaseRefundedAmount"), Update.class);
+        String voidSql = annotationValue(
+                methodNamed(TransactionOrderMapper.class, "markVoidSuccess"), Update.class);
+
+        assertThat(captureSql)
+                .contains("label_captured_amount = label_captured_amount + #{labelAmount}")
+                .contains("captured_amount = captured_amount + #{transactionAmount}")
+                .contains("label_available_capture_amount >= #{labelAmount}")
+                .contains("available_capture_amount >= #{transactionAmount}")
+                .doesNotContain("${");
+        assertThat(refundSql)
+                .contains("label_refunded_amount = label_refunded_amount + #{labelAmount}")
+                .contains("refunded_amount = refunded_amount + #{transactionAmount}")
+                .contains("label_available_refund_amount >= #{labelAmount}")
+                .contains("available_refund_amount >= #{transactionAmount}")
+                .doesNotContain("${");
+        assertThat(voidSql)
+                .contains("label_authorized_cancel_amount = label_authorized_cancel_amount + #{labelAmount}")
+                .contains("authorized_cancel_amount = authorized_cancel_amount + #{transactionAmount}")
+                .contains("label_authorized_amount - label_authorized_cancel_amount = #{labelAmount}")
+                .contains("authorized_amount - authorized_cancel_amount = #{transactionAmount}")
+                .contains("label_captured_amount = 0", "captured_amount = 0")
+                .contains("label_refunded_amount = 0", "refunded_amount = 0")
+                .contains("#{labelAmount} > 0", "#{transactionAmount} > 0")
+                .doesNotContain("${");
+    }
+
+    /**
+     * 金额变动日志同时保存商户标签口径和渠道交易口径，避免审计时用汇率反推历史金额。
+     */
+    @Test
+    void amountChangeLogInsertShouldPersistBothAmountScopes() {
+        String insertSql = annotationValue(
+                methodNamed(TransactionAmountChangeLogMapper.class, "insertLogical"), Insert.class);
+
+        assertThat(insertSql)
+                .contains("label_amount_currency", "label_change_amount")
+                .contains("label_authorized_before", "label_authorized_after")
+                .contains("label_captured_before", "label_captured_after")
+                .contains("label_refunded_before", "label_refunded_after")
+                .contains("label_available_capture_before", "label_available_capture_after")
+                .contains("label_available_refund_before", "label_available_refund_after")
+                .contains("#{logDO.labelAmountCurrency}", "#{logDO.labelChangeAmount}")
+                .contains("#{logDO.authorizedBefore}", "#{logDO.availableRefundAfter}")
+                .doesNotContain("${");
+    }
+
+    /**
+     * 模板表、已发布分片、迁移、后置检查和回滚必须作为一个数据库契约同步演进。
+     */
+    @Test
+    void labelAmountLifecycleSchemaShouldCoverTemplateAndPublishedShards() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile(
+                "docs/sql/20261105_01_transaction_label_amount_lifecycle_migration.sql");
+        String postcheck = readProjectFile(
+                "docs/sql/20261105_02_transaction_label_amount_lifecycle_postcheck.sql");
+        String rollback = readProjectFile(
+                "docs/sql/20261105_03_transaction_label_amount_lifecycle_rollback.sql");
+
+        List.of("transaction_order", "transaction_order_202603", "transaction_order_202604")
+                .forEach(table -> assertThat(tableDefinition(schema, table))
+                        .contains("`label_currency_exponent` tinyint NOT NULL")
+                        .contains("`label_authorized_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_authorized_cancel_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_captured_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_refunded_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_chargeback_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_available_capture_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_available_refund_amount` decimal(20,6) NOT NULL"));
+        List.of("transaction_operation", "transaction_operation_202603", "transaction_operation_202604")
+                .forEach(table -> assertThat(tableDefinition(schema, table))
+                        .contains("`label_currency_exponent` tinyint NOT NULL"));
+        List.of(
+                "transaction_amount_change_log",
+                "transaction_amount_change_log_202603",
+                "transaction_amount_change_log_202604")
+                .forEach(table -> assertThat(tableDefinition(schema, table))
+                        .contains("`label_amount_currency` char(3) NOT NULL")
+                        .contains("`label_change_amount` decimal(20,6) NOT NULL")
+                        .contains("`label_authorized_before` decimal(20,6) NOT NULL")
+                        .contains("`label_captured_after` decimal(20,6) NOT NULL")
+                        .contains("`label_refunded_after` decimal(20,6) NOT NULL")
+                        .contains("`label_available_capture_after` decimal(20,6) NOT NULL")
+                        .contains("`label_available_refund_after` decimal(20,6) NOT NULL"));
+
+        assertThat(migration)
+                .contains("precheck_transaction_label_amount_lifecycle_20261105")
+                .contains("transaction_label_amount_void_backup_20261105")
+                .contains("tmp_label_operation_state_202603", "tmp_label_operation_state_202604")
+                .contains("ALTER TABLE `transaction_order_202603`", "ALTER TABLE `transaction_order_202604`")
+                .doesNotContain("ADD COLUMN IF NOT EXISTS");
+        assertThat(postcheck)
+                .contains("expected 63 new columns")
+                .contains("template and shard definitions differ")
+                .contains("order totals differ from successful operations")
+                .contains("cross-currency VOID did not preserve frozen rate facts");
+        assertThat(rollback)
+                .contains("transaction_label_amount_void_backup_20261105")
+                .contains("DROP COLUMN label_currency_exponent")
+                .contains("DROP COLUMN label_available_refund_after");
+    }
+
     @Test
     void transactionOutboxInsertShouldPersistExplicitDeliveryContract() {
         String insertSql = annotationValue(
@@ -268,13 +390,56 @@ class TransactionPersistenceMapperContractTests {
     }
 
     @Test
-    void transactionalPaymentCoordinatorsShouldSelectLogicalDataSourceBeforeTransactionBegins() {
-        List<Class<?>> transactionTypes = List.of(
-                DefaultPaymentTransactionPreparationService.class,
+    void transactionalPaymentCoordinatorsShouldSelectLogicalDataSourceBeforeTransactionBegins()
+            throws NoSuchMethodException {
+        Method initialPreparation = DefaultPaymentTransactionPreparationService.class.getDeclaredMethod(
+                "prepareInitialTransaction", PaymentCreateCommandDTO.class, String.class);
+        DS initialPreparationDataSource = initialPreparation.getAnnotation(DS.class);
+        assertThat(initialPreparationDataSource)
+                .as("initial payment planning must select transaction data source before opening its short transaction")
+                .isNotNull();
+        assertThat(initialPreparationDataSource.value()).isEqualTo(DataSourceName.TRANSACTION);
+        assertThat(initialPreparation.isAnnotationPresent(Transactional.class))
+                .as("remote risk, route and exchange-rate planning must stay outside a method-level transaction")
+                .isFalse();
+        assertThat(Arrays.stream(DefaultPaymentTransactionPreparationService.class.getDeclaredConstructors())
+                .anyMatch(constructor -> Arrays.asList(constructor.getParameterTypes())
+                        .contains(PlatformTransactionManager.class)))
+                .as("initial payment preparation must inject a transaction manager for its persistence-only transaction")
+                .isTrue();
+
+        List<Class<?>> shortTransactionTypes = List.of(
                 DefaultCaptureTransactionPreparationService.class,
                 DefaultRefundTransactionPreparationService.class,
                 DefaultVoidTransactionPreparationService.class,
-                DefaultIncrementalAuthorizationTransactionPreparationService.class,
+                DefaultIncrementalAuthorizationTransactionPreparationService.class);
+
+        assertThat(shortTransactionTypes).allSatisfy(type -> {
+            assertThat(type.getAnnotation(DS.class)).isNull();
+            List<Method> dataSourceEntries = Arrays.stream(type.getDeclaredMethods())
+                    .filter(method -> method.isAnnotationPresent(DS.class))
+                    .toList();
+            assertThat(dataSourceEntries)
+                    .as("%s must select the transaction data source before its programmatic short transaction",
+                            type.getSimpleName())
+                    .isNotEmpty()
+                    .allSatisfy(method -> {
+                        assertThat(method.getAnnotation(DS.class).value())
+                                .isEqualTo(DataSourceName.TRANSACTION);
+                        assertThat(method.isAnnotationPresent(Transactional.class))
+                                .as("%s.%s must not reopen the former method-level long transaction",
+                                        type.getSimpleName(), method.getName())
+                                .isFalse();
+                    });
+            assertThat(Arrays.stream(type.getDeclaredConstructors())
+                    .anyMatch(constructor -> Arrays.asList(constructor.getParameterTypes())
+                            .contains(PlatformTransactionManager.class)))
+                    .as("%s must inject a transaction manager for its locked fact-persistence transaction",
+                            type.getSimpleName())
+                    .isTrue();
+        });
+
+        List<Class<?>> annotationTransactionTypes = List.of(
                 DefaultPaymentChannelResultTransactionService.class,
                 DefaultCaptureChannelResultTransactionService.class,
                 DefaultRefundChannelResultTransactionService.class,
@@ -283,7 +448,7 @@ class TransactionPersistenceMapperContractTests {
                 DefaultTransactionChannelMatchResultTransactionService.class,
                 DefaultTransactionCallbackService.class);
 
-        assertThat(transactionTypes).allSatisfy(type -> {
+        assertThat(annotationTransactionTypes).allSatisfy(type -> {
             assertThat(type.getAnnotation(DS.class)).isNull();
             List<Method> transactionMethods = Arrays.stream(type.getDeclaredMethods())
                     .filter(method -> method.isAnnotationPresent(Transactional.class))
@@ -403,6 +568,7 @@ class TransactionPersistenceMapperContractTests {
                 java.time.LocalDateTime.class), Select.class);
         String notificationUpdateSql = annotationValue(TransactionMerchantNotificationMapper.class.getMethod(
                 "activateByTransactionId",
+                Long.class,
                 String.class,
                 java.time.LocalDateTime.class,
                 Integer.class,
@@ -410,6 +576,11 @@ class TransactionPersistenceMapperContractTests {
                 String.class,
                 java.time.LocalDateTime.class,
                 java.time.LocalDateTime.class), Update.class);
+        String notificationSelectSql = annotationValue(TransactionMerchantNotificationMapper.class.getMethod(
+                "selectPendingActivation",
+                String.class,
+                java.time.LocalDateTime.class,
+                Integer.class), Select.class);
 
         assertLogicalPointSql(orderSelectSql, "transaction_order");
         assertLogicalPointSql(operationSelectSql, "transaction_operation");
@@ -425,8 +596,17 @@ class TransactionPersistenceMapperContractTests {
                         "settlement_transaction_date_time")
                 .doesNotContain("SELECT *", "SELECT o.*");
         assertThat(orderLockSql).contains("FOR UPDATE");
+        assertThat(notificationSelectSql)
+                .contains("SELECT id, notify_id")
+                .contains("transaction_id = #{transactionId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("version = #{expectedVersion}")
+                .contains("notify_status = 'INIT'")
+                .contains("deleted = 0")
+                .doesNotContain("${");
         assertThat(notificationUpdateSql)
                 .contains("UPDATE transaction_merchant_notification")
+                .contains("id = #{id}")
                 .contains("transaction_date_time = #{transactionDateTime}")
                 .contains("version = #{expectedVersion}")
                 .contains("version = version + 1")

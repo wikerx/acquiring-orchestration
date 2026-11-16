@@ -37,7 +37,7 @@ Nacos yaml 的职责边界：
 - `common-{env}.yaml`：所有服务共享的非敏感配置，例如时间格式、管理端点、链路头名称；禁止写入内部 HMAC、JWT、数据库密码或其他密钥。
 - `service-gateway-{env}.yaml`：只放网关接入层说明、白名单、观测规则和 `gateway-checkout` 调用边，不放数据库、Redis、MQ、Seata、分表配置。
 - `service-risk-{env}.yaml`：放风控健康检查、服务专属规则参数和 `payment-risk` 调用边；Redis 与 MQ 连接参数分别复用公共 DataId。
-- `service-data-{env}.yaml`：只放异步数据消费和商户通知执行参数；操作日志、风控审计和商户通知消费者均由该服务独占。
+- `service-data-{env}.yaml`：只放异步数据消费和商户通知执行参数；操作日志、风控审计、商户响应加密审计和商户通知消费者均由该服务独占。
 - `service-clearing-{env}.yaml`：放清分消费容量、超时重试、指标周期，以及 `admin-clearing`、`job-clearing` 调用边。费用版本、分片、Redis 和 RocketMQ 连接继续复用公共 DataId。服务启动后自动消费全部合法终态事件。
 - `service-settlement-{env}.yaml`：放非敏感观测参数和 `admin-settlement` 调用边；结算周期、汇率、费用、保证金、余额入账规则和业务启停不得写入配置中心。服务启动后自动认领真实结算候选。
 - `dataSource-{env}.yaml`：主从数据源、连接池、MyBatis-Plus。
@@ -87,12 +87,14 @@ acquiring:
 | `merchant-admin` | 已停用的兼容边界 | `service-admin` | 仅保护仍保留的旧 `/internal/merchant/**` 接口，不作为商户后台正常查询链路 |
 | `admin-job` | `service-admin` | `service-job` | 后台任务管理命令；同时保留可信登录操作人的 RBAC 上下文 |
 | `job-admin` | `service-job` | `service-admin` | 汇率波动幂等评估命令；仅允许固定评估路径 |
-| `admin-payment` | `service-admin` | `service-payment` | 后台支付状态变更、审批和异常处置命令 |
+| `admin-payment` | `service-admin` | `service-payment` | 后台支付状态变更、审批、异常处置及系统交易黑名单事实解析命令 |
 | `admin-clearing` | `service-admin` | `service-clearing` | 人工清分执行与补偿命令；管理页面查询仍由 Admin 本地数据源完成 |
 | `admin-settlement` | `service-admin` | `service-settlement` | 手工结算、预审、审批、拒绝、取消和冲正命令 |
 | `job-payment` | `service-job` | `service-payment` | 支付到期任务和补偿命令 |
 | `job-clearing` | `service-job` | `service-clearing` | 清分补偿命令 |
 | `job-data` | `service-job` | `service-data` | 数据与商户通知补偿命令 |
+| `merchant-data` | `service-merchant` | `service-data` | 商户异步导出任务创建、查询、重试和下载 |
+| `data-merchant` | `service-data` | `service-merchant` | 分页读取商户交易和退款安全导出投影 |
 | `merchant-payment` | `service-merchant` | `service-payment` | 商户退款、撤销、请款或预授权完成等交易写操作 |
 | `openapi-payment` | `service-openapi` | `service-payment` | 商户支付受理和查询内部协议 |
 | `openapi-payout` | `service-openapi` | `service-payout` | 商户代付受理和查询内部协议 |

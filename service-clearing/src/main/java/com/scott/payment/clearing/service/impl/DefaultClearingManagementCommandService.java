@@ -20,6 +20,7 @@ import com.scott.payment.clearing.service.ClearingAnomalyService;
 import com.scott.payment.clearing.service.ClearingProjectionService;
 import com.scott.payment.clearing.service.ClearingRecalculationService;
 import com.scott.payment.clearing.support.ClearingOperationalMetrics;
+import com.scott.payment.clearing.support.ClearingTimeSupport;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.constant.MqTag;
@@ -37,7 +38,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Objects;
@@ -74,7 +74,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
     private final Clock clock;
 
     /**
-     * 创建管理命令服务，生产环境统一使用 UTC 系统时钟生成审计与重试时间。
+     * 创建管理命令服务，系统时钟只提供绝对时刻，持久化时统一转换为平台本地时间。
      */
     @Autowired
     public DefaultClearingManagementCommandService(ClearingTransactionFinanceStateMapper financeStateMapper,
@@ -117,7 +117,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public ClearingCommandResponse retry(String transactionId, ClearingRetryRequest request) {
         validateRetry(transactionId, request);
-        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime now = ClearingTimeSupport.now(clock);
         ClearingTransactionFinanceStateDO state = lockedState(
                 transactionId, request.getTransactionDateTime(), request.getExpectedVersion());
         if (!RETRYABLE.contains(state.getClearingStatus())) {
@@ -151,7 +151,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public ClearingCommandResponse review(String transactionId, ClearingReviewRequest request) {
         validateReview(transactionId, request);
-        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime now = ClearingTimeSupport.now(clock);
         ClearingTransactionFinanceStateDO state = lockedState(
                 transactionId, request.getTransactionDateTime(), request.getExpectedVersion());
         if (ClearingStateEnum.valueOf(state.getClearingStatus()).isCompletedTerminal()
@@ -209,7 +209,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         message.setExpectedClearingRevision(revision);
         message.setClearingRetryCount(retryCount);
         message.setRetryReasonCode(ClearingFailureCodeEnum.CLEARING_MANUAL_RETRY.name());
-        message.setDeliverAt(deliverAt.toInstant(ZoneOffset.UTC));
+        message.setDeliverAt(ClearingTimeSupport.toInstant(deliverAt));
 
         ClearingTransactionEventOutboxDO row = new ClearingTransactionEventOutboxDO();
         row.setEventNo(eventNo);
@@ -226,7 +226,8 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         row.setTag(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
         row.setMessageKey(eventNo);
         row.setDeliveryMode("SCHEDULED");
-        row.setDeliverAt(deliverAt);
+        // 共享交易 Outbox 的 deliver_at 按 UTC 墙钟值持久化，Relay 才能还原同一绝对投递时刻。
+        row.setDeliverAt(ClearingTimeSupport.toUtcLocalDateTime(deliverAt));
         row.setPayloadJson(JsonUtils.toJsonString(message));
         row.setRetryCount(0);
         row.setMaxRetryCount(OUTBOX_MAX_RETRY_COUNT);

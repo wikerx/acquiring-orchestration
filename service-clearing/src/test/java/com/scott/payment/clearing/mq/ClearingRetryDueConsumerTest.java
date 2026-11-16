@@ -13,8 +13,10 @@ import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,8 +37,10 @@ class ClearingRetryDueConsumerTest {
         when(idGenerator.nextId()).thenReturn("2001");
         when(applicationService.process(any(), any(), any()))
                 .thenReturn(ClearingProcessingResult.STALE_RETRY_ACKNOWLEDGED);
+        Clock clock = Clock.fixed(Instant.parse("2026-11-03T08:39:18.175Z"), ZoneOffset.UTC);
         ClearingRetryDueConsumer consumer = new ClearingRetryDueConsumer(
-                applicationService, idGenerator, new ClearingProperties(), mock(ClearingOperationalMetrics.class));
+                applicationService, idGenerator, new ClearingProperties(),
+                mock(ClearingOperationalMetrics.class), clock);
         ClearingRetryDueMessage message = message();
 
         consumer.onMessage(JsonUtils.toJsonString(message));
@@ -48,7 +52,8 @@ class ClearingRetryDueConsumerTest {
                                 && "SOURCE_CLEARING_PENDING".equals(retry.getRetryReasonCode())
                                 && Instant.parse("2026-08-26T01:15:00.123Z").equals(retry.getDeliverAt())),
                 org.mockito.ArgumentMatchers.eq("service-clearing:2001"),
-                any(LocalDateTime.class));
+                org.mockito.ArgumentMatchers.eq(
+                        LocalDateTime.of(2026, 11, 3, 16, 39, 18, 175_000_000)));
     }
 
     @Test

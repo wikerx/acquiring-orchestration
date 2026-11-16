@@ -5,6 +5,7 @@ import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
 import com.scott.payment.admin.converter.JobSchedulerConverter;
 import com.scott.payment.admin.dto.export.JobRunLogExportRow;
 import com.scott.payment.admin.dto.monitor.JobExecutorNodeResponse;
+import com.scott.payment.admin.dto.monitor.JobExecutionTrendResponse;
 import com.scott.payment.admin.dto.monitor.JobHandlerOptionResponse;
 import com.scott.payment.admin.dto.monitor.JobManualTriggerRequest;
 import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
@@ -154,6 +155,25 @@ public class AdminJobSchedulerApplicationService {
      */
     public PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request) {
         return jobSchedulerInternalClient.pageRunLogs(request);
+    }
+
+    /**
+     * 分页查询执行日志，供后台异步导出线程通过服务身份读取。
+     *
+     * @param request 查询条件
+     * @return 日志分页结果
+     */
+    public PageResult<JobRunLogResponse> pageRunLogsForExport(JobRunLogQueryRequest request) {
+        return jobSchedulerInternalClient.pageRunLogsForExport(request);
+    }
+
+    /**
+     * 查询最近七个自然日的任务执行终态趋势。
+     *
+     * @return 固定包含七个日期点的趋势结果
+     */
+    public JobExecutionTrendResponse executionTrend() {
+        return jobSchedulerInternalClient.executionTrend();
     }
 
     /**

@@ -60,6 +60,11 @@ public class ChannelMidConfigDO {
 
     private String allowedCountryScope;
 
+    /**
+     * 标签币种不被渠道能力支持时，该 MID 用于未来初始交易的默认交易币种。
+     */
+    private String defaultTransactionCurrency;
+
 
     private String defaultSettlementCurrency;
 

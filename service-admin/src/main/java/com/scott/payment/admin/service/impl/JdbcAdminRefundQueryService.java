@@ -8,6 +8,7 @@ import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSearchRespo
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSummary;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.service.AdminRefundQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -159,6 +160,21 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
     }
 
     /**
+     * 按任务创建时冻结的商户范围分页读取退款记录，不执行列表统计查询。
+     */
+    @Override
+    public PageResult<RefundRecord> pageForExport(
+            RefundQuery query, AdminMerchantDataScope dataScope) {
+        RefundQuery safeQuery = normalize(query);
+        AdminMerchantDataScope scope = requireExportScope(dataScope);
+        if (isInvalidRange(safeQuery.getBeginTime(), safeQuery.getEndTime())
+                || scope.empty() || !scopeAllowsMerchantFilter(safeQuery.getMerchantId(), scope)) {
+            return PageResult.of(0L, safeQuery.safePageNo(), safeQuery.safePageSize(), List.of());
+        }
+        return transactionLogicalReadExecutor.read(() -> pageForExportNormalized(safeQuery, scope));
+    }
+
+    /**
      * 使用交易号和真实分片时间查询退款详情。
      *
      * @param transactionId 退款或撤销交易号
@@ -205,6 +221,36 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         response.setPage(PageResult.of(total, pageNo, pageSize, records));
         response.setSummary(loadSummary(whereSql, parameters));
         return response;
+    }
+
+    /**
+     * 在冻结商户范围内执行退款计数和分页查询。
+     */
+    private PageResult<RefundRecord> pageForExportNormalized(
+            RefundQuery query, AdminMerchantDataScope scope) {
+        String whereSql = whereSql(query, scope);
+        MapSqlParameterSource parameters = parameters(query, scope);
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT o.id) " + REFUND_FROM_SQL + whereSql,
+                parameters, Long.class);
+        long total = count == null ? 0L : count;
+        long pageNo = query.safePageNo();
+        long pageSize = query.safePageSize();
+        long offset = (pageNo - 1L) * pageSize;
+        List<RefundRecord> records = offset < total
+                ? jdbcTemplate.query(
+                        "SELECT " + REFUND_COLUMNS + REFUND_FROM_SQL + whereSql + """
+                                ORDER BY o.transaction_date_time DESC, o.id DESC
+                                LIMIT :offset, :limit
+                                """,
+                        new MapSqlParameterSource(parameters.getValues())
+                                .addValue("offset", offset)
+                                .addValue("limit", pageSize),
+                        refundRecordMapper())
+                : List.of();
+        enrichMerchantNotificationStatuses(records);
+        enrichRootTransactions(records);
+        return PageResult.of(total, pageNo, pageSize, records);
     }
 
     /**
@@ -460,6 +506,17 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
     }
 
     /**
+     * 在普通退款筛选后追加冻结商户集合，显式商户筛选已在入口校验归属。
+     */
+    private String whereSql(RefundQuery query, AdminMerchantDataScope scope) {
+        StringBuilder sql = new StringBuilder(whereSql(query));
+        if (!scope.allMerchants() && !StringUtils.hasText(query.getMerchantId())) {
+            sql.append(" AND o.merchant_id IN (:scopeMerchantIds)");
+        }
+        return sql.toString();
+    }
+
+    /**
      * 构造退款查询全部命名参数，未启用的可空参数不会拼入 SQL。
      */
     private MapSqlParameterSource parameters(RefundQuery query) {
@@ -488,6 +545,31 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                 .addValue("applicantId", query.getApplicantId())
                 .addValue("completeBeginTime", query.getCompleteBeginTime())
                 .addValue("completeEndTime", query.getCompleteEndTime());
+    }
+
+    /**
+     * 构造包含冻结商户集合的退款导出查询参数。
+     */
+    private MapSqlParameterSource parameters(RefundQuery query, AdminMerchantDataScope scope) {
+        return parameters(query).addValue("scopeMerchantIds", scope.merchantIds());
+    }
+
+    /**
+     * 校验异步导出的商户范围对象必须存在。
+     */
+    private AdminMerchantDataScope requireExportScope(AdminMerchantDataScope scope) {
+        if (scope == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "merchant data scope is required");
+        }
+        return scope;
+    }
+
+    /**
+     * 有限范围下显式商户筛选必须属于冻结集合。
+     */
+    private boolean scopeAllowsMerchantFilter(String merchantId, AdminMerchantDataScope scope) {
+        return scope.allMerchants() || !StringUtils.hasText(merchantId)
+                || scope.merchantIds().contains(merchantId.trim());
     }
 
     /**

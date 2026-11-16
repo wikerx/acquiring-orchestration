@@ -158,6 +158,11 @@ class DefaultApprovedRefundChannelExecutorTests {
         persistedOrder.setAuthorizedCancelAmount(BigDecimal.ZERO);
         persistedOrder.setRefundedAmount(new BigDecimal("12.50"));
         persistedOrder.setChargebackAmount(BigDecimal.ZERO);
+        persistedOrder.setLabelAuthorizedAmount(new BigDecimal("50.00"));
+        persistedOrder.setLabelCapturedAmount(new BigDecimal("50.00"));
+        persistedOrder.setLabelAuthorizedCancelAmount(BigDecimal.ZERO);
+        persistedOrder.setLabelRefundedAmount(new BigDecimal("12.50"));
+        persistedOrder.setLabelChargebackAmount(BigDecimal.ZERO);
         when(fixture.recordService.findOrderPrimary(fixture.sourceTime, "OP-1"))
                 .thenReturn(persistedOrder);
 
@@ -199,6 +204,8 @@ class DefaultApprovedRefundChannelExecutorTests {
             sourceOrder.setPaymentBrand("VISA");
             sourceOrder.setRefundedAmount(new BigDecimal("10.00"));
             sourceOrder.setCapturedAmount(new BigDecimal("50.00"));
+            sourceOrder.setLabelRefundedAmount(new BigDecimal("10.00"));
+            sourceOrder.setLabelCapturedAmount(new BigDecimal("50.00"));
             TransactionOperationDO sourceOperation = new TransactionOperationDO();
             sourceOperation.setChannelTransactionId("SOURCE-CHANNEL-TX");
             when(recordService.findSourceOrderByTransactionId("PAY-1", sourceTime, sourceTime))

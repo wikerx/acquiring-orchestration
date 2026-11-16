@@ -75,7 +75,7 @@ class DefaultClearingRecalculationServiceTest {
                 org.mockito.ArgumentMatchers.eq("manual-recalc:admin-1"),
                 org.mockito.ArgumentMatchers.same(targetSnapshot))).thenReturn(command);
         when(dependencies.completionService.recalculate(command, 3, 1,
-                LocalDateTime.of(2026, 8, 26, 6, 0)))
+                LocalDateTime.of(2026, 8, 26, 14, 0)))
                 .thenReturn(new CompletionResult("CLEARED", 2, 3, 0));
 
         ClearingCommandResponse response = service.recalculate("TX-1", request());
@@ -87,6 +87,8 @@ class DefaultClearingRecalculationServiceTest {
                 org.mockito.ArgumentMatchers.same(targetSnapshot));
         assertThat(messageCaptor.getValue().getMessageId()).isEqualTo("RECALC:FS-1:1:21");
         assertThat(messageCaptor.getValue().getTransactionDateTime()).isEqualTo(TRANSACTION_TIME);
+        assertThat(messageCaptor.getValue().getCreatedAt())
+                .isEqualTo(LocalDateTime.of(2026, 8, 26, 14, 0));
         assertThat(response.getClearingRevision()).isEqualTo(2);
         assertThat(response.getVersion()).isEqualTo(4);
         assertThat(response.getResult()).isEqualTo("COMPLETED");

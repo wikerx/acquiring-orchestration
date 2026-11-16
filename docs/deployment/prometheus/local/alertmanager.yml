@@ -1,0 +1,20 @@
+global:
+  resolve_timeout: 30s
+
+route:
+  receiver: local-reliability-webhook
+  group_by:
+    - alertname
+    - job
+    - instance
+  group_wait: 0s
+  group_interval: 5s
+  repeat_interval: 1h
+
+receivers:
+  - name: local-reliability-webhook
+    webhook_configs:
+      - url: http://host.docker.internal:19093/alerts
+        send_resolved: true
+
+inhibit_rules: []

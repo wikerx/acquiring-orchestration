@@ -445,6 +445,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         mid.setTransactionTypeScope(option.getTransactionTypeScope());
         mid.setCurrencyScope(option.getCurrencyScope());
         mid.setAllowedCountryScope(option.getAllowedCountryScope());
+        mid.setDefaultTransactionCurrency(option.getDefaultTransactionCurrency());
         mid.setMidStatus(option.getMidStatus());
         mid.setEffectiveTime(option.getMidEffectiveTime());
         mid.setExpireTime(option.getMidExpireTime());

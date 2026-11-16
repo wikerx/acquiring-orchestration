@@ -847,7 +847,7 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
         assertThat(resultDTO.getOrderCurrency()).isEqualTo("USD");
-        assertThat(channelInvokeService.commandDTO.getCurrency()).isEqualTo("USD");
+        assertThat(channelInvokeService.commandDTO.getTransactionCurrency()).isEqualTo("USD");
         assertThat(channelInvokeService.commandDTO.getLabelCurrency()).isEqualTo("USD");
         assertThat(transactionRecordService.followUpRecordDTO.getResultDTO().getTotalRefundAmount()).isEqualByComparingTo("1.00");
     }
@@ -946,7 +946,7 @@ class PaymentTransactionServiceImplTests {
         assertThatThrownBy(() -> service.refund(followUpCommand(PaymentTransactionTypeEnum.REFUND, new BigDecimal("9.00"))))
                 .isInstanceOf(ServiceException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                .isEqualTo(ApiResultEnum.REFUND_AMOUNT_EXCEEDS_AVAILABLE.getCode());
         assertThat(channelInvokeService.commandDTO).isNull();
     }
 
@@ -1785,6 +1785,16 @@ class PaymentTransactionServiceImplTests {
                 orderDO.setPaymentMethod(commandDTO.getPaymentMethod());
                 orderDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
                 orderDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+                orderDO.setLabelCurrency(commandDTO.getLabelCurrency());
+                orderDO.setLabelCurrencyExponent(commandDTO.getLabelCurrencyExponent());
+                orderDO.setLabelAmount(commandDTO.getLabelAmount());
+                orderDO.setLabelAuthorizedAmount(BigDecimal.ZERO);
+                orderDO.setLabelAuthorizedCancelAmount(BigDecimal.ZERO);
+                orderDO.setLabelCapturedAmount(BigDecimal.ZERO);
+                orderDO.setLabelRefundedAmount(BigDecimal.ZERO);
+                orderDO.setLabelChargebackAmount(BigDecimal.ZERO);
+                orderDO.setLabelAvailableCaptureAmount(BigDecimal.ZERO);
+                orderDO.setLabelAvailableRefundAmount(BigDecimal.ZERO);
                 orderDO.setTransactionCurrency(commandDTO.getTransactionCurrency());
                 orderDO.setTransactionAmount(commandDTO.getTransactionAmount());
                 orderDO.setAuthorizedAmount(BigDecimal.ZERO);
@@ -1819,6 +1829,16 @@ class PaymentTransactionServiceImplTests {
             orderDO.setTransactionType(sourceTransactionType);
             orderDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
             orderDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            orderDO.setLabelCurrency("USD");
+            orderDO.setLabelCurrencyExponent(2);
+            orderDO.setLabelAmount(sourceTransactionAmount);
+            orderDO.setLabelAuthorizedAmount(sourceAuthorizedAmount);
+            orderDO.setLabelAuthorizedCancelAmount(BigDecimal.ZERO);
+            orderDO.setLabelCapturedAmount(sourceCapturedAmount);
+            orderDO.setLabelRefundedAmount(BigDecimal.ZERO);
+            orderDO.setLabelChargebackAmount(BigDecimal.ZERO);
+            orderDO.setLabelAvailableCaptureAmount(new BigDecimal("12.34"));
+            orderDO.setLabelAvailableRefundAmount(sourceAvailableRefundAmount);
             orderDO.setTransactionCurrency("USD");
             orderDO.setTransactionAmount(sourceTransactionAmount);
             orderDO.setAuthorizedAmount(sourceAuthorizedAmount);

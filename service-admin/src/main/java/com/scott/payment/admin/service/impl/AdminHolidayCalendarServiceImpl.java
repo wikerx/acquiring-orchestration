@@ -2,6 +2,7 @@ package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarBatchSaveRequest;
 import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarDayResponse;
 import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarDaySaveRequest;
@@ -15,6 +16,7 @@ import com.scott.payment.admin.service.AdminHolidayCalendarService;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.cache.annotation.Cacheable;
@@ -255,6 +257,28 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
                 .last("LIMIT 1"));
         if (day == null) throw invalid("节假日日历缺少日期：" + date);
         return "WORKDAY".equals(day.getDayType());
+    }
+
+    /**
+     * 分页读取指定年份的日历日期，直接查询事实表并保持日期升序。
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<CalendarDayResponse> pageYearDays(int year, int pageNo, int pageSize) {
+        validateYear(year);
+        CalendarYearDO calendarYear = findYear(year);
+        if (calendarYear == null) {
+            return PageResult.of(0L, pageNo, pageSize, List.of());
+        }
+        Page<CalendarDayDO> page = dayMapper.selectPage(
+                new Page<>(pageNo, pageSize),
+                Wrappers.<CalendarDayDO>lambdaQuery()
+                        .eq(CalendarDayDO::getCalendarYearId, calendarYear.getId())
+                        .eq(CalendarDayDO::getDeleted, 0L)
+                        .orderByAsc(CalendarDayDO::getCalendarDate)
+        );
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
+                page.getRecords().stream().map(this::toDay).toList());
     }
 
     /**

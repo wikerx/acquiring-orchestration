@@ -68,10 +68,7 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                         "transactionType", "AUTHORIZATION"),
                 "billingInfo", Map.of(
                         "labelAmount", 12389.45,
-                        "labelCurrency", "USD",
-                        "transactionAmount", 12389.45,
-                        "transactionCurrency", "USD",
-                        "transactionRate", "1.00000000")
+                        "labelCurrency", "USD")
         ));
         log.info("响应参数明文摘要：{}",
                 MerchantOpenApiTestSupport.safePayloadSummary(plainResponseData, keyMaterialFactory));
@@ -105,7 +102,9 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
         assertThat(response.getCode()).isEqualTo(OpenApiResultCode.REQUEST_SUCCESS.getCode());
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedResponseData)).isEqualTo(5);
         assertThat(decryptedData).isEqualTo(plainResponseData);
-        assertThat(decryptedData).doesNotContain("operationId", "dccEnabled", "edcEnabled");
+        assertThat(decryptedData).doesNotContain(
+                "operationId", "dccEnabled", "edcEnabled", "transactionAmount",
+                "transactionCurrency", "transactionRate", "rateSource", "rateTime");
         log.info("平台响应加密摘要-商户号：{}，响应公钥指纹：{}，data摘要：{}",
                 MERCHANT_ID,
                 keyMaterialFactory.fingerprint(MERCHANT_RESPONSE_PUBLIC_KEY_X509_BASE64),

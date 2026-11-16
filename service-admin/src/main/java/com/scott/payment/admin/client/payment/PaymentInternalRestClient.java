@@ -3,6 +3,7 @@ package com.scott.payment.admin.client.payment;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.config.PaymentInternalClientProperties;
 import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClientRequestDTO;
+import com.scott.payment.admin.client.payment.dto.TradeBlackPaymentClientDTOs;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
@@ -80,6 +81,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String VOID_PATH = "/internal/payment/void";
 
+    /** 系统交易加黑可信交易事实查询接口。 */
+    private static final String TRADE_BLACK_RESOLVE_PATH = "/internal/payment/risk/trade-black/transactions/resolve";
+
     /**
      * 单笔渠道勾兑内部接口。
      */
@@ -109,6 +113,18 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         this.directRestTemplate = directRestTemplate;
         this.loadBalancedRestTemplate = loadBalancedRestTemplate;
         this.properties = properties;
+    }
+
+    /** 解析系统交易加黑所需的可信交易事实。 */
+    @Override
+    public TradeBlackPaymentClientDTOs.FactsResult resolveTradeBlackTransactions(
+            TradeBlackPaymentClientDTOs.ResolveCommand command) {
+        CommonResult<TradeBlackPaymentClientDTOs.FactsResult> result = post(
+                servicePaymentUrl(TRADE_BLACK_RESOLVE_PATH),
+                command,
+                new TypeReference<CommonResult<TradeBlackPaymentClientDTOs.FactsResult>>() {
+                });
+        return unwrapData(result);
     }
 
     /**

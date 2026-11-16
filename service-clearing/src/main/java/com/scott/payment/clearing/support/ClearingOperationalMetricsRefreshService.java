@@ -13,8 +13,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +39,7 @@ public class ClearingOperationalMetricsRefreshService {
     private final Clock clock;
 
     /**
-     * 创建使用 UTC 运维时间和固定交易路由时区的生产刷新服务。
+     * 创建使用绝对系统时钟和固定交易路由时区的生产刷新服务。
      */
     @Autowired
     public ClearingOperationalMetricsRefreshService(ClearingOperationalMetricsMapper mapper,
@@ -70,10 +68,8 @@ public class ClearingOperationalMetricsRefreshService {
     public void refresh() {
         try {
             Instant currentInstant = clock.instant();
-            LocalDateTime nowUtc = LocalDateTime.ofInstant(currentInstant, ZoneOffset.UTC);
-            LocalDateTime routeNow = LocalDateTime.ofInstant(currentInstant,
-                    ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID));
-            LocalDateTime currentQuarter = quarterAnchor(routeNow);
+            LocalDateTime now = ClearingTimeSupport.fromInstant(currentInstant);
+            LocalDateTime currentQuarter = quarterAnchor(now);
             Map<String, Long> pendingCounts = new HashMap<>();
             Map<String, Long> oldestPendingSeconds = new HashMap<>();
             Map<String, BigDecimal> reserveRemaining = new HashMap<>();
@@ -83,7 +79,7 @@ public class ClearingOperationalMetricsRefreshService {
                     continue;
                 }
                 LocalDateTime end = begin.plusMonths(3);
-                aggregatePending(mapper.selectPendingByStatus(begin, end, nowUtc),
+                aggregatePending(mapper.selectPendingByStatus(begin, end, now),
                         pendingCounts, oldestPendingSeconds);
                 aggregateReserve(mapper.selectReserveRemainingByCurrency(begin, end), reserveRemaining);
             }

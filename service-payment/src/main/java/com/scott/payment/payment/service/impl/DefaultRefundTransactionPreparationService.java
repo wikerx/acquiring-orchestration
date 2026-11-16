@@ -11,6 +11,7 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -36,7 +37,9 @@ import com.scott.payment.payment.service.dto.RefundPreparationResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -133,6 +136,11 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     private final RefundApprovalWorkflowService refundApprovalWorkflowService;
 
     /**
+     * 退款准备事实的短事务执行器；原动作、路由和币种精度读取均在锁事务外完成。
+     */
+    private final TransactionOperations transactionOperations;
+
+    /**
      * 创建退款本地准备服务。
      *
      * @param isoDictionaryService 币种辅币位字典
@@ -145,7 +153,6 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      * @param refundApprovalPolicyService 退款审批策略解释服务
      * @param refundApprovalWorkflowService 退款审批事实和执行 Outbox 服务
      */
-    @Autowired
     public DefaultRefundTransactionPreparationService(IsoDictionaryService isoDictionaryService,
                                                       PaymentChannelRouteService paymentChannelRouteService,
                                                       TransactionIdempotencyService transactionIdempotencyService,
@@ -155,6 +162,32 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                                                       RefundScopeService refundScopeService,
                                                       RefundApprovalPolicyService refundApprovalPolicyService,
                                                       RefundApprovalWorkflowService refundApprovalWorkflowService) {
+        this(isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService,
+                refundScopeService,
+                refundApprovalPolicyService,
+                refundApprovalWorkflowService,
+                null);
+    }
+
+    /**
+     * Spring 生产构造器，使用交易数据源事务管理器建立主单锁短事务。
+     */
+    @Autowired
+    public DefaultRefundTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                      PaymentChannelRouteService paymentChannelRouteService,
+                                                      TransactionIdempotencyService transactionIdempotencyService,
+                                                      TransactionEventOutboxService transactionEventOutboxService,
+                                                      TransactionRecordService transactionRecordService,
+                                                      TransactionStateMachineService transactionStateMachineService,
+                                                      RefundScopeService refundScopeService,
+                                                      RefundApprovalPolicyService refundApprovalPolicyService,
+                                                      RefundApprovalWorkflowService refundApprovalWorkflowService,
+                                                      PlatformTransactionManager transactionManager) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.transactionIdempotencyService = transactionIdempotencyService;
@@ -164,6 +197,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         this.refundScopeService = refundScopeService;
         this.refundApprovalPolicyService = refundApprovalPolicyService;
         this.refundApprovalWorkflowService = refundApprovalWorkflowService;
+        this.transactionOperations = transactionManager == null
+                ? null
+                : new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -194,19 +230,36 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
-    @Transactional(rollbackFor = Exception.class)
     public RefundPreparationResultDTO prepareRefund(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
         if (transactionRecordService == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         TransactionOrderDO resolvedSourceOrderDO = resolveSourceOrder(commandDTO);
+        commandDTO.setRequestFingerprint(canonicalRefundRequestFingerprint(commandDTO, resolvedSourceOrderDO));
+        RefundPreparationResultDTO duplicate = findDuplicateRefund(commandDTO, idempotencyKey);
+        if (duplicate != null) {
+            return duplicate;
+        }
+        RefundPreparationPlan plan = planRefund(resolvedSourceOrderDO, commandDTO);
+        return executeInTransaction(() -> prepareRefundInTransaction(
+                commandDTO, idempotencyKey, resolvedSourceOrderDO, plan));
+    }
+
+    /**
+     * 在持有原订单行锁的短事务内完成可退余额、冲突动作、审批策略和事实写入。
+     */
+    private RefundPreparationResultDTO prepareRefundInTransaction(
+            PaymentCreateCommandDTO commandDTO,
+            String idempotencyKey,
+            TransactionOrderDO resolvedSourceOrderDO,
+            RefundPreparationPlan plan) {
         // 主单锁保证退款、撤销及其他资金动作基于同一可退余额快照串行决策。
         TransactionOrderDO sourceOrderDO = lockSourceOrder(resolvedSourceOrderDO);
         // 指纹在锁内使用原交易权威币种生成，避免同一商户操作号替换金额后重复退款。
         commandDTO.setRequestFingerprint(canonicalRefundRequestFingerprint(commandDTO, sourceOrderDO));
         return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .map(record -> RefundPreparationResultDTO.duplicate(resolveDuplicateRefund(commandDTO, record)))
-                .orElseGet(() -> prepareNewRefund(commandDTO, idempotencyKey, sourceOrderDO));
+                .orElseGet(() -> prepareNewRefund(commandDTO, idempotencyKey, sourceOrderDO, plan));
     }
 
     /**
@@ -216,18 +269,34 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      */
     private RefundPreparationResultDTO prepareNewRefund(PaymentCreateCommandDTO commandDTO,
                                                         String idempotencyKey,
-                                                        TransactionOrderDO sourceOrderDO) {
+                                                        TransactionOrderDO sourceOrderDO,
+                                                        RefundPreparationPlan plan) {
         if (transactionStateMachineService == null) {
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
         }
-        // 已成功退款与全部非终态退款共同占用可退余额，校验和退款范围计算必须在同一主单锁内完成。
+        List<TransactionOperationDO> nonTerminalRefunds = findNonTerminalRefunds(
+                commandDTO, sourceOrderDO, LocalDateTime.now());
+        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan =
+                FrozenRateFollowUpAmountCalculator.calculateRefund(
+                        sourceOrderDO,
+                        nonTerminalRefunds,
+                        commandDTO.getAmount(),
+                        commandDTO.getCurrency(),
+                        plan.labelCurrencyExponent(),
+                        plan.transactionCurrencyExponent());
+        commandDTO.setLabelCurrencyExponent(plan.labelCurrencyExponent());
+        applyRefundAmountPlan(commandDTO, sourceOrderDO, plan.sourceOperationDO(), amountPlan);
+        // 标签额度和渠道额度已在同一锁快照内校验；状态机继续校验渠道口径状态与余额。
         transactionStateMachineService.validateFollowUpAction(
-                sourceOrderDO, PaymentTransactionTypeEnum.REFUND, commandDTO.getAmount(), commandDTO.getCurrency());
-        BigDecimal pendingRefundAmount = validateRefundCapacity(commandDTO, sourceOrderDO, LocalDateTime.now());
+                sourceOrderDO,
+                PaymentTransactionTypeEnum.REFUND,
+                commandDTO.getTransactionAmount(),
+                commandDTO.getTransactionCurrency());
+        BigDecimal pendingLabelRefundAmount = sumNonTerminalLabelRefundAmount(nonTerminalRefunds);
         validateNoNonTerminalVoid(commandDTO, sourceOrderDO, LocalDateTime.now());
         commandDTO.setRefundScope(refundScopeService.resolve(
-                sourceOrderDO, commandDTO.getAmount(), pendingRefundAmount));
+                sourceOrderDO, commandDTO.getLabelAmount(), pendingLabelRefundAmount));
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
                 TRANSACTION_OPERATION_SCOPE,
@@ -247,28 +316,18 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                             "refund idempotency conflict record is missing"));
         }
-        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId(),
-                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
-        normalizeRefundCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentCreateResultDTO resultDTO = buildRefundResult(commandDTO, sourceOrderDO, transactionId);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO;
-        try {
-            // 退款只能回到原交易冻结的渠道和 MID，不能按当前路由配置重新选择通道。
-            routeResultDTO = restoreSourceRoute(sourceOrderDO, sourceOperationDO);
-        } catch (ServiceException exception) {
-            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
-                throw exception;
-            }
-            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
-                    sourceOrderDO, sourceOperationDO);
+        int currencyExponent = plan.transactionCurrencyExponent();
+        PaymentCreateResultDTO resultDTO = buildRefundResult(
+                commandDTO, sourceOrderDO, transactionId, plan.labelCurrencyExponent());
+        OriginalTransactionRouteResolver.Resolution routeResolution = plan.routeResolution();
+        PaymentRouteResultDTO routeResultDTO = routeResolution.requireRouteResult();
+        if (routeResolution.rejected()) {
             OriginalTransactionRejectionSupport.apply(resultDTO);
-            enrichRefundResult(commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO);
+            enrichRefundResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
             OriginalTransactionRejectionSupport.apply(resultDTO);
             recordRefundPreparedFact(
-                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+                    commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO, currencyExponent);
             saveTransactionCreatedEvent(commandDTO, resultDTO);
             completeIdempotency(idempotencyKey, commandDTO, resultDTO);
             RefundPreparationResultDTO target = new RefundPreparationResultDTO();
@@ -276,7 +335,7 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
             target.setIdempotencyKey(idempotencyKey);
             target.setCommandDTO(commandDTO);
             target.setSourceOrderDO(sourceOrderDO);
-            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setRouteResultDTO(routeResultDTO);
             target.setResultDTO(resultDTO);
             target.setCurrencyExponent(currencyExponent);
             return target;
@@ -323,19 +382,6 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 从原交易事实恢复退款渠道身份，退款不得按当前商户路由重新选择其他 MID。
-     *
-     * @param sourceOrderDO 原交易主单
-     * @param sourceOperationDO 原交易动作单
-     * @return 原交易渠道和 MID 对应的路由快照
-     */
-    private PaymentRouteResultDTO restoreSourceRoute(TransactionOrderDO sourceOrderDO,
-                                                     TransactionOperationDO sourceOperationDO) {
-        return OriginalTransactionRouteResolver.restore(
-                paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
-    }
-
-    /**
      * 读取并校验原交易主单。
      */
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
@@ -349,6 +395,46 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return sourceOrderDO;
+    }
+
+    /**
+     * 在短事务前读取不可变原动作、原渠道身份和交易币种精度。
+     */
+    private RefundPreparationPlan planRefund(TransactionOrderDO sourceOrderDO,
+                                             PaymentCreateCommandDTO commandDTO) {
+        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
+                commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
+        OriginalTransactionRouteResolver.Resolution routeResolution = OriginalTransactionRouteResolver.plan(
+                paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        int transactionCurrencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        String labelCurrency = StringUtils.hasText(sourceOrderDO.getLabelCurrency())
+                ? sourceOrderDO.getLabelCurrency() : sourceOrderDO.getTransactionCurrency();
+        int labelCurrencyExponent = sourceOrderDO.getLabelCurrencyExponent() == null
+                ? resolveCurrencyExponent(labelCurrency) : sourceOrderDO.getLabelCurrencyExponent();
+        return new RefundPreparationPlan(
+                sourceOperationDO, routeResolution, labelCurrencyExponent, transactionCurrencyExponent);
+    }
+
+    /**
+     * 在路由规划前快速返回已完成的重复退款，降低重复请求的主单锁竞争。
+     */
+    private RefundPreparationResultDTO findDuplicateRefund(PaymentCreateCommandDTO commandDTO,
+                                                           String idempotencyKey) {
+        return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                .map(record -> RefundPreparationResultDTO.duplicate(resolveDuplicateRefund(commandDTO, record)))
+                .orElse(null);
+    }
+
+    /**
+     * 使用 Spring 事务管理器执行主单锁短事务；无事务管理器仅用于现有直接构造的单元测试兼容。
+     */
+    private RefundPreparationResultDTO executeInTransaction(
+            java.util.function.Supplier<RefundPreparationResultDTO> callback) {
+        if (transactionOperations == null) {
+            return callback.get();
+        }
+        return transactionOperations.execute(status -> callback.get());
     }
 
     /**
@@ -367,31 +453,21 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      * 基于锁读主单的可退余额扣除全部处理中退款后校验本次额度。
      * <p>处理中退款也必须预占额度，不能等渠道成功后再校验，否则并发请求可能造成超额退款。</p>
      */
-    private BigDecimal validateRefundCapacity(PaymentCreateCommandDTO commandDTO,
-                                              TransactionOrderDO sourceOrderDO,
-                                              LocalDateTime now) {
-        BigDecimal requestAmount = commandDTO.getAmount();
-        BigDecimal availableRefundAmount = sourceOrderDO.getAvailableRefundAmount() == null
-                ? BigDecimal.ZERO : sourceOrderDO.getAvailableRefundAmount();
-        BigDecimal pendingRefundAmount = sumNonTerminalRefundAmount(commandDTO, sourceOrderDO, now);
-        if (availableRefundAmount.subtract(pendingRefundAmount).compareTo(requestAmount) < 0) {
-            throw new ServiceException(ApiResultEnum.REFUND_AMOUNT_EXCEEDS_AVAILABLE);
-        }
-        return pendingRefundAmount;
+    private List<TransactionOperationDO> findNonTerminalRefunds(PaymentCreateCommandDTO commandDTO,
+                                                               TransactionOrderDO sourceOrderDO,
+                                                               LocalDateTime now) {
+        LocalDateTime beginTime = sourceOrderDO.getTransactionDateTime();
+        LocalDateTime endTime = laterOf(now, commandDTO.getTransactionDateTime());
+        return transactionRecordService.findNonTerminalRefunds(
+                commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), beginTime, endTime);
     }
 
     /**
-     * 汇总同一生命周期内所有非终态退款金额，金额单位始终为原交易币种。
+     * 汇总同一生命周期内全部非终态退款的标签金额，用于判断 FULL/PARTIAL 退款范围。
      */
-    private BigDecimal sumNonTerminalRefundAmount(PaymentCreateCommandDTO commandDTO,
-                                                  TransactionOrderDO sourceOrderDO,
-                                                  LocalDateTime now) {
-        LocalDateTime beginTime = sourceOrderDO.getTransactionDateTime();
-        LocalDateTime endTime = laterOf(now, commandDTO.getTransactionDateTime());
-        List<TransactionOperationDO> nonTerminalRefunds = transactionRecordService.findNonTerminalRefunds(
-                commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), beginTime, endTime);
+    private BigDecimal sumNonTerminalLabelRefundAmount(List<TransactionOperationDO> nonTerminalRefunds) {
         return nonTerminalRefunds.stream()
-                .map(TransactionOperationDO::getTransactionAmount)
+                .map(TransactionOperationDO::getLabelAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
@@ -455,7 +531,7 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
         String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
                 ? commandDTO.getCurrency()
-                : sourceOrderDO == null ? null : sourceOrderDO.getTransactionCurrency();
+                : sourceOrderDO == null ? null : sourceOrderDO.getLabelCurrency();
         String canonical = String.join("|",
                 "v1",
                 "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
@@ -501,45 +577,29 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 将退款命令归一到原交易币种和原渠道交易号。
+     * 将冻结汇率金额方案、原交易身份和原渠道交易号写入退款命令。
      *
-     * <p>退款金额使用原交易币种且不二次换汇；展示金额和币种继续保留商户请求语义。</p>
+     * <p>商户请求字段保留标签口径，渠道字段使用首笔冻结汇率换算结果；两套金额不得互相覆盖。</p>
      */
-    private void normalizeRefundCommand(PaymentCreateCommandDTO commandDTO,
-                                        TransactionOrderDO sourceOrderDO,
-                                        TransactionOperationDO sourceOperationDO) {
+    private void applyRefundAmountPlan(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOrderDO sourceOrderDO,
+            TransactionOperationDO sourceOperationDO,
+            FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan) {
         validateRefundMerchantOrderNo(commandDTO, sourceOrderDO);
-        BigDecimal transactionAmount = commandDTO.getAmount();
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
-        commandDTO.setLabelCurrency(resolveLabelCurrency(commandDTO, sourceOrderDO));
-        commandDTO.setLabelAmount(commandDTO.getLabelAmount() == null ? transactionAmount : commandDTO.getLabelAmount());
-        commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
+        commandDTO.setLabelCurrency(amountPlan.labelCurrency());
+        commandDTO.setLabelAmount(amountPlan.labelAmount());
         if (commandDTO.getTransactionInfo() != null && sourceOperationDO != null) {
             commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
         }
-        commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setTransactionAmount(transactionAmount);
-        commandDTO.setTransactionRate(defaultTransactionRate());
-        commandDTO.setRateSource(null);
-        commandDTO.setRateTime(null);
-        commandDTO.setDccEnabled(0);
-        commandDTO.setEdcEnabled(0);
-    }
-
-    /**
-     * 按本次展示币种、请求币种、原交易展示币种、原交易币种的顺序解析商户展示币种。
-     */
-    private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
-        if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
-            return normalizeCurrency(commandDTO.getLabelCurrency());
-        }
-        if (StringUtils.hasText(commandDTO.getCurrency())) {
-            return normalizeCurrency(commandDTO.getCurrency());
-        }
-        if (StringUtils.hasText(sourceOrderDO.getLabelCurrency())) {
-            return sourceOrderDO.getLabelCurrency();
-        }
-        return sourceOrderDO.getTransactionCurrency();
+        commandDTO.setTransactionCurrency(amountPlan.transactionCurrency());
+        commandDTO.setTransactionAmount(amountPlan.transactionAmount());
+        commandDTO.setTransactionRate(amountPlan.transactionRate());
+        commandDTO.setRateSource(amountPlan.rateSource());
+        commandDTO.setRateTime(amountPlan.rateTime());
+        commandDTO.setDccEnabled(amountPlan.dccEnabled());
+        commandDTO.setEdcEnabled(amountPlan.edcEnabled());
     }
 
     /**
@@ -559,7 +619,8 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      */
     private PaymentCreateResultDTO buildRefundResult(PaymentCreateCommandDTO commandDTO,
                                                      TransactionOrderDO sourceOrderDO,
-                                                     String transactionId) {
+                                                     String transactionId,
+                                                     int labelCurrencyExponent) {
         PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
         resultDTO.setOperationId(sourceOrderDO.getOperationId());
         resultDTO.setTransactionId(transactionId);
@@ -569,8 +630,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         resultDTO.setMerchantId(commandDTO.getMerchantId());
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
-        resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        resultDTO.setAmount(toMinorAmount(commandDTO.getAmount(), sourceOrderDO.getTransactionCurrency()));
+        resultDTO.setCurrency(commandDTO.getLabelCurrency());
+        resultDTO.setAmount(toMinorAmount(
+                commandDTO.getLabelAmount(), commandDTO.getLabelCurrency(), labelCurrencyExponent));
         return resultDTO;
     }
 
@@ -752,10 +814,10 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         enrichMerchantResponse(resultDTO);
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
-        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getLabelAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(sourceOrderDO));
-        resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalRefundAmount(sourceOrderDO.getLabelRefundedAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getLabelChargebackAmount());
     }
 
     /**
@@ -763,9 +825,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      */
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
-            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+            return firstPositive(sourceOrderDO.getLabelCapturedAmount(), sourceOrderDO.getLabelAmount());
         }
-        return sourceOrderDO.getAuthorizedAmount();
+        return sourceOrderDO.getLabelAuthorizedAmount();
     }
 
     /**
@@ -773,9 +835,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      */
     private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
-            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+            return firstPositive(sourceOrderDO.getLabelCapturedAmount(), sourceOrderDO.getLabelAmount());
         }
-        return sourceOrderDO.getCapturedAmount();
+        return sourceOrderDO.getLabelCapturedAmount();
     }
 
     /**
@@ -833,6 +895,21 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
+     * 退款事务外规划结果；主单锁内继续以数据库权威余额和状态完成最终决策。
+     *
+     * @param sourceOperationDO 原交易动作快照
+     * @param routeResolution 原交易路由规划结果
+     * @param labelCurrencyExponent 标签币种辅币位数
+     * @param transactionCurrencyExponent 渠道交易币种辅币位数
+     */
+    private record RefundPreparationPlan(
+            TransactionOperationDO sourceOperationDO,
+            OriginalTransactionRouteResolver.Resolution routeResolution,
+            int labelCurrencyExponent,
+            int transactionCurrencyExponent) {
+    }
+
+    /**
      * 按原交易币种的 ISO 4217 精度精确转换最小货币单位，超精度退款金额直接失败。
      */
     private Long toMinorAmount(BigDecimal amount, String currency) {
@@ -840,6 +917,18 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
             return isoDictionaryService.toMinorUnit(amount, currency);
         } catch (IllegalArgumentException | ArithmeticException exception) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "amount fraction digits exceed currency minor unit", exception);
+        }
+    }
+
+    /**
+     * 使用事务外已解析的币种精度转换金额，避免持有主单锁时再次访问币种字典。
+     */
+    private Long toMinorAmount(BigDecimal amount, String currency, int currencyExponent) {
+        try {
+            return amount.movePointRight(currencyExponent).longValueExact();
+        } catch (ArithmeticException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "amount fraction digits exceed currency minor unit: " + currency, exception);
         }
     }
 
@@ -853,20 +942,6 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency fraction digits can not be resolved");
         }
         return currencyInfo.defaultFractionDigits();
-    }
-
-    /**
-     * 规范化币种。
-     */
-    private String normalizeCurrency(String currency) {
-        return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
-    }
-
-    /**
-     * 返回无换汇场景的单位交易汇率。
-     */
-    private BigDecimal defaultTransactionRate() {
-        return new BigDecimal("1.00000000");
     }
 
     /**

@@ -17,6 +17,8 @@ import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchDet
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchSummary;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingDetail;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingReserveLine;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingTransactionLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReconciliationRecord;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItem;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemQuery;
@@ -135,6 +137,26 @@ public class MerchantSettlementApplicationService {
             String transactionId, LocalDateTime transactionDateTime) {
         return queryService.findClearingDetailByTransaction(
                 currentMerchantId(), transactionId, transactionDateTime);
+    }
+
+    /**
+     * 分页查询当前认证商户指定交易的本金和费用清分行。
+     */
+    public PageResult<ClearingTransactionLine> searchClearingTransactionLinesByTransaction(
+            String transactionId, LocalDateTime transactionDateTime,
+            Integer pageNo, Integer pageSize) {
+        return queryService.searchClearingTransactionLinesByTransaction(
+                currentMerchantId(), transactionId, transactionDateTime, pageNo, pageSize);
+    }
+
+    /**
+     * 分页查询当前认证商户指定交易的保证金清分行。
+     */
+    public PageResult<ClearingReserveLine> searchClearingReserveLinesByTransaction(
+            String transactionId, LocalDateTime transactionDateTime,
+            Integer pageNo, Integer pageSize) {
+        return queryService.searchClearingReserveLinesByTransaction(
+                currentMerchantId(), transactionId, transactionDateTime, pageNo, pageSize);
     }
 
     /**

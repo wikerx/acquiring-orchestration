@@ -436,6 +436,35 @@ class SystemAuthServiceImplTest {
     }
 
     /**
+     * 进件期商户应允许使用受限门户账号登录，后续可见范围由菜单和接口权限继续收口。
+     */
+    @Test
+    void onboardingMerchantShouldBeAllowedToLoginWithRestrictedPermissions() {
+        String password = "Merchant@123456";
+        MerchantRuntimeProfile merchant = activeMerchantInfo();
+        merchant.setMerchantStatus(2);
+        merchant.setActivationStatus("NOT_READY");
+        when(sysAppMapper.selectOne(any())).thenReturn(merchantApp());
+        when(merchantRuntimeProfileCacheService.findRuntimeProfile("200045")).thenReturn(merchant);
+        when(sysMerchantUserMapper.selectOne(any())).thenReturn(merchantAccountUser());
+        when(sysAccountMapper.selectById(eq(60L))).thenReturn(merchantAccountWithPassword(password));
+        when(sysVerifyCodeMapper.selectById(eq(900L))).thenReturn(validLoginCaptcha());
+        when(sysUserMapper.selectById(eq(70L))).thenReturn(merchantUser());
+        when(sysAccountMfaMapper.selectOne(any())).thenReturn(disabledMerchantMfa());
+        when(sysAccountRoleMapper.selectList(any())).thenReturn(List.of());
+        when(sysMerchantUserRoleMapper.selectList(any())).thenReturn(List.of());
+
+        AuthLoginResponse response = systemAuthService.login(
+                AuthConstants.APP_MERCHANT,
+                merchantLoginRequest(password),
+                "127.0.0.1",
+                "merchant-browser");
+
+        assertThat(response.getLoginStatus()).isEqualTo(AuthConstants.LOGIN_STATUS_SUCCESS);
+        assertThat(response.getAccessToken()).isNotBlank();
+    }
+
+    /**
      * 冻结后即使旧会话尚未被清理，商户接口鉴权也必须立即拒绝访问。
      */
     @Test
@@ -521,6 +550,7 @@ class SystemAuthServiceImplTest {
         merchant.setId(50L);
         merchant.setMerchantId("200045");
         merchant.setMerchantStatus(AuthConstants.ENABLED);
+        merchant.setActivationStatus("ACTIVE");
         return merchant;
     }
 

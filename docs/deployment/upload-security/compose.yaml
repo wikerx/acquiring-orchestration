@@ -1,0 +1,28 @@
+name: acquiring-upload-security
+services:
+  clamav:
+    image: ${CLAMAV_IMAGE:-clamav/clamav@sha256:7054e3f34308c384ea43cd786ea17abf899bd44af40af9f1b099853d7a5c214e}
+    platform: ${CLAMAV_PLATFORM:-linux/amd64}
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - clamav-database:/var/lib/clamav
+      - ./clamd.conf:/etc/clamav/clamd.conf:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          printf 'nPING\n' | nc -w 3 127.0.0.1 3310 | grep -qx PONG
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 180s
+    mem_limit: 4g
+    cpus: 2
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  clamav-database:

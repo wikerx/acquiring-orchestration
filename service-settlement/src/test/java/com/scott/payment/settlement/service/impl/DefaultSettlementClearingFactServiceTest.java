@@ -1,5 +1,6 @@
 package com.scott.payment.settlement.service.impl;
 
+import com.scott.payment.settlement.domain.model.SettlementFailureStage;
 import com.scott.payment.settlement.dto.SettlementBatchFacts;
 import com.scott.payment.settlement.dto.SettlementClearingLocator;
 import com.scott.payment.settlement.dto.SettlementCurrency;
@@ -16,7 +17,6 @@ import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -131,6 +131,81 @@ class DefaultSettlementClearingFactServiceTest {
                 .hasMessageContaining("transaction clearing fact");
     }
 
+    /**
+     * 与标签口径一致的本金事实可以进入结算，并继续按标签币种收集结算汇率。
+     */
+    @Test
+    void shouldAcceptPrincipalAlignedWithMerchantLabelFacts() {
+        SettlementTransactionClearingDetailDO principal = principalDetail();
+
+        SettlementBatchFacts result = loadTransactionDetail(principal);
+
+        assertThat(result.transactionDetails()).singleElement()
+                .extracting("amount", "currency", "currencyExponent")
+                .containsExactly(new BigDecimal("100.00"), "EUR", 2);
+        assertThat(result.currencies()).containsExactlyInAnyOrder(
+                new SettlementCurrency("EUR", 2), new SettlementCurrency("GBP", 2));
+    }
+
+    /**
+     * 历史本金金额与标签金额不一致时禁止结算侧静默替换。
+     */
+    @Test
+    void shouldRejectPrincipalAmountDifferentFromLabelAmount() {
+        SettlementTransactionClearingDetailDO principal = principalDetail();
+        principal.setAmount(new BigDecimal("110.00"));
+
+        assertPrincipalLabelMismatch(principal);
+    }
+
+    /**
+     * 历史本金币种与标签币种不一致时禁止将渠道币种带入商户结算。
+     */
+    @Test
+    void shouldRejectPrincipalCurrencyDifferentFromLabelCurrency() {
+        SettlementTransactionClearingDetailDO principal = principalDetail();
+        principal.setCurrency("USD");
+
+        assertPrincipalLabelMismatch(principal);
+    }
+
+    /**
+     * 本金币种精度与标签币种精度不一致时必须阻断，不能依赖后续舍入掩盖事实冲突。
+     */
+    @Test
+    void shouldRejectPrincipalExponentDifferentFromLabelExponent() {
+        SettlementTransactionClearingDetailDO principal = principalDetail();
+        principal.setLabelCurrencyExponent(0);
+
+        assertPrincipalLabelMismatch(principal);
+    }
+
+    /**
+     * 加载单个交易清分事实，复用正式批次入口验证本金口径。
+     */
+    private SettlementBatchFacts loadTransactionDetail(SettlementTransactionClearingDetailDO detail) {
+        SettlementBatchDO batch = batch(1);
+        when(mapper.selectClaimedCandidates(batch.getSettlementBatchNo()))
+                .thenReturn(List.of(candidate()));
+        when(mapper.selectTransactionDetails(org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(List.of(detail));
+        when(mapper.selectReserveDetails(org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of());
+        return service.load(batch);
+    }
+
+    /**
+     * 断言本金标签口径冲突使用稳定、不可重试的事实加载失败语义。
+     */
+    private void assertPrincipalLabelMismatch(SettlementTransactionClearingDetailDO principal) {
+        assertThatThrownBy(() -> loadTransactionDetail(principal))
+                .isInstanceOfSatisfying(SettlementProcessingException.class, failure -> {
+                    assertThat(failure.getStage()).isEqualTo(SettlementFailureStage.FACT_LOADING);
+                    assertThat(failure.getFailureCode())
+                            .isEqualTo("SETTLEMENT_PRINCIPAL_LABEL_MISMATCH");
+                    assertThat(failure.isRetryable()).isFalse();
+                });
+    }
+
     private SettlementBatchDO batch(int count) {
         SettlementBatchDO row = new SettlementBatchDO();
         row.setSettlementBatchNo("SB20260826-00000001");
@@ -181,6 +256,23 @@ class DefaultSettlementClearingFactServiceTest {
         row.setRoundingMode("HALF_UP");
         row.setRecordStatus("ACTIVE");
         row.setTransactionDateTime(LocalDateTime.of(2026, 8, 26, 9, 0));
+        return row;
+    }
+
+    /**
+     * 创建标签金额、币种和精度完全一致的本金清分事实。
+     */
+    private SettlementTransactionClearingDetailDO principalDetail() {
+        SettlementTransactionClearingDetailDO row = transactionDetail();
+        row.setItemType("PRINCIPAL");
+        row.setDirection("CREDIT");
+        row.setLabelAmount(new BigDecimal("100.00"));
+        row.setLabelCurrency("EUR");
+        row.setLabelCurrencyExponent(2);
+        row.setAmount(new BigDecimal("100.00"));
+        row.setCurrency("EUR");
+        row.setCurrencyExponent(2);
+        row.setMaximumAmountUsd(null);
         return row;
     }
 

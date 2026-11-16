@@ -38,6 +38,10 @@ public class SettlementOperationIdentityDO {
      */
     private String transactionCurrency;
     /**
+     * 清分标签金额使用的 ISO 币种。
+     */
+    private String labelCurrency;
+    /**
      * 投影前结算状态。
      */
     private String settlementStatus;

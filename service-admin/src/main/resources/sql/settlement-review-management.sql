@@ -233,8 +233,10 @@ JOIN (
            'settlement:posting:export', 'admin_settlement_posting_v1', 1
     UNION ALL SELECT 'admin_settlement_profile_detail_v1', '结算档案详情',
            'settlement:profile:detail', 'admin_settlement_profile_v1', 1
+    UNION ALL SELECT 'admin_settlement_profile_create_v1', '创建结算档案',
+           'settlement:profile:create', 'admin_settlement_profile_v1', 2
     UNION ALL SELECT 'admin_settlement_profile_update_v1', '修改结算档案',
-           'settlement:profile:update', 'admin_settlement_profile_v1', 2
+           'settlement:profile:update', 'admin_settlement_profile_v1', 3
 ) item ON item.parent_code = parent.menu_code
 WHERE parent.app_id = @admin_app_id AND parent.deleted = 0
   AND NOT EXISTS (
@@ -309,8 +311,10 @@ JOIN (
            'settlement:posting:export', 'admin_settlement_posting_v1', 1
     UNION ALL SELECT 'admin_settlement_profile_detail_v1', '结算档案详情',
            'settlement:profile:detail', 'admin_settlement_profile_v1', 1
+    UNION ALL SELECT 'admin_settlement_profile_create_v1', '创建结算档案',
+           'settlement:profile:create', 'admin_settlement_profile_v1', 2
     UNION ALL SELECT 'admin_settlement_profile_update_v1', '修改结算档案',
-           'settlement:profile:update', 'admin_settlement_profile_v1', 2
+           'settlement:profile:update', 'admin_settlement_profile_v1', 3
 ) item ON item.menu_code = menu.menu_code
 JOIN sys_menu parent ON parent.app_id = menu.app_id
                     AND parent.menu_code = item.parent_code
@@ -420,8 +424,10 @@ FROM (
            '结算档案查询', 'MENU', 'POST', '/admin/settlement/profiles/search', '按Admin商户数据范围查询结算档案'
     UNION ALL SELECT 'admin_settlement_profile_detail_v1', 'settlement:profile:detail',
            '结算档案详情', 'BUTTON', 'GET', '/admin/settlement/profiles/*', '按Admin商户数据范围查询结算档案详情'
+    UNION ALL SELECT 'admin_settlement_profile_create_v1', 'settlement:profile:create',
+           '创建结算档案', 'BUTTON', 'POST', '/admin/settlement/profiles', '校验商户数据范围后调用结算服务创建首个活动档案'
     UNION ALL SELECT 'admin_settlement_profile_update_v1', 'settlement:profile:update',
-           '修改结算档案', 'BUTTON', 'PUT', '/admin/settlement/profiles/*', '使用版本CAS修改后续结算处理模式、时区和日切时间'
+           '修改结算档案', 'BUTTON', 'PUT', '/admin/settlement/profiles/*', '通过结算服务创建新活动版本并退役旧档案'
 ) item
 JOIN sys_menu menu ON menu.app_id = @admin_app_id AND menu.menu_code = item.menu_code AND menu.deleted = 0
 WHERE NOT EXISTS (
@@ -520,8 +526,10 @@ JOIN (
            '结算档案查询', 'MENU', 'POST', '/admin/settlement/profiles/search', '按Admin商户数据范围查询结算档案'
     UNION ALL SELECT 'admin_settlement_profile_detail_v1', 'settlement:profile:detail',
            '结算档案详情', 'BUTTON', 'GET', '/admin/settlement/profiles/*', '按Admin商户数据范围查询结算档案详情'
+    UNION ALL SELECT 'admin_settlement_profile_create_v1', 'settlement:profile:create',
+           '创建结算档案', 'BUTTON', 'POST', '/admin/settlement/profiles', '校验商户数据范围后调用结算服务创建首个活动档案'
     UNION ALL SELECT 'admin_settlement_profile_update_v1', 'settlement:profile:update',
-           '修改结算档案', 'BUTTON', 'PUT', '/admin/settlement/profiles/*', '使用版本CAS修改后续结算处理模式、时区和日切时间'
+           '修改结算档案', 'BUTTON', 'PUT', '/admin/settlement/profiles/*', '通过结算服务创建新活动版本并退役旧档案'
 ) item ON item.permission_code = permission.permission_code
 JOIN sys_menu menu ON menu.app_id = permission.app_id
                   AND menu.menu_code = item.menu_code

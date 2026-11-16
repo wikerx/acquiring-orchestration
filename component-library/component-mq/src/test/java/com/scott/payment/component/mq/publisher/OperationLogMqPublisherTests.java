@@ -3,6 +3,7 @@ package com.scott.payment.component.mq.publisher;
 import com.scott.payment.component.mq.enums.OperationLogSystemCode;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.message.OperationLogMessage;
+import com.scott.payment.component.mq.observability.OperationLogOperationalMetrics;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,8 @@ class OperationLogMqPublisherTests {
                 properties,
                 OperationLogSystemCode.ADMIN,
                 new OperationLogTopicResolver(properties),
-                new OperationLogMessageSanitizer(properties));
+                new OperationLogMessageSanitizer(properties),
+                OperationLogOperationalMetrics.noop());
         OperationLogRecord record = new OperationLogRecord();
         record.setRequestId("request-long-error");
         record.setMethodName("AdminOperation.execute");
@@ -48,6 +50,9 @@ class OperationLogMqPublisherTests {
         assertThat(message.getErrorMessage()).hasSize(OperationLogMessage.ERROR_MESSAGE_MAX_LENGTH);
         assertThat(message.getRequestParams()).hasSize(properties.getMaxMessageLength());
         assertThat(message.getResponseResult()).hasSize(properties.getMaxMessageLength());
+        assertThat(message.getIdempotentKey())
+                .isEqualTo("ADMIN:" + message.getMessageId())
+                .hasSizeLessThanOrEqualTo(OperationLogMessage.IDEMPOTENT_KEY_MAX_LENGTH);
     }
 
     /**
@@ -62,7 +67,8 @@ class OperationLogMqPublisherTests {
                 properties,
                 OperationLogSystemCode.ADMIN,
                 new OperationLogTopicResolver(properties),
-                new OperationLogMessageSanitizer(properties));
+                new OperationLogMessageSanitizer(properties),
+                OperationLogOperationalMetrics.noop());
         OperationLogRecord record = new OperationLogRecord();
         record.setRequestId("request-long-error-code");
         record.setMethodName("AdminOperation.execute");

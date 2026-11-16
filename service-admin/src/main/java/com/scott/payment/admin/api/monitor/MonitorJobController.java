@@ -2,6 +2,7 @@ package com.scott.payment.admin.api.monitor;
 
 import com.scott.payment.admin.application.monitor.AdminJobSchedulerApplicationService;
 import com.scott.payment.admin.dto.monitor.JobHandlerOptionResponse;
+import com.scott.payment.admin.dto.monitor.JobExecutionTrendResponse;
 import com.scott.payment.admin.dto.monitor.JobManualTriggerRequest;
 import com.scott.payment.admin.dto.monitor.JobTaskQueryRequest;
 import com.scott.payment.admin.dto.monitor.JobTaskResponse;
@@ -74,6 +75,17 @@ public class MonitorJobController {
     @OperationLog(moduleName = "任务调度", businessType = OperationTypeConstants.QUERY, operation = "分页查询任务定义")
     public CommonResult<PageResult<JobTaskResponse>> search(@RequestBody(required = false) JobTaskQueryRequest request) {
         return success(adminJobSchedulerApplicationService.pageTasks(request));
+    }
+
+    /**
+     * 查询最近七个自然日的任务执行终态趋势。
+     *
+     * @return 固定包含七个日期点的成功与失败数量
+     */
+    @GetMapping("/trend")
+    @RequiresPermission("monitor:job:list")
+    public CommonResult<JobExecutionTrendResponse> executionTrend() {
+        return success(adminJobSchedulerApplicationService.executionTrend());
     }
 
     /**

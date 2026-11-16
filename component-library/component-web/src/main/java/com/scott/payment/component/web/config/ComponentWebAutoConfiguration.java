@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
  * Web 组件自动装配配置
  */
 @Configuration
+@org.springframework.context.annotation.Import(com.scott.payment.component.web.upload.UploadSecurityConfiguration.class)
 public class ComponentWebAutoConfiguration {
 
     /**

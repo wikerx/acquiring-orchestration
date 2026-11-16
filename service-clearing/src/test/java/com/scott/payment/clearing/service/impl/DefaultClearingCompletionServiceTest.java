@@ -1,5 +1,6 @@
 package com.scott.payment.clearing.service.impl;
 
+import com.scott.payment.clearing.domain.model.ClearingCalculationModels.ClearingCalculationResult;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.CompletionCommand;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.CompletionResult;
 import com.scott.payment.clearing.domain.model.ClearingCompletionModels.FinanceSummary;
@@ -32,6 +33,7 @@ import com.scott.payment.clearing.support.ClearingOperationalMetrics;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.EntryDirection;
 import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeMode;
 import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeRuleSnapshot;
 import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeTierSnapshot;
@@ -99,7 +101,7 @@ class DefaultClearingCompletionServiceTest {
         when(detailMapper.insertBatch(any())).thenAnswer(invocation -> invocation.<List<?>>getArgument(0).size());
         when(reserveMapper.insertDetail(any())).thenReturn(1);
         when(reserveMapper.insertState(any())).thenReturn(1);
-        when(financeMapper.completeProcessing(anyString(), any(), anyString(), anyInt(), any(), any()))
+        when(financeMapper.completeProcessing(any(Long.class), anyString(), any(), anyString(), anyInt(), any(), any()))
                 .thenReturn(1);
         when(idempotencyMapper.insertSuccessfulConsumption(anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), any(), anyString(), anyString(), any(), any())).thenReturn(1);
@@ -115,10 +117,12 @@ class DefaultClearingCompletionServiceTest {
         assertThat(detailCaptor.getValue()).extracting(ClearingTransactionDetailDO::getItemType)
                 .containsExactly("PRINCIPAL", "PLATFORM_FEE", "PLATFORM_FEE");
         assertThat(detailCaptor.getValue()).extracting(ClearingTransactionDetailDO::getCurrency)
-                .containsExactly("USD", "EUR", "USD");
+                .containsExactly("EUR", "EUR", "USD");
+        assertThat(detailCaptor.getValue().get(0).getAmount()).isEqualByComparingTo("100.00");
 
         ArgumentCaptor<FinanceSummary> summaryCaptor = ArgumentCaptor.forClass(FinanceSummary.class);
         verify(financeMapper).completeProcessing(
+                org.mockito.ArgumentMatchers.eq(100L),
                 org.mockito.ArgumentMatchers.eq("TX-1"),
                 org.mockito.ArgumentMatchers.eq(command.claim().operation().transactionDateTime()),
                 org.mockito.ArgumentMatchers.eq("worker-1"), org.mockito.ArgumentMatchers.eq(3),
@@ -152,6 +156,88 @@ class DefaultClearingCompletionServiceTest {
     }
 
     @Test
+    void validateMerchantPrincipalInvariantShouldRejectChannelPrincipalBeforePersistence() {
+        ClearingOperationFacts operation = command("USD", "110.00").claim().operation();
+        ClearingCalculationResult invalidResult = new ClearingCalculationResult(
+                new Money(new BigDecimal("110.00"), "USD", 2), EntryDirection.CREDIT,
+                List.of(), null, null);
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> DefaultClearingCompletionService.validateMerchantPrincipalInvariant(
+                        operation, invalidResult))
+                .withMessageContaining("label amount and currency");
+    }
+
+    /**
+     * JPY 标签和 USD 交易并存时，清分明细与保证金必须固化 JPY 的零位 exponent。
+     */
+    @Test
+    void completeShouldPersistLabelExponentFromLabelCurrency() {
+        ClearingTransactionFinanceStateMapper financeMapper = mock(ClearingTransactionFinanceStateMapper.class);
+        ClearingTransactionDetailMapper detailMapper = mock(ClearingTransactionDetailMapper.class);
+        ClearingReserveMapper reserveMapper = mock(ClearingReserveMapper.class);
+        ClearingFeeTierAccumulatorMapper tierMapper = mock(ClearingFeeTierAccumulatorMapper.class);
+        ClearingTransactionContextMapper contextMapper = mock(ClearingTransactionContextMapper.class);
+        ClearingProjectionService projectionService = mock(ClearingProjectionService.class);
+        ClearingTransactionIdempotencyMapper idempotencyMapper = mock(ClearingTransactionIdempotencyMapper.class);
+        ClearingTransactionEventOutboxMapper outboxMapper = mock(ClearingTransactionEventOutboxMapper.class);
+        GlobalIdGenerator idGenerator = mock(GlobalIdGenerator.class);
+        DefaultClearingCompletionService service = new DefaultClearingCompletionService(
+                financeMapper, detailMapper, reserveMapper, tierMapper, contextMapper, projectionService,
+                idempotencyMapper, outboxMapper, new DefaultClearingCalculationService(), idGenerator,
+                mock(ClearingSettlementCandidateService.class),
+                mock(com.scott.payment.clearing.service.ClearingAnomalyService.class),
+                mock(ClearingOperationalMetrics.class),
+                mock(com.scott.payment.clearing.mapper.ClearingTierPeriodReplayMapper.class));
+        LocalDateTime now = LocalDateTime.of(2026, 8, 26, 11, 50);
+        CompletionCommand command = command(
+                "JPY", "112", "USD", "0.71", "USD", "0.71", 2);
+
+        when(financeMapper.selectForUpdate("TX-1", command.claim().operation().transactionDateTime()))
+                .thenReturn(processingState(now));
+        when(detailMapper.insertBatch(any())).thenAnswer(invocation -> invocation.<List<?>>getArgument(0).size());
+        when(reserveMapper.insertDetail(any())).thenReturn(1);
+        when(reserveMapper.insertState(any())).thenReturn(1);
+        when(financeMapper.completeProcessing(any(Long.class), anyString(), any(), anyString(), anyInt(), any(), any()))
+                .thenReturn(1);
+        when(idempotencyMapper.insertSuccessfulConsumption(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), any(), anyString(), anyString(), any(), any())).thenReturn(1);
+        when(outboxMapper.insertLogical(any())).thenReturn(1);
+        when(idGenerator.nextId()).thenReturn(
+                "1201", "1202", "1203", "1204", "1205", "1206", "1207", "1208");
+
+        service.complete(command, now);
+
+        ArgumentCaptor<List<ClearingTransactionDetailDO>> detailCaptor = ArgumentCaptor.forClass(List.class);
+        verify(detailMapper).insertBatch(detailCaptor.capture());
+        assertThat(detailCaptor.getValue())
+                .allSatisfy(detail -> {
+                    assertThat(detail.getLabelCurrency()).isEqualTo("JPY");
+                    assertThat(detail.getLabelCurrencyExponent()).isZero();
+                });
+        assertThat(detailCaptor.getValue().get(0).getBasisCurrency()).isEqualTo("JPY");
+        assertThat(detailCaptor.getValue().get(0).getBasisCurrencyExponent()).isZero();
+        assertThat(detailCaptor.getValue().get(0).getAmount()).isEqualByComparingTo("112");
+        assertThat(detailCaptor.getValue().get(0).getCurrency()).isEqualTo("JPY");
+        assertThat(detailCaptor.getValue().get(0).getCurrencyExponent()).isZero();
+        assertThat(detailCaptor.getValue().get(1).getBasisCurrency()).isEqualTo("JPY");
+        assertThat(detailCaptor.getValue().get(1).getBasisCurrencyExponent()).isZero();
+
+        ArgumentCaptor<ClearingReserveDetailDO> reserveDetailCaptor =
+                ArgumentCaptor.forClass(ClearingReserveDetailDO.class);
+        verify(reserveMapper).insertDetail(reserveDetailCaptor.capture());
+        assertThat(reserveDetailCaptor.getValue().getReserveCurrency()).isEqualTo("JPY");
+        assertThat(reserveDetailCaptor.getValue().getReserveCurrencyExponent()).isZero();
+        assertThat(reserveDetailCaptor.getValue().getRetainedAmount()).isEqualByComparingTo("11");
+
+        ArgumentCaptor<ClearingReserveStateDO> reserveStateCaptor =
+                ArgumentCaptor.forClass(ClearingReserveStateDO.class);
+        verify(reserveMapper).insertState(reserveStateCaptor.capture());
+        assertThat(reserveStateCaptor.getValue().getReserveCurrency()).isEqualTo("JPY");
+        assertThat(reserveStateCaptor.getValue().getReserveCurrencyExponent()).isZero();
+    }
+
+    @Test
     void completeAuthorizationShouldKeepLabelAmountButPersistZeroGrossPrincipal() {
         ClearingTransactionFinanceStateMapper financeMapper = mock(ClearingTransactionFinanceStateMapper.class);
         ClearingTransactionDetailMapper detailMapper = mock(ClearingTransactionDetailMapper.class);
@@ -176,7 +262,7 @@ class DefaultClearingCompletionServiceTest {
         when(financeMapper.selectForUpdate("TX-1", command.claim().operation().transactionDateTime()))
                 .thenReturn(processingState(now));
         when(detailMapper.insertBatch(any())).thenAnswer(invocation -> invocation.<List<?>>getArgument(0).size());
-        when(financeMapper.completeProcessing(anyString(), any(), anyString(), anyInt(), any(), any()))
+        when(financeMapper.completeProcessing(any(Long.class), anyString(), any(), anyString(), anyInt(), any(), any()))
                 .thenReturn(1);
         when(idempotencyMapper.insertSuccessfulConsumption(anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), any(), anyString(), anyString(), any(), any())).thenReturn(1);
@@ -191,6 +277,7 @@ class DefaultClearingCompletionServiceTest {
                 .allSatisfy(detail -> assertThat(detail.getItemType()).isEqualTo("PLATFORM_FEE"));
         ArgumentCaptor<FinanceSummary> summaryCaptor = ArgumentCaptor.forClass(FinanceSummary.class);
         verify(financeMapper).completeProcessing(
+                org.mockito.ArgumentMatchers.eq(100L),
                 org.mockito.ArgumentMatchers.eq("TX-1"),
                 org.mockito.ArgumentMatchers.eq(command.claim().operation().transactionDateTime()),
                 org.mockito.ArgumentMatchers.eq("worker-1"), org.mockito.ArgumentMatchers.eq(3),
@@ -250,7 +337,7 @@ class DefaultClearingCompletionServiceTest {
         when(reserveMapper.insertDetail(any())).thenReturn(1);
         when(reserveMapper.applyReturn(anyString(), any(), any(Long.class), any(), any(), anyString(),
                 anyString(), any(), any())).thenReturn(1);
-        when(financeMapper.completeProcessing(anyString(), any(), anyString(), anyInt(), any(), any()))
+        when(financeMapper.completeProcessing(any(Long.class), anyString(), any(), anyString(), anyInt(), any(), any()))
                 .thenReturn(1);
         when(idempotencyMapper.insertSuccessfulConsumption(anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), any(), anyString(), anyString(), any(), any())).thenReturn(1);
@@ -425,7 +512,7 @@ class DefaultClearingCompletionServiceTest {
         when(tierMapper.applyDeltas("M-1", 11L, "202608", deltas,
                 "TX-1", 1, transactionTime, now)).thenReturn(1);
         when(detailMapper.insertBatch(any())).thenAnswer(invocation -> invocation.<List<?>>getArgument(0).size());
-        when(financeMapper.completeProcessing(anyString(), any(), anyString(), anyInt(), any(), any()))
+        when(financeMapper.completeProcessing(any(Long.class), anyString(), any(), anyString(), anyInt(), any(), any()))
                 .thenReturn(1);
         when(idempotencyMapper.insertSuccessfulConsumption(anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), any(), anyString(), anyString(), any(), any())).thenReturn(1);
@@ -586,11 +673,23 @@ class DefaultClearingCompletionServiceTest {
     }
 
     private CompletionCommand command(String approvedCurrency, String approvedAmount) {
+        return command("EUR", "100.00", approvedCurrency, approvedAmount,
+                "EUR", "100.00", 2);
+    }
+
+    private CompletionCommand command(String labelCurrency,
+                                      String labelAmount,
+                                      String approvedCurrency,
+                                      String approvedAmount,
+                                      String transactionCurrency,
+                                      String transactionAmount,
+                                      int transactionCurrencyExponent) {
         LocalDateTime time = LocalDateTime.of(2026, 8, 26, 9, 0);
         ClearingOperationFacts operation = new ClearingOperationFacts(
                 "TX-1", "OP-1", null, "M-1", "ORDER-1", "PAYMENT", "SUCCESS",
-                "EUR", new BigDecimal("100.00"), approvedCurrency, new BigDecimal(approvedAmount),
-                "EUR", new BigDecimal("100.00"), 2, time, time.minusHours(8),
+                labelCurrency, new BigDecimal(labelAmount), approvedCurrency, new BigDecimal(approvedAmount),
+                transactionCurrency, new BigDecimal(transactionAmount), transactionCurrencyExponent,
+                time, time.minusHours(8),
                 "Asia/Shanghai", 5);
         ClearingClaimResult claim = new ClearingClaimResult(
                 ClearingClaimResult.Outcome.ACQUIRED, "FS-1", 0, 3, operation);
@@ -896,6 +995,7 @@ class DefaultClearingCompletionServiceTest {
 
     private ClearingTransactionFinanceStateDO processingState(LocalDateTime now) {
         ClearingTransactionFinanceStateDO row = new ClearingTransactionFinanceStateDO();
+        row.setId(100L);
         row.setFinanceStateId("FS-1");
         row.setTransactionId("TX-1");
         row.setOperationId("OP-1");

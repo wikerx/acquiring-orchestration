@@ -10,7 +10,9 @@ import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.config.RiskBaselineMode;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.config.RiskRuleCacheMode;
+import com.scott.payment.risk.domain.FrequencyRuleEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
+import com.scott.payment.risk.domain.MerchantLimitReadEvaluation;
 import com.scott.payment.risk.domain.FrequencySuccessReservationResult;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
@@ -19,6 +21,7 @@ import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeCacheEntry;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 import com.scott.payment.risk.domain.RiskRuleSnapshotRow;
+import com.scott.payment.risk.domain.SourceUrlRuleEvaluation;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import com.scott.payment.risk.observability.RiskShadowComparisonMonitor;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
@@ -46,6 +49,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -116,6 +120,145 @@ class DefaultRiskListRuntimeRepositoryTests {
                         RiskListFunction.BLACK_CARD_BIN,
                         RiskListFunction.WHITE_EMAIL);
         verify(mapper).selectEnabledMerchantFunctionKeys("200045");
+    }
+
+    /**
+     * 验证开启查询合并后商户功能集合按 generation 缓存，连续评估不重复访问数据库。
+     */
+    @Test
+    void shouldCacheEnabledMerchantFunctionsByRuleGeneration() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(mapper.selectEnabledMerchantFunctionKeys("200045"))
+                .thenReturn(List.of("BLACK:cardBin", "WHITE:email"));
+        when(redis.get(anyString())).thenReturn(null);
+        DefaultRiskListRuntimeRepository repository = consolidatedRepository(
+                mapper, redis, generationStore, null, RiskRuleCacheMode.LEGACY);
+
+        assertThat(repository.findEnabledMerchantFunctions("200045"))
+                .containsExactlyInAnyOrder(
+                        RiskListFunction.BLACK_CARD_BIN,
+                        RiskListFunction.WHITE_EMAIL);
+        ArgumentCaptor<String> cachedValue = ArgumentCaptor.forClass(String.class);
+        verify(redis).set(anyString(), cachedValue.capture(), eq(Duration.ofSeconds(300)));
+        when(redis.get(anyString())).thenReturn(cachedValue.getValue());
+
+        assertThat(repository.findEnabledMerchantFunctions("200045"))
+                .containsExactlyInAnyOrder(
+                        RiskListFunction.BLACK_CARD_BIN,
+                        RiskListFunction.WHITE_EMAIL);
+        verify(mapper, times(1)).selectEnabledMerchantFunctionKeys("200045");
+        verify(generationStore, times(2)).current("risk-runtime-rule");
+    }
+
+    /**
+     * 验证商户功能缓存代际不可用时回源数据库，不把缓存异常解释为功能未开通。
+     */
+    @Test
+    void shouldFallbackToDatabaseWhenMerchantFunctionGenerationIsUnavailable() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenThrow(new IllegalStateException("simulated generation failure"));
+        when(mapper.selectEnabledMerchantFunctionKeys("200045"))
+                .thenReturn(List.of("BLACK:cardBin"));
+        DefaultRiskListRuntimeRepository repository = consolidatedRepository(
+                mapper, mock(RedisStringService.class), generationStore, null,
+                RiskRuleCacheMode.LEGACY);
+
+        assertThat(repository.findEnabledMerchantFunctions("200045"))
+                .containsExactly(RiskListFunction.BLACK_CARD_BIN);
+        verify(mapper, times(1)).selectEnabledMerchantFunctionKeys("200045");
+    }
+
+    /**
+     * 验证来源网址组合评估只读取一次 generation 和一次规则快照。
+     */
+    @Test
+    void shouldEvaluateSourceUrlFromSingleSnapshotRead() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveSourceUrlSnapshotRows("200045", 5001))
+                .thenReturn(List.of(sourceUrlSnapshotRow(11L, "checkout.example.test", true)));
+        DefaultRiskListRuntimeRepository repository = consolidatedRepository(
+                mapper, mock(RedisStringService.class), generationStore, redisTemplate,
+                RiskRuleCacheMode.SNAPSHOT);
+        RiskRuntimeLookupValue lookupValue = new RiskRuntimeLookupValue();
+        lookupValue.setSourceHost("checkout.example.test");
+
+        SourceUrlRuleEvaluation evaluation = repository.evaluateSourceUrlRules("200045", lookupValue);
+
+        assertThat(evaluation.allowedRule()).isPresent();
+        assertThat(evaluation.restrictionMiss()).isEmpty();
+        verify(generationStore, times(1)).current("risk-runtime-rule");
+        verify(mapper, times(1)).selectActiveSourceUrlSnapshotRows("200045", 5001);
+    }
+
+    /**
+     * 验证商户限额组合评估从一次快照同时得到单笔命中和规则启用状态。
+     */
+    @Test
+    void shouldEvaluateMerchantLimitFromSingleSnapshotRead() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        RiskRuleSnapshotRow row = new RiskRuleSnapshotRow();
+        row.setRuleId(21L);
+        row.setLimitType("SINGLE_MAX");
+        row.setAmountMax(new BigDecimal("10.00"));
+        when(mapper.selectActiveMerchantLimitSnapshotRows("200045", "USD", 5001))
+                .thenReturn(List.of(row));
+        DefaultRiskListRuntimeRepository repository = consolidatedRepository(
+                mapper, mock(RedisStringService.class), generationStore, redisTemplate,
+                RiskRuleCacheMode.SNAPSHOT);
+
+        MerchantLimitReadEvaluation evaluation = repository.evaluateMerchantLimitRules(
+                "200045", new BigDecimal("12.34"), "USD");
+
+        assertThat(evaluation.singleLimitHit()).isPresent();
+        assertThat(evaluation.activeRule()).isTrue();
+        verify(generationStore, times(1)).current("risk-runtime-rule");
+        verify(mapper, times(1)).selectActiveMerchantLimitSnapshotRows("200045", "USD", 5001);
+    }
+
+    /**
+     * 验证没有频控规则时组合执行只加载一次规则集合，不再二次查询启用状态。
+     */
+    @Test
+    void shouldReadFrequencyRulesOnceWhenReturningExecutionStatus() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("200045")).thenReturn(List.of());
+        DefaultRiskListRuntimeRepository repository = consolidatedRepository(
+                mapper, redis, generationStore, null, RiskRuleCacheMode.LEGACY);
+
+        FrequencyRuleEvaluation evaluation = repository.evaluateFrequencyRulesWithStatus(
+                "200045", new RiskPaymentEvaluateRequestDTO(), null, null, null, null, null, null, null);
+
+        assertThat(evaluation.details()).isEmpty();
+        assertThat(evaluation.activeRules()).isFalse();
+        verify(mapper, times(1)).selectActiveFrequencyRules("200045");
+        verify(generationStore, times(1)).current("risk-runtime-rule");
     }
 
     /**
@@ -1581,6 +1724,38 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(redis),
                 provider(generationStore),
                 provider(null),
+                provider(null),
+                provider(null),
+                properties,
+                redisProperties);
+    }
+
+    /**
+     * 构造开启重复查询合并并使用指定规则缓存模式的仓储。
+     *
+     * @param mapper 风控规则 Mapper
+     * @param redis generation Cache-Aside 字符串服务
+     * @param generationStore 规则缓存代际存储
+     * @param redisTemplate 快照和 Lua 使用的字符串模板，可为空
+     * @param cacheMode 规则缓存迁移模式
+     * @return 开启查询合并的测试仓储
+     */
+    private DefaultRiskListRuntimeRepository consolidatedRepository(
+            RiskRuntimeMapper mapper,
+            RedisStringService redis,
+            RedisCacheGenerationStore generationStore,
+            StringRedisTemplate redisTemplate,
+            RiskRuleCacheMode cacheMode) {
+        RiskEvaluationProperties properties = new RiskEvaluationProperties();
+        properties.setReadQueryConsolidationEnabled(true);
+        properties.setRuleCacheMode(cacheMode);
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+        redisProperties.setKeyPrefix("acquiring:test");
+        return new DefaultRiskListRuntimeRepository(
+                provider(mapper),
+                provider(redis),
+                provider(generationStore),
+                provider(redisTemplate),
                 provider(null),
                 provider(null),
                 properties,

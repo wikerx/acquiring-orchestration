@@ -1,11 +1,15 @@
 package com.scott.payment.clearing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scott.payment.clearing.application.ClearingProcessingApplicationService;
+import com.scott.payment.clearing.config.ClearingProperties;
 import com.scott.payment.clearing.config.ClearingFinanceCoreConfiguration;
 import com.scott.payment.clearing.mapper.ClearingTransactionEventOutboxMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionMerchantSnapshotMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionOperationMapper;
+import com.scott.payment.clearing.mq.ClearingRetryDueConsumer;
+import com.scott.payment.clearing.mq.TransactionTerminalClearingConsumer;
 import com.scott.payment.clearing.service.ClearingAnomalyService;
 import com.scott.payment.clearing.service.ClearingCompletionService;
 import com.scott.payment.clearing.service.ClearingPreparationService;
@@ -20,6 +24,7 @@ import com.scott.payment.clearing.service.impl.DefaultFeeConfigurationSnapshotSe
 import com.scott.payment.clearing.support.ClearingOperationalMetrics;
 import com.scott.payment.clearing.support.TierPeriodReplayScheduler;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
+import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.finance.reserve.core.ReserveCalculator;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -32,6 +37,22 @@ import static org.mockito.Mockito.mock;
  * Spring 生产构造器选择契约，防止测试辅助构造器破坏服务启动。
  */
 class ClearingSpringConstructorInjectionContractTest {
+
+    @Test
+    void shouldConstructClearingMqConsumers() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            registerMock(context, ClearingProcessingApplicationService.class);
+            registerMock(context, GlobalIdGenerator.class);
+            context.registerBean(ClearingProperties.class);
+            registerMock(context, ClearingOperationalMetrics.class);
+            context.registerBean(ClearingRetryDueConsumer.class);
+            context.registerBean(TransactionTerminalClearingConsumer.class);
+            context.refresh();
+
+            assertThat(context.getBean(ClearingRetryDueConsumer.class)).isNotNull();
+            assertThat(context.getBean(TransactionTerminalClearingConsumer.class)).isNotNull();
+        }
+    }
 
     @Test
     void shouldConstructClearingManagementCommandService() {

@@ -40,6 +40,8 @@ import java.util.UUID;
 @Service
 public class MerchantProfileDocumentService {
 
+    private final com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity;
+
     private static final int NOT_DELETED = 0;
     private static final String DOCUMENT_BIZ_TYPE = "MERCHANT_KYB";
     private static final String STATUS_PENDING = "PENDING_REVIEW";
@@ -57,7 +59,9 @@ public class MerchantProfileDocumentService {
             MerchantDocumentMapper documentMapper,
             MerchantProfileChangeRequestService changeRequestService,
             ObjectProvider<ObjectStorageService> objectStorageProvider,
-            ObjectStorageProperties storageProperties) {
+            ObjectStorageProperties storageProperties,
+            com.scott.payment.component.web.upload.UploadSecurityService uploadSecurity) {
+        this.uploadSecurity = uploadSecurity;
         this.documentMapper = documentMapper;
         this.changeRequestService = changeRequestService;
         this.objectStorageProvider = objectStorageProvider;
@@ -73,6 +77,7 @@ public class MerchantProfileDocumentService {
             String merchantId, String requestNo, String documentType, MultipartFile file) {
         requireEditableRequest(merchantId, requestNo);
         String normalizedType = normalizeDocumentType(documentType);
+        file = uploadSecurity.validate(file, java.util.Set.of("pdf", "png", "jpg", "jpeg"), storageProperties.getMaxFileSizeBytes());
         byte[] content = readAndValidate(file);
         DetectedFileType fileType = detectFileType(content);
         String objectKey = objectKey(merchantId, requestNo, fileType.extension());
