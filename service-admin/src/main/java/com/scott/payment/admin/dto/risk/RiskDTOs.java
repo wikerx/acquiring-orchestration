@@ -794,6 +794,21 @@ public final class RiskDTOs {
     @Data
     public static class ImportResultResponse {
         /**
+         * 本次导入批次号，用于追踪已脱敏的失败明细。
+         */
+        private String batchNo;
+
+        /**
+         * 文件数据总行数，包含校验通过但随事务回滚的行。
+         */
+        private Integer totalCount;
+
+        /**
+         * 是否因行级校验失败而整批回滚，不能按部分成功展示。
+         */
+        private boolean rolledBack;
+
+        /**
          * 成功导入条数。
          */
         private Integer successCount;

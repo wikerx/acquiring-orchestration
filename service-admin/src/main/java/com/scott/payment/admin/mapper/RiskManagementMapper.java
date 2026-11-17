@@ -16,6 +16,25 @@ import java.util.Map;
 public interface RiskManagementMapper {
 
     /**
+     * 从主库定位失败批次的功能与创建账号；不读取导入原始行。
+     */
+    @Select("SELECT module_type, function_code, operator, status FROM risk_import_batch WHERE batch_no = #{batchNo}")
+    Map<String, Object> selectImportFailureBatch(@Param("batchNo") String batchNo);
+
+    /**
+     * 按既有批次、行号索引游标读取脱敏错误，避免全量加载或返回原始行内容。
+     */
+    @Select("""
+            SELECT id, row_no, error_message FROM risk_import_error
+            WHERE batch_no = #{batchNo}
+              AND (row_no > #{afterRow} OR (row_no = #{afterRow} AND id > #{afterId}))
+            ORDER BY row_no, id LIMIT 500
+            """)
+    List<Map<String, Object>> selectImportFailureRows(@Param("batchNo") String batchNo,
+                                                     @Param("afterRow") int afterRow,
+                                                     @Param("afterId") long afterId);
+
+    /**
      * 创建风控导入批次记录。
      *
      * @param moduleType   模块类型

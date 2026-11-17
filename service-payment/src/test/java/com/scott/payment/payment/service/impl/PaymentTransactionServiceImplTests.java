@@ -1081,10 +1081,10 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
-     * 风控人工复核时交易进入挂起状态，不能继续请求渠道。
+     * 人工复核未开放时，遗留复核结论形成确定的风控失败终态，不能继续请求渠道。
      */
     @Test
-    void shouldReturnPendingWhenRiskRequiresReview() {
+    void shouldRejectWhenRiskRequiresUnavailableReview() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
         PaymentTransactionServiceImpl service = newService(
@@ -1093,10 +1093,11 @@ class PaymentTransactionServiceImplTests {
 
         PaymentCreateResultDTO resultDTO = service.createAuthorization(commandDTO);
 
-        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PENDING.getCode());
-        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.WAITING_RISK_REVIEW.getCode());
-        assertThat(resultDTO.getPendingReasonCode()).isEqualTo(PaymentPendingReasonEnum.RISK_REVIEW.getCode());
-        assertThat(eventOutboxService.eventDO).isNull();
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(resultDTO.getPendingReasonCode()).isNull();
+        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
+        assertThat(eventOutboxService.eventDO).isNotNull();
     }
 
     /**

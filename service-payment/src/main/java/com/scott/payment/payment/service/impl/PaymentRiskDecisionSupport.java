@@ -11,8 +11,8 @@ import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 /**
  * 支付准备链路的风控决策映射规则。
  *
- * <p>风控原始原因与支付平台状态保持分离。REQUIRE_3DS、REVIEW 分别进入受控待处理阶段，
- * 明确拒绝进入失败；任何 decision 与 passed 标志矛盾的结果按 UNKNOWN 处理，禁止放行。</p>
+ * <p>风控原始原因与支付平台状态保持分离。仅 REQUIRE_3DS 进入交互待处理阶段；人工复核
+ * 暂不开放，遗留 REVIEW 与未知结果均按风控拒绝结束，禁止放行或生成无人处理的等待交易。</p>
  */
 final class PaymentRiskDecisionSupport {
 
@@ -46,17 +46,11 @@ final class PaymentRiskDecisionSupport {
      * 填充被风控中止的支付结果。
      */
     static void fillStoppedResult(PaymentCreateResultDTO resultDTO, PaymentRiskDecisionEnum riskDecisionEnum) {
-        // 需要交互或人工审核的决策保持 PENDING，不得提前落成失败终态。
+        // 3DS 是付款人交互流程，独立于未开放的人工复核。
         if (PaymentRiskDecisionEnum.REQUIRE_3DS == riskDecisionEnum) {
             resultDTO.setStatus(PaymentTransactionStatusEnum.PENDING.getCode());
             resultDTO.setProcessStage(PaymentProcessStageEnum.WAITING_3DS.getCode());
             resultDTO.setPendingReasonCode(PaymentPendingReasonEnum.NEED_REDIRECT.getCode());
-            return;
-        }
-        if (PaymentRiskDecisionEnum.REVIEW == riskDecisionEnum) {
-            resultDTO.setStatus(PaymentTransactionStatusEnum.PENDING.getCode());
-            resultDTO.setProcessStage(PaymentProcessStageEnum.WAITING_RISK_REVIEW.getCode());
-            resultDTO.setPendingReasonCode(PaymentPendingReasonEnum.RISK_REVIEW.getCode());
             return;
         }
         // 商户只接收稳定的风控阻断说明，不暴露规则、名单、评分或风控服务原文。
@@ -81,7 +75,7 @@ final class PaymentRiskDecisionSupport {
         if (riskDecisionEnum != null && riskDecisionEnum.isAllowProceed()) {
             return PaymentTransactionStatusEnum.SUCCESS.getCode();
         }
-        if (PaymentRiskDecisionEnum.REVIEW == riskDecisionEnum || PaymentRiskDecisionEnum.REQUIRE_3DS == riskDecisionEnum) {
+        if (PaymentRiskDecisionEnum.REQUIRE_3DS == riskDecisionEnum) {
             return PaymentTransactionStatusEnum.PENDING.getCode();
         }
         return PaymentTransactionStatusEnum.FAILED.getCode();

@@ -43,6 +43,57 @@ import static org.mockito.Mockito.when;
  */
 class AdminRiskManagementApplicationServiceTests {
 
+    /**
+     * 人工复核未开放时，配置接口不再提供 REVIEW 选项。
+     */
+    @Test
+    void shouldNotOfferManualReviewForRiskConfiguration() {
+        var options = service(mock(RiskManagementMapper.class)).options();
+        assertThat(options.getDecisionActionOptions()).extracting(RiskDTOs.OptionItem::getValue)
+                .containsExactly("PASS", "REJECT");
+    }
+
+    /**
+     * 通过直接配置接口提交 REVIEW 也必须被拒绝，不能只隐藏下拉选项。
+     */
+    @Test
+    void shouldRejectManualReviewInRuleWrites() {
+        var account = new InternalAuthAccount();
+        account.setAccountId(7L);
+        account.setPermissions(List.of("*:*:*"));
+        InternalAuthContextHolder.set(account);
+        var request = new RiskDTOs.RiskRuleSaveRequest();
+        request.setRuleName("QA frequency");
+        request.setDecisionAction("REVIEW");
+        assertThatThrownBy(() -> service(mock(RiskManagementMapper.class)).createRule("frequency", request))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class)
+                .hasMessageContaining("人工复核暂不开放");
+    }
+
+    /**
+     * 历史复核配置不能通过状态开关重新启用；停用操作继续可用。
+     */
+    @Test
+    void shouldRejectEnablingLegacyReviewButAllowDisablingIt() {
+        var account = new InternalAuthAccount();
+        account.setAccountId(7L);
+        account.setPermissions(List.of("*:*:*"));
+        InternalAuthContextHolder.set(account);
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        when(mapper.selectById("risk_black_email", 17L)).thenReturn(
+                new LinkedHashMap<>(Map.of("id", 17L, "decision_action", "REVIEW", "status", 0)));
+        var request = new RiskDTOs.StatusUpdateRequest();
+        request.setStatus(1);
+        assertThatThrownBy(() -> service(mapper).updateStatus("BLACK", "email", 17L, request))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class)
+                .hasMessageContaining("人工复核暂不开放");
+        verify(mapper, never()).updateStatus(any(), any(), any(), any());
+        request.setStatus(0);
+        when(mapper.updateStatus(eq("risk_black_email"), eq(17L), eq(0), any())).thenReturn(1);
+        service(mapper).updateStatus("BLACK", "email", 17L, request);
+        verify(mapper).updateStatus(eq("risk_black_email"), eq(17L), eq(0), any());
+    }
+
     @AfterEach
     void clearAuthContext() {
         InternalAuthContextHolder.clear();

@@ -25,7 +25,7 @@ public enum PaymentRiskDecisionEnum {
     REJECT("REJECT", false),
 
     /**
-     * 风控人工复核，交易应进入 PENDING。
+     * 兼容风控域与历史审计中的复核结论；人工复核未开放时支付侧按风控拒绝结束。
      */
     REVIEW("REVIEW", false),
 

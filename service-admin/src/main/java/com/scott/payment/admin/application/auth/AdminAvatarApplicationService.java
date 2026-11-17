@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 
 /** 头像只属于可信会话中的用户主体，不接受客户端 userId 或文件地址。 */
 @Service
-@DS(DataSourceName.MASTER)
 public class AdminAvatarApplicationService {
     private final SysUserMapper users;
     private final SafeImageProcessor images;
@@ -28,6 +27,7 @@ public class AdminAvatarApplicationService {
         this.users = users; this.images = images; this.storage = storage;
     }
     @Transactional(rollbackFor = Exception.class)
+    @DS(DataSourceName.MASTER)
     public String replace(MultipartFile file) {
         InternalAuthAccount account = account();
         SysUserDO before = user(account);
@@ -38,6 +38,7 @@ public class AdminAvatarApplicationService {
         return ManagedImageReference.version(key);
     }
     @Transactional(rollbackFor = Exception.class)
+    @DS(DataSourceName.MASTER)
     public void remove() {
         InternalAuthAccount account = account();
         SysUserDO before = user(account);
@@ -45,6 +46,7 @@ public class AdminAvatarApplicationService {
         change(account, before, null);
         storage.deleteAfterCommit(before.getAvatarUrl());
     }
+    @DS(DataSourceName.MASTER)
     public byte[] read() {
         InternalAuthAccount account = account();
         return storage.read(user(account).getAvatarUrl(), "avatar/" + account.getUserId());

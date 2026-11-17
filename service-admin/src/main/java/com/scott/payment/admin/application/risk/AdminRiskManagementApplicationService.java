@@ -105,7 +105,7 @@ public class AdminRiskManagementApplicationService {
     /**
      * 未指定命中动作时进入人工复核。
      */
-    private static final String DEFAULT_DECISION_ACTION = "REVIEW";
+    private static final String DEFAULT_DECISION_ACTION = "REJECT";
     /**
      * 超长期有效期类型，不要求填写有效天数。
      */
@@ -540,8 +540,7 @@ public class AdminRiskManagementApplicationService {
         ));
         response.setDecisionActionOptions(List.of(
                 option("通过", "PASS", "success"),
-                option("拒绝", "REJECT", "danger"),
-                option("人工复核", "REVIEW", "warning")
+                option("拒绝", "REJECT", "danger")
         ));
         response.setCardBrandOptions(toOptions(riskManagementMapper.selectDictOptions("card_brand", "zh-CN")));
         response.setLimitTypeOptions(toOptions(riskManagementMapper.selectDictOptions("channel_limit_type", "zh-CN")));
@@ -963,6 +962,9 @@ public class AdminRiskManagementApplicationService {
         }
         cacheInvalidationCoordinator.prepare();
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
+        if (status == 1 && "REVIEW".equalsIgnoreCase(asString(before.get("decision_action")))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "人工复核暂不开放，请先将决策动作修改为通过或拒绝");
+        }
         if (isSourceUrlRule(definition)
                 && !Integer.valueOf(MerchantAccessApprovalStatus.APPROVED.code()).equals(asInteger(before.get("approval_status")))) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "仅审核通过的来源网址允许修改交易状态");
@@ -2163,7 +2165,7 @@ public class AdminRiskManagementApplicationService {
         cacheInvalidationCoordinator.prepare();
         String batchNo = importBatchNo(definition);
         String operator = currentOperatorName();
-        importLogService.createBatch(definition.getModuleType(), definition.getFunctionCode(), batchNo, file.getOriginalFilename(), rows.size(), operator);
+        importLogService.createBatch(definition.getModuleType(), definition.getFunctionCode(), batchNo, file.getOriginalFilename(), rows.size(), AdminRiskImportReportApplicationService.currentOwner());
         List<AdminRiskImportLogService.ImportRowError> rowErrors = new ArrayList<>();
         int successCount = 0;
         for (ImportRow importRow : rows) {
@@ -2202,11 +2204,13 @@ public class AdminRiskManagementApplicationService {
         }
         if (!rowErrors.isEmpty()) {
             importLogService.markFailed(batchNo, rowErrors.size(), rowErrors);
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), importErrorSummary(batchNo, rowErrors));
+            throw new RiskImportRejectedException(batchNo, rows.size(), rowErrors, importErrorSummary(batchNo, rowErrors));
         }
         markImportBatchSuccessAfterCommit(batchNo, successCount);
         riskManagementMapper.insertChangeLog(definition.getModuleType(), definition.getFunctionCode(), null, CHANGE_OPERATION_IMPORT, null, JsonUtils.toJsonString(Map.of("successCount", successCount, "batchNo", batchNo)), operator, definition.getFunctionName());
         RiskDTOs.ImportResultResponse response = new RiskDTOs.ImportResultResponse();
+        response.setBatchNo(batchNo);
+        response.setTotalCount(rows.size());
         response.setSuccessCount(successCount);
         response.setFailureCount(0);
         response.setErrors(List.of());
@@ -2274,7 +2278,7 @@ public class AdminRiskManagementApplicationService {
         data.put("countryAlpha3", upper(request.getCountryAlpha3()));
         data.put("countryNumeric", trim(request.getCountryNumeric()));
         data.put("riskLevel", defaultIfBlank(request.getRiskLevel(), defaultRiskLevel(definition)));
-        data.put("decisionAction", defaultIfBlank(request.getDecisionAction(), defaultDecisionAction(definition)));
+        data.put("decisionAction", configDecisionAction(request.getDecisionAction(), defaultDecisionAction(definition)));
         data.put("effectiveTime", defaultEffectiveTime(request.getEffectiveTime()));
         applyValidity(data, request);
         data.put("sourceType", sourceType);
@@ -2365,7 +2369,7 @@ public class AdminRiskManagementApplicationService {
         data.put("cityName", trim(request.getCityName()));
         normalizeRegionLevelFields(data);
         data.put("riskLevel", defaultIfBlank(request.getRiskLevel(), "HIGH"));
-        data.put("decisionAction", defaultIfBlank(request.getDecisionAction(), "REJECT"));
+        data.put("decisionAction", configDecisionAction(request.getDecisionAction(), "REJECT"));
         data.put("effectiveTime", defaultEffectiveTime(request.getEffectiveTime()));
         applyRegionValidity(data, request);
         data.put("sourceType", sourceType);
@@ -2405,6 +2409,7 @@ public class AdminRiskManagementApplicationService {
      * @return 可直接写入规则表的字段映射
      */
     private Map<String, Object> ruleData(RiskFunctionDefinition definition, RiskDTOs.RiskRuleSaveRequest request) {
+        configDecisionAction(request.getDecisionAction(), defaultDecisionAction(definition));
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("merchantScope", defaultIfBlank(request.getMerchantScope(), DEFAULT_SCOPE));
         data.put("merchantId", trim(request.getMerchantId()));
@@ -2419,7 +2424,7 @@ public class AdminRiskManagementApplicationService {
         data.put("thresholdCount", request.getThresholdCount());
         data.put("elementsJson", defaultIfBlank(request.getElementsJson(), "{}"));
         data.put("riskLevel", defaultIfBlank(request.getRiskLevel(), defaultRiskLevel(definition)));
-        data.put("decisionAction", defaultIfBlank(request.getDecisionAction(), defaultDecisionAction(definition)));
+        data.put("decisionAction", configDecisionAction(request.getDecisionAction(), defaultDecisionAction(definition)));
         if (isThreeDsRule(definition)) {
             data.put("ruleGroupNo", defaultIfBlank(request.getRuleGroupNo(), UUID.randomUUID().toString()));
             data.put("merchantName", trim(request.getMerchantName()));
@@ -2536,7 +2541,7 @@ public class AdminRiskManagementApplicationService {
         data.put("sourceUrl", parts.sourceUrl());
         data.put("sourceHost", parts.sourceHost());
         data.put("riskLevel", defaultIfBlank(riskLevel, defaultRiskLevel(RiskFunctionDefinition.RULE_SOURCE_URL)));
-        data.put("decisionAction", defaultIfBlank(decisionAction, defaultDecisionAction(RiskFunctionDefinition.RULE_SOURCE_URL)));
+        data.put("decisionAction", configDecisionAction(decisionAction, defaultDecisionAction(RiskFunctionDefinition.RULE_SOURCE_URL)));
         data.put("effectiveTime", effectiveTime);
         data.put("expireTime", expireTime);
         data.put("status", defaultStatus(status));
@@ -3990,6 +3995,17 @@ public class AdminRiskManagementApplicationService {
     /**
      * 返回风险决策动作，未指定时使用默认动作。
      */
+    private String configDecisionAction(String value, String fallback) {
+        String action = csvCode("decisionAction", defaultIfBlank(value, fallback));
+        if (!List.of("PASS", "REJECT").contains(action)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "人工复核暂不开放，决策动作仅支持通过或拒绝");
+        }
+        return action;
+    }
+
+    /**
+     * 为未指定动作的配置选择可执行的拒绝或白名单通过策略。
+     */
     private String defaultDecisionAction(RiskFunctionDefinition definition) {
         if ("WHITE".equalsIgnoreCase(definition.getModuleType())) {
             return "PASS";
@@ -4315,6 +4331,9 @@ public class AdminRiskManagementApplicationService {
      * 清理导入错误说明中的敏感信息并限制长度。
      */
     private String sanitizeImportErrorMessage(RuntimeException exception) {
+        if (!(exception instanceof ServiceException)) {
+            return "导入行校验或写入失败，请联系管理员并提供批次号";
+        }
         String message = importErrorMessage(exception)
                 .replaceAll("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+", "***")
                 .replaceAll("\\d{12,19}", "***");

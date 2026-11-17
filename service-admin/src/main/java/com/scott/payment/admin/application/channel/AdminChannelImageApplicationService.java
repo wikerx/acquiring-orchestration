@@ -18,7 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 /** 渠道资料与图片在同一数据库事务保存，失败时保留原图。 */
 @Service
-@DS(DataSourceName.MASTER)
 public class AdminChannelImageApplicationService {
     private final AdminChannelService channels;
     private final ChannelInfoMapper mapper;
@@ -29,6 +28,7 @@ public class AdminChannelImageApplicationService {
         this.channels = channels; this.mapper = mapper; this.images = images; this.storage = storage;
     }
     @Transactional(rollbackFor = Exception.class)
+    @DS(DataSourceName.MASTER)
     public ChannelInfoResponse save(Long id, ChannelInfoSaveRequest request, MultipartFile file, boolean removeLogo) {
         authorize(id == null ? "channel:info:add" : "channel:info:edit");
         ChannelInfoDO before = id == null ? null : existing(id, true);
@@ -45,11 +45,13 @@ public class AdminChannelImageApplicationService {
         }
         return channels.getChannel(saved.getId());
     }
+    @DS(DataSourceName.MASTER)
     public byte[] read(Long id) {
         authorize("channel:info:list");
         return storage.read(existing(id, false).getLogoObjectKey(), "channel/" + id);
     }
     @Transactional(rollbackFor = Exception.class)
+    @DS(DataSourceName.MASTER)
     public void delete(Long id) {
         authorize("channel:info:remove");
         ChannelInfoDO before = existing(id, true);
