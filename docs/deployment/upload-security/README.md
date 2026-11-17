@@ -69,6 +69,7 @@ mvn -pl component-library/component-web -am -Dtest=ClamAvContainerIntegrationTes
 - 登录和个人资料响应的 `account.avatarVersion` 为可选字段，不含存储地址。
 - `POST /admin/channel/info/with-logo`、`PUT /admin/channel/info/{id}/with-logo`：JSON `metadata` part、可选 `file`，更新可指定 `removeLogo=true`；禁止同时上传和移除。
 - `GET /admin/channel/info/{id}/logo`：沿用渠道列表权限；响应 `logoVersion` 为可选版本号。
+- 渠道列表和交易查询的展示使用 `POST /admin/channel/presentation/search?scope=...`（`ids` / `codes` 合计最多 100 个）和 `GET /admin/channel/presentation/{id}/logo?scope=...&version=...`。`scope` 为 INFO、CAPABILITY、LIMIT、MID、MID_BINDING、ROUTE、ALERT_RULE、ALERT_EVENT、ORDER、OPERATION，服务端逐次检查对应页面的 list/detail 权限；只返回 ID、编码、中英文名称和非敏感图片版本，图片版本变更后拒绝旧版本读取。原配置及上传接口权限不变，商户登录态不能调用。无数据库和 Nacos 升级，部署后需重启 service-admin。
 - 图片只允许 PNG/JPEG，原文件最多 2 MiB、边长不超过 4096、总像素不超过 1600 万；头像居中裁剪为 512 方图，Logo 等比例缩放到最长边 1024，成品再次限制 2 MiB。
 - 选图仅在浏览器本地预览；取消不产生服务器对象。头像在“保存头像”时提交；渠道图片随渠道表单一起保存。
 - KYB 上传允许 PDF/PNG/JPEG，保持配置的 20 MiB 上限；模板按既有模板类型校验。风控导入只允许 CSV/XLS/XLSX、最多 5 MiB，汇率规则导入只允许 XLS/XLSX、最多 2 MiB。文件扫描通过后才进入现有业务解析。
