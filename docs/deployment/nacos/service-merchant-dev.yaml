@@ -35,6 +35,8 @@ internal-service:
         active-secret: ${acquiring.internal-auth.edges.data-merchant.active-secret}
         previous-secret: ${acquiring.internal-auth.edges.data-merchant.previous-secret:}
         allowed-paths:
+          # 路径说明：仅供 Data 分页读取已冻结账号和商户范围内的支付链接安全导出数据。
+          - /internal/merchant/transactions/payment-links/export-page
           # 路径说明：只允许读取商户交易和退款安全导出来源，不开放商户浏览器接口。
           - /internal/merchant/export-sources/**
     allowed-clock-skew: 5m
@@ -53,3 +55,13 @@ payment:
     secret: __NACOS_MANAGED_MERCHANT_MFA_SECRET__
     previous-secrets: __NACOS_MANAGED_MERCHANT_MFA_PREVIOUS_SECRETS__
     allow-ephemeral-test-secret: false
+
+# 支付链接邀请独立频控，不改变登录验证邮件和找回密码配额。
+payment-link:
+  mail:
+    # 参数说明：同商户、同收件人的付款邀请冷却时间，单位秒；默认 60。
+    recipient-cooldown-seconds: ${PAYMENT_LINK_MAIL_RECIPIENT_COOLDOWN_SECONDS:60}
+    # 参数说明：每商户每小时邀请上限，默认 100；不影响登录类邮件。
+    merchant-hourly-limit: ${PAYMENT_LINK_MAIL_MERCHANT_HOURLY_LIMIT:100}
+    # 参数说明：每操作员每小时邀请上限，默认 100；管理员代发也计入。
+    actor-hourly-limit: ${PAYMENT_LINK_MAIL_ACTOR_HOURLY_LIMIT:100}

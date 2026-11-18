@@ -164,6 +164,29 @@ class AdminEmailServiceAsyncTests {
     }
 
     @Test
+    void paymentInvitationEscapesBodyButKeepsSubjectAndSecretMasking() {
+        var template = templateSnapshot();
+        template.setContentType("HTML");
+        template.setContentTemplate("<p>${name}</p><a href=\"${paymentUrl}\">Pay</a>");
+        template.setSubjectTemplate("${name}");
+        template.setSensitiveVariableNames("[\"paymentUrl\"]");
+        when(enabledTemplateCacheReader.findEnabled("LOGIN_NOTICE", "zh-CN")).thenReturn(template);
+        when(accountMapper.selectOne(any())).thenReturn(account());
+        EmailSendRequest request = request();
+        request.setHtmlEscapeVariables(true);
+        request.setVariables(Map.of("name", "<script>alert(1)</script>", "paymentUrl", "https://pay.example.invalid/l/private"));
+        emailService.sendByTemplate(request);
+        var content = ArgumentCaptor.forClass(String.class);
+        verify(payloadCrypto).encrypt(content.capture());
+        assertThat(content.getValue()).contains("&lt;script&gt;").doesNotContain("<script>");
+        var row = ArgumentCaptor.forClass(EmailSendRecordDO.class);
+        verify(recordMapper).insert(row.capture());
+        assertThat(row.getValue().getSubject()).isEqualTo("<script>alert(1)</script>");
+        assertThat(row.getValue().getContentSnapshot()).doesNotContain("/l/private", "<script>");
+        assertThat(row.getValue().getVariablesSnapshot()).doesNotContain("/l/private");
+    }
+
+    @Test
     void shouldExplicitlyClearPreviousAccountErrorAfterSuccessfulTestEmail() {
         EmailAccountDO account = account();
         account.setLastErrorMessage("previous failure");

@@ -705,6 +705,7 @@ public final class ExportTaskInternalDTOs {
      */
     @Data
     public static class CreateRequest implements Serializable {
+        private PaymentLinkQuery paymentLinkQuery;
         private static final long serialVersionUID = 1L;
         @NotBlank
         @Size(max = 128)
@@ -983,4 +984,21 @@ public final class ExportTaskInternalDTOs {
         private Integer recoveredCount;
         private Integer expiredCount;
     }
+    /** 支付链接导出冻结条件，不含分页和操作者数据范围。 */
+    @Data
+    public static class PaymentLinkQuery implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String linkId;
+        private String merchantOrderNo;
+        /** 兼容识别旧冻结任务，执行时拒绝旧模糊查询，不能放大范围。 */
+        @Deprecated private String keyword;
+        private String status;
+        private String currency;
+        private String channelCode;
+        private LocalDateTime createTimeFrom;
+        private LocalDateTime createTimeTo;
+    }
+
+
 }

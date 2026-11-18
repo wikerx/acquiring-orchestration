@@ -117,7 +117,7 @@ public class AdminWorkItemExportSourceRestClient
         implements AdminWorkItemExportSourceClient, AdminTransactionExportSourceClient,
         AdminSettlementExportSourceClient, AdminPlatformExportSourceClient,
         AdminFundExportSourceClient, AdminExchangeExportSourceClient,
-        AdminFeeExportSourceClient {
+        AdminFeeExportSourceClient, AdminPaymentLinkExportSourceClient {
     private static final String WORK_ITEM_PATH = "/internal/admin/operations/work-items/export-page";
     private static final String ORDER_PATH = "/internal/admin/transactions/orders/export-page";
     private static final String OPERATION_PATH = "/internal/admin/transactions/operations/export-page";
@@ -565,6 +565,16 @@ public class AdminWorkItemExportSourceRestClient
     /**
      * 使用统一内部签名调用 Admin 导出来源并解包强类型响应。
      */
+    /**
+     * 使用已有签名传输读取支付链接安全投影，不新建 Data 到支付核心的信任边。
+     */
+    @Override
+    public com.scott.payment.component.core.model.PageResult<com.scott.payment.data.client.paymentlink.PaymentLinkExportDTOs.Row> loadPaymentLinkPage(
+            com.scott.payment.data.client.paymentlink.PaymentLinkExportDTOs.PageRequest request) {
+        return post("/internal/admin/transactions/payment-links/export-page", request,
+                new TypeReference<CommonResult<com.scott.payment.component.core.model.PageResult<com.scott.payment.data.client.paymentlink.PaymentLinkExportDTOs.Row>>>() { });
+    }
+
     private <T> T post(String path, Object request, TypeReference<CommonResult<T>> responseType) {
         properties.validate();
         URI uri = URI.create(properties.getBaseUrl().trim() + path);

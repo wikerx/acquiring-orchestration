@@ -564,9 +564,17 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                 recordMapper.insert(record);
                 return toSendResult(record);
             }
-            String content = render(template.getContentTemplate(), variables);
+            Map<String, Object> bodyVariables = variables;
+            if (request.isHtmlEscapeVariables() && CONTENT_HTML.equalsIgnoreCase(template.getContentType())) {
+                bodyVariables = new LinkedHashMap<>();
+                for (Map.Entry<String, Object> entry : variables.entrySet()) {
+                    bodyVariables.put(entry.getKey(), entry.getValue() == null ? "" :
+                            org.springframework.web.util.HtmlUtils.htmlEscape(String.valueOf(entry.getValue())));
+                }
+            }
+            String content = render(template.getContentTemplate(), bodyVariables);
             record.setSubject(render(template.getSubjectTemplate(), variables));
-            record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables, parseStringList(template.getSensitiveVariableNames())));
+            record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), bodyVariables, parseStringList(template.getSensitiveVariableNames())));
             record.setVariablesSnapshot(JSON.toJSONString(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
             record.setDeliveryContentCipher(encryptSecret(content));
             record.setContentType(defaultIfBlank(trimUpper(template.getContentType()), CONTENT_HTML));

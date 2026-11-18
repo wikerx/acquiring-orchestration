@@ -149,6 +149,28 @@ class PaymentCheckoutCardCapabilityServiceTests {
     }
 
     /**
+     * 支付链接按币种筛选时兼容数据库的多交易类型能力，同时排除仅授权和不支持币种。
+     */
+    @Test
+    void shouldAcceptPaymentInCombinedCapabilityTypesWithoutAllowingAuthorizationOnly() {
+        MerchantRouteProfileCacheService cache = mock(MerchantRouteProfileCacheService.class);
+        MerchantRouteProfile profile = profile("VISA,MASTERCARD");
+        var option = profile.getRouteOptions().get(0);
+        option.setCapabilityTransactionType("AUTHORIZATION,CAPTURE,PAYMENT,REFUND,VOID");
+        option.setTransactionTypeScope("PAYMENT,REFUND");
+        option.setCurrencyScope("USD,JPY");
+        option.setSupportedCurrencies(List.of("USD", "JPY"));
+        when(cache.findRouteProfile("200045")).thenReturn(profile);
+        var service = new PaymentCheckoutCardCapabilityService(cache, mock(CardBinCacheReader.class));
+        assertThat(service.resolveAllowedMethods("200045", null, "USD")).hasSize(1);
+        assertThat(service.resolveAllowedMethods("200045", null, "EUR")).isEmpty();
+        option.setCapabilityTransactionType("AUTHORIZATION,CAPTURE");
+        assertThat(service.resolveAllowedMethods("200045", null, "USD")).isEmpty();
+        option.setCapabilityTransactionType(null);
+        assertThat(service.resolveAllowedMethods("200045", null, "USD")).isEmpty();
+    }
+
+    /**
      * 构造商户请求允许的银行卡品牌集合。
      */
     private PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO requestedMethod() {

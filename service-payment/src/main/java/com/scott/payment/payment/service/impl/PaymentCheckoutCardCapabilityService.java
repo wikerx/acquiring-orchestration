@@ -67,6 +67,14 @@ public class PaymentCheckoutCardCapabilityService {
     public List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> resolveAllowedMethods(
             String merchantId,
             List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> requestedMethods) {
+        return resolveAllowedMethods(merchantId, requestedMethods, null);
+    }
+
+    /** 支付链接创建时按确定币种和 PAYMENT 交易类型缩小能力，旧调用保持原查询语义。 */
+    public List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> resolveAllowedMethods(
+            String merchantId,
+            List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> requestedMethods,
+            String currency) {
         MerchantRouteProfile profile = routeProfileCacheService.findRouteProfile(merchantId);
         if (profile == null || profile.getRouteOptions() == null) {
             return List.of();
@@ -77,6 +85,14 @@ public class PaymentCheckoutCardCapabilityService {
         for (MerchantRouteProfile.RouteOption option : profile.getRouteOptions()) {
             // 展示能力只来自当前有效的路由候选，过期绑定或停用 MID/渠道不得暴露给付款人。
             if (!active(option, now)) {
+                continue;
+            }
+            if (currency != null && (!scopeAllows(option.getCurrencyScope(), normalize(currency))
+                    || !scopeAllows(option.getTransactionTypeScope(), "PAYMENT")
+                    || !StringUtils.hasText(option.getCapabilityTransactionType())
+                    || !scopeAllows(option.getCapabilityTransactionType(), "PAYMENT")
+                    || option.getSupportedCurrencies() == null
+                    || option.getSupportedCurrencies().stream().noneMatch(value -> normalize(currency).equals(normalize(value))))) {
                 continue;
             }
             String paymentMethod = normalize(option.getCapabilityPaymentMethod());

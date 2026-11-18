@@ -288,6 +288,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      */
     private PaymentCheckoutCardVaultPublisher cardVaultPublisher;
 
+    /** 只约束关联支付链接的新尝试，3DS 在途续程和普通 Checkout 保持原规则。 */
+    private com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard paymentLinkGuard;
+
     /**
      * 创建 Hosted Checkout 默认服务。
      *
@@ -328,6 +331,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                          PaymentCheckoutCardEnvelopeService cardEnvelopeService,
                                          PaymentCheckoutCardVaultPublisher cardVaultPublisher,
                                          MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService,
+                                         com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard paymentLinkGuard,
                                          PlatformTransactionManager transactionManager) {
         this.sessionMapper = sessionMapper;
         this.tokenMapper = tokenMapper;
@@ -345,6 +349,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         this.cardEnvelopeService = cardEnvelopeService;
         this.cardVaultPublisher = cardVaultPublisher;
         this.merchantNotificationInitialDeliveryService = merchantNotificationInitialDeliveryService;
+        this.paymentLinkGuard = paymentLinkGuard;
         this.transactionOperations = new TransactionTemplate(transactionManager);
     }
 
@@ -469,6 +474,14 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     @Transactional(rollbackFor = Exception.class)
     public PaymentCheckoutSessionCreateResultDTO createSession(PaymentCheckoutSessionCreateCommandDTO commandDTO) {
         LocalDateTime now = LocalDateTime.now();
+        // 链接截止时间不能在进入本方法前刚过期时触发旧接口的默认 24 小时兜底。
+        if ("PAY_BY_LINK".equals(commandDTO.getRequestSource())
+                && (commandDTO.getExpireTime() == null || !commandDTO.getExpireTime().isAfter(now))) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+        }
+        if ("PAY_BY_LINK".equals(commandDTO.getRequestSource())) {
+            paymentLinkGuard.requireOwnedDeadline(commandDTO, now);
+        }
         PaymentCheckoutSessionDO existed = sessionMapper.selectByMerchantRequest(
                 commandDTO.getMerchantId(), commandDTO.getMerchantRequestId());
         if (existed != null) {
@@ -1013,7 +1026,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         sessionDO.setMaxAttemptCount(LEGACY_UNBOUNDED_MAX_ATTEMPT_COUNT);
         sessionDO.setAttemptCount(0);
         sessionDO.setCheckoutDomain(commandDTO.getCheckoutDomain());
-        sessionDO.setExpireTime(resolveExpireTime(commandDTO.getExpireTime(), now));
+        // 链接期限已由领域核对冻结事实，普通收银台仍保留既有 24 小时上限。
+        sessionDO.setExpireTime("PAY_BY_LINK".equals(commandDTO.getRequestSource())
+                ? commandDTO.getExpireTime() : resolveExpireTime(commandDTO.getExpireTime(), now));
         sessionDO.setVersion(0);
         sessionDO.setDeleted(0);
         sessionDO.setCreateTime(now);
@@ -1125,6 +1140,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         }
 
         ensureSessionPayable(sessionDO, now);
+        if (paymentLinkGuard != null) {
+            paymentLinkGuard.requireNewSubmissionAllowed(sessionDO.getCheckoutSessionId(), now);
+        }
         decryptCardDataIfRequired(commandDTO, sessionDO);
         ensurePaymentMethodAllowed(sessionDO, commandDTO);
         PaymentCheckoutAttemptDO attemptDO = buildAttempt(sessionDO, commandDTO, now);
@@ -1623,6 +1641,12 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         PaymentCheckoutSessionQueryResultDTO resultDTO = new PaymentCheckoutSessionQueryResultDTO();
         resultDTO.setCheckoutSessionId(sessionDO.getCheckoutSessionId());
         resultDTO.setPageState(toPageState(sessionDO).getCode());
+        boolean basePayable = mayStartPayment(sessionDO);
+        boolean newSubmissionAllowed = basePayable && (paymentLinkGuard == null
+                || paymentLinkGuard.allowsNewSubmissionRead(sessionDO.getCheckoutSessionId(), serverTime));
+        if (basePayable && !newSubmissionAllowed) {
+            resultDTO.setPageState(PaymentCheckoutPageStateEnum.BLOCKED.getCode());
+        }
         PaymentCheckoutSessionQueryResultDTO.MerchantDTO merchantDTO = new PaymentCheckoutSessionQueryResultDTO.MerchantDTO();
         merchantDTO.setDisplayName(sessionDO.getMerchantDisplayName());
         merchantDTO.setLogoUrl(sessionDO.getMerchantLogoUrl());
@@ -1640,7 +1664,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         PaymentCheckoutSessionQueryResultDTO.CheckoutDTO checkoutDTO = new PaymentCheckoutSessionQueryResultDTO.CheckoutDTO();
         checkoutDTO.setExpireTime(sessionDO.getExpireTime());
         checkoutDTO.setServerTime(serverTime);
-        checkoutDTO.setRetryAllowed(mayStartPayment(sessionDO));
+        checkoutDTO.setRetryAllowed(newSubmissionAllowed);
         checkoutDTO.setPollingIntervalSeconds(properties.getPollingIntervalSeconds());
         resultDTO.setCheckout(checkoutDTO);
         resultDTO.setPayerInfo(parseCheckoutSnapshot(
@@ -1651,7 +1675,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (latestAttempt != null || !PaymentCheckoutSessionStatusEnum.PENDING.getCode().equals(sessionDO.getCheckoutStatus())) {
             resultDTO.setPaymentResult(paymentResult(sessionDO, latestAttempt));
         }
-        if (cardEnvelopeService != null && mayStartPayment(sessionDO)) {
+        if (cardEnvelopeService != null && newSubmissionAllowed) {
             resultDTO.setCardEncryption(cardEnvelopeService.issue(sessionDO.getCheckoutSessionId()));
         }
         return resultDTO;
@@ -1661,18 +1685,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * 只有仍可新建支付尝试的页面状态才下发一次性卡数据 nonce。
      */
     private boolean mayStartPayment(PaymentCheckoutSessionDO sessionDO) {
-        if (sessionDO == null || sessionDO.getExpireTime() == null
-                || !sessionDO.getExpireTime().isAfter(LocalDateTime.now())) {
-            return false;
-        }
-        String status = sessionDO.getCheckoutStatus();
-        if (PaymentCheckoutSessionStatusEnum.PENDING.getCode().equals(status)) {
-            return sessionDO.getLastSubmitTime() == null
-                    && PaymentCheckoutProcessStageEnum.WAITING_PAYER.getCode().equals(sessionDO.getProcessStage());
-        }
-        return PaymentCheckoutSessionStatusEnum.FAILED.getCode().equals(status)
-                && sessionDO.getLastSubmitTime() != null
-                && Integer.valueOf(1).equals(sessionDO.getRetryAllowed());
+        return com.scott.payment.payment.domain.state.PaymentCheckoutPayability.mayStart(sessionDO, LocalDateTime.now());
     }
 
     /**
@@ -1728,6 +1741,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setTransactionId(attemptDO == null ? sessionDO.getLatestTransactionId() : attemptDO.getTransactionId());
         resultDTO.setTransactionDateTime(attemptDO == null ? sessionDO.getTransactionDateTime() : attemptDO.getTransactionDateTime());
         resultDTO.setAuthCode(attemptDO == null ? null : attemptDO.getChannelResponseCode());
+        if (paymentLinkGuard != null && paymentLinkGuard.isLinkedSession(sessionDO.getCheckoutSessionId())) {
+            resultDTO.setCardBrand(null);
+            resultDTO.setCardNumberMasked(null);
+            resultDTO.setAuthCode(null);
+        }
         return resultDTO;
     }
 

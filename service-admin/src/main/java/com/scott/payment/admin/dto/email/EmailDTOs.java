@@ -333,6 +333,8 @@ public final class EmailDTOs {
      */
     @Data
     public static class EmailSendRequest {
+        /** 新业务可显式要求 HTML 正文变量转义；主题保持纯文本，旧调用默认兼容。 */
+        private boolean htmlEscapeVariables;
         @NotBlank(message = "appCode is required")
         private String appCode;
         /**

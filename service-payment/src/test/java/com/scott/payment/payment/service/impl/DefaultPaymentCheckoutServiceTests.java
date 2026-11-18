@@ -1490,6 +1490,69 @@ class DefaultPaymentCheckoutServiceTests {
         verifyNoInteractions(envelopeService);
     }
 
+    @Test
+    void paymentLinkDisableGuardRunsBeforeCardDecryptionAndCorePreparation() {
+        PaymentCheckoutSessionDO session = payableSession();
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        var guard = mock(com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard.class);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        org.mockito.Mockito.doThrow(new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED))
+                .when(guard).requireNewSubmissionAllowed(eq(session.getCheckoutSessionId()), any());
+        assertThatThrownBy(() -> service.submitPayment(submitCommand())).isInstanceOf(ServiceException.class);
+        verify(attemptMapper, never()).insert(any(PaymentCheckoutAttemptDO.class));
+        verify(paymentTransactionService, never()).preparePayment(any());
+        verify(paymentTransactionService, never()).submitPreparedTransaction(any());
+    }
+
+    @Test
+    void repeatedLinkedAttemptStillReturnsItsResultWhenLinkHasBeenDisabled() {
+        PaymentCheckoutSessionDO session = payableSession();
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        when(attemptMapper.selectByAttemptRequest(session.getCheckoutSessionId(), "ATTEMPT-001"))
+                .thenReturn(processingAttempt(session));
+        var guard = mock(com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard.class);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        service.submitPayment(submitCommand());
+        verify(guard, never()).requireNewSubmissionAllowed(anyString(), any());
+        verify(attemptMapper, never()).insert(any(PaymentCheckoutAttemptDO.class));
+    }
+
+    @Test
+    void paymentLinkCannotResetAnExpiredDeadlineToAnother24Hours() {
+        var command = createCommand();
+        command.setRequestSource("PAY_BY_LINK");
+        command.setExpireTime(LocalDateTime.now().minusSeconds(1));
+        assertThatThrownBy(() -> service.createSession(command)).isInstanceOf(ServiceException.class);
+        verify(sessionMapper, never()).insert(any(PaymentCheckoutSessionDO.class));
+        verify(tokenMapper, never()).insert(any(PaymentCheckoutTokenDO.class));
+    }
+
+    @Test
+    void linkedCheckoutDoesNotExposePriorPayerCardWhileOrdinaryCheckoutKeepsItsReceipt() {
+        var session = payableSession();
+        session.setCheckoutStatus("SUCCESS");
+        var attempt = processingAttempt(session);
+        attempt.setAttemptStatus("SUCCEEDED"); attempt.setChannelStatus("SUCCESS");
+        attempt.setPaymentBrand("VISA"); attempt.setCardNumberMasked("411111******1111");
+        attempt.setChannelResponseCode("AUTH-QA");
+        session.setLastAttemptId(attempt.getCheckoutAttemptId());
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        when(attemptMapper.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId())).thenReturn(attempt);
+        var guard = mock(com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard.class);
+        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(true, false);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        var query = new PaymentCheckoutSessionQueryCommandDTO(); query.setTokenHash("token-hash");
+        var linked = service.querySession(query).getPaymentResult().getResult();
+        assertThat(linked.getCardNumberMasked()).isNull(); assertThat(linked.getCardBrand()).isNull();
+        assertThat(linked.getAuthCode()).isNull(); assertThat(linked.getAmount()).isEqualByComparingTo(session.getLabelAmount());
+        var ordinary = service.querySession(query).getPaymentResult().getResult();
+        assertThat(ordinary.getCardNumberMasked()).isEqualTo("411111******1111");
+        assertThat(ordinary.getCardBrand()).isEqualTo("VISA"); assertThat(ordinary.getAuthCode()).isEqualTo("AUTH-QA");
+    }
+
     private PaymentCheckoutSessionCreateCommandDTO createCommand() {
         PaymentCheckoutSessionCreateCommandDTO commandDTO = new PaymentCheckoutSessionCreateCommandDTO();
         commandDTO.setMerchantId("200001");
@@ -1655,6 +1718,25 @@ class DefaultPaymentCheckoutServiceTests {
         attemptDO.setOperationId("OP2607271200000000002");
         attemptDO.setTransactionId("2607271200000000003");
         return attemptDO;
+    }
+
+    /**
+     * 已打开的链接会话被停用后不再签发 nonce；在途查询保持原状态并继续收敛。
+     */
+    @Test
+    void linkedSessionReadBlocksNewCardInputButPreservesInFlightStatus() {
+        var session = payableSession();
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        var guard = mock(com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard.class);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        var query = new PaymentCheckoutSessionQueryCommandDTO(); query.setTokenHash("token-hash");
+        var blocked = service.querySession(query);
+        assertThat(blocked.getPageState()).isEqualTo("BLOCKED");
+        assertThat(blocked.getCheckout().getRetryAllowed()).isFalse(); assertThat(blocked.getCardEncryption()).isNull();
+        session.setCheckoutStatus("PROCESSING");
+        assertThat(service.querySession(query).getPageState()).isEqualTo("PROCESSING");
+        verify(guard).allowsNewSubmissionRead(eq(session.getCheckoutSessionId()), any());
     }
 
     private PaymentCheckoutThreeDsResultDTO passedThreeDsResult() {

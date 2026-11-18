@@ -1,5 +1,17 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
+  link:
+    # 先执行 payment_link 五表、邮件与权限迁移，再开启入口；默认关闭不影响旧 Checkout。
+    enabled: ${PAYMENT_LINK_ENABLED:false}
+    # 迁移后保持 true，关闭入口时仍约束已签发会话，不能回退成 false 绕过停用校验。
+    storage-ready: ${PAYMENT_LINK_STORAGE_READY:false}
+    # 托管收银台独立 origin，生产必须 HTTPS；不得包含路径、查询或凭据。
+    frontend-base-url: ${PAYMENT_LINK_FRONTEND_ORIGIN:}
+    # 参数说明：新链接使用的专用 HMAC 密钥版本；必须存在于 signing-keys。
+    active-key-version: ${PAYMENT_LINK_ACTIVE_KEY_VERSION:v1}
+    signing-keys:
+      # 专用随机密钥至少 32 字节，由 Secret 注入；轮换时保留未过期链接使用的旧版本。
+      v1: ${PAYMENT_LINK_SIGNING_KEY_V1:}
   checkout:
     card-vault:
       # 表、分片规则、Topic、消费组和 service-data 密钥全部完成发布后再开启。
@@ -214,6 +226,9 @@ internal-service:
           - /internal/payment/transactions/merchant-api-logs/response
           # 路径说明：Hosted Checkout 会话和交易受理内部入口集合。
           - /internal/payment/checkout/**
+          # 路径说明：匿名付款边界仅可解析和开始链接，不能读取管理详情或修改链接。
+          - /internal/payment/payment-links/resolve
+          - /internal/payment/payment-links/start
       service-merchant:
         # 参数说明：Merchant 发起交易写操作时使用的当前验签密钥引用。
         active-secret: ${acquiring.internal-auth.edges.merchant-payment.active-secret}
@@ -228,6 +243,8 @@ internal-service:
           - /internal/payment/refund
           # 路径说明：商户后台发起交易撤销。
           - /internal/payment/void
+          # 路径说明：链接控制器仍核对服务身份、操作者应用和商户范围，禁止浏览器直接调用。
+          - /internal/payment/payment-links/**
       service-admin:
         # 参数说明：Admin 发起支付管理命令时使用的当前验签密钥引用。
         active-secret: ${acquiring.internal-auth.edges.admin-payment.active-secret}
@@ -242,6 +259,8 @@ internal-service:
           - /internal/payment/refund
           # 路径说明：管理后台发起交易撤销。
           - /internal/payment/void
+          # 路径说明：链接控制器仍核对服务身份、操作者应用和商户范围，禁止浏览器直接调用。
+          - /internal/payment/payment-links/**
           # 路径说明：管理后台执行渠道交易勾兑和异常处置命令。
           - /internal/payment/channel-match/**
           # 路径说明：管理后台执行退款 Maker-Checker 审批命令。

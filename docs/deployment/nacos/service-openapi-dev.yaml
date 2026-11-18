@@ -99,3 +99,17 @@ payment:
       miss-ttl: ${PAYMENT_IP_LOOKUP_MISS_TTL:PT2M}
       # 从 SLAVE 刷新 IP 分片路由快照的固定延迟，单位毫秒；60000 表示上次刷新完成后等待一分钟。
       route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}
+
+# 匿名支付链接按可信来源 IP 和链接摘要双维限流；查询与新入口签发互不混用额度。
+payment-link:
+  browser:
+    # 参数说明：每个可信来源 IP 在窗口内最多查询 120 次。
+    ip-query-limit: ${PAYMENT_LINK_BROWSER_IP_QUERY_LIMIT:120}
+    # 参数说明：每个链接摘要在窗口内最多查询 120 次。
+    link-query-limit: ${PAYMENT_LINK_BROWSER_LINK_QUERY_LIMIT:120}
+    # 参数说明：每个可信来源 IP 在窗口内最多开始付款 20 次。
+    ip-start-limit: ${PAYMENT_LINK_BROWSER_IP_START_LIMIT:20}
+    # 参数说明：每个链接摘要在窗口内最多开始付款 20 次。
+    link-start-limit: ${PAYMENT_LINK_BROWSER_LINK_START_LIMIT:20}
+    # 参数说明：以上计数共享的统计窗口，默认 1 分钟；使用 Spring Duration 格式。
+    window: ${PAYMENT_LINK_BROWSER_RATE_WINDOW:1m}

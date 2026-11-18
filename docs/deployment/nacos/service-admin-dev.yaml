@@ -180,6 +180,8 @@ internal-service:
         # 参数说明：Data-Admin 密钥滚动轮换期间接受的上一版密钥；平时为空。
         previous-secret: ${acquiring.internal-auth.edges.data-admin.previous-secret:}
         allowed-paths:
+          # 路径说明：仅供 Data 分页读取已冻结账号和商户范围内的支付链接安全导出数据。
+          - /internal/admin/transactions/payment-links/export-page
           # 路径说明：仅允许分页读取冻结范围内的待办、交易、结算、平台、资金、汇率和系统基础配置导出数据。
           - /internal/admin/operations/work-items/export-page
           - /internal/admin/transactions/orders/export-page
@@ -236,3 +238,13 @@ internal-service:
     allowed-clock-skew: 5m
     # 参数说明：内部请求 nonce 防重放记录保留时间，必须大于允许时钟偏差和请求最长执行时间。
     nonce-ttl: 10m
+
+# 支付链接邀请独立频控，不改变登录验证邮件和找回密码配额。
+payment-link:
+  mail:
+    # 参数说明：同商户、同收件人的付款邀请冷却时间，单位秒；默认 60。
+    recipient-cooldown-seconds: ${PAYMENT_LINK_MAIL_RECIPIENT_COOLDOWN_SECONDS:60}
+    # 参数说明：每商户每小时邀请上限，默认 100；不影响登录类邮件。
+    merchant-hourly-limit: ${PAYMENT_LINK_MAIL_MERCHANT_HOURLY_LIMIT:100}
+    # 参数说明：每操作员每小时邀请上限，默认 100；管理员代发也计入。
+    actor-hourly-limit: ${PAYMENT_LINK_MAIL_ACTOR_HOURLY_LIMIT:100}

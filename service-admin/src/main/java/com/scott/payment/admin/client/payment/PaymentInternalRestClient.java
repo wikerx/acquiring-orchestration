@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
  */
 @Service
 @Slf4j
-public class PaymentInternalRestClient implements PaymentInternalClient {
+public class PaymentInternalRestClient implements PaymentInternalClient, PaymentLinkInternalClient {
 
     /**
      * IPv4 地址格式。
@@ -314,6 +314,16 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private String servicePaymentUrl(String path) {
         return SERVICE_PAYMENT_BASE_URL + path;
+    }
+
+    /** 新领域请求仍走现有内部签名/错误映射，动作名单限制路径注入。 */
+    @Override
+    public <T> T executePaymentLink(String action, com.scott.payment.admin.dto.paymentlink.PaymentLinkDTOs.Command command,
+                                    TypeReference<CommonResult<T>> responseType) {
+        if (!java.util.Set.of("create", "disable", "share", "search", "detail", "summary", "options", "filter-currencies", "collections", "transactions", "events").contains(action)) {
+            throw new com.scott.payment.component.core.exception.ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return unwrapData(post(servicePaymentUrl("/internal/payment/payment-links/" + action), command, responseType));
     }
 
     /**

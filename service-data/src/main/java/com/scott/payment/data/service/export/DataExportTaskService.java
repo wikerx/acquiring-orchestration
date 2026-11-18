@@ -98,7 +98,10 @@ public class DataExportTaskService {
     public static final String MERCHANT_SETTLEMENT_TRANSACTION = "MERCHANT_SETTLEMENT_TRANSACTION";
     public static final String MERCHANT_SETTLEMENT_RESERVE = "MERCHANT_SETTLEMENT_RESERVE";
     public static final String MERCHANT_FUND_LEDGER = "MERCHANT_FUND_LEDGER";
+    public static final String ADMIN_PAYMENT_LINK = "ADMIN_PAYMENT_LINK";
+    public static final String MERCHANT_PAYMENT_LINK = "MERCHANT_PAYMENT_LINK";
     private static final Set<String> SUPPORTED_TASK_TYPES = Set.of(
+            ADMIN_PAYMENT_LINK, MERCHANT_PAYMENT_LINK,
             ADMIN_OPERATIONAL_WORK_ITEM, ADMIN_TRANSACTION_ORDER, ADMIN_TRANSACTION_OPERATION,
             ADMIN_MERCHANT_NOTIFICATION, ADMIN_REFUND,
             ADMIN_SETTLEMENT_TRANSACTION, ADMIN_SETTLEMENT_BATCH_SUMMARY, ADMIN_SETTLEMENT_RESERVE,
@@ -600,6 +603,7 @@ public class DataExportTaskService {
             return null;
         }
         return switch (request.getTaskType()) {
+            case ADMIN_PAYMENT_LINK, MERCHANT_PAYMENT_LINK -> request.getPaymentLinkQuery();
             case ADMIN_OPERATIONAL_WORK_ITEM -> request.getWorkItemQuery();
             case ADMIN_TRANSACTION_ORDER -> request.getTransactionOrderQuery();
             case ADMIN_TRANSACTION_OPERATION -> request.getTransactionOperationQuery();
