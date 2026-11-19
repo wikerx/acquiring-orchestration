@@ -1,7 +1,7 @@
 package com.scott.payment.payment.service.link;
 
 import com.scott.payment.payment.config.PaymentLinkProperties;
-import com.scott.payment.payment.entity.PaymentLinkDO;
+import com.scott.payment.link.entity.PaymentLinkDO;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;

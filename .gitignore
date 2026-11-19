@@ -166,3 +166,7 @@ docs/archive/reports/*
 !/scripts/verify-java-structural-rules.py
 !/scripts/bootstrap-local-dev-config.sh
 !/scripts/bootstrap-payment-link-config.py
+!/scripts/sync-payment-link-management-config.py
+!/scripts/tests/
+/scripts/tests/*
+!/scripts/tests/test_payment_link_management_config.py

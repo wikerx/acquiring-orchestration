@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 只共享查询语义；各服务保留本地 Mapper、返回投影和可信数据范围。 -->
+<mapper namespace="com.scott.payment.link.query.PaymentLinkQuerySql">
+    <sql id="effectiveStatus">
+        CASE WHEN l.status = 'DISABLED' THEN 'DISABLED'
+             WHEN s.checkout_status = 'SUCCESS' THEN 'COMPLETED'
+             WHEN l.expire_time &lt;= #{now} THEN 'EXPIRED' ELSE l.status END
+    </sql>
+    <sql id="joins">
+        FROM payment_link l
+        LEFT JOIN payment_link_checkout_binding b ON b.link_id = l.link_id
+        LEFT JOIN payment_checkout_session s ON s.checkout_session_id = b.checkout_session_id AND s.deleted = 0
+    </sql>
+    <sql id="where">
+        <where>
+            <if test="query.linkId != null">l.link_id = #{query.linkId}</if>
+            <if test="!actor.allMerchants">
+                <choose>
+                    <when test="actor.merchantIds != null and !actor.merchantIds.isEmpty()">
+                        AND l.merchant_id IN <foreach collection="actor.merchantIds" item="m" open="(" separator="," close=")">#{m}</foreach>
+                    </when>
+                    <otherwise>AND 1 = 0</otherwise>
+                </choose>
+            </if>
+            <if test="query.merchantId != null and query.merchantId != ''">AND l.merchant_id = #{query.merchantId}</if>
+            <if test="query.merchantOrderNo != null and query.merchantOrderNo != ''">
+                AND l.merchant_order_no = #{query.merchantOrderNo}
+            </if>
+            <if test="query.currency != null and query.currency != ''">AND l.currency = #{query.currency}</if>
+            <if test="query.status != null and query.status != ''">AND (<include refid="com.scott.payment.link.query.PaymentLinkQuerySql.effectiveStatus"/>) = #{query.status}</if>
+            <if test="query.createTimeFrom != null">AND l.create_time &gt;= #{query.createTimeFrom}</if>
+            <if test="query.createTimeTo != null">AND l.create_time &lt;= #{query.createTimeTo}</if>
+            <if test="query.channelCode != null and query.channelCode != ''">
+                AND EXISTS (SELECT 1 FROM payment_checkout_attempt ca WHERE ca.checkout_session_id = b.checkout_session_id
+                    AND ca.channel_code = #{query.channelCode} AND ca.deleted = 0)
+            </if>
+        </where>
+    </sql>
+    <sql id="search">
+        SELECT l.link_id, l.merchant_id, l.merchant_order_no, l.link_name, l.description,
+               l.merchant_display_name, l.currency, l.amount AS amount, l.currency_exponent, l.locale,
+               (<include refid="com.scott.payment.link.query.PaymentLinkQuerySql.effectiveStatus"/>) AS status, COALESCE(s.checkout_status, 'PENDING') AS payment_status,
+               COALESCE(s.attempt_count, 0) AS attempt_count, locator.transaction_id,
+               locator.transaction_date_time, l.expire_time, l.create_time, s.paid_time,
+               l.created_app_code, l.created_by, l.disable_reason, l.version
+        <include refid="com.scott.payment.link.query.PaymentLinkQuerySql.joins"/>
+        LEFT JOIN transaction_locator locator ON locator.transaction_id = s.latest_transaction_id
+            AND locator.merchant_id = l.merchant_id AND locator.merchant_order_no = l.merchant_order_no
+        <include refid="com.scott.payment.link.query.PaymentLinkQuerySql.where"/>
+        ORDER BY l.id DESC LIMIT #{query.pageSize} OFFSET #{offset}
+    </sql>
+    <sql id="count">
+        SELECT COUNT(*) <include refid="com.scott.payment.link.query.PaymentLinkQuerySql.joins"/><include refid="com.scott.payment.link.query.PaymentLinkQuerySql.where"/>
+    </sql>
+    <sql id="summarize">
+        SELECT l.currency AS currency, COUNT(*) AS total,
+            SUM(CASE WHEN (<include refid="com.scott.payment.link.query.PaymentLinkQuerySql.effectiveStatus"/>) = 'ACTIVE' THEN 1 ELSE 0 END) AS active,
+            SUM(CASE WHEN s.checkout_status = 'SUCCESS' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN s.checkout_status = 'PROCESSING' THEN 1 ELSE 0 END) AS processing,
+            COALESCE(SUM(CASE WHEN s.checkout_status = 'SUCCESS' THEN l.amount ELSE 0 END), 0) AS amount,
+            COALESCE(SUM((SELECT COUNT(*) FROM payment_checkout_attempt fa
+                WHERE fa.checkout_session_id = b.checkout_session_id AND fa.deleted = 0
+                  AND fa.attempt_status IN ('FAILED', 'THREE_DS_FAILED'))), 0) AS failed_attempts
+        <include refid="com.scott.payment.link.query.PaymentLinkQuerySql.joins"/><include refid="com.scott.payment.link.query.PaymentLinkQuerySql.where"/>
+        GROUP BY l.currency
+    </sql>
+    <sql id="attempts">
+        SELECT a.checkout_attempt_id, a.attempt_no, locator.transaction_id, locator.transaction_date_time,
+            CASE WHEN a.attempt_status = 'SUCCEEDED' THEN 'SUCCESS'
+                 WHEN a.attempt_status IN ('FAILED', 'THREE_DS_FAILED') THEN 'FAILED'
+                 ELSE 'PROCESSING' END AS status,
+            a.payment_method, a.payment_brand AS card_brand, a.label_currency AS currency,
+            a.label_amount AS amount, l.currency_exponent, a.create_time,
+            COALESCE(a.complete_time, a.update_time, a.create_time) AS complete_time
+        FROM payment_checkout_attempt a
+        JOIN payment_link_checkout_binding b ON b.checkout_session_id = a.checkout_session_id
+        JOIN payment_link l ON l.link_id = b.link_id
+        <!-- 预分配编号不代表核心订单已落库；只有同商户、同订单的定位事实才可用于详情跳转。 -->
+        LEFT JOIN transaction_locator locator ON locator.transaction_id = a.transaction_id
+            AND locator.merchant_id = a.merchant_id AND locator.merchant_order_no = a.merchant_order_no
+        WHERE b.link_id = #{linkId} AND a.deleted = 0
+        ORDER BY a.id DESC LIMIT #{size} OFFSET #{offset}
+    </sql>
+    <sql id="countAttempts">
+        SELECT COUNT(*) FROM payment_checkout_attempt a
+        JOIN payment_link_checkout_binding b ON b.checkout_session_id = a.checkout_session_id
+        WHERE b.link_id = #{linkId} AND a.deleted = 0
+    </sql>
+    <sql id="collections">
+        SELECT c.collection_id, c.link_id, c.merchant_order_no, b.checkout_session_id,
+               COALESCE(s.checkout_status, 'PENDING') AS payment_status, c.submission_deadline, c.create_time
+        FROM payment_link_collection c
+        LEFT JOIN payment_link_checkout_binding b ON b.collection_id = c.collection_id
+        LEFT JOIN payment_checkout_session s ON s.checkout_session_id = b.checkout_session_id AND s.deleted = 0
+        WHERE c.link_id = #{linkId} ORDER BY c.id DESC LIMIT #{size} OFFSET #{offset}
+    </sql>
+    <sql id="countCollections">
+        SELECT COUNT(*) FROM payment_link_collection WHERE link_id = #{linkId}
+    </sql>
+    <sql id="timelineFacts">
+        SELECT e.event_id, e.event_type, e.actor_app_code, e.actor_id, e.reason, e.create_time
+        FROM payment_link_event e WHERE e.link_id = #{linkId}
+        UNION ALL
+        SELECT CONCAT('CHECKOUT:', e.checkout_event_id), e.event_type, 'PAYMENT', NULL, NULL, e.event_time
+        FROM payment_checkout_event e
+        JOIN payment_link_checkout_binding b ON b.checkout_session_id = e.checkout_session_id
+        WHERE b.link_id = #{linkId} AND e.event_type IN
+            ('PAYMENT_SUBMITTED', 'THREE_DS_CHALLENGE_REQUIRED', 'THREE_DS_RETURNED',
+             'THREE_DS_AUTHENTICATED', 'THREE_DS_FAILED', 'PRE_CHANNEL_FAILED')
+        UNION ALL
+        SELECT CONCAT('RESULT:', a.checkout_attempt_id),
+               CASE WHEN a.attempt_status = 'SUCCEEDED' THEN 'PAYMENT_SUCCEEDED' ELSE 'PAYMENT_FAILED' END,
+               'PAYMENT', NULL, NULL, COALESCE(a.complete_time, a.update_time, a.create_time)
+        FROM payment_checkout_attempt a
+        JOIN payment_link_checkout_binding b ON b.checkout_session_id = a.checkout_session_id
+        WHERE b.link_id = #{linkId} AND a.deleted = 0
+          AND a.attempt_status IN ('SUCCEEDED', 'FAILED', 'THREE_DS_FAILED')
+        UNION ALL
+        SELECT CONCAT('EXPIRY:', l.link_id), 'LINK_EXPIRED', 'SYSTEM', NULL, NULL, l.expire_time
+        <include refid="com.scott.payment.link.query.PaymentLinkQuerySql.joins"/>
+        WHERE l.link_id = #{linkId} AND l.status = 'ACTIVE' AND l.expire_time &lt;= #{now}
+          AND (s.checkout_status IS NULL OR s.checkout_status != 'SUCCESS')
+    </sql>
+    <sql id="timeline">
+        SELECT * FROM (<include refid="com.scott.payment.link.query.PaymentLinkQuerySql.timelineFacts"/>) facts
+        ORDER BY create_time DESC, event_id DESC LIMIT #{size} OFFSET #{offset}
+    </sql>
+    <sql id="countTimeline">
+        SELECT COUNT(*) FROM (<include refid="com.scott.payment.link.query.PaymentLinkQuerySql.timelineFacts"/>) facts
+    </sql>
+    <sql id="detailMetadata">
+        SELECT merchant_id, allowed_brands_json, notify_url, redirect_url
+        FROM payment_link WHERE link_id = #{linkId}
+    </sql>
+</mapper>

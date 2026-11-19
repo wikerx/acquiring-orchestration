@@ -24,6 +24,7 @@ class DefaultTransactionLocatorServiceTests {
         locator.setMerchantId("200045");
         locator.setMerchantOrderNo("M202608010002");
         locator.setTransactionId("TX-SOURCE-001");
+        locator.setRootTransactionId("TX-AUTH-ROOT");
         locator.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 11, 30, 0, 123_000_000));
         locator.setRootTransactionDateTime(LocalDateTime.of(2026, 8, 1, 10, 30, 0, 456_000_000));
         when(mapper.selectByTransactionId("200045", "TX-SOURCE-001")).thenReturn(locator);
@@ -39,6 +40,8 @@ class DefaultTransactionLocatorServiceTests {
 
         service.enrichFollowUpRoute(command);
 
+        assertThat(transactionInfo.getRootTransactionId()).isEqualTo("TX-AUTH-ROOT");
+        assertThat(transactionInfo.getSourceTransactionId()).isEqualTo("TX-SOURCE-001");
         assertThat(transactionInfo.getSourceTransactionDateTime())
                 .isEqualTo(LocalDateTime.of(2026, 8, 1, 11, 30, 0, 123_000_000));
         assertThat(transactionInfo.getRootTransactionDateTime())

@@ -7,7 +7,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** 一条链接唯一付款目标，金额和交易账本仍由链接快照及现有核心所有。 */
+/** 开始收银台时建立的唯一收款关联；存在此记录不代表已经生成核心交易。 */
 @Data
 @TableName("payment_link_collection")
 public class PaymentLinkCollectionDO {

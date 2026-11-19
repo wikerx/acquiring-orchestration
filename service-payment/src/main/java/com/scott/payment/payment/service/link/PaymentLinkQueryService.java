@@ -8,7 +8,7 @@ import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentLinkDTOs.*;
-import com.scott.payment.payment.entity.PaymentLinkDO;
+import com.scott.payment.link.entity.PaymentLinkDO;
 import com.scott.payment.payment.mapper.PaymentLinkMapper;
 import org.springframework.stereotype.Service;
 

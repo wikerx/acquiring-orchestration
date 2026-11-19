@@ -1,73 +1,64 @@
 package com.scott.payment.merchant.application.paymentlink;
 
-import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.merchant.client.payment.PaymentLinkInternalClient;
+import com.scott.payment.link.service.PaymentLinkManagementService;
+import com.scott.payment.link.service.PaymentLinkManagementPolicy;
 import com.scott.payment.merchant.dto.paymentlink.PaymentLinkDTOs.*;
 import org.springframework.stereotype.Service;
 
-/** 登录用例只组装可信操作者与商户范围；链接写入经支付域内部契约执行。 */
+/** 管理查询和链接操作由本服务执行，共用链接规则；实际付款仍由 Payment 执行。 */
 @Service
 public class MerchantPaymentLinkApplicationService {
-    private final PaymentLinkInternalClient payment;
+    private final PaymentLinkManagementService management;
+    private final PaymentLinkManagementPolicy policy;
+    private final MerchantPaymentLinkQueryService queries;
     private final MerchantPaymentLinkOperatorProjection operators;
 
-    public MerchantPaymentLinkApplicationService(PaymentLinkInternalClient payment, MerchantPaymentLinkOperatorProjection operators) {
-        this.payment = payment; this.operators = operators;
+    public MerchantPaymentLinkApplicationService(PaymentLinkManagementService management, PaymentLinkManagementPolicy policy, MerchantPaymentLinkOperatorProjection operators, MerchantPaymentLinkQueryService queries) {
+        this.queries = queries; this.management = management; this.policy = policy; this.operators = operators;
     }
 
     /** 筛选读取基础币种字典，不授予创建权限或泄露内部渠道配置。 */
     public FilterChoices filterChoices() {
-        java.util.List<String> currencies = payment.executePaymentLink("filter-currencies", command(),
-                new TypeReference<CommonResult<java.util.List<String>>>() { });
+        java.util.List<String> currencies = queries.filterCurrencies(actor());
         return new FilterChoices(currencies);
     }
     public record FilterChoices(java.util.List<String> currencies) { }
 
     public View create(String merchantId, Create input) {
-        Command command = command(); command.setMerchantId(target(merchantId)); command.setCreate(input);
-        return payment.executePaymentLink("create", command, new TypeReference<CommonResult<View>>() { });
+        Actor actor = actor(); String merchant = target(merchantId);
+        return queries.detail(actor, management.create(actor, merchant, input));
     }
     public Options options(String merchantId) {
-        Command command = command(); command.setMerchantId(target(merchantId));
-        return payment.executePaymentLink("options", command, new TypeReference<CommonResult<Options>>() { });
+        Actor actor = actor(); return policy.options(actor, target(merchantId), Options::new);
     }
     public PageResult<View> search(Query query) {
-        Command command = command(); command.setQuery(query);
-        return payment.executePaymentLink("search", command, new TypeReference<CommonResult<PageResult<View>>>() { });
+        return queries.search(actor(), query);
     }
     public Summary summary(Query query) {
-        Command command = command(); command.setQuery(query);
-        return payment.executePaymentLink("summary", command, new TypeReference<CommonResult<Summary>>() { });
+        return queries.summary(actor(), query);
     }
     public View detail(String linkId) {
-        Command command = command(); command.setLinkId(linkId);
-        return operators.view(payment.executePaymentLink("detail", command, new TypeReference<CommonResult<View>>() { }));
+        return operators.view(queries.detail(actor(), linkId));
     }
     public Share share(String linkId) {
-        Command command = command(); command.setLinkId(linkId);
-        return payment.executePaymentLink("share", command, new TypeReference<CommonResult<Share>>() { });
+        Share result = new Share(); result.setUrl(management.share(actor(), linkId)); return result;
     }
     public View disable(String linkId, Disable input) {
-        Command command = command(); command.setLinkId(linkId); command.setVersion(input.version());
-        command.setReason(input.reason()); command.setRequestId(input.requestId());
-        return payment.executePaymentLink("disable", command, new TypeReference<CommonResult<View>>() { });
+        if (input == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        Actor actor = actor(); return queries.detail(actor, management.disable(actor, linkId, input.version(), input.reason(), input.requestId()));
     }
     public PageResult<Collection> collections(String linkId, Query query) {
-        Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return payment.executePaymentLink("collections", command, new TypeReference<CommonResult<PageResult<Collection>>>() { });
+        return queries.collections(actor(), linkId, query);
     }
     public PageResult<Attempt> attempts(String linkId, Query query) {
-        Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return payment.executePaymentLink("transactions", command, new TypeReference<CommonResult<PageResult<Attempt>>>() { });
+        return queries.attempts(actor(), linkId, query);
     }
     public PageResult<Event> events(String linkId, Query query) {
-        Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return operators.events(payment.executePaymentLink("events", command, new TypeReference<CommonResult<PageResult<Event>>>() { }));
+        return operators.events(queries.events(actor(), linkId, query));
     }
     public PageResult<Delivery> deliveryOperators(PageResult<Delivery> page) { return operators.deliveries(page); }
 
@@ -80,7 +71,6 @@ public class MerchantPaymentLinkApplicationService {
         actor.setMerchantIds(java.util.Set.of(account.getMerchantId()));
         return actor;
     }
-    private Command command() { Command c = new Command(); c.setActor(actor()); return c; }
     private String target(String merchantId) {
         String target = actor().getMerchantIds().iterator().next();
         if (merchantId != null && !merchantId.equals(target)) { throw new ServiceException(ApiResultEnum.FORBIDDEN); }

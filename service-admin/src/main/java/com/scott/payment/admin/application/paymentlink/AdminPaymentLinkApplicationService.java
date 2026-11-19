@@ -1,27 +1,28 @@
 package com.scott.payment.admin.application.paymentlink;
 
-import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.admin.client.payment.PaymentLinkInternalClient;
+import com.scott.payment.link.service.PaymentLinkManagementService;
+import com.scott.payment.link.service.PaymentLinkManagementPolicy;
 import com.scott.payment.admin.dto.paymentlink.PaymentLinkDTOs.*;
 import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
 import org.springframework.stereotype.Service;
 
-/** 登录用例只组装可信操作者与商户范围；链接写入经支付域内部契约执行。 */
+/** 管理查询和链接操作由本服务执行，共用链接规则；实际付款仍由 Payment 执行。 */
 @Service
 public class AdminPaymentLinkApplicationService {
-    private final PaymentLinkInternalClient payment;
+    private final PaymentLinkManagementService management;
+    private final PaymentLinkManagementPolicy policy;
+    private final AdminPaymentLinkQueryService queries;
     private final AdminPaymentLinkOperatorProjection operators;
     private final AdminMerchantDataScopeResolver scopes;
     private final com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper merchants;
     private final com.scott.payment.admin.service.AdminChannelService channels;
 
-    public AdminPaymentLinkApplicationService(PaymentLinkInternalClient payment, AdminMerchantDataScopeResolver scopes, com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper merchants, com.scott.payment.admin.service.AdminChannelService channels, AdminPaymentLinkOperatorProjection operators) {
-        this.payment = payment; this.operators = operators; this.scopes = scopes; this.merchants = merchants; this.channels = channels;
+    public AdminPaymentLinkApplicationService(PaymentLinkManagementService management, PaymentLinkManagementPolicy policy, AdminMerchantDataScopeResolver scopes, com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper merchants, com.scott.payment.admin.service.AdminChannelService channels, AdminPaymentLinkOperatorProjection operators, AdminPaymentLinkQueryService queries) {
+        this.queries = queries; this.management = management; this.policy = policy; this.operators = operators; this.scopes = scopes; this.merchants = merchants; this.channels = channels;
     }
 
     /** 返回当前数据范围内的商户轻量选项，支付链接角色无需额外取得商户资料权限。 */
@@ -43,8 +44,7 @@ public class AdminPaymentLinkApplicationService {
 
     /** 列表筛选选项与创建能力分离，只返回基础币种和必要渠道名称，不透传渠道配置。 */
     public FilterChoices filterChoices() {
-        java.util.List<String> currencies = payment.executePaymentLink("filter-currencies", command(),
-                new TypeReference<CommonResult<java.util.List<String>>>() { });
+        java.util.List<String> currencies = queries.filterCurrencies(actor());
         return new FilterChoices(currencies, channels.listChannelOptions().stream()
                 .map(item -> new ChannelChoice(item.getChannelCode(), item.getChannelName())).toList());
     }
@@ -52,45 +52,36 @@ public class AdminPaymentLinkApplicationService {
     public record FilterChoices(java.util.List<String> currencies, java.util.List<ChannelChoice> channels) { }
 
     public View create(String merchantId, Create input) {
-        Command command = command(); command.setMerchantId(target(merchantId)); command.setCreate(input);
-        return payment.executePaymentLink("create", command, new TypeReference<CommonResult<View>>() { });
+        Actor actor = actor(); String merchant = target(merchantId);
+        return queries.detail(actor, management.create(actor, merchant, input));
     }
     public Options options(String merchantId) {
-        Command command = command(); command.setMerchantId(target(merchantId));
-        return payment.executePaymentLink("options", command, new TypeReference<CommonResult<Options>>() { });
+        Actor actor = actor(); return policy.options(actor, target(merchantId), Options::new);
     }
     public PageResult<View> search(Query query) {
-        Command command = command(); command.setQuery(query);
-        return payment.executePaymentLink("search", command, new TypeReference<CommonResult<PageResult<View>>>() { });
+        return queries.search(actor(), query);
     }
     public Summary summary(Query query) {
-        Command command = command(); command.setQuery(query);
-        return payment.executePaymentLink("summary", command, new TypeReference<CommonResult<Summary>>() { });
+        return queries.summary(actor(), query);
     }
     public View detail(String linkId) {
-        Command command = command(); command.setLinkId(linkId);
-        return operators.view(payment.executePaymentLink("detail", command, new TypeReference<CommonResult<View>>() { }));
+        return operators.view(queries.detail(actor(), linkId));
     }
     public Share share(String linkId) {
-        Command command = command(); command.setLinkId(linkId);
-        return payment.executePaymentLink("share", command, new TypeReference<CommonResult<Share>>() { });
+        Share result = new Share(); result.setUrl(management.share(actor(), linkId)); return result;
     }
     public View disable(String linkId, Disable input) {
-        Command command = command(); command.setLinkId(linkId); command.setVersion(input.version());
-        command.setReason(input.reason()); command.setRequestId(input.requestId());
-        return payment.executePaymentLink("disable", command, new TypeReference<CommonResult<View>>() { });
+        if (input == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        Actor actor = actor(); return queries.detail(actor, management.disable(actor, linkId, input.version(), input.reason(), input.requestId()));
     }
     public PageResult<Collection> collections(String linkId, Query query) {
-        Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return payment.executePaymentLink("collections", command, new TypeReference<CommonResult<PageResult<Collection>>>() { });
+        return queries.collections(actor(), linkId, query);
     }
     public PageResult<Attempt> attempts(String linkId, Query query) {
-        Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return payment.executePaymentLink("transactions", command, new TypeReference<CommonResult<PageResult<Attempt>>>() { });
+        return queries.attempts(actor(), linkId, query);
     }
     public PageResult<Event> events(String linkId, Query query) {
-        Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return operators.events(payment.executePaymentLink("events", command, new TypeReference<CommonResult<PageResult<Event>>>() { }));
+        return operators.events(queries.events(actor(), linkId, query));
     }
     public PageResult<Delivery> deliveryOperators(PageResult<Delivery> page) { return operators.deliveries(page); }
 
@@ -104,7 +95,6 @@ public class AdminPaymentLinkApplicationService {
         actor.setAllMerchants(scope.allMerchants()); actor.setMerchantIds(scope.merchantIds());
         return actor;
     }
-    private Command command() { Command c = new Command(); c.setActor(actor()); return c; }
     private String target(String merchantId) {
         Actor actor = actor();
         if (merchantId == null || merchantId.isBlank() || !(actor.isAllMerchants() || actor.getMerchantIds().contains(merchantId))) {

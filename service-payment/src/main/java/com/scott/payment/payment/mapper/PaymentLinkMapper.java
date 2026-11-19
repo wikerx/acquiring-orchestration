@@ -2,7 +2,7 @@ package com.scott.payment.payment.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.api.internal.dto.PaymentLinkDTOs.*;
-import com.scott.payment.payment.entity.PaymentLinkDO;
+import com.scott.payment.link.entity.PaymentLinkDO;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 

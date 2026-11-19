@@ -3,7 +3,7 @@ package com.scott.payment.payment.service.link;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder;
 import com.scott.payment.payment.api.internal.dto.PaymentLinkDTOs.*;
-import com.scott.payment.payment.entity.PaymentLinkDO;
+import com.scott.payment.link.entity.PaymentLinkDO;
 import com.scott.payment.payment.mapper.PaymentLinkMapper;
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
@@ -35,6 +35,7 @@ class PaymentLinkMapperIntegrationTest {
   for(String table:List.of("payment_link","payment_link_access","payment_link_collection","payment_link_checkout_binding","payment_link_event")) ddl(migration,table);
   MybatisConfiguration c=new MybatisConfiguration();c.setMapUnderscoreToCamelCase(true);c.setEnvironment(new Environment("link-test",new JdbcTransactionFactory(),source));
   c.addMapper(com.scott.payment.payment.mapper.PaymentCheckoutSessionMapper.class);
+  try(var shared=PaymentLinkMapperIntegrationTest.class.getResourceAsStream("/mapper/PaymentLinkQuerySql.xml")) {new XMLMapperBuilder(shared,c,"mapper/PaymentLinkQuerySql.xml",c.getSqlFragments()).parse();}
   try(var input=Files.newInputStream(Path.of("src/main/resources/mapper/PaymentLinkMapper.xml"))) {new XMLMapperBuilder(input,c,"mapper/PaymentLinkMapper.xml",c.getSqlFragments()).parse();}
   factory=new MybatisSqlSessionFactoryBuilder().build(c);
   insertLink("a","m1","ORDER-1");insertLink("b","m2","ORDER-1");

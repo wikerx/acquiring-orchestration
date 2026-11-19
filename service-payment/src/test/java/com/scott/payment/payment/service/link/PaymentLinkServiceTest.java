@@ -1,5 +1,11 @@
 package com.scott.payment.payment.service.link;
 
+import com.scott.payment.link.entity.PaymentLinkEventDO;
+
+import com.scott.payment.link.entity.PaymentLinkAccessDO;
+
+import com.scott.payment.link.entity.PaymentLinkDO;
+
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
@@ -12,7 +18,6 @@ import com.scott.payment.payment.config.PaymentLinkProperties;
 import com.scott.payment.payment.entity.*;
 import com.scott.payment.payment.mapper.*;
 import com.scott.payment.payment.service.PaymentCheckoutService;
-import com.scott.payment.payment.service.TransactionIdempotencyService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -34,14 +39,14 @@ class PaymentLinkServiceTest {
     private final PaymentLinkEventMapper events = mock(PaymentLinkEventMapper.class);
     private final PaymentCheckoutSessionMapper sessions = mock(PaymentCheckoutSessionMapper.class);
     private final PaymentCheckoutService checkout = mock(PaymentCheckoutService.class);
-    private final TransactionIdempotencyService idem = mock(TransactionIdempotencyService.class);
     private final PaymentLinkPolicy policy = mock(PaymentLinkPolicy.class);
     private final PaymentLinkQueryService queries = mock(PaymentLinkQueryService.class);
     private final PaymentLinkTokenService tokens = mock(PaymentLinkTokenService.class);
     private final PaymentLinkProperties properties = new PaymentLinkProperties();
     private final GlobalIdGenerator ids = mock(GlobalIdGenerator.class);
+    private final com.scott.payment.link.service.PaymentLinkManagementService management = mock(com.scott.payment.link.service.PaymentLinkManagementService.class);
     private final PaymentLinkService service = new PaymentLinkService(links, access, collections, bindings,
-            events, sessions, checkout, idem, policy, queries, tokens, properties, ids);
+            events, sessions, checkout, policy, queries, tokens, properties, ids, management);
     private final Actor actor = new Actor();
     private final String raw = "11111111111111111111111111111111." + "a".repeat(64);
     private PaymentLinkDO row;
@@ -69,36 +74,22 @@ class PaymentLinkServiceTest {
         when(links.lock(row.getLinkId())).thenReturn(row);
         View view = new View(); view.setStatus("ACTIVE"); when(queries.detail(any(), any())).thenReturn(view);
     }
+    @Test void compatibilityManagementEntryDelegatesToSharedRulesWithoutPaymentExecution() {
+        when(management.create(actor, "m1", input())).thenReturn("link");
+        service.create(actor, "m1", input()); verify(management).create(actor, "m1", input());
+        when(management.disable(actor, "link", 0, "reason", "stop")).thenReturn("link");
+        service.disable(actor, "link", 0, "reason", "stop"); verify(management).disable(actor, "link", 0, "reason", "stop");
+        when(management.share(actor, "link")).thenReturn("https://example.invalid/l/opaque");
+        assertThat(service.share(actor, "link").getUrl()).isEqualTo("https://example.invalid/l/opaque");
+        verifyNoInteractions(checkout, collections, bindings);
+    }
     private Create input() {
         var c = new Create(); c.setRequestId("create-1"); c.setLinkName("Invoice"); c.setMerchantOrderNo("ORDER-1");
         c.setCurrency("USD"); c.setAmount("100.00"); c.setCardBrands(List.of("VISA")); return c;
     }
-    @Test void createsOnlyLinkFactsAndRecordsRealAdmin() {
-        service.create(actor,"m1",input());
-        var capture=ArgumentCaptor.forClass(PaymentLinkDO.class); verify(links).insert(capture.capture());
-        assertThat(capture.getValue().getCreatedAppCode()).isEqualTo("ADMIN");
-        assertThat(capture.getValue().getMerchantId()).isEqualTo("m1");
-        assertThat(capture.getValue().getAmount()).isEqualByComparingTo("100.00");
-        assertThat(capture.getValue().getExpireTime()).isBeforeOrEqualTo(LocalDateTime.now().plusHours(24));
-        verifyNoInteractions(checkout, collections, bindings);
-        var cred=ArgumentCaptor.forClass(PaymentLinkAccessDO.class); verify(access).insert(cred.capture());
-        assertThat(cred.getValue().getTokenHash()).isEqualTo(PaymentLinkTokenService.hash(raw)).doesNotContain(raw);
-    }
-    @Test void replayReturnsOriginalWithoutCreatingAnotherLink() {
-        service.create(actor,"m1",input()); var c=ArgumentCaptor.forClass(PaymentLinkDO.class); verify(links).insert(c.capture());
-        when(links.selectOne(any())).thenReturn(c.getValue()); service.create(actor,"m1",input());
-        verify(links,times(1)).insert(any(PaymentLinkDO.class));
-        Create changed=input(); changed.setDescription("different");
-        assertThatThrownBy(()->service.create(actor,"m1",changed)).isInstanceOf(ServiceException.class)
-                .extracting("code").isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
-    }
-    @Test void existingSuccessfulCoreOrderCannotCreateSecondPaymentEntry() {
-        var flow=new TransactionIdempotencyDO(); flow.setTransactionStatus("SUCCESS");
-        when(idem.buildMerchantOrderFlowKey("m1","ORDER-1")).thenReturn("m1:ORDER-1");
-        when(idem.find("MERCHANT_ORDER_FLOW","m1:ORDER-1")).thenReturn(java.util.Optional.of(flow));
-        assertThatThrownBy(()->service.create(actor,"m1",input())).isInstanceOf(ServiceException.class);
-        verify(links,never()).insert(any(PaymentLinkDO.class)); verifyNoInteractions(checkout);
-    }
+
+
+
     @Test void publicResolveHasNoSideEffectsOrPriorPayerDetails() {
         when(links.selectOne(any())).thenReturn(row);
         PublicView result=service.resolve(raw);
@@ -160,55 +151,14 @@ class PaymentLinkServiceTest {
         assertThatThrownBy(()->service.start(raw,"another-device")).isInstanceOf(ServiceException.class);
         verifyNoInteractions(checkout,collections);
     }
-    @Test void anExistingCheckoutOrderCannotReceiveAnotherIndependentLink() {
-        when(sessions.selectCount(any())).thenReturn(1L);
-        assertThatThrownBy(()->service.create(actor,"m1",input())).isInstanceOf(ServiceException.class);
-        verify(links,never()).insert(any(PaymentLinkDO.class));verifyNoInteractions(checkout,collections);
-    }
-    @Test void disableWritesOnlyExpectedVersionAndRecordsTrustedOperator() {
-        when(links.update(isNull(),any())).thenReturn(1);
-        service.disable(actor,row.getLinkId(),0,"Operator request","disable-1");
-        var event=ArgumentCaptor.forClass(PaymentLinkEventDO.class);verify(events).insert(event.capture());
-        assertThat(event.getValue().getEventType()).isEqualTo("DISABLED");
-        assertThat(event.getValue().getActorId()).isEqualTo("operator");
-        assertThat(event.getValue().getActorAppCode()).isEqualTo("ADMIN");
-        verifyNoInteractions(checkout);
-    }
-    @Test void disablingWithStaleVersionCannotChangeLink() {
-        assertThatThrownBy(()->service.disable(actor,row.getLinkId(),1,"Reason","disable-1")).isInstanceOf(ServiceException.class);
-        verify(links,never()).update(isNull(),any());verifyNoInteractions(events,checkout);
-    }
-    @Test void disableReplayKeepsOriginalStateAndCannotChangeReason() {
-        row.setStatus("DISABLED");row.setDisableRequestId("disable-1");row.setDisabledBy("ADMIN:operator");row.setDisableReason("Reason");
-        service.disable(actor,row.getLinkId(),0,"Reason","disable-1");
-        assertThatThrownBy(()->service.disable(actor,row.getLinkId(),0,"Different reason","disable-1")).isInstanceOf(ServiceException.class);
-        verify(links,never()).update(isNull(),any());verifyNoInteractions(events,checkout);
-    }
-    @Test void completedOrExpiredLinkCannotBeDisabledAgain() {
-        View completed=new View();completed.setStatus("COMPLETED");when(queries.detail(actor,row.getLinkId())).thenReturn(completed);
-        assertThatThrownBy(()->service.disable(actor,row.getLinkId(),0,"Reason","disable-1")).isInstanceOf(ServiceException.class);
-        verify(links,never()).update(isNull(),any());verifyNoInteractions(events,checkout);
-    }
 
-    @Test void optionalNameAndGeneratedBusinessIdsUseExistingSystemGenerator() {
-        Create command = input(); command.setLinkName(null); command.setMerchantOrderNo(null);
-        when(ids.nextId()).thenReturn("2026111810000000000001", "2026111810000000000002", "2026111810000000000003");
-        service.create(actor, "m1", command);
-        var captured = ArgumentCaptor.forClass(PaymentLinkDO.class); verify(links).insert(captured.capture());
-        assertThat(captured.getValue().getMerchantOrderNo()).isEqualTo("2026111810000000000001");
-        assertThat(captured.getValue().getLinkId()).isEqualTo("L2026111810000000000002");
-        assertThat(captured.getValue().getLinkName()).isEmpty();
-    }
-    @Test void customDeadlineIsFrozenAndReplayDoesNotRevalidateAnExpiredOriginalDeadline() {
-        Create command = input(); command.setExpireTime(LocalDateTime.now().plusDays(3).withNano(0));
-        service.create(actor, "m1", command);
-        var captured = ArgumentCaptor.forClass(PaymentLinkDO.class); verify(links).insert(captured.capture());
-        assertThat(captured.getValue().getExpireTime()).isEqualTo(command.getExpireTime());
-        captured.getValue().setExpireTime(LocalDateTime.now().minusDays(1));
-        when(links.selectOne(any())).thenReturn(captured.getValue());
-        service.create(actor, "m1", command);
-        verify(links, times(1)).insert(any(PaymentLinkDO.class));
-    }
+
+
+
+
+
+
+
     @Test void expiredUnvisitedLinkRemainsReadOnlyWithoutCreatingAnOrder() {
         when(links.selectOne(any())).thenReturn(row); row.setExpireTime(LocalDateTime.now().minusDays(1));
         PublicView view = service.resolve(raw);

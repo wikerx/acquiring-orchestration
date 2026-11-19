@@ -13,49 +13,12 @@ import java.util.Set;
 public final class PaymentLinkDTOs {
     private PaymentLinkDTOs() { }
 
-    @Data
-    public static class Create {
-        @NotBlank @Size(max = 80)
-        private String requestId;
-        @Size(max = 120)
-        private String linkName;
-        @Size(max = 64)
-        private String merchantOrderNo;
-        @Size(max = 500)
-        private String description;
-        @NotBlank @Pattern(regexp = "[A-Z]{3}")
-        private String currency;
-        @NotBlank @Pattern(regexp = "[0-9]{1,6}(\\.[0-9]{1,2})?")
-        private String amount;
-        @Min(15) @Max(43200)
-        private Integer expireMinutes;
-        /** 自选截止时刻采用既有上海时间契约，与 expireMinutes 互斥。 */
-        private LocalDateTime expireTime;
-        @NotBlank @Pattern(regexp = "en-US|zh-CN|AUTO")
-        private String locale = "en-US";
-        @Size(max = 16)
-        private List<@Pattern(regexp = "[A-Z_]{2,40}") String> cardBrands;
-        @Size(max = 512)
-        @lombok.ToString.Exclude
-        private String notifyUrl;
-        @Size(max = 512)
-        @lombok.ToString.Exclude
-        private String redirectUrl;
-
-        @JsonAnySetter
-        public void rejectUnsupported(String name, Object value) {
-            throw new IllegalArgumentException("Unsupported payment link field");
-        }
-    }
+    /** 共享管理规则，保留当前服务 DTO 的序列化契约。 */
+    public static class Create extends com.scott.payment.link.model.PaymentLinkManagementModels.Create { }
 
     /** 仅由已鉴权的 Admin/Merchant 服务生成，不直接反序列化公开请求。 */
-    @Data
-    public static class Actor {
-        private String appCode;
-        private String actorId;
-        private boolean allMerchants;
-        private Set<String> merchantIds = Set.of();
-    }
+    /** 共享管理规则，保留当前服务 DTO 的序列化契约。 */
+    public static class Actor extends com.scott.payment.link.model.PaymentLinkManagementModels.Actor { }
 
     @Data
     public static class Query {
@@ -158,22 +121,8 @@ public final class PaymentLinkDTOs {
         private String checkoutSessionId;
     }
 
-    @Data
-    public static class Options {
-        /** 默认展示商户结算币种，实际收单能力仍独立校验。 */
-        private String defaultCurrency;
-        private Map<String, Integer> currencyExponents = Map.of();
-        private String merchantId;
-        private String merchantDisplayName;
-        private List<String> currencies = List.of();
-        /** 商户当前币种的完整支付方式，仅作展示；首批链接仍仅授权银行卡。 */
-        private Map<String, List<String>> paymentMethodsByCurrency = Map.of();
-        private Map<String, List<String>> cardBrandsByCurrency = Map.of();
-        private List<String> cardBrands = List.of();
-        private List<String> locales = List.of("en-US", "zh-CN", "AUTO");
-        private int minExpireMinutes = 15;
-        private int maxExpireMinutes = 43200;
-    }
+    /** 共享管理规则，保留当前服务 DTO 的序列化契约。 */
+    public static class Options extends com.scott.payment.link.model.PaymentLinkManagementModels.Options { }
 
     /** 数据库按币种聚合的内部强类型行，不暴露给浏览器。 */
     @Data

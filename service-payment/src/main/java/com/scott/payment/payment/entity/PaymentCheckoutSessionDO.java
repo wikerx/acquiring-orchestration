@@ -41,7 +41,8 @@ public class PaymentCheckoutSessionDO implements Serializable {
      */
     private String merchantRequestId;
     /**
-     * 原加密请求指纹，用于识别幂等报文冲突。
+     * 会话创建请求的幂等指纹；PayByLink 传入冻结的链接请求指纹。
+     * 该值用于识别报文冲突，不代表一定来自原始加密报文。
      */
     private String requestFingerprint;
     /**
@@ -65,19 +66,22 @@ public class PaymentCheckoutSessionDO implements Serializable {
      */
     private LocalDateTime lastStatusTime;
     /**
-     * 关联的初始支付动作号。
+     * 最近一次付款尝试的动作标识，随提交及核心准备结果更新，不是生命周期根动作。
+     * 核心准备前可能只是预分配值，不能据此断言核心动作已经持久化。
      */
     private String operationId;
     /**
-     * 会话关联的根交易号。
+     * 预留的会话级根交易字段，当前链路未维护或消费该值。
+     * 生命周期根号及根时间以核心订单和 transaction_locator 为准，不能从首次尝试猜测。
      */
     private String rootTransactionId;
     /**
-     * 最近一次支付尝试关联的交易号。
+     * 最近一次支付尝试的交易标识；核心准备前可能为预分配值。
+     * 对外显示系统订单号时须核对同商户、同订单的核心交易定位事实。
      */
     private String latestTransactionId;
     /**
-     * 交易业务时间，用于分片交易定位。
+     * 最近一次付款尝试关联的交易业务时间；核心准备后同步权威分片时间。
      */
     private LocalDateTime transactionDateTime;
     /**

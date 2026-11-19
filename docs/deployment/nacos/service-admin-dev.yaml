@@ -55,6 +55,18 @@ acquiring:
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
 
 payment:
+  link:
+    # 复用本环境 Payment 已有链接配置；默认关闭不影响管理查询，禁止重新生成历史签名密钥。
+    enabled: ${PAYMENT_LINK_ENABLED:false}
+    # 迁移后保持 true，关闭入口时仍约束已签发会话，不能回退成 false 绕过停用校验。
+    storage-ready: ${PAYMENT_LINK_STORAGE_READY:false}
+    # 托管收银台独立 origin，生产必须 HTTPS；不得包含路径、查询或凭据。
+    frontend-base-url: ${PAYMENT_LINK_FRONTEND_ORIGIN:}
+    # 参数说明：新链接使用的专用 HMAC 密钥版本；必须存在于 signing-keys。
+    active-key-version: ${PAYMENT_LINK_ACTIVE_KEY_VERSION:v1}
+    signing-keys:
+      # 专用随机密钥至少 32 字节，由 Secret 注入；轮换时保留未过期链接使用的旧版本。
+      v1: ${PAYMENT_LINK_SIGNING_KEY_V1:}
   mfa:
     # Admin MFA 主密钥必须与 Merchant 独立，由 Nacos 受控脚本迁移和保留。
     secret: __NACOS_MANAGED_ADMIN_MFA_SECRET__

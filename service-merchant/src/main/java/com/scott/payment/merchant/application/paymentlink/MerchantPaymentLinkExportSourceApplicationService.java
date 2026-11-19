@@ -1,20 +1,17 @@
 package com.scott.payment.merchant.application.paymentlink;
 
-import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.merchant.client.payment.PaymentLinkInternalClient;
 import com.scott.payment.merchant.dto.paymentlink.PaymentLinkDTOs.*;
 import com.scott.payment.merchant.dto.paymentlink.PaymentLinkExportDTOs.*;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
 /** 仅供已签名 Data 导出任务读取，不从浏览器接受冻结的操作者范围。 */
 @Service
 public class MerchantPaymentLinkExportSourceApplicationService {
-    private final PaymentLinkInternalClient payment;
-    public MerchantPaymentLinkExportSourceApplicationService(PaymentLinkInternalClient payment) { this.payment=payment; }
+    private final MerchantPaymentLinkQueryService queries;
+    public MerchantPaymentLinkExportSourceApplicationService(MerchantPaymentLinkQueryService queries) { this.queries=queries; }
     public PageResult<Row> page(PageRequest request) {
         if(request.getCreatorAccountId()==null || request.getPageNo()<1 || request.getPageSize()<1 || request.getPageSize()>100) { throw new ServiceException(ApiResultEnum.PARAM_INVALID); }
         Query query=request.getQuery()==null?new Query():request.getQuery(); query.setPageNo(request.getPageNo()); query.setPageSize(request.getPageSize());
@@ -22,8 +19,7 @@ public class MerchantPaymentLinkExportSourceApplicationService {
         if(request.getMerchantId()==null || request.getMerchantId().isBlank()) { throw new ServiceException(ApiResultEnum.PARAM_INVALID); }
         actor.setMerchantIds(java.util.Set.of(request.getMerchantId()));
         query.setMerchantId(request.getMerchantId());
-        Command command=new Command(); command.setActor(actor); command.setQuery(query);
-        PageResult<View> page=payment.executePaymentLink("search",command,new TypeReference<CommonResult<PageResult<View>>>() { });
+        PageResult<View> page=queries.search(actor,query);
         return PageResult.of(page.getTotal(),page.getPageNo(),page.getPageSize(),page.getRecords().stream().map(this::row).toList());
     }
     private Row row(View source) { Row row=new Row();

@@ -3,7 +3,7 @@ package com.scott.payment.payment.service.link;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.config.PaymentLinkProperties;
 import com.scott.payment.payment.entity.PaymentLinkCheckoutBindingDO;
-import com.scott.payment.payment.entity.PaymentLinkDO;
+import com.scott.payment.link.entity.PaymentLinkDO;
 import com.scott.payment.payment.mapper.PaymentLinkCheckoutBindingMapper;
 import com.scott.payment.payment.mapper.PaymentLinkMapper;
 import org.junit.jupiter.api.Test;

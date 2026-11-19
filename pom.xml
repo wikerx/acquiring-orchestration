@@ -22,6 +22,8 @@
         <module>channel-library</module>
         <!--财务领域库：提供费用、保证金及后续结算共用的纯模型和纯计算内核。-->
         <module>finance-library</module>
+        <!--支付链接管理领域库：三端共用链接规则，不承载收单资金状态机。-->
+        <module>payment-link-library</module>
         <!--统一流量网关：负责路由、入口过滤、链路标识和网关级安全控制。-->
         <module>service-gateway</module>
         <!--运营管理服务：承载平台配置、商户、渠道、费用、风控和资金管理后台能力。-->

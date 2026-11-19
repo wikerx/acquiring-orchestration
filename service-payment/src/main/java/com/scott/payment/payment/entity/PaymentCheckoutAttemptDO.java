@@ -85,11 +85,12 @@ public class PaymentCheckoutAttemptDO implements Serializable {
      */
     private BigDecimal channelRequestAmount;
     /**
-     * 关联支付动作号。
+     * 尝试预分配的支付动作号；核心准备成功后回写权威动作号。
      */
     private String operationId;
     /**
-     * 关联平台交易号。
+     * 尝试预分配的平台交易号；核心准备成功后回写权威交易号。
+     * 是否已生成系统订单，以同商户、同订单的核心定位事实为准。
      */
     private String transactionId;
     /**

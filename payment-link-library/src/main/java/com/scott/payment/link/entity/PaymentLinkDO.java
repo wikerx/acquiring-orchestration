@@ -1,4 +1,4 @@
-package com.scott.payment.payment.entity;
+package com.scott.payment.link.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;

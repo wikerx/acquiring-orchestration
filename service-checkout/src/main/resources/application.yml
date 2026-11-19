@@ -5,6 +5,11 @@ server:
   port: 8003
   # 参数说明：配置 Spring Boot 停机方式；graceful 会等待在途请求完成后退出。
   shutdown: graceful
+  # 国家地区字典是公开展示数据；超过 2KB 的 JSON 按客户端协商压缩，减少首屏传输。
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 2KB
 
 spring:
   application:

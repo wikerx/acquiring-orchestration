@@ -17,6 +17,8 @@
         数据库写入、查询缓存更新和终态消息必须保持幂等；清分、结算和商户通知由下游边界处理。
     -->
     <dependencies>
+        <!--链接管理本地执行，复用幂等、凭据和行锁规则；不依赖其他服务实现。-->
+        <dependency><groupId>com.scott.payment</groupId><artifactId>payment-link-library</artifactId><version>${project.version}</version></dependency>
         <!--服务注册、配置中心和服务间负载均衡。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
