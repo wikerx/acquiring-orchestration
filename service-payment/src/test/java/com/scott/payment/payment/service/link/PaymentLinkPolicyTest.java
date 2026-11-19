@@ -20,6 +20,85 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class PaymentLinkPolicyTest {
+    @Test void newLinksUseProductAmountBoundsAndNeverRoundZeroMinorUnitCurrencies() {
+        var iso = mock(IsoDictionaryService.class);
+        when(iso.getCurrency("USD")).thenReturn(Optional.of(new IsoCurrencyInfo("USD", "840", "Dollar", "美元", 2, 100, new BigDecimal("0.01"), "$")));
+        when(iso.getCurrency("JPY")).thenReturn(Optional.of(new IsoCurrencyInfo("JPY", "392", "Yen", "日元", 0, 1, BigDecimal.ONE, "¥")));
+        when(iso.isCurrencyFractionValid(any(), anyString())).thenReturn(true);
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            var policy = new PaymentLinkPolicy(new PaymentLinkProperties(), mock(MerchantRuntimeProfileCacheService.class),
+                    iso, mock(PaymentCheckoutCardCapabilityService.class), factory.getValidator(), new MockEnvironment());
+            Create input = new Create(); input.setRequestId("amount-boundaries"); input.setCurrency("USD");
+            for (String value : java.util.List.of("1", "1.00", "999999.99")) {
+                input.setAmount(value); assertThat(policy.validate(input)).isEqualByComparingTo(value);
+            }
+            for (String value : java.util.List.of("0.99", "1000000", "999999.999", "1.000", "1e2", "-1")) {
+                input.setAmount(value); assertThatThrownBy(() -> policy.validate(input)).as(value).isInstanceOf(ServiceException.class);
+            }
+            input.setCurrency("JPY"); input.setAmount("999999");
+            assertThat(policy.validate(input)).isEqualByComparingTo("999999");
+            for (String value : java.util.List.of("1.00", "100.01")) {
+                input.setAmount(value); assertThatThrownBy(() -> policy.validate(input)).as(value).isInstanceOf(ServiceException.class);
+            }
+        }
+    }
+
+    @Test void createOptionsUseSystemCurrenciesAndMerchantSettlementDefault() {
+        var iso = mock(IsoDictionaryService.class);
+        var merchants = mock(MerchantRuntimeProfileCacheService.class);
+        var capability = mock(PaymentCheckoutCardCapabilityService.class);
+        var merchant = new com.scott.payment.component.db.auth.model.MerchantRuntimeProfile();
+        merchant.setMerchantStatus(1); merchant.setActivationStatus("ACTIVE"); merchant.setSettlementCurrency("USD");
+        when(merchants.findRuntimeProfile("m1")).thenReturn(merchant);
+        when(iso.listCurrencies()).thenReturn(java.util.List.of(
+                new IsoCurrencyInfo("JPY", "392", "Yen", "日元", 0, 1, BigDecimal.ONE, "¥"),
+                new IsoCurrencyInfo("USD", "840", "Dollar", "美元", 2, 100, new BigDecimal("0.01"), "$")));
+        when(capability.resolveAllowedMethods(eq("m1"), isNull(), anyString())).thenReturn(java.util.List.of());
+        var config = new PaymentLinkProperties(); config.setEnabled(true); config.setStorageReady(true);
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            var policy = new PaymentLinkPolicy(config, merchants, iso, capability, factory.getValidator(), new MockEnvironment());
+            Actor actor = new Actor(); actor.setAppCode("MERCHANT"); actor.setActorId("a1"); actor.setMerchantIds(Set.of("m1"));
+            Options options = policy.options(actor, "m1");
+            assertThat(options.getCurrencies()).containsExactly("JPY", "USD");
+            assertThat(options.getDefaultCurrency()).isEqualTo("USD");
+            assertThat(options.getCurrencyExponents()).containsEntry("JPY", 0).containsEntry("USD", 2);
+            assertThat(options.getCardBrandsByCurrency()).isEmpty();
+            merchant.setSettlementCurrency(null);
+            assertThat(policy.options(actor, "m1").getDefaultCurrency()).isNull();
+        }
+    }
+
+    @Test void optionsExposeWalletsForDisplayWithoutAuthorizingThemForLinkPayments() {
+        var iso = mock(IsoDictionaryService.class);
+        var merchants = mock(MerchantRuntimeProfileCacheService.class);
+        var capability = mock(PaymentCheckoutCardCapabilityService.class);
+        var merchant = new com.scott.payment.component.db.auth.model.MerchantRuntimeProfile();
+        merchant.setMerchantStatus(1); merchant.setActivationStatus("ACTIVE");
+        when(merchants.findRuntimeProfile("m1")).thenReturn(merchant);
+        when(iso.listCurrencies()).thenReturn(java.util.List.of(
+                new IsoCurrencyInfo("USD", "840", "Dollar", "美元", 2, 100, new BigDecimal("0.01"), "$")));
+        var card = new com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        card.setPaymentMethod("BANK_CARD"); card.setBrands(java.util.List.of("MASTERCARD", "VISA"));
+        var wallet = new com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        wallet.setPaymentMethod("PAYPAL");
+        when(capability.resolveAllowedMethods("m1", null, "USD")).thenReturn(java.util.List.of(card, wallet));
+        when(capability.resolveAllowedMethods(eq("m1"), anyList(), eq("USD"))).thenAnswer(invocation -> {
+            java.util.List<com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> requested = invocation.getArgument(1);
+            assertThat(requested).singleElement().satisfies(method -> assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD"));
+            return java.util.List.of(card);
+        });
+        var config = new PaymentLinkProperties(); config.setEnabled(true); config.setStorageReady(true);
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            var policy = new PaymentLinkPolicy(config, merchants, iso, capability, factory.getValidator(), new MockEnvironment());
+            Actor actor = new Actor(); actor.setAppCode("MERCHANT"); actor.setActorId("a1"); actor.setMerchantIds(Set.of("m1"));
+            Options options = policy.options(actor, "m1");
+            assertThat(options.getPaymentMethodsByCurrency()).containsEntry("USD", java.util.List.of("BANK_CARD", "PAYPAL"));
+            assertThat(options.getCardBrandsByCurrency()).containsEntry("USD", java.util.List.of("MASTERCARD", "VISA"));
+            assertThat(policy.methods("m1", "USD", java.util.List.of("VISA")))
+                    .singleElement().satisfies(method -> assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD"));
+        }
+    }
+
     @Test void amountUsesCurrencyExponentWithoutRounding() {
         var iso = mock(IsoDictionaryService.class);
         when(iso.getCurrency("JPY")).thenReturn(Optional.of(new IsoCurrencyInfo("JPY", "392", "Yen", "日元", 0, 1, BigDecimal.ONE, "¥")));

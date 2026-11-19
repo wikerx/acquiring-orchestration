@@ -568,6 +568,36 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
+    void shouldExposeMerchantBrandCapabilitiesWithoutExpandingSessionPaymentAuthorization() {
+        var session = payableSession();
+        var capabilities = mock(PaymentCheckoutCardCapabilityService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cardCapabilityService", capabilities);
+        var configured = new java.util.ArrayList<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO>();
+        for (String method : List.of("BANK_CARD", "PAYPAL", "APPLE_PAY", "GOOGLE_PAY", "CASH_APP_PAY", "UPI", "BTC_ON_CHAIN", "PYUSD")) {
+            var value = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+            value.setPaymentMethod(method); value.setChannelCode("INTERNAL_CHANNEL");
+            value.setBrands(method.equals("BANK_CARD") ? List.of("VISA", "MASTERCARD") : List.of());
+            configured.add(value);
+        }
+        when(capabilities.resolveAllowedMethods(eq(session.getMerchantId()), eq(List.of()), eq(session.getLabelCurrency())))
+                .thenReturn(configured);
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        var query = new PaymentCheckoutSessionQueryCommandDTO(); query.setTokenHash("token-hash");
+        var result = service.querySession(query);
+        assertThat(result.getMerchant().getSupportedPaymentMethods()).containsExactly(
+                "BANK_CARD", "PAYPAL", "APPLE_PAY", "GOOGLE_PAY", "CASH_APP_PAY", "UPI", "BTC_ON_CHAIN", "PYUSD");
+        assertThat(result.getMerchant().getSupportedCardBrands()).containsExactly("VISA", "MASTERCARD");
+        assertThat(result.getPaymentMethods()).singleElement().satisfies(method -> assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD"));
+        assertThat(JsonUtils.toJsonString(result.getMerchant())).doesNotContain("INTERNAL_CHANNEL", "midConfigId");
+        when(capabilities.resolveAllowedMethods(eq(session.getMerchantId()), eq(List.of()), eq(session.getLabelCurrency())))
+                .thenThrow(new IllegalStateException("fixture unavailable"));
+        var fallback = service.querySession(query);
+        assertThat(fallback.getPageState()).isEqualTo("PAYABLE");
+        assertThat(fallback.getMerchant().getSupportedPaymentMethods()).isEmpty();
+    }
+
+    @Test
     void shouldQueryPayableSessionAndMarkTokenUsed() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         sessionDO.setLabelAmount(new BigDecimal("49.970000"));
@@ -856,6 +886,115 @@ class DefaultPaymentCheckoutServiceTests {
                 eq("RESULT_RENDERED"), eq(0), any());
         verify(paymentTransactionService).preparePayment(any());
         verify(paymentTransactionService).failPreparedTransaction(any(), eq("ROUTE_FAILED"), anyString());
+    }
+
+
+    @Test
+    void shouldPersistTheFullPaymentLinkDescriptionWithinTheOperationSchemaContract() throws Exception {
+        String description = "商".repeat(500);
+        PaymentCheckoutSessionDO session = payableSession();
+        session.setOrderDescription(description);
+        var attempt = attemptWithStatus(session, PaymentCheckoutAttemptStatusEnum.CARD_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.CARD_SUBMITTED);
+        PaymentCreateCommandDTO.TransactionInfoDTO info = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                service, "toCoreTransactionInfo", session, attempt);
+        assertThat(info.getDescription()).isEqualTo(description);
+        java.nio.file.Path root = java.nio.file.Path.of("").toAbsolutePath();
+        while (!java.nio.file.Files.exists(root.resolve("docs/sql/payment_acquiring_表结构.sql"))) root = root.getParent();
+        String schema = java.nio.file.Files.readString(root.resolve("docs/sql/payment_acquiring_表结构.sql"));
+        int begin = schema.indexOf("CREATE TABLE `transaction_operation` (");
+        String operation = schema.substring(begin, schema.indexOf("ENGINE=", begin));
+        var limit = java.util.regex.Pattern.compile("`description`\\s+varchar\\((\\d+)\\)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(operation);
+        assertThat(limit.find()).isTrue();
+        try (var connection = java.sql.DriverManager.getConnection("jdbc:h2:mem:checkoutDescription;MODE=MySQL", "sa", "");
+             var sql = connection.createStatement()) {
+            sql.execute("CREATE TABLE transaction_operation(description VARCHAR(" + limit.group(1) + "))");
+            try (var insert = connection.prepareStatement("INSERT INTO transaction_operation(description) VALUES(?)")) {
+                insert.setString(1, info.getDescription());
+                insert.executeUpdate();
+            }
+            try (var result = sql.executeQuery("SELECT description FROM transaction_operation")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString(1)).isEqualTo(description);
+            }
+        }
+    }
+
+    @Test
+    void shouldConvergeCheckoutWhenCorePreparationRollsBackAndNoCoreTransactionExists() {
+        PaymentCheckoutSessionDO sessionDO = payableSession();
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        payingSessionDO.setAttemptCount(3);
+        PaymentCheckoutSessionDO retryableSessionDO = sessionWithStatus(
+                PaymentCheckoutSessionStatusEnum.FAILED);
+        PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        failedAttempt.setFailureReasonCode("ROUTE_FAILED");
+        failedAttempt.setPayerVisibleMessage("Payment could not be completed. Please try another card or contact your bank.");
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId()))
+                .thenReturn(sessionDO, payingSessionDO, payingSessionDO, retryableSessionDO);
+        when(attemptMapper.selectMaxAttemptNo(sessionDO.getCheckoutSessionId())).thenReturn(0);
+        when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(failedAttempt);
+        when(sessionMapper.markFailedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("synthetic persistence failure"))
+                .when(paymentTransactionService).preparePayment(any());
+        when(paymentTransactionService.failPreparedTransaction(any(), anyString(), anyString()))
+                .thenThrow(new ServiceException(ApiResultEnum.ORDER_NOT_FOUND));
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.submitPayment(submitCommand());
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
+        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode());
+        verify(attemptMapper).markResultCas(anyString(), eq("FAILED"), eq("RESULT_RENDERED"),
+                isNull(), isNull(), isNull(), eq("ROUTE_FAILED"), isNull(),
+                eq("Payment could not be completed. Please try another card or contact your bank."),
+                anyString(), eq(0), any());
+        verify(sessionMapper).markFailedCas(anyString(), eq("FAILED"),
+                eq("RESULT_RENDERED"), eq(0), any());
+        verify(threeDsService, never()).authenticate(any(), any(), any(), anyString(), any());
+        verify(paymentTransactionService, never()).submitPreparedTransaction(any());
+        verify(paymentTransactionService).preparePayment(any());
+        verify(paymentTransactionService).failPreparedTransaction(any(), eq("ROUTE_FAILED"), anyString());
+    }
+
+    @Test
+    void shouldKeepUncertainCleanupErrorsFromBecomingRetryableFailures() {
+        PaymentCheckoutSessionDO sessionDO = payableSession();
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        payingSessionDO.setAttemptCount(3);
+        PaymentCheckoutSessionDO retryableSessionDO = sessionWithStatus(
+                PaymentCheckoutSessionStatusEnum.FAILED);
+        PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        failedAttempt.setFailureReasonCode("ROUTE_FAILED");
+        failedAttempt.setPayerVisibleMessage("Payment could not be completed. Please try another card or contact your bank.");
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId()))
+                .thenReturn(sessionDO, payingSessionDO, payingSessionDO, retryableSessionDO);
+        when(attemptMapper.selectMaxAttemptNo(sessionDO.getCheckoutSessionId())).thenReturn(0);
+        when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(failedAttempt);
+        when(sessionMapper.markFailedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("synthetic persistence failure"))
+                .when(paymentTransactionService).preparePayment(any());
+        when(paymentTransactionService.failPreparedTransaction(any(), anyString(), anyString()))
+                .thenThrow(new ServiceException(ApiResultEnum.NETWORK_BUSY));
+
+        assertThatThrownBy(() -> service.submitPayment(submitCommand()))
+                .isInstanceOfSatisfying(ServiceException.class,
+                        error -> assertThat(error.getCode()).isEqualTo(ApiResultEnum.NETWORK_BUSY.getCode()));
+        verify(sessionMapper, never()).markFailedCas(anyString(), anyString(), anyString(), any(), any());
+        verify(paymentTransactionService, never()).submitPreparedTransaction(any());
     }
 
     @Test
@@ -1530,27 +1669,64 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
-    void linkedCheckoutDoesNotExposePriorPayerCardWhileOrdinaryCheckoutKeepsItsReceipt() {
+    void linkedCheckoutKeepsTheActualBrandLogoWhileHidingCardNumberAndAuthorizationCode() {
         var session = payableSession();
         session.setCheckoutStatus("SUCCESS");
         var attempt = processingAttempt(session);
         attempt.setAttemptStatus("SUCCEEDED"); attempt.setChannelStatus("SUCCESS");
-        attempt.setPaymentBrand("VISA"); attempt.setCardNumberMasked("411111******1111");
+        attempt.setPaymentMethod("BANK_CARD");
+        attempt.setPaymentBrand("MASTERCARD"); attempt.setCardNumberMasked("512345******0008");
         attempt.setChannelResponseCode("AUTH-QA");
         session.setLastAttemptId(attempt.getCheckoutAttemptId());
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
         when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
         when(attemptMapper.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId())).thenReturn(attempt);
+        when(sessionMapper.selectPersistedTransactionId(session.getMerchantId(),
+                session.getMerchantOrderNo(), attempt.getTransactionId())).thenReturn(attempt.getTransactionId());
         var guard = mock(com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard.class);
-        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(true, false);
+        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(true);
         ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
         var query = new PaymentCheckoutSessionQueryCommandDTO(); query.setTokenHash("token-hash");
         var linked = service.querySession(query).getPaymentResult().getResult();
-        assertThat(linked.getCardNumberMasked()).isNull(); assertThat(linked.getCardBrand()).isNull();
+        assertThat(linked.getCardNumberMasked()).isNull();
+        assertThat(linked.getPaymentMethod()).isEqualTo("BANK_CARD");
+        assertThat(linked.getCardBrand()).isEqualTo("MASTERCARD");
+        assertThat(linked.getTransactionId()).isEqualTo(attempt.getTransactionId());
         assertThat(linked.getAuthCode()).isNull(); assertThat(linked.getAmount()).isEqualByComparingTo(session.getLabelAmount());
+        var statusQuery = new PaymentCheckoutPaymentStatusCommandDTO();
+        statusQuery.setTokenHash("token-hash");
+        statusQuery.setCheckoutSessionId(session.getCheckoutSessionId());
+        statusQuery.setCheckoutAttemptId(attempt.getCheckoutAttemptId());
+        var polled = service.queryPaymentStatus(statusQuery).getResult();
+        assertThat(polled.getCardBrand()).isEqualTo("MASTERCARD");
+        assertThat(polled.getCardNumberMasked()).isNull();
+        assertThat(polled.getAuthCode()).isNull();
+        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(false);
         var ordinary = service.querySession(query).getPaymentResult().getResult();
-        assertThat(ordinary.getCardNumberMasked()).isEqualTo("411111******1111");
-        assertThat(ordinary.getCardBrand()).isEqualTo("VISA"); assertThat(ordinary.getAuthCode()).isEqualTo("AUTH-QA");
+        assertThat(ordinary.getCardNumberMasked()).isEqualTo("512345******0008");
+        assertThat(ordinary.getCardBrand()).isEqualTo("MASTERCARD"); assertThat(ordinary.getAuthCode()).isEqualTo("AUTH-QA");
+    }
+
+    @Test
+    void linkedResultDoesNotPresentAnAllocatedButRolledBackIdentifierAsASystemOrder() {
+        var session = sessionWithStatus(PaymentCheckoutSessionStatusEnum.FAILED);
+        var attempt = processingAttempt(session);
+        attempt.setAttemptStatus("FAILED");
+        attempt.setTransactionId("reserved-before-rollback");
+        attempt.setTransactionDateTime(LocalDateTime.now().minusMinutes(1));
+        session.setLastAttemptId(attempt.getCheckoutAttemptId());
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        when(attemptMapper.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId())).thenReturn(attempt);
+        var guard = mock(com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard.class);
+        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(true);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        var query = new PaymentCheckoutSessionQueryCommandDTO();
+        query.setTokenHash("token-hash");
+        var response = service.querySession(query).getPaymentResult();
+        assertThat(response.getCheckoutAttemptId()).isEqualTo(attempt.getCheckoutAttemptId());
+        assertThat(response.getResult().getTransactionId()).isNull();
+        assertThat(response.getResult().getTransactionDateTime()).isNull();
     }
 
     private PaymentCheckoutSessionCreateCommandDTO createCommand() {

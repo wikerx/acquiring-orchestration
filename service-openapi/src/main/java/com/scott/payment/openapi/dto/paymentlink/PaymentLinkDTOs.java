@@ -25,7 +25,7 @@ public final class PaymentLinkDTOs {
         private String description;
         @NotBlank @Pattern(regexp = "[A-Z]{3}")
         private String currency;
-        @NotBlank @Pattern(regexp = "[0-9]{1,14}(\\.[0-9]{1,6})?")
+        @NotBlank @Pattern(regexp = "[0-9]{1,6}(\\.[0-9]{1,2})?")
         private String amount;
         @Min(15) @Max(43200)
         private Integer expireMinutes;

@@ -173,8 +173,12 @@ class TransactionPersistenceMapperContractTests {
         String migration = readProjectFile(
                 "service-admin/src/main/resources/sql/transaction-operation-description-migration.sql");
 
-        assertThat(tableDefinition(schema, "transaction_operation"))
-                .contains("`description` varchar(128)");
+        List.of("transaction_operation", "transaction_operation_202603", "transaction_operation_202604")
+                .forEach(table -> assertThat(tableDefinition(schema, table))
+                        .contains("`description` varchar(512)"));
+        String widening = readProjectFile("docs/sql/20261118_02_checkout_operation_description.sql");
+        assertThat(widening).contains("VARCHAR(512)", "information_schema.COLUMNS",
+                "^transaction_operation(_[0-9]{6})?$", "ALGORITHM=INPLACE, LOCK=NONE");
         assertThat(migration)
                 .contains("transaction_operation", "transaction_operation_202603", "transaction_operation_202604")
                 .contains("`description` varchar(128)");

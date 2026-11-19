@@ -9,7 +9,7 @@ class PaymentLinkExpiryPolicyTest {
     private final LocalDateTime now = LocalDateTime.of(2026, 11, 18, 10, 20, 30);
 
     @Test void relativeDefaultsAndBoundariesPreserveExactDeadline() {
-        assertThat(PaymentLinkExpiryPolicy.resolve(null, null, now)).isEqualTo(now.plusHours(24));
+        assertThat(PaymentLinkExpiryPolicy.resolve(null, null, now)).isEqualTo(now.plusHours(1));
         assertThat(PaymentLinkExpiryPolicy.resolve(15, null, now)).isEqualTo(now.plusMinutes(15));
         assertThat(PaymentLinkExpiryPolicy.resolve(4320, null, now)).isEqualTo(now.plusHours(72));
         assertThat(PaymentLinkExpiryPolicy.resolve(43200, null, now)).isEqualTo(now.plusDays(30));

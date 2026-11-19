@@ -92,6 +92,7 @@ public class CheckoutCountryConfigApplicationService {
         String countryCode = normalizeCountryCode(country.alpha2());
         return new CheckoutCountryConfigResponse(
                 countryCode,
+                normalizeCountryCode(country.alpha3()),
                 resolveCountryName(country),
                 resolveCountryNameLocal(country),
                 resolveFlagIconUrl(country.flagEmoji()),

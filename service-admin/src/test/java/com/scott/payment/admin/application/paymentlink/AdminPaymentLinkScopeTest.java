@@ -19,7 +19,7 @@ class AdminPaymentLinkScopeTest {
  private final AdminMerchantDataScopeResolver scopes=mock(AdminMerchantDataScopeResolver.class);
  private final BaseMerchantInfoMapper merchants=mock(BaseMerchantInfoMapper.class);
  private final com.scott.payment.admin.service.AdminChannelService channels=mock(com.scott.payment.admin.service.AdminChannelService.class);
- private final AdminPaymentLinkApplicationService service=new AdminPaymentLinkApplicationService(payment,scopes,merchants,channels);
+ private final AdminPaymentLinkApplicationService service=new AdminPaymentLinkApplicationService(payment,scopes,merchants,channels,mock(AdminPaymentLinkOperatorProjection.class));
  private InternalAuthAccount account;
  @BeforeEach void setup() {account=new InternalAuthAccount();account.setAppCode("ADMIN");account.setAccountId(42L);when(scopes.resolve(account)).thenReturn(AdminMerchantDataScope.limited(Set.of("m1"))); InternalAuthContextHolder.set(account);}
  @AfterEach void cleanup(){InternalAuthContextHolder.clear();}

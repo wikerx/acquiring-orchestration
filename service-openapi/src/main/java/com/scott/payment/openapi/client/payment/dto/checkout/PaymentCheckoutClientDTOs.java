@@ -743,6 +743,10 @@ public final class PaymentCheckoutClientDTOs {
          * 商户 Logo 地址，当前为空时由前端展示平台默认标识。
          */
         private String logoUrl;
+        /** 当前币种下商户有效收单能力，仅用于品牌展示，不改变本会话的付款授权。 */
+        private List<String> supportedPaymentMethods = List.of();
+        /** 商户银行卡能力的实际品牌交集，不包含 MID 或渠道配置。 */
+        private List<String> supportedCardBrands = List.of();
     }
 
     /**

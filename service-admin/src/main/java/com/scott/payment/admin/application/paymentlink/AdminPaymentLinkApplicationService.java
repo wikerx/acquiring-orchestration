@@ -15,12 +15,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminPaymentLinkApplicationService {
     private final PaymentLinkInternalClient payment;
+    private final AdminPaymentLinkOperatorProjection operators;
     private final AdminMerchantDataScopeResolver scopes;
     private final com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper merchants;
     private final com.scott.payment.admin.service.AdminChannelService channels;
 
-    public AdminPaymentLinkApplicationService(PaymentLinkInternalClient payment, AdminMerchantDataScopeResolver scopes, com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper merchants, com.scott.payment.admin.service.AdminChannelService channels) {
-        this.payment = payment; this.scopes = scopes; this.merchants = merchants; this.channels = channels;
+    public AdminPaymentLinkApplicationService(PaymentLinkInternalClient payment, AdminMerchantDataScopeResolver scopes, com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper merchants, com.scott.payment.admin.service.AdminChannelService channels, AdminPaymentLinkOperatorProjection operators) {
+        this.payment = payment; this.operators = operators; this.scopes = scopes; this.merchants = merchants; this.channels = channels;
     }
 
     /** 返回当前数据范围内的商户轻量选项，支付链接角色无需额外取得商户资料权限。 */
@@ -68,7 +69,7 @@ public class AdminPaymentLinkApplicationService {
     }
     public View detail(String linkId) {
         Command command = command(); command.setLinkId(linkId);
-        return payment.executePaymentLink("detail", command, new TypeReference<CommonResult<View>>() { });
+        return operators.view(payment.executePaymentLink("detail", command, new TypeReference<CommonResult<View>>() { }));
     }
     public Share share(String linkId) {
         Command command = command(); command.setLinkId(linkId);
@@ -89,8 +90,10 @@ public class AdminPaymentLinkApplicationService {
     }
     public PageResult<Event> events(String linkId, Query query) {
         Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return payment.executePaymentLink("events", command, new TypeReference<CommonResult<PageResult<Event>>>() { });
+        return operators.events(payment.executePaymentLink("events", command, new TypeReference<CommonResult<PageResult<Event>>>() { }));
     }
+    public PageResult<Delivery> deliveryOperators(PageResult<Delivery> page) { return operators.deliveries(page); }
+
     public Actor actor() {
         var account = InternalAuthContextHolder.get();
         if (account == null || !"ADMIN".equals(account.getAppCode()) || account.getAccountId() == null) {

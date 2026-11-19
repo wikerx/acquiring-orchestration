@@ -14,9 +14,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class MerchantPaymentLinkApplicationService {
     private final PaymentLinkInternalClient payment;
+    private final MerchantPaymentLinkOperatorProjection operators;
 
-    public MerchantPaymentLinkApplicationService(PaymentLinkInternalClient payment) {
-        this.payment = payment;
+    public MerchantPaymentLinkApplicationService(PaymentLinkInternalClient payment, MerchantPaymentLinkOperatorProjection operators) {
+        this.payment = payment; this.operators = operators;
     }
 
     /** 筛选读取基础币种字典，不授予创建权限或泄露内部渠道配置。 */
@@ -45,7 +46,7 @@ public class MerchantPaymentLinkApplicationService {
     }
     public View detail(String linkId) {
         Command command = command(); command.setLinkId(linkId);
-        return payment.executePaymentLink("detail", command, new TypeReference<CommonResult<View>>() { });
+        return operators.view(payment.executePaymentLink("detail", command, new TypeReference<CommonResult<View>>() { }));
     }
     public Share share(String linkId) {
         Command command = command(); command.setLinkId(linkId);
@@ -66,8 +67,10 @@ public class MerchantPaymentLinkApplicationService {
     }
     public PageResult<Event> events(String linkId, Query query) {
         Command command = command(); command.setLinkId(linkId); command.setQuery(query);
-        return payment.executePaymentLink("events", command, new TypeReference<CommonResult<PageResult<Event>>>() { });
+        return operators.events(payment.executePaymentLink("events", command, new TypeReference<CommonResult<PageResult<Event>>>() { }));
     }
+    public PageResult<Delivery> deliveryOperators(PageResult<Delivery> page) { return operators.deliveries(page); }
+
     public Actor actor() {
         var account = InternalAuthContextHolder.get();
         if (account == null || !"MERCHANT".equals(account.getAppCode()) || account.getAccountId() == null || account.getMerchantId() == null) {

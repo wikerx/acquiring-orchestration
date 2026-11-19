@@ -74,7 +74,10 @@ public class PaymentLinkPolicy {
                 .filter(value -> value.defaultFractionDigits() >= 0 && value.defaultFractionDigits() <= 6)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID));
         BigDecimal amount = new BigDecimal(input.getAmount());
-        if (amount.signum() <= 0 || !currencies.isCurrencyFractionValid(amount, input.getCurrency())) {
+        // 支付链接的新建限额是产品规则；不修改已有链接、普通 Checkout 或其他交易入口的金额语义。
+        if (amount.compareTo(BigDecimal.ONE) < 0 || amount.compareTo(new BigDecimal("999999.99")) > 0
+                || amount.scale() > Math.min(2, currency.defaultFractionDigits())
+                || !currencies.isCurrencyFractionValid(amount, input.getCurrency())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
         validateUrl(input.getNotifyUrl());
@@ -130,14 +133,26 @@ public class PaymentLinkPolicy {
         result.setMerchantId(merchantId);
         result.setMerchantDisplayName(merchant.getMerchantName());
         java.util.Map<String, List<String>> byCurrency = new java.util.TreeMap<>();
+        java.util.Map<String, List<String>> methodsByCurrency = new java.util.TreeMap<>();
+        java.util.Map<String, Integer> exponents = new java.util.TreeMap<>();
         for (IsoCurrencyInfo currency : currencies.listCurrencies()) {
-            List<String> brands = capabilities.resolveAllowedMethods(merchantId, null, currency.alphabeticCode()).stream()
+            if (currency.defaultFractionDigits() < 0 || currency.defaultFractionDigits() > 6) continue;
+            exponents.put(currency.alphabeticCode(), currency.defaultFractionDigits());
+            var allowed = capabilities.resolveAllowedMethods(merchantId, null, currency.alphabeticCode());
+            methodsByCurrency.put(currency.alphabeticCode(), allowed.stream()
+                    .map(PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO::getPaymentMethod)
+                    .distinct().sorted().toList());
+            List<String> brands = allowed.stream()
                     .filter(method -> "BANK_CARD".equals(method.getPaymentMethod()))
                     .flatMap(method -> method.getBrands().stream()).distinct().sorted().toList();
             if (!brands.isEmpty()) { byCurrency.put(currency.alphabeticCode(), brands); }
         }
+        result.setPaymentMethodsByCurrency(methodsByCurrency);
         result.setCardBrandsByCurrency(byCurrency);
-        result.setCurrencies(List.copyOf(byCurrency.keySet()));
+        result.setCurrencies(List.copyOf(exponents.keySet()));
+        result.setCurrencyExponents(exponents);
+        result.setDefaultCurrency(merchant.getSettlementCurrency() != null && exponents.containsKey(merchant.getSettlementCurrency())
+                ? merchant.getSettlementCurrency() : null);
         result.setCardBrands(byCurrency.values().stream().flatMap(List::stream).distinct().sorted().toList());
         return result;
     }

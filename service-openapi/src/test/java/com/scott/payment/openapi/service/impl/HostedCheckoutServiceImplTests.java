@@ -77,6 +77,66 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
+    void merchantBrandCapabilitiesRemainSeparateFromSessionPaymentMethods() {
+        var service = newCheckoutService(new CapturingCheckoutClient());
+        var source = new com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs.Merchant();
+        source.setDisplayName("Fixture Merchant");
+        source.setSupportedPaymentMethods(java.util.List.of("BANK_CARD", "PAYPAL", "APPLE_PAY"));
+        source.setSupportedCardBrands(java.util.List.of("VISA", "MASTERCARD"));
+        com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO.MerchantVO result =
+                org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "toMerchantVO", source);
+        assertThat(result.getSupportedPaymentMethods()).containsExactly("BANK_CARD", "PAYPAL", "APPLE_PAY");
+        assertThat(result.getSupportedCardBrands()).containsExactly("VISA", "MASTERCARD");
+    }
+
+    @Test
+    void shouldRetainActualCardBrandInBothSessionAndPolledBrowserResults() {
+        var detail = new PaymentCheckoutClientDTOs.PaymentResult();
+        detail.setPaymentMethod("BANK_CARD");
+        detail.setCardBrand("MASTERCARD");
+        detail.setAmount(new BigDecimal("49.97"));
+        detail.setCurrency("USD");
+        var result = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+        result.setCheckoutSessionId("CS202607270001");
+        result.setCheckoutAttemptId("CA202607270001");
+        result.setPageState("SUCCEEDED");
+        result.setResult(detail);
+        var client = new CapturingCheckoutClient() {
+            @Override
+            public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
+                    PaymentCheckoutClientDTOs.SessionQueryRequest request) {
+                var response = super.queryCheckoutSession(request);
+                response.setPageState("SUCCEEDED");
+                response.setPaymentResult(result);
+                return response;
+            }
+
+            @Override
+            public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
+                    PaymentCheckoutClientDTOs.PaymentStatusRequest request) {
+                return result;
+            }
+        };
+        var checkoutService = newCheckoutService(client);
+        bindRequestContext("200001");
+        var sessionQuery = new HostedCheckoutBrowserRequestDTOs.SessionQueryRequest();
+        sessionQuery.setOpaqueToken(RAW_OPAQUE_TOKEN);
+        sessionQuery.setCover("visual-cover");
+        var sessionDetail = checkoutService.querySession(sessionQuery).getPaymentResult().getResult();
+        var statusQuery = new HostedCheckoutBrowserRequestDTOs.PaymentStatusRequest();
+        statusQuery.setOpaqueToken(RAW_OPAQUE_TOKEN);
+        statusQuery.setCheckoutSessionId("CS202607270001");
+        statusQuery.setCheckoutAttemptId("CA202607270001");
+        var polledDetail = checkoutService.queryPaymentStatus(statusQuery).getResult();
+        for (var actual : List.of(sessionDetail, polledDetail)) {
+            assertThat(actual.getPaymentMethod()).isEqualTo("BANK_CARD");
+            assertThat(actual.getCardBrand()).isEqualTo("MASTERCARD");
+            assertThat(actual.getCardNumberMasked()).isNull();
+            assertThat(actual.getAuthCode()).isNull();
+        }
+    }
+
+    @Test
     void shouldCreateHostedCheckoutSessionWithMerchantBindingAndDefaults() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);

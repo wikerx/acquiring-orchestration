@@ -25,7 +25,7 @@ public final class PaymentLinkDTOs {
         private String description;
         @NotBlank @Pattern(regexp = "[A-Z]{3}")
         private String currency;
-        @NotBlank @Pattern(regexp = "[0-9]{1,14}(\\.[0-9]{1,6})?")
+        @NotBlank @Pattern(regexp = "[0-9]{1,6}(\\.[0-9]{1,2})?")
         private String amount;
         @Min(15) @Max(43200)
         private Integer expireMinutes;
@@ -65,6 +65,8 @@ public final class PaymentLinkDTOs {
         private Long emailRecordId;
         private String createdAppCode;
         private String createdBy;
+        /** 当前账号展示名；历史审计 ID 不变，未找到账号时为空。 */
+        private String createdByName;
         private LocalDateTime createTime;
     }
 
@@ -137,6 +139,8 @@ public final class PaymentLinkDTOs {
         private LocalDateTime paidTime;
         private String createdAppCode;
         private String createdBy;
+        /** 当前账号展示名；历史审计 ID 不变，未找到账号时为空。 */
+        private String createdByName;
         private String disableReason;
         private Integer version;
         @lombok.ToString.Exclude
@@ -179,9 +183,14 @@ public final class PaymentLinkDTOs {
 
     @Data
     public static class Options {
+        /** 默认展示商户结算币种，实际收单能力仍独立校验。 */
+        private String defaultCurrency;
+        private Map<String, Integer> currencyExponents = Map.of();
         private String merchantId;
         private String merchantDisplayName;
         private List<String> currencies = List.of();
+        /** 商户当前币种的完整支付方式，仅作展示；首批链接仍仅授权银行卡。 */
+        private Map<String, List<String>> paymentMethodsByCurrency = Map.of();
         private Map<String, List<String>> cardBrandsByCurrency = Map.of();
         private List<String> cardBrands = List.of();
         private List<String> locales = List.of("en-US", "zh-CN", "AUTO");
@@ -232,6 +241,8 @@ public final class PaymentLinkDTOs {
         private String eventType;
         private String actorAppCode;
         private String actorId;
+        /** 受当前受众与商户范围限制的账号展示名。 */
+        private String actorName;
         private String reason;
         private LocalDateTime createTime;
     }

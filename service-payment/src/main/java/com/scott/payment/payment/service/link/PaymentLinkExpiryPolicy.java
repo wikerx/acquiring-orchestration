@@ -19,7 +19,7 @@ public final class PaymentLinkExpiryPolicy {
             // 与 DATETIME(3) 和签名上下文保持同一精度，防止数据库舍入导致再次分享的凭据变化。
             return requested.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
         }
-        int duration = minutes == null ? 1440 : minutes;
+        int duration = minutes == null ? 60 : minutes;
         if (duration < 15 || duration > MAX_MINUTES) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         return now.plusMinutes(duration);
     }

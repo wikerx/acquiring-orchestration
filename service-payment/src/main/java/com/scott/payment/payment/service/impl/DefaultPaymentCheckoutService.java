@@ -613,7 +613,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 }
             } catch (RuntimeException exception) {
                 logPreChannelFailure(context, "CORE_PREPARE", exception);
-                return applyPreChannelFailure(context);
+                return applyPreChannelFailure(context, true);
             }
             if (corePreparation.isDuplicate() || !corePreparation.isCallChannel()) {
                 return applyPaymentCoreResult(context.sessionDO(), context.attemptDO(), corePreparation.getResultDTO());
@@ -1423,10 +1423,24 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * 收敛渠道提交前的路由、策略或 3DS 编排异常，避免付款尝试永久停留在 CARD_SUBMITTED。
      */
     private PaymentCheckoutPaymentResultDTO applyPreChannelFailure(PaymentSubmissionContext context) {
+        return applyPreChannelFailure(context, false);
+    }
+
+    private PaymentCheckoutPaymentResultDTO applyPreChannelFailure(PaymentSubmissionContext context,
+                                                                   boolean corePreparationFailed) {
         LocalDateTime now = LocalDateTime.now();
         // 前置编排失败尚未调用渠道，但已准备的核心交易必须幂等收敛，避免永久停留在准备态。
-        failPreparedCoreTransaction(context.attemptDO(), PaymentFailureReasonEnum.ROUTE_FAILED.getCode(),
-                "checkout routing or 3DS preparation failed");
+        try {
+            failPreparedCoreTransaction(context.attemptDO(), PaymentFailureReasonEnum.ROUTE_FAILED.getCode(),
+                    "checkout routing or 3DS preparation failed");
+        } catch (ServiceException exception) {
+            // 仅核心准备本身失败时，允许已回滚、确实不存在的核心记录；其他清理异常仍保持未知状态。
+            if (!corePreparationFailed || !ApiResultEnum.ORDER_NOT_FOUND.getCode().equals(exception.getCode())) {
+                throw exception;
+            }
+            log.warn("收银台核心准备已回滚, event: CHECKOUT_CORE_PREPARE_ROLLED_BACK, checkoutSessionId: {}, checkoutAttemptId: {}",
+                    context.sessionDO().getCheckoutSessionId(), context.attemptDO().getCheckoutAttemptId());
+        }
         PaymentCheckoutAttemptDO latestAttempt = markAttemptResult(context.attemptDO(),
                 PaymentCheckoutAttemptStatusEnum.FAILED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED,
@@ -1635,7 +1649,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
-     * 组装收银台展示视图，使用创建时快照，避免商户后续配置变更影响已创建会话。
+     * 组装收银台视图：付款授权使用创建时快照，辅助品牌轮转单独读取当前商户能力。
      */
     private PaymentCheckoutSessionQueryResultDTO sessionResult(PaymentCheckoutSessionDO sessionDO, LocalDateTime serverTime) {
         PaymentCheckoutSessionQueryResultDTO resultDTO = new PaymentCheckoutSessionQueryResultDTO();
@@ -1650,6 +1664,22 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         PaymentCheckoutSessionQueryResultDTO.MerchantDTO merchantDTO = new PaymentCheckoutSessionQueryResultDTO.MerchantDTO();
         merchantDTO.setDisplayName(sessionDO.getMerchantDisplayName());
         merchantDTO.setLogoUrl(sessionDO.getMerchantLogoUrl());
+        if (cardCapabilityService != null) {
+            try {
+                var merchantMethods = cardCapabilityService.resolveAllowedMethods(
+                        sessionDO.getMerchantId(), List.of(), sessionDO.getLabelCurrency());
+                merchantDTO.setSupportedPaymentMethods(merchantMethods.stream()
+                        .map(PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO::getPaymentMethod)
+                        .distinct().toList());
+                merchantDTO.setSupportedCardBrands(merchantMethods.stream()
+                        .filter(method -> "BANK_CARD".equals(method.getPaymentMethod()))
+                        .flatMap(method -> method.getBrands().stream()).distinct().toList());
+            } catch (RuntimeException exception) {
+                // 品牌展示是辅助读取，不应因缓存/配置暂不可用而阻断已授权的收银台会话。
+                log.warn("收银台商户展示能力暂不可用, event: CHECKOUT_BRAND_CAPABILITY_UNAVAILABLE, merchantId: {}, exceptionType: {}",
+                        sessionDO.getMerchantId(), exception.getClass().getSimpleName());
+            }
+        }
         resultDTO.setMerchant(merchantDTO);
         PaymentCheckoutSessionQueryResultDTO.OrderDTO orderDTO = new PaymentCheckoutSessionQueryResultDTO.OrderDTO();
         orderDTO.setOrderNo(sessionDO.getMerchantOrderNo());
@@ -1724,7 +1754,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
-     * 输出付款人可见的交易摘要，只包含掩码卡号和平台交易标识。
+     * 输出付款人可见的交易摘要；支付链接保留实际卡品牌用于 Logo 展示，隐藏卡号和授权码。
      */
     private PaymentCheckoutPaymentResultDTO.PaymentResultDTO paymentResultDetail(PaymentCheckoutSessionDO sessionDO,
                                                                                  PaymentCheckoutAttemptDO attemptDO) {
@@ -1742,7 +1772,13 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setTransactionDateTime(attemptDO == null ? sessionDO.getTransactionDateTime() : attemptDO.getTransactionDateTime());
         resultDTO.setAuthCode(attemptDO == null ? null : attemptDO.getChannelResponseCode());
         if (paymentLinkGuard != null && paymentLinkGuard.isLinkedSession(sessionDO.getCheckoutSessionId())) {
-            resultDTO.setCardBrand(null);
+            String persistedTransactionId = StringUtils.hasText(resultDTO.getTransactionId())
+                    ? sessionMapper.selectPersistedTransactionId(sessionDO.getMerchantId(),
+                            sessionDO.getMerchantOrderNo(), resultDTO.getTransactionId()) : null;
+            resultDTO.setTransactionId(persistedTransactionId);
+            if (persistedTransactionId == null) {
+                resultDTO.setTransactionDateTime(null);
+            }
             resultDTO.setCardNumberMasked(null);
             resultDTO.setAuthCode(null);
         }

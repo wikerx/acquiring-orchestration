@@ -72,8 +72,8 @@ public class MerchantPaymentLinkMailApplicationService {
     public PageResult<Delivery> page(String linkId, Query input) {
         View view=links.detail(linkId); Query query=input==null?new Query():input;
         if(query.getPageNo()<1 || query.getPageNo()>1_000_000 || query.getPageSize()<1 || query.getPageSize()>100) { throw new ServiceException(ApiResultEnum.PARAM_INVALID); }
-        return PageResult.of(requests.count(view.getMerchantId(),linkId),query.getPageNo(),query.getPageSize(),
-                requests.page(view.getMerchantId(),linkId,query.getPageSize(),(long)(query.getPageNo()-1)*query.getPageSize()));
+        return links.deliveryOperators(PageResult.of(requests.count(view.getMerchantId(),linkId),query.getPageNo(),query.getPageSize(),
+                requests.page(view.getMerchantId(),linkId,query.getPageSize(),(long)(query.getPageNo()-1)*query.getPageSize())));
     }
 
     private Long prepare(View view, PaymentLinkDeliveryDO row, SendEmail input, String url) {

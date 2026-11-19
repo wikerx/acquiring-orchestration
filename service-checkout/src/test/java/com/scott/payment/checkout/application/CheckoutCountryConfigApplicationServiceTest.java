@@ -37,6 +37,7 @@ class CheckoutCountryConfigApplicationServiceTest {
         assertThat(countries.get(0).flagIconUrl()).startsWith("data:image/svg+xml,");
         assertThat(countries.get(0).supportedLanguages()).containsExactly("en-US", "zh-CN");
         assertThat(countries.get(1).countryCode()).isEqualTo("US");
+        assertThat(countries.get(1).countryCodeAlpha3()).isEqualTo("USA");
         assertThat(countries.get(1).defaultLanguage()).isEqualTo("en-US");
     }
 

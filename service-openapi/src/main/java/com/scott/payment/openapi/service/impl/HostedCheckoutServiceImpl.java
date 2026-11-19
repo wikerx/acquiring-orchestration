@@ -540,6 +540,8 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         HostedCheckoutSessionVO.MerchantVO target = new HostedCheckoutSessionVO.MerchantVO();
         target.setDisplayName(source.getDisplayName());
         target.setLogoUrl(source.getLogoUrl());
+        target.setSupportedPaymentMethods(source.getSupportedPaymentMethods());
+        target.setSupportedCardBrands(source.getSupportedCardBrands());
         return target;
     }
 

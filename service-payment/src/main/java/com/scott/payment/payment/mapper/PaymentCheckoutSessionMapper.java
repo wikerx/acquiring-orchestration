@@ -29,6 +29,18 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
             """)
     PaymentCheckoutSessionDO selectByCheckoutSessionId(@Param("checkoutSessionId") String checkoutSessionId);
 
+    /** 结果投影只引用已持久化且属于同一商户订单的系统订单，排除准备事务回滚后的预分配号。 */
+    @Select("""
+            SELECT transaction_id FROM transaction_locator
+            WHERE transaction_id = #{transactionId}
+              AND merchant_id = #{merchantId}
+              AND merchant_order_no = #{merchantOrderNo}
+            LIMIT 1
+            """)
+    String selectPersistedTransactionId(@Param("merchantId") String merchantId,
+                                       @Param("merchantOrderNo") String merchantOrderNo,
+                                       @Param("transactionId") String transactionId);
+
     /**
      * 按商户号和商户请求号查询会话幂等记录。
      *

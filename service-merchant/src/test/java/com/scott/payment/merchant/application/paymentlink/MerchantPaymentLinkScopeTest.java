@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.*;
 class MerchantPaymentLinkScopeTest {
  private final PaymentLinkInternalClient payment=mock(PaymentLinkInternalClient.class);
 
- private final MerchantPaymentLinkApplicationService service=new MerchantPaymentLinkApplicationService(payment);
+ private final MerchantPaymentLinkApplicationService service=new MerchantPaymentLinkApplicationService(payment,mock(MerchantPaymentLinkOperatorProjection.class));
  private InternalAuthAccount account;
  @BeforeEach void setup() {account=new InternalAuthAccount();account.setAppCode("MERCHANT");account.setAccountId(42L);account.setMerchantId("m1"); InternalAuthContextHolder.set(account);}
  @AfterEach void cleanup(){InternalAuthContextHolder.clear();}

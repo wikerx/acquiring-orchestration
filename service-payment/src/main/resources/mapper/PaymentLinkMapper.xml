@@ -40,10 +40,13 @@
         SELECT l.link_id, l.merchant_id, l.merchant_order_no, l.link_name, l.description,
                l.merchant_display_name, l.currency, l.amount AS amount, l.currency_exponent, l.locale,
                (<include refid="effectiveStatus"/>) AS status, COALESCE(s.checkout_status, 'PENDING') AS payment_status,
-               COALESCE(s.attempt_count, 0) AS attempt_count, s.latest_transaction_id AS transaction_id,
-               s.transaction_date_time, l.expire_time, l.create_time, s.paid_time,
+               COALESCE(s.attempt_count, 0) AS attempt_count, locator.transaction_id,
+               locator.transaction_date_time, l.expire_time, l.create_time, s.paid_time,
                l.created_app_code, l.created_by, l.disable_reason, l.version
-        <include refid="joins"/><include refid="where"/>
+        <include refid="joins"/>
+        LEFT JOIN transaction_locator locator ON locator.transaction_id = s.latest_transaction_id
+            AND locator.merchant_id = l.merchant_id AND locator.merchant_order_no = l.merchant_order_no
+        <include refid="where"/>
         ORDER BY l.id DESC LIMIT #{query.pageSize} OFFSET #{offset}
     </select>
     <select id="count" resultType="long">
@@ -62,7 +65,7 @@
         GROUP BY l.currency
     </select>
     <select id="attempts" resultType="com.scott.payment.payment.api.internal.dto.PaymentLinkDTOs$Attempt">
-        SELECT a.checkout_attempt_id, a.attempt_no, a.transaction_id, a.transaction_date_time,
+        SELECT a.checkout_attempt_id, a.attempt_no, locator.transaction_id, locator.transaction_date_time,
             CASE WHEN a.attempt_status = 'SUCCEEDED' THEN 'SUCCESS'
                  WHEN a.attempt_status IN ('FAILED', 'THREE_DS_FAILED') THEN 'FAILED'
                  ELSE 'PROCESSING' END AS status,
@@ -72,6 +75,9 @@
         FROM payment_checkout_attempt a
         JOIN payment_link_checkout_binding b ON b.checkout_session_id = a.checkout_session_id
         JOIN payment_link l ON l.link_id = b.link_id
+        <!-- 预分配编号不代表核心订单已落库；只有同商户、同订单的定位事实才可用于详情跳转。 -->
+        LEFT JOIN transaction_locator locator ON locator.transaction_id = a.transaction_id
+            AND locator.merchant_id = a.merchant_id AND locator.merchant_order_no = a.merchant_order_no
         WHERE b.link_id = #{linkId} AND a.deleted = 0
         ORDER BY a.id DESC LIMIT #{size} OFFSET #{offset}
     </select>

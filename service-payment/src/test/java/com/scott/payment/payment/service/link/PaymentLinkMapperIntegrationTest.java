@@ -30,10 +30,11 @@ class PaymentLinkMapperIntegrationTest {
   source=new HikariDataSource();source.setJdbcUrl("jdbc:h2:mem:link_"+UUID.randomUUID()+";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");source.setUsername("sa");source.setPassword("");source.setMaximumPoolSize(4);
   db=new JdbcTemplate(source);
   String canonical=Files.readString(Path.of("../docs/sql/payment_acquiring_表结构.sql"));
-  for(String table:List.of("payment_checkout_session","payment_checkout_attempt","payment_checkout_event")) ddl(canonical,table);
+  for(String table:List.of("payment_checkout_session","payment_checkout_attempt","payment_checkout_event","transaction_locator")) ddl(canonical,table);
   String migration=Files.readString(Path.of("../docs/sql/20261117_01_payment_link_schema.sql"));
   for(String table:List.of("payment_link","payment_link_access","payment_link_collection","payment_link_checkout_binding","payment_link_event")) ddl(migration,table);
   MybatisConfiguration c=new MybatisConfiguration();c.setMapUnderscoreToCamelCase(true);c.setEnvironment(new Environment("link-test",new JdbcTransactionFactory(),source));
+  c.addMapper(com.scott.payment.payment.mapper.PaymentCheckoutSessionMapper.class);
   try(var input=Files.newInputStream(Path.of("src/main/resources/mapper/PaymentLinkMapper.xml"))) {new XMLMapperBuilder(input,c,"mapper/PaymentLinkMapper.xml",c.getSqlFragments()).parse();}
   factory=new MybatisSqlSessionFactoryBuilder().build(c);
   insertLink("a","m1","ORDER-1");insertLink("b","m2","ORDER-1");
@@ -58,6 +59,50 @@ class PaymentLinkMapperIntegrationTest {
  @AfterEach void close(){source.close();}
  @Test void queriesRespectFrozenMerchantScopeAndEmptyScopeFailsClosed() {try(SqlSession s=factory.openSession()){var m=s.getMapper(PaymentLinkMapper.class);assertThat(m.search(actor(),new Query(),now,0)).extracting(View::getMerchantId).containsExactly("m1");Actor empty=actor();empty.setMerchantIds(Set.of());assertThat(m.count(empty,new Query(),now)).isZero();}}
  @Test void attemptQueryUsesActualCheckoutColumnsAndChannelFilter() {bind("FAILED");try(SqlSession s=factory.openSession()){var m=s.getMapper(PaymentLinkMapper.class);assertThat(m.attempts("a",0,10)).singleElement().satisfies(a->{assertThat(a.getCardBrand()).isEqualTo("VISA");assertThat(a.getStatus()).isEqualTo("FAILED");assertThat(new BigDecimal(a.getAmount())).isEqualByComparingTo("10");});Query q=new Query();q.setChannelCode("OTHER");assertThat(m.count(actor(),q,now)).isZero();q.setChannelCode("QA");assertThat(m.count(actor(),q,now)).isEqualTo(1);}}
+ @Test void twoAttemptsExposeOnlyThePersistedSystemOrderAndKeepTheRolledBackFailure() {
+  bind("SUCCESS");
+  db.update("UPDATE payment_checkout_attempt SET transaction_id='reserved-first',transaction_date_time=? WHERE checkout_attempt_id='t1'",now);
+  db.update("INSERT INTO payment_checkout_attempt(checkout_attempt_id,checkout_session_id,merchant_id,merchant_order_no,attempt_no,attempt_request_id,request_fingerprint,attempt_status,process_stage,payment_method,payment_brand,label_currency,label_amount,channel_code,transaction_id,transaction_date_time) VALUES('t2','s1','m1','ORDER-1',2,'ar2','fp2','SUCCEEDED','RESULT_RENDERED','BANK_CARD','MASTERCARD','USD',10.00,'QA','persisted-second',?)",now.plusMinutes(1));
+  db.update("INSERT INTO transaction_locator(transaction_id,operation_id,root_transaction_id,merchant_id,merchant_order_no,transaction_type,transaction_date_time,root_transaction_date_time) VALUES('persisted-second','op2','persisted-second','m1','ORDER-1','PAYMENT',?,?)",now.plusMinutes(1),now.plusMinutes(1));
+  try(SqlSession session=factory.openSession()) {
+   var mapper=session.getMapper(PaymentLinkMapper.class);
+   var rows=mapper.attempts("a",0,10);
+   assertThat(mapper.countAttempts("a")).isEqualTo(2);
+   assertThat(rows).hasSize(2);
+   assertThat(rows.get(0).getTransactionId()).isEqualTo("persisted-second");
+   assertThat(rows.get(0).getTransactionDateTime()).isEqualTo(now.plusMinutes(1));
+   assertThat(rows.get(1).getCheckoutAttemptId()).isEqualTo("t1");
+   assertThat(rows.get(1).getStatus()).isEqualTo("FAILED");
+   assertThat(rows.get(1).getTransactionId()).isNull();
+   assertThat(rows.get(1).getTransactionDateTime()).isNull();
+  }
+ }
+ @Test void reservedSystemOrderIdentifiersDoNotBecomeLinksOrCrossMerchantReferences() {
+  bind("FAILED");
+  db.update("UPDATE payment_checkout_attempt SET transaction_id='reserved-only',transaction_date_time=? WHERE checkout_attempt_id='t1'",now);
+  db.update("UPDATE payment_checkout_session SET latest_transaction_id='reserved-only',transaction_date_time=? WHERE checkout_session_id='s1'",now);
+  try(SqlSession session=factory.openSession()) {
+   var mapper=session.getMapper(PaymentLinkMapper.class);
+   assertThat(mapper.search(actor(),new Query(),now,0).get(0).getTransactionId()).isNull();
+   assertThat(mapper.attempts("a",0,10).get(0).getTransactionId()).isNull();
+   var checkoutMapper=session.getMapper(com.scott.payment.payment.mapper.PaymentCheckoutSessionMapper.class);
+   assertThat(checkoutMapper.selectPersistedTransactionId("m1","ORDER-1","reserved-only")).isNull();
+   db.update("INSERT INTO transaction_locator(transaction_id,operation_id,root_transaction_id,merchant_id,merchant_order_no,transaction_type,transaction_date_time,root_transaction_date_time) VALUES('reserved-only','other-op','reserved-only','m2','ORDER-1','PAYMENT',?,?)",now,now);
+   session.clearCache();
+   assertThat(mapper.search(actor(),new Query(),now,0).get(0).getTransactionId()).isNull();
+   assertThat(mapper.attempts("a",0,10).get(0).getTransactionId()).isNull();
+   assertThat(checkoutMapper.selectPersistedTransactionId("m1","ORDER-1","reserved-only")).isNull();
+   db.update("UPDATE transaction_locator SET merchant_id='m1',merchant_order_no='OTHER-ORDER' WHERE transaction_id='reserved-only'");
+   session.clearCache();
+   assertThat(mapper.attempts("a",0,10).get(0).getTransactionId()).isNull();
+   assertThat(checkoutMapper.selectPersistedTransactionId("m1","ORDER-1","reserved-only")).isNull();
+   db.update("UPDATE transaction_locator SET merchant_order_no='ORDER-1' WHERE transaction_id='reserved-only'");
+   session.clearCache();
+   assertThat(mapper.search(actor(),new Query(),now,0).get(0).getTransactionId()).isEqualTo("reserved-only");
+   assertThat(mapper.attempts("a",0,10).get(0).getTransactionId()).isEqualTo("reserved-only");
+   assertThat(checkoutMapper.selectPersistedTransactionId("m1","ORDER-1","reserved-only")).isEqualTo("reserved-only");
+  }
+ }
  @Test void lifecycleAndRealSummaryRemainSeparateFromFailedAttempts() {bind("SUCCESS");try(SqlSession s=factory.openSession()){var m=s.getMapper(PaymentLinkMapper.class);assertThat(m.search(actor(),new Query(),now,0)).singleElement().extracting(View::getStatus).isEqualTo("COMPLETED");var summary=m.summarize(actor(),new Query(),now).get(0);assertThat(summary.getCompleted()).isEqualTo(1);assertThat(summary.getFailedAttempts()).isEqualTo(1);assertThat(summary.getAmount()).isEqualByComparingTo("10");}}
  @Test void merchantOrderUniqueConstraintRejectsAnotherLinkAndIgnoresOtherMerchant() {assertThatThrownBy(()->insertLink("c","m1","ORDER-1")).hasRootCauseInstanceOf(java.sql.SQLIntegrityConstraintViolationException.class);}
  @Test void disabledAndExpiryFiltersUseDatabaseFacts() {db.update("UPDATE payment_link SET expire_time=? WHERE link_id='a'",now);try(SqlSession s=factory.openSession()){var m=s.getMapper(PaymentLinkMapper.class);Query q=new Query();q.setStatus("EXPIRED");assertThat(m.count(actor(),q,now)).isEqualTo(1);db.update("UPDATE payment_link SET status='DISABLED' WHERE link_id='a'");q.setStatus("DISABLED");assertThat(m.count(actor(),q,now)).isEqualTo(1);}}
