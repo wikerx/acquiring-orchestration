@@ -161,7 +161,8 @@ public class PaymentPreparationOwnershipService {
                                                         String transactionType,
                                                         String checkoutCandidate,
                                                         String checkoutOperationId,
-                                                        LocalDateTime checkoutTime) {
+                                                        LocalDateTime checkoutTime,
+                                                        boolean requireExpiredLease) {
         if (!StringUtils.hasText(checkoutCandidate) || checkoutTime == null) {
             return CheckoutRecovery.ACTIVE;
         }
@@ -180,6 +181,10 @@ public class PaymentPreparationOwnershipService {
         if (!originalAttempt && !Objects.equals(head.getTransactionId(), checkoutCandidate)) {
             return CheckoutRecovery.ACTIVE;
         }
+        LocalDateTime checkedAt = requireExpiredLease ? mapper.currentDatabaseTime() : null;
+        if (requireExpiredLease && !expired(head, checkedAt)) {
+            return CheckoutRecovery.ACTIVE;
+        }
         TransactionIdempotencyDO operation = lock(OPERATION_SCOPE, operationKey);
         if (ATTACHED.equals(head.getTransactionStatus())) {
             if (sameCommittedCandidate(head, operation)
@@ -195,10 +200,14 @@ public class PaymentPreparationOwnershipService {
             return terminatedGenerationMatches(toLease(head, operationKey))
                     ? CheckoutRecovery.TERMINATED : CheckoutRecovery.ACTIVE;
         }
-        LocalDateTime now = mapper.currentDatabaseTime();
-        if (ACTIVE.equals(head.getTransactionStatus()) && expired(head, now)) {
-            terminate(head, now);
-            return CheckoutRecovery.TERMINATED;
+        if (ACTIVE.equals(head.getTransactionStatus())) {
+            if (checkedAt == null) {
+                checkedAt = mapper.currentDatabaseTime();
+            }
+            if (expired(head, checkedAt)) {
+                terminate(head, checkedAt);
+                return CheckoutRecovery.TERMINATED;
+            }
         }
         return CheckoutRecovery.ACTIVE;
     }

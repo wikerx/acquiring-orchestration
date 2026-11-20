@@ -167,16 +167,16 @@ class PaymentPreparationOwnershipServiceTest {
         when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, operation);
 
         assertThat(ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
-                FIRST_CANDIDATE, "provisional-operation", ORDER_TIME).operation()).isSameAs(operation);
+                FIRST_CANDIDATE, "provisional-operation", ORDER_TIME, false).operation()).isSameAs(operation);
 
         when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, operation);
         assertThat(ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
-                "unrelated-checkout-attempt", "different-operation", ORDER_TIME).state())
+                "unrelated-checkout-attempt", "different-operation", ORDER_TIME, false).state())
                 .isEqualTo(CheckoutRecoveryState.ACTIVE);
 
         when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, operation);
         assertThat(ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
-                FIRST_CANDIDATE, "provisional-operation", NOW).state()).isEqualTo(CheckoutRecoveryState.ACTIVE);
+                FIRST_CANDIDATE, "provisional-operation", NOW, false).state()).isEqualTo(CheckoutRecoveryState.ACTIVE);
     }
 
     @Test
@@ -189,13 +189,45 @@ class PaymentPreparationOwnershipServiceTest {
 
         when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, accepted);
         assertThat(ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
-                FIRST_CANDIDATE, "OP-PROVISIONAL", ORDER_TIME).state()).isEqualTo(CheckoutRecoveryState.ACTIVE);
+                FIRST_CANDIDATE, "OP-PROVISIONAL", ORDER_TIME, true).state()).isEqualTo(CheckoutRecoveryState.ACTIVE);
         verify(mapper, never()).update(isNull(), any());
 
         when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, (TransactionIdempotencyDO) null);
         assertThat(ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
-                FIRST_CANDIDATE, "OP-PROVISIONAL", ORDER_TIME).state()).isEqualTo(CheckoutRecoveryState.TERMINATED);
+                FIRST_CANDIDATE, "OP-PROVISIONAL", ORDER_TIME, true).state()).isEqualTo(CheckoutRecoveryState.TERMINATED);
         verify(mapper, times(2)).update(isNull(), any());
+    }
+
+    @Test
+    void aHardInterruptionDoesNotTakeTheExistingAttachedContextBeforeLeaseExpiry() {
+        TransactionIdempotencyDO head = row("ATTACHED", 1, FIRST_CANDIDATE);
+        head.setOperationId(FIRST_CANDIDATE);
+        head.setExpireTime(NOW.plusSeconds(1));
+        TransactionIdempotencyDO operation = row("PROCESSING", 1, FIRST_CANDIDATE);
+        operation.setOperationId("OP-COMMITTED");
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, operation);
+
+        assertThat(ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
+                FIRST_CANDIDATE, "OP-PROVISIONAL", ORDER_TIME, true).state()).isEqualTo(CheckoutRecoveryState.ACTIVE);
+        verify(mapper, times(1)).selectOne(any(LambdaQueryWrapper.class));
+
+        head.setExpireTime(NOW);
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, operation);
+        var result = ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
+                FIRST_CANDIDATE, "OP-PROVISIONAL", ORDER_TIME, true);
+        assertThat(result.state()).isEqualTo(CheckoutRecoveryState.ATTACHED);
+        assertThat(result.operation()).isSameAs(operation);
+        verify(mapper, never()).update(isNull(), any());
+    }
+
+    @Test
+    void missingOwnershipIsNotAnAuthorityToTerminateAfterAHardInterruption() {
+        assertThat(ownership.recoverCheckoutPreparation(MERCHANT, ORDER_NO, ATTEMPT, TYPE,
+                FIRST_CANDIDATE, "OP-PROVISIONAL", ORDER_TIME, true).state()).isEqualTo(CheckoutRecoveryState.ACTIVE);
+
+        verify(mapper, never()).currentDatabaseTime();
+        verify(mapper, never()).insert(any(TransactionIdempotencyDO.class));
+        verify(mapper, never()).update(isNull(), any());
     }
 
     @Test

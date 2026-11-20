@@ -688,7 +688,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
-     * 查询最新付款状态；处理中页面轮询只允许收敛已超过服务端截止时间的前置 3DS 状态，不能推进资金交易。
+     * 查询最新付款状态，可按权威回执收敛本地准备和前置 3DS，不推进资金交易。
      *
      * @param commandDTO token 摘要、会话号和可选尝试号
      * @return 当前尝试对应的结果页视图
@@ -700,7 +700,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 commandDTO.getTraceId(), commandDTO.getClientIpHash(), commandDTO.getUserAgentHash(), null, null, null);
         PaymentCheckoutSessionDO loadedSession = sessionMapper.selectByCheckoutSessionId(tokenDO.getCheckoutSessionId());
         PaymentCheckoutAttemptDO resolvedAttempt = resolveAttempt(loadedSession, commandDTO.getCheckoutAttemptId());
-        if (waitingForCorePreparation(loadedSession, resolvedAttempt)) {
+        if (canRecoverCorePreparation(loadedSession, resolvedAttempt)) {
             return recoverCorePreparation(loadedSession, resolvedAttempt);
         }
         PaymentStatusContext statusContext = transactionOperations.execute(
@@ -1269,24 +1269,30 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return paymentResult(context.sessionDO(), attempt);
     }
 
-    private boolean waitingForCorePreparation(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt) {
+    private boolean canRecoverCorePreparation(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt) {
         return preparationOwnership != null && session != null && attempt != null
                 && Objects.equals(session.getLastAttemptId(), attempt.getCheckoutAttemptId())
                 && PaymentCheckoutSessionStatusEnum.PROCESSING.getCode().equals(session.getCheckoutStatus())
                 && PaymentCheckoutAttemptStatusEnum.CARD_SUBMITTED.getCode().equals(attempt.getAttemptStatus())
-                && PaymentCheckoutProcessStageEnum.WAITING_CORE_PREPARATION.getCode().equals(attempt.getProcessStage());
+                && !StringUtils.hasText(attempt.getChannelRequestId())
+                && (PaymentCheckoutProcessStageEnum.WAITING_CORE_PREPARATION.getCode().equals(attempt.getProcessStage())
+                    || PaymentCheckoutProcessStageEnum.CARD_SUBMITTED.getCode().equals(attempt.getProcessStage()));
     }
 
     private PaymentCheckoutPaymentResultDTO recoverCorePreparation(PaymentCheckoutSessionDO session,
                                                                     PaymentCheckoutAttemptDO attempt) {
-        if (!waitingForCorePreparation(session, attempt)) {
+        if (!canRecoverCorePreparation(session, attempt)) {
             return paymentResult(session, attempt);
         }
         try {
             String transactionType = normalizePaymentAction(session.getPaymentAction());
+            // 普通 CARD_SUBMITTED 也可能是进程中断，租约有效时仍由前台持有原付款上下文。
+            boolean requireExpiredLease = PaymentCheckoutProcessStageEnum.CARD_SUBMITTED.getCode()
+                    .equals(attempt.getProcessStage());
             var authority = preparationOwnership.recoverCheckoutPreparation(
                     session.getMerchantId(), session.getMerchantOrderNo(), attempt.getAttemptRequestId(),
-                    transactionType, attempt.getTransactionId(), attempt.getOperationId(), attempt.getTransactionDateTime());
+                    transactionType, attempt.getTransactionId(), attempt.getOperationId(), attempt.getTransactionDateTime(),
+                    requireExpiredLease);
             if (authority.state() == CheckoutRecoveryState.TERMINATED) {
                 return applyConfirmedPreparationTermination(session, attempt);
             }

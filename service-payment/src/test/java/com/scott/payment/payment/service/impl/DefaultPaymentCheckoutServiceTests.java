@@ -826,13 +826,13 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
-    void statusRecoversOnlyTheOriginalAttemptAndDoesNotDispatchAChannelRequest() {
+    void statusRecoversTheOriginalAttemptAfterHardInterruptionWithoutDispatchingAChannelRequest() {
         PaymentPreparationOwnershipService preparationOwnership = mock(PaymentPreparationOwnershipService.class);
         service.setPreparationOwnership(preparationOwnership);
         PaymentCheckoutSessionDO session = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         session.setPaymentAction("PAYMENT");
         PaymentCheckoutAttemptDO original = attemptWithStatus(session, PaymentCheckoutAttemptStatusEnum.CARD_SUBMITTED,
-                PaymentCheckoutProcessStageEnum.WAITING_CORE_PREPARATION);
+                PaymentCheckoutProcessStageEnum.CARD_SUBMITTED);
         original.setAttemptRequestId("original-request");
         original.setOperationId("OP-PROVISIONAL");
         LocalDateTime originalTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000);
@@ -858,7 +858,7 @@ class DefaultPaymentCheckoutServiceTests {
                 .thenReturn(original, associated, associated);
         when(preparationOwnership.recoverCheckoutPreparation(
                 session.getMerchantId(), session.getMerchantOrderNo(), original.getAttemptRequestId(),
-                "PAYMENT", original.getTransactionId(), original.getOperationId(), originalTime))
+                "PAYMENT", original.getTransactionId(), original.getOperationId(), originalTime, true))
                 .thenReturn(new CheckoutRecovery(CheckoutRecoveryState.ATTACHED, operation));
         when(attemptMapper.markCorePreparedCas(eq(original.getCheckoutAttemptId()), eq(committed.getOperationId()),
                 eq(committed.getTransactionId()), eq(originalTime), any(), any(), any(), any(), any(), any(),
@@ -896,7 +896,7 @@ class DefaultPaymentCheckoutServiceTests {
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
         when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
         when(attemptMapper.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId())).thenReturn(attempt);
-        when(preparationOwnership.recoverCheckoutPreparation(any(), any(), any(), any(), any(), any(), any()))
+        when(preparationOwnership.recoverCheckoutPreparation(any(), any(), any(), any(), any(), any(), any(), eq(false)))
                 .thenReturn(new CheckoutRecovery(CheckoutRecoveryState.ACTIVE, null));
 
         var result = service.queryPaymentStatus(paymentStatusCommand(session, attempt));
@@ -920,7 +920,7 @@ class DefaultPaymentCheckoutServiceTests {
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
         when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session, failedSession);
         when(attemptMapper.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId())).thenReturn(attempt, failedAttempt);
-        when(preparationOwnership.recoverCheckoutPreparation(any(), any(), any(), any(), any(), any(), any()))
+        when(preparationOwnership.recoverCheckoutPreparation(any(), any(), any(), any(), any(), any(), any(), eq(false)))
                 .thenReturn(new CheckoutRecovery(CheckoutRecoveryState.TERMINATED, null));
         when(attemptMapper.markResultCas(eq(attempt.getCheckoutAttemptId()), eq("FAILED"), eq("RESULT_RENDERED"),
                 isNull(), isNull(), isNull(), eq("CHANNEL_REQUEST_NOT_SENT"), isNull(), anyString(),
@@ -933,6 +933,24 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(result.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
         assertThat(result.getResult().getTransactionId()).isNull();
         verifyNoInteractions(threeDsService, paymentTransactionService);
+    }
+
+    @Test
+    void statusNeverTakesAStoredChannelContextFromItsForegroundOwner() {
+        PaymentPreparationOwnershipService preparationOwnership = mock(PaymentPreparationOwnershipService.class);
+        service.setPreparationOwnership(preparationOwnership);
+        PaymentCheckoutSessionDO session = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutAttemptDO attempt = attemptWithStatus(session, PaymentCheckoutAttemptStatusEnum.CARD_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.CARD_SUBMITTED);
+        attempt.setChannelRequestId("CR-FOREGROUND");
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        when(attemptMapper.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId())).thenReturn(attempt);
+
+        var result = service.queryPaymentStatus(paymentStatusCommand(session, attempt));
+
+        assertThat(result.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
+        verifyNoInteractions(preparationOwnership, threeDsService, paymentTransactionService);
     }
 
     @Test
