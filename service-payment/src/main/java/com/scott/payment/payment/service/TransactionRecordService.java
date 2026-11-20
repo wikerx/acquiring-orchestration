@@ -354,6 +354,12 @@ public interface TransactionRecordService {
      */
     TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId);
 
+    /** 已验签且通过来源检查的 MPGS 资金回调可使用此入口解析已承接的 Checkout 订单锚点。 */
+    default TransactionOperationDO findOperationByTrustedMpgsCallback(String channelOrderNo,
+                                                                       String channelTransactionId) {
+        return findOperationByChannelTransaction(channelOrderNo, channelTransactionId);
+    }
+
     /**
      * 查询待渠道查询确认的动作单。
      *

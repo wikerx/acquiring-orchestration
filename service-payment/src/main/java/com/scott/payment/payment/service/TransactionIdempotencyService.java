@@ -4,6 +4,7 @@ import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -62,6 +63,11 @@ public interface TransactionIdempotencyService {
      * @return 首次交易幂等记录
      */
     Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId);
+
+    /** 渠道回调定位专用，最多读两条以识别冲突的已承接 Checkout 锚点。 */
+    default List<TransactionIdempotencyDO> findAttachedCheckoutPreparations(String checkoutAnchor) {
+        return List.of();
+    }
 
     /**
      * 占用幂等键。

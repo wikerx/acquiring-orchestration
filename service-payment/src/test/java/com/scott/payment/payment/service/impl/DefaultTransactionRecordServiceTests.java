@@ -9,6 +9,7 @@ import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
+import com.scott.payment.payment.config.MerchantNotificationProperties;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
@@ -21,6 +22,7 @@ import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionChannelInteractionLogDO;
 import com.scott.payment.payment.entity.TransactionMerchantApiInteractionLogDO;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
+import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.entity.TransactionLocatorDO;
 import com.scott.payment.payment.entity.TransactionPaymentMethodInfoDO;
 import com.scott.payment.payment.entity.TransactionStatusHistoryDO;
@@ -102,14 +104,92 @@ class DefaultTransactionRecordServiceTests {
         verify(locatorMapper).selectByTransactionIdForTrustedService(legacyId);
     }
 
+    @Test
+    void trustedMpgsCheckoutAliasUsesItsOriginalQuarterAndKeepsTheExactActionIdentity() {
+        var operationMapper = mock(TransactionOperationMapper.class);
+        var locatorMapper = mock(TransactionLocatorMapper.class);
+        var idempotency = mock(TransactionIdempotencyService.class);
+        var recordService = lookupService(operationMapper, locatorMapper, idempotency);
+        String checkoutAnchor = fixtureGlobalId("261001000000000000001");
+        String fundsOrder = fixtureGlobalId("261001000100000000002");
+        var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000);
+        var lifecycleId = "OP202609302359599990001";
+        var head = checkoutHead(fundsOrder, originalTime);
+        var locator = new TransactionLocatorDO();
+        locator.setTransactionId(fundsOrder);
+        locator.setTransactionDateTime(originalTime);
+        locator.setOperationId(lifecycleId);
+        locator.setMerchantId(head.getMerchantId());
+        locator.setMerchantOrderNo(head.getMerchantOrderNo());
+
+        var payment = new TransactionOperationDO();
+        payment.setTransactionId(fundsOrder);
+        payment.setTransactionDateTime(originalTime);
+        var capture = new TransactionOperationDO();
+        capture.setTransactionId("202610010005000000001");
+        capture.setTransactionDateTime(LocalDateTime.of(2026, 10, 1, 0, 5));
+        when(idempotency.findAttachedCheckoutPreparations(checkoutAnchor)).thenReturn(List.of(head));
+        when(locatorMapper.selectByTransactionIdForTrustedService(fundsOrder)).thenReturn(locator);
+        when(operationMapper.selectByChannelTransactionInLifecycle(eq("MPGS"), eq(checkoutAnchor), eq("FUNDS"),
+                eq(lifecycleId), eq(originalTime), any())).thenReturn(List.of(payment));
+        when(operationMapper.selectByChannelTransactionInLifecycle(eq("MPGS"), eq(checkoutAnchor), eq("CAPTURE"),
+                eq(lifecycleId), eq(originalTime), any())).thenReturn(List.of(capture));
+
+        assertThat(recordService.findOperationByTrustedMpgsCallback(checkoutAnchor, "FUNDS")).isSameAs(payment);
+        assertThat(recordService.findOperationByTrustedMpgsCallback(checkoutAnchor, "CAPTURE")).isSameAs(capture);
+        assertThatThrownBy(() -> recordService.findOperationByTrustedMpgsCallback(checkoutAnchor, "UNKNOWN"))
+                .isInstanceOf(DefaultTransactionRecordService.CheckoutChannelTupleUnresolvedException.class);
+        verify(operationMapper, never()).selectByTransactionId(anyString(), any());
+    }
+
+    @Test
+    void trustedMpgsCheckoutAliasRequiresOneAttachedHeadAndTheAuthoritativeFundsLocator() {
+        var operationMapper = mock(TransactionOperationMapper.class);
+        var locatorMapper = mock(TransactionLocatorMapper.class);
+        var idempotency = mock(TransactionIdempotencyService.class);
+        var recordService = lookupService(operationMapper, locatorMapper, idempotency);
+        String checkoutAnchor = fixtureGlobalId("261001000000000000001");
+        String fundsOrder = fixtureGlobalId("261001000100000000002");
+        var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000);
+        var head = checkoutHead(fundsOrder, originalTime);
+        when(idempotency.findAttachedCheckoutPreparations(checkoutAnchor))
+                .thenReturn(List.of(), List.of(head, head), List.of(head));
+
+        for (int scenario = 0; scenario < 3; scenario++) {
+            assertThatThrownBy(() -> recordService.findOperationByTrustedMpgsCallback(checkoutAnchor, "FUNDS"))
+                    .isInstanceOf(DefaultTransactionRecordService.CheckoutChannelTupleUnresolvedException.class);
+        }
+        org.mockito.Mockito.verifyNoInteractions(operationMapper);
+    }
+
+    private static String fixtureGlobalId(String body) {
+        return body + LuhnMod10Utils.calculateCheckDigit(body);
+    }
+
+    private static TransactionIdempotencyDO checkoutHead(String fundsOrder, LocalDateTime originalTime) {
+        var head = new TransactionIdempotencyDO();
+        head.setTransactionId(fundsOrder);
+        head.setTransactionDateTime(originalTime);
+        head.setMerchantId("FIXTURE-CHECKOUT");
+        head.setMerchantOrderNo("checkout-order");
+        return head;
+    }
+
     private DefaultTransactionRecordService lookupService(TransactionOperationMapper operationMapper,
                                                             TransactionLocatorMapper locatorMapper) {
+        return lookupService(operationMapper, locatorMapper, null);
+    }
+
+    private DefaultTransactionRecordService lookupService(TransactionOperationMapper operationMapper,
+                                                            TransactionLocatorMapper locatorMapper,
+                                                            TransactionIdempotencyService idempotency) {
         return new DefaultTransactionRecordService(mock(TransactionOrderMapper.class), operationMapper,
                 mock(TransactionStatusHistoryMapper.class), mock(TransactionChannelRequestMapper.class),
                 mock(TransactionChannelInteractionLogMapper.class), mock(TransactionFlowEventMapper.class),
                 mock(TransactionAmountChangeLogMapper.class), mock(TransactionMerchantNotificationMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class), mock(TransactionPaymentMethodInfoMapper.class),
-                locatorMapper, new TransactionShardingKeyParser(), logicalShardingProperties());
+                locatorMapper, null, new TransactionShardingKeyParser(), logicalShardingProperties(),
+                new MerchantNotificationProperties(), idempotency, null);
     }
 
     @Test

@@ -120,9 +120,14 @@ public class DefaultMerchantLimitReservationReconciliationService
                         && stateService.markReserved(reservation)) {
                     reserved++;
                 } else if (markerState == RedisReservationMarkerState.ABSENT && releaseAllowed(reservation)) {
-                    cancelled += stateService.cancel(
+                    MerchantLimitReservationTransitionSummary summary = stateService.cancel(
                             List.of(reservation),
-                            "stale preparing reservation marker absent").applied();
+                            "stale preparing reservation marker absent");
+                    cancelled += summary.applied();
+                    if (summary.conflicted() > 0) {
+                        retained++;
+                        stateService.deferReconciliation(reservation, actualNow);
+                    }
                 } else {
                     retained++;
                     stateService.deferReconciliation(reservation, actualNow);
@@ -159,6 +164,9 @@ public class DefaultMerchantLimitReservationReconciliationService
                     reservations.forEach(row -> stateService.deferReconciliation(row, actualNow));
                     log.warn("商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, transactionId: {}, paymentStatus: {}, reason: paymentNonTerminal",
                             reservation.getTransactionId(), lookup.paymentStatus());
+                } else if (summary.conflicted() > 0) {
+                    retained++;
+                    reservations.forEach(row -> stateService.deferReconciliation(row, actualNow));
                 }
             } else if (lookup.availability()
                     == PaymentTransactionLookupResult.Availability.ABSENT
@@ -167,11 +175,16 @@ public class DefaultMerchantLimitReservationReconciliationService
                     Math.max(1L, properties.getReservationPaymentAbsenceGraceSeconds())))
                     && releaseAllowed(reservation)) {
                 PaymentPreparationReservationScope scope = group.getKey().preparation();
-                cancelled += coordinator.cancelCompensation(
+                MerchantLimitReservationTransitionSummary summary = coordinator.cancelCompensation(
                         reservation.getTransactionId(),
                         scope,
                         scope != null ? "exact preparation ownership ended"
-                                : "payment record absent after grace period").applied();
+                                : "payment record absent after grace period");
+                cancelled += summary.applied();
+                if (summary.conflicted() > 0) {
+                    retained++;
+                    reservations.forEach(row -> stateService.deferReconciliation(row, actualNow));
+                }
             } else {
                 retained++;
                 reservations.forEach(row -> stateService.deferReconciliation(row, actualNow));

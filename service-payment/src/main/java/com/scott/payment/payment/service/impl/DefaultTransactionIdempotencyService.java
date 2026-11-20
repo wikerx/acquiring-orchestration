@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -126,6 +127,17 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED)
                 .orderByAsc(TransactionIdempotencyDO::getCreateTime)
                 .last("limit 1")));
+    }
+
+    @Override
+    public List<TransactionIdempotencyDO> findAttachedCheckoutPreparations(String checkoutAnchor) {
+        return idempotencyMapper.selectList(Wrappers.<TransactionIdempotencyDO>lambdaQuery()
+                .eq(TransactionIdempotencyDO::getOperationId, checkoutAnchor)
+                .eq(TransactionIdempotencyDO::getIdempotencyScope, "PAYMENT_PREPARATION")
+                .eq(TransactionIdempotencyDO::getTransactionStatus, "ATTACHED")
+                .in(TransactionIdempotencyDO::getTransactionType, PAYMENT, AUTHORIZATION, PRE_AUTHORIZATION)
+                .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED)
+                .last("limit 2"));
     }
 
     /**

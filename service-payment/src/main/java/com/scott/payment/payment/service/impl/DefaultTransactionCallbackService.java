@@ -784,6 +784,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                         channelOrderNo = orderDO.getRootTransactionId();
                     }
                 }
+            } catch (DefaultTransactionRecordService.CheckoutChannelTupleUnresolvedException unresolved) {
+                transactionId = UNKNOWN_TRANSACTION_ID;
+                resolved = false;
             } catch (ServiceException exception) {
                 resolved = false;
             }
@@ -791,8 +794,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         if (transactionDateTime == null) {
             transactionDateTime = LocalDateTime.now(ZoneId.of(DEFAULT_TIME_ZONE));
         }
+        String resolvedOrAuditTransactionId = resolved || !GlobalIdValidator.isValid(transactionId)
+                ? firstText(transactionId, commandDTO.getChannelOrderNo(), payload.channelOrderNo(), UNKNOWN_TRANSACTION_ID)
+                : UNKNOWN_TRANSACTION_ID;
         return new CallbackContext(
-                firstText(transactionId, commandDTO.getChannelOrderNo(), payload.channelOrderNo(), UNKNOWN_TRANSACTION_ID),
+                resolvedOrAuditTransactionId,
                 operationId,
                 firstText(channelOrderNo, transactionId),
                 channelTransactionId,
@@ -819,11 +825,16 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         }
         if (StringUtils.hasText(channelOrderNo) && StringUtils.hasText(channelTransactionId)) {
             try {
-                TransactionOperationDO operationDO = transactionRecordService.findOperationByChannelTransaction(
-                        channelOrderNo, channelTransactionId);
+                boolean trustedMpgs = "MPGS".equals(normalizeChannelCode(commandDTO.getChannelCode()))
+                        && GlobalIdValidator.isValid(channelOrderNo) && callbackSecurityFailReason(commandDTO) == null;
+                TransactionOperationDO operationDO = trustedMpgs
+                        ? transactionRecordService.findOperationByTrustedMpgsCallback(channelOrderNo, channelTransactionId)
+                        : transactionRecordService.findOperationByChannelTransaction(channelOrderNo, channelTransactionId);
                 if (operationDO != null) {
                     return operationDO;
                 }
+            } catch (DefaultTransactionRecordService.CheckoutChannelTupleUnresolvedException unresolved) {
+                throw unresolved;
             } catch (ServiceException exception) {
                 // 渠道部分回调可能只携带 order.id，继续按平台交易号降级定位原交易。
             }

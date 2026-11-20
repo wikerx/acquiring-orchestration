@@ -329,11 +329,13 @@ class DefaultTransactionCallbackServiceTests {
     }
 
     @Test
-    void globalTransactionNumberUsesThePersistedCallbackPartition() {
+    void checkoutAnchorAndFundsNumberUseThePersistedCallbackPartition() {
         var callbackMapper = mock(TransactionChannelCallbackMapper.class);
         var recordService = mock(TransactionRecordService.class);
         String idBody = "261001000000000000001";
-        String id = idBody + LuhnMod10Utils.calculateCheckDigit(idBody);
+        String checkoutAnchor = idBody + LuhnMod10Utils.calculateCheckDigit(idBody);
+        String fundsBody = "261001000100000000002";
+        String id = fundsBody + LuhnMod10Utils.calculateCheckDigit(fundsBody);
         var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000);
         var operation = operation();
         operation.setTransactionId(id);
@@ -342,7 +344,7 @@ class DefaultTransactionCallbackServiceTests {
         when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
         when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
                 any(), any(), any(), anyString(), any(), any())).thenReturn(1);
-        when(recordService.findOperationByChannelTransaction(eq(id), anyString())).thenReturn(operation);
+        when(recordService.findOperationByTrustedMpgsCallback(eq(checkoutAnchor), anyString())).thenReturn(operation);
         when(recordService.findOrder(originalTime, operation.getOperationId())).thenReturn(order());
         when(recordService.completeByChannelCallback(any(), any(), anyString(), eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
                 any(), any(), eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
@@ -350,14 +352,43 @@ class DefaultTransactionCallbackServiceTests {
         var service = new DefaultTransactionCallbackService(mock(TransactionChannelCallbackLogMapper.class),
                 callbackMapper, recordService, events, new TransactionShardingKeyParser());
         var command = callbackCommand();
-        command.setChannelOrderNo(id);
-        command.setTransactionId(id);
+        command.setChannelOrderNo(checkoutAnchor);
+        command.setTransactionId(null);
 
         var result = service.recordChannelCallback(command);
 
         assertThat(result.getCallbackStatus()).isEqualTo("PROCESSED");
         assertThat(result.getTransactionId()).isEqualTo(id);
         assertThat(events.eventDO.getTransactionDateTime()).isEqualTo(originalTime);
+    }
+
+    @Test
+    void unresolvedCheckoutChannelTupleNeverFallsBackToTheOriginalFundsNumber() {
+        var callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        var recordService = mock(TransactionRecordService.class);
+        String idBody = "261001000000000000001";
+        String checkoutAnchor = idBody + LuhnMod10Utils.calculateCheckDigit(idBody);
+        String fundsBody = "261001000100000000002";
+        String originalFundsOrder = fundsBody + LuhnMod10Utils.calculateCheckDigit(fundsBody);
+        when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(recordService.findOperationByTrustedMpgsCallback(checkoutAnchor, "UNMATCHED-ACTION"))
+                .thenThrow(new DefaultTransactionRecordService.CheckoutChannelTupleUnresolvedException());
+        var service = new DefaultTransactionCallbackService(mock(TransactionChannelCallbackLogMapper.class),
+                callbackMapper, recordService, new CapturingEventOutboxService(), new TransactionShardingKeyParser());
+        var command = callbackCommand();
+        command.setChannelOrderNo(checkoutAnchor);
+        command.setChannelTransactionId("UNMATCHED-ACTION");
+        command.setTransactionId(originalFundsOrder);
+
+        var result = service.recordChannelCallback(command);
+
+        assertThat(result.getCallbackStatus()).isEqualTo("FAILED");
+        assertThat(result.getTransactionId()).isEqualTo("UNKNOWN");
+        verify(recordService, never()).findSourceOperationByTransactionId(anyString());
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                anyString(), any(), any(), any(), any(), any());
     }
 
     /**

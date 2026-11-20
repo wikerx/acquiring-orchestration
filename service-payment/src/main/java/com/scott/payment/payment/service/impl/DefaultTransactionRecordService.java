@@ -29,6 +29,7 @@ import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionFlowEventDO;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
 import com.scott.payment.payment.entity.TransactionMerchantApiInteractionLogDO;
+import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.entity.TransactionLocatorDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
@@ -1124,6 +1125,60 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             }
             return transactionOperationMapper.selectByChannelTransaction(
                     channelOrderNo, channelTransactionId, sourceTransactionDateTime, exclusiveEnd(LocalDateTime.now()));
+        }
+    }
+
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionOperationDO findOperationByTrustedMpgsCallback(String channelOrderNo, String channelTransactionId) {
+        if (!GlobalIdValidator.isValid(channelOrderNo) || !StringUtils.hasText(channelTransactionId)) {
+            return findOperationByChannelTransaction(channelOrderNo, channelTransactionId);
+        }
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            LocalDateTime ordinaryTime = resolveSourceTransactionDateTime(channelOrderNo);
+            if (ordinaryTime != null) {
+                return transactionOperationMapper.selectByChannelTransaction(
+                        channelOrderNo, channelTransactionId, ordinaryTime, exclusiveEnd(LocalDateTime.now()));
+            }
+            TransactionLocatorDO origin = resolveAttachedCheckoutOrigin(channelOrderNo);
+            List<TransactionOperationDO> actions = transactionOperationMapper.selectByChannelTransactionInLifecycle(
+                    "MPGS", channelOrderNo, channelTransactionId, origin.getOperationId(),
+                    origin.getTransactionDateTime(), exclusiveEnd(LocalDateTime.now()));
+            if (actions.size() != 1) {
+                throw new CheckoutChannelTupleUnresolvedException();
+            }
+            return actions.get(0);
+        }
+    }
+
+    private TransactionLocatorDO resolveAttachedCheckoutOrigin(String checkoutAnchor) {
+        if (transactionIdempotencyService == null || transactionLocatorMapper == null) {
+            throw new CheckoutChannelTupleUnresolvedException();
+        }
+        List<TransactionIdempotencyDO> attached = transactionIdempotencyService.findAttachedCheckoutPreparations(checkoutAnchor);
+        if (attached.size() != 1) {
+            throw new CheckoutChannelTupleUnresolvedException();
+        }
+        TransactionIdempotencyDO head = attached.get(0);
+        if (!StringUtils.hasText(head.getTransactionId()) || checkoutAnchor.equals(head.getTransactionId())) {
+            throw new CheckoutChannelTupleUnresolvedException();
+        }
+        TransactionLocatorDO origin = transactionLocatorMapper.selectByTransactionIdForTrustedService(head.getTransactionId());
+        if (origin == null || !StringUtils.hasText(origin.getOperationId())
+                || !Objects.equals(head.getTransactionId(), origin.getTransactionId())
+                || !Objects.equals(head.getMerchantId(), origin.getMerchantId())
+                || !Objects.equals(head.getMerchantOrderNo(), origin.getMerchantOrderNo())
+                || origin.getTransactionDateTime() == null
+                || !Objects.equals(head.getTransactionDateTime(), origin.getTransactionDateTime())) {
+            throw new CheckoutChannelTupleUnresolvedException();
+        }
+        return origin;
+    }
+
+    /** Checkout 锚点回退失败时不得去掉渠道交易号重查原付款。 */
+    static final class CheckoutChannelTupleUnresolvedException extends ServiceException {
+        CheckoutChannelTupleUnresolvedException() {
+            super(ApiResultEnum.ORDER_NOT_FOUND);
         }
     }
 

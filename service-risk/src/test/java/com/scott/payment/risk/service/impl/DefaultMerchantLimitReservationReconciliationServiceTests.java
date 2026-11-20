@@ -14,6 +14,8 @@ import com.scott.payment.risk.service.MerchantLimitReservationLifecycleCoordinat
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -233,8 +235,9 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         verify(state, never()).cancel(org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString());
     }
 
-    @Test
-    void unavailableHeadLeavesRoomForLaterReconciliationWithoutReleasingItsReservation() {
+    @ParameterizedTest
+    @ValueSource(strings = {"UNKNOWN", "FAILED", "ABSENT"})
+    void deferredHeadLeavesRoomForLaterReconciliationWithoutReleasingItsReservation(String lookupState) {
         var state = mock(MerchantLimitReservationStateService.class);
         var coordinator = mock(MerchantLimitReservationLifecycleCoordinator.class);
         var payment = mock(RiskPaymentTransactionStatusRepository.class);
@@ -257,7 +260,15 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         }).when(state).deferReconciliation(org.mockito.ArgumentMatchers.any(MerchantLimitReservationDO.class),
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class));
         when(payment.findStatus("TX-UNKNOWN", unknown.getPeriodBeginTime(), unknown.getPeriodEndTime()))
-                .thenReturn(PaymentTransactionLookupResult.unknown());
+                .thenReturn(switch (lookupState) {
+                    case "FAILED" -> PaymentTransactionLookupResult.found("FAILED");
+                    case "ABSENT" -> PaymentTransactionLookupResult.absent();
+                    default -> PaymentTransactionLookupResult.unknown();
+                });
+        when(coordinator.applyPaymentStatus("TX-UNKNOWN", "FAILED", "stale reservation payment status FAILED"))
+                .thenReturn(new MerchantLimitReservationTransitionSummary(0, 0, 1));
+        when(coordinator.cancelCompensation("TX-UNKNOWN", null, "payment record absent after grace period"))
+                .thenReturn(new MerchantLimitReservationTransitionSummary(0, 0, 1));
         when(payment.findStatus("TX-NEXT", absent.getPeriodBeginTime(), absent.getPeriodEndTime()))
                 .thenReturn(PaymentTransactionLookupResult.absent());
         when(coordinator.cancelCompensation("TX-NEXT", null, "payment record absent after grace period"))
@@ -265,7 +276,8 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
 
         assertThat(service.reconcile(now, 1).retained()).isEqualTo(1);
         assertThat(service.reconcile(now.plusSeconds(15), 1).cancelled()).isEqualTo(1);
-        verify(coordinator, never()).cancelCompensation("TX-UNKNOWN", null, "payment record absent after grace period");
+        verify(coordinator, times("ABSENT".equals(lookupState) ? 1 : 0))
+                .cancelCompensation("TX-UNKNOWN", null, "payment record absent after grace period");
         assertThat(unknown.getReservationStatus()).isEqualTo("RESERVED");
     }
 

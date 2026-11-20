@@ -163,6 +163,28 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             @Param("beginTime") LocalDateTime beginTime,
             @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
+    /** Checkout 锚点仅提供原生命周期与起始分片，仍以渠道订单和交易号精确匹配。 */
+    @Select("""
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
+            FROM transaction_operation
+            WHERE channel_code = #{channelCode}
+              AND channel_order_no = #{channelOrderNo}
+              AND channel_transaction_id = #{channelTransactionId}
+              AND operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND deleted = 0
+            LIMIT 2
+            """)
+    List<TransactionOperationDO> selectByChannelTransactionInLifecycle(
+            @Param("channelCode") String channelCode,
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("channelTransactionId") String channelTransactionId,
+            @Param("operationId") String operationId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
     /**
      * 使用分片时间和版本 CAS 将非终态动作推进到目标终态。
      *
