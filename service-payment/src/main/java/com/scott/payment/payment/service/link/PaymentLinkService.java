@@ -62,13 +62,16 @@ public class PaymentLinkService {
     public View create(Actor actor, String merchantId, Create input) {
         return queries.detail(actor, management.create(actor, merchantId, input));
     }
+    /** 兼容旧内部停用入口，复用共享版本与幂等规则后读取授权详情。 */
     public View disable(Actor actor, String linkId, Integer version, String reason, String requestId) {
         return queries.detail(actor, management.disable(actor, linkId, version, reason, requestId));
     }
+    /** 兼容旧内部分享入口，凭据只通过独立授权操作返回。 */
     public Share share(Actor actor, String linkId) {
         Share result = new Share(); result.setUrl(management.share(actor, linkId)); return result;
     }
 
+    /** 认证持有人凭据并投影当前可支付状态；只暴露最近确认失败的时间，不返回其他付款人信息。 */
     @DS(DataSourceName.MASTER)
     public PublicView resolve(String opaqueToken) {
         policy.requireEnabled();
@@ -97,6 +100,7 @@ public class PaymentLinkService {
         return result;
     }
 
+    /** 锁定链接并复验当前能力后复用收银台会话；固定商户请求号防止重复进入产生独立收款。 */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public Started start(String opaqueToken, String requestId) {

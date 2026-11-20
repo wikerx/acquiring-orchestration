@@ -5,7 +5,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** 管理端商户费率异步导出行。 */
+/**
+ * 管理端商户费率异步导出行。
+ */
 @Data
 public class MerchantFeeExportRow {
     @ExcelExportColumn(order = 1, headerKey = "excel.fee.merchantId", width = 20)

@@ -20,13 +20,17 @@ import java.util.Locale;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_FEE_REVIEW;
 
-/** 管理端费率复核异步导出处理器。 */
+/**
+ * 管理端费率复核异步导出处理器。
+ */
 @Service
 public class FeeReviewExportProcessor
         extends AbstractBaseReferenceExportProcessor<FeePlanQuery, FeeReviewExportRow> {
     private final AdminFeeExportSourceClient sourceClient;
 
-    /** 创建费率复核导出处理器。 */
+    /**
+     * 创建费率复核导出处理器。
+     */
     public FeeReviewExportProcessor(AdminFeeExportSourceClient sourceClient,
                                     ExcelExportArtifactWriter artifactWriter,
                                     ExcelI18nMessageResolver messageResolver,
@@ -86,7 +90,9 @@ public class FeeReviewExportProcessor
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 转换费率复核导出行。 */
+    /**
+     * 转换费率复核导出行。
+     */
     private FeeReviewExportRow toExportRow(FeeReviewRow source) {
         FeeReviewExportRow row = new FeeReviewExportRow();
         row.setPlanCode(source.getPlanCode());

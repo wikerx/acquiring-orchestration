@@ -24,6 +24,7 @@ public class S3TemplateObjectStorageService implements TemplateObjectStorageServ
         this.properties = properties;
     }
 
+    /** 写入模板专用 Bucket，使用真实正文长度并将存储异常映射为受控业务错误。 */
     @Override
     public void put(String objectKey, String contentType, byte[] content) {
         try {
@@ -38,6 +39,7 @@ public class S3TemplateObjectStorageService implements TemplateObjectStorageServ
         }
     }
 
+    /** 从模板专用 Bucket 读取正文，不返回底层地址或对象存储异常原文。 */
     @Override
     public byte[] get(String objectKey) {
         try {
@@ -50,6 +52,7 @@ public class S3TemplateObjectStorageService implements TemplateObjectStorageServ
         }
     }
 
+    /** 删除待清理的模板对象，失败时保留受控错误供补偿与审计。 */
     @Override
     public void delete(String objectKey) {
         try {

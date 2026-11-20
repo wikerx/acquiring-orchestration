@@ -138,6 +138,7 @@ public class AdminChannelInfoController {
         return success();
     }
 
+    /** 以新增权限接收渠道资料与可选 Logo，图片必须经过统一上传安全链路。 */
     @PostMapping(value = "/with-logo", consumes = "multipart/form-data")
     @RequiresPermission("channel:info:add")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道及 Logo")
@@ -146,6 +147,7 @@ public class AdminChannelInfoController {
             @org.springframework.web.bind.annotation.RequestPart(value = "file", required = false) org.springframework.web.multipart.MultipartFile file) {
         return success(channelImages.save(null, request, file, false));
     }
+    /** 以编辑权限更新渠道及 Logo，移除与替换由同一事务协调。 */
     @PutMapping(value = "/{id}/with-logo", consumes = "multipart/form-data")
     @RequiresPermission("channel:info:edit")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道及 Logo")
@@ -155,6 +157,7 @@ public class AdminChannelInfoController {
             @org.springframework.web.bind.annotation.RequestParam(value = "removeLogo", defaultValue = "false") boolean removeLogo) {
         return success(channelImages.save(id, request, file, removeLogo));
     }
+    /** 按渠道可见范围返回受管 Logo 正文，响应不暴露对象存储地址。 */
     @GetMapping("/{id}/logo")
     @RequiresPermission("channel:info:list")
     public org.springframework.http.ResponseEntity<byte[]> logo(@PathVariable("id") Long id) {

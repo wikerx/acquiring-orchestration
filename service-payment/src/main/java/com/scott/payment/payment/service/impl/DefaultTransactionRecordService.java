@@ -208,10 +208,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
     /**
-     * 未换汇交易默认汇率，商户响应和后台日志统一保留 8 位小数。
-     */
-
-    /**
      * 首次类交易动作序号。
      */
     private static final int INITIAL_OPERATION_SEQUENCE = 1;

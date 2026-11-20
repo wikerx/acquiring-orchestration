@@ -31,6 +31,8 @@ jobs:
           java -version
           mvn -version
           python3 --version
+      - name: Verify quality-checker contracts
+        run: python3 -B -m unittest discover -s scripts/tests -p test_quality_contracts.py -v
       - name: Verify Java comment contracts
         run: python3 scripts/verify-java-comments.py
       - name: Verify Java structural rules

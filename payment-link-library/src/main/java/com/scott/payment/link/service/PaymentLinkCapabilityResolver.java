@@ -11,6 +11,7 @@ public final class PaymentLinkCapabilityResolver {
     private static final List<String> ALL_CARD_BRANDS = List.of(
             "VISA", "MASTERCARD", "AMEX", "JCB", "MAESTRO", "UNIONPAY", "DISCOVER", "DINERS_CLUB",
             "CARTES_BANCAIRES", "EFTPOS_AUSTRALIA", "INTERAC");
+    /** 过滤有效绑定、MID、渠道及交易币种后，合并支付方式与卡品牌能力；无有效候选时返回空。 */
     public List<AllowedMethod> resolve(MerchantRouteProfile profile, List<AllowedMethod> requestedMethods,
                                        String currency, LocalDateTime now) {
         if (profile == null || profile.getRouteOptions() == null) {

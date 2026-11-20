@@ -40,10 +40,14 @@ import com.scott.payment.data.client.admin.dto.AdminPlatformExportSourceDTOs.Mer
  */
 public interface AdminPlatformExportSourceClient {
 
-    /** 按冻结功能和条件读取一页风控配置安全投影。 */
+    /**
+     * 按冻结功能和条件读取一页风控配置安全投影。
+     */
     RiskPageResponse loadRiskConfigPage(RiskPageRequest request);
 
-    /** 读取一页数据源脱敏运行快照。 */
+    /**
+     * 读取一页数据源脱敏运行快照。
+     */
     DatasourcePageResponse loadDatasourceSnapshotPage(DatasourcePageRequest request);
 
     /**
@@ -128,13 +132,19 @@ public interface AdminPlatformExportSourceClient {
     SecurityInterceptEventPageResponse loadSecurityInterceptEventPage(
             SecurityInterceptEventPageRequest request);
 
-    /** 按冻结条件读取一页系统账户安全投影。 */
+    /**
+     * 按冻结条件读取一页系统账户安全投影。
+     */
     SystemUserPageResponse loadSystemUserPage(SystemUserPageRequest request);
 
-    /** 按冻结条件读取一页已脱敏系统参数安全投影。 */
+    /**
+     * 按冻结条件读取一页已脱敏系统参数安全投影。
+     */
     SystemConfigPageResponse loadSystemConfigPage(SystemConfigPageRequest request);
 
-    /** 按冻结条件和商户范围读取一页商户 IP 白名单安全投影。 */
+    /**
+     * 按冻结条件和商户范围读取一页商户 IP 白名单安全投影。
+     */
     MerchantIpWhitelistPageResponse loadMerchantIpWhitelistPage(
             MerchantIpWhitelistPageRequest request);
 }

@@ -30,41 +30,49 @@ public final class InMemoryTemplateMultipartFile implements MultipartFile {
         this.content = content == null ? new byte[0] : Arrays.copyOf(content, content.length);
     }
 
+    /** 保留内置资源的表单字段名，使其复用普通上传的校验入口。 */
     @Override
     public String getName() {
         return name;
     }
 
+    /** 返回参与扩展名及文件名安全校验的内置资源名。 */
     @Override
     public String getOriginalFilename() {
         return originalFilename;
     }
 
+    /** 提供内置资源声明类型，仍需内容签名验证，不能据此信任文件。 */
     @Override
     public String getContentType() {
         return contentType;
     }
 
+    /** 按实际快照字节判断空文件，不依赖调用方声明长度。 */
     @Override
     public boolean isEmpty() {
         return content.length == 0;
     }
 
+    /** 使用内存快照的真实长度参与上传大小限制。 */
     @Override
     public long getSize() {
         return content.length;
     }
 
+    /** 返回字节副本，防止调用方修改已进入安全校验链的原始快照。 */
     @Override
     public byte[] getBytes() {
         return Arrays.copyOf(content, content.length);
     }
 
+    /** 每次提供独立快照流，供签名、压缩包及安全校验重复读取。 */
     @Override
     public InputStream getInputStream() {
         return new ByteArrayInputStream(content);
     }
 
+    /** 将快照写入目标文件并关闭流；此适配本身不替代上传安全校验。 */
     @Override
     public void transferTo(File destination) throws IOException {
         try (FileOutputStream output = new FileOutputStream(destination)) {

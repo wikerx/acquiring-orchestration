@@ -727,7 +727,7 @@ public class AdminFileTemplateApplicationService {
                     try {
                         storage.delete(objectKey);
                     } catch (RuntimeException exception) {
-                        log.error("template object rollback cleanup failed, keyHash={}",
+                        log.error("模板对象回滚清理失败, event: TEMPLATE_OBJECT_ROLLBACK_CLEANUP_FAILED, keyHash: {}",
                                 Integer.toHexString(objectKey.hashCode()), exception);
                     }
                 }

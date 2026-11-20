@@ -13,6 +13,7 @@ import java.util.*;
 public final class PaymentLinkCreationFingerprint {
     private PaymentLinkCreationFingerprint() { }
 
+    /** 按创建契约版本对业务字段及规范化有效期生成摘要，供请求号重放核对。 */
     public static String canonical(Create input, BigDecimal amount) {
         var fields = fields(input, amount);
         fields.put("contract", "PAYMENT_LINK_CREATE_V2");
@@ -22,6 +23,7 @@ public final class PaymentLinkCreationFingerprint {
         return digest(fields);
     }
 
+    /** 仅接受当前或可证明等价的旧摘要；同请求号不同业务参数拒绝重放。 */
     public static void requireMatch(PaymentLinkDO row, Create input, BigDecimal amount) {
         if (canonical(input, amount).equals(row.getRequestFingerprint())) return;
         // 旧绝对时刻只接受能够由原摘要证明的请求；无法还原的亚毫秒原值不能猜测为相同请求。

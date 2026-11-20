@@ -22,6 +22,7 @@ public class LegacyFileTemplateBridge {
         this.fileTemplateApplicationService = fileTemplateApplicationService;
     }
 
+    /** 存在授权发布版本时写入模板中心资产并返回真；没有发布版本时返回假供兼容入口处理。 */
     public boolean writeIfPublished(String templateCode, HttpServletResponse response) {
         return fileTemplateApplicationService.downloadCurrentIfPublished(
                         templateCode, LocaleContextHolder.getLocale().toLanguageTag())

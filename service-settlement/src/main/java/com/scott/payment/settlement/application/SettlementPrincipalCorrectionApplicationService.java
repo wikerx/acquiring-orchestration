@@ -940,6 +940,7 @@ public class SettlementPrincipalCorrectionApplicationService {
         return result;
     }
 
+    /** 按 ID 和来源币种建立唯一汇率索引，重复或目标币种与批次不一致时拒绝修正。 */
     private RateIndex uniqueRates(List<SettlementBatchRateDO> rows,
                                   SettlementBatchDO batch) {
         Map<Long, SettlementBatchRateDO> byId = new HashMap<>();
@@ -1046,6 +1047,7 @@ public class SettlementPrincipalCorrectionApplicationService {
         };
     }
 
+    /** 对批次、账本、冻结明细及完整汇率身份生成摘要，防止复核后来源事实漂移。 */
     private String fingerprint(SettlementBatchDO batch,
                                MerchantFundLedgerDO ledger,
                                List<FrozenItem> items,
@@ -1098,6 +1100,7 @@ public class SettlementPrincipalCorrectionApplicationService {
         }
     }
 
+    /** 由来源身份生成带业务前缀的确定性编号，使修正流程重试复用同一对象标识。 */
     private String stableId(String prefix, String source) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

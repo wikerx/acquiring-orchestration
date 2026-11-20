@@ -64,6 +64,7 @@ public class PaymentLinkCheckoutGuard {
         return entryAllows(link, now);
     }
 
+    /** 在新尝试准备事务内锁定关联链接并复验入口；普通会话不受影响，迁移前不访问新表。 */
     public void requireNewSubmissionAllowed(String checkoutSessionId, LocalDateTime now) {
         // 迁移前不触及新表；迁移后即使关闭入口也不能放行旧链接会话。
         if (!properties.isStorageReady()) {

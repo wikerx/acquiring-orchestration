@@ -26,6 +26,7 @@ public class MerchantAvatarApplicationService {
     public MerchantAvatarApplicationService(SysUserMapper users, SafeImageProcessor images, ManagedImageStore storage) {
         this.users = users; this.images = images; this.storage = storage;
     }
+    /** 校验会话用户后安全处理图片，以条件更新替换引用；回滚清理新图，提交后清理旧图。 */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
     public String replace(MultipartFile file) {
@@ -37,6 +38,7 @@ public class MerchantAvatarApplicationService {
         storage.deleteAfterCommit(before.getAvatarUrl());
         return ManagedImageReference.version(key);
     }
+    /** 按当前会话用户条件清空头像引用，并在事务提交后删除旧图。 */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
     public void remove() {
@@ -46,6 +48,7 @@ public class MerchantAvatarApplicationService {
         change(account, before, null);
         storage.deleteAfterCommit(before.getAvatarUrl());
     }
+    /** 只读取当前会话用户的头像，并以用户范围校验存储键和正文完整性。 */
     @DS(DataSourceName.MASTER)
     public byte[] read() {
         InternalAuthAccount account = account();

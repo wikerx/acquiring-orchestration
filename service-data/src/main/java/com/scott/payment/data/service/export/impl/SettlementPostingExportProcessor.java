@@ -36,7 +36,9 @@ public class SettlementPostingExportProcessor implements ExportTaskProcessor {
     private final ExcelI18nMessageResolver messageResolver;
     private final DataExportProperties properties;
 
-    /** 创建结算入账流水异步导出处理器。 */
+    /**
+     * 创建结算入账流水异步导出处理器。
+     */
     public SettlementPostingExportProcessor(AdminSettlementExportSourceClient sourceClient,
                                             ExcelExportArtifactWriter artifactWriter,
                                             ExcelI18nMessageResolver messageResolver,
@@ -47,13 +49,17 @@ public class SettlementPostingExportProcessor implements ExportTaskProcessor {
         this.properties = properties;
     }
 
-    /** 返回结算入账流水稳定任务类型。 */
+    /**
+     * 返回结算入账流水稳定任务类型。
+     */
     @Override
     public String taskType() {
         return ADMIN_SETTLEMENT_POSTING;
     }
 
-    /** 解析冻结快照并分页生成结算入账流水文件。 */
+    /**
+     * 解析冻结快照并分页生成结算入账流水文件。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task,
                                   ExportObjectStorageService storage,
@@ -73,7 +79,9 @@ public class SettlementPostingExportProcessor implements ExportTaskProcessor {
                 pageNo -> loadPage(task, query, scope, pageNo, locale));
     }
 
-    /** 读取一页资金流水并转换为冻结语言下的 Excel 行。 */
+    /**
+     * 读取一页资金流水并转换为冻结语言下的 Excel 行。
+     */
     private ExportPage<SettlementPostingExportRow> loadPage(
             DataExportTaskDO task,
             SettlementPostingQuery query,
@@ -97,7 +105,9 @@ public class SettlementPostingExportProcessor implements ExportTaskProcessor {
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 将资金事实复制到 Excel 行，仅本地化业务枚举。 */
+    /**
+     * 将资金事实复制到 Excel 行，仅本地化业务枚举。
+     */
     private SettlementPostingExportRow toExportRow(SettlementPostingRow source, Locale locale) {
         SettlementPostingExportRow row = new SettlementPostingExportRow();
         row.setLedgerNo(source.getLedgerNo());
@@ -122,7 +132,9 @@ public class SettlementPostingExportProcessor implements ExportTaskProcessor {
         return row;
     }
 
-    /** 解析结算枚举展示值，缺少翻译时保留协议原值。 */
+    /**
+     * 解析结算枚举展示值，缺少翻译时保留协议原值。
+     */
     private String label(String category, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -133,7 +145,9 @@ public class SettlementPostingExportProcessor implements ExportTaskProcessor {
         return key.equals(resolved) ? normalized : resolved;
     }
 
-    /** 解析任务冻结语言，未知语言回退简体中文。 */
+    /**
+     * 解析任务冻结语言，未知语言回退简体中文。
+     */
     private Locale resolveLocale(String languageTag) {
         Locale locale = languageTag == null
                 ? Locale.SIMPLIFIED_CHINESE : Locale.forLanguageTag(languageTag);

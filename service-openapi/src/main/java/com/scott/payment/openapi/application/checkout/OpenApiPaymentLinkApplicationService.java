@@ -12,10 +12,12 @@ public class OpenApiPaymentLinkApplicationService {
     private final PaymentLinkInternalClient payment;
     public OpenApiPaymentLinkApplicationService(PaymentLinkInternalClient payment) { this.payment = payment; }
 
+    /** 将持有人凭据传给支付域读取匿名摘要，不构造管理操作者身份。 */
     public PublicView resolve(String token) {
         Command command = new Command(); command.setOpaqueToken(token);
         return payment.executePaymentLink("resolve", command, new TypeReference<CommonResult<PublicView>>() { });
     }
+    /** 将持有人凭据与请求号交给支付域复用收银台会话，不在网关层创建交易事实。 */
     public Started start(String token, String requestId) {
         Command command = new Command(); command.setOpaqueToken(token); command.setRequestId(requestId);
         return payment.executePaymentLink("start", command, new TypeReference<CommonResult<Started>>() { });

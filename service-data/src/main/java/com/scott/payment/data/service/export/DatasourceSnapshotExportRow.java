@@ -3,7 +3,9 @@ package com.scott.payment.data.service.export;
 import com.scott.payment.component.excel.annotation.ExcelExportColumn;
 import lombok.Data;
 
-/** 数据源监控快照 Excel 安全行，不包含数据库账号、密码或业务数据。 */
+/**
+ * 数据源监控快照 Excel 安全行，不包含数据库账号、密码或业务数据。
+ */
 @Data
 public class DatasourceSnapshotExportRow {
     @ExcelExportColumn(order = 1, headerKey = "excel.datasource.dataSourceKey", width = 18)

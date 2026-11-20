@@ -17,6 +17,7 @@ public class PaymentLinkApplicationService {
         this.commands = commands; this.queries = queries; this.policy = policy;
     }
 
+    /** 分派可信内部链接操作；管理操作和付款入口分别沿用各自授权及状态门禁。 */
     public Object execute(String action, Command command) {
         return switch (action) {
             case "create" -> commands.create(command.getActor(), command.getMerchantId(), command.getCreate());

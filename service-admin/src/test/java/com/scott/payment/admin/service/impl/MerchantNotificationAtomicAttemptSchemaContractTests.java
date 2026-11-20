@@ -6,6 +6,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,15 +66,27 @@ class MerchantNotificationAtomicAttemptSchemaContractTests {
     void foundationSchemaShouldContainAtomicAttemptContract() throws IOException {
         String schema = Files.readString(Path.of("../docs/sql/payment_acquiring_表结构.sql"));
 
-        assertThat(count(schema, "`processing_mode` varchar(16)")).isEqualTo(notificationTables().size());
-        assertThat(count(schema, "KEY `idx_processing_event` (`processing_event_id`,`transaction_date_time`)"))
-                .isEqualTo(notificationTables().size());
-        assertThat(count(schema, "`callback_event_id` varchar(128)")).isEqualTo(notificationLogTables().size());
-        assertThat(count(schema, "UNIQUE KEY `uk_callback_event` (`callback_event_id`)"))
-                .isEqualTo(notificationLogTables().size());
-        assertThat(count(schema, "KEY `idx_event_status_update` (`event_status`,`update_time`)"))
-                .isEqualTo(outboxTables().size());
-        assertThat(schema).contains("DEFAULT CHARSET=utf8mb4");
+        // 全量备份会增加季度表，且其他业务表可拥有同名字段；必须逐表验证真实契约。
+        Map<String, String> notifications = tableDefinitions(schema, "transaction_merchant_notification");
+        assertThat(notifications.keySet()).containsAll(notificationTables());
+        notifications.forEach((table, definition) -> assertThat(definition).as(table)
+                .contains("`processing_mode` varchar(16)", "`processing_event_id` varchar(128)",
+                        "KEY `idx_processing_event` (`processing_event_id`,`transaction_date_time`)",
+                        "DEFAULT CHARSET=utf8mb4"));
+
+        Map<String, String> logs = tableDefinitions(schema, "transaction_merchant_notification_log");
+        assertThat(logs.keySet()).containsAll(notificationLogTables());
+        logs.forEach((table, definition) -> assertThat(definition).as(table)
+                .contains("`callback_event_id` varchar(128)",
+                        "`delivery_mode` varchar(16) NOT NULL DEFAULT 'AUTO'",
+                        "UNIQUE KEY `uk_callback_event` (`callback_event_id`)",
+                        "DEFAULT CHARSET=utf8mb4"));
+
+        Map<String, String> outboxes = tableDefinitions(schema, "transaction_event_outbox");
+        assertThat(outboxes.keySet()).containsAll(outboxTables());
+        outboxes.forEach((table, definition) -> assertThat(definition).as(table)
+                .contains("KEY `idx_event_status_update` (`event_status`,`update_time`)",
+                        "DEFAULT CHARSET=utf8mb4"));
     }
 
     /**
@@ -104,10 +119,17 @@ class MerchantNotificationAtomicAttemptSchemaContractTests {
     }
 
     /**
-     * 统计全量结构中精确契约片段的出现次数。
+     * 提取指定逻辑表及全部六位季度后缀物理表，避免其他业务的同名字段污染契约计数。
      */
-    private int count(String source, String fragment) {
-        return source.split(java.util.regex.Pattern.quote(fragment), -1).length - 1;
+    private Map<String, String> tableDefinitions(String schema, String logicalTable) {
+        Pattern pattern = Pattern.compile("CREATE TABLE `(" + Pattern.quote(logicalTable)
+                + "(?:_[0-9]{6})?)`\\s*\\(.*?\\) ENGINE=[^;]+;", Pattern.DOTALL);
+        var matcher = pattern.matcher(schema);
+        Map<String, String> definitions = new LinkedHashMap<>();
+        while (matcher.find()) {
+            assertThat(definitions.put(matcher.group(1), matcher.group())).isNull();
+        }
+        return definitions;
     }
 
     /**

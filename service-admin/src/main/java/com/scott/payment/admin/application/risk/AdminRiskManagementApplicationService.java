@@ -2153,6 +2153,7 @@ public class AdminRiskManagementApplicationService {
         ensureFunctionPermission(definition, tradeBlackPermissionAction(actionType));
     }
 
+    /** 先校验功能权限，再校验和扫描文件；逐行形成导入结果，并在事务提交后使相关缓存失效。 */
     @Transactional(rollbackFor = Exception.class)
     public RiskDTOs.ImportResultResponse importCsv(String moduleType, String functionCode, MultipartFile file) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);

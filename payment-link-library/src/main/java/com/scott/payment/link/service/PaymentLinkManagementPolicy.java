@@ -39,12 +39,14 @@ public class PaymentLinkManagementPolicy {
         this.urlPolicy = new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles()));
     }
 
+    /** 链接入口与存储必须同时就绪，否则以配置不可用拒绝管理操作。 */
     public void requireEnabled() {
         if (!properties.isEnabled() || !properties.isStorageReady()) {
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(), "payment links are not enabled");
         }
     }
 
+    /** 验证可信端身份和目标商户范围，商户账号不能扩大到全部商户。 */
     public void requireScope(Actor actor, String merchantId) {
         if (actor == null || actor.getActorId() == null || actor.getActorId().isBlank()
                 || !("ADMIN".equals(actor.getAppCode()) || "MERCHANT".equals(actor.getAppCode()))
@@ -55,6 +57,7 @@ public class PaymentLinkManagementPolicy {
         }
     }
 
+    /** 只接受已启用且激活的商户运行配置，缺失或停用时拒绝创建或进入付款。 */
     public MerchantRuntimeProfile merchant(String merchantId) {
         MerchantRuntimeProfile profile = merchants.findRuntimeProfile(merchantId);
         if (profile == null || !Integer.valueOf(1).equals(profile.getMerchantStatus())
@@ -64,6 +67,7 @@ public class PaymentLinkManagementPolicy {
         return profile;
     }
 
+    /** 校验固定金额、币种精度、有效期及回调地址；金额仅补足精度，不做隐式舍入。 */
     public BigDecimal validate(Create input) {
         if (input == null || !validator.validate(input).isEmpty()
                 || input.getExpireMinutes() != null && input.getExpireTime() != null) {
@@ -89,11 +93,13 @@ public class PaymentLinkManagementPolicy {
         return currencies.listCurrencies().stream().map(IsoCurrencyInfo::alphabeticCode).distinct().sorted().toList();
     }
 
+    /** 从 ISO 字典读取币种精度；未知币种拒绝使用默认小数位。 */
     public int exponent(String currency) {
         return currencies.getCurrency(currency).orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID))
                 .defaultFractionDigits();
     }
 
+    /** 创建时要求所选卡品牌全部符合当前商户能力，不把部分可用静默视为全部开通。 */
     public List<AllowedMethod> allowedMethods(
             String merchantId, String currency, List<String> brands) {
         return resolveMethods(merchantId, currency, brands, true);

@@ -23,12 +23,15 @@ public class PaymentLinkPolicy extends PaymentLinkManagementPolicy {
                 merchant, requested == null ? null : requested.stream().map(PaymentLinkPolicy::checkout).toList(), currency)
                 .stream().map(PaymentLinkPolicy::management).toList(), validator, environment);
     }
+    /** 把创建时全部通过能力校验的支付方式转换为收银台契约。 */
     public List<AllowedPaymentMethodDTO> methods(String merchant, String currency, List<String> brands) {
         return allowedMethods(merchant, currency, brands).stream().map(PaymentLinkPolicy::checkout).toList();
     }
+    /** 将链接冻结的卡品牌与当前有效能力取交集，再生成付款会话允许方式。 */
     public List<AllowedPaymentMethodDTO> currentMethods(String merchant, String currency, List<String> brands) {
         return currentAllowedMethods(merchant, currency, brands).stream().map(PaymentLinkPolicy::checkout).toList();
     }
+    /** 在操作者商户范围内返回支付域兼容的创建选项，不授予额外付款能力。 */
     public Options options(Actor actor, String merchant) { return options(actor, merchant, Options::new); }
     private static AllowedMethod management(AllowedPaymentMethodDTO value) {
         var result = new AllowedMethod(); result.setPaymentMethod(value.getPaymentMethod()); result.setChannelCode(value.getChannelCode());

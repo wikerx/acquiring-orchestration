@@ -18,12 +18,14 @@ public class AdminChannelPresentationController {
         this.presentation = presentation;
     }
 
+    /** 按调用页面的权限范围批量投影渠道名称及 Logo 版本，不授予渠道配置读取权限。 */
     @PostMapping("/search")
     public CommonResult<List<Presentation>> lookup(@RequestParam("scope") Scope scope,
                                                    @RequestBody LookupRequest request) {
         return CommonResult.success(presentation.lookup(scope, request));
     }
 
+    /** 按页面权限范围及预期版本读取 Logo，版本失配或对象不可见时拒绝返回。 */
     @GetMapping("/{id}/logo")
     public ResponseEntity<byte[]> logo(@RequestParam("scope") Scope scope, @PathVariable("id") Long id,
                                        @RequestParam("version") String version) {

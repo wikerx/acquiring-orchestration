@@ -22,6 +22,7 @@ public class PaymentLinkInternalController {
         this.application = application;
     }
 
+    /** 接收可信内部操作命令，由应用层按动作执行链接授权、查询或付款入口规则。 */
     @PostMapping("/{action}")
     public CommonResult<Object> execute(@PathVariable("action") String action, @RequestBody Command command,
                                         HttpServletRequest request) {

@@ -12,8 +12,11 @@ import java.util.List;
 /** 系统交易加黑新版工作流的请求与响应。 */
 public final class TradeBlackWorkflowDTOs {
 
+    /** 手工选择订单的单次上限，限制批量解析及候选扩散。 */
     public static final int MAX_MANUAL_ORDERS = 500;
+    /** 文件导入订单的单批上限，防止无界扫描交易事实。 */
     public static final int MAX_FILE_ORDERS = 5000;
+    /** 单次提交黑名单候选的最大数量，与页面勾选及后端提交校验一致。 */
     public static final int MAX_SELECTED_CANDIDATES = 20000;
 
     private TradeBlackWorkflowDTOs() {

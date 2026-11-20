@@ -26,7 +26,9 @@ import java.util.Locale;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SETTLEMENT_BATCH_SUMMARY;
 
-/** 管理端单个结算批次结果摘要异步导出处理器。 */
+/**
+ * 管理端单个结算批次结果摘要异步导出处理器。
+ */
 @Service
 public class SettlementBatchSummaryExportProcessor implements ExportTaskProcessor {
     private final AdminSettlementExportSourceClient sourceClient;
@@ -44,11 +46,17 @@ public class SettlementBatchSummaryExportProcessor implements ExportTaskProcesso
         this.properties = properties;
     }
 
+    /**
+     * 管理端结算批次摘要专属任务类型，防止调度到不匹配的导出处理器。
+     */
     @Override
     public String taskType() {
         return ADMIN_SETTLEMENT_BATCH_SUMMARY;
     }
 
+    /**
+     * 校验查询及数据范围快照后分页读取结算批次摘要，按任务语言写入私有文件。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task,
                                   ExportObjectStorageService storage,

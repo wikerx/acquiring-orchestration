@@ -326,6 +326,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> clearingDetail(scopedMerchantId, query));
     }
 
+    /** 限定认证商户及交易复合身份，分页读取清分明细历史，不混入其他商户修订。 */
     @Override
     public PageResult<ClearingTransactionLine> searchClearingTransactionLinesByTransaction(
             String merchantId, String transactionId, LocalDateTime transactionDateTime,
@@ -336,6 +337,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         return readExecutor.read(() -> clearingTransactionPage(scopedMerchantId, query));
     }
 
+    /** 限定认证商户及交易复合身份，分页读取保证金清分历史，不触发释放或结算。 */
     @Override
     public PageResult<ClearingReserveLine> searchClearingReserveLinesByTransaction(
             String merchantId, String transactionId, LocalDateTime transactionDateTime,

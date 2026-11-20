@@ -783,6 +783,7 @@ public class DefaultClearingLabelPrincipalRepairService implements ClearingLabel
         return sha256(canonical);
     }
 
+    /** 由业务身份的摘要生成稳定修复关联号，重复执行不能创建另一组修复对象。 */
     private String stableId(String prefix, String identity) {
         return prefix + sha256(identity).substring(0, 32);
     }

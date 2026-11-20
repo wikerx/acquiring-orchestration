@@ -46,6 +46,7 @@ public class BuiltinFileTemplateInitializer implements ApplicationRunner {
         this.tradeBlackWorkbookService = tradeBlackWorkbookService;
     }
 
+    /** 通过模板中心相同安全校验补齐内置定义与版本；既有发布资产不被启动初始化覆盖。 */
     @Override
     public void run(ApplicationArguments args) {
         InternalAuthAccount previous = InternalAuthContextHolder.get();

@@ -33,11 +33,13 @@ public class PaymentLinkBrowserController {
         @com.fasterxml.jackson.annotation.JsonAnySetter public void reject(String key, Object value) { throw new IllegalArgumentException("Unsupported payment link field"); }
     }
 
+    /** 先通过匿名访问限流与凭据校验，再返回付款人安全摘要；响应禁止缓存。 */
     @PostMapping("/resolve")
     public ResponseEntity<CommonResult<PublicView>> resolve(@Valid @RequestBody Resolve request, jakarta.servlet.http.HttpServletRequest http) {
         access.require("resolve", request.opaqueToken(), http);
         return response(application.resolve(request.opaqueToken()));
     }
+    /** 校验匿名访问及请求号后进入既有收银台会话，不直接发起渠道扣款。 */
     @PostMapping("/start")
     public ResponseEntity<CommonResult<Started>> start(@Valid @RequestBody Start request, jakarta.servlet.http.HttpServletRequest http) {
         access.require("start", request.opaqueToken(), http);

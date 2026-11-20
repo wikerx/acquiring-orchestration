@@ -49,6 +49,7 @@ public class MerchantFileTemplateApplicationService {
         this.storageProperties = storageProperties;
     }
 
+    /** 先核对商户会话、模板隶属系统及动态下载权限，再校验发布资产完整性并返回本地化文件。 */
     @DS(DataSourceName.MASTER)
     public Download download(String templateCode, String locale) {
         InternalAuthAccount account = requireAccount();

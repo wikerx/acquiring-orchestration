@@ -170,3 +170,4 @@ docs/archive/reports/*
 !/scripts/tests/
 /scripts/tests/*
 !/scripts/tests/test_payment_link_management_config.py
+!/scripts/tests/test_quality_contracts.py

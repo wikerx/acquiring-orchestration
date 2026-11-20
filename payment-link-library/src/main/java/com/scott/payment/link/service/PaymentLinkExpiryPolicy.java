@@ -6,11 +6,14 @@ import java.time.LocalDateTime;
 
 /** 链接发布时一次冻结截止时间；相对时长兼容旧请求，绝对时刻不因重试延长。 */
 public final class PaymentLinkExpiryPolicy {
+    /** 未指定有效期时采用一小时，仅在创建链接时冻结。 */
     public static final int DEFAULT_MINUTES = 60;
+    /** 链接有效期上限为三十天，不放宽普通收银台会话期限。 */
     public static final int MAX_MINUTES = 30 * 24 * 60;
 
     private PaymentLinkExpiryPolicy() { }
 
+    /** 校验相对时长与绝对截止时间互斥，并将截止时刻冻结为数据库兼容的毫秒精度。 */
     public static LocalDateTime resolve(Integer minutes, LocalDateTime requested, LocalDateTime now) {
         if (minutes != null && requested != null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         if (requested != null) {

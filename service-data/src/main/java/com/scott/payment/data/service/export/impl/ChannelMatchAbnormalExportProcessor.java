@@ -43,7 +43,9 @@ public class ChannelMatchAbnormalExportProcessor implements ExportTaskProcessor 
         this.properties = properties;
     }
 
-    /** 返回渠道勾兑异常稳定任务类型。 */
+    /**
+     * 返回渠道勾兑异常稳定任务类型。
+     */
     @Override
     public String taskType() {
         return ADMIN_CHANNEL_MATCH_ABNORMAL;

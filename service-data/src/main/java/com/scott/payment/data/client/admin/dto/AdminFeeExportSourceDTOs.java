@@ -17,11 +17,15 @@ import java.util.Set;
  */
 public final class AdminFeeExportSourceDTOs {
 
-    /** 阻止内部模型容器被实例化。 */
+    /**
+     * 阻止内部模型容器被实例化。
+     */
     private AdminFeeExportSourceDTOs() {
     }
 
-    /** 费用方案类分页请求，显式携带任务创建时冻结的商户范围。 */
+    /**
+     * 费用方案类分页请求，显式携带任务创建时冻结的商户范围。
+     */
     @Data
     public static class FeePlanPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -33,7 +37,9 @@ public final class AdminFeeExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 费用试算分页请求，语言用于稳定复现现有同步导出文案。 */
+    /**
+     * 费用试算分页请求，语言用于稳定复现现有同步导出文案。
+     */
     @Data
     public static class FeeSimulationPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -46,7 +52,9 @@ public final class AdminFeeExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页费用模板安全投影。 */
+    /**
+     * 一页费用模板安全投影。
+     */
     @Data
     public static class FeeTemplatePageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -54,7 +62,9 @@ public final class AdminFeeExportSourceDTOs {
         private List<FeeTemplateRow> records = new ArrayList<>();
     }
 
-    /** 一页商户费率安全投影。 */
+    /**
+     * 一页商户费率安全投影。
+     */
     @Data
     public static class MerchantFeePageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -62,7 +72,9 @@ public final class AdminFeeExportSourceDTOs {
         private List<MerchantFeeRow> records = new ArrayList<>();
     }
 
-    /** 一页费率复核安全投影。 */
+    /**
+     * 一页费率复核安全投影。
+     */
     @Data
     public static class FeeReviewPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -70,7 +82,9 @@ public final class AdminFeeExportSourceDTOs {
         private List<FeeReviewRow> records = new ArrayList<>();
     }
 
-    /** 一页费用试算逐项安全投影。 */
+    /**
+     * 一页费用试算逐项安全投影。
+     */
     @Data
     public static class FeeSimulationPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -78,7 +92,9 @@ public final class AdminFeeExportSourceDTOs {
         private List<FeeSimulationRow> records = new ArrayList<>();
     }
 
-    /** 费用模板导出源行。 */
+    /**
+     * 费用模板导出源行。
+     */
     @Data
     public static class FeeTemplateRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -90,7 +106,9 @@ public final class AdminFeeExportSourceDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 商户费率导出源行。 */
+    /**
+     * 商户费率导出源行。
+     */
     @Data
     public static class MerchantFeeRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -103,7 +121,9 @@ public final class AdminFeeExportSourceDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 费率复核导出源行。 */
+    /**
+     * 费率复核导出源行。
+     */
     @Data
     public static class FeeReviewRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -117,7 +137,9 @@ public final class AdminFeeExportSourceDTOs {
         private LocalDateTime submitTime;
     }
 
-    /** 费用试算逐项导出源行。 */
+    /**
+     * 费用试算逐项导出源行。
+     */
     @Data
     public static class FeeSimulationRow implements Serializable {
         private static final long serialVersionUID = 1L;

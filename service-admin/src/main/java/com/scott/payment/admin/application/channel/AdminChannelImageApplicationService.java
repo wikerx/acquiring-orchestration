@@ -27,6 +27,7 @@ public class AdminChannelImageApplicationService {
             SafeImageProcessor images, ManagedImageStore storage) {
         this.channels = channels; this.mapper = mapper; this.images = images; this.storage = storage;
     }
+    /** 先校验新增或编辑权限再扫描图片，同一事务保存渠道和引用；上传与移除不能同时指定。 */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
     public ChannelInfoResponse save(Long id, ChannelInfoSaveRequest request, MultipartFile file, boolean removeLogo) {
@@ -45,11 +46,13 @@ public class AdminChannelImageApplicationService {
         }
         return channels.getChannel(saved.getId());
     }
+    /** 校验渠道列表权限及对象归属后读取完整性通过的图片，不返回存储键。 */
     @DS(DataSourceName.MASTER)
     public byte[] read(Long id) {
         authorize("channel:info:list");
         return storage.read(existing(id, false).getLogoObjectKey(), "channel/" + id);
     }
+    /** 在锁定渠道并完成删除后注册提交清理，事务失败时保留旧 Logo。 */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
     public void delete(Long id) {

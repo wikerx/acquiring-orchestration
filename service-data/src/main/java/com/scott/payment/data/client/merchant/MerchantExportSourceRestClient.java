@@ -135,10 +135,7 @@ public class MerchantExportSourceRestClient implements MerchantExportSourceClien
     }
 
     /**
-     * 使用独立内部签名调用 Merchant 来源接口并解包强类型响应。
-     */
-    /**
-     * 使用已有签名传输读取支付链接安全投影，不新建 Data 到支付核心的信任边。
+     * 使用独立内部签名读取 Merchant 支付链接安全投影并解包响应，不新建 Data 到支付核心的信任边。
      */
     @Override
     public com.scott.payment.component.core.model.PageResult<com.scott.payment.data.client.paymentlink.PaymentLinkExportDTOs.Row> loadPaymentLinkPage(

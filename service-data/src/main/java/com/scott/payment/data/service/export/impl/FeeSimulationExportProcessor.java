@@ -20,13 +20,17 @@ import java.util.Locale;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_FEE_SIMULATION;
 
-/** 管理端费用试算逐项异步导出处理器。 */
+/**
+ * 管理端费用试算逐项异步导出处理器。
+ */
 @Service
 public class FeeSimulationExportProcessor
         extends AbstractBaseReferenceExportProcessor<FeeSimulationQuery, FeeSimulationExportRow> {
     private final AdminFeeExportSourceClient sourceClient;
 
-    /** 创建费用试算导出处理器。 */
+    /**
+     * 创建费用试算导出处理器。
+     */
     public FeeSimulationExportProcessor(AdminFeeExportSourceClient sourceClient,
                                         ExcelExportArtifactWriter artifactWriter,
                                         ExcelI18nMessageResolver messageResolver,
@@ -87,7 +91,9 @@ public class FeeSimulationExportProcessor
         return new ExportPage<>(response.getSourceTotal(), rows);
     }
 
-    /** 转换费用试算逐项导出行。 */
+    /**
+     * 转换费用试算逐项导出行。
+     */
     private FeeSimulationExportRow toExportRow(FeeSimulationRow source) {
         FeeSimulationExportRow row = new FeeSimulationExportRow();
         row.setSimulationNo(source.getSimulationNo());

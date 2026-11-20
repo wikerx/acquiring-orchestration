@@ -22,7 +22,9 @@ public interface AdminSettlementExportSourceClient {
     SettlementTransactionPageResponse loadSettlementTransactionPage(
             SettlementTransactionPageRequest request);
 
-    /** 按冻结批次号和商户范围读取一页结算结果摘要。 */
+    /**
+     * 按冻结批次号和商户范围读取一页结算结果摘要。
+     */
     SettlementBatchSummaryPageResponse loadSettlementBatchSummaryPage(
             SettlementBatchSummaryPageRequest request);
 
@@ -31,9 +33,13 @@ public interface AdminSettlementExportSourceClient {
      */
     SettlementReservePageResponse loadSettlementReservePage(SettlementReservePageRequest request);
 
-    /** 按冻结条件和商户范围读取一页结算审核单。 */
+    /**
+     * 按冻结条件和商户范围读取一页结算审核单。
+     */
     SettlementReviewPageResponse loadSettlementReviewPage(SettlementReviewPageRequest request);
 
-    /** 按冻结条件和商户范围读取一页结算入账流水。 */
+    /**
+     * 按冻结条件和商户范围读取一页结算入账流水。
+     */
     SettlementPostingPageResponse loadSettlementPostingPage(SettlementPostingPageRequest request);
 }

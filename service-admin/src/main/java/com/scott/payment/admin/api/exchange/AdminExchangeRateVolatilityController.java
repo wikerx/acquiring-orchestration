@@ -47,7 +47,6 @@ public class AdminExchangeRateVolatilityController {
         return success(applicationService.trend(request));
     }
 
-    /** 导出当前筛选的汇率波动摘要。 */
     /** 按当前查询口径导出波动摘要，导出数据不参与阈值判断。 */
     @PostMapping("/export")
     @RequiresPermission("exchange:volatility:export")

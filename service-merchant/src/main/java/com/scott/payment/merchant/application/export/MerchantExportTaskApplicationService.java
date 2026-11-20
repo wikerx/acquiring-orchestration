@@ -43,12 +43,19 @@ import java.util.Locale;
  */
 @Service
 public class MerchantExportTaskApplicationService {
+    /** 商户端交易操作导出的任务类型；提交和读取结果均限定当前商户。 */
     public static final String MERCHANT_TRANSACTION_OPERATION = "MERCHANT_TRANSACTION_OPERATION";
+    /** 商户端退款导出的任务类型；提交和读取结果均限定当前商户。 */
     public static final String MERCHANT_REFUND = "MERCHANT_REFUND";
+    /** 商户端结算批次导出的任务类型；提交和读取结果均限定当前商户。 */
     public static final String MERCHANT_SETTLEMENT_BATCH = "MERCHANT_SETTLEMENT_BATCH";
+    /** 商户端结算摘要导出的任务类型；提交和读取结果均限定当前商户。 */
     public static final String MERCHANT_SETTLEMENT_SUMMARY = "MERCHANT_SETTLEMENT_SUMMARY";
+    /** 商户端结算交易明细导出的任务类型；提交和读取结果均限定当前商户。 */
     public static final String MERCHANT_SETTLEMENT_TRANSACTION = "MERCHANT_SETTLEMENT_TRANSACTION";
+    /** 商户端结算保证金明细导出的任务类型；提交和读取结果均限定当前商户。 */
     public static final String MERCHANT_SETTLEMENT_RESERVE = "MERCHANT_SETTLEMENT_RESERVE";
+    /** 商户端资金流水导出的任务类型；提交和读取结果均限定当前商户。 */
     public static final String MERCHANT_FUND_LEDGER = "MERCHANT_FUND_LEDGER";
 
     private final MerchantDataExportTaskClient dataClient;

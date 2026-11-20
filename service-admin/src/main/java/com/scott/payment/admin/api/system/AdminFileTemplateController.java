@@ -46,6 +46,7 @@ public class AdminFileTemplateController {
         this.applicationService = applicationService;
     }
 
+    /** 以模板列表权限分页查询定义及发布摘要，不返回私有存储键。 */
     @PostMapping("/search")
     @RequiresPermission("system:file-template:list")
     public CommonResult<PageResult<Summary>> page(@Valid @RequestBody(required = false) Query request) {
@@ -59,12 +60,14 @@ public class AdminFileTemplateController {
         return success(applicationService.formOptions());
     }
 
+    /** 以详情权限读取模板定义与版本历史，正文通过受控下载入口读取。 */
     @GetMapping("/{id:\\d+}")
     @RequiresPermission("system:file-template:detail")
     public CommonResult<Detail> detail(@PathVariable("id") Long id) {
         return success(applicationService.detail(id));
     }
 
+    /** 校验新增权限和模板元数据，建立稳定模板编码供业务引用。 */
     @PostMapping
     @RequiresPermission("system:file-template:add")
     @OperationLog(moduleName = "模板中心", businessType = OperationTypeConstants.CREATE, operation = "新增模板定义")
@@ -72,6 +75,7 @@ public class AdminFileTemplateController {
         return success(applicationService.create(request));
     }
 
+    /** 按编辑权限和请求版本修改定义，已发布资产保持不可变。 */
     @PutMapping("/{id:\\d+}")
     @RequiresPermission("system:file-template:edit")
     @OperationLog(moduleName = "模板中心", businessType = OperationTypeConstants.UPDATE, operation = "修改模板定义")
@@ -80,6 +84,7 @@ public class AdminFileTemplateController {
         return success(applicationService.update(id, request));
     }
 
+    /** 按上传权限接收中英文文件和幂等请求号，统一校验后生成新的不可变版本。 */
     @PostMapping(value = "/{id:\\d+}/versions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequiresPermission("system:file-template:upload")
     @OperationLog(moduleName = "模板中心", businessType = OperationTypeConstants.CREATE, operation = "上传模板版本")
@@ -94,6 +99,7 @@ public class AdminFileTemplateController {
                 releaseNote, zhFile, enFile));
     }
 
+    /** 按发布权限和预期版本切换当前指针，禁止覆盖旧版本正文。 */
     @PostMapping("/{id:\\d+}/versions/{versionId:\\d+}/publish")
     @RequiresPermission("system:file-template:publish")
     @OperationLog(moduleName = "模板中心", businessType = OperationTypeConstants.UPDATE, operation = "发布模板版本")
@@ -103,6 +109,7 @@ public class AdminFileTemplateController {
         return success(applicationService.publish(id, versionId, request));
     }
 
+    /** 以回滚权限将指针切回可用历史版本，保留全部版本与操作审计。 */
     @PostMapping("/{id:\\d+}/versions/{versionId:\\d+}/rollback")
     @RequiresPermission("system:file-template:rollback")
     @OperationLog(moduleName = "模板中心", businessType = OperationTypeConstants.UPDATE, operation = "回滚模板版本")

@@ -16,6 +16,7 @@ public class MerchantPaymentLinkExportController {
     private final MerchantPaymentLinkExportApplicationService application;
     public MerchantPaymentLinkExportController(MerchantPaymentLinkExportApplicationService application) { this.application=application; }
     public record Submit(@NotBlank String requestId,@Valid Query query,@jakarta.validation.constraints.Size(max=80) String timezone) { }
+    /** 提交本端授权范围内的链接异步导出任务，不在 HTTP 请求中扫描全量数据。 */
     @PostMapping("/export")
     @RequiresPermission("merchant:transaction:payment-link:export")
     public CommonResult<TaskSummary> submit(@Valid @RequestBody Submit request) {

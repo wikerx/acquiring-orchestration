@@ -21,7 +21,6 @@ import java.util.Map;
 
 /** 管理查询直接读取既有事实，不依赖支付服务在线，也不推进链接或交易状态。 */
 @Service
-@DS(DataSourceName.MASTER)
 @Transactional(readOnly = true)
 public class AdminPaymentLinkQueryService {
     private final PaymentLinkQueryMapper links;
@@ -32,6 +31,8 @@ public class AdminPaymentLinkQueryService {
         this.currencies = currencies;
     }
 
+    /** 在操作者的商户数据范围内分页读取链接，金额按冻结的币种精度展示。 */
+    @DS(DataSourceName.MASTER)
     public PageResult<View> search(Actor actor, Query input) {
         Query query = bounded(input);
         if (query.getMerchantId() != null && !query.getMerchantId().isBlank()) {
@@ -43,6 +44,8 @@ public class AdminPaymentLinkQueryService {
                 links.search(actor, query, now, offset(query)).stream().map(this::moneyView).toList());
     }
 
+    /** 先校验链接归属再组装内部详情；回调地址不得进入匿名付款人投影。 */
+    @DS(DataSourceName.MASTER)
     public View detail(Actor actor, String linkId) {
         requireActor(actor);
         PaymentLinkQueryMapper.DetailMetadata row = links.detailMetadata(linkId);
@@ -64,11 +67,14 @@ public class AdminPaymentLinkQueryService {
     }
 
     /** ISO 币种属于基础选项，读取不依赖创建权限，也不扫描交易或链接事实。 */
+    @DS(DataSourceName.MASTER)
     public List<String> filterCurrencies(Actor actor) {
         requireActor(actor);
         return currencies.listCurrencies().stream().map(IsoCurrencyInfo::alphabeticCode).distinct().sorted().toList();
     }
 
+    /** 在相同授权和筛选范围内汇总状态数量，成功金额按币种分别累计。 */
+    @DS(DataSourceName.MASTER)
     public Summary summary(Actor actor, Query input) {
         Query query = bounded(input);
         requireActor(actor);
@@ -89,6 +95,8 @@ public class AdminPaymentLinkQueryService {
         return result;
     }
 
+    /** 确认链接可见后分页读取收款会话，不创建会话或推进支付状态。 */
+    @DS(DataSourceName.MASTER)
     public PageResult<Collection> collections(Actor actor, String linkId, Query input) {
         detail(actor, linkId);
         Query query = bounded(input);
@@ -96,6 +104,8 @@ public class AdminPaymentLinkQueryService {
                 links.collections(linkId, offset(query), query.getPageSize()));
     }
 
+    /** 确认链接可见后读取真实付款尝试；预分配编号不作为已生成的系统订单。 */
+    @DS(DataSourceName.MASTER)
     public PageResult<Attempt> attempts(Actor actor, String linkId, Query input) {
         detail(actor, linkId);
         Query query = bounded(input);
@@ -105,6 +115,8 @@ public class AdminPaymentLinkQueryService {
                 }).toList());
     }
 
+    /** 确认链接可见后分页读取生命周期时间线，查询不写入审计事件。 */
+    @DS(DataSourceName.MASTER)
     public PageResult<Event> events(Actor actor, String linkId, Query input) {
         detail(actor, linkId);
         Query query = bounded(input);

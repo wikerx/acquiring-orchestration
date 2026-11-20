@@ -203,6 +203,7 @@ public class JdbcMerchantAccessOverviewQueryService implements MerchantAccessOve
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /** 按认证商户读取准入、审核和激活状态摘要，资料缺失时返回空。 */
     @Override
     @DS(DataSourceName.MASTER)
     public MerchantProfileFacts findMerchantProfile(String merchantId) {
@@ -217,6 +218,7 @@ public class JdbcMerchantAccessOverviewQueryService implements MerchantAccessOve
                 .stream().findFirst().orElse(null);
     }
 
+    /** 按认证商户读取结算周期、时区及币种摘要，不创建结算配置。 */
     @Override
     @DS(DataSourceName.MASTER)
     public SettlementFacts findSettlement(String merchantId) {
@@ -235,6 +237,7 @@ public class JdbcMerchantAccessOverviewQueryService implements MerchantAccessOve
                 .stream().findFirst().orElse(null);
     }
 
+    /** 读取该商户费率版本状态摘要；费率存在不等同于支付方式已开通。 */
     @Override
     @DS(DataSourceName.MASTER)
     public FeeFacts findFee(String merchantId) {
@@ -246,6 +249,7 @@ public class JdbcMerchantAccessOverviewQueryService implements MerchantAccessOve
                 .stream().findFirst().orElse(null);
     }
 
+    /** 按指定时点统计有效支付绑定，不把已过期绑定计为可用。 */
     @Override
     @DS(DataSourceName.MASTER)
     public long countActivePaymentBindings(String merchantId, LocalDateTime now) {
@@ -254,6 +258,7 @@ public class JdbcMerchantAccessOverviewQueryService implements MerchantAccessOve
         return count == null ? 0 : count;
     }
 
+    /** 读取当前有效绑定所关联的支付类型、方式与币种事实，不替代最终交易准入校验。 */
     @Override
     @DS(DataSourceName.MASTER)
     public List<PaymentCapabilityFacts> listPaymentCapabilities(String merchantId, LocalDateTime now) {
@@ -267,6 +272,7 @@ public class JdbcMerchantAccessOverviewQueryService implements MerchantAccessOve
                         localDateTime(rs.getTimestamp("last_updated_time"))));
     }
 
+    /** 仅汇总当前商户 IP 白名单的状态与更新时间，不返回其他商户网络配置。 */
     @Override
     @DS(DataSourceName.MASTER)
     public AccessRuleFacts summarizeIpWhitelists(String merchantId) {
@@ -274,6 +280,7 @@ public class JdbcMerchantAccessOverviewQueryService implements MerchantAccessOve
                 IP_WHITELIST_SUMMARY_SQL, params(merchantId), factsMapper()));
     }
 
+    /** 仅汇总当前商户来源站点规则的状态与更新时间，不扩大认证商户范围。 */
     @Override
     @DS(DataSourceName.MASTER)
     public AccessRuleFacts summarizeSourceUrls(String merchantId) {

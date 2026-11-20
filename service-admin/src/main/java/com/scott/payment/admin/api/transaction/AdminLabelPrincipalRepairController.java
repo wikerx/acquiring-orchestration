@@ -30,6 +30,7 @@ public class AdminLabelPrincipalRepairController {
         this.applicationService = applicationService;
     }
 
+    /** 以修复申请权限接收版本条件与原因，可信申请人由服务端会话注入。 */
     @PostMapping
     @RequiresPermission("clearing:principal-repair:submit")
     @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.CREATE,
@@ -38,6 +39,7 @@ public class AdminLabelPrincipalRepairController {
         return success(applicationService.submit(request));
     }
 
+    /** 以复核权限接收决定及预期版本，可信复核人由服务端注入并交领域层验证双人规则。 */
     @PostMapping("/{repairNo}/review")
     @RequiresPermission("clearing:principal-repair:review")
     @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.AUDIT,

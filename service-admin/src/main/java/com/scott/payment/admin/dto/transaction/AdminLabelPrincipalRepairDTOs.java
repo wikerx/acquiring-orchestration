@@ -14,6 +14,7 @@ public final class AdminLabelPrincipalRepairDTOs {
     private AdminLabelPrincipalRepairDTOs() {
     }
 
+    /** 浏览器提交的历史标签本金修复申请，携带原事实版本，不接受可信操作人字段。 */
     @Data
     public static class SubmitRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -33,6 +34,7 @@ public final class AdminLabelPrincipalRepairDTOs {
         private String reason;
     }
 
+    /** 服务端补充可信申请人后的内部命令，用于修复单幂等及审计。 */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class InternalSubmitRequest extends SubmitRequest {
@@ -41,6 +43,7 @@ public final class AdminLabelPrincipalRepairDTOs {
         private String submitOperator;
     }
 
+    /** 复核决定与申请版本，操作人由鉴权上下文补充以落实双人规则。 */
     @Data
     public static class ReviewRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -52,6 +55,7 @@ public final class AdminLabelPrincipalRepairDTOs {
         private String reviewComment;
     }
 
+    /** 服务端注入可信复核人的内部决定，不能由浏览器指定复核身份。 */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class InternalReviewRequest extends ReviewRequest {
@@ -60,6 +64,7 @@ public final class AdminLabelPrincipalRepairDTOs {
         private String reviewOperator;
     }
 
+    /** 修复申请的状态与新旧清分修订标识，不把申请成功等同于资金已更正。 */
     @Data
     public static class Response implements Serializable {
         private static final long serialVersionUID = 1L;

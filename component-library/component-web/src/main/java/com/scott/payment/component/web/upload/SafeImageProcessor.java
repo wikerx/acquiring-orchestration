@@ -27,6 +27,7 @@ public class SafeImageProcessor {
         this.scanner = scanner;
     }
 
+    /** 先校验和扫描原图，再按尺寸及像素上限解码、去除元数据并输出 PNG；重编码结果再次扫描。 */
     public byte[] process(MultipartFile file, boolean square) {
         if (!permits.tryAcquire()) throw new ServiceException(ApiResultEnum.TOO_MANY_REQUESTS.getCode(), "图片处理繁忙，请稍后重试");
         try {

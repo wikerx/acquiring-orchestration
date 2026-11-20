@@ -24,7 +24,9 @@ import java.util.Map;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_TRADE_BLACK_RECORD;
 
-/** 系统交易加黑记录异步导出处理器，只写入 Admin 返回的脱敏安全投影。 */
+/**
+ * 系统交易加黑记录异步导出处理器，只写入 Admin 返回的脱敏安全投影。
+ */
 @Service
 public class TradeBlackExportProcessor implements ExportTaskProcessor {
 
@@ -32,7 +34,9 @@ public class TradeBlackExportProcessor implements ExportTaskProcessor {
     private final ExcelExportArtifactWriter artifactWriter;
     private final DataExportProperties properties;
 
-    /** 创建系统交易加黑记录异步导出处理器。 */
+    /**
+     * 创建系统交易加黑记录异步导出处理器。
+     */
     public TradeBlackExportProcessor(AdminPlatformExportSourceClient sourceClient,
                                      ExcelExportArtifactWriter artifactWriter,
                                      DataExportProperties properties) {
@@ -41,11 +45,17 @@ public class TradeBlackExportProcessor implements ExportTaskProcessor {
         this.properties = properties;
     }
 
+    /**
+     * 管理端交易黑名单专属任务类型，防止调度到不匹配的导出处理器。
+     */
     @Override
     public String taskType() {
         return ADMIN_TRADE_BLACK_RECORD;
     }
 
+    /**
+     * 仅接受系统交易黑名单查询快照，复用来源动态列及脱敏结果分页写入私有文件。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task,
                                   ExportObjectStorageService storage,

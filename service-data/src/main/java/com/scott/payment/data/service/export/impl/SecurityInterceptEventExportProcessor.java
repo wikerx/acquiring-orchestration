@@ -35,7 +35,9 @@ public class SecurityInterceptEventExportProcessor implements ExportTaskProcesso
     private final ExcelI18nMessageResolver messageResolver;
     private final DataExportProperties properties;
 
-    /** 创建安全拦截事件异步导出处理器。 */
+    /**
+     * 创建安全拦截事件异步导出处理器。
+     */
     public SecurityInterceptEventExportProcessor(AdminPlatformExportSourceClient sourceClient,
                                                  ExcelExportArtifactWriter artifactWriter,
                                                  ExcelI18nMessageResolver messageResolver,
@@ -46,13 +48,17 @@ public class SecurityInterceptEventExportProcessor implements ExportTaskProcesso
         this.properties = properties;
     }
 
-    /** 返回安全拦截事件稳定任务类型。 */
+    /**
+     * 返回安全拦截事件稳定任务类型。
+     */
     @Override
     public String taskType() {
         return ADMIN_SECURITY_INTERCEPT_EVENT;
     }
 
-    /** 解析冻结快照并分页生成脱敏安全事件文件。 */
+    /**
+     * 解析冻结快照并分页生成脱敏安全事件文件。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task,
                                   ExportObjectStorageService storage,
@@ -72,7 +78,9 @@ public class SecurityInterceptEventExportProcessor implements ExportTaskProcesso
                 pageNo -> loadPage(task, query, scope, pageNo, locale));
     }
 
-    /** 读取一页安全投影并转换为冻结语言下的 Excel 行。 */
+    /**
+     * 读取一页安全投影并转换为冻结语言下的 Excel 行。
+     */
     private ExportPage<SecurityInterceptEventExportRow> loadPage(
             DataExportTaskDO task,
             SecurityInterceptEventQuery query,
@@ -96,7 +104,9 @@ public class SecurityInterceptEventExportProcessor implements ExportTaskProcesso
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 将安全投影复制为 Excel 行并本地化处理状态。 */
+    /**
+     * 将安全投影复制为 Excel 行并本地化处理状态。
+     */
     private SecurityInterceptEventExportRow toExportRow(
             SecurityInterceptEventRow source,
             Locale locale) {
@@ -120,7 +130,9 @@ public class SecurityInterceptEventExportProcessor implements ExportTaskProcesso
         return row;
     }
 
-    /** 将安全事件处理状态转换为任务冻结语言。 */
+    /**
+     * 将安全事件处理状态转换为任务冻结语言。
+     */
     private String processStatusLabel(Integer status, Locale locale) {
         if (status == null || status == 0) {
             return messageResolver.resolve("excel.securityIntercept.unhandled", locale);
@@ -134,7 +146,9 @@ public class SecurityInterceptEventExportProcessor implements ExportTaskProcesso
         return String.valueOf(status);
     }
 
-    /** 解析任务冻结语言，未知语言回退简体中文。 */
+    /**
+     * 解析任务冻结语言，未知语言回退简体中文。
+     */
     private Locale resolveLocale(String languageTag) {
         Locale locale = languageTag == null
                 ? Locale.SIMPLIFIED_CHINESE : Locale.forLanguageTag(languageTag);

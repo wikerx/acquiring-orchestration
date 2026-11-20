@@ -280,14 +280,18 @@ public class AdminWorkItemExportSourceRestClient
                 new TypeReference<CommonResult<CardBinPageResponse>>() { });
     }
 
-    /** 请求一页风控配置动态安全投影。 */
+    /**
+     * 请求一页风控配置动态安全投影。
+     */
     @Override
     public RiskPageResponse loadRiskConfigPage(RiskPageRequest request) {
         return post(RISK_CONFIG_PATH, request,
                 new TypeReference<CommonResult<RiskPageResponse>>() { });
     }
 
-    /** 请求一页数据源脱敏运行快照。 */
+    /**
+     * 请求一页数据源脱敏运行快照。
+     */
     @Override
     public DatasourcePageResponse loadDatasourceSnapshotPage(DatasourcePageRequest request) {
         return post(DATASOURCE_SNAPSHOT_PATH, request,
@@ -396,7 +400,9 @@ public class AdminWorkItemExportSourceRestClient
                 new TypeReference<CommonResult<JobRunLogPageResponse>>() { });
     }
 
-    /** 请求一页渠道勾兑异常安全投影。 */
+    /**
+     * 请求一页渠道勾兑异常安全投影。
+     */
     @Override
     public ChannelMatchAbnormalPageResponse loadChannelMatchAbnormalPage(
             ChannelMatchAbnormalPageRequest request) {
@@ -404,7 +410,9 @@ public class AdminWorkItemExportSourceRestClient
                 new TypeReference<CommonResult<ChannelMatchAbnormalPageResponse>>() { });
     }
 
-    /** 请求一页结算审核单安全投影。 */
+    /**
+     * 请求一页结算审核单安全投影。
+     */
     @Override
     public SettlementReviewPageResponse loadSettlementReviewPage(
             SettlementReviewPageRequest request) {
@@ -412,7 +420,9 @@ public class AdminWorkItemExportSourceRestClient
                 new TypeReference<CommonResult<SettlementReviewPageResponse>>() { });
     }
 
-    /** 请求一页结算入账流水安全投影。 */
+    /**
+     * 请求一页结算入账流水安全投影。
+     */
     @Override
     public SettlementPostingPageResponse loadSettlementPostingPage(
             SettlementPostingPageRequest request) {
@@ -420,7 +430,9 @@ public class AdminWorkItemExportSourceRestClient
                 new TypeReference<CommonResult<SettlementPostingPageResponse>>() { });
     }
 
-    /** 请求一页安全拦截事件安全投影。 */
+    /**
+     * 请求一页安全拦截事件安全投影。
+     */
     @Override
     public SecurityInterceptEventPageResponse loadSecurityInterceptEventPage(
             SecurityInterceptEventPageRequest request) {
@@ -428,133 +440,171 @@ public class AdminWorkItemExportSourceRestClient
                 new TypeReference<CommonResult<SecurityInterceptEventPageResponse>>() { });
     }
 
-    /** 请求一页资金账户安全投影。 */
+    /**
+     * 请求一页资金账户安全投影。
+     */
     @Override
     public FundAccountPageResponse loadFundAccountPage(FundAccountPageRequest request) {
         return post(FUND_ACCOUNT_PATH, request,
                 new TypeReference<CommonResult<FundAccountPageResponse>>() { });
     }
 
-    /** 请求一页指定账户或全局余额流水安全投影。 */
+    /**
+     * 请求一页指定账户或全局余额流水安全投影。
+     */
     @Override
     public FundLedgerPageResponse loadFundLedgerPage(FundLedgerPageRequest request) {
         return post(FUND_LEDGER_PATH, request,
                 new TypeReference<CommonResult<FundLedgerPageResponse>>() { });
     }
 
-    /** 请求一页充值申请安全投影。 */
+    /**
+     * 请求一页充值申请安全投影。
+     */
     @Override
     public FundRechargePageResponse loadFundRechargePage(FundRechargePageRequest request) {
         return post(FUND_RECHARGE_PATH, request,
                 new TypeReference<CommonResult<FundRechargePageResponse>>() { });
     }
 
-    /** 请求一页扣减申请安全投影。 */
+    /**
+     * 请求一页扣减申请安全投影。
+     */
     @Override
     public FundDeductionPageResponse loadFundDeductionPage(FundDeductionPageRequest request) {
         return post(FUND_DEDUCTION_PATH, request,
                 new TypeReference<CommonResult<FundDeductionPageResponse>>() { });
     }
 
-    /** 请求一页原始汇率事实投影。 */
+    /**
+     * 请求一页原始汇率事实投影。
+     */
     @Override
     public RawRatePageResponse loadRawRatePage(RawRatePageRequest request) {
         return post(EXCHANGE_RAW_RATE_PATH, request,
                 new TypeReference<CommonResult<RawRatePageResponse>>() { });
     }
 
-    /** 请求一页业务汇率事实投影。 */
+    /**
+     * 请求一页业务汇率事实投影。
+     */
     @Override
     public BusinessRatePageResponse loadBusinessRatePage(BusinessRatePageRequest request) {
         return post(EXCHANGE_BUSINESS_RATE_PATH, request,
                 new TypeReference<CommonResult<BusinessRatePageResponse>>() { });
     }
 
-    /** 请求一页汇率使用快照事实投影。 */
+    /**
+     * 请求一页汇率使用快照事实投影。
+     */
     @Override
     public UsageSnapshotPageResponse loadUsageSnapshotPage(UsageSnapshotPageRequest request) {
         return post(EXCHANGE_USAGE_SNAPSHOT_PATH, request,
                 new TypeReference<CommonResult<UsageSnapshotPageResponse>>() { });
     }
 
-    /** 请求一页汇率源配置投影。 */
+    /**
+     * 请求一页汇率源配置投影。
+     */
     @Override
     public SourcePageResponse loadSourcePage(SourcePageRequest request) {
         return post(EXCHANGE_SOURCE_PATH, request,
                 new TypeReference<CommonResult<SourcePageResponse>>() { });
     }
 
-    /** 请求一页汇率规则配置投影。 */
+    /**
+     * 请求一页汇率规则配置投影。
+     */
     @Override
     public RulePageResponse loadRulePage(RulePageRequest request) {
         return post(EXCHANGE_RULE_PATH, request,
                 new TypeReference<CommonResult<RulePageResponse>>() { });
     }
 
-    /** 请求一页权威汇率波动摘要投影。 */
+    /**
+     * 请求一页权威汇率波动摘要投影。
+     */
     @Override
     public VolatilityPageResponse loadVolatilityPage(VolatilityPageRequest request) {
         return post(EXCHANGE_VOLATILITY_PATH, request,
                 new TypeReference<CommonResult<VolatilityPageResponse>>() { });
     }
 
-    /** 请求一页汇率预警规则投影。 */
+    /**
+     * 请求一页汇率预警规则投影。
+     */
     @Override
     public AlertRulePageResponse loadAlertRulePage(AlertRulePageRequest request) {
         return post(EXCHANGE_ALERT_RULE_PATH, request,
                 new TypeReference<CommonResult<AlertRulePageResponse>>() { });
     }
 
-    /** 请求一页汇率预警事件投影。 */
+    /**
+     * 请求一页汇率预警事件投影。
+     */
     @Override
     public AlertEventPageResponse loadAlertEventPage(AlertEventPageRequest request) {
         return post(EXCHANGE_ALERT_EVENT_PATH, request,
                 new TypeReference<CommonResult<AlertEventPageResponse>>() { });
     }
 
-    /** 请求一页费用模板安全投影。 */
+    /**
+     * 请求一页费用模板安全投影。
+     */
     @Override
     public FeeTemplatePageResponse loadFeeTemplatePage(FeePlanPageRequest request) {
         return post(FEE_TEMPLATE_PATH, request,
                 new TypeReference<CommonResult<FeeTemplatePageResponse>>() { });
     }
 
-    /** 请求一页商户费率安全投影。 */
+    /**
+     * 请求一页商户费率安全投影。
+     */
     @Override
     public MerchantFeePageResponse loadMerchantFeePage(FeePlanPageRequest request) {
         return post(MERCHANT_FEE_PATH, request,
                 new TypeReference<CommonResult<MerchantFeePageResponse>>() { });
     }
 
-    /** 请求一页费率复核安全投影。 */
+    /**
+     * 请求一页费率复核安全投影。
+     */
     @Override
     public FeeReviewPageResponse loadFeeReviewPage(FeePlanPageRequest request) {
         return post(FEE_REVIEW_PATH, request,
                 new TypeReference<CommonResult<FeeReviewPageResponse>>() { });
     }
 
-    /** 请求一页费用试算逐项安全投影。 */
+    /**
+     * 请求一页费用试算逐项安全投影。
+     */
     @Override
     public FeeSimulationPageResponse loadFeeSimulationPage(FeeSimulationPageRequest request) {
         return post(FEE_SIMULATION_PATH, request,
                 new TypeReference<CommonResult<FeeSimulationPageResponse>>() { });
     }
 
-    /** 请求一页系统账户安全投影。 */
+    /**
+     * 请求一页系统账户安全投影。
+     */
     @Override
     public SystemUserPageResponse loadSystemUserPage(SystemUserPageRequest request) {
         return post(SYSTEM_USER_PATH, request,
                 new TypeReference<CommonResult<SystemUserPageResponse>>() { });
     }
 
-    /** 请求一页已脱敏系统参数安全投影。 */
+    /**
+     * 请求一页已脱敏系统参数安全投影。
+     */
     @Override
     public SystemConfigPageResponse loadSystemConfigPage(SystemConfigPageRequest request) {
         return post(SYSTEM_CONFIG_PATH, request,
                 new TypeReference<CommonResult<SystemConfigPageResponse>>() { });
     }
 
-    /** 请求一页商户 IP 白名单安全投影。 */
+    /**
+     * 请求一页商户 IP 白名单安全投影。
+     */
     @Override
     public MerchantIpWhitelistPageResponse loadMerchantIpWhitelistPage(
             MerchantIpWhitelistPageRequest request) {
@@ -563,10 +613,7 @@ public class AdminWorkItemExportSourceRestClient
     }
 
     /**
-     * 使用统一内部签名调用 Admin 导出来源并解包强类型响应。
-     */
-    /**
-     * 使用已有签名传输读取支付链接安全投影，不新建 Data 到支付核心的信任边。
+     * 使用统一内部签名读取 Admin 支付链接安全投影并解包响应，不新建 Data 到支付核心的信任边。
      */
     @Override
     public com.scott.payment.component.core.model.PageResult<com.scott.payment.data.client.paymentlink.PaymentLinkExportDTOs.Row> loadPaymentLinkPage(

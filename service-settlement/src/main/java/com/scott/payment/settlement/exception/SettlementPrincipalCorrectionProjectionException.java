@@ -22,18 +22,22 @@ public class SettlementPrincipalCorrectionProjectionException extends RuntimeExc
         this.failureCode = failureCode;
     }
 
+    /** 返回失败修正明细号，供回滚后的独立失败记录事务定位。 */
     public String getCorrectionItemNo() {
         return correctionItemNo;
     }
 
+    /** 提供失败时读取的版本，防止失败记录覆盖并发推进后的状态。 */
     public long getExpectedVersion() {
         return expectedVersion;
     }
 
+    /** 提供失败时的重试次数，供条件更新退避状态时核对。 */
     public int getExpectedRetryCount() {
         return expectedRetryCount;
     }
 
+    /** 返回受控失败码用于退避及告警，不携带敏感原始报文。 */
     public String getFailureCode() {
         return failureCode;
     }

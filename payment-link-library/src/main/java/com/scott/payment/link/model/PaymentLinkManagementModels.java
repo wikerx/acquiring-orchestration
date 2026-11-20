@@ -11,6 +11,7 @@ import java.util.Set;
 /** 共享链接管理输入；各服务继续保留原有公开 DTO 名称和权限边界。 */
 public final class PaymentLinkManagementModels {
     private PaymentLinkManagementModels() { }
+    /** 固定金额链接的创建输入；请求号用于幂等，截止时刻与相对有效期互斥。 */
     @Data
     public static class Create {
         @NotBlank @Size(max = 80)
@@ -40,12 +41,14 @@ public final class PaymentLinkManagementModels {
         @lombok.ToString.Exclude
         private String redirectUrl;
 
+        /** 明确拒绝未支持字段，避免把调用方要求静默降级为另一种链接契约。 */
         @JsonAnySetter
         public void rejectUnsupported(String name, Object value) {
             throw new IllegalArgumentException("Unsupported payment link field");
         }
     }
 
+    /** 由已鉴权服务构造的操作身份；商户范围不能由公开请求自行扩大。 */
     @Data
     public static class Actor {
         private String appCode;
@@ -54,6 +57,7 @@ public final class PaymentLinkManagementModels {
         private Set<String> merchantIds = Set.of();
     }
 
+    /** 当前商户可创建链接的币种、卡品牌与有效期限制，不代表未来永久可交易。 */
     @Data
     public static class Options {
         /** 默认展示商户结算币种，实际收单能力仍独立校验。 */

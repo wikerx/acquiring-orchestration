@@ -223,6 +223,7 @@ public class SettlementAutomaticScheduler {
         }
     }
 
+    /** 在主处理事务回滚后独立记录修正投影失败及退避条件，记录失败仅留痕不覆盖原始故障。 */
     private void recordPrincipalCorrectionFailure(
             SettlementPrincipalCorrectionProjectionException exception) {
         try {

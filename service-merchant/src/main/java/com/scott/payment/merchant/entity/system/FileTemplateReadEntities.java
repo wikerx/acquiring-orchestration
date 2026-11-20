@@ -11,6 +11,7 @@ public final class FileTemplateReadEntities {
     private FileTemplateReadEntities() {
     }
 
+    /** 商户端只读的模板定义与当前版本指针，不承载发布或编辑操作。 */
     @Data
     @TableName("sys_file_template")
     public static class TemplateDO {
@@ -27,6 +28,7 @@ public final class FileTemplateReadEntities {
         private Long deleted;
     }
 
+    /** 商户下载所需的不可变版本元数据，只能通过定义的发布指针选取。 */
     @Data
     @TableName("sys_file_template_version")
     public static class VersionDO {
@@ -36,6 +38,7 @@ public final class FileTemplateReadEntities {
         private String publishStatus;
     }
 
+    /** 发布版本的语言资产及完整性信息，私有对象键不得返回浏览器。 */
     @Data
     @TableName("sys_file_template_asset")
     public static class AssetDO {

@@ -1426,6 +1426,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return applyPreChannelFailure(context, false);
     }
 
+    /** 收敛尚未调用渠道的失败；仅核心准备事务已回滚时容许订单确实不存在，其他清理失败继续上抛。 */
     private PaymentCheckoutPaymentResultDTO applyPreChannelFailure(PaymentSubmissionContext context,
                                                                    boolean corePreparationFailed) {
         LocalDateTime now = LocalDateTime.now();

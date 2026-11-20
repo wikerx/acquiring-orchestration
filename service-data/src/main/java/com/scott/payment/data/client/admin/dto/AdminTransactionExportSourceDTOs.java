@@ -283,7 +283,9 @@ public final class AdminTransactionExportSourceDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 一页渠道勾兑异常导出来源请求。 */
+    /**
+     * 一页渠道勾兑异常导出来源请求。
+     */
     @Data
     public static class ChannelMatchAbnormalPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -295,7 +297,9 @@ public final class AdminTransactionExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页渠道勾兑异常安全投影。 */
+    /**
+     * 一页渠道勾兑异常安全投影。
+     */
     @Data
     public static class ChannelMatchAbnormalPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -305,7 +309,9 @@ public final class AdminTransactionExportSourceDTOs {
         private List<ChannelMatchAbnormalRow> records = new ArrayList<>();
     }
 
-    /** 渠道勾兑异常安全导出行，不包含渠道原始报文。 */
+    /**
+     * 渠道勾兑异常安全导出行，不包含渠道原始报文。
+     */
     @Data
     public static class ChannelMatchAbnormalRow implements Serializable {
         private static final long serialVersionUID = 1L;

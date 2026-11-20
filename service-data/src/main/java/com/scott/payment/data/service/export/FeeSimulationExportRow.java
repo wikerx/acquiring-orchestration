@@ -6,7 +6,9 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** 管理端费用试算逐项异步导出行，字段与同步导出保持兼容。 */
+/**
+ * 管理端费用试算逐项异步导出行，字段与同步导出保持兼容。
+ */
 @Data
 public class FeeSimulationExportRow {
     @ExcelExportColumn(order = 1, headerKey = "excel.fee.simulationNo", width = 24)

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 public class MerchantPaymentLinkExportInternalController {
     private final MerchantPaymentLinkExportSourceApplicationService application;
     public MerchantPaymentLinkExportInternalController(MerchantPaymentLinkExportSourceApplicationService application) { this.application=application; }
+    /** 为可信导出调用读取授权分页，内部调用仍按任务创建人的商户范围过滤。 */
     @PostMapping("/export-page")
     public CommonResult<PageResult<Row>> page(@Valid @RequestBody PageRequest request,HttpServletRequest http) {
         if(!"service-data".equals(http.getHeader(InternalServiceSignature.HEADER_CALLER))) { throw new ServiceException(ApiResultEnum.FORBIDDEN); }

@@ -18,6 +18,7 @@ public class PaymentLinkSettings {
     @lombok.ToString.Exclude
     private Map<String, String> signingKeys = new LinkedHashMap<>();
 
+    /** 启用链接时校验存储就绪、签名版本和前端地址；关闭入口时允许保留停用配置。 */
     @PostConstruct
     public void validate() {
         if (!enabled) {

@@ -28,6 +28,7 @@ public class PaymentLinkQueryService {
         this.policy = policy;
     }
 
+    /** 在操作者的商户数据范围内分页读取链接，金额按冻结的币种精度展示。 */
     @DS(DataSourceName.MASTER)
     public PageResult<View> search(Actor actor, Query input) {
         policy.requireEnabled();
@@ -41,6 +42,7 @@ public class PaymentLinkQueryService {
                 links.search(actor, query, now, offset(query)).stream().map(this::moneyView).toList());
     }
 
+    /** 先校验链接归属再组装内部详情；回调地址不得进入匿名付款人投影。 */
     @DS(DataSourceName.MASTER)
     public View detail(Actor actor, String linkId) {
         policy.requireEnabled();
@@ -68,6 +70,7 @@ public class PaymentLinkQueryService {
         return policy.filterCurrencies();
     }
 
+    /** 在相同授权和筛选范围内汇总状态数量，成功金额按币种分别累计。 */
     @DS(DataSourceName.MASTER)
     public Summary summary(Actor actor, Query input) {
         policy.requireEnabled();
@@ -90,6 +93,7 @@ public class PaymentLinkQueryService {
         return result;
     }
 
+    /** 确认链接可见后分页读取收款会话，不创建会话或推进支付状态。 */
     @DS(DataSourceName.MASTER)
     public PageResult<Collection> collections(Actor actor, String linkId, Query input) {
         detail(actor, linkId);
@@ -98,6 +102,7 @@ public class PaymentLinkQueryService {
                 links.collections(linkId, offset(query), query.getPageSize()));
     }
 
+    /** 确认链接可见后读取真实付款尝试；预分配编号不作为已生成的系统订单。 */
     @DS(DataSourceName.MASTER)
     public PageResult<Attempt> attempts(Actor actor, String linkId, Query input) {
         detail(actor, linkId);
@@ -108,6 +113,7 @@ public class PaymentLinkQueryService {
                 }).toList());
     }
 
+    /** 确认链接可见后分页读取生命周期时间线，查询不写入审计事件。 */
     @DS(DataSourceName.MASTER)
     public PageResult<Event> events(Actor actor, String linkId, Query input) {
         detail(actor, linkId);

@@ -43,6 +43,9 @@ LOG_CALL_RE = re.compile(r"\b(?:log|logger|LOGGER)\.(?:trace|debug|info|warn|err
 FIRST_STRING_LITERAL_RE = re.compile(r'\s*"((?:\\.|[^"\\])*)"', re.DOTALL)
 FORMAT_LITERAL_CONCAT_RE = re.compile(r'\A\s*"(?:\\.|[^"\\])*"\s*\+', re.DOTALL)
 CHINESE_TEXT_RE = re.compile(r"[\u4e00-\u9fff]")
+EVENT_FIELD_RE = re.compile(
+    r"(?:^|,\s*)event(?:Code)?:\s*(?:[A-Za-z_][A-Za-z0-9_.-]*|\{\})(?=\s*(?:,|$))"
+)
 
 REQUIRED_EVENT_PATTERNS = [
     "PAYMENT_TRANSACTION_START",
@@ -156,7 +159,7 @@ def log_format_findings(statement: str) -> list[str]:
         findings.append("log format uses string concatenation")
     if not CHINESE_TEXT_RE.search(format_text):
         findings.append("log format lacks a Chinese event description")
-    if "event:" not in format_text:
+    if not EVENT_FIELD_RE.search(format_text):
         findings.append("log format lacks an event field")
     if "[{}]" in format_text:
         findings.append("log format wraps a placeholder as [{}]")

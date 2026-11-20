@@ -38,6 +38,7 @@ public class PaymentLinkManagementService {
     }
 
     // 仅新建用例使用已提交快照：并发唯一键冲突后，详情必须能读到另一事务刚提交的原链接。
+    /** 在本地事务中按商户和请求号核对指纹，冻结金额、规则与截止时间；并发创建依赖持久化唯一约束。 */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public String create(Actor actor, String merchantId, Create input) {
@@ -96,6 +97,7 @@ public class PaymentLinkManagementService {
         return link.getLinkId();
     }
 
+    /** 锁定链接后校验归属、版本与请求号，幂等关闭新付款入口并留痕；不撤销在途交易。 */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public String disable(Actor actor, String linkId, Integer version, String reason, String requestId) {
@@ -136,6 +138,7 @@ public class PaymentLinkManagementService {
         return linkId;
     }
 
+    /** 锁定并校验入口及付款状态后复用冻结凭据生成地址，同时记录分享事件。 */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public String share(Actor actor, String linkId) {

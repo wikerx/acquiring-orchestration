@@ -123,6 +123,8 @@ FORBIDDEN_METADATA_TAG_RE = re.compile(
 )
 INHERIT_DOC_RE = re.compile(r"\{@inheritDoc\}", re.IGNORECASE)
 ONE_LINE_JAVADOC_RE = re.compile(r"(?m)^\s*/\*\*[^\r\n]*\*/\s*$")
+# Closer module rules retain their explicit multiline requirement.
+MULTILINE_JAVADOC_MODULES = {"service-data", "service-risk"}
 TYPE_RE = re.compile(
     r"^(?P<indent>\s*)(?P<mods>(?:(?:public|protected|private|abstract|final|static|sealed|non-sealed|strictfp)\s+)*)"
     r"(?P<kind>@interface|class|interface|enum|record)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b"
@@ -214,10 +216,13 @@ def collected_method_signature(lines: list[str], index: int) -> tuple[str, int] 
     return None
 
 
-def annotation_block_end(lines: list[str], index: int) -> int:
-    """Return the final line of an annotation, excluding parentheses inside strings."""
-    if not lines[index].lstrip().startswith("@"):
-        return index
+def annotation_block_span(lines: list[str], index: int) -> tuple[int, int]:
+    """Return the annotation's end line and exclusive column, excluding string contents."""
+    name = re.match(r"\s*@[A-Za-z_][A-Za-z0-9_$.]*\s*", lines[index])
+    if not name:
+        return index, 0
+    if name.end() == len(lines[index]) or lines[index][name.end()] != "(":
+        return index, name.end()
     parenthesis_depth = 0
     saw_parenthesis = False
     in_string = False
@@ -225,7 +230,7 @@ def annotation_block_end(lines: list[str], index: int) -> int:
     escaped = False
     for line_index in range(index, min(len(lines), index + 400)):
         line = lines[line_index]
-        cursor = 0
+        cursor = name.end() if line_index == index else 0
         while cursor < len(line):
             if in_text_block:
                 closing = line.find('"""', cursor)
@@ -257,10 +262,37 @@ def annotation_block_end(lines: list[str], index: int) -> int:
                 saw_parenthesis = True
             elif char == ")":
                 parenthesis_depth -= 1
+                if saw_parenthesis and parenthesis_depth == 0:
+                    return line_index, cursor + 1
             cursor += 1
         if not saw_parenthesis or (parenthesis_depth <= 0 and not in_string and not in_text_block):
-            return line_index
-    return index
+            return line_index, cursor
+    return index, len(lines[index])
+
+
+def annotation_sequence_span(lines: list[str], index: int) -> tuple[int, int]:
+    """Include consecutive annotations sharing a line, even when later arguments span lines."""
+    end, column = annotation_block_span(lines, index)
+    while lines[end][column:].lstrip().startswith("@"):
+        remainder = lines[end][column:]
+        extra_end, extra_column = annotation_block_span([remainder] + lines[end + 1:end + 401], 0)
+        if extra_column == 0:
+            break
+        column = column + extra_column if extra_end == 0 else extra_column
+        end += extra_end
+    return end, column
+
+
+def annotation_block_end(lines: list[str], index: int) -> int:
+    """Return the final annotation line for declaration scanning."""
+    return annotation_sequence_span(lines, index)[0]
+
+
+def is_annotation_only(lines: list[str], index: int) -> bool:
+    """An inline declaration ends the annotation sequence before the next member's Javadoc."""
+    end, column = annotation_sequence_span(lines, index)
+    remainder = lines[end][column:].strip()
+    return not remainder or remainder.startswith("//")
 
 
 def has_duplicate_javadocs_across_annotations(text: str) -> bool:
@@ -278,7 +310,8 @@ def has_duplicate_javadocs_across_annotations(text: str) -> bool:
         while cursor < len(lines) and not lines[cursor].strip():
             cursor += 1
         saw_annotation = False
-        while cursor < len(lines) and lines[cursor].lstrip().startswith("@"):
+        while (cursor < len(lines) and lines[cursor].lstrip().startswith("@")
+               and is_annotation_only(lines, cursor)):
             saw_annotation = True
             cursor = annotation_block_end(lines, cursor) + 1
             while cursor < len(lines) and not lines[cursor].strip():
@@ -301,6 +334,7 @@ def has_javadoc_after_annotations(text: str) -> bool:
         cursor = index
         while (cursor < len(lines)
                and lines[cursor].lstrip().startswith("@")
+               and is_annotation_only(lines, cursor)
                and len(lines[cursor]) - len(lines[cursor].lstrip()) == annotation_indent):
             cursor = annotation_block_end(lines, cursor) + 1
             while cursor < len(lines) and not lines[cursor].strip():
@@ -315,6 +349,54 @@ def has_javadoc_after_annotations(text: str) -> bool:
 
 def is_main_java(path: Path) -> bool:
     return "src/main/java" in str(path)
+
+
+def requires_multiline_javadoc(path: Path) -> bool:
+    return bool(MULTILINE_JAVADOC_MODULES.intersection(path.parts))
+
+
+def requires_type_javadoc(path: Path, kind: str, mods: set[str], is_top: bool) -> bool:
+    """Only unexposed, plain internal helpers may rely on their names alone."""
+    if not is_top:
+        return {"public", "static"}.issubset(mods)
+    normalized = path.as_posix()
+    return ("public" in mods or kind != "class" or requires_multiline_javadoc(path)
+            or is_model_path(path)
+            or any(marker in normalized for marker in CORE_PATH_MARKERS)
+            or re.search(r"(?:Controller|ApplicationService|Service|Repository|Mapper|Converter|"
+                         r"Policy|Guard|Configuration|Properties|Provider|Processor|Scheduler|"
+                         r"Consumer|Filter|Interceptor)$", path.stem) is not None)
+
+
+def is_plain_read_delegate(path: Path, name: str, params: str,
+                           lines: list[str], index: int) -> bool:
+    """Recognize only unchanged read forwarding outside protected boundaries."""
+    normalized = path.as_posix()
+    if (requires_multiline_javadoc(path) or is_model_path(path)
+            or any(marker in normalized for marker in CORE_PATH_MARKERS)
+            or any(part in path.parts for part in ("api", "controller", "mapper"))
+            or not re.match(r"(?:get|find|query|search|list|count|page|options|detail|summarize)(?:$|[A-Z])", name)):
+        return False
+    # A permission, transaction or other annotation may add a separate contract.
+    previous = index - 1
+    while previous >= 0 and not lines[previous].strip():
+        previous -= 1
+    if any(lines[cursor].lstrip().startswith("@")
+           and annotation_block_end(lines, cursor) == previous
+           for cursor in range(max(0, index - 400), previous + 1)):
+        return False
+    if "," in params or "@" in params or "..." in params:
+        return False
+    parameter = params.split()[-1] if params.strip() else ""
+    if parameter and not re.fullmatch(r"[A-Za-z_]\w*", parameter):
+        return False
+    source = "".join(lines[index:index + 6])
+    _, opening, body = source.partition("{")
+    if not opening:
+        return False
+    delegate = re.match(r"\s*return\s+(?:this\.)?[a-z]\w*\." + re.escape(name)
+                        + r"\(\s*([A-Za-z_]\w*)?\s*\)\s*;\s*}", body)
+    return delegate is not None and (delegate.group(1) or "") == parameter
 
 
 def is_model_path(path: Path) -> bool:
@@ -473,8 +555,7 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
             name = type_match.group("name")
             mods = set((type_match.group("mods") or "").split())
             is_top = depth == 0
-            is_public_static_nested = depth > 0 and {"public", "static"}.issubset(mods)
-            if (is_main_java(path) and (is_top or is_public_static_nested)
+            if (is_main_java(path) and requires_type_javadoc(path, kind, mods, is_top)
                     and not has_javadoc_before(lines, index)):
                 findings.append(f"missing_type_javadoc:{name}:{index + 1}")
             type_stack.append((kind, name, depth))
@@ -525,7 +606,9 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
             is_required_method = (is_main_java(path)
                                   and ("public" in mods or "protected" in mods
                                        or current_type[0] == "interface" or is_private_core))
-            if is_constructor or is_simple_accessor(path, name, method.group("params")):
+            if (is_constructor or is_simple_accessor(path, name, method.group("params"))
+                    or (not is_private_core and is_plain_read_delegate(
+                        path, name, method.group("params"), lines, index))):
                 delta, in_block, in_string = current_depth(line, in_block, in_string)
                 depth += delta
                 continue
@@ -543,6 +626,8 @@ def scan_file(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     findings: list[str] = []
     javadocs = JAVADOC_BLOCK_RE.findall(text)
+    if any(not re.sub(r"[\s*]", "", block[3:-2]) for block in javadocs):
+        findings.append("empty-javadoc")
     for pattern in TEMPLATE_PATTERNS:
         if any(pattern.search(block) for block in javadocs):
             findings.append(f"template:{pattern.pattern}")
@@ -550,7 +635,7 @@ def scan_file(path: Path) -> list[str]:
         findings.append("forbidden-javadoc-metadata")
     if INHERIT_DOC_RE.search(text):
         findings.append("inherit-doc-placeholder")
-    if ONE_LINE_JAVADOC_RE.search(text):
+    if requires_multiline_javadoc(path) and ONE_LINE_JAVADOC_RE.search(text):
         findings.append("one-line-javadoc")
     if DUPLICATE_TYPE_JAVADOC.search(text):
         findings.append("duplicate-type-javadoc")

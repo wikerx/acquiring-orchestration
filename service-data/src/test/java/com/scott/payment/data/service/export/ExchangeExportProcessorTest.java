@@ -49,7 +49,9 @@ import static org.mockito.Mockito.when;
  */
 class ExchangeExportProcessorTest {
 
-    /** 原始汇率导出必须保留极小报价和尾随精度，不得写成科学计数法来源值。 */
+    /**
+     * 原始汇率导出必须保留极小报价和尾随精度，不得写成科学计数法来源值。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportRawRatesWithoutChangingDecimals() {
@@ -86,7 +88,9 @@ class ExchangeExportProcessorTest {
         assertThat(captor.getValue().getPageSize()).isEqualTo(73);
     }
 
-    /** 业务汇率导出必须保持 originalRate 与 finalRate 原值和方向。 */
+    /**
+     * 业务汇率导出必须保持 originalRate 与 finalRate 原值和方向。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportBusinessRatesWithoutRecalculation() {
@@ -125,7 +129,9 @@ class ExchangeExportProcessorTest {
         assertThat(captor.getValue().getPageSize()).isEqualTo(73);
     }
 
-    /** 使用快照导出必须直接复制 usedRate，不能按 INVERSE 方向再次取倒数。 */
+    /**
+     * 使用快照导出必须直接复制 usedRate，不能按 INVERSE 方向再次取倒数。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportUsageSnapshotWithoutDirectionConversion() {
@@ -161,7 +167,9 @@ class ExchangeExportProcessorTest {
         assertThat(captor.getValue().getPageSize()).isEqualTo(73);
     }
 
-    /** 波动导出必须直接复制权威字符串，避免浮点转换或科学计数法。 */
+    /**
+     * 波动导出必须直接复制权威字符串，避免浮点转换或科学计数法。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportVolatilityWithoutDecimalConversion() {
@@ -200,7 +208,9 @@ class ExchangeExportProcessorTest {
         assertThat(captor.getValue().getPageSize()).isEqualTo(73);
     }
 
-    /** 创建返回中文标记的枚举解析器，验证国际化键和冻结语言。 */
+    /**
+     * 创建返回中文标记的枚举解析器，验证国际化键和冻结语言。
+     */
     private ExcelI18nMessageResolver resolver() {
         ExcelI18nMessageResolver resolver = mock(ExcelI18nMessageResolver.class);
         when(resolver.resolve(anyString(), eq(Locale.SIMPLIFIED_CHINESE)))
@@ -208,7 +218,9 @@ class ExchangeExportProcessorTest {
         return resolver;
     }
 
-    /** 创建含强类型查询、任务创建人和冻结语言的测试任务。 */
+    /**
+     * 创建含强类型查询、任务创建人和冻结语言的测试任务。
+     */
     private DataExportTaskDO task(Object query) {
         DataExportTaskDO task = new DataExportTaskDO();
         task.setTaskNo("EXP-EXCHANGE-001");
@@ -220,14 +232,18 @@ class ExchangeExportProcessorTest {
         return task;
     }
 
-    /** 创建汇率导出使用的普通分页配置。 */
+    /**
+     * 创建汇率导出使用的普通分页配置。
+     */
     private DataExportProperties properties() {
         DataExportProperties properties = new DataExportProperties();
         properties.setPageSize(73);
         return properties;
     }
 
-    /** 创建不依赖真实对象存储的文件元数据。 */
+    /**
+     * 创建不依赖真实对象存储的文件元数据。
+     */
     private ExportArtifact artifact() {
         return new ExportArtifact("exchange.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

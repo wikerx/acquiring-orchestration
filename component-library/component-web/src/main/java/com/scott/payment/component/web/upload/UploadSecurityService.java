@@ -31,6 +31,7 @@ public class UploadSecurityService {
         this.properties = properties;
     }
 
+    /** 业务完成对象授权后调用；依次校验会话、频率、格式及大小并扫描内容，只返回已通过扫描的字节快照。 */
     public MultipartFile validate(MultipartFile file, Set<String> extensions, long maxBytes) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getUserId() == null || account.getAccountId() == null) {

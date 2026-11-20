@@ -44,7 +44,9 @@ import static org.mockito.Mockito.when;
  */
 class FeeExportProcessorTest {
 
-    /** 费用模板处理器必须使用平台分页配置并保持版本字段。 */
+    /**
+     * 费用模板处理器必须使用平台分页配置并保持版本字段。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportFeeTemplatesWithConfiguredPagination() {
@@ -78,7 +80,9 @@ class FeeExportProcessorTest {
         assertThat(captor.getValue().isAllMerchants()).isTrue();
     }
 
-    /** 商户费率处理器必须传递冻结商户范围并保持方案归属。 */
+    /**
+     * 商户费率处理器必须传递冻结商户范围并保持方案归属。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportMerchantFeesWithinFrozenScope() {
@@ -109,7 +113,9 @@ class FeeExportProcessorTest {
         assertThat(captor.getValue().getPageNo()).isEqualTo(3);
     }
 
-    /** 费率审核处理器必须使用独立任务行模型，不能混入模板或商户费率字段。 */
+    /**
+     * 费率审核处理器必须使用独立任务行模型，不能混入模板或商户费率字段。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportFeeReviewsWithDedicatedProjection() {
@@ -140,7 +146,9 @@ class FeeExportProcessorTest {
         verify(client).loadFeeReviewPage(any());
     }
 
-    /** 费用试算处理器必须保持高精度金额并使用主记录总数控制来源分页。 */
+    /**
+     * 费用试算处理器必须保持高精度金额并使用主记录总数控制来源分页。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportExpandedSimulationRowsWithoutRounding() {
@@ -179,7 +187,9 @@ class FeeExportProcessorTest {
         assertThat(captor.getValue().getMerchantIds()).containsExactly("M3001");
     }
 
-    /** 创建费用试算逐项来源行。 */
+    /**
+     * 创建费用试算逐项来源行。
+     */
     private FeeSimulationRow simulationRow(int lineNo, String finalFeeUsd) {
         FeeSimulationRow row = new FeeSimulationRow();
         row.setSimulationNo("SIM-3001");
@@ -188,7 +198,9 @@ class FeeExportProcessorTest {
         return row;
     }
 
-    /** 创建含强类型查询、冻结商户范围和语言的任务。 */
+    /**
+     * 创建含强类型查询、冻结商户范围和语言的任务。
+     */
     private DataExportTaskDO task(Object query, boolean allMerchants, Set<String> merchantIds) {
         AdminExportScopeSnapshot scope = new AdminExportScopeSnapshot();
         scope.setAllMerchants(allMerchants);
@@ -204,14 +216,18 @@ class FeeExportProcessorTest {
         return task;
     }
 
-    /** 创建费用域使用的平台分页配置。 */
+    /**
+     * 创建费用域使用的平台分页配置。
+     */
     private DataExportProperties properties() {
         DataExportProperties properties = new DataExportProperties();
         properties.setPlatformPageSize(73);
         return properties;
     }
 
-    /** 创建不依赖真实对象存储的文件元数据。 */
+    /**
+     * 创建不依赖真实对象存储的文件元数据。
+     */
     private ExportArtifact artifact(long rowCount) {
         return new ExportArtifact("fee.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

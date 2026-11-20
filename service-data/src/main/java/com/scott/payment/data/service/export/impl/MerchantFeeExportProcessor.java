@@ -20,13 +20,17 @@ import java.util.Locale;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_MERCHANT_FEE;
 
-/** 管理端商户费率异步导出处理器。 */
+/**
+ * 管理端商户费率异步导出处理器。
+ */
 @Service
 public class MerchantFeeExportProcessor
         extends AbstractBaseReferenceExportProcessor<FeePlanQuery, MerchantFeeExportRow> {
     private final AdminFeeExportSourceClient sourceClient;
 
-    /** 创建商户费率导出处理器。 */
+    /**
+     * 创建商户费率导出处理器。
+     */
     public MerchantFeeExportProcessor(AdminFeeExportSourceClient sourceClient,
                                       ExcelExportArtifactWriter artifactWriter,
                                       ExcelI18nMessageResolver messageResolver,
@@ -86,7 +90,9 @@ public class MerchantFeeExportProcessor
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 转换商户费率导出行。 */
+    /**
+     * 转换商户费率导出行。
+     */
     private MerchantFeeExportRow toExportRow(MerchantFeeRow source) {
         MerchantFeeExportRow row = new MerchantFeeExportRow();
         row.setMerchantId(source.getMerchantId());

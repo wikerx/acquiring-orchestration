@@ -19,11 +19,15 @@ import java.util.Set;
  */
 public final class AdminFundExportSourceDTOs {
 
-    /** 阻止内部模型容器被实例化。 */
+    /**
+     * 阻止内部模型容器被实例化。
+     */
     private AdminFundExportSourceDTOs() {
     }
 
-    /** 资金账户分页请求，显式携带任务创建时冻结的商户范围。 */
+    /**
+     * 资金账户分页请求，显式携带任务创建时冻结的商户范围。
+     */
     @Data
     public static class FundAccountPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -35,7 +39,9 @@ public final class AdminFundExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 余额流水分页请求，账户主键为空时查询全局流水。 */
+    /**
+     * 余额流水分页请求，账户主键为空时查询全局流水。
+     */
     @Data
     public static class FundLedgerPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -47,7 +53,9 @@ public final class AdminFundExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 充值申请分页请求。 */
+    /**
+     * 充值申请分页请求。
+     */
     @Data
     public static class FundRechargePageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -59,7 +67,9 @@ public final class AdminFundExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 扣减申请分页请求。 */
+    /**
+     * 扣减申请分页请求。
+     */
     @Data
     public static class FundDeductionPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -71,7 +81,9 @@ public final class AdminFundExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页资金账户安全投影。 */
+    /**
+     * 一页资金账户安全投影。
+     */
     @Data
     public static class FundAccountPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -81,7 +93,9 @@ public final class AdminFundExportSourceDTOs {
         private List<FundAccountRow> records = new ArrayList<>();
     }
 
-    /** 一页余额流水安全投影。 */
+    /**
+     * 一页余额流水安全投影。
+     */
     @Data
     public static class FundLedgerPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -91,7 +105,9 @@ public final class AdminFundExportSourceDTOs {
         private List<FundLedgerRow> records = new ArrayList<>();
     }
 
-    /** 一页充值申请安全投影。 */
+    /**
+     * 一页充值申请安全投影。
+     */
     @Data
     public static class FundRechargePageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -101,7 +117,9 @@ public final class AdminFundExportSourceDTOs {
         private List<FundRechargeRow> records = new ArrayList<>();
     }
 
-    /** 一页扣减申请安全投影。 */
+    /**
+     * 一页扣减申请安全投影。
+     */
     @Data
     public static class FundDeductionPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -111,7 +129,9 @@ public final class AdminFundExportSourceDTOs {
         private List<FundDeductionRow> records = new ArrayList<>();
     }
 
-    /** 资金账户导出源行。 */
+    /**
+     * 资金账户导出源行。
+     */
     @Data
     public static class FundAccountRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -125,7 +145,9 @@ public final class AdminFundExportSourceDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 余额流水导出源行，金额与余额保持数据库十进制事实。 */
+    /**
+     * 余额流水导出源行，金额与余额保持数据库十进制事实。
+     */
     @Data
     public static class FundLedgerRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -153,7 +175,9 @@ public final class AdminFundExportSourceDTOs {
         private String idempotencyKey;
     }
 
-    /** 充值申请导出源行。 */
+    /**
+     * 充值申请导出源行。
+     */
     @Data
     public static class FundRechargeRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -175,7 +199,9 @@ public final class AdminFundExportSourceDTOs {
         private LocalDateTime postedTime;
     }
 
-    /** 扣减申请导出源行。 */
+    /**
+     * 扣减申请导出源行。
+     */
     @Data
     public static class FundDeductionRow implements Serializable {
         private static final long serialVersionUID = 1L;

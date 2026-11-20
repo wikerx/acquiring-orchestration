@@ -21,7 +21,9 @@ import java.time.LocalDateTime;
  */
 @Component
 public class ExportTaskDispatchJob implements JobHandler {
+    /** 任务中心登记的导出调度作业编码，不直接代表 Data 业务任务号。 */
     public static final String JOB_CODE = "DATA_EXPORT_TASK_DISPATCH";
+    /** 执行器定位本处理器的稳定编码，调度仍通过 Data 幂等命令领取导出任务。 */
     public static final String HANDLER_CODE = "dataExportTaskDispatch";
     private final DataInternalClient dataInternalClient;
     private final Clock clock;

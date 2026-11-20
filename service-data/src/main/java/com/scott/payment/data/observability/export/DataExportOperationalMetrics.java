@@ -23,9 +23,21 @@ import java.util.concurrent.atomic.AtomicLong;
 @Component
 public class DataExportOperationalMetrics {
 
+    /**
+     * 按固定任务状态统计的任务数指标名，禁止将商户号或任务号用作标签。
+     */
     public static final String STATUS_COUNT = "acquiring.data.export.task.status.count";
+    /**
+     * 最早未完成任务的等待秒数指标名，反映积压时长而非任务执行耗时。
+     */
     public static final String OLDEST_UNFINISHED_AGE = "acquiring.data.export.task.oldest.unfinished.age.seconds";
+    /**
+     * 按固定事件枚举累计的导出流程计数指标名。
+     */
     public static final String EVENT_TOTAL = "acquiring.data.export.event.total";
+    /**
+     * 按受控结果标签记录导出执行时长的计时器名称。
+     */
     public static final String EXECUTION_DURATION = "acquiring.data.export.execution.duration";
 
     private static final Set<String> STATUSES = Set.of("PENDING", "PROCESSING", "SUCCESS", "FAILED", "EXPIRED");

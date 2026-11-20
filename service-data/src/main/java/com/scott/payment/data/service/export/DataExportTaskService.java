@@ -44,61 +44,229 @@ import java.util.concurrent.Semaphore;
 @Slf4j
 @Service
 public class DataExportTaskService {
+    /**
+     * 管理端任务的应用归属标识，参与创建人和下载权限隔离。
+     */
     public static final String APP_ADMIN = "ADMIN";
+    /**
+     * 商户端任务的应用归属标识，必须同时限定认证商户范围。
+     */
     public static final String APP_MERCHANT = "MERCHANT";
+    /**
+     * 管理端运营工作项导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_OPERATIONAL_WORK_ITEM = "ADMIN_OPERATIONAL_WORK_ITEM";
+    /**
+     * 管理端交易订单导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_TRANSACTION_ORDER = "ADMIN_TRANSACTION_ORDER";
+    /**
+     * 管理端交易操作导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_TRANSACTION_OPERATION = "ADMIN_TRANSACTION_OPERATION";
+    /**
+     * 管理端商户通知导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_MERCHANT_NOTIFICATION = "ADMIN_MERCHANT_NOTIFICATION";
+    /**
+     * 管理端退款导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_REFUND = "ADMIN_REFUND";
+    /**
+     * 管理端结算交易明细导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SETTLEMENT_TRANSACTION = "ADMIN_SETTLEMENT_TRANSACTION";
+    /**
+     * 管理端结算批次摘要导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SETTLEMENT_BATCH_SUMMARY = "ADMIN_SETTLEMENT_BATCH_SUMMARY";
+    /**
+     * 管理端结算保证金明细导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SETTLEMENT_RESERVE = "ADMIN_SETTLEMENT_RESERVE";
+    /**
+     * 管理端卡 BIN 字典导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_CARD_BIN = "ADMIN_CARD_BIN";
+    /**
+     * 管理端国家地区字典导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_COUNTRY = "ADMIN_COUNTRY";
+    /**
+     * 管理端币种字典导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_CURRENCY = "ADMIN_CURRENCY";
+    /**
+     * 管理端地区币种关系导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_REGION_CURRENCY = "ADMIN_REGION_CURRENCY";
+    /**
+     * 管理端 MCC 字典导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_MCC_CODE = "ADMIN_MCC_CODE";
+    /**
+     * 管理端部门导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_DEPARTMENT = "ADMIN_DEPARTMENT";
+    /**
+     * 管理端岗位导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_POST = "ADMIN_POST";
+    /**
+     * 管理端字典类型导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_DICT_TYPE = "ADMIN_DICT_TYPE";
+    /**
+     * 管理端字典项导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_DICT_DATA = "ADMIN_DICT_DATA";
+    /**
+     * 管理端节假日日历导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_HOLIDAY_CALENDAR = "ADMIN_HOLIDAY_CALENDAR";
+    /**
+     * 管理端调度执行日志导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_JOB_RUN_LOG = "ADMIN_JOB_RUN_LOG";
+    /**
+     * 管理端渠道对账异常导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_CHANNEL_MATCH_ABNORMAL = "ADMIN_CHANNEL_MATCH_ABNORMAL";
+    /**
+     * 管理端结算审核导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SETTLEMENT_REVIEW = "ADMIN_SETTLEMENT_REVIEW";
+    /**
+     * 管理端结算入账记录导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SETTLEMENT_POSTING = "ADMIN_SETTLEMENT_POSTING";
+    /**
+     * 管理端安全拦截事件导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SECURITY_INTERCEPT_EVENT = "ADMIN_SECURITY_INTERCEPT_EVENT";
+    /**
+     * 管理端资金账户导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_FUND_ACCOUNT = "ADMIN_FUND_ACCOUNT";
+    /**
+     * 管理端资金流水导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_FUND_LEDGER = "ADMIN_FUND_LEDGER";
+    /**
+     * 管理端充值记录导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_FUND_RECHARGE = "ADMIN_FUND_RECHARGE";
+    /**
+     * 管理端扣款记录导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_FUND_DEDUCTION = "ADMIN_FUND_DEDUCTION";
+    /**
+     * 管理端原始汇率导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_RAW_RATE = "ADMIN_EXCHANGE_RAW_RATE";
+    /**
+     * 管理端业务汇率导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_BUSINESS_RATE = "ADMIN_EXCHANGE_BUSINESS_RATE";
+    /**
+     * 管理端汇率使用快照导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_USAGE_SNAPSHOT = "ADMIN_EXCHANGE_USAGE_SNAPSHOT";
+    /**
+     * 管理端汇率来源导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_SOURCE = "ADMIN_EXCHANGE_SOURCE";
+    /**
+     * 管理端汇率规则导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_RULE = "ADMIN_EXCHANGE_RULE";
+    /**
+     * 管理端汇率波动摘要导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_VOLATILITY = "ADMIN_EXCHANGE_VOLATILITY";
+    /**
+     * 管理端汇率预警规则导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_ALERT_RULE = "ADMIN_EXCHANGE_ALERT_RULE";
+    /**
+     * 管理端汇率预警事件导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_EXCHANGE_ALERT_EVENT = "ADMIN_EXCHANGE_ALERT_EVENT";
+    /**
+     * 管理端费率模板导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_FEE_TEMPLATE = "ADMIN_FEE_TEMPLATE";
+    /**
+     * 管理端商户费率导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_MERCHANT_FEE = "ADMIN_MERCHANT_FEE";
+    /**
+     * 管理端费率审核导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_FEE_REVIEW = "ADMIN_FEE_REVIEW";
+    /**
+     * 管理端费用试算导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_FEE_SIMULATION = "ADMIN_FEE_SIMULATION";
+    /**
+     * 管理端系统用户导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SYSTEM_USER = "ADMIN_SYSTEM_USER";
+    /**
+     * 管理端系统参数导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_SYSTEM_CONFIG = "ADMIN_SYSTEM_CONFIG";
+    /**
+     * 管理端商户 IP 白名单导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_MERCHANT_IP_WHITELIST = "ADMIN_MERCHANT_IP_WHITELIST";
+    /**
+     * 管理端风控配置导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_RISK_CONFIG = "ADMIN_RISK_CONFIG";
+    /**
+     * 管理端交易黑名单导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_TRADE_BLACK_RECORD = "ADMIN_TRADE_BLACK_RECORD";
+    /**
+     * 管理端脱敏数据源快照导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_DATASOURCE_SNAPSHOT = "ADMIN_DATASOURCE_SNAPSHOT";
+    /**
+     * 商户端交易操作导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_TRANSACTION_OPERATION = "MERCHANT_TRANSACTION_OPERATION";
+    /**
+     * 商户端退款导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_REFUND = "MERCHANT_REFUND";
+    /**
+     * 商户端结算批次导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_SETTLEMENT_BATCH = "MERCHANT_SETTLEMENT_BATCH";
+    /**
+     * 商户端结算摘要导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_SETTLEMENT_SUMMARY = "MERCHANT_SETTLEMENT_SUMMARY";
+    /**
+     * 商户端结算交易明细导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_SETTLEMENT_TRANSACTION = "MERCHANT_SETTLEMENT_TRANSACTION";
+    /**
+     * 商户端结算保证金明细导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_SETTLEMENT_RESERVE = "MERCHANT_SETTLEMENT_RESERVE";
+    /**
+     * 商户端资金流水导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_FUND_LEDGER = "MERCHANT_FUND_LEDGER";
+    /**
+     * 管理端支付链接导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String ADMIN_PAYMENT_LINK = "ADMIN_PAYMENT_LINK";
+    /**
+     * 商户端支付链接导出的稳定任务类型，用于选择专属处理器及校验来源权限。
+     */
     public static final String MERCHANT_PAYMENT_LINK = "MERCHANT_PAYMENT_LINK";
     private static final Set<String> SUPPORTED_TASK_TYPES = Set.of(
             ADMIN_PAYMENT_LINK, MERCHANT_PAYMENT_LINK,

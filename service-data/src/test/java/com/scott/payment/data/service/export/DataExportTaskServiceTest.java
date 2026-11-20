@@ -542,7 +542,9 @@ class DataExportTaskServiceTest {
         assertThat(volatilityFixture.insertedTask.getValue().getQuerySnapshot()).doesNotContain("workItemNo");
     }
 
-    /** 四类费用任务必须分别保存匹配的强类型查询快照，不能回退到其他费用查询。 */
+    /**
+     * 四类费用任务必须分别保存匹配的强类型查询快照，不能回退到其他费用查询。
+     */
     @Test
     void shouldPersistFeeTaskTypesAndQuerySnapshots() {
         List<String> taskTypes = List.of(
@@ -593,7 +595,9 @@ class DataExportTaskServiceTest {
         }
     }
 
-    /** 三类系统与访问控制任务必须持久化各自强类型查询快照。 */
+    /**
+     * 三类系统与访问控制任务必须持久化各自强类型查询快照。
+     */
     @Test
     void shouldPersistSystemAndMerchantAccessTaskSnapshots() {
         List<String> taskTypes = List.of(

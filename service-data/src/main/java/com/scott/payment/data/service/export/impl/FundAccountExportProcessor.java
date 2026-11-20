@@ -36,7 +36,9 @@ public class FundAccountExportProcessor implements ExportTaskProcessor {
     private final ExcelI18nMessageResolver messageResolver;
     private final DataExportProperties properties;
 
-    /** 创建资金账户异步导出处理器。 */
+    /**
+     * 创建资金账户异步导出处理器。
+     */
     public FundAccountExportProcessor(AdminFundExportSourceClient sourceClient,
                                       ExcelExportArtifactWriter artifactWriter,
                                       ExcelI18nMessageResolver messageResolver,
@@ -47,13 +49,17 @@ public class FundAccountExportProcessor implements ExportTaskProcessor {
         this.properties = properties;
     }
 
-    /** 返回资金账户稳定任务类型。 */
+    /**
+     * 返回资金账户稳定任务类型。
+     */
     @Override
     public String taskType() {
         return ADMIN_FUND_ACCOUNT;
     }
 
-    /** 解析冻结条件和范围并生成资金账户文件。 */
+    /**
+     * 解析冻结条件和范围并生成资金账户文件。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task, ExportObjectStorageService storage,
                                   ExportProgressListener progressListener, LocalDateTime now) {
@@ -70,7 +76,9 @@ public class FundAccountExportProcessor implements ExportTaskProcessor {
                 pageNo -> loadPage(task, query, scope, pageNo, locale));
     }
 
-    /** 读取一页资金账户并本地化固定枚举。 */
+    /**
+     * 读取一页资金账户并本地化固定枚举。
+     */
     private ExportPage<FundAccountExportRow> loadPage(
             DataExportTaskDO task, FundAccountQuery query, AdminExportScopeSnapshot scope,
             int pageNo, Locale locale) {
@@ -86,7 +94,9 @@ public class FundAccountExportProcessor implements ExportTaskProcessor {
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 填充任务创建人、冻结范围和服务端分页。 */
+    /**
+     * 填充任务创建人、冻结范围和服务端分页。
+     */
     private void populateScope(FundAccountPageRequest request, DataExportTaskDO task,
                                AdminExportScopeSnapshot scope, FundAccountQuery query, int pageNo) {
         request.setCreatorAccountId(task.getCreatorAccountId());
@@ -97,7 +107,9 @@ public class FundAccountExportProcessor implements ExportTaskProcessor {
         request.setPageSize(properties.getPageSize());
     }
 
-    /** 保持金额和币种不变，仅转换账户状态与限制标识展示值。 */
+    /**
+     * 保持金额和币种不变，仅转换账户状态与限制标识展示值。
+     */
     private FundAccountExportRow toExportRow(FundAccountRow source, Locale locale) {
         FundAccountExportRow row = new FundAccountExportRow();
         row.setAccountNo(source.getAccountNo());
@@ -112,7 +124,9 @@ public class FundAccountExportProcessor implements ExportTaskProcessor {
         return row;
     }
 
-    /** 解析资金枚举展示值，缺少翻译时保留协议原值。 */
+    /**
+     * 解析资金枚举展示值，缺少翻译时保留协议原值。
+     */
     private String label(String category, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -123,7 +137,9 @@ public class FundAccountExportProcessor implements ExportTaskProcessor {
         return key.equals(resolved) ? normalized : resolved;
     }
 
-    /** 解析任务冻结语言，未知语言回退简体中文。 */
+    /**
+     * 解析任务冻结语言，未知语言回退简体中文。
+     */
     private Locale resolveLocale(String languageTag) {
         Locale locale = languageTag == null ? Locale.SIMPLIFIED_CHINESE : Locale.forLanguageTag(languageTag);
         return locale.getLanguage().isBlank() ? Locale.SIMPLIFIED_CHINESE : locale;

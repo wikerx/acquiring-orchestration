@@ -12,15 +12,23 @@ import com.scott.payment.data.client.admin.dto.AdminFeeExportSourceDTOs.Merchant
  */
 public interface AdminFeeExportSourceClient {
 
-    /** 读取一页费用模板。 */
+    /**
+     * 读取一页费用模板。
+     */
     FeeTemplatePageResponse loadFeeTemplatePage(FeePlanPageRequest request);
 
-    /** 读取一页商户费率。 */
+    /**
+     * 读取一页商户费率。
+     */
     MerchantFeePageResponse loadMerchantFeePage(FeePlanPageRequest request);
 
-    /** 读取一页费率复核记录。 */
+    /**
+     * 读取一页费率复核记录。
+     */
     FeeReviewPageResponse loadFeeReviewPage(FeePlanPageRequest request);
 
-    /** 读取一页费用试算逐项记录。 */
+    /**
+     * 读取一页费用试算逐项记录。
+     */
     FeeSimulationPageResponse loadFeeSimulationPage(FeeSimulationPageRequest request);
 }

@@ -141,7 +141,9 @@ class AdminWorkItemExportSourceRestClientTest {
         server.verify();
     }
 
-    /** 系统账户、参数与商户访问控制导出必须调用三条精确签名路径。 */
+    /**
+     * 系统账户、参数与商户访问控制导出必须调用三条精确签名路径。
+     */
     @Test
     void shouldCallSystemAndMerchantAccessExportSourcePathsWithInternalSignature() {
         RestTemplate direct = new RestTemplate();

@@ -13,6 +13,7 @@ import java.util.Set;
 public final class PaymentLinkDTOs {
     private PaymentLinkDTOs() { }
 
+    /** 固定金额链接的创建输入；请求号用于幂等，截止时刻与相对有效期互斥。 */
     @Data
     public static class Create {
         @NotBlank @Size(max = 80)
@@ -42,6 +43,7 @@ public final class PaymentLinkDTOs {
         @lombok.ToString.Exclude
         private String redirectUrl;
 
+        /** 明确拒绝未支持字段，避免把调用方要求静默降级为另一种链接契约。 */
         @JsonAnySetter
         public void rejectUnsupported(String name, Object value) {
             throw new IllegalArgumentException("Unsupported payment link field");
@@ -57,6 +59,7 @@ public final class PaymentLinkDTOs {
         private Set<String> merchantIds = Set.of();
     }
 
+    /** 链接列表与统计共用的精确筛选和有界分页参数，仍须叠加操作者数据范围。 */
     @Data
     public static class Query {
         @Size(max = 32)
@@ -81,6 +84,7 @@ public final class PaymentLinkDTOs {
         private int pageSize = 10;
     }
 
+    /** 可信服务之间传递的链接操作命令；身份与商户范围由鉴权上下文生成。 */
     @Data
     public static class Command {
         private Actor actor;
@@ -95,6 +99,7 @@ public final class PaymentLinkDTOs {
         private String opaqueToken;
     }
 
+    /** 供已授权双端读取的链接详情；包含内部配置，不可直接返回匿名付款人。 */
     @Data
     public static class View {
         private String linkId;
@@ -145,12 +150,14 @@ public final class PaymentLinkDTOs {
         private LocalDateTime serverTime;
     }
 
+    /** 经授权生成的持有人访问地址，含付款凭据，不得写入普通日志。 */
     @Data
     public static class Share {
         @lombok.ToString.Exclude
         private String url;
     }
 
+    /** 进入既有收银台的会话标识及地址；创建会话不代表已生成系统交易。 */
     @Data
     public static class Started {
         @lombok.ToString.Exclude
@@ -158,6 +165,7 @@ public final class PaymentLinkDTOs {
         private String checkoutSessionId;
     }
 
+    /** 当前商户可创建链接的币种、卡品牌与有效期限制，不代表未来永久可交易。 */
     @Data
     public static class Options {
         private String merchantId;
@@ -170,6 +178,7 @@ public final class PaymentLinkDTOs {
         private int maxExpireMinutes = 43200;
     }
 
+    /** 链接状态计数和分币种成功金额，失败尝试与失败订单保持不同口径。 */
     @Data
     public static class Summary {
         private long total;
@@ -180,6 +189,7 @@ public final class PaymentLinkDTOs {
         private Map<String, String> successfulAmounts = Map.of();
     }
 
+    /** 链接对应的收款会话投影，保留提交截止时间及当前付款状态。 */
     @Data
     public static class Collection {
         private String collectionId;
@@ -191,6 +201,7 @@ public final class PaymentLinkDTOs {
         private LocalDateTime createTime;
     }
 
+    /** 一次收银台提交的付款尝试；只有实际生成核心交易时才关联系统订单。 */
     @Data
     public static class Attempt {
         private String checkoutAttemptId;
@@ -207,6 +218,7 @@ public final class PaymentLinkDTOs {
         private LocalDateTime completeTime;
     }
 
+    /** 链接生命周期的来源、操作者及发生时间，用于只读审计追溯。 */
     @Data
     public static class Event {
         private String eventId;

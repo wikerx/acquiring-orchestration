@@ -19,6 +19,7 @@ public class ManagedImageStore {
     private final ObjectProvider<ImageObjectStorage> provider;
     public ManagedImageStore(ObjectProvider<ImageObjectStorage> provider) { this.provider = provider; }
 
+    /** 只在活动事务中写入有界图片，注册回滚清理，返回由随机版本和正文摘要组成的内部键。 */
     public String write(String scope, byte[] content) {
         if (!scope.matches("(avatar|channel)/[0-9]+") || content.length == 0 || content.length > 2097152
                 || !TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -36,6 +37,7 @@ public class ManagedImageStore {
         return key;
     }
 
+    /** 校验内部键的对象范围并核对正文摘要，越权、超限或损坏内容均不返回。 */
     public byte[] read(String key, String scope) {
         if (!ManagedImageReference.valid(key) || !key.startsWith("images/" + scope + "/")) throw missing();
         byte[] content = storage().get(key);
@@ -47,6 +49,7 @@ public class ManagedImageStore {
         return content;
     }
 
+    /** 仅在数据库事务提交后清理旧图，回滚时保留仍被引用的正文。 */
     public void deleteAfterCommit(String key) {
         if (!ManagedImageReference.valid(key)) return;
         if (!TransactionSynchronizationManager.isSynchronizationActive()) throw new IllegalStateException("image cleanup requires a transaction");
@@ -69,5 +72,6 @@ public class ManagedImageStore {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content)); }
         catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
     }
+    /** 将不存在与不可访问图片映射为相同受控错误，避免泄露资源归属。 */
     public static ServiceException missing() { return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "图片不存在或不可访问"); }
 }

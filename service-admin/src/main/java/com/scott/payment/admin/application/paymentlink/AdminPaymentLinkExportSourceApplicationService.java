@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 public class AdminPaymentLinkExportSourceApplicationService {
     private final AdminPaymentLinkQueryService queries;
     public AdminPaymentLinkExportSourceApplicationService(AdminPaymentLinkQueryService queries) { this.queries=queries; }
+    /** 按导出任务携带的操作者与分页参数读取链接，不绕过数据范围校验。 */
     public PageResult<Row> page(PageRequest request) {
         if(request.getCreatorAccountId()==null || request.getPageNo()<1 || request.getPageSize()<1 || request.getPageSize()>100) { throw new ServiceException(ApiResultEnum.PARAM_INVALID); }
         Query query=request.getQuery()==null?new Query():request.getQuery(); query.setPageNo(request.getPageNo()); query.setPageSize(request.getPageSize());

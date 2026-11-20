@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 public interface ClearingLabelPrincipalRepairService {
 
     enum ReviewDecision {
+        /** 复核通过历史标签本金修复，仍须满足双人复核和冻结事实版本条件。 */
         APPROVE,
         REJECT
     }

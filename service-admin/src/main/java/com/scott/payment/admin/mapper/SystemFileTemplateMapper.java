@@ -13,9 +13,11 @@ import java.time.LocalDateTime;
 @Mapper
 public interface SystemFileTemplateMapper extends BaseMapper<FileTemplateDO> {
 
+    /** 锁定未删除模板定义，串行分配版本或切换当前发布指针。 */
     @Select("SELECT * FROM sys_file_template WHERE id = #{id} AND deleted = 0 FOR UPDATE")
     FileTemplateDO selectByIdForUpdate(@Param("id") Long id);
 
+    /** 按预期版本更新元数据并递增版本；零行表示并发冲突或模板不存在。 */
     @Update("UPDATE sys_file_template SET owner_system=#{ownerSystem}, module_code=#{moduleCode}, "
             + "name_zh=#{nameZh}, name_en=#{nameEn}, admin_permission_code=#{adminPermissionCode}, "
             + "merchant_permission_code=#{merchantPermissionCode}, "
@@ -34,6 +36,7 @@ public interface SystemFileTemplateMapper extends BaseMapper<FileTemplateDO> {
                           @Param("operator") String operator,
                           @Param("now") LocalDateTime now);
 
+    /** 以版本条件切换当前发布指针，不覆盖不可变版本资产。 */
     @Update("UPDATE sys_file_template SET current_version_id=#{versionId}, last_operation_request_id=#{requestId}, version=version+1, "
             + "update_by=#{operator}, update_time=#{now} WHERE id=#{id} AND version=#{expectedVersion} "
             + "AND status=1 AND deleted=0")

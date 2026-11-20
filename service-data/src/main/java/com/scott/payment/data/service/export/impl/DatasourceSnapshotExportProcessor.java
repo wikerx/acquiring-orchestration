@@ -22,14 +22,18 @@ import java.util.List;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_DATASOURCE_SNAPSHOT;
 
-/** 管理端数据源监控快照异步导出处理器。 */
+/**
+ * 管理端数据源监控快照异步导出处理器。
+ */
 @Service
 public class DatasourceSnapshotExportProcessor implements ExportTaskProcessor {
     private final AdminPlatformExportSourceClient sourceClient;
     private final ExcelExportArtifactWriter artifactWriter;
     private final DataExportProperties properties;
 
-    /** 创建数据源快照处理器。 */
+    /**
+     * 创建数据源快照处理器。
+     */
     public DatasourceSnapshotExportProcessor(AdminPlatformExportSourceClient sourceClient,
                                              ExcelExportArtifactWriter artifactWriter,
                                              DataExportProperties properties) {
@@ -38,11 +42,17 @@ public class DatasourceSnapshotExportProcessor implements ExportTaskProcessor {
         this.properties = properties;
     }
 
+    /**
+     * 管理端数据源快照专属任务类型，防止调度到不匹配的导出处理器。
+     */
     @Override
     public String taskType() {
         return ADMIN_DATASOURCE_SNAPSHOT;
     }
 
+    /**
+     * 校验任务查询快照后分页读取脱敏数据源信息，不导出连接密码或运行时密钥。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task,
                                   ExportObjectStorageService storage,
@@ -59,7 +69,9 @@ public class DatasourceSnapshotExportProcessor implements ExportTaskProcessor {
                 pageNo -> loadPage(task, pageNo));
     }
 
-    /** 请求一页脱敏数据源快照并转换为本地 Excel 行。 */
+    /**
+     * 请求一页脱敏数据源快照并转换为本地 Excel 行。
+     */
     private ExportPage<DatasourceSnapshotExportRow> loadPage(DataExportTaskDO task, int pageNo) {
         DatasourcePageRequest request = new DatasourcePageRequest();
         request.setCreatorAccountId(task.getCreatorAccountId());
@@ -75,7 +87,9 @@ public class DatasourceSnapshotExportProcessor implements ExportTaskProcessor {
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 复制已脱敏数据源字段。 */
+    /**
+     * 复制已脱敏数据源字段。
+     */
     private DatasourceSnapshotExportRow toExportRow(DatasourceRow source) {
         DatasourceSnapshotExportRow row = new DatasourceSnapshotExportRow();
         row.setDataSourceKey(source.getDataSourceKey());

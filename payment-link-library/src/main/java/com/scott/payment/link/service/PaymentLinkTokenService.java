@@ -25,6 +25,7 @@ public class PaymentLinkTokenService {
         this.properties = properties;
     }
 
+    /** 以链接、商户、冻结截止时间及密钥版本生成 HMAC 持有人凭据；未知版本拒绝签发。 */
     public String token(PaymentLinkDO link, String keyVersion) {
         String key = properties.getSigningKeys().get(keyVersion);
         if (key == null || key.isBlank()) {
@@ -45,16 +46,19 @@ public class PaymentLinkTokenService {
         }
     }
 
+    /** 将持有人凭据拼入已配置前端地址；返回值不得进入普通查询或日志。 */
     public String url(PaymentLinkDO link, String keyVersion) {
         return properties.getFrontendBaseUrl().replaceAll("/$", "") + "/l/" + token(link, keyVersion);
     }
 
+    /** 限制输入长度后以恒定时间比较凭据摘要，数据库只保存摘要。 */
     public boolean matches(String supplied, String expectedHash) {
         return supplied != null && supplied.length() <= 160 && expectedHash != null
                 && MessageDigest.isEqual(hash(supplied).getBytes(StandardCharsets.US_ASCII),
                 expectedHash.getBytes(StandardCharsets.US_ASCII));
     }
 
+    /** 以 UTF-8 的 SHA-256 十六进制摘要关联凭据，不保存或输出原文。 */
     public static String hash(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

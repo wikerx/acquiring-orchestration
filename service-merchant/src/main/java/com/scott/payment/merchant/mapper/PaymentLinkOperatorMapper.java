@@ -9,6 +9,7 @@ import java.util.Set;
 public interface PaymentLinkOperatorMapper {
     record Operator(String accountId, String appCode, String loginAccount, String realName) { }
 
+    /** 批量读取指定账号的来源与展示名称；账号主键不能跨应用混淆。 */
     @Select("""
         <script>
         SELECT a.id AS account_id, app.app_code, a.login_account,

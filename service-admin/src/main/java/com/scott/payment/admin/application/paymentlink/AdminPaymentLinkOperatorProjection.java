@@ -19,18 +19,21 @@ public class AdminPaymentLinkOperatorProjection {
         this.accounts = accounts;
     }
 
+    /** 补充创建人的当前展示名称，保留原账号及应用来源供历史审计。 */
     public View view(View view) {
         if (view != null) view.setCreatedByName(names(java.util.List.of(identity(view.getCreatedAppCode(), view.getCreatedBy())))
                 .get(identity(view.getCreatedAppCode(), view.getCreatedBy())));
         return view;
     }
 
+    /** 批量补充事件操作者名称，不把付款持有人或系统身份当作账号查询。 */
     public PageResult<Event> events(PageResult<Event> page) {
         var names = names(page.getRecords().stream().map(e -> identity(e.getActorAppCode(), e.getActorId())).toList());
         page.getRecords().forEach(e -> e.setActorName(names.get(identity(e.getActorAppCode(), e.getActorId()))));
         return page;
     }
 
+    /** 批量补充邀请发送人名称，账号缺失时仍保留原来源标识。 */
     public PageResult<Delivery> deliveries(PageResult<Delivery> page) {
         var names = names(page.getRecords().stream().map(d -> identity(d.getCreatedAppCode(), d.getCreatedBy())).toList());
         page.getRecords().forEach(d -> d.setCreatedByName(names.get(identity(d.getCreatedAppCode(), d.getCreatedBy()))));

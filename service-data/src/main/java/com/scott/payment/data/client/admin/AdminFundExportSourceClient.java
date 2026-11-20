@@ -14,15 +14,23 @@ import com.scott.payment.data.client.admin.dto.AdminFundExportSourceDTOs.FundRec
  */
 public interface AdminFundExportSourceClient {
 
-    /** 读取一页资金账户。 */
+    /**
+     * 读取一页资金账户。
+     */
     FundAccountPageResponse loadFundAccountPage(FundAccountPageRequest request);
 
-    /** 读取一页指定账户或全局余额流水。 */
+    /**
+     * 读取一页指定账户或全局余额流水。
+     */
     FundLedgerPageResponse loadFundLedgerPage(FundLedgerPageRequest request);
 
-    /** 读取一页充值申请。 */
+    /**
+     * 读取一页充值申请。
+     */
     FundRechargePageResponse loadFundRechargePage(FundRechargePageRequest request);
 
-    /** 读取一页扣减申请。 */
+    /**
+     * 读取一页扣减申请。
+     */
     FundDeductionPageResponse loadFundDeductionPage(FundDeductionPageRequest request);
 }

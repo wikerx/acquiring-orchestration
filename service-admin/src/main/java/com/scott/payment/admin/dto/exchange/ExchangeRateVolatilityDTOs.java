@@ -276,10 +276,12 @@ public final class ExchangeRateVolatilityDTOs {
         @Max(value = 200, message = "pageSize must not exceed 200")
         private Integer pageSize = 20;
 
+        /** 将缺省或小于一的页码归一到第一页，避免负偏移查询。 */
         public long safePageNo() {
             return pageNo == null || pageNo < 1 ? 1 : pageNo;
         }
 
+        /** 为缺省或非法页大小提供默认值，并限制单页最大读取量。 */
         public long safePageSize() {
             return pageSize == null || pageSize < 1 ? 20 : Math.min(pageSize, 200);
         }

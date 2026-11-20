@@ -38,6 +38,7 @@ public class MerchantPaymentLinkMailApplicationService {
         this.links=links; this.requests=requests; this.emails=emails; this.limiter=limiter; this.properties=properties; this.validator=validator; this.claims=claims;
     }
 
+    /** 先校验链接归属，再锁定邀请占位并核对指纹；按稳定业务号复用已提交邮件，限流失败不改写链接。 */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public Delivery send(String linkId, SendEmail input) {
@@ -68,6 +69,7 @@ public class MerchantPaymentLinkMailApplicationService {
         return projection(row);
     }
 
+    /** 校验链接可见性和分页上限后合并邀请历史，补充操作者展示名称。 */
     @DS(DataSourceName.MASTER)
     public PageResult<Delivery> page(String linkId, Query input) {
         View view=links.detail(linkId); Query query=input==null?new Query():input;

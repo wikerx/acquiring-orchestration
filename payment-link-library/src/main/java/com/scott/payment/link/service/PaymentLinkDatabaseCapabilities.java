@@ -13,20 +13,26 @@ import java.util.stream.Collectors;
 
 /** 管理命令直接读取主库，绕过路由缓存的失效窗口；输出只含展示所需信息。 */
 @Service
-@DS(DataSourceName.MASTER)
 @Transactional(readOnly = true)
 public class PaymentLinkDatabaseCapabilities implements PaymentLinkCapabilities {
     private final PaymentLinkCapabilityMapper mapper;
     public PaymentLinkDatabaseCapabilities(PaymentLinkCapabilityMapper mapper) { this.mapper = mapper; }
-    @Override public List<AllowedMethod> resolve(String merchantId, List<AllowedMethod> requested, String currency) {
+    /** 从主库读取当前能力并按请求方式、币种及有效时点过滤，不依赖路由缓存。 */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public List<AllowedMethod> resolve(String merchantId, List<AllowedMethod> requested, String currency) {
         return new PaymentLinkCapabilityResolver().resolve(profile(merchantId), requested, currency, LocalDateTime.now());
     }
-    @Override public PaymentLinkCapabilities snapshot(String merchantId) {
+    /** 在主库只读事务内冻结商户能力及查询时点，后续逐币种计算复用快照。 */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public PaymentLinkCapabilities snapshot(String merchantId) {
         var snapshot = profile(merchantId);
         var now = LocalDateTime.now();
         return (ignored, requested, currency) -> new PaymentLinkCapabilityResolver().resolve(snapshot, requested, currency, now);
     }
     /** Options 在同一只读事务内复用一个商户快照，避免逐币种反复访问数据库。 */
+    @DS(DataSourceName.MASTER)
     public MerchantRouteProfile profile(String merchantId) {
         var profile = new MerchantRouteProfile();
         var routes = mapper.routes(merchantId);

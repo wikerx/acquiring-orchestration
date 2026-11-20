@@ -36,7 +36,9 @@ public class FundDeductionExportProcessor implements ExportTaskProcessor {
     private final ExcelI18nMessageResolver messageResolver;
     private final DataExportProperties properties;
 
-    /** 创建扣减申请异步导出处理器。 */
+    /**
+     * 创建扣减申请异步导出处理器。
+     */
     public FundDeductionExportProcessor(AdminFundExportSourceClient sourceClient,
                                         ExcelExportArtifactWriter artifactWriter,
                                         ExcelI18nMessageResolver messageResolver,
@@ -47,13 +49,17 @@ public class FundDeductionExportProcessor implements ExportTaskProcessor {
         this.properties = properties;
     }
 
-    /** 返回扣减申请稳定任务类型。 */
+    /**
+     * 返回扣减申请稳定任务类型。
+     */
     @Override
     public String taskType() {
         return ADMIN_FUND_DEDUCTION;
     }
 
-    /** 解析冻结条件并生成扣减申请文件。 */
+    /**
+     * 解析冻结条件并生成扣减申请文件。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task, ExportObjectStorageService storage,
                                   ExportProgressListener progressListener, LocalDateTime now) {
@@ -70,7 +76,9 @@ public class FundDeductionExportProcessor implements ExportTaskProcessor {
                 pageNo -> loadPage(task, query, scope, pageNo, locale));
     }
 
-    /** 读取一页扣减申请并转换为冻结语言下的 Excel 行。 */
+    /**
+     * 读取一页扣减申请并转换为冻结语言下的 Excel 行。
+     */
     private ExportPage<FundDeductionExportRow> loadPage(
             DataExportTaskDO task, FundDeductionQuery query, AdminExportScopeSnapshot scope,
             int pageNo, Locale locale) {
@@ -91,7 +99,9 @@ public class FundDeductionExportProcessor implements ExportTaskProcessor {
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 保持金额与币种不变，仅本地化扣减类型和申请状态。 */
+    /**
+     * 保持金额与币种不变，仅本地化扣减类型和申请状态。
+     */
     private FundDeductionExportRow toExportRow(FundDeductionRow source, Locale locale) {
         FundDeductionExportRow row = new FundDeductionExportRow();
         row.setDeductionNo(source.getDeductionNo());
@@ -114,7 +124,9 @@ public class FundDeductionExportProcessor implements ExportTaskProcessor {
         return row;
     }
 
-    /** 解析扣减枚举展示值，缺少翻译时保留协议原值。 */
+    /**
+     * 解析扣减枚举展示值，缺少翻译时保留协议原值。
+     */
     private String label(String category, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -125,7 +137,9 @@ public class FundDeductionExportProcessor implements ExportTaskProcessor {
         return key.equals(resolved) ? normalized : resolved;
     }
 
-    /** 解析任务冻结语言，未知语言回退简体中文。 */
+    /**
+     * 解析任务冻结语言，未知语言回退简体中文。
+     */
     private Locale resolveLocale(String languageTag) {
         Locale locale = languageTag == null ? Locale.SIMPLIFIED_CHINESE : Locale.forLanguageTag(languageTag);
         return locale.getLanguage().isBlank() ? Locale.SIMPLIFIED_CHINESE : locale;

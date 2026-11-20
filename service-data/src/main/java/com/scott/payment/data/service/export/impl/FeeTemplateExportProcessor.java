@@ -18,13 +18,17 @@ import java.util.Locale;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_FEE_TEMPLATE;
 
-/** 管理端费用模板异步导出处理器。 */
+/**
+ * 管理端费用模板异步导出处理器。
+ */
 @Service
 public class FeeTemplateExportProcessor
         extends AbstractBaseReferenceExportProcessor<FeePlanQuery, FeeTemplateExportRow> {
     private final AdminFeeExportSourceClient sourceClient;
 
-    /** 创建费用模板导出处理器。 */
+    /**
+     * 创建费用模板导出处理器。
+     */
     public FeeTemplateExportProcessor(AdminFeeExportSourceClient sourceClient,
                                       ExcelExportArtifactWriter artifactWriter,
                                       ExcelI18nMessageResolver messageResolver,
@@ -76,7 +80,9 @@ public class FeeTemplateExportProcessor
         return new ExportPage<>(response.getTotal(), rows);
     }
 
-    /** 构造绑定任务身份、商户范围和分页参数的内部请求。 */
+    /**
+     * 构造绑定任务身份、商户范围和分页参数的内部请求。
+     */
     private FeePlanPageRequest request(DataExportTaskDO task, FeePlanQuery query, int pageNo) {
         com.scott.payment.data.service.export.AdminExportScopeSnapshot scope =
                 com.scott.payment.component.core.json.JsonUtils.parseObject(
@@ -92,7 +98,9 @@ public class FeeTemplateExportProcessor
         return request;
     }
 
-    /** 转换费用模板导出行。 */
+    /**
+     * 转换费用模板导出行。
+     */
     private FeeTemplateExportRow toExportRow(FeeTemplateRow source) {
         FeeTemplateExportRow row = new FeeTemplateExportRow();
         row.setPlanCode(source.getPlanCode());

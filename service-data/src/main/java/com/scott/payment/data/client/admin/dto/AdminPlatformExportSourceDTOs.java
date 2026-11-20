@@ -542,7 +542,9 @@ public final class AdminPlatformExportSourceDTOs {
         private LocalDateTime processedTime;
     }
 
-    /** 系统账户冻结查询条件。 */
+    /**
+     * 系统账户冻结查询条件。
+     */
     @Data
     public static class SystemUserQuery implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -555,7 +557,9 @@ public final class AdminPlatformExportSourceDTOs {
         private String activationStatus;
     }
 
-    /** 系统参数冻结查询条件。 */
+    /**
+     * 系统参数冻结查询条件。
+     */
     @Data
     public static class SystemConfigQuery implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -565,7 +569,9 @@ public final class AdminPlatformExportSourceDTOs {
         private Integer status;
     }
 
-    /** 商户 IP 白名单冻结查询条件。 */
+    /**
+     * 商户 IP 白名单冻结查询条件。
+     */
     @Data
     public static class MerchantIpWhitelistQuery implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -578,7 +584,9 @@ public final class AdminPlatformExportSourceDTOs {
         private String submitSource;
     }
 
-    /** 一页系统账户导出来源请求。 */
+    /**
+     * 一页系统账户导出来源请求。
+     */
     @Data
     public static class SystemUserPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -588,7 +596,9 @@ public final class AdminPlatformExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页系统参数导出来源请求。 */
+    /**
+     * 一页系统参数导出来源请求。
+     */
     @Data
     public static class SystemConfigPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -598,7 +608,9 @@ public final class AdminPlatformExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页商户 IP 白名单导出来源请求。 */
+    /**
+     * 一页商户 IP 白名单导出来源请求。
+     */
     @Data
     public static class MerchantIpWhitelistPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -610,7 +622,9 @@ public final class AdminPlatformExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页系统账户安全投影。 */
+    /**
+     * 一页系统账户安全投影。
+     */
     @Data
     public static class SystemUserPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -620,7 +634,9 @@ public final class AdminPlatformExportSourceDTOs {
         private List<SystemUserRow> records = new ArrayList<>();
     }
 
-    /** 一页系统参数安全投影。 */
+    /**
+     * 一页系统参数安全投影。
+     */
     @Data
     public static class SystemConfigPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -630,7 +646,9 @@ public final class AdminPlatformExportSourceDTOs {
         private List<SystemConfigRow> records = new ArrayList<>();
     }
 
-    /** 一页商户 IP 白名单安全投影。 */
+    /**
+     * 一页商户 IP 白名单安全投影。
+     */
     @Data
     public static class MerchantIpWhitelistPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -640,7 +658,9 @@ public final class AdminPlatformExportSourceDTOs {
         private List<MerchantIpWhitelistRow> records = new ArrayList<>();
     }
 
-    /** 系统账户导出安全行。 */
+    /**
+     * 系统账户导出安全行。
+     */
     @Data
     public static class SystemUserRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -659,7 +679,9 @@ public final class AdminPlatformExportSourceDTOs {
         private LocalDateTime createdAt;
     }
 
-    /** 系统参数导出安全行，参数值已由 Admin 脱敏。 */
+    /**
+     * 系统参数导出安全行，参数值已由 Admin 脱敏。
+     */
     @Data
     public static class SystemConfigRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -671,7 +693,9 @@ public final class AdminPlatformExportSourceDTOs {
         private LocalDateTime createdAt;
     }
 
-    /** 商户 IP 白名单按商户聚合导出行。 */
+    /**
+     * 商户 IP 白名单按商户聚合导出行。
+     */
     @Data
     public static class MerchantIpWhitelistRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -683,7 +707,9 @@ public final class AdminPlatformExportSourceDTOs {
         private LocalDateTime updateTime;
     }
 
-    /** 聚合白名单行中的单个 IP。 */
+    /**
+     * 聚合白名单行中的单个 IP。
+     */
     @Data
     public static class MerchantIpWhitelistItemRow implements Serializable {
         private static final long serialVersionUID = 1L;

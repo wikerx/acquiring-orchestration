@@ -24,14 +24,18 @@ import java.util.Map;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_RISK_CONFIG;
 
-/** 管理端风控配置异步导出处理器，保留各受控功能自己的动态列结构。 */
+/**
+ * 管理端风控配置异步导出处理器，保留各受控功能自己的动态列结构。
+ */
 @Service
 public class RiskConfigExportProcessor implements ExportTaskProcessor {
     private final AdminPlatformExportSourceClient sourceClient;
     private final ExcelExportArtifactWriter artifactWriter;
     private final DataExportProperties properties;
 
-    /** 创建风控配置异步导出处理器。 */
+    /**
+     * 创建风控配置异步导出处理器。
+     */
     public RiskConfigExportProcessor(AdminPlatformExportSourceClient sourceClient,
                                      ExcelExportArtifactWriter artifactWriter,
                                      DataExportProperties properties) {
@@ -40,11 +44,17 @@ public class RiskConfigExportProcessor implements ExportTaskProcessor {
         this.properties = properties;
     }
 
+    /**
+     * 管理端风控配置专属任务类型，防止调度到不匹配的导出处理器。
+     */
     @Override
     public String taskType() {
         return ADMIN_RISK_CONFIG;
     }
 
+    /**
+     * 校验模块和功能标识后从授权来源取得动态列，分页写入已脱敏的风控配置。
+     */
     @Override
     public ExportArtifact process(DataExportTaskDO task,
                                   ExportObjectStorageService storage,
@@ -66,7 +76,9 @@ public class RiskConfigExportProcessor implements ExportTaskProcessor {
                 pageNo -> toExportPage(pageNo == 1 ? firstPage : loadSourcePage(task, query, pageNo)));
     }
 
-    /** 请求 Admin 返回一页已经脱敏并按任务语言格式化的风控数据。 */
+    /**
+     * 请求 Admin 返回一页已经脱敏并按任务语言格式化的风控数据。
+     */
     private RiskPageResponse loadSourcePage(DataExportTaskDO task, RiskConfigQuery query, int pageNo) {
         RiskPageRequest request = new RiskPageRequest();
         request.setCreatorAccountId(task.getCreatorAccountId());
@@ -83,7 +95,9 @@ public class RiskConfigExportProcessor implements ExportTaskProcessor {
         return response;
     }
 
-    /** 将动态列传输模型转换为 Excel 组件列定义。 */
+    /**
+     * 将动态列传输模型转换为 Excel 组件列定义。
+     */
     private ExcelDynamicColumnDefinition toColumn(DynamicColumn source) {
         HorizontalAlignment alignment;
         try {
@@ -95,7 +109,9 @@ public class RiskConfigExportProcessor implements ExportTaskProcessor {
                 source.getKey(), source.getHeader(), source.getWidth(), alignment);
     }
 
-    /** 将来源响应转换为统一分页载体。 */
+    /**
+     * 将来源响应转换为统一分页载体。
+     */
     private ExportPage<Map<String, Object>> toExportPage(RiskPageResponse response) {
         return new ExportPage<>(response.getTotal(),
                 response.getRecords() == null ? List.of() : response.getRecords());

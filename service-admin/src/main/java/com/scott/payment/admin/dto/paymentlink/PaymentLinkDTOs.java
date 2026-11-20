@@ -29,6 +29,7 @@ public final class PaymentLinkDTOs {
     /** 复用管理查询字段，保留本服务公开类型及序列化契约。 */
     public static class Query extends com.scott.payment.link.model.PaymentLinkQueryModels.Query { }
 
+    /** 可信服务之间传递的链接操作命令；身份与商户范围由鉴权上下文生成。 */
     @Data
     public static class Command {
         private Actor actor;
@@ -65,12 +66,14 @@ public final class PaymentLinkDTOs {
         private LocalDateTime serverTime;
     }
 
+    /** 经授权生成的持有人访问地址，含付款凭据，不得写入普通日志。 */
     @Data
     public static class Share {
         @lombok.ToString.Exclude
         private String url;
     }
 
+    /** 进入既有收银台的会话标识及地址；创建会话不代表已生成系统交易。 */
     @Data
     public static class Started {
         @lombok.ToString.Exclude

@@ -11,6 +11,7 @@ import java.util.Map;
 public final class PaymentLinkQueryModels {
     private PaymentLinkQueryModels() { }
 
+    /** 链接列表与统计共用的精确筛选和有界分页参数，仍须叠加操作者数据范围。 */
     @Data
     public static class Query {
         @Size(max = 32)
@@ -35,6 +36,7 @@ public final class PaymentLinkQueryModels {
         private int pageSize = 10;
     }
 
+    /** 供已授权双端读取的链接详情；包含内部配置，不可直接返回匿名付款人。 */
     @Data
     public static class View {
         private String linkId;
@@ -68,6 +70,7 @@ public final class PaymentLinkQueryModels {
         private String redirectUrl;
     }
 
+    /** 链接状态计数和分币种成功金额，失败尝试与失败订单保持不同口径。 */
     @Data
     public static class Summary {
         private long total;
@@ -78,6 +81,7 @@ public final class PaymentLinkQueryModels {
         private Map<String, String> successfulAmounts = Map.of();
     }
 
+    /** 链接对应的收款会话投影，保留提交截止时间及当前付款状态。 */
     @Data
     public static class Collection {
         private String collectionId;
@@ -89,6 +93,7 @@ public final class PaymentLinkQueryModels {
         private LocalDateTime createTime;
     }
 
+    /** 一次收银台提交的付款尝试；只有实际生成核心交易时才关联系统订单。 */
     @Data
     public static class Attempt {
         private String checkoutAttemptId;
@@ -105,6 +110,7 @@ public final class PaymentLinkQueryModels {
         private LocalDateTime completeTime;
     }
 
+    /** 链接生命周期的来源、操作者及发生时间，用于只读审计追溯。 */
     @Data
     public static class Event {
         private String eventId;
@@ -117,6 +123,7 @@ public final class PaymentLinkQueryModels {
         private LocalDateTime createTime;
     }
 
+    /** 邀请发送的脱敏投影，保留来源应用、操作者和邮件投递结果。 */
     @Data
     public static class Delivery {
         private String requestId;

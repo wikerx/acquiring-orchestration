@@ -69,7 +69,9 @@ public final class AdminSettlementExportSourceDTOs {
         private List<SettlementBatchSummaryRow> summaryRecords = new ArrayList<>();
     }
 
-    /** 一页结算批次结果摘要来源请求。 */
+    /**
+     * 一页结算批次结果摘要来源请求。
+     */
     @Data
     public static class SettlementBatchSummaryPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -82,7 +84,9 @@ public final class AdminSettlementExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页结算批次结果摘要及总行数。 */
+    /**
+     * 一页结算批次结果摘要及总行数。
+     */
     @Data
     public static class SettlementBatchSummaryPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -129,7 +133,9 @@ public final class AdminSettlementExportSourceDTOs {
         private LocalDateTime postedTime;
     }
 
-    /** 结算批次结果摘要安全行。 */
+    /**
+     * 结算批次结果摘要安全行。
+     */
     @Data
     public static class SettlementBatchSummaryRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -168,7 +174,9 @@ public final class AdminSettlementExportSourceDTOs {
         private LocalDateTime actionTime;
     }
 
-    /** 一页结算审核单导出来源请求。 */
+    /**
+     * 一页结算审核单导出来源请求。
+     */
     @Data
     public static class SettlementReviewPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -180,7 +188,9 @@ public final class AdminSettlementExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页结算入账流水导出来源请求。 */
+    /**
+     * 一页结算入账流水导出来源请求。
+     */
     @Data
     public static class SettlementPostingPageRequest implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -192,7 +202,9 @@ public final class AdminSettlementExportSourceDTOs {
         private Integer pageSize;
     }
 
-    /** 一页结算审核单安全投影。 */
+    /**
+     * 一页结算审核单安全投影。
+     */
     @Data
     public static class SettlementReviewPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -202,7 +214,9 @@ public final class AdminSettlementExportSourceDTOs {
         private List<SettlementReviewRow> records = new ArrayList<>();
     }
 
-    /** 一页结算入账流水安全投影。 */
+    /**
+     * 一页结算入账流水安全投影。
+     */
     @Data
     public static class SettlementPostingPageResponse implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -212,7 +226,9 @@ public final class AdminSettlementExportSourceDTOs {
         private List<SettlementPostingRow> records = new ArrayList<>();
     }
 
-    /** 结算审核单安全导出行。 */
+    /**
+     * 结算审核单安全导出行。
+     */
     @Data
     public static class SettlementReviewRow implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -234,7 +250,9 @@ public final class AdminSettlementExportSourceDTOs {
         private String settlementBatchNo;
     }
 
-    /** 结算入账流水安全导出行。 */
+    /**
+     * 结算入账流水安全导出行。
+     */
     @Data
     public static class SettlementPostingRow implements Serializable {
         private static final long serialVersionUID = 1L;

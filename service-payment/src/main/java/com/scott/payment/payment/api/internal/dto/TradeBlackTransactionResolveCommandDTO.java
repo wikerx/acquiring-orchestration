@@ -48,6 +48,7 @@ public class TradeBlackTransactionResolveCommandDTO {
 
     /** 受支持的交易定位方式。 */
     public enum IdentifierType {
+        /** 按商户订单号匹配交易，必须同时具备商户范围以避免跨商户同号误关联。 */
         MERCHANT_ORDER_NO,
         SYSTEM_ORDER_NO
     }

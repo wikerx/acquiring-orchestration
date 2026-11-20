@@ -37,7 +37,9 @@ public interface AdminTransactionExportSourceClient {
      */
     RefundPageResponse loadRefundPage(RefundPageRequest request);
 
-    /** 按冻结条件和商户范围读取一页渠道勾兑异常。 */
+    /**
+     * 按冻结条件和商户范围读取一页渠道勾兑异常。
+     */
     ChannelMatchAbnormalPageResponse loadChannelMatchAbnormalPage(
             ChannelMatchAbnormalPageRequest request);
 }

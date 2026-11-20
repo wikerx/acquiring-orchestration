@@ -29,7 +29,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 结算批次摘要异步处理器测试，验证冻结范围、分页和金额不变性。 */
+/**
+ * 结算批次摘要异步处理器测试，验证冻结范围、分页和金额不变性。
+ */
 class SettlementBatchSummaryExportProcessorTest {
 
     @Test

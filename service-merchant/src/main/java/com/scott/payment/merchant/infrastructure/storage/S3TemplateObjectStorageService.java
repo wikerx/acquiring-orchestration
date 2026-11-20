@@ -21,6 +21,7 @@ public class S3TemplateObjectStorageService implements TemplateObjectStorageServ
         this.properties = properties;
     }
 
+    /** 从模板专用 Bucket 读取正文，不返回底层地址或对象存储异常原文。 */
     @Override
     public byte[] get(String objectKey) {
         try {

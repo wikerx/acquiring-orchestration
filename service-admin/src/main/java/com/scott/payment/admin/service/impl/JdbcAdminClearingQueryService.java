@@ -130,6 +130,7 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
                 () -> detailNormalized(normalizedId, transactionDateTime));
     }
 
+    /** 以交易号和原交易时间定位分片，在逻辑读边界内分页读取清分修订明细。 */
     @Override
     public PageResult<TransactionLine> searchTransactionDetails(
             String transactionId, LocalDateTime transactionDateTime,
@@ -141,6 +142,7 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
                 TransactionLine.class));
     }
 
+    /** 以完整交易身份定位分片并分页读取保证金清分明细，查询不触发重算。 */
     @Override
     public PageResult<ReserveLine> searchReserveDetails(
             String transactionId, LocalDateTime transactionDateTime,

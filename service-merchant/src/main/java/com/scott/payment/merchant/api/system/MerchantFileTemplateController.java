@@ -27,6 +27,7 @@ public class MerchantFileTemplateController {
         this.applicationService = applicationService;
     }
 
+    /** 依据稳定模板编码读取当前发布版本，隶属系统与业务权限由服务端复核。 */
     @GetMapping("/{templateCode}/download")
     @RequiresPermission("merchant:file-template:download")
     @ManagedFileTemplateEndpoint("DYNAMIC")

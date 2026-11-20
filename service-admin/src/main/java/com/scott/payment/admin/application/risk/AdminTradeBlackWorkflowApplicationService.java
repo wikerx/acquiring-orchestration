@@ -849,6 +849,7 @@ public class AdminTradeBlackWorkflowApplicationService {
     }
 
     private enum ContactField {
+        /** 从联系方式中提取邮箱或电话候选，各自保留原字段身份。 */
         EMAIL("email", "邮箱"), PHONE("phone", "电话");
 
         private final String fieldName;
@@ -859,16 +860,19 @@ public class AdminTradeBlackWorkflowApplicationService {
             this.label = label;
         }
 
+        /** 候选在原始交易中的字段标识，用于审计定位及避免重复推导。 */
         public String fieldName() {
             return fieldName;
         }
 
+        /** 联系方式候选的中文来源名称，不作为黑名单匹配键。 */
         public String label() {
             return label;
         }
     }
 
     private enum EmailPart {
+        /** 只提取邮箱本地部分形成候选，不与域名规则混用。 */
         USERNAME,
         DOMAIN
     }

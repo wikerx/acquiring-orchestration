@@ -50,7 +50,9 @@ import static org.mockito.Mockito.when;
  */
 class FundExportProcessorTest {
 
-    /** 资金账户导出必须使用普通分页并保持余额和结算币种。 */
+    /**
+     * 资金账户导出必须使用普通分页并保持余额和结算币种。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportFundAccountsWithFrozenScope() {
@@ -93,7 +95,9 @@ class FundExportProcessorTest {
         assertThat(result).isSameAs(artifact);
     }
 
-    /** 指定账户流水导出必须冻结账户主键并保持金额、余额和币种。 */
+    /**
+     * 指定账户流水导出必须冻结账户主键并保持金额、余额和币种。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportFundLedgersWithoutChangingMoneyFacts() {
@@ -141,7 +145,9 @@ class FundExportProcessorTest {
         assertThat(captor.getValue().getPageSize()).isEqualTo(73);
     }
 
-    /** 充值申请导出必须保留金额币种并转换冻结语言下的状态。 */
+    /**
+     * 充值申请导出必须保留金额币种并转换冻结语言下的状态。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportFundRechargesWithLocalizedStatus() {
@@ -175,7 +181,9 @@ class FundExportProcessorTest {
         assertThat(captor.getValue().getMerchantIds()).containsExactly("M2001");
     }
 
-    /** 扣减申请导出必须保留金额币种并本地化扣减类型和状态。 */
+    /**
+     * 扣减申请导出必须保留金额币种并本地化扣减类型和状态。
+     */
     @Test
     @SuppressWarnings("unchecked")
     void shouldExportFundDeductionsWithLocalizedCategory() {
@@ -210,7 +218,9 @@ class FundExportProcessorTest {
         assertThat(captor.getValue().getMerchantIds()).containsExactly("M3001");
     }
 
-    /** 配置能执行给定行类型分页加载器的模拟写入器。 */
+    /**
+     * 配置能执行给定行类型分页加载器的模拟写入器。
+     */
     @SuppressWarnings("unchecked")
     private <T> ExcelExportArtifactWriter writerFor(
             ExcelExportArtifactWriter writer, Class<T> rowType,
@@ -224,7 +234,9 @@ class FundExportProcessorTest {
         return writer;
     }
 
-    /** 创建返回中文标记的枚举解析器，便于验证键和冻结语言。 */
+    /**
+     * 创建返回中文标记的枚举解析器，便于验证键和冻结语言。
+     */
     private ExcelI18nMessageResolver resolver() {
         ExcelI18nMessageResolver resolver = mock(ExcelI18nMessageResolver.class);
         when(resolver.resolve(anyString(), eq(Locale.SIMPLIFIED_CHINESE)))
@@ -232,7 +244,9 @@ class FundExportProcessorTest {
         return resolver;
     }
 
-    /** 创建含强类型查询和冻结商户范围的任务。 */
+    /**
+     * 创建含强类型查询和冻结商户范围的任务。
+     */
     private DataExportTaskDO task(Object query, boolean allMerchants, Set<String> merchantIds) {
         AdminExportScopeSnapshot scope = new AdminExportScopeSnapshot();
         scope.setAllMerchants(allMerchants);
@@ -248,7 +262,9 @@ class FundExportProcessorTest {
         return task;
     }
 
-    /** 创建资金导出使用的普通分页配置。 */
+    /**
+     * 创建资金导出使用的普通分页配置。
+     */
     private DataExportProperties properties() {
         DataExportProperties properties = new DataExportProperties();
         properties.setPageSize(73);
@@ -256,7 +272,9 @@ class FundExportProcessorTest {
         return properties;
     }
 
-    /** 创建不依赖真实对象存储的文件元数据。 */
+    /**
+     * 创建不依赖真实对象存储的文件元数据。
+     */
     private ExportArtifact artifact() {
         return new ExportArtifact("fund.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

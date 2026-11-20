@@ -210,7 +210,9 @@ class RiskMonitorExportProcessorTest {
                 .doesNotContain("username", "password", "secret");
     }
 
-    /** 构造包含冻结查询快照的异步任务。 */
+    /**
+     * 构造包含冻结查询快照的异步任务。
+     */
     private DataExportTaskDO task(String taskType, Object query) {
         DataExportTaskDO task = new DataExportTaskDO();
         task.setTaskNo("EXP-RISK-MONITOR-001");
@@ -223,7 +225,9 @@ class RiskMonitorExportProcessorTest {
         return task;
     }
 
-    /** 构造不依赖真实对象存储的文件元数据。 */
+    /**
+     * 构造不依赖真实对象存储的文件元数据。
+     */
     private ExportArtifact artifact(String fileName) {
         return new ExportArtifact(
                 fileName,
