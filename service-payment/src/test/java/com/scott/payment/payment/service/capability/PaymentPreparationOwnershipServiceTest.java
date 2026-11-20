@@ -3,6 +3,8 @@ package com.scott.payment.payment.service.capability;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.id.GlobalIdGenerator;
+import com.scott.payment.component.core.id.LuhnMod10Utils;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.mapper.TransactionIdempotencyMapper;
@@ -41,13 +43,16 @@ class PaymentPreparationOwnershipServiceTest {
     private static final String ZONE = "Asia/Shanghai";
     private static final String ACTION = MERCHANT + ":" + ATTEMPT + ":" + TYPE;
     private static final String FIRST_CANDIDATE = "FIXTURE_CANDIDATE_1";
+    private static final String NEW_CANDIDATE_BODY = "261001000300000000002";
+    private static final String NEW_CANDIDATE = NEW_CANDIDATE_BODY + LuhnMod10Utils.calculateCheckDigit(NEW_CANDIDATE_BODY);
     private static final String FINGERPRINT = "fixture_fingerprint";
     private static final LocalDateTime ORDER_TIME = LocalDateTime.parse("2026-09-30T23:59:59.123");
     private static final LocalDateTime NOW = LocalDateTime.parse("2026-10-01T00:03:00");
 
     private final TransactionIdempotencyMapper mapper = mock(TransactionIdempotencyMapper.class);
+    private final GlobalIdGenerator ids = mock(GlobalIdGenerator.class);
     private final PaymentPreparationOwnershipService ownership =
-            new PaymentPreparationOwnershipService(mapper, new DefaultTransactionIdempotencyService(mapper));
+            new PaymentPreparationOwnershipService(mapper, new DefaultTransactionIdempotencyService(mapper), ids);
     private String ownershipKey;
 
     @BeforeEach
@@ -65,11 +70,11 @@ class PaymentPreparationOwnershipServiceTest {
         PaymentCreateCommandDTO command = command();
         command.setTransactionDateTime(ORDER_TIME.plusNanos(45));
 
-        Lease lease = ownership.acquire(command, ACTION, TYPE, ZONE).lease();
+        Lease lease = ownership.acquire(command, ACTION, TYPE, ZONE, NEW_CANDIDATE).lease();
 
         assertThat(lease.key()).isEqualTo(ownershipKey);
         assertThat(lease.generation()).isEqualTo(1);
-        assertThat(lease.candidateTransactionId()).isEqualTo(FIRST_CANDIDATE);
+        assertThat(lease.candidateTransactionId()).hasSize(22).isEqualTo(NEW_CANDIDATE);
         assertThat(lease.transactionDateTime()).isEqualTo(ORDER_TIME);
         var rows = ArgumentCaptor.forClass(TransactionIdempotencyDO.class);
         verify(mapper, times(2)).insert(rows.capture());
@@ -81,16 +86,37 @@ class PaymentPreparationOwnershipServiceTest {
     }
 
     @Test
-    void rejectsReusedCandidateAndKeepsTheOriginalCheckoutAnchor() {
+    void rejectsACandidateCollisionWithoutCreatingASecondHeadOrRetryingUnderLock() {
         when(mapper.insert(any(TransactionIdempotencyDO.class)))
-                .thenThrow(new DuplicateKeyException("candidate occupied")).thenReturn(1, 1);
+                .thenThrow(new DuplicateKeyException("candidate occupied"));
 
-        Lease lease = ownership.acquire(command(), ACTION, TYPE, ZONE).lease();
+        assertThatThrownBy(() -> ownership.acquire(command(), ACTION, TYPE, ZONE, NEW_CANDIDATE))
+                .isInstanceOf(ServiceException.class);
 
-        assertThat(lease.candidateTransactionId()).isNotEqualTo(FIRST_CANDIDATE);
-        var rows = ArgumentCaptor.forClass(TransactionIdempotencyDO.class);
-        verify(mapper, times(3)).insert(rows.capture());
-        assertThat(rows.getAllValues().get(rows.getAllValues().size() - 1).getOperationId()).isEqualTo(FIRST_CANDIDATE);
+        verify(mapper, times(1)).insert(any(TransactionIdempotencyDO.class));
+        org.mockito.Mockito.verifyNoInteractions(ids);
+    }
+
+    @Test
+    void usesOnlyValidGlobalIdsAndAllocatesWithoutTouchingTheDatabase() {
+        when(ids.nextId()).thenReturn(NEW_CANDIDATE, "202610010003000000001");
+
+        assertThat(ownership.nextCandidate()).isEqualTo(NEW_CANDIDATE);
+        assertThatThrownBy(ownership::nextCandidate).isInstanceOf(ServiceException.class);
+        org.mockito.Mockito.verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void disabledPathReusesOriginalOutcomeAndNeverCrossesAnExistingProtectedHead() {
+        TransactionIdempotencyDO head = row("PREPARING", 1, FIRST_CANDIDATE);
+        TransactionIdempotencyDO completed = row("PROCESSING", 1, FIRST_CANDIDATE);
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(head, completed,
+                head, null, head);
+
+        assertThat(ownership.readBeforeLegacyPreparation(ACTION)).isSameAs(completed);
+        assertThatThrownBy(() -> ownership.readBeforeLegacyPreparation(ACTION)).isInstanceOf(ServiceException.class);
+        assertThatThrownBy(() -> ownership.requireLegacyPreparationAllowed(ACTION)).isInstanceOf(ServiceException.class);
+        verify(mapper, never()).insert(any(TransactionIdempotencyDO.class));
     }
 
     @Test
@@ -102,7 +128,7 @@ class PaymentPreparationOwnershipServiceTest {
         PaymentCreateCommandDTO retry = command();
         retry.setTransactionDateTime(NOW);
 
-        Lease next = ownership.acquire(retry, ACTION, TYPE, ZONE).lease();
+        Lease next = ownership.acquire(retry, ACTION, TYPE, ZONE, NEW_CANDIDATE).lease();
 
         assertThat(next.generation()).isEqualTo(2);
         assertThat(next.candidateTransactionId()).isNotEqualTo(FIRST_CANDIDATE);
@@ -239,7 +265,7 @@ class PaymentPreparationOwnershipServiceTest {
         PaymentCreateCommandDTO direct = command();
         direct.setRequestSource("OPENAPI");
 
-        assertThatThrownBy(() -> ownership.acquire(direct, ACTION, TYPE, ZONE)).isInstanceOf(ServiceException.class);
+        assertThatThrownBy(() -> ownership.acquire(direct, ACTION, TYPE, ZONE, NEW_CANDIDATE)).isInstanceOf(ServiceException.class);
         verify(mapper, never()).update(isNull(), any());
     }
 

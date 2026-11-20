@@ -3,6 +3,7 @@ package com.scott.payment.component.db.sharding;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.id.LocalGlobalIdGenerator;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.mapper.TransactionIdempotencyMapper;
 import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService;
@@ -94,7 +95,7 @@ class PaymentPreparationOwnershipMySqlTest {
         context.register(Transactions.class);
         context.registerBean(PlatformTransactionManager.class, () -> manager);
         context.registerBean(PaymentPreparationOwnershipService.class,
-                () -> new PaymentPreparationOwnershipService(mapper, idempotency));
+                () -> new PaymentPreparationOwnershipService(mapper, idempotency, new LocalGlobalIdGenerator()));
         context.refresh();
         ownership = context.getBean(PaymentPreparationOwnershipService.class);
     }
@@ -116,12 +117,12 @@ class PaymentPreparationOwnershipMySqlTest {
     void takeoverKeepsFirstQuarterAndPreventsTheOldOwnershipFromCommitting() {
         var command = command();
         String key = idempotency.buildTransactionOperationKey(MERCHANT, command.getMerchantOrderId(), "PAYMENT");
-        Lease previous = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai").lease();
+        Lease previous = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai", ownership.nextCandidate()).lease();
         assertThat(reconcile(previous)).isEqualTo(CancellationDecision.RETAIN);
         assertThat(ownership.terminateUncommitted(previous)).isEqualTo(CancellationDecision.RELEASE_ALLOWED);
 
         command.setTransactionDateTime(ORIGINAL_TIME.plusDays(1));
-        Lease next = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai").lease();
+        Lease next = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai", ownership.nextCandidate()).lease();
         assertThat(next.generation()).isGreaterThan(previous.generation());
         assertThat(next.candidateTransactionId()).isNotEqualTo(previous.candidateTransactionId());
         assertThat(next.transactionDateTime()).isEqualTo(ORIGINAL_TIME);
@@ -137,7 +138,7 @@ class PaymentPreparationOwnershipMySqlTest {
 
         assertThat(reconcile(next)).isEqualTo(CancellationDecision.RETAIN);
         assertThat(ownership.terminateUncommitted(next)).isEqualTo(CancellationDecision.RETAIN);
-        var known = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai").committedOperation();
+        var known = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai", ownership.nextCandidate()).committedOperation();
         assertThat(known.getTransactionId()).isEqualTo(next.candidateTransactionId());
         assertThat(known.getTransactionDateTime()).isEqualTo(ORIGINAL_TIME);
         assertThat(countFor("transaction_order_202603", command.getMerchantOrderId())).isEqualTo(1);
@@ -148,7 +149,7 @@ class PaymentPreparationOwnershipMySqlTest {
     void rollbackDoesNotLeaveAttachedOwnershipOrFiscalFacts() {
         var command = command();
         String key = idempotency.buildTransactionOperationKey(MERCHANT, command.getMerchantOrderId(), "PAYMENT");
-        Lease lease = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai").lease();
+        Lease lease = ownership.acquire(command, key, "PAYMENT", "Asia/Shanghai", ownership.nextCandidate()).lease();
 
         transactions.executeWithoutResult(status -> {
             ownership.requireCurrent(lease);

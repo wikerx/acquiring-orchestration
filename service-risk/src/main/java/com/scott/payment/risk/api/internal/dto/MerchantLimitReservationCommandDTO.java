@@ -18,6 +18,10 @@ public class MerchantLimitReservationCommandDTO implements Serializable {
      */
     @NotBlank(message = "transactionId is required")
     private String transactionId;
+    private String merchantId;
+    private String paymentPreparationKey;
+    private Long paymentPreparationGeneration;
+    private String paymentTransactionDateTime;
 
     /**
      * 风控评估流水号，仅用于链路关联；状态定位以 transactionId 为准。

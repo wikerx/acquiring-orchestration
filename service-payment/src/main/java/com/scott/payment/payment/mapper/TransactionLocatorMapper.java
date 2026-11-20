@@ -6,14 +6,12 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * 交易定位 Mapper，位于 service-payment 数据访问层，只访问非分表 transaction_locator 并始终携带 merchant_id 隔离条件。
+ * 非分片交易定位。商户查询必须携带 merchant_id，受信任的全局定位仅用于管理和渠道内部流程。
  */
 public interface TransactionLocatorMapper extends BaseMapper<TransactionLocatorDO> {
 
     /**
-     * 按全局唯一的平台交易 ID 定位交易，专供已签名的管理端内部接口使用。
-     *
-     * <p>普通商户查询仍必须使用携带 merchant_id 的方法；本方法不得暴露到商户 API。</p>
+     * 供受信任渠道处理和已签名内部服务按全局交易号定位原分片，商户入口另走商户隔离查询。
      */
     @Select("""
             SELECT id, transaction_id, operation_id, root_transaction_id,
@@ -24,7 +22,11 @@ public interface TransactionLocatorMapper extends BaseMapper<TransactionLocatorD
             WHERE transaction_id = #{transactionId}
             LIMIT 1
             """)
-    TransactionLocatorDO selectByTransactionIdForAdmin(@Param("transactionId") String transactionId);
+    TransactionLocatorDO selectByTransactionIdForTrustedService(@Param("transactionId") String transactionId);
+
+    default TransactionLocatorDO selectByTransactionIdForAdmin(String transactionId) {
+        return selectByTransactionIdForTrustedService(transactionId);
+    }
 
     /**
      * 按商户和平台交易 ID 定位单笔动作。

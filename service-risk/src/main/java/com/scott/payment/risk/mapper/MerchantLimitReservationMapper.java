@@ -15,6 +15,15 @@ import java.util.List;
  */
 public interface MerchantLimitReservationMapper {
 
+    /** 仅当前非终态版本可移动到下一轮复核。 */
+    @Update("""
+            UPDATE risk_merchant_limit_reservation SET update_time = #{now}
+            WHERE id = #{id} AND version = #{version} AND reservation_status = #{status}
+              AND reservation_status IN ('PREPARING','RESERVED') AND deleted = 0 AND update_time < #{now}
+            """)
+    int deferReconciliation(@Param("id") Long id, @Param("version") Integer version,
+                            @Param("status") String status, @Param("now") LocalDateTime now);
+
     /**
      * 写入一条 PREPARING 状态的限额预占事实，业务唯一键冲突由上层按幂等语义处理。
      *

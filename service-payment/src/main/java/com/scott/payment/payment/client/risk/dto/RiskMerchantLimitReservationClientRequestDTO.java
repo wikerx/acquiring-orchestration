@@ -16,6 +16,10 @@ public class RiskMerchantLimitReservationClientRequestDTO implements Serializabl
      * 触发限额预占的支付交易号，也是补偿幂等关联键。
      */
     private String transactionId;
+    private String merchantId;
+    private String paymentPreparationKey;
+    private Long paymentPreparationGeneration;
+    private String paymentTransactionDateTime;
 
     /**
      * 风控评估记录号，用于定位原预占记录。

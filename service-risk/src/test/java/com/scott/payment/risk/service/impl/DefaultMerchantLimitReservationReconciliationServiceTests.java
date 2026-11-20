@@ -4,6 +4,7 @@ import com.scott.payment.risk.client.payment.PaymentPreparationRecoveryClient;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
 import com.scott.payment.risk.domain.PaymentTransactionLookupResult;
+import com.scott.payment.risk.domain.PaymentPreparationReservationScope;
 import com.scott.payment.risk.domain.RedisReservationMarkerState;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Comparator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -62,7 +64,7 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         when(statusRepository.findStatus(
                 "TX-PENDING", pending.getPeriodBeginTime(), pending.getPeriodEndTime()))
                 .thenReturn(PaymentTransactionLookupResult.found("PENDING"));
-        when(coordinator.cancel("TX-ABSENT", "payment record absent after grace period"))
+        when(coordinator.cancelCompensation("TX-ABSENT", null, "payment record absent after grace period"))
                 .thenReturn(new MerchantLimitReservationTransitionSummary(1, 0, 0));
         when(coordinator.applyPaymentStatus(
                 "TX-PENDING", "PENDING", "stale reservation payment status PENDING"))
@@ -81,8 +83,9 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         assertThat(summary.reserved()).isEqualTo(1);
         assertThat(summary.cancelled()).isEqualTo(1);
         assertThat(summary.retained()).isEqualTo(1);
-        verify(coordinator, never()).cancel(
+        verify(coordinator, never()).cancelCompensation(
                 "TX-PENDING",
+                null,
                 "payment record absent after grace period");
         log.info("预占对账主路径验证完成，结果: 恢复 1、取消 1、保留 1");
     }
@@ -200,13 +203,14 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         when(paymentStatus.findStatus("TX-PROTECTED", businessTime, businessTime.plusNanos(1_000_000)))
                 .thenReturn(PaymentTransactionLookupResult.absent());
         when(recovery.authorizesRelease(protectedRow)).thenReturn(false, true);
-        when(coordinator.cancel("TX-PROTECTED", "exact preparation ownership ended"))
+        var scope = PaymentPreparationReservationScope.from(protectedRow);
+        when(coordinator.cancelCompensation("TX-PROTECTED", scope, "exact preparation ownership ended"))
                 .thenReturn(new MerchantLimitReservationTransitionSummary(1, 0, 0));
 
         assertThat(service.reconcile(now, 100).retained()).isEqualTo(1);
-        verify(coordinator, never()).cancel("TX-PROTECTED", "exact preparation ownership ended");
+        verify(coordinator, never()).cancelCompensation("TX-PROTECTED", scope, "exact preparation ownership ended");
         assertThat(service.reconcile(now, 100).cancelled()).isEqualTo(1);
-        verify(coordinator).cancel("TX-PROTECTED", "exact preparation ownership ended");
+        verify(coordinator).cancelCompensation("TX-PROTECTED", scope, "exact preparation ownership ended");
     }
 
     @Test
@@ -227,6 +231,42 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
 
         assertThat(service.reconcile(now, 100).retained()).isEqualTo(1);
         verify(state, never()).cancel(org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void unavailableHeadLeavesRoomForLaterReconciliationWithoutReleasingItsReservation() {
+        var state = mock(MerchantLimitReservationStateService.class);
+        var coordinator = mock(MerchantLimitReservationLifecycleCoordinator.class);
+        var payment = mock(RiskPaymentTransactionStatusRepository.class);
+        var service = reconciliationService(state, mock(MerchantLimitReservationCounterService.class), coordinator, payment);
+        var now = LocalDateTime.of(2026, 7, 30, 10, 0);
+        var unknown = reservation(41L, "TX-UNKNOWN", MerchantLimitReservationStatus.RESERVED, now.minusMinutes(10));
+        var absent = reservation(42L, "TX-NEXT", MerchantLimitReservationStatus.RESERVED, now.minusMinutes(9));
+        unknown.setUpdateTime(unknown.getCreateTime());
+        absent.setUpdateTime(absent.getCreateTime());
+        when(state.findStaleNonTerminal(org.mockito.ArgumentMatchers.any(LocalDateTime.class),
+                org.mockito.ArgumentMatchers.eq(1))).thenAnswer(invocation -> {
+                    LocalDateTime cutoff = invocation.getArgument(0);
+                    return List.of(unknown, absent).stream().filter(row -> row.getUpdateTime().isBefore(cutoff))
+                            .sorted(Comparator.comparing(MerchantLimitReservationDO::getUpdateTime)).limit(1).toList();
+                });
+        org.mockito.Mockito.doAnswer(invocation -> {
+            MerchantLimitReservationDO deferred = invocation.getArgument(0);
+            deferred.setUpdateTime(invocation.getArgument(1));
+            return null;
+        }).when(state).deferReconciliation(org.mockito.ArgumentMatchers.any(MerchantLimitReservationDO.class),
+                org.mockito.ArgumentMatchers.any(LocalDateTime.class));
+        when(payment.findStatus("TX-UNKNOWN", unknown.getPeriodBeginTime(), unknown.getPeriodEndTime()))
+                .thenReturn(PaymentTransactionLookupResult.unknown());
+        when(payment.findStatus("TX-NEXT", absent.getPeriodBeginTime(), absent.getPeriodEndTime()))
+                .thenReturn(PaymentTransactionLookupResult.absent());
+        when(coordinator.cancelCompensation("TX-NEXT", null, "payment record absent after grace period"))
+                .thenReturn(new MerchantLimitReservationTransitionSummary(1, 0, 0));
+
+        assertThat(service.reconcile(now, 1).retained()).isEqualTo(1);
+        assertThat(service.reconcile(now.plusSeconds(15), 1).cancelled()).isEqualTo(1);
+        verify(coordinator, never()).cancelCompensation("TX-UNKNOWN", null, "payment record absent after grace period");
+        assertThat(unknown.getReservationStatus()).isEqualTo("RESERVED");
     }
 
     /**

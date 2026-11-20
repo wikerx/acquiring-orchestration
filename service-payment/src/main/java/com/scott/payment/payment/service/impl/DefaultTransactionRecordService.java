@@ -4,6 +4,7 @@ import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.id.GlobalIdValidator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
 import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
@@ -883,8 +884,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     @Override
     @DS(DataSourceName.TRANSACTION)
     public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
-        LocalDateTime sourceTransactionDateTime = parseTransactionDateTime(sourceTransactionId);
-        return findSourceOperationByTransactionId(sourceTransactionId, sourceTransactionDateTime);
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            return findSourceOperationByTransactionId(sourceTransactionId,
+                    resolveSourceTransactionDateTime(sourceTransactionId));
+        }
     }
 
     /**
@@ -1114,13 +1117,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (!StringUtils.hasText(channelOrderNo) || !StringUtils.hasText(channelTransactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "channel_order_no and channel_transaction_id are required");
         }
-        LocalDateTime sourceTransactionDateTime = parseTransactionDateTime(channelOrderNo);
-        if (sourceTransactionDateTime == null) {
-            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            LocalDateTime sourceTransactionDateTime = resolveSourceTransactionDateTime(channelOrderNo);
+            if (sourceTransactionDateTime == null) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            return transactionOperationMapper.selectByChannelTransaction(
+                    channelOrderNo, channelTransactionId, sourceTransactionDateTime, exclusiveEnd(LocalDateTime.now()));
         }
-        LocalDateTime now = LocalDateTime.now();
-        return transactionOperationMapper.selectByChannelTransaction(
-                channelOrderNo, channelTransactionId, sourceTransactionDateTime, exclusiveEnd(now));
     }
 
     /**
@@ -4839,8 +4843,18 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     /**
      * 解析交易日期时间。
      */
-    private LocalDateTime parseTransactionDateTime(String transactionId) {
-        return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
+    private LocalDateTime resolveSourceTransactionDateTime(String transactionId) {
+        if (!StringUtils.hasText(transactionId)) {
+            return null;
+        }
+        TransactionLocatorDO locator = transactionLocatorMapper == null ? null
+                : transactionLocatorMapper.selectByTransactionIdForTrustedService(transactionId);
+        if (locator != null) {
+            return locator.getTransactionDateTime();
+        }
+        // 全局号中的时间只是分配时间，不能用来推断真实交易的分片。
+        return GlobalIdValidator.isValid(transactionId)
+                ? null : transactionShardingKeyParser.parseTransactionDateTime(transactionId);
     }
 
     /**

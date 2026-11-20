@@ -253,6 +253,13 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
         return reservations == null ? List.of() : reservations;
     }
 
+    @Override
+    @DS(DataSourceName.MASTER)
+    public void deferReconciliation(MerchantLimitReservationDO reservation, LocalDateTime checkedAt) {
+        mapper.deferReconciliation(reservation.getId(), reservation.getVersion(),
+                reservation.getReservationStatus(), checkedAt);
+    }
+
     /**
      * 逐条执行目标状态迁移并累计结果，不因单条冲突覆盖其他记录的处理结果。
      *

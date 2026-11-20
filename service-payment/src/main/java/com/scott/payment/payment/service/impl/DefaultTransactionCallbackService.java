@@ -5,6 +5,7 @@ import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.id.GlobalIdValidator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -759,18 +760,18 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         String channelOrderNo = firstText(commandDTO.getChannelOrderNo(), payload.channelOrderNo(), commandDTO.getTransactionId(), payload.transactionId());
         String channelTransactionId = firstText(commandDTO.getChannelTransactionId(), payload.channelTransactionId());
         String transactionId = firstText(commandDTO.getTransactionId(), payload.transactionId(), channelOrderNo);
-        LocalDateTime transactionDateTime = parseTransactionDateTime(transactionId);
+        boolean globalTransactionId = GlobalIdValidator.isValid(transactionId);
+        LocalDateTime transactionDateTime = globalTransactionId ? null : parseTransactionDateTime(transactionId);
         String operationId = null;
         TransactionOperationDO operationDO = null;
         TransactionOrderDO orderDO = null;
-        boolean resolved = transactionDateTime != null;
-        if (resolved) {
+        boolean resolved = false;
+        if (transactionDateTime != null || globalTransactionId || GlobalIdValidator.isValid(channelOrderNo)) {
             try {
                 operationDO = resolveCallbackOperation(
                         commandDTO, channelCallbackResult, transactionId, channelOrderNo, channelTransactionId);
-                if (operationDO == null) {
-                    resolved = false;
-                } else {
+                if (operationDO != null) {
+                    resolved = true;
                     LocalDateTime orderTransactionDateTime = parseOperationDateTime(operationDO.getOperationId());
                     if (orderTransactionDateTime == null) {
                         orderTransactionDateTime = operationDO.getTransactionDateTime();

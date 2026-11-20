@@ -5,6 +5,7 @@ import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.domain.MerchantLimitReservationReconciliationSummary;
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
 import com.scott.payment.risk.domain.PaymentTransactionLookupResult;
+import com.scott.payment.risk.domain.PaymentPreparationReservationScope;
 import com.scott.payment.risk.domain.RedisReservationMarkerState;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -98,7 +100,7 @@ public class DefaultMerchantLimitReservationReconciliationService
         int reserved = 0;
         int cancelled = 0;
         int retained = 0;
-        Map<String, MerchantLimitReservationDO> reservedTransactions =
+        Map<ReconciliationScope, List<MerchantLimitReservationDO>> reservedTransactions =
                 new LinkedHashMap<>();
         for (MerchantLimitReservationDO reservation : stale) {
             MerchantLimitReservationStatus status = statusOf(reservation);
@@ -123,16 +125,20 @@ public class DefaultMerchantLimitReservationReconciliationService
                             "stale preparing reservation marker absent").applied();
                 } else {
                     retained++;
+                    stateService.deferReconciliation(reservation, actualNow);
                 }
             } else if (status == MerchantLimitReservationStatus.RESERVED
                     && StringUtils.hasText(reservation.getTransactionId())) {
-                reservedTransactions.putIfAbsent(
-                        reservation.getTransactionId(),
-                        reservation);
+                PaymentPreparationReservationScope scope = PaymentPreparationReservationScope.isProtected(reservation)
+                        ? PaymentPreparationReservationScope.from(reservation) : null;
+                reservedTransactions.computeIfAbsent(new ReconciliationScope(reservation.getTransactionId(), scope),
+                        key -> new ArrayList<>()).add(reservation);
             }
         }
         int confirmed = 0;
-        for (MerchantLimitReservationDO reservation : reservedTransactions.values()) {
+        for (var group : reservedTransactions.entrySet()) {
+            List<MerchantLimitReservationDO> reservations = group.getValue();
+            MerchantLimitReservationDO reservation = reservations.get(0);
             LocalDateTime protectedTime = reservation.getPaymentTransactionDateTime();
             PaymentTransactionLookupResult lookup = paymentStatusRepository.findStatus(reservation.getTransactionId(),
                     protectedTime == null ? reservation.getPeriodBeginTime() : protectedTime,
@@ -150,6 +156,7 @@ public class DefaultMerchantLimitReservationReconciliationService
                         * isStatus(lookup.paymentStatus(), "FAILED");
                 if (!isTerminalPaymentStatus(lookup.paymentStatus())) {
                     retained++;
+                    reservations.forEach(row -> stateService.deferReconciliation(row, actualNow));
                     log.warn("商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, transactionId: {}, paymentStatus: {}, reason: paymentNonTerminal",
                             reservation.getTransactionId(), lookup.paymentStatus());
                 }
@@ -159,12 +166,15 @@ public class DefaultMerchantLimitReservationReconciliationService
                     && reservation.getCreateTime().isBefore(actualNow.minusSeconds(
                     Math.max(1L, properties.getReservationPaymentAbsenceGraceSeconds())))
                     && releaseAllowed(reservation)) {
-                cancelled += coordinator.cancel(
+                PaymentPreparationReservationScope scope = group.getKey().preparation();
+                cancelled += coordinator.cancelCompensation(
                         reservation.getTransactionId(),
-                        hasPreparation(reservation) ? "exact preparation ownership ended"
+                        scope,
+                        scope != null ? "exact preparation ownership ended"
                                 : "payment record absent after grace period").applied();
             } else {
                 retained++;
+                reservations.forEach(row -> stateService.deferReconciliation(row, actualNow));
                 log.warn("商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, transactionId: {}, reason: paymentUnknownOrWithinGrace",
                         reservation.getTransactionId());
             }
@@ -174,14 +184,11 @@ public class DefaultMerchantLimitReservationReconciliationService
     }
 
     private boolean releaseAllowed(MerchantLimitReservationDO reservation) {
-        return !hasPreparation(reservation)
+        return !PaymentPreparationReservationScope.isProtected(reservation)
                 || preparationRecovery != null && preparationRecovery.authorizesRelease(reservation);
     }
 
-    private boolean hasPreparation(MerchantLimitReservationDO reservation) {
-        return reservation.getPaymentPreparationKey() != null
-                || reservation.getPaymentPreparationGeneration() != null
-                || reservation.getPaymentTransactionDateTime() != null;
+    private record ReconciliationScope(String transactionId, PaymentPreparationReservationScope preparation) {
     }
 
     /**

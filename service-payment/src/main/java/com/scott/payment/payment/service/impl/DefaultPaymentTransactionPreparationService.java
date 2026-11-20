@@ -296,7 +296,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 idempotencyKey,
                 commandDTO.getRequestFingerprint());
         Lease lease = null;
-        if (admissionGuard != null && admissionGuard.isEnabled()) {
+        boolean enforcementEnabled = admissionGuard != null && admissionGuard.isEnabled();
+        if (enforcementEnabled) {
             TransactionIdempotencyDO existing = findCommittedInitialAction(idempotencyKey);
             if (existing != null) {
                 return resolveDuplicate(commandDTO, idempotencyKey, transactionType, existing);
@@ -312,9 +313,10 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 throw rejection;
             }
         }
-        if (preparationOwnership != null) {
+        if (preparationOwnership != null && enforcementEnabled) {
+            String candidateTransactionId = preparationOwnership.nextCandidate();
             Acquisition acquisition = preparationOwnership.acquire(commandDTO, idempotencyKey,
-                    transactionType, DEFAULT_TIME_ZONE);
+                    transactionType, DEFAULT_TIME_ZONE, candidateTransactionId);
             if (acquisition.committedOperation() != null) {
                 return resolveDuplicate(commandDTO, idempotencyKey, transactionType, acquisition.committedOperation());
             }
@@ -323,8 +325,15 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
             commandDTO.setTransactionId(lease.candidateTransactionId());
             commandDTO.setRiskPreparationOwnershipKey(lease.key());
             commandDTO.setRiskPreparationGeneration((long) lease.generation());
-        } else if (transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).isPresent()) {
-            return resolveDuplicate(commandDTO, idempotencyKey, transactionType);
+        } else {
+            commandDTO.setRiskPreparationOwnershipKey(null);
+            commandDTO.setRiskPreparationGeneration(null);
+            TransactionIdempotencyDO existing = preparationOwnership == null
+                    ? transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).orElse(null)
+                    : preparationOwnership.readBeforeLegacyPreparation(idempotencyKey);
+            if (existing != null) {
+                return resolveDuplicate(commandDTO, idempotencyKey, transactionType, existing);
+            }
         }
         PreparationAttempt attempt = new PreparationAttempt(lease);
         try {
@@ -607,6 +616,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
             Lease lease) {
         if (lease != null) {
             preparationOwnership.requireCurrent(lease);
+        } else if (preparationOwnership != null) {
+            preparationOwnership.requireLegacyPreparationAllowed(plan.idempotencyKey());
         }
         PaymentCreateCommandDTO commandDTO = plan.commandDTO();
         LocalDateTime now = LocalDateTime.now();

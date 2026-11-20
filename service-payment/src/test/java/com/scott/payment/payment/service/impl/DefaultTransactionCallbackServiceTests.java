@@ -3,6 +3,7 @@ package com.scott.payment.payment.service.impl;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.scott.payment.component.core.id.LuhnMod10Utils;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
@@ -325,6 +326,38 @@ class DefaultTransactionCallbackServiceTests {
         assertThat(eventOutboxService.eventDO.getEventType())
                 .isEqualTo(TransactionMqConstants.TRANSACTION_CALLBACK_PROCESSED_TAG);
         assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo("202607141000000000001");
+    }
+
+    @Test
+    void globalTransactionNumberUsesThePersistedCallbackPartition() {
+        var callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        var recordService = mock(TransactionRecordService.class);
+        String idBody = "261001000000000000001";
+        String id = idBody + LuhnMod10Utils.calculateCheckDigit(idBody);
+        var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000);
+        var operation = operation();
+        operation.setTransactionId(id);
+        operation.setTransactionDateTime(originalTime);
+        operation.setOperationId("OP202609302359599990001");
+        when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(1);
+        when(recordService.findOperationByChannelTransaction(eq(id), anyString())).thenReturn(operation);
+        when(recordService.findOrder(originalTime, operation.getOperationId())).thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(), eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                any(), any(), eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
+        var events = new CapturingEventOutboxService();
+        var service = new DefaultTransactionCallbackService(mock(TransactionChannelCallbackLogMapper.class),
+                callbackMapper, recordService, events, new TransactionShardingKeyParser());
+        var command = callbackCommand();
+        command.setChannelOrderNo(id);
+        command.setTransactionId(id);
+
+        var result = service.recordChannelCallback(command);
+
+        assertThat(result.getCallbackStatus()).isEqualTo("PROCESSED");
+        assertThat(result.getTransactionId()).isEqualTo(id);
+        assertThat(events.eventDO.getTransactionDateTime()).isEqualTo(originalTime);
     }
 
     /**

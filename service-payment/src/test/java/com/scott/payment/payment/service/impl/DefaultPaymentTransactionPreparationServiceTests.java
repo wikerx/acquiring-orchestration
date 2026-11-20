@@ -3,6 +3,8 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.payment.service.capability.PaymentAdmissionExecutionGuard;
 import com.scott.payment.payment.service.capability.PaymentAdmissionRejectedException;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -163,9 +165,9 @@ class DefaultPaymentTransactionPreparationServiceTests {
         var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59);
         var lease = new Lease("preparation-key", IDEMPOTENCY_KEY, "200045", 2,
                 "TX-CURRENT-CANDIDATE", originalTime, "normalized");
-        when(ownership.acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), anyString()))
+        when(ownership.acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), eq("Asia/Shanghai"), eq("global-candidate")))
                 .thenReturn(new Acquisition(lease, null));
-        fixture.service.setPreparationOwnership(ownership);
+        fixture.enableProtectedPreparation(ownership);
         doAnswer(invocation -> {
             PaymentCreateCommandDTO command = invocation.getArgument(0);
             assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
@@ -184,7 +186,8 @@ class DefaultPaymentTransactionPreparationServiceTests {
 
         assertThat(result.getCommittedTransactionDateTime()).isEqualTo(originalTime);
         var calls = org.mockito.Mockito.inOrder(ownership, fixture.riskInvokeService, fixture.recordService);
-        calls.verify(ownership).acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), anyString());
+        calls.verify(ownership).nextCandidate();
+        calls.verify(ownership).acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), eq("Asia/Shanghai"), eq("global-candidate"));
         calls.verify(fixture.riskInvokeService).checkPreRoute(any());
         calls.verify(ownership).requireCurrent(lease);
         calls.verify(fixture.recordService).recordInitialTransaction(any(), any(), any(), any(), any(), anyInt());
@@ -200,9 +203,9 @@ class DefaultPaymentTransactionPreparationServiceTests {
         PaymentCreateCommandDTO command = fixture.command();
         var lease = new Lease("preparation-key", IDEMPOTENCY_KEY, "200045", 1,
                 "TX-EXCLUSIVE-CANDIDATE", command.getTransactionDateTime(), "normalized");
-        when(ownership.acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), anyString()))
+        when(ownership.acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), eq("Asia/Shanghai"), eq("global-candidate")))
                 .thenReturn(new Acquisition(lease, null));
-        fixture.service.setPreparationOwnership(ownership);
+        fixture.enableProtectedPreparation(ownership);
         doAnswer(invocation -> {
             throw new IllegalStateException("confirmed local rollback");
         }).when(fixture.recordService).recordInitialTransaction(any(), any(), any(), any(), any(), anyInt());
@@ -237,8 +240,48 @@ class DefaultPaymentTransactionPreparationServiceTests {
 
         assertThatThrownBy(() -> fixture.service.prepareInitialTransaction(fixture.command(), "PAYMENT"))
                 .isSameAs(rejection);
-        verify(ownership, never()).acquire(any(), anyString(), anyString(), anyString());
+        verify(ownership, never()).nextCandidate();
+        verify(ownership, never()).acquire(any(), anyString(), anyString(), anyString(), anyString());
         verify(fixture.riskInvokeService, never()).checkPreRoute(any());
+    }
+
+    @Test
+    void disabledGateUsesLegacyNumberAndDoesNotSendPreparationFieldsToRisk() {
+        var fixture = new PreparationFixture();
+        fixture.allowFreshRequest();
+        var ownership = mock(PaymentPreparationOwnershipService.class);
+        fixture.service.setPreparationOwnership(ownership);
+        var command = fixture.command();
+        command.setRiskPreparationOwnershipKey("stale-request-object-key");
+        command.setRiskPreparationGeneration(4L);
+        doAnswer(invocation -> {
+            PaymentCreateCommandDTO sent = invocation.getArgument(0);
+            assertThat(sent.getTransactionId()).matches("[0-9]{21}");
+            assertThat(sent.getRiskPreparationOwnershipKey()).isNull();
+            assertThat(sent.getRiskPreparationGeneration()).isNull();
+            return fixture.riskDecisionDTO;
+        }).when(fixture.riskInvokeService).checkPreRoute(any());
+
+        var prepared = fixture.service.prepareInitialTransaction(command, "PAYMENT");
+
+        assertThat(prepared.isCallChannel()).isTrue();
+        verify(ownership).readBeforeLegacyPreparation(IDEMPOTENCY_KEY);
+        verify(ownership).requireLegacyPreparationAllowed(IDEMPOTENCY_KEY);
+        verify(ownership, never()).nextCandidate();
+    }
+
+    @Test
+    void disabledGateWaitsForAnExistingProtectedPreparationBeforeRisk() {
+        var fixture = new PreparationFixture();
+        var ownership = mock(PaymentPreparationOwnershipService.class);
+        fixture.service.setPreparationOwnership(ownership);
+        var pending = new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS);
+        when(ownership.readBeforeLegacyPreparation(IDEMPOTENCY_KEY)).thenThrow(pending);
+
+        assertThatThrownBy(() -> fixture.service.prepareInitialTransaction(fixture.command(), "PAYMENT"))
+                .isSameAs(pending);
+        verifyNoInteractions(fixture.riskInvokeService, fixture.routeService);
+        verify(ownership, never()).nextCandidate();
     }
 
     /** 构建已有首次交易结果，用于验证原始准备和数据库并发命中。 */
@@ -350,6 +393,21 @@ class DefaultPaymentTransactionPreparationServiceTests {
                     recordService,
                     cardCapabilityService,
                     transactionManager);
+        }
+
+        private void enableProtectedPreparation(PaymentPreparationOwnershipService ownership) {
+            var guard = mock(PaymentAdmissionExecutionGuard.class);
+            when(guard.isEnabled()).thenReturn(true);
+            when(guard.planRoute(any())).thenAnswer(invocation ->
+                    routeService.route(invocation.getArgument(0)));
+            when(guard.protect(any(), any(), eq("PAYMENT"), any())).thenAnswer(invocation ->
+                    invocation.<java.util.function.Supplier<?>>getArgument(3).get());
+            when(ownership.nextCandidate()).thenAnswer(invocation -> {
+                assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+                return "global-candidate";
+            });
+            service.setAdmissionGuard(guard);
+            service.setPreparationOwnership(ownership);
         }
 
         /**

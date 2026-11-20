@@ -1,6 +1,7 @@
 package com.scott.payment.risk.service.impl;
 
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
+import com.scott.payment.risk.domain.PaymentPreparationReservationScope;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.service.MerchantLimitReservationCounterService;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -98,6 +100,43 @@ class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
 
         assertThat(summary.conflicted()).isEqualTo(1);
         verify(counterService, never()).rollback(confirmed);
+    }
+
+    @Test
+    void compensationCannotReleaseAConflictingMerchantGenerationOrLegacyReservation() {
+        var state = mock(MerchantLimitReservationStateService.class);
+        var counters = mock(MerchantLimitReservationCounterService.class);
+        var coordinator = new DefaultMerchantLimitReservationLifecycleCoordinator(state, counters);
+        LocalDateTime time = LocalDateTime.of(2026, 6, 30, 23, 59, 59);
+        String key = "b".repeat(64);
+        var protectedScope = new PaymentPreparationReservationScope("M1", key, 2L, time);
+        var expected = withScope(reservation(MerchantLimitReservationStatus.RESERVED), protectedScope);
+        var otherMerchant = withScope(reservation(MerchantLimitReservationStatus.RESERVED),
+                new PaymentPreparationReservationScope("M2", key, 2L, time));
+        var otherGeneration = withScope(reservation(MerchantLimitReservationStatus.RESERVED),
+                new PaymentPreparationReservationScope("M1", key, 1L, time));
+        var legacy = reservation(MerchantLimitReservationStatus.RESERVED);
+        when(state.lockByTransactionId("TX1001")).thenReturn(List.of(otherMerchant, legacy, expected, otherGeneration));
+        when(counters.rollback(expected)).thenReturn(true);
+        when(counters.rollback(legacy)).thenReturn(true);
+        when(state.cancelLocked(List.of(expected), "owned")).thenReturn(new MerchantLimitReservationTransitionSummary(1, 0, 0));
+        when(state.cancelLocked(List.of(legacy), "legacy")).thenReturn(new MerchantLimitReservationTransitionSummary(1, 0, 0));
+
+        assertThat(coordinator.cancelCompensation("TX1001", protectedScope, "owned").applied()).isEqualTo(1);
+        assertThat(coordinator.cancelCompensation("TX1001", null, "legacy").applied()).isEqualTo(1);
+        verify(counters).rollback(expected);
+        verify(counters).rollback(legacy);
+        verify(counters, never()).rollback(otherMerchant);
+        verify(counters, never()).rollback(otherGeneration);
+    }
+
+    private MerchantLimitReservationDO withScope(MerchantLimitReservationDO reservation,
+                                                  PaymentPreparationReservationScope scope) {
+        reservation.setMerchantId(scope.merchantId());
+        reservation.setPaymentPreparationKey(scope.key());
+        reservation.setPaymentPreparationGeneration(scope.generation());
+        reservation.setPaymentTransactionDateTime(scope.transactionTime());
+        return reservation;
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.scott.payment.risk.service.impl;
 
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
+import com.scott.payment.risk.domain.PaymentPreparationReservationScope;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.service.MerchantLimitReservationCounterService;
@@ -13,6 +14,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.Locale;
 
 /**
@@ -67,8 +69,21 @@ public class DefaultMerchantLimitReservationLifecycleCoordinator
     @Override
     @Transactional(rollbackFor = Exception.class)
     public MerchantLimitReservationTransitionSummary cancel(String transactionId, String reason) {
+        return cancelMatching(transactionId, reason, reservation -> true);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MerchantLimitReservationTransitionSummary cancelCompensation(
+            String transactionId, PaymentPreparationReservationScope scope, String reason) {
+        return cancelMatching(transactionId, reason, reservation -> scope == null
+                ? !PaymentPreparationReservationScope.isProtected(reservation) : scope.matches(reservation));
+    }
+
+    private MerchantLimitReservationTransitionSummary cancelMatching(
+            String transactionId, String reason, Predicate<MerchantLimitReservationDO> filter) {
         List<MerchantLimitReservationDO> reservations =
-                stateService.lockByTransactionId(transactionId);
+                stateService.lockByTransactionId(transactionId).stream().filter(filter).toList();
         if (reservations.isEmpty()) {
             return MerchantLimitReservationTransitionSummary.empty();
         }

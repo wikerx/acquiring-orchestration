@@ -1,6 +1,7 @@
 package com.scott.payment.risk.service;
 
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
+import com.scott.payment.risk.domain.PaymentPreparationReservationScope;
 
 /**
  * 商户累计限额预占终态编排。
@@ -23,6 +24,10 @@ public interface MerchantLimitReservationLifecycleCoordinator {
      * @return 应用、幂等和冲突数量
      */
     MerchantLimitReservationTransitionSummary cancel(String transactionId, String reason);
+
+    /** 取消无订单的准备预占。空范围是旧调用，仅匹配未受准备归属保护的记录。 */
+    MerchantLimitReservationTransitionSummary cancelCompensation(
+            String transactionId, PaymentPreparationReservationScope scope, String reason);
 
     /**
      * 根据支付终态确认或取消预占；处理中状态保持 RESERVED。

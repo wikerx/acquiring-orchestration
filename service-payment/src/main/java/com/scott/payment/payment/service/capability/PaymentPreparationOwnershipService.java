@@ -5,7 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.core.id.GlobalIdGenerator;
+import com.scott.payment.component.core.id.GlobalIdValidator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
@@ -41,23 +42,57 @@ public class PaymentPreparationOwnershipService {
     private static final String ATTACHED = "ATTACHED";
     private static final String TERMINATED = "TERMINATED";
     private static final long LEASE_MINUTES = 2;
-    private static final int MAX_CANDIDATE_ATTEMPTS = 8;
     private static final Pattern OWNERSHIP_KEY_FORMAT = Pattern.compile("[a-f0-9]{64}");
 
     private final TransactionIdempotencyMapper mapper;
     private final TransactionIdempotencyService idempotencyService;
+    private final GlobalIdGenerator globalIdGenerator;
 
     public PaymentPreparationOwnershipService(TransactionIdempotencyMapper mapper,
-                                               TransactionIdempotencyService idempotencyService) {
+                                               TransactionIdempotencyService idempotencyService,
+                                               GlobalIdGenerator globalIdGenerator) {
         this.mapper = mapper;
         this.idempotencyService = idempotencyService;
+        this.globalIdGenerator = globalIdGenerator;
+    }
+
+    /** 发号可能需要访问 Redis，只能在归属事务及其行锁之外调用。 */
+    @Transactional(propagation = Propagation.NEVER)
+    public String nextCandidate() {
+        String candidate = globalIdGenerator.nextId();
+        if (!GlobalIdValidator.isValid(candidate)) {
+            throw candidateUnavailable();
+        }
+        return candidate;
+    }
+
+    /**
+     * 关闭门禁时可复用已有动作，但已有归属的动作继续走原受理收敛。
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
+    public TransactionIdempotencyDO readBeforeLegacyPreparation(String operationKey) {
+        TransactionIdempotencyDO head = lock(HEAD_SCOPE, ownershipKey(operationKey));
+        TransactionIdempotencyDO operation = lock(OPERATION_SCOPE, operationKey);
+        if (operation == null && head != null) {
+            throw inProgress();
+        }
+        return operation;
+    }
+
+    /** 数据库写入前再次核对，防止旧路径覆盖规划期间登记的受保护归属。 */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void requireLegacyPreparationAllowed(String operationKey) {
+        if (lock(HEAD_SCOPE, ownershipKey(operationKey)) != null) {
+            throw inProgress();
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public Acquisition acquire(PaymentCreateCommandDTO command,
                                String operationKey,
                                String transactionType,
-                               String timeZone) {
+                               String timeZone,
+                               String candidateTransactionId) {
         String key = ownershipKey(operationKey);
         TransactionIdempotencyDO head = lock(HEAD_SCOPE, key);
         TransactionIdempotencyDO operation = lock(OPERATION_SCOPE, operationKey);
@@ -67,7 +102,7 @@ public class PaymentPreparationOwnershipService {
         if (head == null) {
             LocalDateTime now = mapper.currentDatabaseTime();
             LocalDateTime originalTime = atDatabasePrecision(command.getTransactionDateTime());
-            // 首代可沿用收银台按原尝试生成的候选号。接管永远分配新的候选号。
+            // 首代及接管均使用独立全局号，收银台原候选号只作为恢复锚点。
             String checkoutCandidate = "HOSTED_CHECKOUT".equals(command.getRequestSource())
                     && StringUtils.hasText(command.getTransactionId()) ? command.getTransactionId() : null;
             TransactionIdempotencyDO initial = idempotencyService.newProcessingRecord(
@@ -79,7 +114,8 @@ public class PaymentPreparationOwnershipService {
             initial.setOperationId(checkoutCandidate);
             initial.setVersion(1);
             initial.setExpireTime(now.plusMinutes(LEASE_MINUTES));
-            initial.setTransactionId(reserveCandidate(initial, 1, checkoutCandidate, now));
+            reserveCandidate(initial, 1, candidateTransactionId, now);
+            initial.setTransactionId(candidateTransactionId);
             try {
                 requireOne(mapper.insert(initial));
             } catch (DuplicateKeyException concurrentClaim) {
@@ -104,16 +140,16 @@ public class PaymentPreparationOwnershipService {
             throw inProgress();
         }
         int generation = head.getVersion() + 1;
-        String candidate = reserveCandidate(head, generation, null, now);
+        reserveCandidate(head, generation, candidateTransactionId, now);
         LocalDateTime expiration = now.plusMinutes(LEASE_MINUTES);
         requireOne(mapper.update(null, currentUpdate(head)
                 .set(TransactionIdempotencyDO::getTransactionStatus, ACTIVE)
                 .set(TransactionIdempotencyDO::getVersion, generation)
-                .set(TransactionIdempotencyDO::getTransactionId, candidate)
+                .set(TransactionIdempotencyDO::getTransactionId, candidateTransactionId)
                 .set(TransactionIdempotencyDO::getExpireTime, expiration)
                 .set(TransactionIdempotencyDO::getUpdateTime, now)));
         return new Acquisition(new Lease(key, operationKey, head.getMerchantId(), generation,
-                candidate, head.getTransactionDateTime(), head.getRequestFingerprint()), null);
+                candidateTransactionId, head.getTransactionDateTime(), head.getRequestFingerprint()), null);
     }
 
     /**
@@ -266,29 +302,28 @@ public class PaymentPreparationOwnershipService {
         return CancellationDecision.RELEASE_ALLOWED;
     }
 
-    private String reserveCandidate(TransactionIdempotencyDO head, int generation, String preferred,
-                                    LocalDateTime now) {
-        for (int attempt = 0; attempt < MAX_CANDIDATE_ATTEMPTS; attempt++) {
-            String candidate = attempt == 0 && preferred != null
-                    ? preferred : PaymentOrderNoGenerator.nextTransactionId(head.getTransactionDateTime());
-            TransactionIdempotencyDO receipt = idempotencyService.newProcessingRecord(
-                    CANDIDATE_SCOPE, candidate, head.getMerchantId(), head.getMerchantOrderNo(),
-                    head.getMerchantOrderId(), head.getTransactionType(), head.getTransactionDateTime(),
-                    head.getTransactionTimeZone(), head.getRequestFingerprint(), now);
-            receipt.setTransactionStatus(ACTIVE);
-            receipt.setTransactionId(candidate);
-            receipt.setOperationId(head.getIdempotencyKey());
-            receipt.setVersion(generation);
-            // 保留候选号的唯一占用和终止凭据，以便处理迟到的预占。
-            receipt.setExpireTime(null);
-            try {
-                requireOne(mapper.insert(receipt));
-                return candidate;
-            } catch (DuplicateKeyException candidateUsed) {
-                // 编号生成器的序列在 JVM 内，数据库唯一键负责跨节点排重。
-            }
+    private void reserveCandidate(TransactionIdempotencyDO head, int generation, String candidate,
+                                  LocalDateTime now) {
+        if (!GlobalIdValidator.isValid(candidate) || Objects.equals(candidate, head.getOperationId())
+                || Objects.equals(candidate, head.getTransactionId())) {
+            throw candidateUnavailable();
         }
-        throw inProgress();
+        TransactionIdempotencyDO receipt = idempotencyService.newProcessingRecord(
+                CANDIDATE_SCOPE, candidate, head.getMerchantId(), head.getMerchantOrderNo(),
+                head.getMerchantOrderId(), head.getTransactionType(), head.getTransactionDateTime(),
+                head.getTransactionTimeZone(), head.getRequestFingerprint(), now);
+        receipt.setTransactionStatus(ACTIVE);
+        receipt.setTransactionId(candidate);
+        receipt.setOperationId(head.getIdempotencyKey());
+        receipt.setVersion(generation);
+        // 保留号码唯一占用及终止凭据，处理迟到的预占。
+        receipt.setExpireTime(null);
+        try {
+            requireOne(mapper.insert(receipt));
+        } catch (DuplicateKeyException candidateUsed) {
+            // 已用全局号说明编号权威存在冲突，回滚本次登记并停止业务。
+            throw candidateUnavailable();
+        }
     }
 
     private void terminate(TransactionIdempotencyDO head, LocalDateTime now) {
@@ -398,6 +433,11 @@ public class PaymentPreparationOwnershipService {
 
     private static ServiceException inProgress() {
         return new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS);
+    }
+
+    private static ServiceException candidateUnavailable() {
+        return new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
+                "payment preparation candidate identity is unavailable");
     }
 
     public enum CancellationDecision {

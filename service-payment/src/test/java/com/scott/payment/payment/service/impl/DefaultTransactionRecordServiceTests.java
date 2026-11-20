@@ -2,6 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
+import com.scott.payment.component.core.id.LuhnMod10Utils;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -66,6 +67,50 @@ import static org.mockito.Mockito.when;
  * 交易事实记录服务单元测试，验证逻辑表写入携带 transaction_date_time，并保护金额、状态和通知语义。
  */
 class DefaultTransactionRecordServiceTests {
+
+    @Test
+    void globalTransactionNumberUsesLocatorTimeEvenWhenIssuedInTheNextQuarter() {
+        var operationMapper = mock(TransactionOperationMapper.class);
+        var locatorMapper = mock(TransactionLocatorMapper.class);
+        var recordService = lookupService(operationMapper, locatorMapper);
+        String nextQuarterIdBody = "261001000000000000001";
+        String id = nextQuarterIdBody + LuhnMod10Utils.calculateCheckDigit(nextQuarterIdBody);
+        var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000);
+        var locator = new TransactionLocatorDO();
+        locator.setTransactionDateTime(originalTime);
+        var operation = new TransactionOperationDO();
+        when(locatorMapper.selectByTransactionIdForTrustedService(id)).thenReturn(locator);
+        when(operationMapper.selectByTransactionId(id, originalTime)).thenReturn(operation);
+        when(operationMapper.selectByChannelTransaction(eq(id), eq("CHANNEL-ACTION"), eq(originalTime), any()))
+                .thenReturn(operation);
+
+        assertThat(recordService.findSourceOperationByTransactionId(id)).isSameAs(operation);
+        assertThat(recordService.findOperationByChannelTransaction(id, "CHANNEL-ACTION")).isSameAs(operation);
+    }
+
+    @Test
+    void legacyTransactionNumberWithoutLocatorRetainsEncodedTimeFallback() {
+        var operationMapper = mock(TransactionOperationMapper.class);
+        var locatorMapper = mock(TransactionLocatorMapper.class);
+        var recordService = lookupService(operationMapper, locatorMapper);
+        String legacyId = "202609302359599990001";
+        var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000);
+        var operation = new TransactionOperationDO();
+        when(operationMapper.selectByTransactionId(legacyId, originalTime)).thenReturn(operation);
+
+        assertThat(recordService.findSourceOperationByTransactionId(legacyId)).isSameAs(operation);
+        verify(locatorMapper).selectByTransactionIdForTrustedService(legacyId);
+    }
+
+    private DefaultTransactionRecordService lookupService(TransactionOperationMapper operationMapper,
+                                                            TransactionLocatorMapper locatorMapper) {
+        return new DefaultTransactionRecordService(mock(TransactionOrderMapper.class), operationMapper,
+                mock(TransactionStatusHistoryMapper.class), mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class), mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class), mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class), mock(TransactionPaymentMethodInfoMapper.class),
+                locatorMapper, new TransactionShardingKeyParser(), logicalShardingProperties());
+    }
 
     @Test
     void merchantApiResponseLogShouldUseExplicitTransactionDateTime() {

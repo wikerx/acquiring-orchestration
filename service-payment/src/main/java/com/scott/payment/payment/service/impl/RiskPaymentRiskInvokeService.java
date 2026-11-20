@@ -142,6 +142,12 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
                 new RiskMerchantLimitReservationClientRequestDTO();
         requestDTO.setTransactionId(commandDTO.getTransactionId());
         requestDTO.setRiskRecordNo(decisionDTO.getRiskRecordNo());
+        if (commandDTO.getRiskPreparationOwnershipKey() != null) {
+            requestDTO.setMerchantId(commandDTO.getMerchantId());
+            requestDTO.setPaymentPreparationKey(commandDTO.getRiskPreparationOwnershipKey());
+            requestDTO.setPaymentPreparationGeneration(commandDTO.getRiskPreparationGeneration());
+            requestDTO.setPaymentTransactionDateTime(commandDTO.getTransactionDateTime().toString());
+        }
         requestDTO.setReason(reason);
         riskInternalClient.cancelMerchantLimitReservation(requestDTO);
         log.info("风控限额预占已撤销, event: PAYMENT_RISK_RESERVATION_CANCELLED, stage: RISK_COMPENSATION, traceId: {}, transactionId: {}, riskRecordNo: {}, reason: {}",
