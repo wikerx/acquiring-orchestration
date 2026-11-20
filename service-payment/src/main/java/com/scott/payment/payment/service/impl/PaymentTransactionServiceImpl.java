@@ -797,17 +797,11 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private PaymentInitialPreparationResultDTO recoverBusyInitialTransaction(PaymentCreateCommandDTO command,
                                                                                String transactionType,
                                                                                String idempotencyKey) {
-        Optional<TransactionIdempotencyDO> existing;
-        if (command.isTrustedOpenApiAdmissionRequest()) {
-            existing = openApiAdmissionAttemptRecorder.findCommittedAction(idempotencyKey);
-        } else {
-            existing = transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey);
-        }
+        Optional<TransactionIdempotencyDO> existing = openApiAdmissionAttemptRecorder == null
+                ? transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                : openApiAdmissionAttemptRecorder.findCommittedAction(idempotencyKey);
         TransactionIdempotencyDO record = existing.orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
-        if (record.getTransactionId() == null && record.getResultSnapshot() != null) {
-            paymentTransactionPreparationService.recoverRejectedInitialTransaction(command, transactionType, record);
-        }
-        return PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(record));
+        return paymentTransactionPreparationService.recoverExistingInitialTransaction(command, transactionType, record);
     }
 
     private PaymentInitialPreparationResultDTO persistOpenApiAdmissionRejection(

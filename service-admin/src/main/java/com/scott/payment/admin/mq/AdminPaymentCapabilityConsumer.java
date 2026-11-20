@@ -3,6 +3,7 @@ package com.scott.payment.admin.mq;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher.Message;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityOperations;
+import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTopic;
@@ -23,7 +24,7 @@ public class AdminPaymentCapabilityConsumer implements RocketMQListener<String> 
 
     private static final Set<String> ACTIONS = Set.of("SUBMIT", "RESUBMIT", "WITHDRAW", "APPROVE", "RETURN", "REJECT",
             "SUSPEND", "RESTORE", "TERMINATE", "VALIDITY", "READY", "CONFIGURATION_CHANGED", "FEE_CHANGED",
-            "AUTH_EFFECTIVE", "AUTH_EXPIRED");
+            "AUTH_EFFECTIVE", "AUTH_EXPIRED", ConfigurationBlockNotice.ACTION);
     private final MerchantPaymentCapabilityOperations operations;
 
     public AdminPaymentCapabilityConsumer(MerchantPaymentCapabilityOperations operations) {
@@ -38,7 +39,8 @@ public class AdminPaymentCapabilityConsumer implements RocketMQListener<String> 
                 || event.getMerchantId().isBlank() || event.getMerchantId().length() > 32
                 || event.getOccurredAt() == null || event.getAction() == null || !ACTIONS.contains(event.getAction())
                 || (event.getItemKey() != null && event.getItemKey().length() > 64)
-                || (event.getApplicationItemId() != null && (event.getRoundNo() == null || event.getItemKey() == null))) {
+                || (event.getApplicationItemId() != null && (event.getRoundNo() == null || event.getItemKey() == null))
+                || !validConfigurationTransition(event)) {
             throw new IllegalArgumentException("invalid payment capability event");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(event.getTraceId()));
@@ -51,5 +53,16 @@ public class AdminPaymentCapabilityConsumer implements RocketMQListener<String> 
         } finally {
             TraceContext.clear();
         }
+    }
+
+    private boolean validConfigurationTransition(Message event) {
+        if (!ConfigurationBlockNotice.ACTION.equals(event.getAction())) {
+            return event.getConfigurationWorkItemNo() == null && event.getConfigurationGeneration() == null;
+        }
+        return event.getItemKey() != null && !event.getItemKey().isBlank()
+                && event.getApplicationItemId() == null && event.getRoundNo() == null
+                && event.getConfigurationWorkItemNo() != null
+                && event.getConfigurationWorkItemNo().matches("[A-Za-z0-9_-]{1,32}")
+                && event.getConfigurationGeneration() != null && event.getConfigurationGeneration() >= 0;
     }
 }

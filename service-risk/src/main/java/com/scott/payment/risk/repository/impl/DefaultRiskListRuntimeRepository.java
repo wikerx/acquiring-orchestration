@@ -2696,6 +2696,11 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                                                                  long amountUnits) {
         MerchantLimitReservationDO reservation = new MerchantLimitReservationDO();
         reservation.setTransactionId(requestDTO.getTransactionId().trim());
+        if (requestDTO.getPaymentPreparationKey() != null || requestDTO.getPaymentPreparationGeneration() != null) {
+            reservation.setPaymentPreparationKey(requestDTO.getPaymentPreparationKey());
+            reservation.setPaymentPreparationGeneration(requestDTO.getPaymentPreparationGeneration());
+            reservation.setPaymentTransactionDateTime(requestDTO.getTransactionDateTime());
+        }
         reservation.setRiskRecordNo(riskRecordNo.trim());
         reservation.setMerchantId(requestDTO.getMerchantId().trim());
         reservation.setRuleId(rule.getRuleId());

@@ -88,6 +88,19 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                             @Param("now") LocalDateTime now,
                             @Param("costMs") Long costMs);
 
+    /** 取消权威配置已恢复的退化邮件，清理密文并结束重试。 */
+    @Update("""
+            UPDATE msg_email_send_record
+            SET send_status = 5, send_end_time = #{now}, next_retry_time = NULL,
+                error_code = 'PAYMENT_CAPABILITY_SUPERSEDED',
+                error_message = 'Payment capability notification is superseded', delivery_content_cipher = NULL,
+                update_time = #{now}
+            WHERE id = #{id} AND email_no = #{emailNo} AND app_code = 'ADMIN'
+              AND biz_type = 'MERCHANT_PAYMENT_CAPABILITY' AND send_status = 1 AND deleted = 0
+            """)
+    int cancelSupersededPaymentCapability(@Param("id") Long id, @Param("emailNo") String emailNo,
+                                          @Param("now") LocalDateTime now);
+
     /**
      * SMTP 失败后按最大重试次数进入等待或关闭，且不得覆盖其它状态。
      */

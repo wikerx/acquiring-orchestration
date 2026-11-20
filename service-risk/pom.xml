@@ -26,6 +26,10 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
         <!--平台通用值对象、风险枚举、异常和响应模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>

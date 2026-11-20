@@ -1,5 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.payment.service.capability.PaymentAdmissionExecutionGuard;
+import com.scott.payment.payment.service.capability.PaymentAdmissionRejectedException;
+
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -10,6 +13,10 @@ import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.Acquisition;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.CancellationDecision;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.Lease;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
@@ -148,9 +155,93 @@ class DefaultPaymentTransactionPreparationServiceTests {
                 eq(commandDTO), eq(fixture.riskDecisionDTO), eq("payment local preparation rolled back"));
     }
 
-    /**
-     * 构建已有首次交易结果，用于验证事务前命中和数据库并发冲突两条重复请求路径。
-     */
+    @Test
+    void ownershipIsFrozenBeforeRiskAndAttachedWithPreparedFacts() {
+        PreparationFixture fixture = new PreparationFixture();
+        fixture.allowFreshRequest();
+        PaymentPreparationOwnershipService ownership = mock(PaymentPreparationOwnershipService.class);
+        var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59);
+        var lease = new Lease("preparation-key", IDEMPOTENCY_KEY, "200045", 2,
+                "TX-CURRENT-CANDIDATE", originalTime, "normalized");
+        when(ownership.acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), anyString()))
+                .thenReturn(new Acquisition(lease, null));
+        fixture.service.setPreparationOwnership(ownership);
+        doAnswer(invocation -> {
+            PaymentCreateCommandDTO command = invocation.getArgument(0);
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+            assertThat(command.getRiskPreparationOwnershipKey()).isEqualTo(lease.key());
+            assertThat(command.getRiskPreparationGeneration()).isEqualTo(2L);
+            assertThat(command.getTransactionId()).isEqualTo(lease.candidateTransactionId());
+            assertThat(command.getTransactionDateTime()).isEqualTo(originalTime);
+            return fixture.riskDecisionDTO;
+        }).when(fixture.riskInvokeService).checkPreRoute(any());
+        doAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isTrue();
+            return null;
+        }).when(ownership).attach(lease);
+
+        var result = fixture.service.prepareInitialTransaction(fixture.command(), "PAYMENT");
+
+        assertThat(result.getCommittedTransactionDateTime()).isEqualTo(originalTime);
+        var calls = org.mockito.Mockito.inOrder(ownership, fixture.riskInvokeService, fixture.recordService);
+        calls.verify(ownership).acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), anyString());
+        calls.verify(fixture.riskInvokeService).checkPreRoute(any());
+        calls.verify(ownership).requireCurrent(lease);
+        calls.verify(fixture.recordService).recordInitialTransaction(any(), any(), any(), any(), any(), anyInt());
+        calls.verify(ownership).attach(lease);
+        verify(ownership, never()).terminateUncommitted(any());
+    }
+
+    @Test
+    void knownRollbackCancelsOnlyAfterTheCandidateIsDurablyTerminated() {
+        PreparationFixture fixture = new PreparationFixture();
+        fixture.allowFreshRequest();
+        PaymentPreparationOwnershipService ownership = mock(PaymentPreparationOwnershipService.class);
+        PaymentCreateCommandDTO command = fixture.command();
+        var lease = new Lease("preparation-key", IDEMPOTENCY_KEY, "200045", 1,
+                "TX-EXCLUSIVE-CANDIDATE", command.getTransactionDateTime(), "normalized");
+        when(ownership.acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"), anyString()))
+                .thenReturn(new Acquisition(lease, null));
+        fixture.service.setPreparationOwnership(ownership);
+        doAnswer(invocation -> {
+            throw new IllegalStateException("confirmed local rollback");
+        }).when(fixture.recordService).recordInitialTransaction(any(), any(), any(), any(), any(), anyInt());
+        when(ownership.terminateUncommitted(lease)).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+            assertThat(fixture.transactionManager.rollbackCount).isEqualTo(1);
+            return CancellationDecision.RELEASE_ALLOWED;
+        });
+
+        assertThatThrownBy(() -> fixture.service.prepareInitialTransaction(command, "PAYMENT"))
+                .hasMessage("confirmed local rollback");
+
+        var calls = org.mockito.Mockito.inOrder(ownership, fixture.riskInvokeService);
+        calls.verify(ownership).terminateUncommitted(lease);
+        calls.verify(fixture.riskInvokeService).cancelMerchantLimitReservation(
+                eq(command), eq(fixture.riskDecisionDTO), eq("payment preparation not committed"));
+        verify(ownership, never()).attach(any());
+    }
+
+    @Test
+    void quickAdmissionRejectionDoesNotCreatePreparationOwnershipOrReserveRisk() {
+        var fixture = new PreparationFixture();
+        fixture.allowFreshRequest();
+        var guard = mock(PaymentAdmissionExecutionGuard.class);
+        var ownership = mock(PaymentPreparationOwnershipService.class);
+        fixture.service.setAdmissionGuard(guard);
+        fixture.service.setPreparationOwnership(ownership);
+        when(guard.isEnabled()).thenReturn(true);
+        var rejection = new PaymentAdmissionRejectedException("CARD_BRAND:VISA",
+                PaymentAdmissionRejectedException.Reason.AUTHORIZATION_UNAVAILABLE, 4L);
+        doAnswer(invocation -> { throw rejection; }).when(guard).precheck(any());
+
+        assertThatThrownBy(() -> fixture.service.prepareInitialTransaction(fixture.command(), "PAYMENT"))
+                .isSameAs(rejection);
+        verify(ownership, never()).acquire(any(), anyString(), anyString(), anyString());
+        verify(fixture.riskInvokeService, never()).checkPreRoute(any());
+    }
+
+    /** 构建已有首次交易结果，用于验证原始准备和数据库并发命中。 */
     private static TransactionIdempotencyDO existingResult() {
         TransactionIdempotencyDO existing = new TransactionIdempotencyDO();
         existing.setTransactionId("TX-EXISTING");

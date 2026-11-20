@@ -3,6 +3,8 @@ package com.scott.payment.payment.service.capability;
 import com.baomidou.dynamic.datasource.DynamicRoutingDataSource;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeVersionSnapshot;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.MerchantFeeVersionSnapshotService;
@@ -85,6 +87,9 @@ class PaymentAdmissionExecutionGuardMySqlTest {
                 return transaction.execute(status -> insertReceipt(command, "before-close"));
             }));
             await(enteredPreparation);
+            assertThatThrownBy(() -> guard.precheck(cardCommand()))
+                    .isInstanceOfSatisfying(ServiceException.class,
+                            error -> assertThat(error.getCode()).isEqualTo(ApiResultEnum.NETWORK_BUSY.getCode()));
             var change = threads.submit(() -> transaction.execute(status -> {
                 writerEntered.countDown();
                 return suspend();
@@ -108,6 +113,10 @@ class PaymentAdmissionExecutionGuardMySqlTest {
     void checkAfterCommittedClosureNeverEntersTheWriteTransaction() {
         Integer changed = transaction.execute(status -> suspend());
         assertThat(changed).isEqualTo(1);
+        assertThatThrownBy(() -> guard.precheck(cardCommand()))
+                .isInstanceOfSatisfying(PaymentAdmissionRejectedException.class,
+                        error -> assertThat(error.reason())
+                                .isEqualTo(PaymentAdmissionRejectedException.Reason.AUTHORIZATION_UNAVAILABLE));
         expectAuthorizationRejection();
     }
 

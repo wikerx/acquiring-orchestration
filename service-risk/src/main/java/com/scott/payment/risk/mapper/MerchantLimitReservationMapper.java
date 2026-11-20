@@ -27,6 +27,7 @@ public interface MerchantLimitReservationMapper {
               transaction_id, risk_record_no, merchant_id, rule_id, limit_type, currency,
               period_bucket, period_begin_time, period_end_time, amount_units, counter_mode,
               reservation_status, cancel_reason, expires_at, reserved_time, confirmed_time,
+              payment_preparation_key, payment_preparation_generation, payment_transaction_date_time,
               cancelled_time, version, deleted, create_time, update_time
             )
             VALUES
@@ -35,7 +36,8 @@ public interface MerchantLimitReservationMapper {
               #{record.limitType}, #{record.currency}, #{record.periodBucket}, #{record.periodBeginTime},
               #{record.periodEndTime}, #{record.amountUnits}, #{record.counterMode},
               #{record.reservationStatus}, #{record.cancelReason}, #{record.expiresAt},
-              #{record.reservedTime}, #{record.confirmedTime}, #{record.cancelledTime},
+              #{record.reservedTime}, #{record.confirmedTime}, #{record.paymentPreparationKey},
+              #{record.paymentPreparationGeneration}, #{record.paymentTransactionDateTime}, #{record.cancelledTime},
               #{record.version}, #{record.deleted}, #{record.createTime}, #{record.updateTime}
             )
             """)

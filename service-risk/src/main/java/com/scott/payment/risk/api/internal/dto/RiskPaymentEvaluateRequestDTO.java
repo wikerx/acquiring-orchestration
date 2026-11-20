@@ -34,6 +34,10 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
      */
     private String transactionId;
 
+    /** 由内部受信支付调用方提供。缺省表示旧版预占。 */
+    private String paymentPreparationKey;
+    private Long paymentPreparationGeneration;
+
     /**
      * 交易类型，对齐字典 transaction_type，例如 AUTHORIZATION。
      */

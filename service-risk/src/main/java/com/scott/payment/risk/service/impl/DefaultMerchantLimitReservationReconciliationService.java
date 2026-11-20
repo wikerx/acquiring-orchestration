@@ -1,5 +1,6 @@
 package com.scott.payment.risk.service.impl;
 
+import com.scott.payment.risk.client.payment.PaymentPreparationRecoveryClient;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.domain.MerchantLimitReservationReconciliationSummary;
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
@@ -13,6 +14,7 @@ import com.scott.payment.risk.service.MerchantLimitReservationLifecycleCoordinat
 import com.scott.payment.risk.service.MerchantLimitReservationReconciliationService;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -39,6 +41,7 @@ public class DefaultMerchantLimitReservationReconciliationService
     private final RiskPaymentTransactionStatusRepository paymentStatusRepository;
 
     private final RiskEvaluationProperties properties;
+    private final PaymentPreparationRecoveryClient preparationRecovery;
 
     /**
      * 创建累计限额预占对账服务。
@@ -55,11 +58,23 @@ public class DefaultMerchantLimitReservationReconciliationService
             MerchantLimitReservationLifecycleCoordinator coordinator,
             RiskPaymentTransactionStatusRepository paymentStatusRepository,
             RiskEvaluationProperties properties) {
+        this(stateService, counterService, coordinator, paymentStatusRepository, properties, null);
+    }
+
+    @Autowired
+    public DefaultMerchantLimitReservationReconciliationService(
+            MerchantLimitReservationStateService stateService,
+            MerchantLimitReservationCounterService counterService,
+            MerchantLimitReservationLifecycleCoordinator coordinator,
+            RiskPaymentTransactionStatusRepository paymentStatusRepository,
+            RiskEvaluationProperties properties,
+            PaymentPreparationRecoveryClient preparationRecovery) {
         this.stateService = stateService;
         this.counterService = counterService;
         this.coordinator = coordinator;
         this.paymentStatusRepository = paymentStatusRepository;
         this.properties = properties;
+        this.preparationRecovery = preparationRecovery;
     }
 
     /**
@@ -102,7 +117,7 @@ public class DefaultMerchantLimitReservationReconciliationService
                 if (markerState == RedisReservationMarkerState.PRESENT
                         && stateService.markReserved(reservation)) {
                     reserved++;
-                } else if (markerState == RedisReservationMarkerState.ABSENT) {
+                } else if (markerState == RedisReservationMarkerState.ABSENT && releaseAllowed(reservation)) {
                     cancelled += stateService.cancel(
                             List.of(reservation),
                             "stale preparing reservation marker absent").applied();
@@ -118,11 +133,10 @@ public class DefaultMerchantLimitReservationReconciliationService
         }
         int confirmed = 0;
         for (MerchantLimitReservationDO reservation : reservedTransactions.values()) {
-            PaymentTransactionLookupResult lookup =
-                    paymentStatusRepository.findStatus(
-                            reservation.getTransactionId(),
-                            reservation.getPeriodBeginTime(),
-                            reservation.getPeriodEndTime());
+            LocalDateTime protectedTime = reservation.getPaymentTransactionDateTime();
+            PaymentTransactionLookupResult lookup = paymentStatusRepository.findStatus(reservation.getTransactionId(),
+                    protectedTime == null ? reservation.getPeriodBeginTime() : protectedTime,
+                    protectedTime == null ? reservation.getPeriodEndTime() : protectedTime.plusNanos(1_000_000));
             if (lookup.availability()
                     == PaymentTransactionLookupResult.Availability.FOUND) {
                 MerchantLimitReservationTransitionSummary summary =
@@ -143,10 +157,12 @@ public class DefaultMerchantLimitReservationReconciliationService
                     == PaymentTransactionLookupResult.Availability.ABSENT
                     && reservation.getCreateTime() != null
                     && reservation.getCreateTime().isBefore(actualNow.minusSeconds(
-                    Math.max(1L, properties.getReservationPaymentAbsenceGraceSeconds())))) {
+                    Math.max(1L, properties.getReservationPaymentAbsenceGraceSeconds())))
+                    && releaseAllowed(reservation)) {
                 cancelled += coordinator.cancel(
                         reservation.getTransactionId(),
-                        "payment record absent after grace period").applied();
+                        hasPreparation(reservation) ? "exact preparation ownership ended"
+                                : "payment record absent after grace period").applied();
             } else {
                 retained++;
                 log.warn("商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, transactionId: {}, reason: paymentUnknownOrWithinGrace",
@@ -155,6 +171,17 @@ public class DefaultMerchantLimitReservationReconciliationService
         }
         return new MerchantLimitReservationReconciliationSummary(
                 reserved, confirmed, cancelled, retained);
+    }
+
+    private boolean releaseAllowed(MerchantLimitReservationDO reservation) {
+        return !hasPreparation(reservation)
+                || preparationRecovery != null && preparationRecovery.authorizesRelease(reservation);
+    }
+
+    private boolean hasPreparation(MerchantLimitReservationDO reservation) {
+        return reservation.getPaymentPreparationKey() != null
+                || reservation.getPaymentPreparationGeneration() != null
+                || reservation.getPaymentTransactionDateTime() != null;
     }
 
     /**

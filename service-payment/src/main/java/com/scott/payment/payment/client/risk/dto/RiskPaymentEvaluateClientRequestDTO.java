@@ -29,6 +29,10 @@ public class RiskPaymentEvaluateClientRequestDTO implements Serializable {
      */
     private String transactionId;
 
+    /** 受准入保护的准备归属，随风控持久化以保护同代预占。 */
+    private String paymentPreparationKey;
+    private Long paymentPreparationGeneration;
+
     /**
      * 交易类型，对齐字典 transaction_type。
      */

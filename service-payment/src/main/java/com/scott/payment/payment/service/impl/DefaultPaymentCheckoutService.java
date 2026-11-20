@@ -44,6 +44,7 @@ import com.scott.payment.payment.entity.PaymentCheckoutSecurityEventDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.entity.PaymentCheckoutTokenDO;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
+import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.mapper.PaymentCheckoutAttemptMapper;
 import com.scott.payment.payment.mapper.PaymentCheckoutEventMapper;
 import com.scott.payment.payment.mapper.PaymentCheckoutSecurityEventMapper;
@@ -57,6 +58,10 @@ import com.scott.payment.payment.service.PaymentCheckoutService;
 import com.scott.payment.payment.service.PaymentAuthenticationRecordService;
 import com.scott.payment.payment.service.PaymentCheckoutThreeDsService;
 import com.scott.payment.payment.service.PaymentTransactionService;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.CheckoutRecoveryState;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
+import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.PaymentCheckoutThreeDsResultDTO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 import com.scott.payment.payment.support.PaymentCheckoutTokenSupport;
@@ -290,6 +295,12 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
 
     /** 只约束关联支付链接的新尝试，3DS 在途续程和普通 Checkout 保持原规则。 */
     private com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard paymentLinkGuard;
+    private PaymentPreparationOwnershipService preparationOwnership;
+
+    @Autowired
+    void setPreparationOwnership(PaymentPreparationOwnershipService preparationOwnership) {
+        this.preparationOwnership = preparationOwnership;
+    }
 
     /**
      * 创建 Hosted Checkout 默认服务。
@@ -601,7 +612,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "checkout payment submission failed");
             }
             if (context.duplicate()) {
-                return paymentResult(context.sessionDO(), context.attemptDO());
+                return recoverCorePreparation(context.sessionDO(), context.attemptDO());
             }
 
             PaymentInitialPreparationResultDTO corePreparation;
@@ -611,18 +622,32 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                     throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                             "payment core preparation returned no transaction");
                 }
-            } catch (PreparationOutcomeUnknownException exception) {
-                logPreChannelFailure(context, "CORE_PREPARE_UNKNOWN", exception);
-                return paymentResult(context.sessionDO(), context.attemptDO());
             } catch (RuntimeException exception) {
+                if (exception instanceof ServiceException serviceException
+                        && ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode().equals(serviceException.getCode())) {
+                    logPreChannelFailure(context, "CORE_PREPARE_UNKNOWN", exception);
+                    return waitForCorePreparation(context);
+                }
                 logPreChannelFailure(context, "CORE_PREPARE", exception);
                 return applyPreChannelFailure(context, true);
             }
-            if (corePreparation.isDuplicate() || !corePreparation.isCallChannel()) {
-                return applyPaymentCoreResult(context.sessionDO(), context.attemptDO(), corePreparation.getResultDTO());
+            boolean observationOnly = corePreparation.isDuplicate() || !corePreparation.isCallChannel();
+            boolean hasCommittedLocation = corePreparation.getCommittedTransactionDateTime() != null;
+            if (observationOnly && !hasCommittedLocation && preparationOwnership != null) {
+                return waitForCorePreparation(context);
             }
-            PaymentCheckoutAttemptDO preparedAttempt = markCorePrepared(
-                    context.sessionDO(), context.attemptDO(), corePreparation);
+            PaymentCheckoutAttemptDO preparedAttempt;
+            try {
+                preparedAttempt = observationOnly && !hasCommittedLocation
+                        ? context.attemptDO()
+                        : markCorePrepared(context.sessionDO(), context.attemptDO(), corePreparation);
+            } catch (RuntimeException exception) {
+                logPreChannelFailure(context, "CORE_ASSOCIATION_UNKNOWN", exception);
+                return waitForCorePreparation(context);
+            }
+            if (observationOnly) {
+                return applyPaymentCoreResult(context.sessionDO(), preparedAttempt, corePreparation.getResultDTO());
+            }
             context = new PaymentSubmissionContext(context.sessionDO(), preparedAttempt,
                     context.threeDsReturnUrl(), context.threeDsReturnTokenHash(), false);
 
@@ -675,6 +700,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 commandDTO.getTraceId(), commandDTO.getClientIpHash(), commandDTO.getUserAgentHash(), null, null, null);
         PaymentCheckoutSessionDO loadedSession = sessionMapper.selectByCheckoutSessionId(tokenDO.getCheckoutSessionId());
         PaymentCheckoutAttemptDO resolvedAttempt = resolveAttempt(loadedSession, commandDTO.getCheckoutAttemptId());
+        if (waitingForCorePreparation(loadedSession, resolvedAttempt)) {
+            return recoverCorePreparation(loadedSession, resolvedAttempt);
+        }
         PaymentStatusContext statusContext = transactionOperations.execute(
                 status -> convergeTimedOutThreeDs(loadedSession, resolvedAttempt, now));
         PaymentCheckoutSessionDO sessionDO = statusContext == null ? loadedSession : statusContext.sessionDO();
@@ -1235,17 +1263,123 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return paymentTransactionService.preparePayment(createCommand);
     }
 
+    private PaymentCheckoutPaymentResultDTO waitForCorePreparation(PaymentSubmissionContext context) {
+        PaymentCheckoutAttemptDO attempt = context.attemptDO();
+        attemptMapper.markCorePreparationUnknownCas(attempt.getCheckoutAttemptId(), attempt.getVersion(), LocalDateTime.now());
+        return paymentResult(context.sessionDO(), attempt);
+    }
+
+    private boolean waitingForCorePreparation(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt) {
+        return preparationOwnership != null && session != null && attempt != null
+                && Objects.equals(session.getLastAttemptId(), attempt.getCheckoutAttemptId())
+                && PaymentCheckoutSessionStatusEnum.PROCESSING.getCode().equals(session.getCheckoutStatus())
+                && PaymentCheckoutAttemptStatusEnum.CARD_SUBMITTED.getCode().equals(attempt.getAttemptStatus())
+                && PaymentCheckoutProcessStageEnum.WAITING_CORE_PREPARATION.getCode().equals(attempt.getProcessStage());
+    }
+
+    private PaymentCheckoutPaymentResultDTO recoverCorePreparation(PaymentCheckoutSessionDO session,
+                                                                    PaymentCheckoutAttemptDO attempt) {
+        if (!waitingForCorePreparation(session, attempt)) {
+            return paymentResult(session, attempt);
+        }
+        try {
+            String transactionType = normalizePaymentAction(session.getPaymentAction());
+            var authority = preparationOwnership.recoverCheckoutPreparation(
+                    session.getMerchantId(), session.getMerchantOrderNo(), attempt.getAttemptRequestId(),
+                    transactionType, attempt.getTransactionId(), attempt.getOperationId(), attempt.getTransactionDateTime());
+            if (authority.state() == CheckoutRecoveryState.TERMINATED) {
+                return applyConfirmedPreparationTermination(session, attempt);
+            }
+            TransactionIdempotencyDO operation = authority.operation();
+            if (authority.state() != CheckoutRecoveryState.ATTACHED || operation == null
+                    || !StringUtils.hasText(operation.getResultSnapshot())) {
+                return paymentResult(session, attempt);
+            }
+            PaymentCreateResultDTO result = JsonUtils.parseObject(operation.getResultSnapshot(), PaymentCreateResultDTO.class);
+            if (result == null || !Objects.equals(result.getTransactionId(), operation.getTransactionId())
+                    || !Objects.equals(result.getOperationId(), operation.getOperationId())) {
+                return paymentResult(session, attempt);
+            }
+            PaymentPersistedResultSupport.overwriteLatestIdempotencyStatus(result, operation.getTransactionStatus());
+            PaymentInitialPreparationResultDTO recovery = PaymentInitialPreparationResultDTO.duplicate(result);
+            recovery.setCommittedTransactionDateTime(operation.getTransactionDateTime());
+            PaymentCheckoutAttemptDO associated = markCorePrepared(session, attempt, recovery);
+            return applyPaymentCoreResult(session, associated, result);
+        } catch (RuntimeException failure) {
+            // 主库或关联 CAS 暂不可确认时保留原尝试，后续轮询继续回读。
+            log.warn("收银台核心准备回读待重试, checkoutAttemptId: {}, errorType: {}",
+                    attempt.getCheckoutAttemptId(), failure.getClass().getSimpleName());
+            return paymentResult(session, attempt);
+        }
+    }
+
+    private PaymentCheckoutPaymentResultDTO applyConfirmedPreparationTermination(
+            PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt) {
+        PaymentStatusContext failed = transactionOperations.execute(status -> {
+            LocalDateTime now = LocalDateTime.now();
+            String stage = PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode();
+            int completed = attemptMapper.markResultCas(attempt.getCheckoutAttemptId(),
+                    PaymentCheckoutAttemptStatusEnum.FAILED.getCode(), stage, null, null, null,
+                    PaymentFailureReasonEnum.CHANNEL_REQUEST_NOT_SENT.getCode(), null,
+                    DEFAULT_PAYER_FAILURE_MESSAGE, paymentSnapshot(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE, null),
+                    attempt.getVersion(), now);
+            if (completed != 1) {
+                return null;
+            }
+            int sessionUpdated = sessionMapper.markFailedCas(session.getCheckoutSessionId(),
+                    PaymentCheckoutSessionStatusEnum.FAILED.getCode(), stage, session.getVersion(), now);
+            if (sessionUpdated != 1) {
+                status.setRollbackOnly();
+                return null;
+            }
+            var latestSession = sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId());
+            var latestAttempt = attemptMapper.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId());
+            insertEvent(event(latestSession, latestAttempt, EVENT_PRE_CHANNEL_FAILED,
+                    PaymentCheckoutProcessStageEnum.RESULT_RENDERED, PaymentCheckoutEventResultEnum.FAILED,
+                    null, attempt.getAttemptRequestId(), now));
+            return new PaymentStatusContext(latestSession, latestAttempt, false);
+        });
+        return failed == null ? paymentResult(session, attempt) : paymentResult(failed.sessionDO(), failed.attemptDO());
+    }
+
     /**
-     * 把核心生成的权威路由和渠道请求身份同步到收银台尝试，供 3DS 和回跳恢复。
+     * 把核心权威身份同步到原收银台尝试和会话，两个 CAS 同事务提交。
      */
     private PaymentCheckoutAttemptDO markCorePrepared(PaymentCheckoutSessionDO sessionDO,
                                                       PaymentCheckoutAttemptDO attemptDO,
                                                       PaymentInitialPreparationResultDTO preparation) {
+        if (preparation.getCommittedTransactionDateTime() == null && preparation.getCommandDTO() == null) {
+            throw new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS);
+        }
+        return transactionOperations.execute(status -> associateCoreIdentity(sessionDO, attemptDO, preparation));
+    }
+
+    private PaymentCheckoutAttemptDO associateCoreIdentity(PaymentCheckoutSessionDO sessionDO,
+                                                            PaymentCheckoutAttemptDO attemptDO,
+                                                            PaymentInitialPreparationResultDTO preparation) {
+        PaymentCreateCommandDTO command = preparation.getCommandDTO();
+        PaymentRouteResultDTO route = preparation.getRouteResultDTO();
+        PaymentPreparedChannelRequestDTO request = preparation.getPreparedChannelRequestDTO();
         String authoritativeOperationId = preparation.getResultDTO().getOperationId();
         String authoritativeTransactionId = preparation.getResultDTO().getTransactionId();
-        LocalDateTime authoritativeTransactionTime = preparation.getCommandDTO().getTransactionDateTime();
-        String authoritativeChannelCode = preparation.getRouteResultDTO().getChannelCode();
-        Long authoritativeMidConfigId = preparation.getRouteResultDTO().getMidConfigId();
+        LocalDateTime authoritativeTransactionTime = preparation.getCommittedTransactionDateTime() != null
+                ? preparation.getCommittedTransactionDateTime() : command.getTransactionDateTime();
+        if (!StringUtils.hasText(authoritativeOperationId) || !StringUtils.hasText(authoritativeTransactionId)
+                || authoritativeTransactionTime == null) {
+            throw new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS);
+        }
+        String authoritativeChannelCode = route == null ? attemptDO.getChannelCode() : route.getChannelCode();
+        Long authoritativeMidConfigId = route == null ? attemptDO.getChannelMidConfigId() : route.getMidConfigId();
+        String channelOrderNo = request == null ? attemptDO.getChannelOrderNo() : request.getChannelOrderNo();
+        String channelTransactionId = request == null ? attemptDO.getChannelTransactionId() : request.getChannelTransactionId();
+        String channelRequestId = request == null ? attemptDO.getChannelRequestId() : request.getRequestId();
+        String currency = command == null ? attemptDO.getChannelRequestCurrency() : command.getTransactionCurrency();
+        BigDecimal amount = command == null ? attemptDO.getChannelRequestAmount() : command.getTransactionAmount();
+        if (request == null && Objects.equals(attemptDO.getOperationId(), authoritativeOperationId)
+                && Objects.equals(attemptDO.getTransactionId(), authoritativeTransactionId)
+                && Objects.equals(attemptDO.getTransactionDateTime(), authoritativeTransactionTime)) {
+            return attemptDO;
+        }
         LocalDateTime now = LocalDateTime.now();
         int updated = attemptMapper.markCorePreparedCas(
                 attemptDO.getCheckoutAttemptId(),
@@ -1254,11 +1388,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 authoritativeTransactionTime,
                 authoritativeChannelCode,
                 authoritativeMidConfigId,
-                preparation.getPreparedChannelRequestDTO().getChannelOrderNo(),
-                preparation.getPreparedChannelRequestDTO().getChannelTransactionId(),
-                preparation.getPreparedChannelRequestDTO().getRequestId(),
-                preparation.getCommandDTO().getTransactionCurrency(),
-                preparation.getCommandDTO().getTransactionAmount(),
+                channelOrderNo,
+                channelTransactionId,
+                channelRequestId,
+                currency,
+                amount,
                 attemptDO.getVersion(),
                 now);
         if (updated != 1) {
@@ -1287,11 +1421,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         attemptDO.setTransactionDateTime(authoritativeTransactionTime);
         attemptDO.setChannelCode(authoritativeChannelCode);
         attemptDO.setChannelMidConfigId(authoritativeMidConfigId);
-        attemptDO.setChannelOrderNo(preparation.getPreparedChannelRequestDTO().getChannelOrderNo());
-        attemptDO.setChannelTransactionId(preparation.getPreparedChannelRequestDTO().getChannelTransactionId());
-        attemptDO.setChannelRequestId(preparation.getPreparedChannelRequestDTO().getRequestId());
-        attemptDO.setChannelRequestCurrency(preparation.getCommandDTO().getTransactionCurrency());
-        attemptDO.setChannelRequestAmount(preparation.getCommandDTO().getTransactionAmount());
+        attemptDO.setChannelOrderNo(channelOrderNo);
+        attemptDO.setChannelTransactionId(channelTransactionId);
+        attemptDO.setChannelRequestId(channelRequestId);
+        attemptDO.setChannelRequestCurrency(currency);
+        attemptDO.setChannelRequestAmount(amount);
         return attemptDO;
     }
 
@@ -1793,7 +1927,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setTransactionId(attemptDO == null ? sessionDO.getLatestTransactionId() : attemptDO.getTransactionId());
         resultDTO.setTransactionDateTime(attemptDO == null ? sessionDO.getTransactionDateTime() : attemptDO.getTransactionDateTime());
         resultDTO.setAuthCode(attemptDO == null ? null : attemptDO.getChannelResponseCode());
-        if (paymentLinkGuard != null && paymentLinkGuard.isLinkedSession(sessionDO.getCheckoutSessionId())) {
+        boolean paymentLink = paymentLinkGuard != null && paymentLinkGuard.isLinkedSession(sessionDO.getCheckoutSessionId());
+        if (paymentLink || preparationOwnership != null) {
             String persistedTransactionId = StringUtils.hasText(resultDTO.getTransactionId())
                     ? sessionMapper.selectPersistedTransactionId(sessionDO.getMerchantId(),
                             sessionDO.getMerchantOrderNo(), resultDTO.getTransactionId()) : null;
@@ -1801,6 +1936,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             if (persistedTransactionId == null) {
                 resultDTO.setTransactionDateTime(null);
             }
+        }
+        if (paymentLink) {
             resultDTO.setCardNumberMasked(null);
             resultDTO.setAuthCode(null);
         }

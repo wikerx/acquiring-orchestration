@@ -121,6 +121,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     public Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId) {
         return Optional.ofNullable(idempotencyMapper.selectOne(Wrappers.<TransactionIdempotencyDO>lambdaQuery()
                 .eq(TransactionIdempotencyDO::getTransactionId, transactionId)
+                .in(TransactionIdempotencyDO::getIdempotencyScope, TRANSACTION_OPERATION_SCOPE, MERCHANT_ORDER_FLOW_SCOPE)
                 .in(TransactionIdempotencyDO::getTransactionType, PAYMENT, AUTHORIZATION, PRE_AUTHORIZATION)
                 .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED)
                 .orderByAsc(TransactionIdempotencyDO::getCreateTime)

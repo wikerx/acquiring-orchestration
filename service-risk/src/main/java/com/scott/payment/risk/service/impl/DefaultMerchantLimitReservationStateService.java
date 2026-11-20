@@ -354,9 +354,21 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
                 || candidate.getAmountUnits() == null
                 || candidate.getAmountUnits() <= 0
                 || !StringUtils.hasText(candidate.getCounterMode())
-                || candidate.getExpiresAt() == null) {
+                || candidate.getExpiresAt() == null
+                || !hasValidPreparation(candidate)) {
             throw new IllegalArgumentException("merchant limit reservation candidate is invalid");
         }
+    }
+
+    private boolean hasValidPreparation(MerchantLimitReservationDO reservation) {
+        String key = reservation.getPaymentPreparationKey();
+        Long generation = reservation.getPaymentPreparationGeneration();
+        LocalDateTime businessTime = reservation.getPaymentTransactionDateTime();
+        if (key == null && generation == null && businessTime == null) {
+            return true;
+        }
+        return key != null && key.matches("[0-9a-f]{64}") && generation != null
+                && generation > 0 && businessTime != null;
     }
 
     /**
@@ -369,7 +381,10 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
                 && Objects.equals(existing.getPeriodBeginTime(), candidate.getPeriodBeginTime())
                 && Objects.equals(existing.getPeriodEndTime(), candidate.getPeriodEndTime())
                 && Objects.equals(existing.getAmountUnits(), candidate.getAmountUnits())
-                && Objects.equals(existing.getCounterMode(), candidate.getCounterMode());
+                && Objects.equals(existing.getCounterMode(), candidate.getCounterMode())
+                && Objects.equals(existing.getPaymentPreparationKey(), candidate.getPaymentPreparationKey())
+                && Objects.equals(existing.getPaymentPreparationGeneration(), candidate.getPaymentPreparationGeneration())
+                && Objects.equals(existing.getPaymentTransactionDateTime(), candidate.getPaymentTransactionDateTime());
         if (!same) {
             throw new IllegalStateException("merchant limit reservation idempotency payload mismatch");
         }

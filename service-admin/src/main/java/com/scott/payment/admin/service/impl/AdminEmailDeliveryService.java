@@ -4,6 +4,7 @@ import com.scott.payment.admin.entity.email.EmailEntities.EmailAccountDO;
 import com.scott.payment.admin.entity.email.EmailEntities.EmailSendRecordDO;
 import com.scott.payment.admin.mapper.EmailAccountMapper;
 import com.scott.payment.admin.mapper.EmailSendRecordMapper;
+import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
 import com.scott.payment.component.mq.email.EmailDeliveryFailureSummary;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
 import com.scott.payment.component.mq.constant.MqTag;
@@ -62,6 +63,7 @@ public class AdminEmailDeliveryService {
      * 与邮件记录同事务写入的可靠 Outbox 发布器。
      */
     private final ReliableMqPublisher reliableMqPublisher;
+    private final JdbcAdminOperationalWorkItemService workItems;
 
     /**
      * 创建 Admin 邮件投递状态机服务。
@@ -71,13 +73,15 @@ public class AdminEmailDeliveryService {
                                      AdminSmtpEmailSender smtpEmailSender,
                                      EmailPayloadCrypto payloadCrypto,
                                      EmailDeliveryProperties properties,
-                                     ReliableMqPublisher reliableMqPublisher) {
+                                     ReliableMqPublisher reliableMqPublisher,
+                                     JdbcAdminOperationalWorkItemService workItems) {
         this.recordMapper = recordMapper;
         this.accountMapper = accountMapper;
         this.smtpEmailSender = smtpEmailSender;
         this.payloadCrypto = payloadCrypto;
         this.properties = properties;
         this.reliableMqPublisher = reliableMqPublisher;
+        this.workItems = workItems;
     }
 
     /**
@@ -147,6 +151,13 @@ public class AdminEmailDeliveryService {
             return true;
         }
         try {
+            ConfigurationBlockNotice notice = PAYMENT_CAPABILITY_BIZ_TYPE.equals(record.getBizType())
+                    ? ConfigurationBlockNotice.fromEmailBusinessNumber(record.getBizNo()) : null;
+            if (notice != null && !workItems.isCurrentConfigurationBlock(record.getMerchantId(), notice.workItemNo(),
+                    notice.generation(), false)) {
+                recordMapper.cancelSupersededPaymentCapability(record.getId(), record.getEmailNo(), LocalDateTime.now());
+                return true;
+            }
             EmailAccountDO account = accountMapper.selectById(record.getAccountId());
             if (account == null) {
                 throw new IllegalStateException("email account not found");

@@ -4,6 +4,7 @@ import com.scott.payment.admin.api.internal.AdminPaymentCapabilityOperationsInte
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher.Message;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityOperations;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityOperations.RecoveryRequest;
+import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,24 @@ class AdminPaymentCapabilityConsumerTests {
         assertThatThrownBy(() -> consumer.onMessage(JsonUtils.toJsonString(message)))
                 .hasMessageContaining("invalid payment capability event");
         verifyNoInteractions(operations);
+    }
+
+    @Test
+    void acceptsNewConfigurationBlockOnlyWithPersistedGeneration() {
+        Message message = message();
+        message.setAction(ConfigurationBlockNotice.ACTION);
+        message.setApplicationItemId(null);
+        message.setRoundNo(null);
+        message.setConfigurationWorkItemNo("OWI-1");
+        assertThatThrownBy(() -> consumer.onMessage(JsonUtils.toJsonString(message)))
+                .hasMessageContaining("invalid payment capability event");
+        verifyNoInteractions(operations);
+
+        message.setConfigurationGeneration(0L);
+        consumer.onMessage(JsonUtils.toJsonString(message));
+        verify(operations).consume(argThat(event -> ConfigurationBlockNotice.ACTION.equals(event.getAction())
+                && event.getConfigurationGeneration().equals(0L)
+                && event.getConfigurationWorkItemNo().equals("OWI-1")));
     }
 
     @Test

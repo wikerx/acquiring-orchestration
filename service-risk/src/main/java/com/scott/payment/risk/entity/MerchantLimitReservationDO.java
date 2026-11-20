@@ -28,6 +28,10 @@ public class MerchantLimitReservationDO implements Serializable {
      */
     private String transactionId;
 
+    private String paymentPreparationKey;
+    private Long paymentPreparationGeneration;
+    private LocalDateTime paymentTransactionDateTime;
+
     /**
      * 发起预占的风控评估流水号，用于审计关联。
      */

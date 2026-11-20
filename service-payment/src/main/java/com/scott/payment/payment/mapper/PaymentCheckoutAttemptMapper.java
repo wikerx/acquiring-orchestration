@@ -148,6 +148,20 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
                             @Param("version") Integer version,
                             @Param("now") LocalDateTime now);
 
+    /** 核心事务结果未知；只允许原尝试进入轮询回读，不继续发送渠道交易。 */
+    @Update("""
+            UPDATE payment_checkout_attempt
+            SET process_stage = 'WAITING_CORE_PREPARATION', version = version + 1, update_time = #{now}
+            WHERE checkout_attempt_id = #{checkoutAttemptId}
+              AND attempt_status = 'CARD_SUBMITTED'
+              AND process_stage = 'CARD_SUBMITTED'
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int markCorePreparationUnknownCas(@Param("checkoutAttemptId") String checkoutAttemptId,
+                                      @Param("version") Integer version,
+                                      @Param("now") LocalDateTime now);
+
     /**
      * 将卡数据已提交的尝试 CAS 推进为需要 3DS 挑战。
      *

@@ -1985,13 +1985,15 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
             }
             SourceIdentity identity = new SourceIdentity(type, key);
             MapSqlParameterSource params = new MapSqlParameterSource("sourceType", type)
-                    .addValue("sourceKey", key).addValue("basis", JsonUtils.toJsonString(basis));
+                    .addValue("sourceKey", key);
             List<WorkMetadata> rows = jdbcTemplate.query("SELECT " + WORK_METADATA_COLUMNS + """
                     FROM admin_operational_work_item
                     WHERE source_type = :sourceType AND source_key = :sourceKey FOR UPDATE
                     """, params, this::mapMetadata);
             LocalDateTime now = LocalDateTime.now();
             LocalDateTime dueAt = now.plus(properties.getSettlementSla());
+            boolean configurationBlocked = PAYMENT_METHOD_CONFIGURATION.equals(type)
+                    && active && "BLOCKED".equals(basis.status());
             if (rows.isEmpty()) {
                 if (!active) {
                     return null;
@@ -2003,14 +2005,20 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
                     throw conflict("payment capability work item insert did not complete");
                 }
                 WorkMetadata inserted = requiredMetadataBySource(identity);
-                jdbcTemplate.update("""
+                Long blockedGeneration = configurationBlocked ? inserted.version() : null;
+                int initialized = jdbcTemplate.update("""
                         UPDATE admin_operational_work_item SET source_basis_json = :basis
                         WHERE id = :id AND version = :version
-                        """, params.addValue("id", inserted.id()).addValue("version", inserted.version()));
+                        """, params.addValue("id", inserted.id()).addValue("version", inserted.version())
+                        .addValue("basis", JsonUtils.toJsonString(basis.withBlockedGeneration(blockedGeneration))));
+                if (initialized != 1) {
+                    throw conflict("payment capability work item basis did not initialize");
+                }
                 insertHistory(inserted, syncRequestId("capability:0", identity, "CREATE"),
                         "CREATE", null, OPEN, null, null, null, null,
                         null, "SYSTEM", "Payment capability requires follow-up", now);
-                return null;
+                return configurationBlocked
+                        ? new CapabilityTransition(inserted.workItemNo(), inserted.version(), "BLOCKED") : null;
             }
             WorkMetadata current = rows.get(0);
             if (!merchantId.equals(current.merchantId())) {
@@ -2024,6 +2032,14 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
             boolean wasClosed = CLOSED.equals(current.workStatus());
             boolean reopen = wasClosed && active;
             boolean close = !wasClosed && !active;
+            long newVersion = current.version() + 1;
+            boolean newBlock = configurationBlocked && (reopen || previous == null || !"BLOCKED".equals(previous.status()));
+            Long blockedGeneration = null;
+            if (newBlock) {
+                blockedGeneration = newVersion;
+            } else if (configurationBlocked && previous != null) {
+                blockedGeneration = previous.blockedGeneration();
+            }
             String state = close ? CLOSED : reopen ? OPEN : current.workStatus();
             Long owner = reopen ? null : current.ownerAccountId();
             String ownerName = reopen ? null : current.ownerAccountName();
@@ -2035,6 +2051,7 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
                         version = version + 1, update_time = :now
                     WHERE id = :id AND version = :version
                     """, params.addValue("state", state).addValue("now", now)
+                    .addValue("basis", JsonUtils.toJsonString(basis.withBlockedGeneration(blockedGeneration)))
                     .addValue("closedAt", close ? now : reopen ? null : current.closedAt())
                     .addValue("closeReason", close ? "PAYMENT_CAPABILITY_SOURCE_RESOLVED" : reopen ? null : current.closeReason())
                     .addValue("sla", reopen ? dueAt : current.slaDueAt())
@@ -2043,26 +2060,85 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
             if (updated != 1) {
                 throw conflict("payment capability work item changed during synchronization");
             }
-            long newVersion = current.version() + 1;
             if (close || reopen) {
                 String action = close ? "AUTO_CLOSE" : "REOPEN";
                 insertHistory(current, syncRequestId("capability:" + newVersion, identity, action),
                         action, current.workStatus(), state, current.ownerAccountId(), current.ownerAccountName(),
                         owner, ownerName, null, "SYSTEM", "Payment capability source changed", now);
             }
+            if (newBlock) {
+                return new CapabilityTransition(current.workItemNo(), newVersion, "BLOCKED");
+            }
             return close && PAYMENT_METHOD_CONFIGURATION.equals(type) && "READY".equals(basis.status())
-                    ? new CapabilityTransition(current.workItemNo(), newVersion) : null;
+                    ? new CapabilityTransition(current.workItemNo(), newVersion, "READY") : null;
         });
     }
 
+    /** 只允许发送仍属最新、未关闭配置待办的退化世代。 */
+    @DS(DataSourceName.MASTER)
+    public boolean isCurrentConfigurationBlock(String merchantId, String workItemNo, long generation, boolean lock) {
+        return jdbcTemplate.query("""
+                SELECT work_status, source_basis_json
+                FROM admin_operational_work_item
+                WHERE merchant_id = :merchantId AND work_item_no = :workItemNo AND source_type = :sourceType
+                """ + (lock ? " FOR UPDATE" : ""), new MapSqlParameterSource("merchantId", merchantId)
+                .addValue("workItemNo", workItemNo).addValue("sourceType", PAYMENT_METHOD_CONFIGURATION),
+                (row, index) -> {
+                    if (CLOSED.equals(row.getString("work_status"))) {
+                        return false;
+                    }
+                    CapabilityBasis current = JsonUtils.parseObject(row.getString("source_basis_json"), CapabilityBasis.class);
+                    return current != null && "BLOCKED".equals(current.status())
+                            && Objects.equals(current.blockedGeneration(), generation);
+                }).stream().findFirst().orElse(false);
+    }
+
     /** 来源状态和诊断仅用于运营投影。 */
-    public record CapabilityBasis(String status, List<String> reasons, Long revision, LocalDateTime measuredAt) {
+    public record CapabilityBasis(String status, List<String> reasons, Long revision, LocalDateTime measuredAt,
+                                  Long blockedGeneration) {
         public CapabilityBasis {
             reasons = reasons == null ? List.of() : List.copyOf(reasons);
         }
+
+        public CapabilityBasis(String status, List<String> reasons, Long revision, LocalDateTime measuredAt) {
+            this(status, reasons, revision, measuredAt, null);
+        }
+
+        private CapabilityBasis withBlockedGeneration(Long generation) {
+            return new CapabilityBasis(status, reasons, revision, measuredAt, generation);
+        }
     }
 
-    public record CapabilityTransition(String workItemNo, long version) {
+    public record CapabilityTransition(String workItemNo, long version, String status) {
+    }
+
+    /** 配置退化通知携带源待办及该次退化世代，供邮件异步投递前复核。 */
+    public record ConfigurationBlockNotice(String workItemNo, long generation) {
+        public static final String ACTION = "CONFIGURATION_BLOCKED";
+        private static final String MAIL_PREFIX = ACTION + ":";
+
+        public ConfigurationBlockNotice {
+            if (workItemNo == null || !workItemNo.matches("[A-Za-z0-9_-]{1,32}") || generation < 0) {
+                throw new IllegalArgumentException("invalid payment capability work item generation");
+            }
+        }
+
+        public String emailBusinessNumber() {
+            return MAIL_PREFIX + workItemNo + ":" + generation;
+        }
+
+        public static ConfigurationBlockNotice fromEmailBusinessNumber(String number) {
+            if (number == null || !number.startsWith(MAIL_PREFIX)) {
+                return null;
+            }
+            String key = number.substring(MAIL_PREFIX.length());
+            int separator = key.indexOf(':');
+            if (separator < 0) {
+                throw new IllegalArgumentException("invalid payment capability notification reference");
+            }
+            return new ConfigurationBlockNotice(key.substring(0, separator),
+                    Long.parseLong(key.substring(separator + 1)));
+        }
     }
 
     private record CapabilityMerchant(String name, long revision) {

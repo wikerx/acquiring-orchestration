@@ -10,6 +10,7 @@ import com.scott.payment.admin.service.impl.AdminEmailDeliveryService;
 import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService;
 import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.CapabilityBasis;
 import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.CapabilityTransition;
+import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
 import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService;
 import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.CapabilityKey;
 import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.ReadinessResult;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -94,9 +96,30 @@ public class MerchantPaymentCapabilityOperations {
     }
 
     private void notifyIfApplicable(Message message) {
-        if (!NON_NOTIFICATION.contains(message.getAction()) && naturalNotificationStillApplies(message)) {
-            sendNotification(message);
+        if (ConfigurationBlockNotice.ACTION.equals(message.getAction())) {
+            notifyCurrentConfigurationBlock(message);
+            return;
         }
+        if (!NON_NOTIFICATION.contains(message.getAction()) && naturalNotificationStillApplies(message)) {
+            sendNotification(message, message.getMessageId());
+        }
+    }
+
+    private void notifyCurrentConfigurationBlock(Message message) {
+        var notice = new ConfigurationBlockNotice(message.getConfigurationWorkItemNo(),
+                message.getConfigurationGeneration());
+        if (!workItems.isCurrentConfigurationBlock(message.getMerchantId(), notice.workItemNo(),
+                notice.generation(), false)
+                || !synchronizeConfiguration(message.getMerchantId(), message.getItemKey(), message.getOccurredAt())
+                        .contains(message.getItemKey())) {
+            return;
+        }
+        transaction.executeWithoutResult(status -> {
+            if (workItems.isCurrentConfigurationBlock(message.getMerchantId(), notice.workItemNo(),
+                    notice.generation(), true)) {
+                sendNotification(message, notice.emailBusinessNumber());
+            }
+        });
     }
 
     private boolean naturalNotificationStillApplies(Message message) {
@@ -139,11 +162,11 @@ public class MerchantPaymentCapabilityOperations {
         });
     }
 
-    private void synchronizeConfiguration(String merchantId, String itemKey, LocalDateTime occurredAt) {
+    private Set<String> synchronizeConfiguration(String merchantId, String itemKey, LocalDateTime occurredAt) {
         LocalDateTime measuredAt = LocalDateTime.now();
         List<Grant> grants = grants(merchantId, itemKey);
         if (grants.isEmpty()) {
-            return;
+            return Set.of();
         }
         Set<String> directory = admission.enabledDirectory();
         List<String> active = new ArrayList<>();
@@ -157,7 +180,7 @@ public class MerchantPaymentCapabilityOperations {
             }
         }
         if (active.isEmpty()) {
-            return;
+            return Set.of();
         }
         Map<String, PaymentCapabilityEvaluationDTOs.Method> methodByKey = evaluate(merchantId, active);
         ReadinessResult configured = null;
@@ -165,6 +188,7 @@ public class MerchantPaymentCapabilityOperations {
             configured = configuredCapabilities.evaluateCurrent(merchantId, measuredAt,
                     () -> activeFeeVersion(merchantId)).acquiring();
         }
+        Set<String> confirmedBlocked = new LinkedHashSet<>();
         for (Grant grant : grants) {
             if (!active.contains(grant.itemKey())) {
                 continue;
@@ -193,8 +217,10 @@ public class MerchantPaymentCapabilityOperations {
                 }
                 projectConfiguration(merchantId, grant, true,
                         new CapabilityBasis("BLOCKED", reasons, grant.revision(), measuredAt), occurredAt);
+                confirmedBlocked.add(grant.itemKey());
             }
         }
+        return confirmedBlocked;
     }
 
     private Map<String, PaymentCapabilityEvaluationDTOs.Method> evaluate(String merchantId, List<String> itemKeys) {
@@ -242,7 +268,13 @@ public class MerchantPaymentCapabilityOperations {
         transaction.executeWithoutResult(status -> {
             CapabilityTransition transition = workItems.synchronizePaymentCapability(CONFIGURATION,
                     merchantId + ":" + grant.itemKey(), merchantId, merchantId, grant.itemKey(), active, basis, occurredAt);
-            if (transition != null) {
+            if (transition == null) {
+                return;
+            }
+            if ("BLOCKED".equals(transition.status())) {
+                events.publishConfigurationBlocked(merchantId, grant.itemKey(),
+                        new ConfigurationBlockNotice(transition.workItemNo(), transition.version()), basis.measuredAt());
+            } else {
                 events.publishReady(merchantId, grant.itemKey(),
                         transition.workItemNo() + ":" + transition.version(), basis.measuredAt());
             }
@@ -262,7 +294,7 @@ public class MerchantPaymentCapabilityOperations {
                         row.getObject(3, LocalDateTime.class), row.getObject(4, LocalDateTime.class), row.getLong(5)));
     }
 
-    private void sendNotification(Message message) {
+    private void sendNotification(Message message, String businessNumber) {
         List<MerchantContact> contacts = jdbc.query("""
                 SELECT contact_email, default_locale FROM base_merchant_info
                 WHERE merchant_id = :merchantId AND deleted = 0
@@ -275,7 +307,7 @@ public class MerchantPaymentCapabilityOperations {
         EmailSendRequest request = new EmailSendRequest();
         request.setAppCode("ADMIN");
         request.setBizType(AdminEmailDeliveryService.PAYMENT_CAPABILITY_BIZ_TYPE);
-        request.setBizNo(message.getMessageId());
+        request.setBizNo(businessNumber);
         request.setMerchantId(message.getMerchantId());
         request.setMerchantNo(message.getMerchantId());
         request.setTemplateCode("MERCHANT_PAYMENT_CAPABILITY");
@@ -289,6 +321,9 @@ public class MerchantPaymentCapabilityOperations {
         byte[] payloadHash = MerchantPaymentCapabilityEventPublisher.digest(message.getMessageId(),
                 message.getMerchantId(), message.getItemKey(), message.getAction(),
                 message.getApplicationItemId(), message.getRoundNo(), message.getOccurredAt());
+        if (ConfigurationBlockNotice.ACTION.equals(message.getAction())) {
+            payloadHash = MerchantPaymentCapabilityEventPublisher.digest(payloadHash, businessNumber);
+        }
         email.sendPaymentCapabilityNotification(request, key, payloadHash);
     }
 

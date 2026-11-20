@@ -555,8 +555,8 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return createTemplateEmail(request, null, null);
     }
 
-    /** 支付方式通知按同一业务事件和受众去重，邮件与投递意图同事务。 */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    /** 支付方式通知按业务事件和受众去重，与适用性锁和投递意图同事务。 */
+    @Transactional(rollbackFor = Exception.class)
     public EmailSendResult sendPaymentCapabilityNotification(EmailSendRequest request, byte[] key, byte[] payloadHash) {
         if (!AdminEmailDeliveryService.PAYMENT_CAPABILITY_BIZ_TYPE.equals(request.getBizType())
                 || key == null || key.length != 32 || payloadHash == null || payloadHash.length != 32) {

@@ -14,8 +14,10 @@ import com.scott.payment.payment.service.impl.DefaultPaymentChannelRouteService;
 import com.scott.payment.payment.service.impl.MerchantRouteProfileCacheReader;
 import com.scott.payment.payment.service.capability.PaymentAdmissionRejectedException.Reason;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
@@ -27,6 +29,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -41,17 +45,32 @@ public class PaymentAdmissionExecutionGuard {
     private final DefaultPaymentChannelRouteService router;
     private final MerchantFeeVersionSnapshotService fees;
     private final boolean enabled;
+    private final Semaphore protectedPreparations;
 
     public PaymentAdmissionExecutionGuard(ObjectProvider<DynamicRoutingDataSource> dataSourceProvider,
                                            MerchantRouteProfileCacheReader routeProfileReader,
                                            DefaultPaymentChannelRouteService router,
                                            MerchantFeeVersionSnapshotService fees,
-                                           @Value("${payment.admission.enforcement-enabled:false}") boolean enabled) {
+                                           boolean enabled) {
+        this(dataSourceProvider, routeProfileReader, router, fees, enabled, 1);
+    }
+
+    @Autowired
+    public PaymentAdmissionExecutionGuard(ObjectProvider<DynamicRoutingDataSource> dataSourceProvider,
+                                           MerchantRouteProfileCacheReader routeProfileReader,
+                                           DefaultPaymentChannelRouteService router,
+                                           MerchantFeeVersionSnapshotService fees,
+                                           @Value("${payment.admission.enforcement-enabled:false}") boolean enabled,
+                                           @Value("${payment.admission.maximum-protected-preparations:1}") int maxProtected) {
         this.dataSourceProvider = dataSourceProvider;
         this.routeProfileReader = routeProfileReader;
         this.router = router;
         this.fees = fees;
         this.enabled = enabled;
+        if (maxProtected < 1 || maxProtected > 128) {
+            throw new IllegalArgumentException("payment admission maximum protected preparations is invalid");
+        }
+        this.protectedPreparations = new Semaphore(maxProtected, true);
     }
 
     /** 审批和迁移兼容版本可先部署，交易门禁由正式切换启用。 */
@@ -64,35 +83,88 @@ public class PaymentAdmissionExecutionGuard {
         return router.route(command, routeProfileReader.findFresh(command.getMerchantId()));
     }
 
+    /** 快速检查只持有商户、方式和字典保护，返回前释放，避免无授权请求先预占限额。 */
+    public void precheck(PaymentCreateCommandDTO command) {
+        acquireSlot();
+        Connection connection = null;
+        try {
+            connection = protectedConnection();
+            JdbcTemplate protectedJdbc = statements(connection);
+            requireAuthorized(protectedJdbc, readAdmissionFacts(protectedJdbc, command));
+        } catch (SQLException | DataAccessException exception) {
+            throw protectionUnavailable(exception);
+        } finally {
+            release(connection);
+            protectedPreparations.release();
+        }
+    }
+
     /** 受保护的最终检查通过后，即使提交跨过到期时点也允许把本次准备提交。 */
     public <T> T protect(PaymentCreateCommandDTO command, PaymentRouteResultDTO plannedRoute,
                          String action, Supplier<T> prepare) {
         if (!enabled) {
             return prepare.get();
         }
-        DynamicRoutingDataSource routing = dataSourceProvider.getIfAvailable();
-        if (routing == null) {
-            throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE);
-        }
+        acquireSlot();
         Connection connection = null;
         try {
             FrozenMerchantFeeVersionSnapshotDTO frozenFee = freezeFee(command);
-            connection = routing.getDataSource(DataSourceName.MASTER).getConnection();
-            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
-            connection.setAutoCommit(false);
-            JdbcTemplate locked = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+            connection = protectedConnection();
+            JdbcTemplate locked = statements(connection);
             verify(locked, command, plannedRoute, action,
                     frozenFee == null ? null : frozenFee.snapshot().feePlanVersionId());
             command.setProtectedFeeVersion(frozenFee);
             return prepare.get();
         } catch (SQLException exception) {
-            throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
-                    "Unable to acquire merchant payment admission protection", exception);
+            throw protectionUnavailable(exception);
         } finally {
             command.setProtectedFeeVersion(null);
             command.setPaymentAdmissionSnapshotJson(null);
             release(connection);
+            protectedPreparations.release();
         }
+    }
+
+    private void acquireSlot() {
+        try {
+            if (protectedPreparations.tryAcquire(250, TimeUnit.MILLISECONDS)) {
+                return;
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
+    }
+
+    private Connection protectedConnection() throws SQLException {
+        DynamicRoutingDataSource routing = dataSourceProvider.getIfAvailable();
+        if (routing == null) {
+            throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE);
+        }
+        Connection connection = routing.getDataSource(DataSourceName.MASTER).getConnection();
+        try {
+            connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+            connection.setAutoCommit(false);
+            return connection;
+        } catch (SQLException exception) {
+            try {
+                connection.close();
+            } catch (SQLException closeFailure) {
+                exception.addSuppressed(closeFailure);
+            }
+            throw exception;
+        }
+    }
+
+    private JdbcTemplate statements(Connection connection) {
+        var jdbc = new JdbcTemplate(new SingleConnectionDataSource(connection, true));
+        jdbc.setQueryTimeout(3);
+        return jdbc;
+    }
+
+    private ServiceException protectionUnavailable(Exception cause) {
+        return new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
+                "Unable to complete merchant payment admission protection", cause);
     }
 
     private FrozenMerchantFeeVersionSnapshotDTO freezeFee(PaymentCreateCommandDTO command) {
@@ -109,6 +181,30 @@ public class PaymentAdmissionExecutionGuard {
 
     private void verify(JdbcTemplate locked, PaymentCreateCommandDTO command, PaymentRouteResultDTO plannedRoute,
                         String action, Long feeVersion) {
+        var facts = readAdmissionFacts(locked, command);
+        String merchant = command.getMerchantId();
+        String itemKey = facts.itemKey();
+        Mode mode = facts.mode();
+        protectRouteRows(locked, merchant, itemKey, mode.revision());
+        protectFee(locked, merchant, feeVersion, action, itemKey, mode.revision());
+        LocalDateTime checkedAt = requireAuthorized(locked, facts);
+        if (plannedRoute != null) {
+            var candidate = router.assessCandidates(routeProfileReader.findFresh(merchant), command, checkedAt);
+            String plannedCurrency = plannedRoute.getRoutedCurrency() == null
+                    ? command.getLabelCurrency() : plannedRoute.getRoutedCurrency();
+            if (!Objects.equals(candidate.channelId(), plannedRoute.getChannelId())
+                    || !Objects.equals(candidate.midId(), plannedRoute.getMidConfigId())
+                    || !Objects.equals(candidate.routedCurrency(), plannedCurrency)) {
+                throw unavailable(itemKey, Reason.ROUTE_UNAVAILABLE, mode.revision());
+            }
+        }
+        var grant = facts.grant();
+        command.setPaymentAdmissionSnapshotJson(JsonUtils.toJsonString(new Proof(1, itemKey, mode.code(),
+                grant == null ? null : grant.version(), checkedAt, feeVersion,
+                plannedRoute == null ? null : plannedRoute.getMidConfigId())));
+    }
+
+    private AdmissionFacts readAdmissionFacts(JdbcTemplate locked, PaymentCreateCommandDTO command) {
         String merchant = command.getMerchantId();
         String brand = command.getTransactionInfo() == null ? null : command.getTransactionInfo().getCardBrand();
         String itemKey = MerchantAdmissionPolicy.itemKey(command.getPaymentMethod(), brand);
@@ -138,27 +234,16 @@ public class PaymentAdmissionExecutionGuard {
         if (!directoryEnabled(locked, itemKey)) {
             throw unavailable(itemKey, Reason.METHOD_DISABLED, mode.revision());
         }
-        protectRouteRows(locked, merchant, itemKey, mode.revision());
-        protectFee(locked, merchant, feeVersion, action, itemKey, mode.revision());
+        return new AdmissionFacts(itemKey, mode, grants.isEmpty() ? null : grants.get(0), legacy);
+    }
+
+    private LocalDateTime requireAuthorized(JdbcTemplate locked, AdmissionFacts facts) {
         LocalDateTime checkedAt = locked.queryForObject("SELECT CURRENT_TIMESTAMP(3)", LocalDateTime.class);
-        if (checkedAt == null || !MerchantAdmissionPolicy.permits(mode.code(),
-                grants.isEmpty() ? null : grants.get(0), legacy, checkedAt)) {
-            throw unavailable(itemKey, Reason.AUTHORIZATION_UNAVAILABLE, mode.revision());
+        if (checkedAt == null || !MerchantAdmissionPolicy.permits(facts.mode().code(),
+                facts.grant(), facts.legacy(), checkedAt)) {
+            throw unavailable(facts.itemKey(), Reason.AUTHORIZATION_UNAVAILABLE, facts.mode().revision());
         }
-        if (plannedRoute != null) {
-            var candidate = router.assessCandidates(routeProfileReader.findFresh(merchant), command, checkedAt);
-            String plannedCurrency = plannedRoute.getRoutedCurrency() == null
-                    ? command.getLabelCurrency() : plannedRoute.getRoutedCurrency();
-            if (!Objects.equals(candidate.channelId(), plannedRoute.getChannelId())
-                    || !Objects.equals(candidate.midId(), plannedRoute.getMidConfigId())
-                    || !Objects.equals(candidate.routedCurrency(), plannedCurrency)) {
-                throw unavailable(itemKey, Reason.ROUTE_UNAVAILABLE, mode.revision());
-            }
-        }
-        var grant = grants.isEmpty() ? null : grants.get(0);
-        command.setPaymentAdmissionSnapshotJson(JsonUtils.toJsonString(new Proof(1, itemKey, mode.code(),
-                grant == null ? null : grant.version(), checkedAt, feeVersion,
-                plannedRoute == null ? null : plannedRoute.getMidConfigId())));
+        return checkedAt;
     }
 
     private boolean directoryEnabled(JdbcTemplate locked, String itemKey) {
@@ -279,6 +364,9 @@ public class PaymentAdmissionExecutionGuard {
     }
 
     private record Mode(String code, String batch, long revision) {
+    }
+
+    private record AdmissionFacts(String itemKey, Mode mode, MerchantAdmissionPolicy.Grant grant, boolean legacy) {
     }
 
     private record Proof(int schemaVersion, String itemKey, String admissionMode, Long authorizationVersion,

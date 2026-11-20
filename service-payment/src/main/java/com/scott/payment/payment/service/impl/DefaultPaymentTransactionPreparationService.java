@@ -11,6 +11,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
@@ -64,6 +65,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import com.scott.payment.payment.service.capability.PaymentAdmissionExecutionGuard;
 import com.scott.payment.payment.service.capability.PaymentAdmissionRejectedException;
 import com.scott.payment.payment.service.capability.OpenApiAdmissionAttemptRecorder;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.Acquisition;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.CancellationDecision;
+import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.Lease;
 
 /**
  * 在首次交易调用渠道前完成事务外业务规划，并以短事务提交完整的本地准备事实。
@@ -166,10 +171,16 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     private final TransactionOperations transactionOperations;
     private PaymentAdmissionExecutionGuard admissionGuard;
+    private PaymentPreparationOwnershipService preparationOwnership;
 
     @Autowired
     void setAdmissionGuard(PaymentAdmissionExecutionGuard admissionGuard) {
         this.admissionGuard = admissionGuard;
+    }
+
+    @Autowired
+    void setPreparationOwnership(PaymentPreparationOwnershipService preparationOwnership) {
+        this.preparationOwnership = preparationOwnership;
     }
 
     /**
@@ -284,10 +295,58 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 commandDTO.getAmount(),
                 idempotencyKey,
                 commandDTO.getRequestFingerprint());
-        // 已完成或正在处理的重复请求在远程风控前直接返回，避免无意义地重复预占商户限额。
-        if (transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).isPresent()) {
+        Lease lease = null;
+        if (admissionGuard != null && admissionGuard.isEnabled()) {
+            TransactionIdempotencyDO existing = findCommittedInitialAction(idempotencyKey);
+            if (existing != null) {
+                return resolveDuplicate(commandDTO, idempotencyKey, transactionType, existing);
+            }
+            try {
+                admissionGuard.precheck(commandDTO);
+            } catch (PaymentAdmissionRejectedException rejection) {
+                // 并发关闭期间仍优先恢复已经提交的原动作，不把既有付款改判为拒绝。
+                existing = findCommittedInitialAction(idempotencyKey);
+                if (existing != null) {
+                    return resolveDuplicate(commandDTO, idempotencyKey, transactionType, existing);
+                }
+                throw rejection;
+            }
+        }
+        if (preparationOwnership != null) {
+            Acquisition acquisition = preparationOwnership.acquire(commandDTO, idempotencyKey,
+                    transactionType, DEFAULT_TIME_ZONE);
+            if (acquisition.committedOperation() != null) {
+                return resolveDuplicate(commandDTO, idempotencyKey, transactionType, acquisition.committedOperation());
+            }
+            lease = acquisition.lease();
+            commandDTO.setTransactionDateTime(lease.transactionDateTime());
+            commandDTO.setTransactionId(lease.candidateTransactionId());
+            commandDTO.setRiskPreparationOwnershipKey(lease.key());
+            commandDTO.setRiskPreparationGeneration((long) lease.generation());
+        } else if (transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).isPresent()) {
             return resolveDuplicate(commandDTO, idempotencyKey, transactionType);
         }
+        PreparationAttempt attempt = new PreparationAttempt(lease);
+        try {
+            return prepareOwnedTransaction(commandDTO, transactionType, idempotencyKey,
+                    merchantOrderFlowKey, startNanos, attempt);
+        } catch (PreparationOutcomeUnknownException unknown) {
+            throw unknown;
+        } catch (RuntimeException failure) {
+            terminateOwnedPreparation(commandDTO, attempt, "payment preparation not committed");
+            throw failure;
+        }
+    }
+
+    private TransactionIdempotencyDO findCommittedInitialAction(String idempotencyKey) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).orElse(null);
+        }
+    }
+
+    private PaymentInitialPreparationResultDTO prepareOwnedTransaction(
+            PaymentCreateCommandDTO commandDTO, String transactionType, String idempotencyKey,
+            String merchantOrderFlowKey, long startNanos, PreparationAttempt attempt) {
         String operationId = PaymentOrderNoGenerator.nextOrderNo(OPERATION_ID_PREFIX, commandDTO.getTransactionDateTime());
         String transactionId = StringUtils.hasText(commandDTO.getTransactionId())
                 ? commandDTO.getTransactionId()
@@ -316,6 +375,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 commandDTO.getCurrency(),
                 commandDTO.getAmount());
         PaymentRiskDecisionDTO riskDecisionDTO = paymentRiskInvokeService.checkPreRoute(commandDTO);
+        attempt.riskDecision = riskDecisionDTO;
         PaymentRiskDecisionEnum riskDecisionEnum = PaymentRiskDecisionSupport.resolve(riskDecisionDTO);
         log.info("支付路由前风控结束, event: PAYMENT_RISK_EVALUATE_END, stage: RISK, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, riskDecision: {}, riskPassed: {}, riskRecordNo: {}, hitRuleId: {}, durationMs: {}",
                 TraceContext.getTraceId(),
@@ -355,7 +415,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
             try {
                 routeResultDTO = resolveInitialRoute(commandDTO);
             } catch (RuntimeException failure) {
-                cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "initial payment route unavailable");
+                if (attempt.lease == null) {
+                    cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "initial payment route unavailable");
+                }
                 boolean missingRoute = failure instanceof DefaultPaymentChannelRouteService.RouteUnavailableException
                         || failure instanceof ServiceException serviceFailure
                         && commandDTO.getChannelIdentity() != null
@@ -444,18 +506,23 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         long persistenceStartNanos = System.nanoTime();
         PaymentInitialPreparationResultDTO target;
         AtomicBoolean riskCompensationManaged = new AtomicBoolean(false);
-        AtomicInteger completion = admissionGuard != null && admissionGuard.isEnabled() ? new AtomicInteger(-1) : null;
+        boolean guardEnabled = admissionGuard != null && admissionGuard.isEnabled();
+        AtomicInteger completion = guardEnabled || attempt.lease != null ? new AtomicInteger(-1) : null;
         try {
-            target = completion == null ? persistPreparedFacts(plan, riskCompensationManaged, null)
-                    : admissionGuard.protect(commandDTO, plan.routeResultDTO(), transactionType,
-                    () -> persistPreparedFacts(plan, riskCompensationManaged, completion));
+            target = guardEnabled
+                    ? admissionGuard.protect(commandDTO, plan.routeResultDTO(), transactionType,
+                            () -> persistPreparedFacts(plan, riskCompensationManaged, completion, attempt.lease))
+                    : persistPreparedFacts(plan, riskCompensationManaged, completion, attempt.lease);
         } catch (RuntimeException exception) {
             if (completion != null) {
                 if (completion.get() == TransactionSynchronization.STATUS_UNKNOWN
                         || completion.get() == TransactionSynchronization.STATUS_COMMITTED) {
                     try {
-                        if (transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).isPresent()) {
-                            return resolveDuplicate(commandDTO, idempotencyKey, transactionType);
+                        TransactionIdempotencyDO operation = attempt.lease == null
+                                ? transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).orElse(null)
+                                : preparationOwnership.readCommittedOperation(attempt.lease);
+                        if (operation != null) {
+                            return resolveDuplicate(commandDTO, idempotencyKey, transactionType, operation);
                         }
                     } catch (RuntimeException recoveryFailure) {
                         throw new PreparationOutcomeUnknownException(recoveryFailure);
@@ -463,7 +530,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                     throw new PreparationOutcomeUnknownException(exception);
                 }
                 // 释放配置保护后才允许撤销明确未提交的预占。
-                cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "payment preparation not committed");
+                if (attempt.lease == null) {
+                    cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "payment preparation not committed");
+                }
                 throw exception;
             }
             // 事务同步负责已注册预占的回滚；仅事务尚未启动或注册前失败时由外层直接补偿。
@@ -474,7 +543,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         }
         if (target.isDuplicate()) {
             // Redis 锁失效或并发穿透时数据库唯一约束仍可能判定重复，新生成交易号对应的预占必须释放。
-            if (completion == null || target.getResultDTO() == null
+            if (attempt.lease != null) {
+                terminateOwnedPreparation(commandDTO, attempt, "duplicate payment preparation");
+            } else if (completion == null || target.getResultDTO() == null
                     || !Objects.equals(commandDTO.getTransactionId(), target.getResultDTO().getTransactionId())) {
                 cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "duplicate payment preparation");
             }
@@ -505,10 +576,11 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     private PaymentInitialPreparationResultDTO persistPreparedFacts(InitialPreparationPlan plan,
                                                                     AtomicBoolean riskCompensationManaged,
-                                                                    AtomicInteger completion) {
+                                                                    AtomicInteger completion,
+                                                                    Lease lease) {
         if (transactionOperations == null) {
             // 仅兼容现有直接构造的单元测试；Spring 生产构造器始终注入真实事务管理器。
-            return persistPreparedFactsInTransaction(plan, riskCompensationManaged, null);
+            return persistPreparedFactsInTransaction(plan, riskCompensationManaged, null, lease);
         }
         return transactionOperations.execute(status -> {
             if (completion != null) {
@@ -521,7 +593,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 // 注册完成到事务结束之间的异常按未知处理，不提前撤销预占。
                 completion.set(TransactionSynchronization.STATUS_UNKNOWN);
             }
-            return persistPreparedFactsInTransaction(plan, riskCompensationManaged, completion);
+            return persistPreparedFactsInTransaction(plan, riskCompensationManaged, completion, lease);
         });
     }
 
@@ -531,7 +603,11 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     private PaymentInitialPreparationResultDTO persistPreparedFactsInTransaction(
             InitialPreparationPlan plan,
             AtomicBoolean riskCompensationManaged,
-            AtomicInteger completion) {
+            AtomicInteger completion,
+            Lease lease) {
+        if (lease != null) {
+            preparationOwnership.requireCurrent(lease);
+        }
         PaymentCreateCommandDTO commandDTO = plan.commandDTO();
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
@@ -608,6 +684,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 plan.merchantOrderFlowKey(),
                 commandDTO,
                 plan.resultDTO());
+        if (lease != null) {
+            preparationOwnership.attach(lease);
+        }
         return preparationResult(plan);
     }
 
@@ -623,9 +702,33 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         target.setPreparedChannelRequestDTO(plan.preparedInvokeResultDTO() == null
                 ? null : toPreparedChannelRequest(plan.preparedInvokeResultDTO()));
         target.setResultDTO(plan.resultDTO());
+        target.setCommittedTransactionDateTime(plan.commandDTO().getTransactionDateTime());
         target.setRiskDecisionEnum(plan.riskDecisionEnum());
         target.setCurrencyExponent(plan.currencyExponent());
         return target;
+    }
+
+    private void terminateOwnedPreparation(PaymentCreateCommandDTO command, PreparationAttempt attempt, String reason) {
+        if (attempt.lease == null) {
+            return;
+        }
+        try {
+            if (preparationOwnership.terminateUncommitted(attempt.lease) == CancellationDecision.RELEASE_ALLOWED) {
+                cancelRiskReservationSafely(command, attempt.riskDecision, reason);
+            }
+        } catch (RuntimeException failure) {
+            log.warn("支付准备归属终止未确认, event: PREPARATION_TERMINATION_DEFERRED, transactionId: {}, generation: {}, errorType: {}",
+                    attempt.lease.candidateTransactionId(), attempt.lease.generation(), failure.getClass().getSimpleName());
+        }
+    }
+
+    private static final class PreparationAttempt {
+        private final Lease lease;
+        private PaymentRiskDecisionDTO riskDecision;
+
+        private PreparationAttempt(Lease lease) {
+            this.lease = lease;
+        }
     }
 
     /**
@@ -732,6 +835,13 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         TransactionIdempotencyDO existing = transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                         "transaction idempotency conflict record is missing"));
+        return resolveDuplicate(commandDTO, idempotencyKey, transactionType, existing);
+    }
+
+    private PaymentInitialPreparationResultDTO resolveDuplicate(PaymentCreateCommandDTO commandDTO,
+                                                                String idempotencyKey,
+                                                                String transactionType,
+                                                                TransactionIdempotencyDO existing) {
         commandDTO.setRequestFingerprint(canonicalRequestFingerprint(commandDTO, transactionType));
         if (StringUtils.hasText(existing.getRequestFingerprint())
                 && !Objects.equals(existing.getRequestFingerprint(), commandDTO.getRequestFingerprint())) {
@@ -766,14 +876,16 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 existing.getTransactionType(),
                 existing.getTransactionStatus(),
                 idempotencyKey);
-        return PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(existing));
+        PaymentInitialPreparationResultDTO duplicate = PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(existing));
+        duplicate.setCommittedTransactionDateTime(existing.getTransactionDateTime());
+        return duplicate;
     }
 
-    /** 资金锁繁忙时仍按同一规范指纹复核已持久化的无订单拒绝。 */
+    /** 资金锁未取得时以同一指纹核对既有真实订单及拒绝回执。 */
     @Override
-    public void recoverRejectedInitialTransaction(PaymentCreateCommandDTO command, String transactionType,
-                                                   TransactionIdempotencyDO existing) {
-        OpenApiAdmissionAttemptRecorder.rethrowIfRejected(existing, canonicalRequestFingerprint(command, transactionType));
+    public PaymentInitialPreparationResultDTO recoverExistingInitialTransaction(
+            PaymentCreateCommandDTO command, String transactionType, TransactionIdempotencyDO existing) {
+        return resolveDuplicate(command, existing.getIdempotencyKey(), transactionType, existing);
     }
 
     /**

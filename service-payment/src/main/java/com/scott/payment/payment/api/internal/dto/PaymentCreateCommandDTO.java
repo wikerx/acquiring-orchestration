@@ -25,6 +25,13 @@ public class PaymentCreateCommandDTO implements Serializable {
     @lombok.ToString.Exclude
     private transient String paymentAdmissionSnapshotJson;
 
+    /** 当前准备归属只在 Payment 核心产生，内部 HTTP 调用不能指定。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private transient String riskPreparationOwnershipKey;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private transient Long riskPreparationGeneration;
+
     /** 仅首次交易内部 Controller 确认的 OpenAPI 服务身份，禁止从请求体绑定。 */
     @com.fasterxml.jackson.annotation.JsonIgnore
     @lombok.ToString.Exclude

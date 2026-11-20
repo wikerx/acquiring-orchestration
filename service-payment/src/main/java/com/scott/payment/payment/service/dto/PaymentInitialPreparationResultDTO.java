@@ -6,6 +6,7 @@ import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * 首次 Payment 本地准备结果 DTO，位于 service-payment 服务 DTO 层，用于把已提交的本地事实传递给事务外渠道调用。
@@ -49,6 +50,9 @@ public class PaymentInitialPreparationResultDTO implements Serializable {
      * 准备阶段返回给商户或后续结果处理的交易结果。
      */
     private PaymentCreateResultDTO resultDTO;
+
+    /** 已提交操作的原分片定位时间，包括幂等回读。 */
+    private LocalDateTime committedTransactionDateTime;
 
     /**
      * 本地准备阶段使用的风控决策。

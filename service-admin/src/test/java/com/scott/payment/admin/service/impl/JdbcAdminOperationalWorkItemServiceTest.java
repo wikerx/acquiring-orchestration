@@ -1,14 +1,23 @@
 package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.config.AdminOperationalWorkItemProperties;
+import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher;
+import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher.Message;
+import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityOperations;
+import com.scott.payment.admin.client.payment.PaymentInternalClient;
+import com.scott.payment.admin.client.payment.dto.PaymentCapabilityEvaluationDTOs;
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.ActionRequest;
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SearchRequest;
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SyncRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
+import com.scott.payment.admin.service.AdminEmailService;
+import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
+import com.scott.payment.capability.MerchantAdmissionReader;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
+import com.scott.payment.component.mq.publisher.ReliableMqOutboxRelayService;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,6 +33,12 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * 统一运营待办 JDBC 投影测试。
@@ -50,22 +65,125 @@ class JdbcAdminOperationalWorkItemServiceTest {
         LocalDateTime first = LocalDateTime.of(2026, 11, 20, 19, 0);
         var blocked = new JdbcAdminOperationalWorkItemService.CapabilityBasis("BLOCKED",
                 List.of("FEE_MISSING", "MID_MISSING"), 7L, first);
-        service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
+        var original = service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
                 true, blocked, first);
+        assertThat(original.status()).isEqualTo("BLOCKED");
+        assertThat(service.detail(original.workItemNo(), AdminMerchantDataScope.all()).getWorkItem().getSourceStatus())
+                .isEqualTo("BLOCKED");
+        assertThat(service.isCurrentConfigurationBlock("merchant-1", original.workItemNo(), original.version(), false))
+                .isTrue();
         service.synchronize(syncRequest("LEGACY-SYNC", first.plusSeconds(1)));
         assertThat(jdbc.queryForObject("SELECT work_status FROM admin_operational_work_item", String.class)).isEqualTo("OPEN");
+        var repeated = new JdbcAdminOperationalWorkItemService.CapabilityBasis("BLOCKED",
+                List.of("MID_MISSING"), 7L, first.plusSeconds(1));
+        assertThat(service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
+                true, repeated, first.plusSeconds(1))).isNull();
+        assertThat(service.isCurrentConfigurationBlock("merchant-1", original.workItemNo(), original.version(), false))
+                .isTrue();
 
         var ready = new JdbcAdminOperationalWorkItemService.CapabilityBasis("READY", List.of(), 7L, first.plusSeconds(2));
-        assertThat(service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
-                false, ready, first.plusSeconds(2))).isNotNull();
+        var recovered = service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
+                false, ready, first.plusSeconds(2));
+        assertThat(recovered.status()).isEqualTo("READY");
+        assertThat(service.detail(original.workItemNo(), AdminMerchantDataScope.all()).getWorkItem().getSourceStatus())
+                .isEqualTo("READY");
+        assertThat(service.isCurrentConfigurationBlock("merchant-1", original.workItemNo(), original.version(), false))
+                .isFalse();
         assertThat(service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
                 true, blocked, first)).isNull();
         assertThat(jdbc.queryForObject("SELECT work_status FROM admin_operational_work_item", String.class)).isEqualTo("CLOSED");
         assertThat(jdbc.queryForObject("SELECT COUNT(1) FROM admin_operational_work_item_history", Integer.class)).isEqualTo(2);
 
+        var degraded = new JdbcAdminOperationalWorkItemService.CapabilityBasis("BLOCKED", List.of("MID_MISSING"),
+                7L, first.plusSeconds(3));
+        var reopened = service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
+                true, degraded, first.plusSeconds(3));
+        assertThat(reopened.status()).isEqualTo("BLOCKED");
+        assertThat(reopened.workItemNo()).isEqualTo(original.workItemNo());
+        assertThat(reopened.version()).isGreaterThan(recovered.version());
+        assertThat(service.detail(original.workItemNo(), AdminMerchantDataScope.all()).getWorkItem().getSourceStatus())
+                .isEqualTo("BLOCKED");
+        assertThat(service.isCurrentConfigurationBlock("merchant-1", original.workItemNo(), original.version(), false))
+                .isFalse();
+        assertThat(service.isCurrentConfigurationBlock("merchant-1", reopened.workItemNo(), reopened.version(), false))
+                .isTrue();
+        assertThat(jdbc.queryForObject("SELECT COUNT(1) FROM admin_operational_work_item_history", Integer.class)).isEqualTo(3);
+
         jdbc.update("UPDATE base_merchant_info SET payment_authorization_revision = 8");
         assertThatThrownBy(() -> service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1",
                 "CARD_BRAND:VISA", true, blocked, first)).hasMessageContaining("changed during evaluation");
+    }
+
+    @Test
+    void paymentCapabilityOutboxFailureRollsBackFirstBlockedGenerationAndHistory() {
+        JdbcDataSource dataSource = dataSource();
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        prepareSchema(jdbc);
+        jdbc.execute("""
+                CREATE TABLE merchant_payment_authorization (
+                    id BIGINT PRIMARY KEY, merchant_id VARCHAR(64), item_key VARCHAR(64),
+                    authorization_status VARCHAR(16), effective_time TIMESTAMP, expire_time TIMESTAMP
+                )
+                """);
+        jdbc.update("""
+                INSERT INTO base_merchant_info (merchant_id, merchant_name, deleted, payment_authorization_revision)
+                VALUES ('merchant-1', 'Example Merchant', 0, 7)
+                """);
+        jdbc.update("""
+                INSERT INTO merchant_payment_authorization
+                VALUES (1, 'merchant-1', 'CARD_BRAND:VISA', 'ACTIVE', ?, NULL)
+                """, LocalDateTime.now().minusDays(1));
+        var named = new NamedParameterJdbcTemplate(dataSource);
+        var manager = new DataSourceTransactionManager(dataSource);
+        var service = new JdbcAdminOperationalWorkItemService(named,
+                new TransactionLogicalReadExecutor(), new RiskAuditLogicalReadExecutor(), new RiskAuditShardingProperties(),
+                new AdminOperationalWorkItemProperties(), manager);
+        var events = mock(MerchantPaymentCapabilityEventPublisher.class);
+        doThrow(new IllegalStateException("outbox failed")).doNothing().when(events)
+                .publishConfigurationBlocked(eq("merchant-1"), eq("CARD_BRAND:VISA"),
+                        any(ConfigurationBlockNotice.class), any(LocalDateTime.class));
+        var admission = mock(MerchantAdmissionReader.class);
+        when(admission.enabledDirectory()).thenReturn(Set.of("CARD_BRAND:VISA"));
+        var payment = mock(PaymentInternalClient.class);
+        when(payment.evaluateMerchantCapabilities(any())).thenReturn(new PaymentCapabilityEvaluationDTOs.Response(
+                "EVALUATED", List.of(new PaymentCapabilityEvaluationDTOs.Method(
+                        "CARD_BRAND:VISA", "ACTIVE", "BLOCKED", true, true, List.of()))));
+        var email = mock(AdminEmailService.class);
+        var operations = new MerchantPaymentCapabilityOperations(named, manager, payment, service, events, email,
+                mock(AdminEmailDeliveryService.class), mock(ReliableMqOutboxRelayService.class),
+                mock(MerchantPaymentCapabilityReadinessService.class), admission);
+        var trigger = new Message();
+        trigger.setAction("CONFIGURATION_CHANGED");
+        trigger.setMerchantId("merchant-1");
+        trigger.setItemKey("CARD_BRAND:VISA");
+        trigger.setOccurredAt(LocalDateTime.now());
+
+        assertThatThrownBy(() -> operations.consume(trigger)).hasMessage("outbox failed");
+        assertThat(jdbc.queryForObject("SELECT COUNT(1) FROM admin_operational_work_item", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(1) FROM admin_operational_work_item_history", Integer.class)).isZero();
+        operations.consume(trigger);
+        assertThat(jdbc.queryForObject("SELECT work_status FROM admin_operational_work_item", String.class)).isEqualTo("OPEN");
+        assertThat(jdbc.queryForObject("SELECT COUNT(1) FROM admin_operational_work_item_history", Integer.class)).isEqualTo(1);
+
+        var delayed = new Message();
+        delayed.setAction(ConfigurationBlockNotice.ACTION);
+        delayed.setMerchantId(trigger.getMerchantId());
+        delayed.setItemKey(trigger.getItemKey());
+        delayed.setOccurredAt(trigger.getOccurredAt());
+        delayed.setConfigurationWorkItemNo(jdbc.queryForObject(
+                "SELECT work_item_no FROM admin_operational_work_item", String.class));
+        delayed.setConfigurationGeneration(jdbc.queryForObject(
+                "SELECT version FROM admin_operational_work_item", Long.class));
+        when(payment.evaluateMerchantCapabilities(any())).thenReturn(new PaymentCapabilityEvaluationDTOs.Response(
+                "EVALUATED", List.of(new PaymentCapabilityEvaluationDTOs.Method(
+                        "CARD_BRAND:VISA", "ACTIVE", "READY", false, false, List.of()))));
+        operations.consume(delayed);
+        operations.consume(delayed);
+        assertThat(jdbc.queryForObject("SELECT work_status FROM admin_operational_work_item", String.class))
+                .isEqualTo("CLOSED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(1) FROM admin_operational_work_item_history", Integer.class))
+                .isEqualTo(2);
+        verifyNoInteractions(email);
     }
 
     /**

@@ -4901,6 +4901,9 @@ CREATE TABLE `risk_merchant_limit_reservation` (
   `expires_at` datetime(3) NOT NULL COMMENT 'Redis 周期投影预期过期时间',
   `reserved_time` datetime(3) DEFAULT NULL COMMENT '进入 RESERVED 时间',
   `confirmed_time` datetime(3) DEFAULT NULL COMMENT '进入 CONFIRMED 时间',
+  `payment_preparation_key` char(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT 'Payment 内部准备动作的稳定摘要',
+  `payment_preparation_generation` bigint DEFAULT NULL COMMENT '当前预占独占的 Payment 准备代次',
+  `payment_transaction_date_time` datetime(3) DEFAULT NULL COMMENT 'Payment 原动作时间，用于定位交易分片',
   `cancelled_time` datetime(3) DEFAULT NULL COMMENT '进入 CANCELLED 时间',
   `version` int NOT NULL DEFAULT '0' COMMENT 'CAS 乐观锁版本',
   `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '软删除标识',
@@ -4913,6 +4916,7 @@ CREATE TABLE `risk_merchant_limit_reservation` (
   KEY `idx_risk_limit_reservation_baseline` (`merchant_id`,`rule_id`,`currency`,`period_bucket`,`reservation_status`,`deleted`),
   CONSTRAINT `chk_risk_limit_reservation_amount` CHECK ((`amount_units` > 0)),
   CONSTRAINT `chk_risk_limit_reservation_counter_mode` CHECK ((`counter_mode` in (_utf8mb4'LEGACY',_utf8mb4'SHADOW',_utf8mb4'CLUSTER_SAFE'))),
+  CONSTRAINT `chk_risk_limit_reservation_preparation` CHECK (((`payment_preparation_key` IS NULL) AND (`payment_preparation_generation` IS NULL) AND (`payment_transaction_date_time` IS NULL)) OR ((`payment_preparation_key` IS NOT NULL) AND (`payment_preparation_generation` IS NOT NULL) AND (`payment_preparation_generation` > 0) AND (`payment_transaction_date_time` IS NOT NULL))),
   CONSTRAINT `chk_risk_limit_reservation_status` CHECK ((`reservation_status` in (_utf8mb4'PREPARING',_utf8mb4'RESERVED',_utf8mb4'CONFIRMED',_utf8mb4'CANCELLED')))
 ) ENGINE=InnoDB AUTO_INCREMENT=787 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户累计限额 Redis 预占生命周期';
 

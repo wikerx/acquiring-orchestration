@@ -1,5 +1,6 @@
 package com.scott.payment.risk.service.impl;
 
+import com.scott.payment.risk.client.payment.PaymentPreparationRecoveryClient;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
 import com.scott.payment.risk.domain.PaymentTransactionLookupResult;
@@ -178,6 +179,54 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
                 "SUCCESS",
                 "stale reservation payment status SUCCESS");
         log.info("预占对账交易去重验证完成，结果: 支付状态仅查询和推进一次");
+    }
+
+    @Test
+    void shouldKeepProtectedReservationUntilPaymentConfirmsItsExactGenerationEnded() {
+        var state = mock(MerchantLimitReservationStateService.class);
+        var counter = mock(MerchantLimitReservationCounterService.class);
+        var coordinator = mock(MerchantLimitReservationLifecycleCoordinator.class);
+        var paymentStatus = mock(RiskPaymentTransactionStatusRepository.class);
+        var recovery = mock(PaymentPreparationRecoveryClient.class);
+        var service = new DefaultMerchantLimitReservationReconciliationService(state, counter,
+                coordinator, paymentStatus, new RiskEvaluationProperties(), recovery);
+        var now = LocalDateTime.of(2026, 7, 1, 0, 5);
+        var businessTime = LocalDateTime.of(2026, 6, 30, 23, 59, 59, 900_000_000);
+        var protectedRow = reservation(31L, "TX-PROTECTED", MerchantLimitReservationStatus.RESERVED, now.minusMinutes(10));
+        protectedRow.setPaymentPreparationKey("a".repeat(64));
+        protectedRow.setPaymentPreparationGeneration(2L);
+        protectedRow.setPaymentTransactionDateTime(businessTime);
+        when(state.findStaleNonTerminal(now.minusSeconds(60), 100)).thenReturn(List.of(protectedRow));
+        when(paymentStatus.findStatus("TX-PROTECTED", businessTime, businessTime.plusNanos(1_000_000)))
+                .thenReturn(PaymentTransactionLookupResult.absent());
+        when(recovery.authorizesRelease(protectedRow)).thenReturn(false, true);
+        when(coordinator.cancel("TX-PROTECTED", "exact preparation ownership ended"))
+                .thenReturn(new MerchantLimitReservationTransitionSummary(1, 0, 0));
+
+        assertThat(service.reconcile(now, 100).retained()).isEqualTo(1);
+        verify(coordinator, never()).cancel("TX-PROTECTED", "exact preparation ownership ended");
+        assertThat(service.reconcile(now, 100).cancelled()).isEqualTo(1);
+        verify(coordinator).cancel("TX-PROTECTED", "exact preparation ownership ended");
+    }
+
+    @Test
+    void shouldKeepPreparingReservationWhenMarkerIsAbsentAndOwnershipCannotBeProven() {
+        var state = mock(MerchantLimitReservationStateService.class);
+        var counter = mock(MerchantLimitReservationCounterService.class);
+        var recovery = mock(PaymentPreparationRecoveryClient.class);
+        var service = new DefaultMerchantLimitReservationReconciliationService(state, counter,
+                mock(MerchantLimitReservationLifecycleCoordinator.class),
+                mock(RiskPaymentTransactionStatusRepository.class), new RiskEvaluationProperties(), recovery);
+        var now = LocalDateTime.of(2026, 7, 30, 10, 0);
+        var protectedRow = reservation(32L, "TX-PROTECTED", MerchantLimitReservationStatus.PREPARING, now.minusMinutes(10));
+        protectedRow.setPaymentPreparationKey("a".repeat(64));
+        protectedRow.setPaymentPreparationGeneration(1L);
+        protectedRow.setPaymentTransactionDateTime(now.minusMinutes(10));
+        when(state.findStaleNonTerminal(now.minusSeconds(60), 100)).thenReturn(List.of(protectedRow));
+        when(counter.markerState(protectedRow)).thenReturn(RedisReservationMarkerState.ABSENT);
+
+        assertThat(service.reconcile(now, 100).retained()).isEqualTo(1);
+        verify(state, never()).cancel(org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyString());
     }
 
     /**

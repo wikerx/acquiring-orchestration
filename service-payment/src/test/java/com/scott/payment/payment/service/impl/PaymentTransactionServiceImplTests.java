@@ -83,6 +83,47 @@ import static org.mockito.Mockito.when;
 class PaymentTransactionServiceImplTests {
 
     @Test
+    void busyOriginalActionOnlyReplaysTheSameFingerprintAndRetainsItsOriginalPartition() {
+        String actionKey = "200001:AUTH202607120001:PAYMENT";
+        var channel = mock(PaymentChannelInvokeService.class);
+        var risk = mock(PaymentRiskInvokeService.class);
+        var recorder = mock(OpenApiAdmissionAttemptRecorder.class);
+        var idempotency = new InMemoryTransactionIdempotencyService();
+        var outbox = new CapturingTransactionEventOutboxService();
+        var records = new CapturingTransactionRecordService();
+        var preparation = new DefaultPaymentTransactionPreparationService(isoDictionaryService(), risk,
+                routeService(), exchangeRateService(), idempotency, outbox, records);
+        var service = new PaymentTransactionServiceImpl(isoDictionaryService(), risk, routeService(),
+                channel, preparation, null, exchangeRateService(), idempotency, outbox, records,
+                new DefaultTransactionStateMachineService(), new DefaultChannelTransactionStatusResolver(),
+                mock(DistributedLockService.class));
+        service.setOpenApiAdmissionAttemptRecorder(recorder);
+
+        var originalTime = LocalDateTime.of(2026, 9, 30, 23, 59);
+        var existing = new TransactionIdempotencyDO();
+        existing.setIdempotencyKey(actionKey);
+        existing.setTransactionId("existing-order");
+        existing.setOperationId("existing-operation");
+        existing.setTransactionStatus("PROCESSING");
+        existing.setTransactionDateTime(originalTime);
+        var original = baseCommand();
+        preparation.recoverExistingInitialTransaction(original, "PAYMENT", existing);
+        existing.setRequestFingerprint(original.getRequestFingerprint());
+        when(recorder.findCommittedAction(actionKey)).thenReturn(Optional.of(existing));
+
+        var replay = service.preparePayment(baseCommand());
+
+        assertThat(replay.getResultDTO().getTransactionId()).isEqualTo("existing-order");
+        assertThat(replay.getCommittedTransactionDateTime()).isEqualTo(originalTime);
+        var different = baseCommand();
+        different.setAmount(different.getAmount().add(BigDecimal.ONE));
+        assertThatThrownBy(() -> service.preparePayment(different)).isInstanceOfSatisfying(
+                ServiceException.class,
+                failure -> assertThat(failure.getCode()).isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode()));
+        verifyNoInteractions(risk, channel);
+    }
+
+    @Test
     void shouldRecoverRealOrderWinnerWhenAdmissionReceiptCommitIsUnconfirmed() {
         String actionKey = "200001:AUTH202607120001:PAYMENT";
         var channel = mock(PaymentChannelInvokeService.class);

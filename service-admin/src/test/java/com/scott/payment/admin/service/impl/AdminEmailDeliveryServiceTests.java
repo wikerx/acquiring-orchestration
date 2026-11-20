@@ -53,6 +53,7 @@ class AdminEmailDeliveryServiceTests {
      * 可靠 Outbox 发布器。
      */
     private ReliableMqPublisher reliableMqPublisher;
+    private JdbcAdminOperationalWorkItemService workItems;
 
     /**
      * 创建隔离的 Mock 依赖。
@@ -66,13 +67,15 @@ class AdminEmailDeliveryServiceTests {
         EmailDeliveryProperties properties = new EmailDeliveryProperties();
         properties.setRetryDelaySeconds(30);
         reliableMqPublisher = mock(ReliableMqPublisher.class);
+        workItems = mock(JdbcAdminOperationalWorkItemService.class);
         deliveryService = new AdminEmailDeliveryService(
                 recordMapper,
                 accountMapper,
                 smtpEmailSender,
                 payloadCrypto,
                 properties,
-                reliableMqPublisher);
+                reliableMqPublisher,
+                workItems);
     }
 
     /**
@@ -87,6 +90,25 @@ class AdminEmailDeliveryServiceTests {
 
         verify(recordMapper, never()).claimForDelivery(any(), any(), any(), any());
         verify(smtpEmailSender, never()).send(any(), any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    void shouldCancelQueuedConfigurationBlockAfterRecoveryWithoutSmtpOrRetry() {
+        EmailSendRecordDO record = record(EmailDeliveryStatus.PENDING);
+        record.setMerchantId("merchant-1");
+        record.setBizType(AdminEmailDeliveryService.PAYMENT_CAPABILITY_BIZ_TYPE);
+        record.setBizNo(new JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice("OWI-1", 7)
+                .emailBusinessNumber());
+        when(recordMapper.selectByDeliveryKey(10L, "EMAIL-10", "ADMIN")).thenReturn(record);
+        when(recordMapper.claimForDelivery(eq(10L), eq("EMAIL-10"), eq("ADMIN"), any(LocalDateTime.class)))
+                .thenReturn(1);
+        when(workItems.isCurrentConfigurationBlock("merchant-1", "OWI-1", 7, false)).thenReturn(false);
+
+        assertThat(deliveryService.deliver(message())).isTrue();
+
+        verify(recordMapper).cancelSupersededPaymentCapability(eq(10L), eq("EMAIL-10"), any(LocalDateTime.class));
+        verify(smtpEmailSender, never()).send(any(), any(), any(), any(Boolean.class));
+        verify(recordMapper, never()).markDeliveryFailure(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /**

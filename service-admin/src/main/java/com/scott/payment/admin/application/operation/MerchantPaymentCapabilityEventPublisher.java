@@ -2,6 +2,7 @@ package com.scott.payment.admin.application.operation;
 
 import com.scott.payment.admin.application.merchantpayment.MerchantPaymentGovernanceEvent;
 import com.scott.payment.admin.application.merchantpayment.MerchantPaymentFeeChangedEvent;
+import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.outbox.mapper.ReliableMqOutboxMapper;
 import com.scott.payment.component.mq.constant.MqTopic;
@@ -57,6 +58,15 @@ public class MerchantPaymentCapabilityEventPublisher {
         publish(newMessage(merchantId, itemKey, "READY", transitionIdentity, occurredAt));
     }
 
+    public void publishConfigurationBlocked(String merchantId, String itemKey, ConfigurationBlockNotice notice,
+                                            LocalDateTime occurredAt) {
+        Message message = newMessage(merchantId, itemKey, ConfigurationBlockNotice.ACTION,
+                notice.emailBusinessNumber(), occurredAt);
+        message.setConfigurationWorkItemNo(notice.workItemNo());
+        message.setConfigurationGeneration(notice.generation());
+        publish(message);
+    }
+
     public void publishAuthorizationBoundary(String merchantId, String itemKey, boolean expired,
                                              String transitionIdentity, LocalDateTime occurredAt) {
         publish(newMessage(merchantId, itemKey, expired ? "AUTH_EXPIRED" : "AUTH_EFFECTIVE",
@@ -100,6 +110,8 @@ public class MerchantPaymentCapabilityEventPublisher {
         private String action;
         private Long applicationItemId;
         private Integer roundNo;
+        private String configurationWorkItemNo;
+        private Long configurationGeneration;
         private LocalDateTime occurredAt;
     }
 }

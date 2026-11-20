@@ -24,6 +24,8 @@ public enum PaymentCheckoutProcessStageEnum {
      * 卡数据已提交到受控支付链路。
      */
     CARD_SUBMITTED("CARD_SUBMITTED"),
+    /** 等待已提交核心准备结果的权威回读。 */
+    WAITING_CORE_PREPARATION("WAITING_CORE_PREPARATION"),
     /**
      * 正在准备并发起 3DS。
      */

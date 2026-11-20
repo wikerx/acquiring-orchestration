@@ -201,6 +201,8 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setMerchantId(commandDTO.getMerchantId());
         requestDTO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
         requestDTO.setTransactionId(commandDTO.getTransactionId());
+        requestDTO.setPaymentPreparationKey(commandDTO.getRiskPreparationOwnershipKey());
+        requestDTO.setPaymentPreparationGeneration(commandDTO.getRiskPreparationGeneration());
         requestDTO.setTransactionType(commandDTO.getTransactionType());
         requestDTO.setPaymentMethod(commandDTO.getPaymentMethod());
         requestDTO.setRequestId(commandDTO.getRequestId());

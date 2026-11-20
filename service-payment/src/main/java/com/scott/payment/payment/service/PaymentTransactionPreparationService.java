@@ -20,8 +20,8 @@ public interface PaymentTransactionPreparationService {
      */
     PaymentInitialPreparationResultDTO prepareInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType);
 
-    /** 锁繁忙时按原规范指纹恢复无订单的拒绝，普通已建单幂等由调用方继续处理。 */
-    default void recoverRejectedInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType,
-                                                    TransactionIdempotencyDO existing) {
-    }
+    /** 锁繁忙时使用原规范指纹验证已提交结果，并保留原分片定位时间。 */
+    PaymentInitialPreparationResultDTO recoverExistingInitialTransaction(PaymentCreateCommandDTO commandDTO,
+                                                                         String transactionType,
+                                                                         TransactionIdempotencyDO existing);
 }
