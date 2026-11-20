@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -69,7 +70,7 @@ class MerchantPaymentCapabilityReadinessServiceTest {
                 bindingMapper, midMapper, channelMapper, capabilityMapper,
                 currencyMapper, cardBrandMapper, feeRuleMapper);
         useSingleRoute();
-        when(feeRuleMapper.selectList(any())).thenReturn(List.of(
+        lenient().when(feeRuleMapper.selectList(any())).thenReturn(List.of(
                 feeRule("TRANSACTION_FEE", "PAYMENT"),
                 feeRule("REFUND_FEE", "REFUND")));
     }
@@ -144,14 +145,89 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         assertThat(result.capabilities()).isEmpty();
     }
 
+    @Test
+    void currentDetailCountsEachBusinessAndUsesItsOwnActions() {
+        useMixedBusinessRoutes();
+
+        var result = service.evaluateCurrent("200045", LocalDateTime.now(), () -> 8L);
+
+        assertThat(result.acquiring().activeBindingCount()).isEqualTo(1);
+        assertThat(result.acquiring().unavailableBindingCount()).isZero();
+        assertThat(result.acquiring().capabilities())
+                .extracting(MerchantPaymentCapabilityReadinessService.CapabilityKey::transactionType)
+                .containsExactly("PAYMENT", "REFUND");
+        assertThat(result.payout().activeBindingCount()).isEqualTo(1);
+        assertThat(result.payout().unavailableBindingCount()).isZero();
+        assertThat(result.payout().capabilities())
+                .extracting(MerchantPaymentCapabilityReadinessService.CapabilityKey::transactionType)
+                .containsExactly("PAYOUT");
+    }
+
+    @Test
+    void currentDetailKeepsPayoutWhenAcquiringReadFails() {
+        useMixedBusinessRoutes();
+
+        var result = service.evaluateCurrent("200045", LocalDateTime.now(),
+                () -> { throw new IllegalStateException("fee source unavailable"); });
+
+        assertThat(result.acquiring()).isNull();
+        assertThat(result.payout().activeBindingCount()).isEqualTo(1);
+        assertThat(result.payout().capabilities()).hasSize(1);
+    }
+
+    @Test
+    void currentDetailDistinguishesEmptyBusinessFromDisabledMid() {
+        ChannelMidConfigDO disabled = mid(10L);
+        disabled.setMidStatus(0);
+        when(midMapper.selectList(any())).thenReturn(List.of(disabled));
+
+        var result = service.evaluateCurrent("200045", LocalDateTime.now(), () -> 8L);
+
+        assertThat(result.acquiring().activeBindingCount()).isEqualTo(1);
+        assertThat(result.acquiring().unavailableBindingCount()).isEqualTo(1);
+        assertThat(result.acquiring().capabilities()).isEmpty();
+        assertThat(result.payout().activeBindingCount()).isZero();
+        assertThat(result.payout().unavailableBindingCount()).isZero();
+    }
+
+    @Test
+    void currentDetailDoesNotGuessBusinessForMissingMid() {
+        when(midMapper.selectList(any())).thenReturn(List.of());
+
+        var result = service.evaluateCurrent("200045", LocalDateTime.now(), () -> 8L);
+
+        assertThat(result.acquiring()).isNull();
+        assertThat(result.payout()).isNull();
+    }
+
+    private void useMixedBusinessRoutes() {
+        ChannelMidConfigDO payoutMid = mid(11L);
+        payoutMid.setBusinessType("PAYOUT");
+        payoutMid.setTransactionTypeScope("PAYOUT,PAYMENT");
+        ChannelInfoDO channel = channel();
+        channel.setSupportPayout(1);
+        ChannelPaymentCapabilityDO payoutCapability = capability();
+        payoutCapability.setBusinessType("PAYOUT");
+        payoutCapability.setTransactionType("PAYOUT,PAYMENT");
+        when(bindingMapper.selectList(any())).thenReturn(List.of(binding(1L, 10L), binding(2L, 11L)));
+        when(midMapper.selectList(any())).thenReturn(List.of(mid(10L), payoutMid));
+        when(channelMapper.selectList(any())).thenReturn(List.of(channel));
+        when(capabilityMapper.selectList(any())).thenAnswer(invocation -> {
+            var query = (com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<?>) invocation.getArgument(0);
+            query.getSqlSegment();
+            return query.getParamNameValuePairs().containsValue("PAYOUT")
+                    ? List.of(payoutCapability) : List.of(capability());
+        });
+    }
+
     /** 配置单条银行卡能力和对应的启用币种、卡品牌。 */
     private void useSingleRoute() {
         when(bindingMapper.selectList(any())).thenReturn(List.of(binding(1L, 10L)));
         when(midMapper.selectList(any())).thenReturn(List.of(mid(10L)));
-        when(channelMapper.selectList(any())).thenReturn(List.of(channel()));
-        when(capabilityMapper.selectList(any())).thenReturn(List.of(capability()));
-        when(currencyMapper.selectList(any())).thenReturn(List.of(currency()));
-        when(cardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand()));
+        lenient().when(channelMapper.selectList(any())).thenReturn(List.of(channel()));
+        lenient().when(capabilityMapper.selectList(any())).thenReturn(List.of(capability()));
+        lenient().when(currencyMapper.selectList(any())).thenReturn(List.of(currency()));
+        lenient().when(cardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand()));
     }
 
     private MerchantChannelMidBindingDO binding(Long id, Long midId) {

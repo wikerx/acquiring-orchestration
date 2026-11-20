@@ -479,6 +479,7 @@ class AdminMerchantInfoServiceImplTest {
         assertThat(result.getFundAccountNo()).isEqualTo("FA200045USD");
         assertThat(result.getFundAccountStatus()).isEqualTo("NORMAL");
         assertThat(result.getCurrentFeeVersionNo()).isEqualTo(3);
+        verify(merchantOnboardingService).enrichCurrentPaymentCapabilities(result.getMerchantId(), result);
     }
 
     private MccEntities.BaseMccLevel1DO level1() {

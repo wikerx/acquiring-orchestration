@@ -1,7 +1,12 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
+import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.CurrentBusinessCapability;
+import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.CurrentPaymentCapabilities;
+import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.EvaluationStatus;
+import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.ExecutionStatus;
 import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.PaymentCapability;
 import com.scott.payment.admin.dto.merchant.AdminMerchantActivationReadinessDTOs.PaymentCapabilityReadiness;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
@@ -26,6 +31,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
+import com.scott.payment.component.db.constant.DataSourceName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -386,6 +392,18 @@ public class MerchantOnboardingService {
                 activationAssessment.paymentReadiness()));
     }
 
+    /** 独立补充运营视图，详情查询不触发或改变开户门禁。 */
+    @DS(DataSourceName.MASTER)
+    public void enrichCurrentPaymentCapabilities(String merchantId, AdminMerchantInfoDTO dto) {
+        LocalDateTime now = LocalDateTime.now();
+        var result = paymentCapabilityReadinessService.evaluateCurrent(
+                merchantId, now, () -> currentActiveFeeVersion(merchantId));
+        dto.setCurrentPaymentCapabilities(new CurrentPaymentCapabilities(
+                toCurrentBusinessCapability(result.acquiring(), now, null),
+                // 当前代付核心关闭创建入口；有配置时仍显示配置评估。
+                toCurrentBusinessCapability(result.payout(), now, ExecutionStatus.NOT_CONNECTED)));
+    }
+
     /**
      * 校验资料完整性并提交人工审核，同时写入不可变审核记录。
      *
@@ -608,13 +626,7 @@ public class MerchantOnboardingService {
         required(issues, merchant.getSettlementCurrency(), "SETTLEMENT_CURRENCY_NOT_CONFIRMED");
         if (merchant.getRiskLevel() == null) issues.add("RISK_LEVEL_NOT_CONFIGURED");
 
-        FeePlanDO feePlan = feePlanMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
-                .eq(FeePlanDO::getPlanType, "MERCHANT")
-                .eq(FeePlanDO::getMerchantId, merchant.getMerchantId())
-                .eq(FeePlanDO::getStatus, "ENABLED")
-                .eq(FeePlanDO::getDeleted, 0L)
-                .isNotNull(FeePlanDO::getCurrentVersionId)
-                .last("LIMIT 1"));
+        FeePlanDO feePlan = activeMerchantFeePlan(merchant.getMerchantId());
         FeePlanVersionDO version = null;
         if (feePlan == null) {
             issues.add("FEE_PLAN_NOT_ACTIVE");
@@ -650,6 +662,23 @@ public class MerchantOnboardingService {
         }
         return new ActivationAssessment(
                 List.copyOf(new LinkedHashSet<>(issues)), paymentReadiness);
+    }
+
+    private FeePlanDO activeMerchantFeePlan(String merchantId) {
+        return feePlanMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
+                .eq(FeePlanDO::getPlanType, "MERCHANT")
+                .eq(FeePlanDO::getMerchantId, merchantId)
+                .eq(FeePlanDO::getStatus, "ENABLED")
+                .eq(FeePlanDO::getDeleted, 0L)
+                .isNotNull(FeePlanDO::getCurrentVersionId)
+                .last("LIMIT 1"));
+    }
+
+    private Long currentActiveFeeVersion(String merchantId) {
+        FeePlanDO feePlan = activeMerchantFeePlan(merchantId);
+        if (feePlan == null) return null;
+        FeePlanVersionDO version = feePlanVersionMapper.selectById(feePlan.getCurrentVersionId());
+        return version != null && "ACTIVE".equals(version.getVersionStatus()) ? feePlan.getCurrentVersionId() : null;
     }
 
     /**
@@ -721,13 +750,34 @@ public class MerchantOnboardingService {
             return null;
         }
         PaymentCapabilityReadiness target = new PaymentCapabilityReadiness();
+        fillPaymentCapabilityReadiness(target, source);
+        return target;
+    }
+
+    private CurrentBusinessCapability toCurrentBusinessCapability(
+            MerchantPaymentCapabilityReadinessService.ReadinessResult source, LocalDateTime now,
+            ExecutionStatus executionStatus) {
+        CurrentBusinessCapability target = new CurrentBusinessCapability();
+        target.setExecutionStatus(executionStatus);
+        if (source == null) {
+            target.setEvaluationStatus(EvaluationStatus.UNAVAILABLE);
+            target.setReasonCode("PAYMENT_CAPABILITY_READINESS_UNAVAILABLE");
+        } else {
+            target.setEvaluationStatus(EvaluationStatus.EVALUATED);
+            target.setEvaluatedAt(now);
+            fillPaymentCapabilityReadiness(target, source);
+        }
+        return target;
+    }
+
+    private void fillPaymentCapabilityReadiness(PaymentCapabilityReadiness target,
+                                                 MerchantPaymentCapabilityReadinessService.ReadinessResult source) {
         target.setActiveBindingCount(source.activeBindingCount());
         target.setUnavailableBindingCount(source.unavailableBindingCount());
         target.setCapabilities(toPaymentCapabilities(source.capabilities()));
         target.setRouteConflicts(toPaymentCapabilities(source.routeConflicts()));
         target.setFeeGaps(toPaymentCapabilities(source.feeGaps()));
         target.setFeeAmbiguities(toPaymentCapabilities(source.feeAmbiguities()));
-        return target;
     }
 
     /**

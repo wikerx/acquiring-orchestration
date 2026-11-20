@@ -332,6 +332,31 @@ class MerchantOnboardingServiceTest {
         log.info("已激活商户详情就绪状态完成，结果: 不再重复执行激活门禁或展示阻塞项");
     }
 
+    @Test
+    void currentCapabilityProjectionKeepsActiveStatusAndDoesNotCoerceUnknownCount() {
+        BaseMerchantInfoDO merchant = pendingMerchant();
+        merchant.setActivationStatus(MerchantOnboardingService.ACTIVATION_ACTIVE);
+        AdminMerchantInfoDTO dto = new AdminMerchantInfoDTO();
+        var payout = new MerchantPaymentCapabilityReadinessService.ReadinessResult(
+                1, 0, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        when(paymentCapabilityReadinessService.evaluateCurrent(any(), any(), any()))
+                .thenReturn(new MerchantPaymentCapabilityReadinessService.CurrentReadinessResult(null, payout));
+
+        service.enrich(merchant, dto);
+        service.enrichCurrentPaymentCapabilities(merchant.getMerchantId(), dto);
+
+        assertThat(dto.getActivationReady()).isTrue();
+        assertThat(dto.getReadinessIssues()).isEmpty();
+        assertThat(dto.getPaymentCapabilityReadiness()).isNull();
+        var current = dto.getCurrentPaymentCapabilities();
+        assertThat(current.acquiring().getEvaluationStatus().name()).isEqualTo("UNAVAILABLE");
+        assertThat(current.acquiring().getActiveBindingCount()).isNull();
+        assertThat(current.payout().getEvaluationStatus().name()).isEqualTo("EVALUATED");
+        assertThat(current.payout().getActiveBindingCount()).isEqualTo(1);
+        assertThat(current.payout().getExecutionStatus().name()).isEqualTo("NOT_CONNECTED");
+        verify(paymentCapabilityReadinessService, never()).evaluate(any(), any(), any());
+    }
+
     /**
      * 联系人资料未补齐时不得提交审核，草稿状态和审核记录均保持不变。
      */

@@ -296,7 +296,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @DS(DataSourceName.SLAVE)
     public AdminMerchantInfoDTO getMerchant(Long id) {
         BaseMerchantInfoDO row = requireMerchantById(id);
-        return toDetailDTO(row);
+        AdminMerchantInfoDTO dto = toDetailDTO(row);
+        merchantOnboardingService.enrichCurrentPaymentCapabilities(row.getMerchantId(), dto);
+        return dto;
     }
 
     /**

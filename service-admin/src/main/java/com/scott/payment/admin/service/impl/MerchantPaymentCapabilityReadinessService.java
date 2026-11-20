@@ -17,6 +17,7 @@ import com.scott.payment.admin.mapper.FeeRuleMapper;
 import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +40,7 @@ import java.util.stream.Collectors;
  * 商户资金信息不会进入开通结果。</p>
  */
 @Service
+@Slf4j
 public class MerchantPaymentCapabilityReadinessService {
 
     private static final long NOT_DELETED = 0L;
@@ -46,6 +49,8 @@ public class MerchantPaymentCapabilityReadinessService {
     private static final String NONE = "NONE";
     private static final String BANK_CARD = "BANK_CARD";
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
+    private static final String BUSINESS_PAYOUT = "PAYOUT";
+    private static final Set<String> PAYOUT_TRANSACTION_TYPES = Set.of("PAYOUT", "CANCEL");
     private static final Set<String> PLATFORM_TRANSACTION_TYPES = Set.of(
             "PAYMENT", "AUTHORIZATION", "CAPTURE", "REFUND", "VOID", "CHARGEBACK",
             "PRE_AUTHORIZATION", "PRE_AUTH_COMPLETION", "INCREMENTAL_AUTHORIZATION", "REPRESENTMENT");
@@ -95,8 +100,64 @@ public class MerchantPaymentCapabilityReadinessService {
         }
 
         Map<Long, ChannelMidConfigDO> mids = mids(activeBindings);
+        return evaluateBindings(activeBindings, mids, feePlanVersionId, now, BUSINESS_ACQUIRING, false);
+    }
+
+    /** 为商户详情按 MID 归属分组，保留一组不可用时另一组的评估结果。 */
+    public CurrentReadinessResult evaluateCurrent(String merchantId, LocalDateTime now,
+                                                   Supplier<Long> activeFeeVersion) {
+        List<MerchantChannelMidBindingDO> bindings;
+        Map<Long, ChannelMidConfigDO> mids;
+        try {
+            bindings = activeBindings(merchantId, now);
+            mids = mids(bindings);
+        } catch (RuntimeException exception) {
+            log.warn("商户详情支付能力基础数据不可用, merchantId: {}, errorType: {}",
+                    merchantId, exception.getClass().getSimpleName());
+            return new CurrentReadinessResult(null, null);
+        }
+        List<MerchantChannelMidBindingDO> acquiring = new ArrayList<>();
+        List<MerchantChannelMidBindingDO> payout = new ArrayList<>();
+        for (MerchantChannelMidBindingDO binding : bindings) {
+            ChannelMidConfigDO mid = binding.getMidConfigId() == null ? null : mids.get(binding.getMidConfigId());
+            String businessType = mid == null ? "" : upper(mid.getBusinessType());
+            if (BUSINESS_ACQUIRING.equals(businessType)) {
+                acquiring.add(binding);
+            } else if (BUSINESS_PAYOUT.equals(businessType)) {
+                payout.add(binding);
+            } else {
+                log.warn("商户详情绑定缺少有效业务归属, merchantId: {}, bindingId: {}",
+                        merchantId, binding.getId());
+                return new CurrentReadinessResult(null, null);
+            }
+        }
+        return new CurrentReadinessResult(
+                evaluateCurrentBusiness(merchantId, acquiring, mids, now, BUSINESS_ACQUIRING, activeFeeVersion),
+                evaluateCurrentBusiness(merchantId, payout, mids, now, BUSINESS_PAYOUT, () -> null));
+    }
+
+    private ReadinessResult evaluateCurrentBusiness(String merchantId, List<MerchantChannelMidBindingDO> bindings,
+                                                    Map<Long, ChannelMidConfigDO> mids, LocalDateTime now,
+                                                    String businessType, Supplier<Long> activeFeeVersion) {
+        if (bindings.isEmpty()) return ReadinessResult.empty(List.of());
+        try {
+            Map<Long, ChannelMidConfigDO> businessMids = bindings.stream()
+                    .map(binding -> mids.get(binding.getMidConfigId()))
+                    .collect(Collectors.toMap(ChannelMidConfigDO::getId, Function.identity(), (left, right) -> left));
+            return evaluateBindings(bindings, businessMids, activeFeeVersion.get(), now, businessType, true);
+        } catch (RuntimeException exception) {
+            log.warn("商户详情业务能力暂不可用, merchantId: {}, businessType: {}, errorType: {}",
+                    merchantId, businessType, exception.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private ReadinessResult evaluateBindings(List<MerchantChannelMidBindingDO> activeBindings,
+                                             Map<Long, ChannelMidConfigDO> mids, Long feePlanVersionId,
+                                             LocalDateTime now, String businessType, boolean currentDetail) {
+        boolean acquiring = BUSINESS_ACQUIRING.equals(businessType);
         Map<Long, ChannelInfoDO> channels = channels(mids.values());
-        List<ChannelPaymentCapabilityDO> capabilities = capabilities(channels.keySet());
+        List<ChannelPaymentCapabilityDO> capabilities = capabilities(channels.keySet(), businessType);
         Map<Long, List<String>> currencies = currencies(capabilities);
         Map<Long, List<String>> brands = cardBrands(capabilities);
         Map<Long, List<ChannelPaymentCapabilityDO>> capabilitiesByChannel = capabilities.stream()
@@ -107,13 +168,13 @@ public class MerchantPaymentCapabilityReadinessService {
         for (MerchantChannelMidBindingDO binding : activeBindings) {
             ChannelMidConfigDO mid = mids.get(binding.getMidConfigId());
             ChannelInfoDO channel = mid == null ? null : channels.get(mid.getChannelId());
-            if (!available(mid, channel, now)) {
+            if (!available(mid, channel, now, businessType)) {
                 unavailableBindingCount++;
                 continue;
             }
             List<RouteCapability> bindingRoutes = routes(
                     binding, mid, channel,
-                    capabilitiesByChannel.getOrDefault(channel.getId(), List.of()), currencies, brands);
+                    capabilitiesByChannel.getOrDefault(channel.getId(), List.of()), currencies, brands, acquiring);
             if (bindingRoutes.isEmpty()) {
                 unavailableBindingCount++;
             } else {
@@ -123,17 +184,17 @@ public class MerchantPaymentCapabilityReadinessService {
 
         Map<CapabilityKey, List<RouteCapability>> routesByCapability = routes.stream()
                 .collect(Collectors.groupingBy(RouteCapability::key, LinkedHashMap::new, Collectors.toList()));
-        List<CapabilityKey> routeConflicts = routesByCapability.entrySet().stream()
+        List<CapabilityKey> routeConflicts = acquiring ? routesByCapability.entrySet().stream()
                 .filter(entry -> hasRouteConflict(entry.getValue()))
                 .map(Map.Entry::getKey)
                 .sorted(CapabilityKey.ORDER)
-                .toList();
+                .toList() : List.of();
         List<FeeRuleDO> feeRules = feePlanVersionId == null ? List.of() : feeRules(feePlanVersionId);
         List<CapabilityKey> feeGaps = new ArrayList<>();
         List<CapabilityKey> feeAmbiguities = new ArrayList<>();
         for (CapabilityKey capability : routesByCapability.keySet().stream().sorted(CapabilityKey.ORDER).toList()) {
             String feeCategory = requiredFeeCategory(capability.transactionType());
-            if (feeCategory == null || feePlanVersionId == null) {
+            if (!acquiring || feeCategory == null || (feePlanVersionId == null && !currentDetail)) {
                 continue;
             }
             long matchingRules = feeRules.stream()
@@ -196,11 +257,11 @@ public class MerchantPaymentCapabilityReadinessService {
     }
 
     /** 批量读取启用的收单能力，避免按 MID 产生 N+1 查询。 */
-    private List<ChannelPaymentCapabilityDO> capabilities(Set<Long> channelIds) {
+    private List<ChannelPaymentCapabilityDO> capabilities(Set<Long> channelIds, String businessType) {
         if (channelIds.isEmpty()) return List.of();
         return safe(capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .in(ChannelPaymentCapabilityDO::getChannelId, channelIds)
-                .eq(ChannelPaymentCapabilityDO::getBusinessType, BUSINESS_ACQUIRING)
+                .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
                 .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
                 .orderByAsc(ChannelPaymentCapabilityDO::getSortOrder)
@@ -243,13 +304,14 @@ public class MerchantPaymentCapabilityReadinessService {
     }
 
     /** 判断 MID、渠道和有效期是否满足支付运行时的基础硬约束。 */
-    private boolean available(ChannelMidConfigDO mid, ChannelInfoDO channel, LocalDateTime now) {
+    private boolean available(ChannelMidConfigDO mid, ChannelInfoDO channel, LocalDateTime now, String businessType) {
         return mid != null && channel != null
                 && Integer.valueOf(ENABLED).equals(mid.getMidStatus())
                 && active(now, mid.getEffectiveTime(), mid.getExpireTime())
-                && BUSINESS_ACQUIRING.equals(upper(mid.getBusinessType()))
+                && businessType.equals(upper(mid.getBusinessType()))
                 && Integer.valueOf(ENABLED).equals(channel.getChannelStatus())
-                && Integer.valueOf(ENABLED).equals(channel.getSupportAcquiring());
+                && Integer.valueOf(ENABLED).equals(BUSINESS_ACQUIRING.equals(businessType)
+                        ? channel.getSupportAcquiring() : channel.getSupportPayout());
     }
 
     /** 展开单个有效绑定的实际交易类型、支付方式/卡品牌和币种交集。 */
@@ -258,13 +320,15 @@ public class MerchantPaymentCapabilityReadinessService {
                                          ChannelInfoDO channel,
                                          List<ChannelPaymentCapabilityDO> capabilities,
                                          Map<Long, List<String>> currencies,
-                                         Map<Long, List<String>> brands) {
+                                         Map<Long, List<String>> brands,
+                                         boolean acquiring) {
         List<RouteCapability> routes = new ArrayList<>();
         for (ChannelPaymentCapabilityDO capability : capabilities) {
             String paymentType = upper(capability.getPaymentMethod());
             if (!scopeAllows(mid.getPaymentMethodScope(), paymentType)) continue;
-            Set<String> transactionTypes = scopeIntersection(
-                    mid.getTransactionTypeScope(), capability.getTransactionType(), PLATFORM_TRANSACTION_TYPES);
+            Set<String> transactionTypes = scopeIntersection(mid.getTransactionTypeScope(),
+                    capability.getTransactionType(), acquiring ? PLATFORM_TRANSACTION_TYPES : PAYOUT_TRANSACTION_TYPES);
+            if (!acquiring) transactionTypes.retainAll(PAYOUT_TRANSACTION_TYPES);
             if (!Integer.valueOf(ENABLED).equals(capability.getSupportIncrementalAuthorization())) {
                 transactionTypes.remove("INCREMENTAL_AUTHORIZATION");
             }
@@ -403,6 +467,10 @@ public class MerchantPaymentCapabilityReadinessService {
                                    String channelCode,
                                    Long capabilityId,
                                    Integer sortOrder) {
+    }
+
+    /** 两个业务的独立评估结果；空表示对应结果无法核实。 */
+    public record CurrentReadinessResult(ReadinessResult acquiring, ReadinessResult payout) {
     }
 
     /** 支付能力开通检查结果；列表保持稳定顺序，便于后续工作台展示和回归断言。 */

@@ -1,7 +1,9 @@
 package com.scott.payment.admin.dto.merchant;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,6 +32,30 @@ public final class AdminMerchantActivationReadinessDTOs {
         private List<PaymentCapability> feeGaps = new ArrayList<>();
         /** 当前生效费率同时命中多条规则的能力维度。 */
         private List<PaymentCapability> feeAmbiguities = new ArrayList<>();
+    }
+
+    /** 当前详情查询中的两个业务分组。 */
+    public record CurrentPaymentCapabilities(CurrentBusinessCapability acquiring, CurrentBusinessCapability payout) {
+    }
+
+    public enum EvaluationStatus {
+        EVALUATED,
+        NOT_EVALUATED,
+        UNAVAILABLE
+    }
+
+    public enum ExecutionStatus {
+        NOT_CONNECTED
+    }
+
+    /** 配置评估和交易入口接通情况分别表达；未知时计数保留为空。 */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class CurrentBusinessCapability extends PaymentCapabilityReadiness {
+        private EvaluationStatus evaluationStatus;
+        private LocalDateTime evaluatedAt;
+        private ExecutionStatus executionStatus;
+        private String reasonCode;
     }
 
     /**

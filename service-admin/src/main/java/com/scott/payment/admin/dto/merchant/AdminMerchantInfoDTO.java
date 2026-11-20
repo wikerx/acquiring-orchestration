@@ -427,6 +427,9 @@ public class AdminMerchantInfoDTO {
      */
     private AdminMerchantActivationReadinessDTOs.PaymentCapabilityReadiness paymentCapabilityReadiness;
 
+    /** 当前收单与代付能力，只在商户详情查询中返回。 */
+    private AdminMerchantActivationReadinessDTOs.CurrentPaymentCapabilities currentPaymentCapabilities;
+
     /**
      * 商户结算币种代码。
      */
