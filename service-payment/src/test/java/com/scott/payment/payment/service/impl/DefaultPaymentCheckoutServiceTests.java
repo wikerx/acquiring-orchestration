@@ -1912,6 +1912,17 @@ class DefaultPaymentCheckoutServiceTests {
         return commandDTO;
     }
 
+    @Test
+    void shouldFreezeCheckoutAttemptInItsOriginalQuarterAtMillisecondPrecision() {
+        LocalDateTime lastNanosecond = LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_999_999);
+        PaymentCheckoutAttemptDO attempt =
+                ReflectionTestUtils.invokeMethod(service, "buildAttempt", payableSession(), submitCommand(), lastNanosecond);
+
+        assertThat(attempt).isNotNull();
+        assertThat(attempt.getTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000));
+    }
+
     private PaymentCheckoutPaymentSubmitCommandDTO submitCommand() {
         PaymentCheckoutPaymentSubmitCommandDTO commandDTO = new PaymentCheckoutPaymentSubmitCommandDTO();
         commandDTO.setTokenHash("token-hash");

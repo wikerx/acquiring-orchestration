@@ -83,6 +83,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
@@ -1153,7 +1154,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         attemptDO.setChannelRequestAmount(sessionDO.getLabelAmount());
         attemptDO.setOperationId("OP" + globalIdGenerator.nextId());
         attemptDO.setTransactionId(globalIdGenerator.nextId());
-        attemptDO.setTransactionDateTime(now);
+        // 入库前对齐核心锚点，避免 DATETIME(3) 舍入而跨越季度边界。
+        attemptDO.setTransactionDateTime(now.truncatedTo(ChronoUnit.MILLIS));
         attemptDO.setChannelCode(sessionDO.getChannelCode());
         fillMaskedCardInfo(attemptDO, commandDTO.getCardInfo());
         attemptDO.setThreeDsRequired(0);
