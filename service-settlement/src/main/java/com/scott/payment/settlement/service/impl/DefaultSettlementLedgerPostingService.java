@@ -5,6 +5,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.settlement.domain.model.SettlementBatchStatus;
 import com.scott.payment.settlement.domain.model.SettlementFailureStage;
 import com.scott.payment.settlement.dto.SettlementBatchFacts;
+import com.scott.payment.settlement.dto.SettlementReserveSourceBinding;
 import com.scott.payment.settlement.entity.MerchantFundAccountDO;
 import com.scott.payment.settlement.entity.MerchantFundLedgerDO;
 import com.scott.payment.settlement.entity.MerchantReserveActionDO;
@@ -23,6 +24,7 @@ import com.scott.payment.settlement.mapper.SettlementProjectionMapper;
 import com.scott.payment.settlement.mapper.SettlementReserveMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.service.SettlementLedgerPostingService;
+import com.scott.payment.settlement.service.SettlementReserveSourceResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -69,6 +71,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
     private final SettlementCandidateMapper candidateMapper;
     private final SettlementBatchCandidateMapper relationMapper;
     private final SettlementProjectionMapper projectionMapper;
+    private final SettlementReserveSourceResolver reserveSourceResolver;
 
     public DefaultSettlementLedgerPostingService(SettlementBatchMapper batchMapper,
                                                  SettlementResultMapper resultMapper,
@@ -76,7 +79,8 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
                                                  SettlementReserveMapper reserveMapper,
                                                  SettlementCandidateMapper candidateMapper,
                                                  SettlementBatchCandidateMapper relationMapper,
-                                                 SettlementProjectionMapper projectionMapper) {
+                                                 SettlementProjectionMapper projectionMapper,
+                                                 SettlementReserveSourceResolver reserveSourceResolver) {
         this.batchMapper = batchMapper;
         this.resultMapper = resultMapper;
         this.fundMapper = fundMapper;
@@ -84,6 +88,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         this.candidateMapper = candidateMapper;
         this.relationMapper = relationMapper;
         this.projectionMapper = projectionMapper;
+        this.reserveSourceResolver = reserveSourceResolver;
     }
 
     /**
@@ -312,6 +317,8 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
     private void materializeReserve(SettlementBatchDO batch,
                                     SettlementBatchFacts facts,
                                     LocalDateTime now) {
+        Map<String, SettlementReserveSourceBinding> sourceBindings = reserveSourceResolver.resolve(
+                batch, facts, SettlementFailureStage.LEDGER_POSTING);
         Map<FactKey, Long> candidateIds = new HashMap<>();
         for (SettlementCandidateDO candidate : facts.candidates()) {
             candidateIds.put(new FactKey(candidate.getSourceTransactionId(),
@@ -328,7 +335,8 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
                 throw failure("SETTLEMENT_RESERVE_CANDIDATE_MISSING", false,
                         "reserve clearing fact has no batch candidate");
             }
-            applyReserveDetail(batch, candidateId, detail, now);
+            applyReserveDetail(batch, candidateId, detail,
+                    sourceBindings.get(detail.getReserveClearingDetailNo()), now);
         }
     }
 
@@ -338,6 +346,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
     private void applyReserveDetail(SettlementBatchDO batch,
                                     Long candidateId,
                                     SettlementReserveClearingDetailDO detail,
+                                    SettlementReserveSourceBinding sourceBinding,
                                     LocalDateTime now) {
         BigDecimal amount = reserveAmount(detail);
         if (amount.signum() <= 0) {
@@ -368,13 +377,19 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
                     "reserve return, release or adjustment must reference the original hold detail");
         }
         MerchantReserveItemDO stored = reserveMapper.selectBySourceForUpdate(
-                detail.getMerchantId(), detail.getSourceReserveDetailNo());
+                detail.getMerchantId(), sourceBinding == null
+                        ? detail.getSourceReserveDetailNo() : sourceBinding.holdDetailNo());
         if (stored == null || stored.getVersion() == null
                 || !detail.getReserveCurrency().equals(stored.getCurrency())
                 || !Objects.equals(batch.getSettlementAccountId(), stored.getAccountId())
                 || !Objects.equals(detail.getMerchantId(), stored.getMerchantId())) {
             throw failure("SETTLEMENT_RESERVE_SOURCE_INVALID", false,
                     "reserve source is missing or mismatched");
+        }
+        if (sourceBinding != null && (!Objects.equals(stored.getId(), sourceBinding.reserveItemId())
+                || !Objects.equals(stored.getVersion(), sourceBinding.reserveItemVersion()))) {
+            throw failure("SETTLEMENT_RESERVE_BALANCE_CAS_FAILED", false,
+                    "migrated reserve source changed before the posting lock");
         }
         boolean inserted = insertReserveAction(batch, candidateId, detail, stored, amount, now);
         if (!inserted) {
@@ -461,12 +476,29 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         action.setAmount(amount);
         action.setActionTime(now);
         action.setCreateTime(now);
+        // JDBC FOUND_ROWS 模式可能把无变化的重复 INSERT 返回为 1，不能据此再次减少责任。
+        // 资金账户和责任行已锁定；先锁读全局动作身份，再决定是否存在首次资金效果。
+        MerchantReserveActionDO existing = reserveMapper.selectActionForUpdate(action.getReserveActionNo());
+        if (existing != null) {
+            validateReserveActionReplay(existing, action);
+            return false;
+        }
         int inserted = reserveMapper.insertActionIdempotent(action);
         if (inserted == 1) {
             return true;
         }
         MerchantReserveActionDO stored = reserveMapper.selectActionForUpdate(action.getReserveActionNo());
-        boolean matches = inserted == 0 && stored != null
+        if (inserted != 0) {
+            throw failure("SETTLEMENT_RESERVE_ACTION_IDEMPOTENCY_CONFLICT", false,
+                    "reserve action insert affected an unexpected row count");
+        }
+        validateReserveActionReplay(stored, action);
+        return false;
+    }
+
+    /** 稳定动作号只允许同一批次、同一责任、同一原 RELEASE 身份的精确重放。 */
+    private void validateReserveActionReplay(MerchantReserveActionDO stored, MerchantReserveActionDO action) {
+        boolean matches = stored != null
                 && Objects.equals(stored.getReserveItemId(), action.getReserveItemId())
                 && Objects.equals(stored.getSettlementBatchNo(), action.getSettlementBatchNo())
                 && Objects.equals(stored.getSourceReserveDetailNo(), action.getSourceReserveDetailNo())
@@ -478,7 +510,6 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
             throw failure("SETTLEMENT_RESERVE_ACTION_IDEMPOTENCY_CONFLICT", false,
                     "reserve action idempotency identity is inconsistent");
         }
-        return false;
     }
 
     /**

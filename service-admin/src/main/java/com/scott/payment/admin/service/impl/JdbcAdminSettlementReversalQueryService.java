@@ -17,10 +17,10 @@ import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import com.scott.payment.admin.support.query.AdminQueryTimeBounds;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -32,7 +32,6 @@ import java.util.Set;
 public class JdbcAdminSettlementReversalQueryService implements AdminSettlementReversalQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> STATUSES = Set.of("PENDING_APPROVAL", "APPROVED", "REJECTED");
     private static final String COLUMNS = """
             id, reversal_order_no, original_batch_no, reversal_batch_no, merchant_id,
@@ -45,6 +44,7 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
+    private final AdminQueryTimeBounds timeBounds;
 
     /**
      * 创建管理端结算冲正查询服务。
@@ -66,6 +66,7 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
         this.jdbcTemplate = jdbcTemplate;
         this.readExecutor = readExecutor;
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
+        this.timeBounds = new AdminQueryTimeBounds(shardingProperties);
     }
 
     /**
@@ -115,7 +116,7 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
      * 按安全分页参数查询当前业务记录。
      */
     private PageResult<ReversalSummary> page(ReversalSearchRequest query, AdminMerchantDataScope scope) {
-        if (scope.empty()) return PageResult.of(0, query.getPageNo(), query.getPageSize(), List.of());
+        if (scope.empty() || query.getBeginSubmittedDate().isAfter(query.getEndSubmittedDate())) return PageResult.of(0, query.getPageNo(), query.getPageSize(), List.of());
         StringBuilder where = new StringBuilder("WHERE submitted_time >= :beginTime AND submitted_time < :endTime\n");
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("beginTime", query.getBeginSubmittedDate().atStartOfDay())
@@ -177,10 +178,10 @@ public class JdbcAdminSettlementReversalQueryService implements AdminSettlementR
      * 规范化输入值。
      */
     private ReversalSearchRequest normalize(ReversalSearchRequest request) {
-        if (request == null || request.getBeginSubmittedDate() == null || request.getEndSubmittedDate() == null
-                || request.getBeginSubmittedDate().isAfter(request.getEndSubmittedDate())
-                || ChronoUnit.DAYS.between(request.getBeginSubmittedDate(), request.getEndSubmittedDate())
-                > MAX_DATE_SPAN_DAYS) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        if (request == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        var dates = timeBounds.historicalDates(request.getBeginSubmittedDate(), request.getEndSubmittedDate());
+        request.setBeginSubmittedDate(dates.begin());
+        request.setEndSubmittedDate(dates.end());
         request.setReversalOrderNo(trim(request.getReversalOrderNo()));
         if (request.getReversalOrderNo() != null) requireOrderNo(request.getReversalOrderNo());
         request.setOriginalBatchNo(trim(request.getOriginalBatchNo()));

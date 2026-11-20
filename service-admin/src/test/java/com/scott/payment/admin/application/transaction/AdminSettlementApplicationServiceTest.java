@@ -48,8 +48,8 @@ class AdminSettlementApplicationServiceTest {
         AdminSettlementApplicationService service = new AdminSettlementApplicationService(
                 client, queryService, scopeResolver);
         BatchSearchRequest request = new BatchSearchRequest();
-        request.setBeginBusinessDate(LocalDate.of(2026, 8, 1));
-        request.setEndBusinessDate(LocalDate.of(2026, 8, 31));
+        request.setBeginBusinessDate(LocalDate.of(2026, 7, 1));
+        request.setEndBusinessDate(LocalDate.of(2099, 8, 31));
 
         service.search(request);
         service.detail(" SB20260826-00000001 ");

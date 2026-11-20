@@ -10,6 +10,7 @@ import com.scott.payment.settlement.entity.SettlementReserveClearingDetailDO;
 import com.scott.payment.settlement.entity.SettlementTransactionClearingDetailDO;
 import com.scott.payment.settlement.exception.SettlementProcessingException;
 import com.scott.payment.settlement.mapper.SettlementClearingFactMapper;
+import com.scott.payment.settlement.service.SettlementReserveSourceResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,7 +36,7 @@ class DefaultSettlementClearingFactServiceTest {
     @BeforeEach
     void setUp() {
         mapper = mock(SettlementClearingFactMapper.class);
-        service = new DefaultSettlementClearingFactService(mapper);
+        service = new DefaultSettlementClearingFactService(mapper, mock(SettlementReserveSourceResolver.class));
     }
 
     /**

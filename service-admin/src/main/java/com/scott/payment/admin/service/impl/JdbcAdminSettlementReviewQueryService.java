@@ -22,12 +22,12 @@ import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import com.scott.payment.admin.support.query.AdminQueryTimeBounds;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,7 +42,6 @@ import java.util.Set;
 public class JdbcAdminSettlementReviewQueryService implements AdminSettlementReviewQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> CANDIDATE_STATUSES = Set.of(
             "READY", "REPLAY_HOLD", "REVIEW_LOCKED", "SUPERSEDED",
             "CLAIMED", "POSTED", "MANUAL_REVIEW", "CANCELLED");
@@ -190,6 +189,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
+    private final AdminQueryTimeBounds timeBounds;
 
     /**
      * 创建管理端结算复核查询服务。
@@ -211,6 +211,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         this.jdbcTemplate = jdbcTemplate;
         this.readExecutor = readExecutor;
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
+        this.timeBounds = new AdminQueryTimeBounds(shardingProperties);
     }
 
     /**
@@ -411,7 +412,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
     private PageResult<CandidateSummary> candidatePage(CandidateSearchRequest query,
                                                        Set<String> sourceTypes,
                                                        AdminMerchantDataScope scope) {
-        if (scope.empty()) {
+        if (scope.empty() || query.getBeginTransactionTime() != null && query.getBeginTransactionTime().isAfter(query.getEndTransactionTime())) {
             return PageResult.of(0L, query.getPageNo(), query.getPageSize(), List.of());
         }
         String fromSql = candidateFromSql(sourceTypes);
@@ -535,7 +536,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
      */
     private PageResult<ReviewSummary> reviewPage(ReviewSearchRequest query,
                                                  AdminMerchantDataScope scope) {
-        if (scope.empty()) {
+        if (scope.empty() || query.getBeginBusinessDate().isAfter(query.getEndBusinessDate())) {
             return PageResult.of(0L, query.getPageNo(), query.getPageSize(), List.of());
         }
         StringBuilder where = new StringBuilder("""
@@ -757,16 +758,18 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
      * 校验并规范化结算候选记录。
      */
     private CandidateSearchRequest normalizeCandidate(CandidateSearchRequest request) {
-        if (request == null || request.getBeginEligibleDate() == null || request.getEndEligibleDate() == null
-                || request.getBeginEligibleDate().isAfter(request.getEndEligibleDate())
-                || ChronoUnit.DAYS.between(request.getBeginEligibleDate(), request.getEndEligibleDate())
-                > MAX_DATE_SPAN_DAYS) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        if (request == null || request.getBeginEligibleDate() == null || request.getEndEligibleDate() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        timeBounds.validateScheduledDates(request.getBeginEligibleDate(), request.getEndEligibleDate());
         request.setCandidateNo(trim(request.getCandidateNo()));
         request.setMerchantId(trim(request.getMerchantId()));
         request.setSourceTransactionId(textValue(request.getSourceTransactionId(), 64));
         request.setReserveActionNo(textValue(request.getReserveActionNo(), 64));
         request.setMerchantOrderNo(textValue(request.getMerchantOrderNo(), 128));
-        validateDateTimeRange(request.getBeginTransactionTime(), request.getEndTransactionTime());
+        var times = timeBounds.transactionTimes(request.getBeginTransactionTime(), request.getEndTransactionTime());
+        request.setBeginTransactionTime(times.begin());
+        request.setEndTransactionTime(times.end());
         request.setPaymentType(codeValue(request.getPaymentType(), 32));
         request.setPaymentMethod(codeValue(request.getPaymentMethod(), 32));
         request.setTransactionType(codeValue(request.getTransactionType(), 32));
@@ -788,10 +791,10 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
      * 规范化复核。
      */
     private ReviewSearchRequest normalizeReview(ReviewSearchRequest request) {
-        if (request == null || request.getBeginBusinessDate() == null || request.getEndBusinessDate() == null
-                || request.getBeginBusinessDate().isAfter(request.getEndBusinessDate())
-                || ChronoUnit.DAYS.between(request.getBeginBusinessDate(), request.getEndBusinessDate())
-                > MAX_DATE_SPAN_DAYS) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        if (request == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        var dates = timeBounds.historicalDates(request.getBeginBusinessDate(), request.getEndBusinessDate());
+        request.setBeginBusinessDate(dates.begin());
+        request.setEndBusinessDate(dates.end());
         request.setReviewOrderNo(trim(request.getReviewOrderNo()));
         if (request.getReviewOrderNo() != null) requireReviewNo(request.getReviewOrderNo());
         request.setMerchantId(trim(request.getMerchantId()));
@@ -896,23 +899,10 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
     }
 
     /**
-     * 校验日期时间查询范围。
-     */
-    private void validateDateTimeRange(java.time.LocalDateTime begin, java.time.LocalDateTime end) {
-        if ((begin == null) != (end == null) || (begin != null && (begin.isAfter(end)
-                || ChronoUnit.DAYS.between(begin.toLocalDate(), end.toLocalDate()) > MAX_DATE_SPAN_DAYS))) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
-    }
-
-    /**
-     * 校验业务日期查询范围。
+     * 校验预计释放业务日期，保留未来计划查询能力。
      */
     private void validateDateRange(java.time.LocalDate begin, java.time.LocalDate end) {
-        if ((begin == null) != (end == null) || (begin != null && (begin.isAfter(end)
-                || ChronoUnit.DAYS.between(begin, end) > MAX_DATE_SPAN_DAYS))) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
+        timeBounds.validateScheduledDates(begin, end);
     }
 
     /**

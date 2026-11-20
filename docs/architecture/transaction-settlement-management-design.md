@@ -256,15 +256,39 @@ reconciliation_status
 
 ### 8.2 保证金释放准入
 
+清分到期发现和生成 RELEASE 事实时校验：
+
 - `transaction_reserve_clearing_state.reserve_status=OPEN`；
 - 已达到 `expected_reserve_release_date`；
 - 清分状态中的 `remaining_amount` 大于零且责任等式成立；
+
+结算消费已经生成的释放事实时校验：
+
 - 已生成唯一、有效的 `RESERVE_RELEASE` 清分明细和候选；
 - 对应 `merchant_reserve_item` 仍存在足够的资金化剩余责任；
 - 原保证金明细和源交易身份完整；
 - 不存在其他活动预审单或正式结算批次占用该候选；
 - 商户结算档案和账户状态正常；
 - 保证金未因风控、争议或人工命令冻结。
+
+生成全额释放事实后，清分状态可以已经为 `FULLY_RELEASED`、剩余额为零；资金侧仍应等待结算
+事务执行 `merchant_reserve_action.RELEASE`。不得为了恢复结算把清分状态改回 `OPEN` 或重新生成释放。
+
+#### 8.2.1 历史本金修复后的 HOLD 来源
+
+历史本金修复原样复制 HOLD 时，原 RELEASE 事实继续保留旧 HOLD 引用。结算侧只允许通过
+`clearing_label_principal_repair_reserve_state_audit`、已执行修复单及依赖迁移审计，解析唯一一步的
+旧 HOLD 到新 HOLD 对应；禁止按原支付任意选择一条 `ACTIVE` HOLD。
+
+来源证明必须同时满足：原支付与精确分片时间、财务状态、商户、币种及精度、金额及规则快照
+一致；新清分候选已入账；当前依赖和清分状态均指向新 HOLD；资金责任属于当前结算账户。
+当前支持原样复制单条 HOLD、单条 RELEASE 依赖、清分全额释放且没有后续生命周期变更的形态；
+新责任必须尚未释放，余额恰好等于原释放额。歧义、缺失、版本变化或金额不符均进入人工复核。
+
+事实加载阶段预检，入账事务再次解析并在责任行锁定后复核主键和版本。原清分事实、候选身份
+及 `RA + hash(原 RELEASE 明细号)` 动作身份保持不变，动作只记录实际资金责任主键。
+资金账户及责任已锁定后，先锁读全局动作身份再决定是否首次更新，不能仅凭
+`INSERT ... ON DUPLICATE KEY UPDATE` 的影响行数判断，避免 JDBC `FOUND_ROWS` 模式差异。
 
 ### 8.3 授权类交易
 

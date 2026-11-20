@@ -20,12 +20,12 @@ import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import com.scott.payment.admin.support.query.AdminQueryTimeBounds;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -37,7 +37,6 @@ import java.util.Set;
 public class JdbcAdminSettlementQueryService implements AdminSettlementQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> BATCH_TYPES = Set.of(
             "REGULAR", "RESERVE_RELEASE", "REVERSAL", "ADJUSTMENT");
     private static final Set<String> BATCH_DOMAINS = Set.of("TRANSACTION", "RESERVE");
@@ -93,6 +92,7 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
     private final int maxResultRows;
+    private final AdminQueryTimeBounds timeBounds;
 
     /**
      * 创建生产查询服务，并继承交易查询超时与结果预算。
@@ -115,6 +115,7 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         this.jdbcTemplate = jdbcTemplate;
         this.transactionLogicalReadExecutor = transactionLogicalReadExecutor;
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
+        this.timeBounds = new AdminQueryTimeBounds(shardingProperties);
     }
 
     /**
@@ -182,7 +183,7 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
      */
     private PageResult<BatchSummary> searchNormalized(BatchSearchRequest query,
                                                       AdminMerchantDataScope dataScope) {
-        if (dataScope.empty()) {
+        if (dataScope.empty() || query.getBeginBusinessDate().isAfter(query.getEndBusinessDate())) {
             return PageResult.of(0L, query.getPageNo(), query.getPageSize(), List.of());
         }
         String whereSql = whereSql(query, dataScope);
@@ -395,13 +396,10 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
      * 规范化输入值。
      */
     private BatchSearchRequest normalize(BatchSearchRequest request) {
-        if (request == null || request.getBeginBusinessDate() == null
-                || request.getEndBusinessDate() == null
-                || request.getBeginBusinessDate().isAfter(request.getEndBusinessDate())
-                || ChronoUnit.DAYS.between(request.getBeginBusinessDate(),
-                request.getEndBusinessDate()) > MAX_DATE_SPAN_DAYS) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
+        if (request == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        var dates = timeBounds.historicalDates(request.getBeginBusinessDate(), request.getEndBusinessDate());
+        request.setBeginBusinessDate(dates.begin());
+        request.setEndBusinessDate(dates.end());
         int pageNo = request.getPageNo() == null ? 1 : request.getPageNo();
         int pageSize = request.getPageSize() == null ? DEFAULT_PAGE_SIZE : request.getPageSize();
         if (pageNo < 1 || pageSize < 1 || pageSize > maxResultRows) {

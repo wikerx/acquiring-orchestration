@@ -53,8 +53,8 @@ public class AdminInternalClientConfig {
                                                                  AdminInternalClientProperties properties) {
         properties.validate();
         return restTemplateBuilder
-                .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+                .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .readTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .additionalInterceptors(traceInterceptor)
                 .build();
     }

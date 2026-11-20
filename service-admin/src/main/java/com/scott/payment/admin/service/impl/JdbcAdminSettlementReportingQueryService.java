@@ -21,12 +21,11 @@ import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import com.scott.payment.admin.support.query.AdminQueryTimeBounds;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -38,7 +37,6 @@ import java.util.Set;
 public class JdbcAdminSettlementReportingQueryService implements AdminSettlementReportingQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> RESULT_ITEM_TYPES = Set.of(
             "PRINCIPAL", "FEE_COMPONENT", "FEE_GROUP_FINAL", "RESERVE_HOLD",
             "RESERVE_RETURN", "RESERVE_RELEASE", "ADJUSTMENT", "REVERSAL", "NET_SETTLEMENT");
@@ -161,6 +159,7 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final TransactionLogicalReadExecutor readExecutor;
     private final int maxResultRows;
+    private final AdminQueryTimeBounds timeBounds;
 
     /**
      * 创建管理端结算报表查询服务。
@@ -182,6 +181,7 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         this.jdbcTemplate = jdbcTemplate;
         this.readExecutor = readExecutor;
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
+        this.timeBounds = new AdminQueryTimeBounds(shardingProperties);
     }
 
     /**
@@ -280,7 +280,10 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      */
     private PageResult<TransactionSettlementSummary> resultPage(ResultItemSearchRequest query,
                                                                 AdminMerchantDataScope scope) {
-        if (scope.empty()) return emptyPage(query.getPageNo(), query.getPageSize());
+        if (scope.empty() || query.getBeginBusinessDate().isAfter(query.getEndBusinessDate())
+                || query.getBeginTransactionTime() != null && query.getBeginTransactionTime().isAfter(query.getEndTransactionTime())) {
+            return emptyPage(query.getPageNo(), query.getPageSize());
+        }
         StringBuilder where = new StringBuilder("""
                 WHERE batch.business_date BETWEEN :beginDate AND :endDate
                   AND candidate.source_type = 'CLEARING_REVISION'
@@ -420,7 +423,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      */
     private PageResult<PostingSummary> postingPage(PostingSearchRequest query,
                                                    AdminMerchantDataScope scope) {
-        if (scope.empty()) return emptyPage(query.getPageNo(), query.getPageSize());
+        if (scope.empty() || query.getBeginPostedTime().isAfter(query.getEndPostedTime())) {
+            return emptyPage(query.getPageNo(), query.getPageSize());
+        }
         StringBuilder where = new StringBuilder("""
                 WHERE ledger.settlement_batch_no IS NOT NULL
                   AND ledger.posted_time BETWEEN :beginTime AND :endTime
@@ -453,7 +458,10 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      */
     private PageResult<ReserveItemSummary> reservePage(ReserveItemSearchRequest query,
                                                        AdminMerchantDataScope scope) {
-        if (scope.empty()) return emptyPage(query.getPageNo(), query.getPageSize());
+        if (scope.empty() || query.getBeginBusinessDate().isAfter(query.getEndBusinessDate())
+                || query.getBeginTransactionTime() != null && query.getBeginTransactionTime().isAfter(query.getEndTransactionTime())) {
+            return emptyPage(query.getPageNo(), query.getPageSize());
+        }
         StringBuilder where = new StringBuilder("""
                 WHERE batch.business_date BETWEEN :beginDate AND :endDate
                 """);
@@ -574,9 +582,10 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      * 规范化结果查询。
      */
     private ResultItemSearchRequest normalizeResultQuery(ResultItemSearchRequest request) {
-        if (request == null || !validDateRange(request.getBeginBusinessDate(), request.getEndBusinessDate())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
+        if (request == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        var dates = timeBounds.historicalDates(request.getBeginBusinessDate(), request.getEndBusinessDate());
+        request.setBeginBusinessDate(dates.begin());
+        request.setEndBusinessDate(dates.end());
         request.setSettlementBatchNo(trim(request.getSettlementBatchNo()));
         if (request.getSettlementBatchNo() != null && !request.getSettlementBatchNo().matches("SB\\d{8}-\\d{8}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -584,7 +593,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         request.setMerchantId(trimMax(request.getMerchantId(), 64));
         request.setSourceTransactionId(trimMax(request.getSourceTransactionId(), 64));
         request.setMerchantOrderNo(trimMax(request.getMerchantOrderNo(), 128));
-        validateOptionalTimeRange(request.getBeginTransactionTime(), request.getEndTransactionTime());
+        var times = timeBounds.transactionTimes(request.getBeginTransactionTime(), request.getEndTransactionTime());
+        request.setBeginTransactionTime(times.begin());
+        request.setEndTransactionTime(times.end());
         request.setResultItemType(enumValue(request.getResultItemType(), RESULT_ITEM_TYPES));
         request.setResultRole(enumValue(request.getResultRole(), RESULT_ROLES));
         request.setDirection(enumValue(request.getDirection(), DIRECTIONS));
@@ -615,9 +626,10 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      * 规范化保证金查询。
      */
     private ReserveItemSearchRequest normalizeReserveQuery(ReserveItemSearchRequest request) {
-        if (request == null || !validDateRange(request.getBeginBusinessDate(), request.getEndBusinessDate())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
+        if (request == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        var dates = timeBounds.historicalDates(request.getBeginBusinessDate(), request.getEndBusinessDate());
+        request.setBeginBusinessDate(dates.begin());
+        request.setEndBusinessDate(dates.end());
         request.setSettlementBatchNo(trim(request.getSettlementBatchNo()));
         if (request.getSettlementBatchNo() != null
                 && !request.getSettlementBatchNo().matches("SB\\d{8}-\\d{8}")) {
@@ -631,7 +643,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         request.setReserveStatus(enumValue(request.getReserveStatus(), RESERVE_STATUSES));
         request.setActionType(enumValue(request.getActionType(), RESERVE_ACTION_TYPES));
         request.setCurrency(currency(request.getCurrency()));
-        validateOptionalTimeRange(request.getBeginTransactionTime(), request.getEndTransactionTime());
+        var times = timeBounds.transactionTimes(request.getBeginTransactionTime(), request.getEndTransactionTime());
+        request.setBeginTransactionTime(times.begin());
+        request.setEndTransactionTime(times.end());
         validateOptionalDateRange(request.getBeginExpectedReleaseDate(), request.getEndExpectedReleaseDate());
         normalizePage(request.getPageNo(), request.getPageSize(), request::setPageNo, request::setPageSize);
         return request;
@@ -664,10 +678,7 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      * 校验可选业务日期范围。
      */
     private void validateOptionalDateRange(java.time.LocalDate begin, java.time.LocalDate end) {
-        if ((begin == null) != (end == null)
-                || begin != null && (!validDateRange(begin, end))) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
+        timeBounds.validateScheduledDates(begin, end);
     }
 
     /**
@@ -702,11 +713,12 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      * 校验并规范化结算入账查询条件。
      */
     private PostingSearchRequest normalizePostingQuery(PostingSearchRequest request) {
-        if (request == null || request.getBeginPostedTime() == null || request.getEndPostedTime() == null
-                || request.getBeginPostedTime().isAfter(request.getEndPostedTime())
-                || Duration.between(request.getBeginPostedTime(), request.getEndPostedTime()).toDays() > MAX_DATE_SPAN_DAYS) {
+        if (request == null || request.getBeginPostedTime() == null || request.getEndPostedTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        var times = timeBounds.transactionTimes(request.getBeginPostedTime(), request.getEndPostedTime());
+        request.setBeginPostedTime(times.begin());
+        request.setEndPostedTime(times.end());
         request.setSettlementBatchNo(trim(request.getSettlementBatchNo()));
         if (request.getSettlementBatchNo() != null && !request.getSettlementBatchNo().matches("SB\\d{8}-\\d{8}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -718,26 +730,6 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         request.setCurrency(currency(request.getCurrency()));
         normalizePage(request.getPageNo(), request.getPageSize(), request::setPageNo, request::setPageSize);
         return request;
-    }
-
-    /**
-     * 校验并构建有效日期范围。
-     */
-    private boolean validDateRange(java.time.LocalDate begin, java.time.LocalDate end) {
-        return begin != null && end != null && !begin.isAfter(end)
-                && ChronoUnit.DAYS.between(begin, end) <= MAX_DATE_SPAN_DAYS;
-    }
-
-    /**
-     * 校验可选日期时间范围。
-     */
-    private void validateOptionalTimeRange(LocalDateTime begin, LocalDateTime end) {
-        if ((begin == null) != (end == null)) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
-        if (begin != null && (begin.isAfter(end) || Duration.between(begin, end).toDays() > MAX_DATE_SPAN_DAYS)) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
     }
 
     /**

@@ -53,8 +53,8 @@ public class ClearingInternalClientConfig {
                                      TraceIdRestTemplateInterceptor traceInterceptor,
                                      ClearingInternalClientProperties properties) {
         validate(properties);
-        return builder.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+        return builder.connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .readTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .additionalInterceptors(traceInterceptor).build();
     }
 

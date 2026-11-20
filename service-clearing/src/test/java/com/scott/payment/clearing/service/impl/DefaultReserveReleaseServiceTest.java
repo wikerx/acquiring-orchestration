@@ -11,6 +11,8 @@ import com.scott.payment.clearing.service.ClearingSettlementCandidateService;
 import com.scott.payment.clearing.service.ReserveReleaseService.ReserveReleaseOutcome;
 import com.scott.payment.finance.reserve.core.ReserveCalculator;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
@@ -42,21 +44,26 @@ class DefaultReserveReleaseServiceTest {
     /**
      * 到期释放必须使用当前剩余标签币种金额，并形成可独立结算的稳定动作。
      */
-    @Test
-    void releaseShouldAppendLabelCurrencyFactAndCreateReserveReleaseCandidate() {
+    @ParameterizedTest
+    @CsvSource({
+            "2026-08-26T10:30:00.200999Z, 2026-08-26T18:30:00.200",
+            "2026-09-30T15:59:59.999999Z, 2026-09-30T23:59:59.999"
+    })
+    void releaseShouldAppendLabelCurrencyFactAndCreateReserveReleaseCandidate(String instant, String expectedTime) {
+        LocalDateTime releaseTime = LocalDateTime.parse(expectedTime);
         LocalDateTime originalTime = LocalDateTime.of(2026, 1, 1, 10, 0);
         ClearingReserveStateDO state = state(originalTime);
         ClearingReserveDetailDO hold = hold(originalTime);
         when(reserveMapper.selectStateForUpdate("PAY-1", originalTime)).thenReturn(state);
         when(reserveMapper.selectHoldDetail("HOLD-1", originalTime)).thenReturn(hold);
-        when(profileMapper.selectActiveProfile("M-1", LocalDate.of(2026, 8, 26)))
+        when(profileMapper.selectActiveProfile("M-1", releaseTime.toLocalDate()))
                 .thenReturn(profile());
         when(reserveMapper.insertDetail(any())).thenReturn(1);
         when(reserveMapper.applyRelease(eq("PAY-1"), eq(originalTime), eq(3L),
                 eq(new BigDecimal("8.00")), any(), any())).thenReturn(1);
 
         var result = service.release("RS-1", "PAY-1", originalTime,
-                Instant.parse("2026-08-26T10:30:00Z"));
+                Instant.parse(instant));
 
         assertThat(result.outcome()).isEqualTo(ReserveReleaseOutcome.RELEASED);
         assertThat(result.releaseTransactionId()).startsWith("RRL");
@@ -65,20 +72,19 @@ class DefaultReserveReleaseServiceTest {
                 ArgumentCaptor.forClass(ClearingReserveDetailDO.class);
         verify(reserveMapper).insertDetail(detailCaptor.capture());
         ClearingReserveDetailDO detail = detailCaptor.getValue();
+        assertThat(detail.getTransactionDateTime()).isEqualTo(releaseTime);
         assertThat(detail.getReserveActionType()).isEqualTo("RELEASE");
         assertThat(detail.getDirection()).isEqualTo("CREDIT");
         assertThat(detail.getReserveCurrency()).isEqualTo("EUR");
         assertThat(detail.getReleasedAmount()).isEqualByComparingTo("8.00");
         assertThat(detail.getRemainingAmount()).isZero();
-        assertThat(detail.getTransactionDateTime())
-                .isEqualTo(LocalDateTime.of(2026, 8, 26, 18, 30));
         ArgumentCaptor<SettlementCandidateDependencyPlan> dependencyCaptor =
                 ArgumentCaptor.forClass(SettlementCandidateDependencyPlan.class);
         verify(candidateService).createReserveRelease(
                 eq("RS-1"), eq(4), eq(result.releaseTransactionId()),
                 eq(detail.getTransactionDateTime()), eq("M-1"), eq("USD"),
-                eq(LocalDate.of(2026, 8, 26)), dependencyCaptor.capture(),
-                eq(LocalDateTime.of(2026, 8, 26, 10, 30)));
+                eq(releaseTime.toLocalDate()), dependencyCaptor.capture(),
+                eq(releaseTime.minusHours(8)));
         SettlementCandidateDependencyPlan dependency = dependencyCaptor.getValue();
         assertThat(dependency.sourceFinanceStateId()).isEqualTo("FS-1");
         assertThat(dependency.sourceRevision()).isEqualTo(1);

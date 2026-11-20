@@ -130,7 +130,9 @@ WHERE transaction_id = ?
 - 平台 `transaction_id` 带 UTC+8 时间片，时间片必须与对应动作单的 `transaction_date_time` 一致。首次交易使用受理业务时间生成 `transaction_id`；后续请款、退款、撤销等动作使用本次动作受理时间生成新的 `transaction_id`，确保每个动作 ID 可解析到实际所在物理表。
 - 后续动作先用 `sourceTransactionId` 定位原动作分表，再通过动作单的 `operation_id` 读取生命周期主单；主单更新按 `operation_id` 的根时间片定位，详情聚合按 `operation_id` 在受控时间范围内路由多个物理表。
 - MPGS 渠道标识映射固定为：MPGS `orderId` = 原始授权或一步支付的平台 `transaction_id`，MPGS `transactionId` = 平台生成并落库的 `channel_transaction_id`；部分渠道没有渠道交易 ID 时 `channel_transaction_id` 可以为空。
-- 后台查询允许按时间范围路由多个季度物理表，但必须限制最大范围，避免无界扫表。
+- 后台历史查询允许跨季度，统一将有效范围与“已登记物理季度的最早起点至当前存储时区时刻”求交集，不再因固定 92 天跨度拒绝历史查询。业务日期上界为当前业务日；时刻上界为当前时刻。原始端点缺失或倒置仍报参数错误；与有效历史完全无交集则返回空页，不查询数据库。分页、商户数据权限及查询预算继续生效。
+- 结算候选可用日、保证金预计释放日属于计划业务日期，允许未来区间，仅校验端点完整及顺序，不套用历史查询的当前时间上界。
+- 保证金释放、调整新建来源事件时，事实表路由时刻与候选记录必须使用同一个截断到毫秒的值；不能分别依赖数据库四舍五入和 Java 截断。已有不一致的候选路由指针必须先核对唯一事实、批次状态和入账结果，再按审核后的修复脚本处理，读取链路不得放宽精确事实匹配。
 - `transaction_channel_callback_log` 允许未匹配交易先按 `callback_received_time` 落库，后续匹配成功再写 `transaction_channel_callback`。
 - 物理表预创建应复用现有 `service-job` 分表预创建能力，正式启用前再把 `docs/deployment/nacos/transaction-sharding-dev-draft.yaml` 合入环境配置。
 - 如果后续 MPGS 回调、对账或后台检索大量出现“只有渠道流水号、没有交易时间”的场景，再评估新增轻量 `transaction_global_index` 或渠道索引表作为二阶段优化。

@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.service.impl;
 
 import com.scott.payment.settlement.dto.SettlementBatchFacts;
+import com.scott.payment.settlement.service.SettlementReserveSourceResolver;
 import com.scott.payment.settlement.entity.MerchantFundAccountDO;
 import com.scott.payment.settlement.entity.MerchantFundLedgerDO;
 import com.scott.payment.settlement.entity.SettlementBatchDO;
@@ -56,7 +57,7 @@ class DefaultSettlementLedgerPostingServiceTest {
         SettlementProjectionMapper projectionMapper = mock(SettlementProjectionMapper.class);
         DefaultSettlementLedgerPostingService service = new DefaultSettlementLedgerPostingService(
                 batchMapper, resultMapper, fundMapper, reserveMapper,
-                candidateMapper, relationMapper, projectionMapper);
+                candidateMapper, relationMapper, projectionMapper, mock(SettlementReserveSourceResolver.class));
 
         SettlementBatchDO batch = batch();
         when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
@@ -140,7 +141,7 @@ class DefaultSettlementLedgerPostingServiceTest {
         SettlementProjectionMapper projectionMapper = mock(SettlementProjectionMapper.class);
         DefaultSettlementLedgerPostingService service = new DefaultSettlementLedgerPostingService(
                 batchMapper, resultMapper, fundMapper, reserveMapper,
-                candidateMapper, relationMapper, projectionMapper);
+                candidateMapper, relationMapper, projectionMapper, mock(SettlementReserveSourceResolver.class));
 
         SettlementBatchDO batch = batch();
         batch.setBatchType("RESERVE_RELEASE");
@@ -247,7 +248,7 @@ class DefaultSettlementLedgerPostingServiceTest {
         SettlementProjectionMapper projectionMapper = mock(SettlementProjectionMapper.class);
         DefaultSettlementLedgerPostingService service = new DefaultSettlementLedgerPostingService(
                 batchMapper, resultMapper, fundMapper, reserveMapper,
-                candidateMapper, relationMapper, projectionMapper);
+                candidateMapper, relationMapper, projectionMapper, mock(SettlementReserveSourceResolver.class));
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 0);
         SettlementBatchDO batch = batch();
         batch.setCreateMode("MANUAL_REVIEW");
@@ -318,7 +319,7 @@ class DefaultSettlementLedgerPostingServiceTest {
         SettlementProjectionMapper projectionMapper = mock(SettlementProjectionMapper.class);
         DefaultSettlementLedgerPostingService service = new DefaultSettlementLedgerPostingService(
                 batchMapper, resultMapper, fundMapper, reserveMapper,
-                candidateMapper, relationMapper, projectionMapper);
+                candidateMapper, relationMapper, projectionMapper, mock(SettlementReserveSourceResolver.class));
         LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 0);
         SettlementBatchDO batch = batch();
         batch.setBatchType("ADJUSTMENT");

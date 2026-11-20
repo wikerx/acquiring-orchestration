@@ -25,6 +25,7 @@ class SettlementPersistenceMapperContractTest {
             SettlementCandidateMapper.class,
             SettlementBatchCandidateMapper.class,
             SettlementClearingFactMapper.class,
+            SettlementReserveSourceMapper.class,
             SettlementBatchRateMapper.class,
             SettlementReviewDailySequenceMapper.class,
             SettlementReviewOrderMapper.class,

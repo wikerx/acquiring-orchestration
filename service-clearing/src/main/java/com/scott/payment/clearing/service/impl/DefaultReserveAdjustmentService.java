@@ -36,6 +36,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Set;
@@ -198,7 +199,8 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
         if (Objects.equals(request.getSubmitOperator(), reviewer)) {
             throw new IllegalStateException("reserve adjustment submitter and reviewer must be different");
         }
-        LocalDateTime auditTime = LocalDateTime.ofInstant(command.reviewInstant(), ZoneOffset.UTC);
+        LocalDateTime auditTime = LocalDateTime.ofInstant(command.reviewInstant(), ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MILLIS);
         if (command.decision() == ReviewDecision.REJECT) {
             requireOne(adjustmentMapper.markRejected(
                     request.getAdjustmentNo(), request.getVersion(), reviewer, comment, auditTime),
@@ -248,7 +250,7 @@ public class DefaultReserveAdjustmentService implements ReserveAdjustmentService
                                             String comment,
                                             Instant reviewInstant,
                                             LocalDateTime auditTime) {
-        LocalDateTime transactionTime = LocalDateTime.ofInstant(reviewInstant, BUSINESS_ZONE);
+        LocalDateTime transactionTime = LocalDateTime.ofInstant(reviewInstant, BUSINESS_ZONE).truncatedTo(ChronoUnit.MILLIS);
         LocalDate businessDate = transactionTime.toLocalDate();
         ReserveAdjustmentDirection direction = ReserveAdjustmentDirection.valueOf(request.getDirection());
         if (direction == ReserveAdjustmentDirection.DEBIT

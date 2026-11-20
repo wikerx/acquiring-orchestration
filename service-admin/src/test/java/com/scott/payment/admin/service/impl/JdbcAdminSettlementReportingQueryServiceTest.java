@@ -35,6 +35,30 @@ class JdbcAdminSettlementReportingQueryServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void wideHistorySearchShouldUseRegisteredStartAndCurrentBusinessDate() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(0L);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class))).thenReturn(List.of());
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setPhysicalNodes(List.of("202603", "202604"));
+        TransactionLogicalReadExecutor executor = mock(TransactionLogicalReadExecutor.class);
+        when(executor.read(any())).thenAnswer(invocation -> invocation.<Supplier<?>>getArgument(0).get());
+        var service = new JdbcAdminSettlementReportingQueryService(jdbc, executor, properties);
+        ResultItemSearchRequest request = resultRequest();
+        request.setBeginBusinessDate(LocalDate.of(2026, 6, 1));
+        request.setEndBusinessDate(LocalDate.of(2099, 2, 1));
+
+        service.searchResultItems(request, AdminMerchantDataScope.all());
+
+        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).queryForObject(anyString(), parameters.capture(), eq(Long.class));
+        assertThat(parameters.getValue().getValue("beginDate")).isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(parameters.getValue().getValue("endDate"))
+                .isEqualTo(LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void transactionSettlementSearchShouldAggregateByRealTransactionAndApplyMerchantScope() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
         when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(1L);
@@ -98,6 +122,30 @@ class JdbcAdminSettlementReportingQueryServiceTest {
 
         assertThat(page.getRecords()).isEmpty();
         assertThat(page.getTotal()).isZero();
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void historicalWindowsWithoutIntersectionShouldSkipAllReportingReads() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setPhysicalNodes(List.of("202603", "202604"));
+        TransactionLogicalReadExecutor executor = mock(TransactionLogicalReadExecutor.class);
+        when(executor.read(any())).thenAnswer(invocation -> invocation.<Supplier<?>>getArgument(0).get());
+        var service = new JdbcAdminSettlementReportingQueryService(jdbc, executor, properties);
+        ResultItemSearchRequest result = resultRequest();
+        result.setBeginBusinessDate(LocalDate.of(2026, 1, 1));
+        result.setEndBusinessDate(LocalDate.of(2026, 2, 1));
+        ReserveItemSearchRequest reserve = new ReserveItemSearchRequest();
+        reserve.setBeginBusinessDate(LocalDate.of(2099, 1, 1));
+        reserve.setEndBusinessDate(LocalDate.of(2099, 2, 1));
+        PostingSearchRequest posting = new PostingSearchRequest();
+        posting.setBeginPostedTime(LocalDateTime.of(2099, 1, 1, 0, 0));
+        posting.setEndPostedTime(LocalDateTime.of(2099, 2, 1, 0, 0));
+
+        assertThat(service.searchResultItems(result, AdminMerchantDataScope.all()).getTotal()).isZero();
+        assertThat(service.searchReserveItems(reserve, AdminMerchantDataScope.all()).getTotal()).isZero();
+        assertThat(service.searchPostings(posting, AdminMerchantDataScope.all()).getTotal()).isZero();
         verifyNoInteractions(jdbc);
     }
 

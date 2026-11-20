@@ -125,7 +125,7 @@ class DefaultReserveAdjustmentServiceTest {
 
         var result = service.review(new ReviewCommand(
                 "RA-1", 0L, ReviewDecision.APPROVE, "approved", "operator-B",
-                Instant.parse("2026-08-26T10:30:00Z")));
+                Instant.parse("2026-08-26T10:30:00.200999Z")));
 
         assertThat(result.status()).isEqualTo("EXECUTED");
         assertThat(result.sourceRevision()).isEqualTo(4);
@@ -138,13 +138,14 @@ class DefaultReserveAdjustmentServiceTest {
         assertThat(detail.getReserveCurrency()).isEqualTo("EUR");
         assertThat(detail.getAdjustmentAmount()).isEqualByComparingTo("2.00");
         assertThat(detail.getRemainingAmount()).isEqualByComparingTo("10.00");
+        assertThat(detail.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 8, 26, 18, 30, 0, 200_000_000));
         ArgumentCaptor<SettlementCandidateDependencyPlan> dependencyCaptor =
                 ArgumentCaptor.forClass(SettlementCandidateDependencyPlan.class);
         verify(candidateService).createAdjustment(
                 eq("RA-1"), eq(4), eq(result.transactionId()),
-                eq(LocalDateTime.of(2026, 8, 26, 18, 30)), eq("M-1"), eq("USD"),
+                eq(detail.getTransactionDateTime()), eq("M-1"), eq("USD"),
                 eq(LocalDate.of(2026, 8, 26)), dependencyCaptor.capture(),
-                eq(LocalDateTime.of(2026, 8, 26, 10, 30)));
+                eq(LocalDateTime.of(2026, 8, 26, 10, 30, 0, 200_000_000)));
         SettlementCandidateDependencyPlan dependency = dependencyCaptor.getValue();
         assertThat(dependency.sourceFinanceStateId()).isEqualTo("FS-1");
         assertThat(dependency.sourceRevision()).isEqualTo(1);

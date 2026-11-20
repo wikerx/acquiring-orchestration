@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Set;
@@ -82,9 +83,9 @@ public class DefaultReserveReleaseService implements ReserveReleaseService {
                                         LocalDateTime originalTransactionDateTime,
                                         Instant releaseInstant) {
         requireIdentity(reserveStateId, originalTransactionId, originalTransactionDateTime, releaseInstant);
-        LocalDateTime releaseTime = LocalDateTime.ofInstant(releaseInstant, BUSINESS_ZONE);
+        LocalDateTime releaseTime = LocalDateTime.ofInstant(releaseInstant, BUSINESS_ZONE).truncatedTo(ChronoUnit.MILLIS);
         LocalDate releaseDate = releaseTime.toLocalDate();
-        LocalDateTime auditTime = LocalDateTime.ofInstant(releaseInstant, ZoneOffset.UTC);
+        LocalDateTime auditTime = LocalDateTime.ofInstant(releaseInstant, ZoneOffset.UTC).truncatedTo(ChronoUnit.MILLIS);
 
         ClearingReserveStateDO state = reserveMapper.selectStateForUpdate(
                 originalTransactionId, originalTransactionDateTime);

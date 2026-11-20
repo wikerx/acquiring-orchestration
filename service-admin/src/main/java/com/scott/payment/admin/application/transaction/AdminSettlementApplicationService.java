@@ -22,7 +22,6 @@ import org.springframework.util.StringUtils;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -90,7 +89,7 @@ public class AdminSettlementApplicationService {
     /**
      * 在当前 Admin 商户数据范围内查询正式结算批次。
      *
-     * @param request 最多 92 天业务日期窗口及分页过滤条件
+     * @param request 业务日期窗口及分页过滤条件，由只读查询层裁剪有效历史范围
      * @return 按业务日期和主键稳定倒序的结算批次标准分页
      */
     public PageResult<BatchSummary> search(BatchSearchRequest request) {
@@ -131,14 +130,12 @@ public class AdminSettlementApplicationService {
     }
 
     /**
-     * 校验结算批次查询时间窗未超过安全上限。
+     * 校验原始端点完整及顺序；可查询历史边界统一由只读查询层处理。
      */
     private void validateBatchSearchWindow(BatchSearchRequest request) {
         if (request == null || request.getBeginBusinessDate() == null
                 || request.getEndBusinessDate() == null
-                || request.getBeginBusinessDate().isAfter(request.getEndBusinessDate())
-                || ChronoUnit.DAYS.between(request.getBeginBusinessDate(),
-                request.getEndBusinessDate()) > 92) {
+                || request.getBeginBusinessDate().isAfter(request.getEndBusinessDate())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }

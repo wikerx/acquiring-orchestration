@@ -14,6 +14,7 @@ import com.scott.payment.settlement.entity.SettlementTransactionClearingDetailDO
 import com.scott.payment.settlement.exception.SettlementProcessingException;
 import com.scott.payment.settlement.mapper.SettlementClearingFactMapper;
 import com.scott.payment.settlement.service.SettlementClearingFactService;
+import com.scott.payment.settlement.service.SettlementReserveSourceResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -49,9 +50,12 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
     private static final Set<String> DIRECTIONS = Set.of("CREDIT", "DEBIT");
 
     private final SettlementClearingFactMapper factMapper;
+    private final SettlementReserveSourceResolver reserveSourceResolver;
 
-    public DefaultSettlementClearingFactService(SettlementClearingFactMapper factMapper) {
+    public DefaultSettlementClearingFactService(SettlementClearingFactMapper factMapper,
+                                                 SettlementReserveSourceResolver reserveSourceResolver) {
         this.factMapper = factMapper;
+        this.reserveSourceResolver = reserveSourceResolver;
     }
 
     /**
@@ -160,7 +164,9 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         addCurrency(exponents, batch.getTargetCurrency(), batch.getTargetCurrencyExponent());
         Set<SettlementCurrency> currencies = new HashSet<>();
         exponents.forEach((currency, exponent) -> currencies.add(new SettlementCurrency(currency, exponent)));
-        return new SettlementBatchFacts(candidates, transactionDetails, reserveDetails, currencies);
+        SettlementBatchFacts facts = new SettlementBatchFacts(candidates, transactionDetails, reserveDetails, currencies);
+        reserveSourceResolver.resolve(batch, facts, SettlementFailureStage.FACT_LOADING);
+        return facts;
     }
 
     /**
