@@ -61,6 +61,13 @@ public class MerchantPaymentLinkQueryService {
         }
         View view = moneyView(result.get(0));
         view.setCardBrands(JsonUtils.parseArray(row.getAllowedBrandsJson(), String.class));
+        if (row.getAllowedMethodsJson() != null) {
+            var keys = com.scott.payment.link.service.PaymentLinkMethodScope.deserialize(row.getAllowedMethodsJson());
+            view.setPaymentMethodKeys(keys);
+            if (keys.stream().noneMatch(key -> key.startsWith("CARD_BRAND:"))) {
+                view.setPaymentAvailable(false);
+            }
+        }
         view.setNotifyUrl(row.getNotifyUrl());
         view.setRedirectUrl(row.getRedirectUrl());
         return view;

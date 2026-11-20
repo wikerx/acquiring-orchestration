@@ -154,6 +154,24 @@ public class ReliableMqOutboxRelayService {
         return outboxStore.recoverStale(producerService, staleBefore, now);
     }
 
+    /** Job 通过消息归属服务恢复本功能范围，原定时中继排除此范围。 */
+    public int recoverPaymentCapabilityDelivery(int requestedLimit) {
+        if (!"service-admin".equals(producerService)) {
+            throw new IllegalStateException("payment capability relay is owned by service-admin");
+        }
+        int limit = Math.max(1, Math.min(100, requestedLimit));
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime staleBefore = now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L));
+        outboxStore.recoverPaymentCapabilityStale(staleBefore, now, limit);
+        int relayed = 0;
+        for (ReliableMqOutboxDO event : outboxStore.findPaymentCapabilityDue(now, limit)) {
+            if (relayEvent(event.getEventId())) {
+                relayed++;
+            }
+        }
+        return relayed;
+    }
+
     /**
      * 从数据库刷新 pending、CLOSED 和最老积压 Gauge。
      */

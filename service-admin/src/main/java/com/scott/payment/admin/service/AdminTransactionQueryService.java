@@ -8,6 +8,8 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNoti
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
@@ -23,6 +25,10 @@ import java.time.LocalDateTime;
  * 管理后台交易只读查询服务，位于 service-admin 服务层，直接读取交易备库分表。
  */
 public interface AdminTransactionQueryService {
+
+    /** 用原动作幂等定位固定分片并读取建单前 OpenAPI 拒绝事实。 */
+    OpenApiAdmissionAttemptResponse findOpenApiAdmissionAttempt(OpenApiAdmissionAttemptQuery query,
+                                                              AdminMerchantDataScope scope);
 
     /**
      * 查询交易主单；筛选条件、分页上限和数据范围由方法参数共同限定。

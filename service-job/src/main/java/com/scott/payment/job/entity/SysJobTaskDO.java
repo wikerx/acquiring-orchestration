@@ -1,6 +1,8 @@
 package com.scott.payment.job.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -129,6 +131,18 @@ public class SysJobTaskDO {
      * 锁过期时间。
      */
     private LocalDateTime lockUntil;
+
+    /** 抢占新世代，普通编辑不得覆盖。 */
+    @TableField(updateStrategy = FieldStrategy.NEVER)
+    private Long leaseEpoch;
+
+    /** 来源扫描已确认的连续位置。 */
+    @TableField(updateStrategy = FieldStrategy.NEVER)
+    private String checkpointJson;
+
+    /** 检查点写入的乐观锁版本。 */
+    @TableField(updateStrategy = FieldStrategy.NEVER)
+    private Long checkpointVersion;
 
     /**
      * 乐观锁版本。

@@ -1,5 +1,8 @@
 package com.scott.payment.admin.service.impl;
 
+import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.alibaba.fastjson2.TypeReference;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -217,6 +220,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * 商户路由永久快照的事务型可靠失效协调器。
      */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+    private MerchantPaymentCapabilityEventPublisher paymentCapabilityEvents;
+
+    @Autowired
+    void setPaymentCapabilityEvents(MerchantPaymentCapabilityEventPublisher paymentCapabilityEvents) {
+        this.paymentCapabilityEvents = paymentCapabilityEvents;
+    }
 
     /**
      * 创建管理端渠道配置服务。
@@ -867,6 +876,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setCreateTime(entity.getUpdateTime());
         entity.setDeleted(NOT_DELETED);
         midBindingMapper.insert(entity);
+        publishBindingChange(entity.getMerchantId(), entity);
         return toMidBindingResponse(entity, findChannel(entity.getChannelId()), mid);
     }
 
@@ -881,11 +891,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public MerchantChannelMidBindingResponse updateMidBinding(Long id, MerchantChannelMidBindingSaveRequest request) {
         MerchantChannelMidBindingDO entity = findMidBinding(id);
+        String previousMerchant = entity.getMerchantId();
         ChannelMidConfigDO mid = validateMidBindingRequest(request, id);
         prepareRouteInvalidation(entity.getMerchantId());
         prepareRouteInvalidation(request.getMerchantId());
         fillMidBinding(entity, request, mid, LocalDateTime.now());
         midBindingMapper.updateById(entity);
+        publishBindingChange(entity.getMerchantId(), entity);
+        if (!Objects.equals(previousMerchant, entity.getMerchantId())) {
+            publishBindingChange(previousMerchant, entity);
+        }
         return toMidBindingResponse(entity, findChannel(entity.getChannelId()), mid);
     }
 
@@ -912,6 +927,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
         midBindingMapper.updateById(entity);
+        publishBindingChange(entity.getMerchantId(), entity);
         return toMidBindingResponse(entity, findChannel(entity.getChannelId()), findMid(entity.getMidConfigId()));
     }
 
@@ -929,6 +945,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
         midBindingMapper.updateById(entity);
+        publishBindingChange(entity.getMerchantId(), entity);
+    }
+
+    private void publishBindingChange(String merchantId, MerchantChannelMidBindingDO entity) {
+        if (paymentCapabilityEvents != null && entity.getId() != null) {
+            paymentCapabilityEvents.publishConfiguration(merchantId, null,
+                    "binding:" + entity.getId() + ":" + entity.getUpdateTime(), entity.getUpdateTime());
+        }
     }
 
     /**

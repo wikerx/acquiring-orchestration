@@ -39,9 +39,12 @@ import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
+import com.scott.payment.payment.service.PaymentTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.capability.OpenApiAdmissionAttemptRecorder;
+import com.scott.payment.payment.service.capability.PaymentAdmissionRejectedException;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
@@ -52,6 +55,7 @@ import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -67,7 +71,9 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -75,6 +81,39 @@ import static org.mockito.Mockito.when;
  */
 @Slf4j
 class PaymentTransactionServiceImplTests {
+
+    @Test
+    void shouldRecoverRealOrderWinnerWhenAdmissionReceiptCommitIsUnconfirmed() {
+        String actionKey = "200001:AUTH202607120001:PAYMENT";
+        var channel = mock(PaymentChannelInvokeService.class);
+        var recorder = mock(OpenApiAdmissionAttemptRecorder.class);
+        var preparation = mock(PaymentTransactionPreparationService.class);
+        PaymentTransactionServiceImpl service = new PaymentTransactionServiceImpl(isoDictionaryService(),
+                riskDecision(PaymentRiskDecisionEnum.PASS), routeService(), channel, preparation, null,
+                exchangeRateService(), new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(), new CapturingTransactionRecordService(),
+                new DefaultTransactionStateMachineService(), new DefaultChannelTransactionStatusResolver(),
+                new AlwaysAvailableDistributedLockService());
+        service.setOpenApiAdmissionAttemptRecorder(recorder);
+        var command = baseCommand();
+        command.setTrustedOpenApiAdmissionRequest(true);
+        command.setRequestFingerprint("canonical");
+        var realOrder = new TransactionIdempotencyDO();
+        realOrder.setTransactionId("real-order");
+        realOrder.setRequestFingerprint("canonical");
+        realOrder.setTransactionStatus("PROCESSING");
+        when(preparation.prepareInitialTransaction(command, "PAYMENT")).thenThrow(
+                new PaymentAdmissionRejectedException("CARD_BRAND:VISA",
+                        PaymentAdmissionRejectedException.Reason.AUTHORIZATION_UNAVAILABLE, 42L));
+        when(recorder.recordKnownRejection(eq(command), eq(actionKey), any()))
+                .thenThrow(new DataAccessResourceFailureException("write outcome unknown"));
+        when(recorder.findCommittedAction(actionKey)).thenReturn(Optional.of(realOrder), Optional.empty());
+
+        assertThat(service.createPayment(command).getTransactionId()).isEqualTo("real-order");
+        assertThatThrownBy(() -> service.createPayment(command)).isInstanceOfSatisfying(
+                ServiceException.class, failure -> assertThat(failure.getCode()).isEqualTo("F503"));
+        verifyNoInteractions(channel);
+    }
 
     /**
      * 分片时间必须在任何持久化、渠道调用和结果回写之前统一到 MySQL DATETIME(3) 精度。

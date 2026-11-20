@@ -15,10 +15,13 @@ import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminOperationalWorkItemService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.RiskAuditShardingProperties;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -68,10 +71,15 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
     private static final String OPEN = "OPEN";
     private static final String PROCESSING = "PROCESSING";
     private static final String CLOSED = "CLOSED";
-    private static final Set<String> SOURCE_TYPES = Set.of(
+    public static final String PAYMENT_METHOD_APPROVAL = "PAYMENT_METHOD_APPROVAL";
+    public static final String PAYMENT_METHOD_CONFIGURATION = "PAYMENT_METHOD_CONFIGURATION";
+    private static final Set<String> LEGACY_SYNC_SOURCES = Set.of(
             REFUND_APPROVAL, SETTLEMENT_REVIEW, EXCHANGE_RATE_ALERT,
             MERCHANT_NOTIFICATION_FAILURE, CHANNEL_MATCH_ABNORMAL, CLEARING_BACKLOG,
             SETTLEMENT_BACKLOG, HIGH_RISK_EVENT);
+    private static final Set<String> SOURCE_TYPES = java.util.stream.Stream.concat(
+            LEGACY_SYNC_SOURCES.stream(), java.util.stream.Stream.of(PAYMENT_METHOD_APPROVAL, PAYMENT_METHOD_CONFIGURATION))
+            .collect(Collectors.toUnmodifiableSet());
     private static final Set<String> WORK_STATUSES = Set.of(OPEN, PROCESSING, CLOSED);
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "NORMAL", "LOW");
     private static final int DEFAULT_PAGE_SIZE = 20;
@@ -85,7 +93,7 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
             last_synced_at, closed_at, close_reason, latest_remark, version,
             source_projection_version, merchant_id, merchant_name, business_no,
             related_business_no, transaction_id, transaction_date_time,
-            source_occurred_at, create_time, update_time
+            source_occurred_at, create_time, update_time, source_basis_json
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -564,7 +572,24 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
             return null;
         });
         loadAlertSnapshots(groupedKeys.get(EXCHANGE_RATE_ALERT), false, result);
+        for (WorkMetadata row : metadataRows) {
+            if (!isCapabilitySource(row.sourceType()) || row.sourceBasisJson() == null
+                    || (!dataScope.allMerchants() && !dataScope.merchantIds().contains(row.merchantId()))) {
+                continue;
+            }
+            CapabilityBasis basis = JsonUtils.parseObject(row.sourceBasisJson(), CapabilityBasis.class);
+            if (basis != null) {
+                result.put(row.identity(), capabilitySnapshot(row, basis));
+            }
+        }
         return result;
+    }
+
+    private static SourceSnapshot capabilitySnapshot(WorkMetadata row, CapabilityBasis basis) {
+        return new SourceSnapshot(row.identity(), basis.status(), row.merchantId(),
+                row.merchantName(), row.businessNo(), row.relatedBusinessNo(), null, null, null, null, null,
+                null, null, null, null, null, String.join(", ", basis.reasons()), row.sourceOccurredAt(),
+                null, null, row.slaDueAt(), null, null, row.priority(), row.firstDetectedAt(), row.slaDueAt());
     }
 
     private SourceSnapshot loadSingleSource(WorkMetadata metadata, AdminMerchantDataScope dataScope) {
@@ -1184,14 +1209,14 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
     private Map<SourceIdentity, WorkMetadata> loadSynchronizationMetadata(Set<SourceIdentity> activeKeys) {
         Map<SourceIdentity, WorkMetadata> result = new LinkedHashMap<>();
         MapSqlParameterSource activeParams = new MapSqlParameterSource()
-                .addValue("sourceTypes", SOURCE_TYPES)
-                .addValue("limit", properties.getMaxSyncRows() * SOURCE_TYPES.size() + 1);
+                .addValue("sourceTypes", LEGACY_SYNC_SOURCES)
+                .addValue("limit", properties.getMaxSyncRows() * LEGACY_SYNC_SOURCES.size() + 1);
         List<WorkMetadata> activeRows = jdbcTemplate.query("SELECT " + WORK_METADATA_COLUMNS + """
                 FROM admin_operational_work_item
                 WHERE source_type IN (:sourceTypes) AND work_status <> 'CLOSED'
                 ORDER BY id ASC LIMIT :limit
                 """, activeParams, this::mapMetadata);
-        if (activeRows.size() > properties.getMaxSyncRows() * SOURCE_TYPES.size()) {
+        if (activeRows.size() > properties.getMaxSyncRows() * LEGACY_SYNC_SOURCES.size()) {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
                     "active work item count exceeds the configured sync budget");
         }
@@ -1508,6 +1533,9 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
     }
 
     private void validateCommand(String action, WorkMetadata current, Long targetAccountId) {
+        if (isCapabilitySource(current.sourceType()) && "COMPLETE".equals(action)) {
+            throw conflict("payment capability work item closes when its source is resolved");
+        }
         if (isSourceManaged(current.sourceType()) && !"REMARK".equals(action)) {
             throw conflict("source-managed work item must be handled in its source workflow");
         }
@@ -1655,7 +1683,7 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
                 rs.getString("merchant_name"), rs.getString("business_no"),
                 rs.getString("related_business_no"), rs.getString("transaction_id"),
                 localDateTime(rs, "transaction_date_time"), localDateTime(rs, "source_occurred_at"),
-                localDateTime(rs, "create_time"), localDateTime(rs, "update_time"));
+                localDateTime(rs, "create_time"), localDateTime(rs, "update_time"), rs.getString("source_basis_json"));
     }
 
     private SourceSnapshot snapshot(String sourceType, ResultSet rs) throws SQLException {
@@ -1927,6 +1955,119 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
                 || SETTLEMENT_BACKLOG.equals(sourceType);
     }
 
+    private static boolean isCapabilitySource(String sourceType) {
+        return PAYMENT_METHOD_APPROVAL.equals(sourceType) || PAYMENT_METHOD_CONFIGURATION.equals(sourceType);
+    }
+
+    /**
+     * 原来源事实已求值后增量同步单个支付方式待办。所有调用先锁商户，再写统一待办。
+     */
+    @DS(DataSourceName.MASTER)
+    public CapabilityTransition synchronizePaymentCapability(String type, String key, String merchantId,
+                                                              String businessNo, String itemKey, boolean active,
+                                                              CapabilityBasis basis, LocalDateTime occurredAt) {
+        if (!isCapabilitySource(type)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return transactionTemplate.execute(dispatch -> {
+            List<CapabilityMerchant> merchants = jdbcTemplate.query("""
+                    SELECT merchant_name, payment_authorization_revision FROM base_merchant_info
+                    WHERE merchant_id = :merchantId AND deleted = 0 FOR UPDATE
+                    """, new MapSqlParameterSource("merchantId", merchantId),
+                    (row, index) -> new CapabilityMerchant(row.getString("merchant_name"),
+                            row.getLong("payment_authorization_revision")));
+            if (merchants.isEmpty()) {
+                return null;
+            }
+            CapabilityMerchant merchant = merchants.get(0);
+            if (basis.revision() != null && merchant.revision() != basis.revision()) {
+                throw conflict("merchant payment capability changed during evaluation");
+            }
+            SourceIdentity identity = new SourceIdentity(type, key);
+            MapSqlParameterSource params = new MapSqlParameterSource("sourceType", type)
+                    .addValue("sourceKey", key).addValue("basis", JsonUtils.toJsonString(basis));
+            List<WorkMetadata> rows = jdbcTemplate.query("SELECT " + WORK_METADATA_COLUMNS + """
+                    FROM admin_operational_work_item
+                    WHERE source_type = :sourceType AND source_key = :sourceKey FOR UPDATE
+                    """, params, this::mapMetadata);
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime dueAt = now.plus(properties.getSettlementSla());
+            if (rows.isEmpty()) {
+                if (!active) {
+                    return null;
+                }
+                SourceSnapshot snapshot = new SourceSnapshot(identity, basis.status(), merchantId,
+                        merchant.name(), businessNo, itemKey, null, null, null, null, null, null, null, null,
+                        null, null, null, occurredAt, null, null, dueAt, null, null, "NORMAL", now, dueAt);
+                if (insertWorkItem(snapshot, now) != 1) {
+                    throw conflict("payment capability work item insert did not complete");
+                }
+                WorkMetadata inserted = requiredMetadataBySource(identity);
+                jdbcTemplate.update("""
+                        UPDATE admin_operational_work_item SET source_basis_json = :basis
+                        WHERE id = :id AND version = :version
+                        """, params.addValue("id", inserted.id()).addValue("version", inserted.version()));
+                insertHistory(inserted, syncRequestId("capability:0", identity, "CREATE"),
+                        "CREATE", null, OPEN, null, null, null, null,
+                        null, "SYSTEM", "Payment capability requires follow-up", now);
+                return null;
+            }
+            WorkMetadata current = rows.get(0);
+            if (!merchantId.equals(current.merchantId())) {
+                throw conflict("payment capability source belongs to a different merchant");
+            }
+            CapabilityBasis previous = current.sourceBasisJson() == null ? null
+                    : JsonUtils.parseObject(current.sourceBasisJson(), CapabilityBasis.class);
+            if (previous != null && !basis.measuredAt().isAfter(previous.measuredAt())) {
+                return null;
+            }
+            boolean wasClosed = CLOSED.equals(current.workStatus());
+            boolean reopen = wasClosed && active;
+            boolean close = !wasClosed && !active;
+            String state = close ? CLOSED : reopen ? OPEN : current.workStatus();
+            Long owner = reopen ? null : current.ownerAccountId();
+            String ownerName = reopen ? null : current.ownerAccountName();
+            int updated = jdbcTemplate.update("""
+                    UPDATE admin_operational_work_item
+                    SET source_basis_json = :basis, work_status = :state, last_synced_at = :now,
+                        closed_at = :closedAt, close_reason = :closeReason, sla_due_at = :sla,
+                        owner_account_id = :owner, owner_account_name = :ownerName,
+                        version = version + 1, update_time = :now
+                    WHERE id = :id AND version = :version
+                    """, params.addValue("state", state).addValue("now", now)
+                    .addValue("closedAt", close ? now : reopen ? null : current.closedAt())
+                    .addValue("closeReason", close ? "PAYMENT_CAPABILITY_SOURCE_RESOLVED" : reopen ? null : current.closeReason())
+                    .addValue("sla", reopen ? dueAt : current.slaDueAt())
+                    .addValue("owner", owner).addValue("ownerName", ownerName)
+                    .addValue("id", current.id()).addValue("version", current.version()));
+            if (updated != 1) {
+                throw conflict("payment capability work item changed during synchronization");
+            }
+            long newVersion = current.version() + 1;
+            if (close || reopen) {
+                String action = close ? "AUTO_CLOSE" : "REOPEN";
+                insertHistory(current, syncRequestId("capability:" + newVersion, identity, action),
+                        action, current.workStatus(), state, current.ownerAccountId(), current.ownerAccountName(),
+                        owner, ownerName, null, "SYSTEM", "Payment capability source changed", now);
+            }
+            return close && PAYMENT_METHOD_CONFIGURATION.equals(type) && "READY".equals(basis.status())
+                    ? new CapabilityTransition(current.workItemNo(), newVersion) : null;
+        });
+    }
+
+    /** 来源状态和诊断仅用于运营投影。 */
+    public record CapabilityBasis(String status, List<String> reasons, Long revision, LocalDateTime measuredAt) {
+        public CapabilityBasis {
+            reasons = reasons == null ? List.of() : List.copyOf(reasons);
+        }
+    }
+
+    public record CapabilityTransition(String workItemNo, long version) {
+    }
+
+    private record CapabilityMerchant(String name, long revision) {
+    }
+
     /**
      * 解析来源状态在统一待办中的活动状态投影。
      */
@@ -2043,7 +2184,8 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
                                 LocalDateTime transactionDateTime,
                                 LocalDateTime sourceOccurredAt,
                                 LocalDateTime createTime,
-                                LocalDateTime updateTime) {
+                                LocalDateTime updateTime,
+                                String sourceBasisJson) {
         private SourceIdentity identity() {
             return new SourceIdentity(sourceType, sourceKey);
         }

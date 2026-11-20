@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -595,6 +596,39 @@ class DefaultPaymentCheckoutServiceTests {
         var fallback = service.querySession(query);
         assertThat(fallback.getPageState()).isEqualTo("PAYABLE");
         assertThat(fallback.getMerchant().getSupportedPaymentMethods()).isEmpty();
+    }
+
+    @Test
+    void shouldShowOnlyRevalidatedLinkOptionsAndKeepWalletReadOnly() {
+        var session = payableSession();
+        session.setAllowedPaymentMethodsJson("""
+                [{"paymentMethod":"APPLE_PAY","linkScopeVerified":true},
+                {"paymentMethod":"BANK_CARD","brands":["VISA"],"linkScopeVerified":true}]
+                """);
+        var wallet = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        wallet.setPaymentMethod("APPLE_PAY");
+        wallet.setLinkScopeVerified(true);
+        var capabilities = mock(PaymentCheckoutCardCapabilityService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cardCapabilityService", capabilities);
+        when(capabilities.revalidateLinkScope(eq(session.getMerchantId()), eq(session.getLabelCurrency()), anyList()))
+                .thenReturn(List.of(wallet));
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        var query = new PaymentCheckoutSessionQueryCommandDTO();
+        query.setTokenHash("token-hash");
+
+        var result = service.querySession(query);
+
+        assertThat(result.getPageState()).isEqualTo("PAYABLE");
+        assertThat(result.getPaymentMethods()).isEmpty();
+        assertThat(result.getPaymentOptions()).singleElement().satisfies(option -> {
+            assertThat(option.getPaymentMethod()).isEqualTo("APPLE_PAY");
+            assertThat(option.isServerSubmitAllowed()).isFalse();
+            assertThat(option.getExecutionStatus()).isEqualTo("COMPONENT_UNAVAILABLE");
+        });
+        assertThat(result.getMerchant().getSupportedPaymentMethods()).containsExactly("APPLE_PAY");
+        assertThat(result.getCardEncryption()).isNull();
+        verify(capabilities, never()).resolveAllowedMethods(anyString(), anyList(), anyString());
     }
 
     @Test

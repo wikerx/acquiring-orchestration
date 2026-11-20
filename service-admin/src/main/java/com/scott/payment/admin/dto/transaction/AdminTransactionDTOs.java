@@ -7,6 +7,9 @@ import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -25,6 +28,22 @@ public final class AdminTransactionDTOs {
      * 阻止仅提供静态能力的类型被实例化。
      */
     private AdminTransactionDTOs() {
+    }
+
+    /** 以商户号、原业务动作请求号和交易动作精确查证一条建单前拒绝。 */
+    public record OpenApiAdmissionAttemptQuery(
+            @NotBlank @Size(max = 64) String merchantId,
+            @NotBlank @Size(max = 128) String merchantOrderId,
+            @NotBlank @Pattern(regexp = "PAYMENT|AUTHORIZATION|PRE_AUTHORIZATION") String transactionType) {
+    }
+
+    /** 仅返回运营查证需要的受控字段，建单前的系统订单号明确为空。 */
+    public record OpenApiAdmissionAttemptResponse(
+            String attemptId, String merchantId, String merchantOrderNo, String merchantOrderId,
+            String transactionType, String itemKey, String admissionStage, String outcome,
+            String reasonCode, String authorizationRevision, String responseCode,
+            @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime occurredAt,
+            @JsonInclude(JsonInclude.Include.ALWAYS) String transactionId) {
     }
 
     /**

@@ -4,6 +4,8 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialVO;
+import com.scott.payment.merchant.application.merchantpayment.MerchantPaymentLinkedProjection;
+import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.AccessSummary;
 import com.scott.payment.merchant.dto.access.MerchantAccessOverviewDTOs.AccessCheckStatus;
 import com.scott.payment.merchant.dto.access.MerchantAccessOverviewDTOs.AccessOverview;
 import com.scott.payment.merchant.dto.access.MerchantAccessOverviewDTOs.AccessRuleCheck;
@@ -43,6 +45,7 @@ public class MerchantAccessOverviewApplicationService {
 
     private final OpenApiMerchantKeyMaterialService keyMaterialService;
     private final MerchantAccessOverviewQueryService queryService;
+    private final MerchantPaymentLinkedProjection paymentProjection;
 
     /**
      * 创建商户接入概览应用服务。
@@ -51,9 +54,11 @@ public class MerchantAccessOverviewApplicationService {
      * @param queryService       商户访问规则统计服务
      */
     public MerchantAccessOverviewApplicationService(OpenApiMerchantKeyMaterialService keyMaterialService,
-                                                    MerchantAccessOverviewQueryService queryService) {
+                                                    MerchantAccessOverviewQueryService queryService,
+                                                    MerchantPaymentLinkedProjection paymentProjection) {
         this.keyMaterialService = keyMaterialService;
         this.queryService = queryService;
+        this.paymentProjection = paymentProjection;
     }
 
     /**
@@ -76,9 +81,11 @@ public class MerchantAccessOverviewApplicationService {
 
         MerchantProfileCheck merchantProfile = merchantProfileCheck(profileFacts);
         SettlementCheck settlement = settlementCheck(queryService.findSettlement(normalizedMerchantId));
-        PaymentCapabilityCheck paymentCapability = paymentCapabilityCheck(
-                queryService.countActivePaymentBindings(normalizedMerchantId, evaluationTime),
-                queryService.listPaymentCapabilities(normalizedMerchantId, evaluationTime));
+        AccessSummary assessment = paymentProjection.overview(normalizedMerchantId);
+        PaymentCapabilityCheck paymentCapability = "HISTORY_PENDING".equals(assessment.assessmentStatus())
+                ? paymentCapabilityCheck(queryService.countActivePaymentBindings(normalizedMerchantId, evaluationTime),
+                        queryService.listPaymentCapabilities(normalizedMerchantId, evaluationTime))
+                : assessedPaymentCapability(assessment);
         PlatformConfigurationCheck fee = feeCheck(queryService.findFee(normalizedMerchantId));
         PlatformConfigurationCheck risk = riskCheck(profileFacts);
 
@@ -170,6 +177,7 @@ public class MerchantAccessOverviewApplicationService {
         List<PaymentCapabilityFacts> safeFacts = capabilityFacts == null ? List.of() : capabilityFacts;
         PaymentCapabilityCheck check = new PaymentCapabilityCheck();
         check.setActiveBindingCount(activeBindingCount);
+        check.setAssessmentStatus("HISTORY_PENDING");
         check.setCapabilities(safeFacts.stream().map(facts -> {
             PaymentCapability capability = new PaymentCapability();
             capability.setPaymentType(facts.paymentType());
@@ -183,6 +191,31 @@ public class MerchantAccessOverviewApplicationService {
                 .max(LocalDateTime::compareTo)
                 .orElse(null));
         check.setStatus(activeBindingCount > 0 && !safeFacts.isEmpty()
+                ? AccessCheckStatus.READY : AccessCheckStatus.PENDING_REVIEW);
+        return check;
+    }
+
+    private PaymentCapabilityCheck assessedPaymentCapability(AccessSummary assessment) {
+        PaymentCapabilityCheck check = new PaymentCapabilityCheck();
+        check.setAssessmentStatus(assessment.assessmentStatus());
+        check.setAssessedAt(assessment.assessedAt());
+        check.setActiveBindingCount(assessment.activeBindingCount());
+        check.setAuthorizedCount(assessment.authorizedCount());
+        check.setLegacyCoverageCount(assessment.legacyCoverageCount());
+        check.setConfigurationReadyCount(assessment.configurationReadyCount());
+        check.setPendingConfigurationCount(assessment.pendingConfigurationCount());
+        check.setRestrictedCount(assessment.restrictedCount());
+        check.setExecutionReadyCount(assessment.executionReadyCount());
+        check.setLastUpdatedTime(assessment.assessedAt());
+        check.setCapabilities(assessment.capabilities().stream().map(facts -> {
+            PaymentCapability capability = new PaymentCapability();
+            capability.setPaymentType(facts.paymentType());
+            capability.setPaymentMethod(facts.paymentMethod());
+            capability.setCurrency(facts.currency());
+            return capability;
+        }).toList());
+        check.setStatus("EVALUATED".equals(assessment.assessmentStatus())
+                && assessment.executionReadyCount() != null && assessment.executionReadyCount() > 0
                 ? AccessCheckStatus.READY : AccessCheckStatus.PENDING_REVIEW);
         return check;
     }

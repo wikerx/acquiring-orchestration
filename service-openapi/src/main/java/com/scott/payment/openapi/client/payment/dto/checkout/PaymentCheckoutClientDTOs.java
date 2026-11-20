@@ -335,6 +335,7 @@ public final class PaymentCheckoutClientDTOs {
          * 当前会话允许的支付方式。
          */
         private List<PaymentMethod> paymentMethods;
+        private List<PaymentMethod> paymentOptions;
 
         /**
          * 有效期、重试次数和轮询配置。
@@ -820,6 +821,8 @@ public final class PaymentCheckoutClientDTOs {
          * 3DS 模式，例如 REQUIRED、OPTIONAL 或通道默认值。
          */
         private String threeDsMode;
+        private Boolean serverSubmitAllowed;
+        private String executionStatus;
     }
 
     /**

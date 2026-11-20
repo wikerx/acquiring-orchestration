@@ -50,6 +50,10 @@ public final class PaymentLinkQueryModels {
         private Integer currencyExponent;
         private String locale;
         private List<String> cardBrands = List.of();
+        /** 创建时冻结的规范方式。旧链接继续以 cardBrands 表达。 */
+        private List<String> paymentMethodKeys;
+        /** 只有配置范围中所有方式均未实现付款交互时明确返回 false。 */
+        private Boolean paymentAvailable;
         private String status;
         private String paymentStatus;
         private Integer attemptCount;

@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.admin.application.merchantpayment.MerchantPaymentFeeChangedEvent;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -44,6 +45,7 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -131,6 +133,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private final AdminSettlementRateResolver settlementRateResolver;
     private final AdminMerchantSettlementCurrencyService merchantSettlementCurrencyService;
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+    private final ApplicationEventPublisher approvalEvents;
 
     /**
      * 构造费用配置服务。
@@ -145,7 +148,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                AdminFeeSimulationCalculator simulationCalculator,
                                AdminSettlementRateResolver settlementRateResolver,
                                AdminMerchantSettlementCurrencyService merchantSettlementCurrencyService,
-                               ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+                               ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+                               ApplicationEventPublisher approvalEvents) {
         this.planMapper = planMapper;
         this.versionMapper = versionMapper;
         this.ruleMapper = ruleMapper;
@@ -157,6 +161,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         this.settlementRateResolver = settlementRateResolver;
         this.merchantSettlementCurrencyService = merchantSettlementCurrencyService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.approvalEvents = approvalEvents;
     }
 
     /**
@@ -555,11 +560,48 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                                 String comment,
                                                 Long reviewerId,
                                                 String reviewerName) {
-        FeePlanVersionDO version = requireLockedVersion(versionId);
+        FeePlanVersionDO pointer = versionMapper.selectById(versionId);
+        if (pointer == null || !Long.valueOf(NOT_DELETED).equals(pointer.getDeleted())) {
+            throw notFound("费用版本不存在");
+        }
+        requirePendingReview(pointer);
+        requireDifferentReviewer(pointer, reviewerId, reviewerName);
+        FeePlanDO planPointer = requirePlan(pointer.getPlanId(), null);
+        boolean merchantPlan = MERCHANT.equals(planPointer.getPlanType());
+        FeePlanDO plan;
+        FeePlanVersionDO version;
+        FeePlanVersionDO current;
+        if (merchantPlan) {
+            requireMerchantForUpdate(planPointer.getMerchantId());
+            plan = requireLockedPlan(planPointer.getId(), MERCHANT);
+            if (!Objects.equals(plan.getMerchantId(), planPointer.getMerchantId())) {
+                throw conflict("费用方案归属已变化，请刷新");
+            }
+            Long currentId = plan.getCurrentVersionId();
+            if (Objects.equals(currentId, versionId)) {
+                throw conflict("待复核费用版本与当前生效版本相同");
+            }
+            if (currentId != null && currentId < versionId) {
+                current = requireLockedVersion(currentId);
+                version = requireLockedVersion(versionId);
+            } else {
+                version = requireLockedVersion(versionId);
+                current = currentId == null ? null : requireLockedVersion(currentId);
+            }
+        } else {
+            // 模板不参与 Payment 的商户准入保护，继续使用和既有模板提交一致的顺序。
+            version = requireLockedVersion(versionId);
+            plan = requireLockedPlan(version.getPlanId(), TEMPLATE);
+            Long currentId = plan.getCurrentVersionId();
+            current = currentId == null ? null : requireVersion(currentId);
+        }
+        if (!Objects.equals(plan.getId(), version.getPlanId())
+                || current != null && !Objects.equals(plan.getId(), current.getPlanId())) {
+            throw conflict("费用版本归属已变化，请刷新");
+        }
         requirePendingReview(version);
         requireDifferentReviewer(version, reviewerId, reviewerName);
-        FeePlanDO plan = requireLockedPlan(version.getPlanId(), null);
-        if (MERCHANT.equals(plan.getPlanType())) {
+        if (merchantPlan) {
             cacheInvalidationCoordinator.prepare(
                     PaymentCacheNames.MERCHANT_ACTIVE_FEE,
                     plan.getMerchantId()
@@ -572,8 +614,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         LocalDateTime now = LocalDateTime.now();
         boolean firstActivation = plan.getCurrentVersionId() == null;
 
-        if (plan.getCurrentVersionId() != null) {
-            FeePlanVersionDO current = requireVersion(plan.getCurrentVersionId());
+        if (current != null) {
             current.setVersionStatus(SUPERSEDED);
             current.setSupersededTime(now);
             current.setUpdateTime(now);
@@ -597,6 +638,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             plan.setStatus("ENABLED");
         }
         touchPlan(plan, reviewerName);
+        if (merchantPlan) {
+            approvalEvents.publishEvent(new MerchantPaymentFeeChangedEvent(plan.getMerchantId(), version.getId(), now));
+        }
         return getPlanDetail(plan);
     }
 
@@ -2520,6 +2564,16 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             throw notFound("商户不存在");
         }
         return merchant;
+    }
+
+    /** 先锁商户再锁费率计划，保持与真实支付准入保护一致的顺序。 */
+    private void requireMerchantForUpdate(String merchantId) {
+        if (merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                .eq(BaseMerchantInfoDO::getDeleted, 0)
+                .last("LIMIT 1 FOR UPDATE")) == null) {
+            throw notFound("商户不存在");
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.admin.application.merchantpayment.AdminMerchantAdmissionInitialization;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -162,6 +163,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * 六位商户号数据库年度序列分配服务。
      */
     private final MerchantIdAllocationService merchantIdAllocationService;
+    private final AdminMerchantAdmissionInitialization merchantAdmissionInitialization;
 
     /**
      * 创建管理后台商户信息服务实现。
@@ -183,6 +185,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param securityNotificationService 密钥生命周期通知服务
      * @param merchantOnboardingService 商户开户、审核与激活领域服务
      * @param merchantIdAllocationService 六位商户号数据库年度序列分配服务
+     * @param merchantAdmissionInitialization 根据部署阶段设置新商户的准入模式
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
@@ -201,7 +204,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         AdminMerchantSecurityNotificationService securityNotificationService,
                                         AdminMerchantStatusLifecycleService statusLifecycleService,
                                         MerchantOnboardingService merchantOnboardingService,
-                                        MerchantIdAllocationService merchantIdAllocationService) {
+                                        MerchantIdAllocationService merchantIdAllocationService,
+                                        AdminMerchantAdmissionInitialization merchantAdmissionInitialization) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -220,6 +224,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.statusLifecycleService = statusLifecycleService;
         this.merchantOnboardingService = merchantOnboardingService;
         this.merchantIdAllocationService = merchantIdAllocationService;
+        this.merchantAdmissionInitialization = merchantAdmissionInitialization;
     }
 
     /**
@@ -356,6 +361,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setDeleted(NOT_DELETED);
         prepareRuntimeProfileInvalidation(merchantId);
         merchantInfoMapper.insert(row);
+        merchantAdmissionInitialization.initialize(merchantId, now);
         merchantOnboardingService.provisionOnboardingPortalAccessIfPossible(row);
         merchantOnboardingService.replaceRelatedPersons(merchantId, request.getRelatedPersons(), now);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));

@@ -312,6 +312,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient, Payment
      * @param path 以斜杠开头的内部接口路径
      * @return service-payment 完整内部 URL
      */
+    @Override
+    public com.scott.payment.admin.client.payment.dto.PaymentCapabilityEvaluationDTOs.Response evaluateMerchantCapabilities(
+            com.scott.payment.admin.client.payment.dto.PaymentCapabilityEvaluationDTOs.Request request) {
+        return unwrapData(post(servicePaymentUrl("/internal/payment/merchant-capabilities/evaluate"),
+                request, new TypeReference<CommonResult<com.scott.payment.admin.client.payment.dto.PaymentCapabilityEvaluationDTOs.Response>>() { }));
+    }
+
     private String servicePaymentUrl(String path) {
         return SERVICE_PAYMENT_BASE_URL + path;
     }

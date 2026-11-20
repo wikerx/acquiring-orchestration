@@ -13,6 +13,7 @@ import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.job.api.internal.dto.JobRunLogQueryRequest;
 import com.scott.payment.job.entity.SysJobRunLogDO;
 import com.scott.payment.job.entity.SysJobTaskDO;
+import com.scott.payment.job.support.PaymentCapabilityJobCodes;
 import com.scott.payment.job.mapper.SysJobRunLogMapper;
 import com.scott.payment.job.service.JobRunLogService;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,9 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         runLog.setSchedulerMode(context.getSchedulerMode().name());
         runLog.setExecuteMode(context.getExecuteMode().name());
         runLog.setExecutorNode(context.getExecutorNode());
+        if (PaymentCapabilityJobCodes.usesFencedLease(task.getHandlerCode())) {
+            runLog.setLeaseEpoch(task.getLeaseEpoch());
+        }
         runLog.setRunStatus(JobRunStatusEnum.WAITING.name());
         runLog.setRetryIndex(context.getRetryIndex());
         runLog.setMaxRetryCount(context.getMaxRetryCount());

@@ -1,6 +1,8 @@
 package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
@@ -14,6 +16,7 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,6 +46,15 @@ public class AdminTransactionOrderController {
      */
     public AdminTransactionOrderController(AdminTransactionApplicationService transactionApplicationService) {
         this.transactionApplicationService = transactionApplicationService;
+    }
+
+    /** 按商户和原 API 动作请求号查证无订单的准入拒绝。 */
+    @PostMapping("/openapi-admission-attempts/lookup")
+    @RequiresPermission("transaction:order:detail")
+    @OperationLog(moduleName = "交易主单管理", businessType = OperationTypeConstants.QUERY, operation = "查证 OpenAPI 建单前拒绝")
+    public CommonResult<OpenApiAdmissionAttemptResponse> findOpenApiAdmissionAttempt(
+            @Valid @RequestBody OpenApiAdmissionAttemptQuery query) {
+        return success(transactionApplicationService.findOpenApiAdmissionAttempt(query));
     }
 
     /**

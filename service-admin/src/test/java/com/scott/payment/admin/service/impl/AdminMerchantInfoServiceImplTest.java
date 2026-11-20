@@ -190,7 +190,8 @@ class AdminMerchantInfoServiceImplTest {
                 mock(AdminMerchantSecurityNotificationService.class),
                 mock(AdminMerchantStatusLifecycleService.class),
                 merchantOnboardingService,
-                merchantIdAllocationService
+                merchantIdAllocationService,
+                mock(com.scott.payment.admin.application.merchantpayment.AdminMerchantAdmissionInitialization.class)
         );
     }
 

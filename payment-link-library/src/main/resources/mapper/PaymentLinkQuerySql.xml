@@ -130,7 +130,7 @@
         SELECT COUNT(*) FROM (<include refid="com.scott.payment.link.query.PaymentLinkQuerySql.timelineFacts"/>) facts
     </sql>
     <sql id="detailMetadata">
-        SELECT merchant_id, allowed_brands_json, notify_url, redirect_url
+        SELECT merchant_id, allowed_brands_json, allowed_methods_json, notify_url, redirect_url
         FROM payment_link WHERE link_id = #{linkId}
     </sql>
 </mapper>

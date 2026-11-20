@@ -49,6 +49,8 @@ import com.scott.payment.payment.service.PaymentTransactionService;
 import com.scott.payment.payment.service.PaymentTransactionPreparationService;
 import com.scott.payment.payment.service.VoidChannelResultTransactionService;
 import com.scott.payment.payment.service.VoidTransactionPreparationService;
+import com.scott.payment.payment.service.capability.OpenApiAdmissionAttemptRecorder;
+import com.scott.payment.payment.service.capability.PaymentAdmissionRejectedException;
 import com.scott.payment.payment.service.dto.CapturePreparationResultDTO;
 import com.scott.payment.payment.service.dto.IncrementalAuthorizationPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
@@ -283,6 +285,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * Redis 物理 Key 构造配置，统一注入系统和环境隔离前缀。
      */
     private final PaymentRedisProperties redisProperties;
+
+    private OpenApiAdmissionAttemptRecorder openApiAdmissionAttemptRecorder;
+
+    @Autowired
+    void setOpenApiAdmissionAttemptRecorder(OpenApiAdmissionAttemptRecorder recorder) {
+        this.openApiAdmissionAttemptRecorder = recorder;
+    }
 
     /**
      * 创建收单支付交易服务。
@@ -743,9 +752,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                     commandDTO.getMerchantOrderNo(),
                     transactionType,
                     idempotencyKey);
-            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                    .map(record -> PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(record)))
-                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+            return recoverBusyInitialTransaction(commandDTO, transactionType, idempotencyKey);
         }
         PaymentInitialPreparationResultDTO preparationResultDTO;
         try {
@@ -757,13 +764,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                         commandDTO.getMerchantOrderNo(),
                         transactionType,
                         idempotencyKey);
-                return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                        .map(record -> PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(record)))
-                        .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+                return recoverBusyInitialTransaction(commandDTO, transactionType, idempotencyKey);
             }
             // 准备事务一次性提交动作事实、渠道请求 INIT、幂等记录和出站事实；此处不进行网络调用。
             preparationResultDTO = paymentTransactionPreparationService.prepareInitialTransaction(
                     commandDTO, transactionType);
+        } catch (PaymentAdmissionRejectedException rejection) {
+            if (!commandDTO.isTrustedOpenApiAdmissionRequest() || rejection.isReplay()) {
+                throw rejection;
+            }
+            return persistOpenApiAdmissionRejection(commandDTO, idempotencyKey, rejection);
         } finally {
             unlockPreparationLock(flowLockKey, flowLocked);
             unlockPreparationLock(operationLockKey, operationLocked);
@@ -782,6 +792,51 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 preparationResultDTO.getRiskDecisionEnum(),
                 preparationResultDTO.getRouteResultDTO() == null ? null : preparationResultDTO.getRouteResultDTO().getChannelCode());
         return preparationResultDTO;
+    }
+
+    private PaymentInitialPreparationResultDTO recoverBusyInitialTransaction(PaymentCreateCommandDTO command,
+                                                                               String transactionType,
+                                                                               String idempotencyKey) {
+        Optional<TransactionIdempotencyDO> existing;
+        if (command.isTrustedOpenApiAdmissionRequest()) {
+            existing = openApiAdmissionAttemptRecorder.findCommittedAction(idempotencyKey);
+        } else {
+            existing = transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey);
+        }
+        TransactionIdempotencyDO record = existing.orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        if (record.getTransactionId() == null && record.getResultSnapshot() != null) {
+            paymentTransactionPreparationService.recoverRejectedInitialTransaction(command, transactionType, record);
+        }
+        return PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(record));
+    }
+
+    private PaymentInitialPreparationResultDTO persistOpenApiAdmissionRejection(
+            PaymentCreateCommandDTO command, String idempotencyKey, PaymentAdmissionRejectedException rejection) {
+        TransactionIdempotencyDO record;
+        try {
+            record = openApiAdmissionAttemptRecorder.recordKnownRejection(command, idempotencyKey, rejection);
+        } catch (RuntimeException exception) {
+            // 提交结果不明时从主库按原动作键恢复。无权威结果时沿用同步结果不可确认的错误口径。
+            try {
+                record = openApiAdmissionAttemptRecorder.findCommittedAction(idempotencyKey).orElse(null);
+            } catch (RuntimeException recoveryFailure) {
+                exception.addSuppressed(recoveryFailure);
+                throw authoritativeResultUnavailable(exception);
+            }
+            if (record == null) {
+                throw authoritativeResultUnavailable(exception);
+            }
+        }
+        if (StringUtils.hasText(record.getRequestFingerprint())
+                && !Objects.equals(record.getRequestFingerprint(), command.getRequestFingerprint())) {
+            throw new ServiceException(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode(),
+                    "merchant order number already has a different payment request");
+        }
+        OpenApiAdmissionAttemptRecorder.rethrowIfRejected(record, command.getRequestFingerprint());
+        if (!StringUtils.hasText(record.getTransactionId())) {
+            throw new ServiceException(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS);
+        }
+        return PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(record));
     }
 
     /**

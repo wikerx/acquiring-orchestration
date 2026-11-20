@@ -1573,8 +1573,11 @@ class AdminFeeVersioningServiceTests {
         pending.setSubmitById(8L);
         pending.setSubmitByName("提交人");
         pending.setSettlementCurrency("USD");
+        when(fixture.versionMapper.selectById(21L)).thenReturn(pending);
         when(fixture.versionMapper.selectByIdForUpdate(21L)).thenReturn(pending);
+        when(fixture.planMapper.selectOne(any())).thenReturn(plan);
         when(fixture.planMapper.selectByIdForUpdate(1L)).thenReturn(plan);
+        when(fixture.merchantInfoMapper.selectOne(any())).thenReturn(new BaseMerchantInfoDO());
         when(fixture.versionMapper.selectList(any())).thenReturn(List.of(pending));
         when(fixture.ruleMapper.selectList(any())).thenReturn(List.of());
 
@@ -1588,6 +1591,38 @@ class AdminFeeVersioningServiceTests {
         assertThat(pending.getVersionStatus()).isEqualTo("ACTIVE");
     }
 
+    @Test
+    void shouldLockMerchantPlanAndFeeVersionsInPaymentProtectionOrder() {
+        Fixture fixture = new Fixture();
+        FeePlanDO plan = merchantPlan(1L, "M10001");
+        plan.setCurrentVersionId(20L);
+        FeePlanVersionDO current = version(20L, 1L, 3, "ACTIVE");
+        FeePlanVersionDO pending = version(21L, 1L, 4, "PENDING_REVIEW");
+        pending.setSubmitById(8L);
+        when(fixture.versionMapper.selectById(21L)).thenReturn(pending);
+        when(fixture.planMapper.selectOne(any())).thenReturn(plan);
+        when(fixture.merchantInfoMapper.selectOne(any())).thenReturn(new BaseMerchantInfoDO());
+        when(fixture.planMapper.selectByIdForUpdate(1L)).thenReturn(plan);
+        when(fixture.versionMapper.selectByIdForUpdate(20L)).thenReturn(current);
+        when(fixture.versionMapper.selectByIdForUpdate(21L)).thenReturn(pending);
+        when(fixture.versionMapper.selectList(any())).thenReturn(List.of(current, pending));
+        when(fixture.ruleMapper.selectList(any())).thenReturn(List.of());
+
+        fixture.service.approveVersion(21L, "同意", 9L, "审核人");
+
+        var order = org.mockito.Mockito.inOrder(
+                fixture.merchantInfoMapper, fixture.planMapper, fixture.versionMapper, fixture.approvalEvents);
+        order.verify(fixture.merchantInfoMapper).selectOne(any());
+        order.verify(fixture.planMapper).selectByIdForUpdate(1L);
+        order.verify(fixture.versionMapper).selectByIdForUpdate(20L);
+        order.verify(fixture.versionMapper).selectByIdForUpdate(21L);
+        order.verify(fixture.planMapper).updateById(plan);
+        order.verify(fixture.approvalEvents).publishEvent(
+                org.mockito.ArgumentMatchers.argThat((Object value) ->
+                        value instanceof com.scott.payment.admin.application.merchantpayment.MerchantPaymentFeeChangedEvent event
+                                && "M10001".equals(event.merchantId()) && Long.valueOf(21L).equals(event.versionId())));
+    }
+
     /**
      * 提交人不能审核自己提交的费用版本。
      */
@@ -1597,7 +1632,7 @@ class AdminFeeVersioningServiceTests {
         FeePlanVersionDO pending = version(21L, 1L, 4, "PENDING_REVIEW");
         pending.setSubmitById(8L);
         pending.setSubmitByName("同一人");
-        when(fixture.versionMapper.selectByIdForUpdate(21L)).thenReturn(pending);
+        when(fixture.versionMapper.selectById(21L)).thenReturn(pending);
 
         assertThatThrownBy(() -> fixture.service.approveVersion(21L, "同意", 8L, "同一人"))
                 .isInstanceOf(ServiceException.class)
@@ -1634,7 +1669,9 @@ class AdminFeeVersioningServiceTests {
         FeePlanVersionDO pending = version(21L, 1L, 4, "PENDING_REVIEW");
         pending.setSubmitById(8L);
         pending.setSubmitByName("提交人");
+        when(fixture.versionMapper.selectById(21L)).thenReturn(pending);
         when(fixture.versionMapper.selectByIdForUpdate(21L)).thenReturn(pending);
+        when(fixture.planMapper.selectOne(any())).thenReturn(plan);
         when(fixture.planMapper.selectByIdForUpdate(1L)).thenReturn(plan);
         when(fixture.versionMapper.selectOne(any())).thenReturn(current).thenReturn(null);
         when(fixture.versionMapper.selectList(any())).thenReturn(List.of(pending, current));
@@ -1940,10 +1977,12 @@ class AdminFeeVersioningServiceTests {
                 mock(AdminMerchantSettlementCurrencyService.class);
         private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator =
                 mock(ManagedCacheInvalidationCoordinator.class);
+        private final org.springframework.context.ApplicationEventPublisher approvalEvents =
+                mock(org.springframework.context.ApplicationEventPublisher.class);
         private final AdminFeeServiceImpl service = new AdminFeeServiceImpl(
                 planMapper, versionMapper, ruleMapper, tierMapper, simulationMapper, simulationDetailMapper,
                 merchantInfoMapper, new AdminFeeSimulationCalculator(), settlementRateResolver,
-                settlementCurrencyService, cacheInvalidationCoordinator);
+                settlementCurrencyService, cacheInvalidationCoordinator, approvalEvents);
 
         private Fixture() {
             when(settlementCurrencyService.validateConfiguredCurrency(any())).thenReturn("USD");

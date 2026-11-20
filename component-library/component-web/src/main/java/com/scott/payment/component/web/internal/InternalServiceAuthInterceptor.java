@@ -22,6 +22,9 @@ import java.util.regex.Pattern;
  */
 public class InternalServiceAuthInterceptor implements HandlerInterceptor {
 
+    /** 仅完整通过 HMAC、路径授权和 nonce 校验后设置，禁止使用普通请求头替代。 */
+    public static final String AUTHENTICATED_CALLER_ATTRIBUTE = "com.scott.payment.internal.authenticatedCaller";
+
     /**
      * 调用方服务标识允许的格式。
      */
@@ -68,6 +71,7 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
+        request.removeAttribute(AUTHENTICATED_CALLER_ATTRIBUTE);
         if (!properties.isEnabled() || isWhitelisted(request.getRequestURI())) {
             return true;
         }
@@ -114,6 +118,7 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
             writeError(response, ApiResultEnum.UNAUTHORIZED.getCode(), "internal service request is replayed");
             return false;
         }
+        request.setAttribute(AUTHENTICATED_CALLER_ATTRIBUTE, caller);
         return true;
     }
 

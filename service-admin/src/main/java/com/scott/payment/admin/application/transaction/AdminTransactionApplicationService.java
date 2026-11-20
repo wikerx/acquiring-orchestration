@@ -15,6 +15,8 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNoti
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
@@ -25,6 +27,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.enums.RefundReasonEnum;
 import com.scott.payment.component.core.model.RefundContext;
@@ -154,6 +157,8 @@ public class AdminTransactionApplicationService {
      */
     private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
+    private final AdminMerchantDataScopeResolver merchantDataScopeResolver;
+
     /**
      * 创建管理后台交易查询应用服务。
      *
@@ -171,7 +176,8 @@ public class AdminTransactionApplicationService {
                                               ExcelI18nMessageResolver excelI18nMessageResolver,
                                               ExcelLocaleResolver excelLocaleResolver,
                                               TransactionShardingProperties shardingProperties,
-                                              RedisConcurrencyLimiter exportConcurrencyLimiter) {
+                                              RedisConcurrencyLimiter exportConcurrencyLimiter,
+                                              AdminMerchantDataScopeResolver merchantDataScopeResolver) {
         this.paymentInternalClient = paymentInternalClient;
         this.transactionQueryService = transactionQueryService;
         this.excelExportService = excelExportService;
@@ -179,6 +185,17 @@ public class AdminTransactionApplicationService {
         this.excelLocaleResolver = excelLocaleResolver;
         this.shardingProperties = shardingProperties;
         this.exportConcurrencyLimiter = exportConcurrencyLimiter;
+        this.merchantDataScopeResolver = merchantDataScopeResolver;
+    }
+
+    /** 查询当前 Admin 账号范围内的无系统订单 OpenAPI 准入尝试。 */
+    public OpenApiAdmissionAttemptResponse findOpenApiAdmissionAttempt(OpenApiAdmissionAttemptQuery query) {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account == null || account.getAppId() == null || account.getAccountId() == null
+                || !"ADMIN".equalsIgnoreCase(account.getAppCode())) {
+            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
+        }
+        return transactionQueryService.findOpenApiAdmissionAttempt(query, merchantDataScopeResolver.resolve(account));
     }
 
     /**

@@ -84,6 +84,8 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
      */
     @Valid
     private List<AllowedPaymentMethodDTO> allowedPaymentMethods;
+    /** 仅付款链接归属服务在主库重新核对已冻结的新范围后设置。 */
+    private boolean explicitLinkMethodScope;
 
     /**
      * 平台收银台前端受控基础地址。
@@ -182,5 +184,7 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
          * 当前支付方式的 3DS 执行模式。
          */
         private String threeDsMode;
+        /** 标记由付款链接域核验的新范围；历史数组条目缺省为 false。 */
+        private boolean linkScopeVerified;
     }
 }

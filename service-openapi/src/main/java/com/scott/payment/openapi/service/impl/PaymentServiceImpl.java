@@ -33,6 +33,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * 编排商户支付类请求转换、内部支付调用和公开结果投影，不直接修改支付核心状态。
@@ -45,6 +46,8 @@ public class PaymentServiceImpl implements PaymentService {
      * 默认卡交易支付方式，后续可由外部请求或商户产品配置显式传入。
      */
     private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
+
+    private static final ZoneId PAYMENT_BUSINESS_TIME_ZONE = ZoneId.of("Asia/Shanghai");
 
     /**
      * 请求来源请求头。
@@ -435,7 +438,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         clientRequestDTO.setRequestFingerprint(keyMaterialFactory.fingerprint(encryptedData));
         clientRequestDTO.setOpenApiRequestPath(resolveRequestPath());
-        clientRequestDTO.setOpenApiRequestTime(LocalDateTime.now());
+        clientRequestDTO.setOpenApiRequestTime(LocalDateTime.now(PAYMENT_BUSINESS_TIME_ZONE));
         clientRequestDTO.setMerchantRequestCipherMasked(maskCipher(encryptedData));
         clientRequestDTO.setMerchantRequestPlainJsonMasked(
                 SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(JsonUtils.toJsonString(requestDTO)));

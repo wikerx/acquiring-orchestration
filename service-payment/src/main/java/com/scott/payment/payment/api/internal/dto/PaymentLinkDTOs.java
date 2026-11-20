@@ -73,6 +73,8 @@ public final class PaymentLinkDTOs {
         private Integer currencyExponent;
         private String locale;
         private List<String> cardBrands = List.of();
+        private List<String> paymentMethodKeys;
+        private Boolean paymentAvailable;
         private String status;
         private String paymentStatus;
         private Integer attemptCount;
@@ -103,6 +105,8 @@ public final class PaymentLinkDTOs {
         private String locale;
         private String status;
         private boolean payable;
+        /** 存在可查看的真实方式，前端未接通的方式仍允许进入收银台查看。 */
+        private boolean checkoutAvailable;
         private boolean processing;
         /** 仅最新尝试已确认失败时返回，不含其他付款人的身份或渠道原文。 */
         private LocalDateTime lastFailedTime;

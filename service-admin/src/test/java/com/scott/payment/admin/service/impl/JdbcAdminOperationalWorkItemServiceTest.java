@@ -18,6 +18,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -31,6 +32,41 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * JDBC 驱动对列标签的实际解析行为。</p>
  */
 class JdbcAdminOperationalWorkItemServiceTest {
+
+    @Test
+    void paymentCapabilityMaintainsOneIndependentSourceAndChecksAuthoritativeRevision() {
+        JdbcDataSource dataSource = dataSource();
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        prepareSchema(jdbc);
+        jdbc.update("""
+                INSERT INTO base_merchant_info (merchant_id, merchant_name, deleted, payment_authorization_revision)
+                VALUES ('merchant-1', 'Example Merchant', 0, 7)
+                """);
+        var service = new JdbcAdminOperationalWorkItemService(new NamedParameterJdbcTemplate(dataSource),
+                new TransactionLogicalReadExecutor(), new RiskAuditLogicalReadExecutor(), new RiskAuditShardingProperties(),
+                new AdminOperationalWorkItemProperties(), new DataSourceTransactionManager(dataSource));
+        String type = JdbcAdminOperationalWorkItemService.PAYMENT_METHOD_CONFIGURATION;
+        String key = "merchant-1:CARD_BRAND:VISA";
+        LocalDateTime first = LocalDateTime.of(2026, 11, 20, 19, 0);
+        var blocked = new JdbcAdminOperationalWorkItemService.CapabilityBasis("BLOCKED",
+                List.of("FEE_MISSING", "MID_MISSING"), 7L, first);
+        service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
+                true, blocked, first);
+        service.synchronize(syncRequest("LEGACY-SYNC", first.plusSeconds(1)));
+        assertThat(jdbc.queryForObject("SELECT work_status FROM admin_operational_work_item", String.class)).isEqualTo("OPEN");
+
+        var ready = new JdbcAdminOperationalWorkItemService.CapabilityBasis("READY", List.of(), 7L, first.plusSeconds(2));
+        assertThat(service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
+                false, ready, first.plusSeconds(2))).isNotNull();
+        assertThat(service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1", "CARD_BRAND:VISA",
+                true, blocked, first)).isNull();
+        assertThat(jdbc.queryForObject("SELECT work_status FROM admin_operational_work_item", String.class)).isEqualTo("CLOSED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(1) FROM admin_operational_work_item_history", Integer.class)).isEqualTo(2);
+
+        jdbc.update("UPDATE base_merchant_info SET payment_authorization_revision = 8");
+        assertThatThrownBy(() -> service.synchronizePaymentCapability(type, key, "merchant-1", "merchant-1",
+                "CARD_BRAND:VISA", true, blocked, first)).hasMessageContaining("changed during evaluation");
+    }
 
     /**
      * 商户通知的 fail_reason 必须通过统一 failure_reason 列标签进入待办摘要。
@@ -618,6 +654,7 @@ class JdbcAdminOperationalWorkItemServiceTest {
                     latest_remark VARCHAR(1000),
                     version BIGINT NOT NULL,
                     source_projection_version INT NOT NULL DEFAULT 0,
+                    source_basis_json VARCHAR(8192),
                     merchant_id VARCHAR(64),
                     merchant_name VARCHAR(128),
                     business_no VARCHAR(128),
@@ -677,6 +714,7 @@ class JdbcAdminOperationalWorkItemServiceTest {
                 CREATE TABLE base_merchant_info (
                     merchant_id VARCHAR(64) PRIMARY KEY,
                     merchant_name VARCHAR(128) NOT NULL,
+                    payment_authorization_revision BIGINT NOT NULL DEFAULT 0,
                     deleted TINYINT NOT NULL
                 )
                 """);

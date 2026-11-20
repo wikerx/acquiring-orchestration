@@ -239,6 +239,8 @@ public final class EmailEntities {
          * 持久化的{@code bizNo}，用于还原当前记录的业务事实。
          */
         private String bizNo;
+        private byte[] businessNotificationKey;
+        private byte[] businessNotificationPayloadHash;
         private Integer sendStatus;
         /**
          * 重试次数，用于记录 MQ、任务或商户通知当前已执行的重试轮次。

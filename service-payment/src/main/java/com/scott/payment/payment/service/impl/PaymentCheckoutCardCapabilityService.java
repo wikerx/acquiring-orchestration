@@ -41,6 +41,7 @@ public class PaymentCheckoutCardCapabilityService {
 
     private final MerchantRouteProfileCacheService routeProfileCacheService;
     private final CardBinCacheReader cardBinCacheReader;
+    private final com.scott.payment.link.service.PaymentLinkMethodScope linkMethodScope;
 
     /**
      * 创建收银台银行卡能力服务。
@@ -50,8 +51,16 @@ public class PaymentCheckoutCardCapabilityService {
      */
     public PaymentCheckoutCardCapabilityService(MerchantRouteProfileCacheService routeProfileCacheService,
                                                 CardBinCacheReader cardBinCacheReader) {
+        this(routeProfileCacheService, cardBinCacheReader, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PaymentCheckoutCardCapabilityService(MerchantRouteProfileCacheService routeProfileCacheService,
+                                                CardBinCacheReader cardBinCacheReader,
+                                                com.scott.payment.link.service.PaymentLinkMethodScope linkMethodScope) {
         this.routeProfileCacheService = routeProfileCacheService;
         this.cardBinCacheReader = cardBinCacheReader;
+        this.linkMethodScope = linkMethodScope;
     }
 
     /**
@@ -77,6 +86,20 @@ public class PaymentCheckoutCardCapabilityService {
                 ? null : requestedMethods.stream().map(this::managementMethod).toList();
         return resolver.resolve(routeProfileCacheService.findRouteProfile(merchantId), requested, currency, LocalDateTime.now())
                 .stream().map(this::checkoutMethod).toList();
+    }
+
+    /** 已核验链接按原方式取交集，配置变更不会扩大或恢复该会话的冻结范围。 */
+    public List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> revalidateLinkScope(
+            String merchantId, String currency,
+            List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> methods) {
+        if (linkMethodScope == null) {
+            return List.of();
+        }
+        List<String> keys = methods.stream().flatMap(method -> "BANK_CARD".equals(method.getPaymentMethod())
+                        ? method.getBrands().stream().map(brand -> "CARD_BRAND:" + brand)
+                        : java.util.stream.Stream.of("METHOD:" + method.getPaymentMethod()))
+                .distinct().toList();
+        return linkMethodScope.resolve(merchantId, currency, keys, false).stream().map(this::checkoutMethod).toList();
     }
 
     /**

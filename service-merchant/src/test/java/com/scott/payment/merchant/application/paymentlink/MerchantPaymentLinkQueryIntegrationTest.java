@@ -62,9 +62,8 @@ class MerchantPaymentLinkQueryIntegrationTest {
         for (String table : List.of("payment_checkout_session", "payment_checkout_attempt", "payment_checkout_event", "transaction_locator", "admin_payment_link_delivery_request", "merchant_payment_link_delivery_request", "msg_email_send_record")) {
             ddl(canonical, table);
         }
-        String schema = Files.readString(Path.of("../docs/sql/20261117_01_payment_link_schema.sql"));
         for (String table : List.of("payment_link", "payment_link_collection", "payment_link_checkout_binding", "payment_link_event")) {
-            ddl(schema, table);
+            ddl(canonical, table);
         }
         MybatisConfiguration config = new MybatisConfiguration();
         config.setMapUnderscoreToCamelCase(true);

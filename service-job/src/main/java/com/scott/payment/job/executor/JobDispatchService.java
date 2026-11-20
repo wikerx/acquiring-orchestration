@@ -21,6 +21,7 @@ import com.scott.payment.job.service.JobTaskService;
 import com.scott.payment.job.service.JobTaskTimingService;
 import com.scott.payment.job.support.JobNodeContext;
 import com.scott.payment.job.support.JobParameterMasker;
+import com.scott.payment.job.support.PaymentCapabilityJobCodes;
 import com.scott.payment.job.support.TraceIdSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -108,6 +109,10 @@ public class JobDispatchService {
         if (!JobStatusEnum.ENABLED.name().equals(task.getStatus())) {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "job task is disabled");
         }
+        if (PaymentCapabilityJobCodes.usesFencedLease(task.getHandlerCode())
+                && Boolean.FALSE.equals(jobHandlerRegistry.getRequiredDescriptor(task.getHandlerCode()).getAllowManualTrigger())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "job handler does not allow manual trigger");
+        }
         LocalDateTime triggerTime = LocalDateTime.now();
         boolean acquired = jobTaskService.tryAcquireLock(task, jobNodeContext.nodeId(), triggerTime);
         if (!acquired) {
@@ -132,7 +137,7 @@ public class JobDispatchService {
         jobFutureRegistry.cancel(runLog.getRunId());
         boolean updated = jobRunLogService.finishAsTimeout(runLog);
         if (updated) {
-            finishTaskRun(runLog.getJobId(), JobRunStatusEnum.TIMEOUT, runLog.getRunId());
+            finishTaskRun(runLog.getJobId(), runLog, JobRunStatusEnum.TIMEOUT);
         }
     }
 
@@ -161,9 +166,20 @@ public class JobDispatchService {
         }
         JobExecuteContext context = buildContext(task, triggerType, paramsJson, operatorId, operatorName, retryIndex, traceId);
         LocalDateTime triggerTime = context.getActualTriggerTime();
-        jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), calculateLockUntil(task, triggerTime));
+        boolean fenced = PaymentCapabilityJobCodes.usesFencedLease(task.getHandlerCode());
+        if (!renewLease(task, triggerTime)) {
+            throw new ServiceException(ApiResultEnum.NETWORK_BUSY.getCode(), "job execution lease was lost");
+        }
         if (triggerType == JobTriggerTypeEnum.SCHEDULE) {
-            jobTaskService.markScheduled(task.getId(), triggerTime, jobTaskTimingService.calculateNextTriggerTime(task, triggerTime));
+            LocalDateTime nextTriggerTime = jobTaskTimingService.calculateNextTriggerTime(task, triggerTime);
+            if (fenced) {
+                if (!jobTaskService.markFencedScheduled(task.getId(), jobNodeContext.nodeId(), task.getLeaseEpoch(),
+                        triggerTime, nextTriggerTime)) {
+                    throw new ServiceException(ApiResultEnum.NETWORK_BUSY.getCode(), "job execution lease was lost");
+                }
+            } else {
+                jobTaskService.markScheduled(task.getId(), triggerTime, nextTriggerTime);
+            }
         }
         SysJobRunLogDO runLog = jobRunLogService.createWaitingLog(task, context, JobParameterMasker.mask(paramsJson));
         jobRunLogService.markRunning(runLog.getId());
@@ -174,7 +190,7 @@ public class JobDispatchService {
                 : null;
         if (asyncJobHandler != null || descriptor.getExecuteMode() == JobExecuteModeEnum.ASYNC) {
             executeAsync(task, context, runLog, asyncJobHandler != null ? asyncJobHandler : castAsync(handler));
-        } else if (triggerType == JobTriggerTypeEnum.MANUAL) {
+        } else if (triggerType == JobTriggerTypeEnum.MANUAL || fenced) {
             executeDetachedSync(task, context, runLog, handler);
         } else {
             executeSync(task, context, runLog, handler);
@@ -315,7 +331,7 @@ public class JobDispatchService {
         }
         if (result != null && result.isSuccess()) {
             jobRunLogService.finishAsSuccess(runLog.getId(), durationMs, result.getMessage());
-            finishTaskRun(task.getId(), JobRunStatusEnum.SUCCESS, context.getRunId());
+            finishTaskRun(task.getId(), runLog, JobRunStatusEnum.SUCCESS);
             logJobEnd(context, durationMs, JobRunStatusEnum.SUCCESS.name(), null);
             return;
         }
@@ -328,18 +344,30 @@ public class JobDispatchService {
                 return;
             }
         }
-        finishTaskRun(task.getId(), JobRunStatusEnum.FAILED, context.getRunId());
+        finishTaskRun(task.getId(), runLog, JobRunStatusEnum.FAILED);
         logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
     }
 
     /**
      * 释放当前节点持有的任务锁；锁已转移时保留新持有者并记录可观测告警。
      */
-    private void finishTaskRun(Long taskId, JobRunStatusEnum status, String runId) {
-        if (!jobTaskService.finishTaskRun(taskId, status, jobNodeContext.nodeId())) {
+    private void finishTaskRun(Long taskId, SysJobRunLogDO runLog, JobRunStatusEnum status) {
+        boolean done = runLog.getLeaseEpoch() == null
+                ? jobTaskService.finishTaskRun(taskId, status, jobNodeContext.nodeId())
+                : jobTaskService.finishFencedRun(taskId, runLog.getExecutorNode(), runLog.getLeaseEpoch(), status);
+        if (!done) {
             log.warn("任务锁释放被跳过, event: JOB_TASK_LOCK_RELEASE_SKIPPED, jobId: {}, runId: {}, status: {}, nodeId: {}",
-                    taskId, runId, status.name(), jobNodeContext.nodeId());
+                    taskId, runLog.getRunId(), status.name(), jobNodeContext.nodeId());
         }
+    }
+
+    private boolean renewLease(SysJobTaskDO task, LocalDateTime now) {
+        LocalDateTime lockUntil = calculateLockUntil(task, now);
+        if (PaymentCapabilityJobCodes.usesFencedLease(task.getHandlerCode())) {
+            return jobTaskService.renewFencedLock(task.getId(), jobNodeContext.nodeId(), task.getLeaseEpoch(), lockUntil);
+        }
+        jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), lockUntil);
+        return true;
     }
 
     /**
@@ -354,7 +382,9 @@ public class JobDispatchService {
      */
     private boolean scheduleRetry(SysJobTaskDO task, JobExecuteContext context, int retryIndex) {
         try {
-            jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), calculateLockUntil(task, LocalDateTime.now()));
+            if (!renewLease(task, LocalDateTime.now())) {
+                return false;
+            }
             jobDelayTaskScheduler.schedule(
                     () -> dispatch(task, JobTriggerTypeEnum.RETRY, context.getParamsJson(), context.getOperatorId(), context.getOperatorName(), retryIndex, context.getTraceId()),
                     Instant.now().plusSeconds(task.getRetryIntervalSeconds())

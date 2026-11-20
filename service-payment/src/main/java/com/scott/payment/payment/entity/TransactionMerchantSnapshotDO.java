@@ -70,6 +70,8 @@ public class TransactionMerchantSnapshotDO implements Serializable {
      * 持久化的{@code feeConfigSnapshotJson}，用于还原当前记录的业务事实。
      */
     private String feeConfigSnapshotJson;
+    /** 首次受理提交时记录的准入事实，历史交易无该字段。 */
+    private String paymentAdmissionSnapshotJson;
     /**
      * 持久化的{@code internalRiskConfigSnapshotJson}，用于还原当前记录的业务事实。
      */

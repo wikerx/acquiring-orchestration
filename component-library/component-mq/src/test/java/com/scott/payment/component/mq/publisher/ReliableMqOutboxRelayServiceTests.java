@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,6 +30,25 @@ import static org.mockito.Mockito.when;
  */
 @Slf4j
 class ReliableMqOutboxRelayServiceTests {
+
+    @Test
+    void paymentCapabilityRecoveryUsesOnlyTheDedicatedOwnerScope() {
+        ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
+        MqProducer producer = mock(MqProducer.class);
+        ReliableMqOutboxRelayService unauthorized = new ReliableMqOutboxRelayService(
+                store, producer, new ReliableMqOutboxProperties(), "service-payment");
+        assertThatThrownBy(() -> unauthorized.recoverPaymentCapabilityDelivery(100))
+                .hasMessageContaining("owned by service-admin");
+        verifyNoInteractions(store);
+
+        ReliableMqOutboxRelayService admin = new ReliableMqOutboxRelayService(
+                store, producer, new ReliableMqOutboxProperties(), "service-admin");
+        when(store.findPaymentCapabilityDue(any(), eq(100))).thenReturn(List.of());
+        assertThat(admin.recoverPaymentCapabilityDelivery(500)).isZero();
+        verify(store).recoverPaymentCapabilityStale(any(), any(), eq(100));
+        verify(store, never()).findDue(any(), any(), any(Integer.class));
+        verifyNoInteractions(producer);
+    }
 
     /**
      * CAS 抢占成功后应发送冻结 JSON，并以抢占后的版本标记 SENT。

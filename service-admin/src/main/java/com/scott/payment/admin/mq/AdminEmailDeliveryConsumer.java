@@ -3,6 +3,7 @@ package com.scott.payment.admin.mq;
 import com.scott.payment.admin.service.impl.AdminEmailDeliveryService;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.db.outbox.mapper.ReliableMqOutboxMapper;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.EmailDeliveryMessage;
@@ -23,7 +24,7 @@ import org.springframework.util.StringUtils;
 @RocketMQMessageListener(
         topic = MqTopic.EMAIL_DELIVERY,
         consumerGroup = AdminMqConsumerGroups.EMAIL_DELIVERY,
-        selectorExpression = MqTag.ADMIN_EMAIL_DELIVERY,
+        selectorExpression = MqTag.ADMIN_EMAIL_DELIVERY + " || " + ReliableMqOutboxMapper.CAPABILITY_MAIL_TAG,
         messageModel = MessageModel.CLUSTERING
 )
 public class AdminEmailDeliveryConsumer implements RocketMQListener<String> {

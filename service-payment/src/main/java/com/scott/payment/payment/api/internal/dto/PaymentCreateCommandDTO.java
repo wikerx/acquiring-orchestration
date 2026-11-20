@@ -17,6 +17,18 @@ import java.util.Map;
  */
 @Data
 public class PaymentCreateCommandDTO implements Serializable {
+    /** 仅服务端保护事务固定的费用及准入证据，不参与任何协议序列化。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @lombok.ToString.Exclude
+    private transient com.scott.payment.payment.service.dto.FrozenMerchantFeeVersionSnapshotDTO protectedFeeVersion;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @lombok.ToString.Exclude
+    private transient String paymentAdmissionSnapshotJson;
+
+    /** 仅首次交易内部 Controller 确认的 OpenAPI 服务身份，禁止从请求体绑定。 */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @lombok.ToString.Exclude
+    private transient boolean trustedOpenApiAdmissionRequest;
 
     /**
      * 序列化版本号，用于服务间 JSON 传输兼容。

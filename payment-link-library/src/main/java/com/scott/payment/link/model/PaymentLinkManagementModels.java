@@ -34,6 +34,9 @@ public final class PaymentLinkManagementModels {
         private String locale = "en-US";
         @Size(max = 16)
         private List<@Pattern(regexp = "[A-Z_]{2,40}") String> cardBrands;
+        /** 新业务契约明确选择的规范支付方式键，旧卡品牌请求继续兼容。 */
+        @Size(min = 1, max = 32)
+        private List<@NotBlank @Pattern(regexp = "(CARD_BRAND|METHOD):[A-Z][A-Z0-9_]{0,51}") String> paymentMethodKeys;
         @Size(max = 512)
         @lombok.ToString.Exclude
         private String notifyUrl;
@@ -68,6 +71,8 @@ public final class PaymentLinkManagementModels {
         private List<String> currencies = List.of();
         /** 商户当前币种的完整支付方式，仅作展示；首批链接仍仅授权银行卡。 */
         private Map<String, List<String>> paymentMethodsByCurrency = Map.of();
+        /** 新准入模式下基于授权、费率和通道配置生成的可选规范方式。 */
+        private Map<String, List<String>> paymentMethodKeysByCurrency;
         private Map<String, List<String>> cardBrandsByCurrency = Map.of();
         private List<String> cardBrands = List.of();
         private List<String> locales = List.of("en-US", "zh-CN", "AUTO");

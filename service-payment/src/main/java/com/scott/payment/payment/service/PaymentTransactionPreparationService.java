@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service;
 
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
+import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 
 /**
@@ -18,4 +19,9 @@ public interface PaymentTransactionPreparationService {
      * @return 本地准备结果
      */
     PaymentInitialPreparationResultDTO prepareInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType);
+
+    /** 锁繁忙时按原规范指纹恢复无订单的拒绝，普通已建单幂等由调用方继续处理。 */
+    default void recoverRejectedInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType,
+                                                    TransactionIdempotencyDO existing) {
+    }
 }

@@ -52,8 +52,7 @@ class PaymentLinkManagementIntegrationTest {
         source.setUsername("sa"); source.setPassword(""); source.setMaximumPoolSize(6); db = new JdbcTemplate(source);
         String canonical = Files.readString(Path.of("../docs/sql/payment_acquiring_表结构.sql"));
         for (var table : List.of("payment_checkout_session", "transaction_idempotency", "channel_info", "channel_mid_config", "merchant_channel_mid_binding", "channel_payment_capability", "channel_capability_currency", "channel_capability_card_brand")) ddl(canonical, table);
-        String schema = Files.readString(Path.of("../docs/sql/20261117_01_payment_link_schema.sql"));
-        for (var table : List.of("payment_link", "payment_link_access", "payment_link_event", "payment_link_collection", "payment_link_checkout_binding")) ddl(schema, table);
+        for (var table : List.of("payment_link", "payment_link_access", "payment_link_event", "payment_link_collection", "payment_link_checkout_binding")) ddl(canonical, table);
         var config = new MybatisConfiguration(); config.setMapUnderscoreToCamelCase(true);
         config.setEnvironment(new Environment("isolated", new SpringManagedTransactionFactory(), source));
         for (var type : List.of(PaymentLinkManagementMapper.class, PaymentLinkManagementAccessMapper.class, PaymentLinkManagementEventMapper.class, PaymentLinkCapabilityMapper.class)) config.addMapper(type);

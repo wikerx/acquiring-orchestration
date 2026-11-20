@@ -53,8 +53,11 @@ public class PaymentLinkManagementService {
             PaymentLinkCreationFingerprint.requireMatch(existing, input, amount);
             return existing.getLinkId();
         }
-        List<AllowedMethod> methods =
-                policy.allowedMethods(merchantId, input.getCurrency(), input.getCardBrands());
+        List<String> explicitKeys = input.getPaymentMethodKeys() == null
+                ? null : PaymentLinkCreationFingerprint.normalizedKeys(input);
+        List<AllowedMethod> methods = explicitKeys == null
+                ? policy.allowedMethods(merchantId, input.getCurrency(), input.getCardBrands())
+                : policy.resolveMethodScope(merchantId, input.getCurrency(), explicitKeys, true);
         String orderNo = input.getMerchantOrderNo() == null || input.getMerchantOrderNo().isBlank()
                 ? ids.nextId() : input.getMerchantOrderNo().trim();
         if (!orderNo.matches("[A-Za-z0-9_.:-]{1,64}")) {
@@ -71,6 +74,9 @@ public class PaymentLinkManagementService {
         link.setLinkName(input.getLinkName() == null ? "" : input.getLinkName().trim()); link.setDescription(blankToNull(input.getDescription()));
         link.setCurrency(input.getCurrency()); link.setAmount(amount); link.setCurrencyExponent(policy.exponent(input.getCurrency()));
         link.setAllowedBrandsJson(JsonUtils.toJsonString(methods.stream().flatMap(method -> method.getBrands().stream()).distinct().sorted().toList()));
+        if (explicitKeys != null) {
+            link.setAllowedMethodsJson(PaymentLinkMethodScope.serialize(explicitKeys));
+        }
         link.setMerchantDisplayName(merchant.getMerchantName()); link.setLocale(input.getLocale());
         link.setNotifyUrl(blankToNull(input.getNotifyUrl())); link.setRedirectUrl(blankToNull(input.getRedirectUrl()));
         link.setStatus(PaymentLinkStatus.ACTIVE.name());

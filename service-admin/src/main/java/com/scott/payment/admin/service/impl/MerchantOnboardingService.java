@@ -963,6 +963,7 @@ public class MerchantOnboardingService {
     private List<MerchantOnboardingDTOs.ReviewRecord> loadReviewRecords(String merchantId) {
         return reviewRecordMapper.selectList(Wrappers.<MerchantReviewRecordDO>lambdaQuery()
                         .eq(MerchantReviewRecordDO::getMerchantId, merchantId)
+                        .in(MerchantReviewRecordDO::getReviewScope, "ONBOARDING", "PROFILE_CHANGE")
                         .orderByDesc(MerchantReviewRecordDO::getGmtCreate)
                         .orderByDesc(MerchantReviewRecordDO::getId))
                 .stream().map(this::toReviewRecord).toList();

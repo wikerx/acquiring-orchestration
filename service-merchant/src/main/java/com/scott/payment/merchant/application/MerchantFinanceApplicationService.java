@@ -10,6 +10,7 @@ import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.merchant.converter.MerchantExportConverter;
+import com.scott.payment.merchant.application.merchantpayment.MerchantPaymentLinkedProjection;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.CurrentFeeResponse;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.DetailQuery;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundAccountResponse;
@@ -37,6 +38,7 @@ public class MerchantFinanceApplicationService {
     private final ExcelExportService excelExportService;
     private final ExcelI18nMessageResolver messageResolver;
     private final ExcelLocaleResolver localeResolver;
+    private final MerchantPaymentLinkedProjection paymentProjection;
 
     /**
      * 构造商户财务应用服务。
@@ -49,11 +51,13 @@ public class MerchantFinanceApplicationService {
     public MerchantFinanceApplicationService(MerchantFinanceService financeService,
                                              ExcelExportService excelExportService,
                                              ExcelI18nMessageResolver messageResolver,
-                                             ExcelLocaleResolver localeResolver) {
+                                             ExcelLocaleResolver localeResolver,
+                                             MerchantPaymentLinkedProjection paymentProjection) {
         this.financeService = financeService;
         this.excelExportService = excelExportService;
         this.messageResolver = messageResolver;
         this.localeResolver = localeResolver;
+        this.paymentProjection = paymentProjection;
     }
 
     /**
@@ -61,7 +65,10 @@ public class MerchantFinanceApplicationService {
      *
      * @return 当前商户已生效费率；未配置时返回 null
      */
-    public CurrentFeeResponse getCurrentFee() { return financeService.getCurrentFee(currentMerchantId()); }
+    public CurrentFeeResponse getCurrentFee() {
+        String merchant = currentMerchantId();
+        return paymentProjection.currentFee(merchant, financeService.getCurrentFee(merchant));
+    }
     /**
      * 从认证上下文绑定商户号并查询资金账户及实时汇总。
      *

@@ -13,11 +13,12 @@ public interface PaymentLinkCapabilityMapper {
     String SCOPE = " b.merchant_id = #{merchantId} AND b.deleted = 0 AND b.binding_status = 1 ";
     /** 读取启用的商户绑定、MID、渠道及收单能力，保留生效期限供解析器再过滤。 */
     @Select("SELECT b.binding_status, b.effective_time AS binding_effective_time, b.expire_time AS binding_expire_time, "
-            + "m.business_type, m.mid_status, m.effective_time AS mid_effective_time, m.expire_time AS mid_expire_time, "
+            + "m.business_type, m.id AS mid_config_id, m.mid_status, m.effective_time AS mid_effective_time, m.expire_time AS mid_expire_time, "
             + "m.payment_method_scope, m.card_brand_scope, m.currency_scope, m.transaction_type_scope, "
             + "c.channel_code, c.channel_status, c.support_acquiring, p.id AS capability_id, p.capability_status, "
             + "p.payment_method AS capability_payment_method, p.transaction_type AS capability_transaction_type, "
-            + "p.support_3ds AS capability_support3ds " + JOINS + " WHERE " + SCOPE + " ORDER BY b.id, p.sort_order, p.id")
+            + "p.sort_order AS capability_sort_order, p.support_3ds AS capability_support3ds "
+            + JOINS + " WHERE " + SCOPE + " ORDER BY b.id, p.sort_order, p.id")
     List<RouteOption> routes(@Param("merchantId") String merchantId);
     /** 按能力标识读取启用币种，与路由和 MID 的币种范围取交集后使用。 */
     @Select("SELECT p.id AS capability_id, v.currency_code AS code " + JOINS

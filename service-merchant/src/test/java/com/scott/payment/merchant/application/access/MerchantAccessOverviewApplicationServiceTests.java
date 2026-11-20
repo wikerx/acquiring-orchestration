@@ -1,6 +1,9 @@
 package com.scott.payment.merchant.application.access;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.merchant.application.merchantpayment.MerchantPaymentLinkedProjection;
+import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.AccessSummary;
+import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.KnownCapability;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialVO;
@@ -132,7 +135,8 @@ class MerchantAccessOverviewApplicationServiceTests {
         MerchantAccessOverviewQueryService queryService = mock(MerchantAccessOverviewQueryService.class);
         when(queryService.findMerchantProfile(MERCHANT_ID)).thenReturn(null);
         MerchantAccessOverviewApplicationService service =
-                new MerchantAccessOverviewApplicationService(keyMaterialService, queryService);
+                new MerchantAccessOverviewApplicationService(keyMaterialService, queryService,
+                        mock(MerchantPaymentLinkedProjection.class));
 
         assertThatThrownBy(() -> service.queryOverview(MERCHANT_ID))
                 .isInstanceOf(ServiceException.class)
@@ -140,6 +144,51 @@ class MerchantAccessOverviewApplicationServiceTests {
                         .isEqualTo(ApiResultEnum.NOT_FOUND.getCode()))
                 .hasMessageContaining("merchant not found");
         verify(keyMaterialService, never()).queryMaterial(MERCHANT_ID);
+    }
+
+    @Test
+    void shouldNotCountOnlyWalletConfigurationAsExecutablePayment() {
+        Fixture fixture = readyFixture();
+        when(fixture.projection().overview(MERCHANT_ID)).thenReturn(
+                new AccessSummary("EVALUATED", UPDATED_TIME, 1L, 1, 0, 1, 0, 0, 0, List.of()));
+
+        var result = fixture.service().queryOverview(MERCHANT_ID);
+
+        assertThat(result.getRequiredCheckCount()).isEqualTo(6);
+        assertThat(result.getCompletedRequiredChecks()).isEqualTo(5);
+        assertThat(result.getPaymentCapability().getStatus()).isEqualTo(AccessCheckStatus.PENDING_REVIEW);
+        assertThat(result.getPaymentCapability().getConfigurationReadyCount()).isEqualTo(1);
+        assertThat(result.getPaymentCapability().getExecutionReadyCount()).isZero();
+        assertThat(result.getPaymentCapability().getCapabilities()).isEmpty();
+        verify(fixture.queryService(), never()).listPaymentCapabilities(eq(MERCHANT_ID), any());
+    }
+
+    @Test
+    void shouldKeepPaymentStageReadyWhenAtLeastOneAuthoritativeMethodIsExecutable() {
+        Fixture fixture = readyFixture();
+        when(fixture.projection().overview(MERCHANT_ID)).thenReturn(new AccessSummary(
+                "EVALUATED", UPDATED_TIME, 1L, 2, 0, 1, 1, 0, 1,
+                List.of(new KnownCapability("BANK_CARD", "VISA", "USD"))));
+
+        var result = fixture.service().queryOverview(MERCHANT_ID);
+
+        assertThat(result.getCompletedRequiredChecks()).isEqualTo(6);
+        assertThat(result.getPaymentCapability().getStatus()).isEqualTo(AccessCheckStatus.READY);
+        assertThat(result.getPaymentCapability().getCapabilities()).singleElement()
+                .satisfies(item -> assertThat(item.getPaymentMethod()).isEqualTo("VISA"));
+    }
+
+    @Test
+    void shouldKeepUnknownSeparateFromConfirmedZeroAndLegacyCompatibility() {
+        Fixture fixture = readyFixture();
+        when(fixture.projection().overview(MERCHANT_ID)).thenReturn(AccessSummary.unavailable("UNAVAILABLE"));
+
+        var result = fixture.service().queryOverview(MERCHANT_ID);
+
+        assertThat(result.getPaymentCapability().getAssessmentStatus()).isEqualTo("UNAVAILABLE");
+        assertThat(result.getPaymentCapability().getAuthorizedCount()).isNull();
+        assertThat(result.getPaymentCapability().getStatus()).isEqualTo(AccessCheckStatus.PENDING_REVIEW);
+        verify(fixture.queryService(), never()).listPaymentCapabilities(eq(MERCHANT_ID), any());
     }
 
     /** 创建六阶段全部完成的真实事实组合，单个测试只覆盖需要变化的业务事实。 */
@@ -160,10 +209,13 @@ class MerchantAccessOverviewApplicationServiceTests {
         when(keyMaterialService.queryMaterial(MERCHANT_ID)).thenReturn(enabledMaterial());
         when(queryService.summarizeIpWhitelists(MERCHANT_ID)).thenReturn(facts(2, 2, 0, 0, 0));
         when(queryService.summarizeSourceUrls(MERCHANT_ID)).thenReturn(facts(1, 1, 0, 0, 0));
+        MerchantPaymentLinkedProjection projection = mock(MerchantPaymentLinkedProjection.class);
+        when(projection.overview(MERCHANT_ID)).thenReturn(AccessSummary.unavailable("HISTORY_PENDING"));
         return new Fixture(
-                new MerchantAccessOverviewApplicationService(keyMaterialService, queryService),
+                new MerchantAccessOverviewApplicationService(keyMaterialService, queryService, projection),
                 keyMaterialService,
-                queryService);
+                queryService,
+                projection);
     }
 
     private MerchantProfileFacts profile(
@@ -197,6 +249,7 @@ class MerchantAccessOverviewApplicationServiceTests {
     private record Fixture(
             MerchantAccessOverviewApplicationService service,
             OpenApiMerchantKeyMaterialService keyMaterialService,
-            MerchantAccessOverviewQueryService queryService) {
+            MerchantAccessOverviewQueryService queryService,
+            MerchantPaymentLinkedProjection projection) {
     }
 }

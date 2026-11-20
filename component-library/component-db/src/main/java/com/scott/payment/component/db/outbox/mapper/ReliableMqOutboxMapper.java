@@ -15,6 +15,13 @@ import java.util.List;
  */
 public interface ReliableMqOutboxMapper {
 
+    String CAPABILITY_EVENT_TAG = "MERCHANT_PAYMENT_CAPABILITY";
+    String CAPABILITY_MAIL_TAG = "MERCHANT_PAYMENT_CAPABILITY_MAIL";
+    String EXCLUDE_JOB_SCOPE = """
+              AND (producer_service <> 'service-admin' OR tag IS NULL
+                   OR tag NOT IN ('MERCHANT_PAYMENT_CAPABILITY','MERCHANT_PAYMENT_CAPABILITY_MAIL'))
+            """;
+
     /**
      * 在调用方事务中写入消息意图。
      */
@@ -55,12 +62,24 @@ public interface ReliableMqOutboxMapper {
               AND event_status IN ('INIT', 'RETRY_WAIT')
               AND retry_count < max_retry_count
               AND (next_retry_time IS NULL OR next_retry_time <= #{now})
+            """ + EXCLUDE_JOB_SCOPE + """
             ORDER BY create_time ASC, id ASC
             LIMIT #{limit}
             """)
     List<ReliableMqOutboxDO> selectDue(@Param("producerService") String producerService,
                                       @Param("now") LocalDateTime now,
                                       @Param("limit") int limit);
+
+    @Select("""
+            SELECT * FROM sys_mq_outbox
+            WHERE producer_service = 'service-admin'
+              AND tag IN ('MERCHANT_PAYMENT_CAPABILITY', 'MERCHANT_PAYMENT_CAPABILITY_MAIL')
+              AND event_status IN ('INIT','RETRY_WAIT') AND retry_count < max_retry_count
+              AND (next_retry_time IS NULL OR next_retry_time <= #{now})
+            ORDER BY create_time, id LIMIT #{limit}
+            """)
+    List<ReliableMqOutboxDO> selectPaymentCapabilityDue(@Param("now") LocalDateTime now,
+                                                       @Param("limit") int limit);
 
     /**
      * CAS 抢占一条待投递消息。
@@ -145,10 +164,24 @@ public interface ReliableMqOutboxMapper {
             WHERE producer_service = #{producerService}
               AND event_status = 'PROCESSING'
               AND processing_started_time < #{staleBefore}
-            """)
+            """ + EXCLUDE_JOB_SCOPE)
     int recoverStale(@Param("producerService") String producerService,
                      @Param("staleBefore") LocalDateTime staleBefore,
                      @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE sys_mq_outbox
+            SET event_status = CASE WHEN retry_count + 1 >= max_retry_count THEN 'CLOSED' ELSE 'RETRY_WAIT' END,
+                next_retry_time = CASE WHEN retry_count + 1 >= max_retry_count THEN NULL ELSE #{now} END,
+                retry_count = retry_count + 1, processing_started_time = NULL,
+                failure_reason = 'relay processing timeout', version = version + 1, update_time = #{now}
+            WHERE producer_service = 'service-admin'
+              AND tag IN ('MERCHANT_PAYMENT_CAPABILITY', 'MERCHANT_PAYMENT_CAPABILITY_MAIL')
+              AND event_status = 'PROCESSING' AND processing_started_time < #{staleBefore}
+            ORDER BY processing_started_time, id LIMIT #{limit}
+            """)
+    int recoverPaymentCapabilityStale(@Param("staleBefore") LocalDateTime staleBefore,
+                                      @Param("now") LocalDateTime now, @Param("limit") int limit);
 
     /**
      * 查询低基数 Outbox 运维指标快照。

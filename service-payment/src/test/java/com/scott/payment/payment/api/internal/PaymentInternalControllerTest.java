@@ -1,5 +1,7 @@
 package com.scott.payment.payment.api.internal;
 
+import com.scott.payment.component.web.internal.InternalServiceAuthInterceptor;
+import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
 import com.scott.payment.payment.application.TransactionCallbackInboxApplicationService;
@@ -7,18 +9,22 @@ import com.scott.payment.payment.application.TradeBlackTransactionFactApplicatio
 import com.scott.payment.payment.api.internal.dto.TransactionCallbackInboxAcceptResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,6 +34,38 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @Slf4j
 class PaymentInternalControllerTest {
+
+    @Test
+    void shouldTrustOnlyVerifiedOpenApiCallerForAdmissionFacts() throws Exception {
+        var transactionApplicationService = mock(PaymentTransactionApplicationService.class);
+        var controller = new PaymentInternalController(transactionApplicationService,
+                mock(PaymentCheckoutApplicationService.class), mock(TransactionCallbackInboxApplicationService.class),
+                mock(TradeBlackTransactionFactApplicationService.class));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(controller).build();
+        String body = """
+                {
+                  "merchantId":"200045",
+                  "merchantOrderNo":"ORDER1",
+                  "merchantOrderId":"ACTION-1",
+                  "applicantId":"200045",
+                  "amount":12.34,
+                  "requestSource":"OPENAPI",
+                  "openApiRequestTime":"2026-11-20T12:00:00",
+                  "trustedOpenApiAdmissionRequest":true
+                }
+                """;
+        mvc.perform(post("/internal/payment/payment").contentType("application/json").content(body)
+                        .header(InternalServiceSignature.HEADER_CALLER, "service-openapi"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/internal/payment/payment").contentType("application/json").content(body)
+                        .requestAttr(InternalServiceAuthInterceptor.AUTHENTICATED_CALLER_ATTRIBUTE, "service-openapi"))
+                .andExpect(status().isOk());
+
+        var commands = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
+        verify(transactionApplicationService, times(2)).createPayment(commands.capture());
+        assertThat(commands.getAllValues()).extracting(PaymentCreateCommandDTO::isTrustedOpenApiAdmissionRequest)
+                .containsExactly(false, true);
+    }
 
     /**
      * 回调 HTTP 入口只能进入 Inbox 受理路径，旧同步业务处理路径不再暴露。

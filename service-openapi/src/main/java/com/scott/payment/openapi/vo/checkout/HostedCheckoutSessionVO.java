@@ -39,6 +39,8 @@ public class HostedCheckoutSessionVO implements Serializable {
      * 当前会话允许选择的支付方式。
      */
     private List<PaymentMethodVO> paymentMethods;
+    /** 区分可展示选项与服务端实际允许提交的方式。 */
+    private List<PaymentMethodVO> paymentOptions;
 
     /**
      * 会话有效期、重试次数和轮询配置。
@@ -259,6 +261,8 @@ public class HostedCheckoutSessionVO implements Serializable {
          * 当前支付方式的 3DS 执行模式。
          */
         private String threeDsMode;
+        private Boolean serverSubmitAllowed;
+        private String executionStatus;
     }
 
     /**

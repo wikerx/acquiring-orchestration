@@ -65,6 +65,9 @@ public class SysJobRunLogDO {
      */
     private String executorNode;
 
+    /** 执行的租约世代，普通任务不使用。 */
+    private Long leaseEpoch;
+
     /**
      * 运行状态。
      */

@@ -63,6 +63,77 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
                     @Param("lockUntil") LocalDateTime lockUntil,
                     @Param("version") Integer version);
 
+    @Update("""
+            UPDATE sys_job_task
+            SET lock_owner = #{nodeId}, lock_until = #{lockUntil},
+                lease_epoch = lease_epoch + 1, version = version + 1, update_time = NOW()
+            WHERE id = #{taskId} AND deleted = 0 AND status = 'ENABLED'
+              AND (lock_until IS NULL OR lock_until < NOW())
+              AND version = #{version}
+            """)
+    int acquireFencedLock(@Param("taskId") Long taskId,
+                          @Param("nodeId") String nodeId,
+                          @Param("lockUntil") LocalDateTime lockUntil,
+                          @Param("version") Integer version);
+
+    @Update("""
+            UPDATE sys_job_task
+            SET lock_until = GREATEST(lock_until, #{lockUntil}), version = version + 1, update_time = NOW()
+            WHERE id = #{taskId} AND deleted = 0 AND status = 'ENABLED'
+              AND lock_owner = #{nodeId} AND lease_epoch = #{epoch} AND lock_until > NOW()
+            """)
+    int renewFencedLock(@Param("taskId") Long taskId,
+                        @Param("nodeId") String nodeId,
+                        @Param("epoch") Long epoch,
+                        @Param("lockUntil") LocalDateTime lockUntil);
+
+    @Update("""
+            UPDATE sys_job_task
+            SET last_trigger_time = #{lastTriggerTime}, next_trigger_time = #{nextTriggerTime},
+                version = version + 1, update_time = NOW()
+            WHERE id = #{taskId} AND deleted = 0 AND status = 'ENABLED'
+              AND lock_owner = #{nodeId} AND lease_epoch = #{epoch} AND lock_until > NOW()
+            """)
+    int markFencedScheduled(@Param("taskId") Long taskId,
+                            @Param("nodeId") String nodeId,
+                            @Param("epoch") Long epoch,
+                            @Param("lastTriggerTime") LocalDateTime lastTriggerTime,
+                            @Param("nextTriggerTime") LocalDateTime nextTriggerTime);
+
+    @Update("""
+            UPDATE sys_job_task
+            SET checkpoint_json = #{checkpointJson}, checkpoint_version = checkpoint_version + 1, update_time = NOW()
+            WHERE id = #{taskId} AND deleted = 0 AND status = 'ENABLED'
+              AND lock_owner = #{nodeId} AND lease_epoch = #{epoch} AND lock_until > NOW()
+              AND checkpoint_version = #{expectedVersion}
+            """)
+    int advanceFencedCheckpoint(@Param("taskId") Long taskId,
+                                @Param("nodeId") String nodeId,
+                                @Param("epoch") Long epoch,
+                                @Param("expectedVersion") Long expectedVersion,
+                                @Param("checkpointJson") String checkpointJson);
+
+    @Select("""
+            SELECT * FROM sys_job_task
+            WHERE id = #{taskId} AND deleted = 0 AND status = 'ENABLED'
+              AND lock_owner = #{nodeId} AND lease_epoch = #{epoch} AND lock_until > NOW()
+            """)
+    SysJobTaskDO findFencedTask(@Param("taskId") Long taskId,
+                               @Param("nodeId") String nodeId,
+                               @Param("epoch") Long epoch);
+
+    @Update("""
+            UPDATE sys_job_task
+            SET last_run_status = #{lastRunStatus}, lock_owner = NULL, lock_until = NULL,
+                version = version + 1, update_time = NOW()
+            WHERE id = #{taskId} AND deleted = 0
+              AND lock_owner = #{nodeId} AND lease_epoch = #{epoch} AND lock_until > NOW()
+            """)
+    int finishFencedRun(@Param("taskId") Long taskId,
+                        @Param("nodeId") String nodeId,
+                        @Param("epoch") Long epoch,
+                        @Param("lastRunStatus") String lastRunStatus);
+
     /**
      * 更新锁续期时间。
      *

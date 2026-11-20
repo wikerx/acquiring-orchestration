@@ -35,6 +35,8 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
      * 当前会话允许的支付方式快照。
      */
     private List<PaymentMethodDTO> paymentMethods;
+    /** 付款人可查看的真实选项，未适配的方式保留名称和禁止提交状态。 */
+    private List<PaymentMethodDTO> paymentOptions;
     /**
      * 会话有效期、重试次数和轮询配置。
      */
@@ -253,6 +255,10 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
          * 当前支付方式的 3DS 执行模式。
          */
         private String threeDsMode;
+        /** 当前服务端是否有对应的提交协议。浏览器端仍需确认本地组件已准备。 */
+        private boolean serverSubmitAllowed;
+        /** 服务端已接通、组件暂未接通或当前状态不允许提交。 */
+        private String executionStatus;
     }
 
     /**

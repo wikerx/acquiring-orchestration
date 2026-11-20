@@ -107,6 +107,11 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
      */
     @Override
     public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+        return route(commandDTO, routeProfileCacheService.findRouteProfile(commandDTO.getMerchantId()));
+    }
+
+    /** 在准入流程中复用同一候选算法，使用由调用方取得的主库配置。 */
+    public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO, MerchantRouteProfile routeProfile) {
         long startNanos = System.nanoTime();
         log.info("收单渠道路由开始, event: PAYMENT_ROUTE_START, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, payerCountry: {}",
                 TraceContext.getTraceId(),
@@ -118,7 +123,6 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 commandDTO.getBillingCardHolderInfo() == null ? null : commandDTO.getBillingCardHolderInfo().getCountry());
-        MerchantRouteProfile routeProfile = routeProfileCacheService.findRouteProfile(commandDTO.getMerchantId());
         List<RouteOption> routeOptions = routeProfile == null
                 ? List.of()
                 : routeProfile.getRouteOptions();
@@ -155,7 +159,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     bindingCount,
                     candidates.size(),
                     elapsedMillis(startNanos));
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+            throw new RouteUnavailableException();
         }
         RouteCandidate candidate = selectCandidate(candidates);
         if (candidate == null) {
@@ -171,7 +175,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     candidates.size(),
                     candidateSummary(candidates),
                     elapsedMillis(startNanos));
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+            throw new RouteUnavailableException();
         }
         PaymentRouteResultDTO resultDTO = PaymentRouteResultDTO.routed(candidate.channelInfo().getChannelCode());
         resultDTO.setChannelId(candidate.channelInfo().getId());
@@ -250,6 +254,50 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 .filter(candidate -> minimumSortOrder.equals(candidate.capability().getSortOrder()))
                 .toList();
         return priorityPreferred.size() == 1 ? priorityPreferred.get(0) : null;
+    }
+
+    /** 用支付受理的同一候选规则评估完整请求，不发送渠道请求或读取渠道凭据。 */
+    public CandidateStatus assessCandidates(PaymentCreateCommandDTO command, LocalDateTime checkedAt) {
+        MerchantRouteProfile profile = routeProfileCacheService.findRouteProfile(command.getMerchantId());
+        return assessCandidates(profile, command, checkedAt).status();
+    }
+
+    /** 由已持有配置保护的准备调用传入主库的新鲜候选。 */
+    public CandidateAssessment assessCandidates(MerchantRouteProfile profile, PaymentCreateCommandDTO command,
+                                                LocalDateTime checkedAt) {
+        if (profile == null || profile.getRouteOptions() == null) {
+            return new CandidateAssessment(CandidateStatus.NO_TARGET, null, null, null);
+        }
+        List<RouteCandidate> candidates = profile.getRouteOptions().stream()
+                .map(option -> toCandidate(option, command, checkedAt))
+                .filter(candidate -> candidate != null)
+                .toList();
+        if (candidates.isEmpty()) {
+            return new CandidateAssessment(CandidateStatus.NO_TARGET, null, null, null);
+        }
+        RouteCandidate selected = selectCandidate(candidates);
+        if (selected == null) {
+            return new CandidateAssessment(CandidateStatus.AMBIGUOUS, null, null, null);
+        }
+        return new CandidateAssessment(selected.edcRequired() ? CandidateStatus.UNIQUE_EDC : CandidateStatus.UNIQUE_DIRECT,
+                selected.channelInfo().getId(), selected.midConfig().getId(), selected.routedCurrency());
+    }
+
+    /** 完整请求条件下的候选选择结果。 */
+    public enum CandidateStatus {
+        NO_TARGET, AMBIGUOUS, UNIQUE_DIRECT, UNIQUE_EDC
+    }
+
+    /** 持久化前对照与已准备渠道请求一致的作用域，不含凭据。 */
+    public record CandidateAssessment(CandidateStatus status, Long channelId, Long midId, String routedCurrency) {
+    }
+
+    static final class RouteUnavailableException extends ServiceException {
+        private static final long serialVersionUID = 1L;
+
+        private RouteUnavailableException() {
+            super(ApiResultEnum.PARAM_INVALID);
+        }
     }
 
     /**

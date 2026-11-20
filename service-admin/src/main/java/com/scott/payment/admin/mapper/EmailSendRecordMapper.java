@@ -14,6 +14,16 @@ import java.time.LocalDateTime;
  */
 public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
 
+    @Select("""
+            SELECT * FROM msg_email_send_record WHERE business_notification_key = #{key} LIMIT 1
+            """)
+    EmailSendRecordDO findBusinessNotification(@Param("key") byte[] key);
+
+    @Select("""
+            SELECT * FROM msg_email_send_record WHERE business_notification_key = #{key} LIMIT 1 FOR UPDATE
+            """)
+    EmailSendRecordDO lockBusinessNotification(@Param("key") byte[] key);
+
     /**
      * 按消息携带的完整投递键读取未删除记录。
      */
@@ -122,6 +132,7 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
               AND send_status = 4
               AND next_retry_time <= #{now}
               AND deleted = 0
+              AND (biz_type IS NULL OR biz_type <> 'MERCHANT_PAYMENT_CAPABILITY')
             ORDER BY next_retry_time ASC, id ASC
             LIMIT #{limit}
             """)
@@ -171,9 +182,35 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
               AND send_status = 1
               AND send_start_time < #{staleBefore}
               AND deleted = 0
+              AND (biz_type IS NULL OR biz_type <> 'MERCHANT_PAYMENT_CAPABILITY')
             """)
     int recoverStaleDelivery(@Param("appCode") String appCode,
                              @Param("staleBefore") LocalDateTime staleBefore,
                              @Param("nextRetryTime") LocalDateTime nextRetryTime,
                              @Param("now") LocalDateTime now);
+
+    @Select("""
+            SELECT * FROM msg_email_send_record
+            WHERE app_code = 'ADMIN' AND biz_type = 'MERCHANT_PAYMENT_CAPABILITY'
+              AND send_status = 4 AND next_retry_time <= #{now} AND deleted = 0
+            ORDER BY next_retry_time, id
+            LIMIT #{limit}
+            """)
+    java.util.List<EmailSendRecordDO> selectCapabilityDue(@Param("now") LocalDateTime now, @Param("limit") int limit);
+
+    @Update("""
+            UPDATE msg_email_send_record
+            SET send_status = CASE WHEN retry_count >= max_retry_count THEN 3 ELSE 4 END,
+                next_retry_time = CASE WHEN retry_count >= max_retry_count THEN NULL ELSE #{nextRetryTime} END,
+                retry_count = retry_count + 1, send_end_time = #{now}, update_time = #{now},
+                error_code = 'EMAIL_SEND_TIMEOUT', error_message = 'email delivery processing timeout'
+            WHERE app_code = 'ADMIN' AND biz_type = 'MERCHANT_PAYMENT_CAPABILITY'
+              AND send_status = 1 AND send_start_time < #{staleBefore} AND deleted = 0
+            ORDER BY send_start_time, id
+            LIMIT #{limit}
+            """)
+    int recoverCapabilityStaleDelivery(@Param("staleBefore") LocalDateTime staleBefore,
+                                       @Param("nextRetryTime") LocalDateTime nextRetryTime,
+                                       @Param("now") LocalDateTime now,
+                                       @Param("limit") int limit);
 }

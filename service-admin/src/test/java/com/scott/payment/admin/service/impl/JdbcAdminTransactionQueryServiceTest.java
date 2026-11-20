@@ -23,6 +23,7 @@ import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptQuery;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -49,12 +50,71 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
  * 管理后台交易 JDBC 查询服务单元测试，验证交易详情聚合日志查询按表结构生成 SQL，避免无软删字段日志表拼接 deleted 条件。
  */
 class JdbcAdminTransactionQueryServiceTest {
+
+    @Test
+    void openApiAdmissionInquiryShouldRejectRestrictedMerchantBeforeReading() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        var query = new OpenApiAdmissionAttemptQuery("M1001", "ACTION-1", "PAYMENT");
+
+        assertThatThrownBy(() -> buildService(jdbcTemplate)
+                .findOpenApiAdmissionAttempt(query, AdminMerchantDataScope.limited(Set.of("M1002"))))
+                .isInstanceOf(com.scott.payment.component.core.exception.ApiException.class);
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void openApiAdmissionInquiryUsesOriginalShardAndReturnsNoSystemOrder() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        var frozen = LocalDateTime.parse("2026-09-30T23:59:59.987");
+        var idempotencyRow = mock(ResultSet.class);
+        when(idempotencyRow.getObject("transaction_date_time", LocalDateTime.class)).thenReturn(frozen);
+        when(idempotencyRow.getString("result_snapshot")).thenReturn("""
+                {"schemaVersion":1,"entry":"OPENAPI","itemKey":"CARD_BRAND:VISA","attemptKey":"MALR1",
+                 "admissionStage":"ADMISSION","outcome":"REJECTED","reasonCode":"AUTHORIZATION_UNAVAILABLE",
+                 "authorizationRevision":42}
+                """);
+        var interactionRow = mock(ResultSet.class);
+        when(interactionRow.getString("api_log_id")).thenReturn("MALR1");
+        when(interactionRow.getString("merchant_id")).thenReturn("M1001");
+        when(interactionRow.getString("merchant_order_no")).thenReturn("ORDER1");
+        when(interactionRow.getString("merchant_order_id")).thenReturn("ACTION-1");
+        when(interactionRow.getString("api_operation")).thenReturn("PAYMENT");
+        when(interactionRow.getString("merchant_response_code")).thenReturn("F409001");
+        when(interactionRow.getObject("request_time", LocalDateTime.class)).thenReturn(frozen);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0);
+                    MapSqlParameterSource params = invocation.getArgument(1);
+                    RowMapper<?> mapper = invocation.getArgument(2);
+                    if (sql.contains("FROM transaction_idempotency")) {
+                        assertThat(sql).contains("merchant_id = :merchantId", "merchant_order_id = :merchantOrderId",
+                                "transaction_type = :transactionType", "transaction_id IS NULL");
+                        assertThat(params.getValue("merchantId")).isEqualTo("M1001");
+                        return List.of(mapper.mapRow(idempotencyRow, 0));
+                    }
+                    assertThat(sql).contains("FROM transaction_merchant_api_interaction_log",
+                            "transaction_date_time = :transactionDateTime", "transaction_id IS NULL");
+                    assertThat(params.getValue("transactionDateTime")).isEqualTo(frozen);
+                    assertThat(params.getValue("attemptId")).isEqualTo("MALR1");
+                    return List.of(mapper.mapRow(interactionRow, 0));
+                });
+
+        var attempt = buildService(jdbcTemplate).findOpenApiAdmissionAttempt(
+                new OpenApiAdmissionAttemptQuery("M1001", "ACTION-1", "PAYMENT"),
+                AdminMerchantDataScope.limited(Set.of("M1001")));
+
+        assertThat(attempt.attemptId()).isEqualTo("MALR1");
+        assertThat(attempt.transactionId()).isNull();
+        assertThat(attempt.responseCode()).isEqualTo("F409001");
+        assertThat(attempt.occurredAt()).isEqualTo(frozen);
+    }
 
     /**
      * 异步交易主单导出必须把有限商户集合落实为 SQL IN 条件。

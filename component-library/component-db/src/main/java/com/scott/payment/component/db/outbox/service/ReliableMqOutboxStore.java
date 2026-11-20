@@ -55,6 +55,11 @@ public class ReliableMqOutboxStore {
         return mapper.selectDue(producerService, now, limit);
     }
 
+    @DS(DataSourceName.MASTER)
+    public List<ReliableMqOutboxDO> findPaymentCapabilityDue(LocalDateTime now, int limit) {
+        return mapper.selectPaymentCapabilityDue(now, limit);
+    }
+
     /**
      * 在独立短事务中 CAS 抢占消息。
      */
@@ -94,6 +99,12 @@ public class ReliableMqOutboxStore {
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int recoverStale(String producerService, LocalDateTime staleBefore, LocalDateTime now) {
         return mapper.recoverStale(producerService, staleBefore, now);
+    }
+
+    @DS(DataSourceName.MASTER)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public int recoverPaymentCapabilityStale(LocalDateTime staleBefore, LocalDateTime now, int limit) {
+        return mapper.recoverPaymentCapabilityStale(staleBefore, now, limit);
     }
 
     /**

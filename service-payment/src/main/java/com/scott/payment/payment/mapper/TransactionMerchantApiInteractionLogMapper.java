@@ -47,6 +47,28 @@ public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<T
             """)
     int insertLogical(@Param("logDO") TransactionMerchantApiInteractionLogDO logDO);
 
+    /** 建单前已确定拒绝，日志有独立事实身份，系统订单和交易动作均为空。 */
+    @Insert("""
+            INSERT INTO transaction_merchant_api_interaction_log
+            (
+              api_log_id, request_id, transaction_id, operation_id, merchant_id,
+              merchant_order_no, merchant_order_id, api_operation, request_path, request_time,
+              request_result, response_time, response_result, merchant_response_code,
+              merchant_response_message, duration_millis, trace_id, transaction_date_time,
+              transaction_utc_time, transaction_time_zone, create_time, admission_context_json
+            )
+            VALUES
+            (
+              #{logDO.apiLogId}, #{logDO.requestId}, NULL, NULL, #{logDO.merchantId},
+              #{logDO.merchantOrderNo}, #{logDO.merchantOrderId}, #{logDO.apiOperation}, #{logDO.requestPath},
+              #{logDO.requestTime}, #{logDO.requestResult}, #{logDO.responseTime}, #{logDO.responseResult},
+              #{logDO.merchantResponseCode}, #{logDO.merchantResponseMessage}, #{logDO.durationMillis},
+              #{logDO.traceId}, #{logDO.transactionDateTime}, #{logDO.transactionUtcTime},
+              #{logDO.transactionTimeZone}, #{logDO.createTime}, #{logDO.admissionContextJson}
+            )
+            """)
+    int insertAdmissionRejection(@Param("logDO") TransactionMerchantApiInteractionLogDO logDO);
+
     /**
      * 幂等回写逻辑表中指定交易分片的响应密文摘要。
      *

@@ -10,6 +10,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionD
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
@@ -392,7 +393,8 @@ class AdminTransactionApplicationServiceTests {
         when(localeResolver.resolveCurrentLocale()).thenReturn(Locale.ENGLISH);
         AdminTransactionApplicationService service = new AdminTransactionApplicationService(
                 mock(PaymentInternalClient.class), queryService, excelExportService,
-                mock(ExcelI18nMessageResolver.class), localeResolver, properties, limiter);
+                mock(ExcelI18nMessageResolver.class), localeResolver, properties, limiter,
+                mock(AdminMerchantDataScopeResolver.class));
 
         service.exportOrders(new TransactionPageQuery(), "operator", mock(HttpServletResponse.class));
 
@@ -431,7 +433,8 @@ class AdminTransactionApplicationServiceTests {
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class),
                 properties,
-                limiter
+                limiter,
+                mock(AdminMerchantDataScopeResolver.class)
         );
     }
 

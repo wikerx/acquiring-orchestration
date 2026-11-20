@@ -26,6 +26,8 @@ public class PaymentLinkDO {
     private Integer currencyExponent;
     private String locale;
     private String allowedBrandsJson;
+    /** 带版本的冻结支付方式范围，历史链接为空。 */
+    private String allowedMethodsJson;
     private String merchantDisplayName;
     private String notifyUrl;
     private String redirectUrl;

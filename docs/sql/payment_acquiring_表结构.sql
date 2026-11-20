@@ -47,6 +47,7 @@ CREATE TABLE `admin_operational_work_item` (
   `source_occurred_at` datetime(3) DEFAULT NULL COMMENT '来源事件时间检索投影',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+  `source_basis_json` json DEFAULT NULL COMMENT '支付方式待办事实的来源版本、转移依据与去重世代',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_admin_operational_work_item_no` (`work_item_no`),
   UNIQUE KEY `uk_admin_operational_work_item_source` (`source_type`,`source_key`),
@@ -55,7 +56,7 @@ CREATE TABLE `admin_operational_work_item` (
   KEY `idx_admin_operational_work_item_detected` (`first_detected_at`,`id`),
   KEY `idx_admin_operational_work_item_projection_queue` (`source_projection_version`,`work_status`,`priority`,`sla_due_at`,`first_detected_at`,`id`),
   KEY `idx_admin_operational_work_item_projection_merchant` (`source_projection_version`,`merchant_id`,`work_status`,`first_detected_at`,`id`),
-  CONSTRAINT `chk_admin_operational_work_item_state` CHECK (((`source_type` in (_utf8mb4'REFUND_APPROVAL',_utf8mb4'SETTLEMENT_REVIEW',_utf8mb4'EXCHANGE_RATE_ALERT',_utf8mb4'MERCHANT_NOTIFICATION_FAILURE',_utf8mb4'CHANNEL_MATCH_ABNORMAL',_utf8mb4'CLEARING_BACKLOG',_utf8mb4'SETTLEMENT_BACKLOG',_utf8mb4'HIGH_RISK_EVENT')) and (`work_status` in (_utf8mb4'OPEN',_utf8mb4'PROCESSING',_utf8mb4'CLOSED')) and (`priority` in (_utf8mb4'CRITICAL',_utf8mb4'HIGH',_utf8mb4'NORMAL',_utf8mb4'LOW')) and (`version` >= 0) and (((`owner_account_id` is null) and (`owner_account_name` is null)) or ((`owner_account_id` is not null) and (`owner_account_name` is not null))) and (((`work_status` = _utf8mb4'CLOSED') and (`closed_at` is not null) and (`close_reason` is not null)) or ((`work_status` <> _utf8mb4'CLOSED') and (`closed_at` is null) and (`close_reason` is null)))))
+  CONSTRAINT `chk_admin_operational_work_item_state` CHECK (((`source_type` in (_utf8mb4'REFUND_APPROVAL',_utf8mb4'SETTLEMENT_REVIEW',_utf8mb4'EXCHANGE_RATE_ALERT',_utf8mb4'MERCHANT_NOTIFICATION_FAILURE',_utf8mb4'CHANNEL_MATCH_ABNORMAL',_utf8mb4'CLEARING_BACKLOG',_utf8mb4'SETTLEMENT_BACKLOG',_utf8mb4'HIGH_RISK_EVENT',_utf8mb4'PAYMENT_METHOD_APPROVAL',_utf8mb4'PAYMENT_METHOD_CONFIGURATION')) and (`work_status` in (_utf8mb4'OPEN',_utf8mb4'PROCESSING',_utf8mb4'CLOSED')) and (`priority` in (_utf8mb4'CRITICAL',_utf8mb4'HIGH',_utf8mb4'NORMAL',_utf8mb4'LOW')) and (`version` >= 0) and (((`owner_account_id` is null) and (`owner_account_name` is null)) or ((`owner_account_id` is not null) and (`owner_account_name` is not null))) and (((`work_status` = _utf8mb4'CLOSED') and (`closed_at` is not null) and (`close_reason` is not null)) or ((`work_status` <> _utf8mb4'CLOSED') and (`closed_at` is null) and (`close_reason` is null)))))
 ) ENGINE=InnoDB AUTO_INCREMENT=5951 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='统一运营待办元数据';
 
 -- ----------------------------
@@ -458,6 +459,10 @@ CREATE TABLE `base_merchant_info` (
   `gmt_create` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
   `gmt_modified` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
   `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除标识：0正常，1删除',
+  `payment_authorization_revision` bigint NOT NULL DEFAULT '0' COMMENT '当前商户支付方式授权及准入治理修订号',
+  `payment_admission_mode` varchar(24) DEFAULT NULL COMMENT '支付方式准入模式，由显式历史核验或切换命令维护',
+  `payment_baseline_batch_ref` varchar(64) DEFAULT NULL COMMENT '既有支付方式兼容范围的冻结批次引用',
+  `payment_admission_cutover_time` datetime(3) DEFAULT NULL COMMENT '商户最近一次切换支付方式准入模式的时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_base_merchant_info_mid` (`merchant_id`),
   UNIQUE KEY `uk_base_merchant_application_no` (`application_no`),
@@ -850,7 +855,9 @@ CREATE TABLE `channel_mid_config` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_channel_mid_deleted` (`channel_id`,`channel_mid`,`deleted`),
   KEY `idx_channel_mid_code_status` (`channel_code`,`mid_status`,`deleted`),
-  KEY `idx_channel_mid_business` (`business_type`,`mid_status`,`deleted`)
+  KEY `idx_channel_mid_business` (`business_type`,`mid_status`,`deleted`),
+  KEY `idx_cmc_effective_time` (`effective_time`,`id`),
+  KEY `idx_cmc_expire_time` (`expire_time`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='渠道MID配置表';
 
 -- ----------------------------
@@ -2231,7 +2238,9 @@ CREATE TABLE `merchant_channel_mid_binding` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_merchant_mid_deleted` (`merchant_id`,`mid_config_id`,`deleted`),
   KEY `idx_merchant_channel_status` (`merchant_id`,`channel_id`,`binding_status`,`deleted`),
-  KEY `idx_binding_mid` (`mid_config_id`,`binding_status`,`deleted`)
+  KEY `idx_binding_mid` (`mid_config_id`,`binding_status`,`deleted`),
+  KEY `idx_mcmb_effective_time` (`effective_time`,`id`),
+  KEY `idx_mcmb_expire_time` (`expire_time`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户渠道MID绑定表';
 
 -- ----------------------------
@@ -2597,9 +2606,21 @@ CREATE TABLE `merchant_review_record` (
   `operator_id` varchar(64) DEFAULT NULL COMMENT '审核操作人账号ID',
   `operator_name` varchar(128) DEFAULT NULL COMMENT '审核操作人名称',
   `gmt_create` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `target_type` varchar(24) DEFAULT NULL COMMENT '支付方式申请批次、明细或准入治理的审核目标类型',
+  `target_key` varchar(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT '审核目标的规范业务键',
+  `application_item_id` bigint DEFAULT NULL COMMENT '关联的支付方式申请明细主键',
+  `round_no` int DEFAULT NULL COMMENT '本次审核对应的申请轮次',
+  `operator_app_code` varchar(32) DEFAULT NULL COMMENT '实际操作者所属应用编码',
+  `operator_user_id` bigint DEFAULT NULL COMMENT '实际操作者可信自然人主体主键',
+  `command_request_id` varchar(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT '成功业务命令的幂等请求键',
+  `payload_hash` binary(32) DEFAULT NULL COMMENT '按稳定语义规范化的业务命令指纹',
+  `result_json` json DEFAULT NULL COMMENT '不可变的成功命令回执',
+  `fact_snapshot_json` json DEFAULT NULL COMMENT '经白名单限制的审核前后事实和来源引用',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_mrr_scope_merchant_cmd` (`review_scope`,`merchant_id`,`command_request_id`),
   KEY `idx_merchant_review_record_mid` (`merchant_id`,`gmt_create`,`id`),
-  KEY `idx_merchant_review_request` (`review_scope`,`request_no`,`gmt_create`,`id`)
+  KEY `idx_merchant_review_request` (`review_scope`,`request_no`,`gmt_create`,`id`),
+  KEY `idx_mrr_method_item` (`review_scope`,`merchant_id`,`application_item_id`,`gmt_create`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户开户审核不可变记录';
 
 -- ----------------------------
@@ -2828,8 +2849,11 @@ CREATE TABLE `msg_email_send_record` (
   `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
   `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
+  `business_notification_key` binary(32) DEFAULT NULL COMMENT '稳定业务通知的幂等键，旧通知为空',
+  `business_notification_payload_hash` binary(32) DEFAULT NULL COMMENT '通知受众与白名单内容的规范摘要',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_email_send_record_no` (`email_no`),
+  UNIQUE KEY `uk_email_send_record_biz_notif` (`business_notification_key`),
   KEY `idx_email_record_app_scene` (`app_code`,`scene_code`,`send_status`,`deleted`),
   KEY `idx_email_record_merchant` (`merchant_id`,`merchant_no`,`deleted`),
   KEY `idx_email_record_template` (`template_code`),
@@ -3223,6 +3247,7 @@ CREATE TABLE `payment_link` (
   `version` int NOT NULL DEFAULT '0',
   `create_time` datetime(3) NOT NULL,
   `update_time` datetime(3) NOT NULL,
+  `allowed_methods_json` json DEFAULT NULL COMMENT '带版本的链接方式范围，空值表示沿用历史银行卡品牌范围',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_payment_link_id` (`link_id`),
   UNIQUE KEY `uk_payment_link_merchant_order` (`merchant_id`,`merchant_order_no`),
@@ -7027,6 +7052,7 @@ CREATE TABLE `sys_job_run_log` (
   `operator_name` varchar(100) DEFAULT NULL COMMENT '操作人名称',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `lease_epoch` bigint DEFAULT NULL COMMENT '本次运行对应的任务租约世代，旧记录为空',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_run_id` (`run_id`),
   KEY `idx_job_code_create_time` (`job_code`,`create_time`),
@@ -7069,6 +7095,9 @@ CREATE TABLE `sys_job_task` (
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_by` varchar(64) DEFAULT NULL COMMENT '更新人',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `checkpoint_json` json DEFAULT NULL COMMENT '来源独立的有界扫描检查点',
+  `checkpoint_version` bigint NOT NULL DEFAULT '0' COMMENT '任务检查点的乐观锁版本',
+  `lease_epoch` bigint NOT NULL DEFAULT '0' COMMENT '每次有效任务抢占的单调世代',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_job_code` (`job_code`),
   KEY `idx_status_next_trigger_time` (`status`,`next_trigger_time`),
@@ -10742,7 +10771,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理表主键ID。',
   `api_log_id` varchar(64) NOT NULL COMMENT '商户API交互日志ID。',
   `request_id` varchar(128) DEFAULT NULL COMMENT '商户本次API请求唯一标识，通常等于 orderInfo.orderId。',
-  `transaction_id` varchar(64) NOT NULL COMMENT '平台当前交易唯一标识。',
+  `transaction_id` varchar(64) DEFAULT NULL COMMENT '真实系统订单标识，建单前拒绝时为空',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '平台内部生命周期关联标识。',
   `merchant_id` varchar(64) NOT NULL COMMENT '平台商户号。',
   `merchant_order_no` varchar(128) NOT NULL COMMENT '商户订单号。',
@@ -10767,6 +10796,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log` (
   `transaction_utc_time` datetime(3) NOT NULL COMMENT '交易业务时间对应 UTC 时间。',
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
+  `admission_context_json` json DEFAULT NULL COMMENT '建单前后的规范方式、稳定尝试及受理证据摘要',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_api_log_id` (`api_log_id`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
@@ -10783,7 +10813,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log_202603` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理表主键ID。',
   `api_log_id` varchar(64) NOT NULL COMMENT '商户API交互日志ID。',
   `request_id` varchar(128) DEFAULT NULL COMMENT '商户本次API请求唯一标识，通常等于 orderInfo.orderId。',
-  `transaction_id` varchar(64) NOT NULL COMMENT '平台当前交易唯一标识。',
+  `transaction_id` varchar(64) DEFAULT NULL COMMENT '真实系统订单标识，建单前拒绝时为空',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '平台内部生命周期关联标识。',
   `merchant_id` varchar(64) NOT NULL COMMENT '平台商户号。',
   `merchant_order_no` varchar(128) NOT NULL COMMENT '商户订单号。',
@@ -10808,6 +10838,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log_202603` (
   `transaction_utc_time` datetime(3) NOT NULL COMMENT '交易业务时间对应 UTC 时间。',
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
+  `admission_context_json` json DEFAULT NULL COMMENT '建单前后的规范方式、稳定尝试及受理证据摘要',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_api_log_id` (`api_log_id`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
@@ -10824,7 +10855,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log_202604` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理表主键ID。',
   `api_log_id` varchar(64) NOT NULL COMMENT '商户API交互日志ID。',
   `request_id` varchar(128) DEFAULT NULL COMMENT '商户本次API请求唯一标识，通常等于 orderInfo.orderId。',
-  `transaction_id` varchar(64) NOT NULL COMMENT '平台当前交易唯一标识。',
+  `transaction_id` varchar(64) DEFAULT NULL COMMENT '真实系统订单标识，建单前拒绝时为空',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '平台内部生命周期关联标识。',
   `merchant_id` varchar(64) NOT NULL COMMENT '平台商户号。',
   `merchant_order_no` varchar(128) NOT NULL COMMENT '商户订单号。',
@@ -10849,6 +10880,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log_202604` (
   `transaction_utc_time` datetime(3) NOT NULL COMMENT '交易业务时间对应 UTC 时间。',
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
+  `admission_context_json` json DEFAULT NULL COMMENT '建单前后的规范方式、稳定尝试及受理证据摘要',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_api_log_id` (`api_log_id`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
@@ -10865,7 +10897,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log_202701` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理表主键ID。',
   `api_log_id` varchar(64) NOT NULL COMMENT '商户API交互日志ID。',
   `request_id` varchar(128) DEFAULT NULL COMMENT '商户本次API请求唯一标识，通常等于 orderInfo.orderId。',
-  `transaction_id` varchar(64) NOT NULL COMMENT '平台当前交易唯一标识。',
+  `transaction_id` varchar(64) DEFAULT NULL COMMENT '真实系统订单标识，建单前拒绝时为空',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '平台内部生命周期关联标识。',
   `merchant_id` varchar(64) NOT NULL COMMENT '平台商户号。',
   `merchant_order_no` varchar(128) NOT NULL COMMENT '商户订单号。',
@@ -10890,6 +10922,7 @@ CREATE TABLE `transaction_merchant_api_interaction_log_202701` (
   `transaction_utc_time` datetime(3) NOT NULL COMMENT '交易业务时间对应 UTC 时间。',
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
+  `admission_context_json` json DEFAULT NULL COMMENT '建单前后的规范方式、稳定尝试及受理证据摘要',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_api_log_id` (`api_log_id`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
@@ -11249,6 +11282,7 @@ CREATE TABLE `transaction_merchant_snapshot` (
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
+  `payment_admission_snapshot_json` json DEFAULT NULL COMMENT '首次受理时的规范方式、授权费率及执行引用的白名单快照',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_snapshot_id` (`snapshot_id`),
   UNIQUE KEY `uk_merchant_snapshot_transaction` (`transaction_id`,`transaction_date_time`),
@@ -11293,6 +11327,7 @@ CREATE TABLE `transaction_merchant_snapshot_202603` (
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
+  `payment_admission_snapshot_json` json DEFAULT NULL COMMENT '首次受理时的规范方式、授权费率及执行引用的白名单快照',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_snapshot_id` (`snapshot_id`),
   UNIQUE KEY `uk_merchant_snapshot_transaction` (`transaction_id`,`transaction_date_time`),
@@ -11337,6 +11372,7 @@ CREATE TABLE `transaction_merchant_snapshot_202604` (
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
+  `payment_admission_snapshot_json` json DEFAULT NULL COMMENT '首次受理时的规范方式、授权费率及执行引用的白名单快照',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_snapshot_id` (`snapshot_id`),
   UNIQUE KEY `uk_merchant_snapshot_transaction` (`transaction_id`,`transaction_date_time`),
@@ -11381,6 +11417,7 @@ CREATE TABLE `transaction_merchant_snapshot_202701` (
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间。',
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间。',
+  `payment_admission_snapshot_json` json DEFAULT NULL COMMENT '首次受理时的规范方式、授权费率及执行引用的白名单快照',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_snapshot_id` (`snapshot_id`),
   UNIQUE KEY `uk_merchant_snapshot_transaction` (`transaction_id`,`transaction_date_time`),
@@ -13458,3 +13495,71 @@ END
 delimiter ;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- REQ-001 支付方式治理结构
+DROP TABLE IF EXISTS `merchant_payment_application_item`;
+CREATE TABLE `merchant_payment_application_item` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '支付方式申请明细主键',
+  `application_no` varchar(40) NOT NULL COMMENT '同批申请的全局业务编号',
+  `merchant_id` varchar(32) NOT NULL COMMENT '所属商户编号',
+  `item_key` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '规范支付方式键',
+  `operation` varchar(16) NOT NULL COMMENT '首次申请或终止后的重新申请类型',
+  `status` varchar(32) NOT NULL COMMENT '当前申请明细状态',
+  `round_no` int NOT NULL DEFAULT '1' COMMENT '补充后重新审核的轮次',
+  `source` varchar(24) NOT NULL COMMENT '商户自助申请或平台代申请来源',
+  `create_request_id` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '创建批次的原始幂等请求键',
+  `initial_submitter_app_code` varchar(32) NOT NULL COMMENT '首次提交者所属应用编码',
+  `initial_submitter_account_id` bigint NOT NULL COMMENT '首次提交者可信登录账号主键',
+  `initial_submitter_user_id` bigint NOT NULL COMMENT '首次提交者可信自然人主体主键',
+  `current_submitter_app_code` varchar(32) NOT NULL COMMENT '当前审核轮次提交者所属应用编码',
+  `current_submitter_account_id` bigint NOT NULL COMMENT '当前审核轮次提交者可信登录账号主键',
+  `current_submitter_user_id` bigint NOT NULL COMMENT '当前审核轮次提交者可信自然人主体主键',
+  `reason` varchar(1000) DEFAULT NULL COMMENT '申请或补充的说明',
+  `expected_grant_version` bigint NOT NULL DEFAULT '0' COMMENT '申请时的授权版本，零表示当时无授权',
+  `active_slot` tinyint DEFAULT NULL COMMENT '待审核或退回补充为一，终态为空',
+  `version` bigint NOT NULL DEFAULT '1' COMMENT '当前申请明细的乐观锁版本',
+  `submitted_at` datetime(3) NOT NULL COMMENT '当前审核轮次的提交时刻',
+  `closed_at` datetime(3) DEFAULT NULL COMMENT '申请进入终态的时刻',
+  `gmt_create` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '申请明细创建时刻',
+  `gmt_modified` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '申请明细最后更新时刻',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_mpai_create_request` (`merchant_id`,`create_request_id`,`item_key`),
+  UNIQUE KEY `uk_mpai_active` (`merchant_id`,`item_key`,`active_slot`),
+  KEY `idx_mpai_application` (`merchant_id`,`application_no`,`id`),
+  KEY `idx_mpai_merchant_created` (`merchant_id`,`gmt_create`,`id`),
+  KEY `idx_mpai_review_queue` (`status`,`submitted_at`,`id`),
+  KEY `idx_mpai_application_global` (`application_no`,`merchant_id`,`id`),
+  CONSTRAINT `chk_mpai_active` CHECK ((((`status` in (_utf8mb4'PENDING_REVIEW',_utf8mb4'RETURNED')) and (`active_slot` is not null) and (`active_slot` = 1) and (`closed_at` is null)) or ((`status` in (_utf8mb4'APPROVED',_utf8mb4'REJECTED',_utf8mb4'WITHDRAWN')) and (`active_slot` is null) and (`closed_at` is not null)))),
+  CONSTRAINT `chk_mpai_operation` CHECK ((((`operation` = _utf8mb4'APPLY') and (`expected_grant_version` = 0)) or ((`operation` = _utf8mb4'REAPPLY') and (`expected_grant_version` > 0)))),
+  CONSTRAINT `chk_mpai_version` CHECK (((`round_no` > 0) and (`version` > 0)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户支付方式申请明细';
+
+-- REQ-001 支付方式治理结构
+DROP TABLE IF EXISTS `merchant_payment_authorization`;
+CREATE TABLE `merchant_payment_authorization` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '商户支付方式授权主键',
+  `merchant_id` varchar(32) NOT NULL COMMENT '被授权商户编号',
+  `item_key` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '规范支付方式键',
+  `authorization_status` varchar(16) NOT NULL COMMENT '当前授权持久化状态',
+  `version` bigint NOT NULL DEFAULT '1' COMMENT '当前授权的乐观锁版本',
+  `source` varchar(24) NOT NULL COMMENT '申请批准或历史核验的授权来源',
+  `source_ref` varchar(64) NOT NULL COMMENT '申请明细主键或历史基线批次引用',
+  `approved_app_code` varchar(32) DEFAULT NULL COMMENT '真实申请批准者所属应用编码',
+  `approved_account_id` bigint DEFAULT NULL COMMENT '真实申请批准者的可信登录账号主键',
+  `approved_user_id` bigint DEFAULT NULL COMMENT '真实申请批准者的可信自然人主体主键',
+  `effective_time` datetime(3) NOT NULL COMMENT '批准后的授权生效时间',
+  `expire_time` datetime(3) DEFAULT NULL COMMENT '授权失效边界，为空表示长期有效',
+  `suspended_time` datetime(3) DEFAULT NULL COMMENT '本次暂停的时间',
+  `terminated_time` datetime(3) DEFAULT NULL COMMENT '本次终止的时间',
+  `last_review_record_id` bigint NOT NULL COMMENT '上一次授权变更或核验的不可变审核记录主键',
+  `gmt_create` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '授权记录创建时刻',
+  `gmt_modified` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '授权记录最后更新时刻',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_mpa_merchant_method` (`merchant_id`,`item_key`),
+  KEY `idx_mpa_effective_time` (`effective_time`,`id`),
+  KEY `idx_mpa_expire_time` (`expire_time`,`id`),
+  CONSTRAINT `chk_mpa_source` CHECK ((((`source` = _latin1'APPLICATION') and (`approved_app_code` is not null) and (`approved_account_id` is not null) and (`approved_user_id` is not null)) or ((`source` = _latin1'HISTORICAL_BASELINE') and (`approved_app_code` is null) and (`approved_account_id` is null) and (`approved_user_id` is null)))),
+  CONSTRAINT `chk_mpa_state` CHECK ((`authorization_status` in (_latin1'ACTIVE',_latin1'SUSPENDED',_latin1'TERMINATED'))),
+  CONSTRAINT `chk_mpa_time` CHECK (((`expire_time` is null) or (`expire_time` > `effective_time`))),
+  CONSTRAINT `chk_mpa_version` CHECK ((`version` > 0))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户当前支付方式授权';

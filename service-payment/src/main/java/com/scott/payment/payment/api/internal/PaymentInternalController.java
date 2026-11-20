@@ -1,6 +1,7 @@
 package com.scott.payment.payment.api.internal;
 
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.web.internal.InternalServiceAuthInterceptor;
 import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
 import com.scott.payment.payment.application.TransactionCallbackInboxApplicationService;
@@ -30,6 +31,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -179,7 +181,11 @@ public class PaymentInternalController {
      * @return 创建交易结果
      */
     @PostMapping("/payment")
-    public CommonResult<PaymentCreateResultDTO> createPayment(@Valid @RequestBody PaymentCreateCommandDTO commandDTO) {
+    public CommonResult<PaymentCreateResultDTO> createPayment(
+            @Valid @RequestBody PaymentCreateCommandDTO commandDTO,
+            @RequestAttribute(name = InternalServiceAuthInterceptor.AUTHENTICATED_CALLER_ATTRIBUTE, required = false)
+            String caller) {
+        markOpenApiAdmissionRequest(commandDTO, caller);
         return success(paymentTransactionApplicationService.createPayment(commandDTO));
     }
 
@@ -190,7 +196,11 @@ public class PaymentInternalController {
      * @return 创建交易结果
      */
     @PostMapping("/authorization")
-    public CommonResult<PaymentCreateResultDTO> createAuthorization(@Valid @RequestBody PaymentCreateCommandDTO commandDTO) {
+    public CommonResult<PaymentCreateResultDTO> createAuthorization(
+            @Valid @RequestBody PaymentCreateCommandDTO commandDTO,
+            @RequestAttribute(name = InternalServiceAuthInterceptor.AUTHENTICATED_CALLER_ATTRIBUTE, required = false)
+            String caller) {
+        markOpenApiAdmissionRequest(commandDTO, caller);
         return success(paymentTransactionApplicationService.createAuthorization(commandDTO));
     }
 
@@ -201,8 +211,19 @@ public class PaymentInternalController {
      * @return 创建交易结果
      */
     @PostMapping("/pre-authorization")
-    public CommonResult<PaymentCreateResultDTO> createPreAuthorization(@Valid @RequestBody PaymentCreateCommandDTO commandDTO) {
+    public CommonResult<PaymentCreateResultDTO> createPreAuthorization(
+            @Valid @RequestBody PaymentCreateCommandDTO commandDTO,
+            @RequestAttribute(name = InternalServiceAuthInterceptor.AUTHENTICATED_CALLER_ATTRIBUTE, required = false)
+            String caller) {
+        markOpenApiAdmissionRequest(commandDTO, caller);
         return success(paymentTransactionApplicationService.createPreAuthorization(commandDTO));
+    }
+
+    private static void markOpenApiAdmissionRequest(PaymentCreateCommandDTO command, String caller) {
+        // 调用者身份由 /internal/** 既有 HMAC 拦截器验证，来源也必须为首次 OpenAPI 业务受理。
+        command.setTrustedOpenApiAdmissionRequest("service-openapi".equals(caller)
+                && "OPENAPI".equals(command.getRequestSource()) && command.getOpenApiRequestTime() != null
+                && command.getMerchantId().equals(command.getApplicantId()));
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackLogResponse;
@@ -12,6 +13,8 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNoti
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmissionAttemptResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountChangeResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionContactInfoResponse;
@@ -539,6 +542,63 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         this.transactionLogicalReadExecutor = transactionLogicalReadExecutor;
         this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
         this.registeredNodeBegin = resolveRegisteredNodeBegin(shardingProperties.getPhysicalNodes());
+    }
+
+    @Override
+    public OpenApiAdmissionAttemptResponse findOpenApiAdmissionAttempt(OpenApiAdmissionAttemptQuery query,
+                                                                       AdminMerchantDataScope scope) {
+        String merchantId = query.merchantId().trim();
+        if (scope == null || scope.empty() || !scopeAllowsMerchantFilter(merchantId, scope)) {
+            throw new ApiException(ApiResultEnum.NOT_FOUND);
+        }
+        return executeRead(true, () -> {
+            MapSqlParameterSource params = new MapSqlParameterSource("merchantId", merchantId)
+                    .addValue("merchantOrderId", query.merchantOrderId())
+                    .addValue("transactionType", query.transactionType());
+            var references = jdbcTemplate.query("""
+                    SELECT transaction_date_time, result_snapshot
+                    FROM transaction_idempotency
+                    WHERE merchant_id = :merchantId AND merchant_order_id = :merchantOrderId
+                      AND transaction_type = :transactionType AND idempotency_scope = 'TRANSACTION_OPERATION'
+                      AND transaction_id IS NULL AND operation_id IS NULL
+                      AND transaction_status = 'FAILED' AND deleted = 0
+                    LIMIT 2
+                    """, params, (rs, row) -> new AdmissionAttemptReference(
+                    rs.getObject("transaction_date_time", LocalDateTime.class), rs.getString("result_snapshot")));
+            if (references.size() != 1) {
+                throw new ApiException(ApiResultEnum.NOT_FOUND);
+            }
+            AdmissionAttemptReference reference = references.get(0);
+            JSONObject context = JsonUtils.parseObject(reference.contextJson(), JSONObject.class);
+            if (context == null || context.getIntValue("schemaVersion") != 1
+                    || !"OPENAPI".equals(context.getString("entry"))
+                    || !"ADMISSION".equals(context.getString("admissionStage"))
+                    || !"REJECTED".equals(context.getString("outcome"))) {
+                throw new ApiException(ApiResultEnum.NOT_FOUND);
+            }
+            params.addValue("attemptId", context.getString("attemptKey"))
+                    .addValue("transactionDateTime", reference.transactionDateTime());
+            return jdbcTemplate.query("""
+                    SELECT api_log_id, merchant_id, merchant_order_no, merchant_order_id, api_operation,
+                           request_time, merchant_response_code
+                    FROM transaction_merchant_api_interaction_log
+                    WHERE api_log_id = :attemptId AND merchant_id = :merchantId
+                      AND merchant_order_id = :merchantOrderId AND api_operation = :transactionType
+                      AND transaction_date_time = :transactionDateTime
+                      AND transaction_id IS NULL AND operation_id IS NULL
+                      AND admission_context_json IS NOT NULL AND merchant_response_code = 'F409001'
+                    """, params, (rs, row) -> new OpenApiAdmissionAttemptResponse(rs.getString("api_log_id"),
+                            rs.getString("merchant_id"), rs.getString("merchant_order_no"),
+                            rs.getString("merchant_order_id"), rs.getString("api_operation"),
+                            context.getString("itemKey"), context.getString("admissionStage"),
+                            context.getString("outcome"), context.getString("reasonCode"),
+                            context.getString("authorizationRevision"), rs.getString("merchant_response_code"),
+                            rs.getObject("request_time", LocalDateTime.class), null))
+                    .stream().findFirst().orElseThrow(() -> new ApiException(ApiResultEnum.NOT_FOUND));
+        });
+    }
+
+    private record AdmissionAttemptReference(LocalDateTime transactionDateTime, String contextJson) {
     }
 
     /**

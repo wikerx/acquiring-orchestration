@@ -125,6 +125,14 @@ public final class MerchantAccessOverviewDTOs {
         private Long activeBindingCount;
         /** 去除渠道和 MID 信息后的支付能力。 */
         private List<PaymentCapability> capabilities = new ArrayList<>();
+        private String assessmentStatus;
+        private LocalDateTime assessedAt;
+        private Integer authorizedCount;
+        private Integer legacyCoverageCount;
+        private Integer configurationReadyCount;
+        private Integer pendingConfigurationCount;
+        private Integer restrictedCount;
+        private Integer executionReadyCount;
         /** 支付能力最近更新时间。 */
         private LocalDateTime lastUpdatedTime;
     }

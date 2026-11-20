@@ -9,14 +9,19 @@ import java.math.BigDecimal;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-/** 指纹版本只进入哈希输入；不扩列、不回填历史，也不延长已冻结的有效期。 */
+/** 指纹版本只进入哈希输入，不回填历史，也不延长已冻结的有效期。 */
 public final class PaymentLinkCreationFingerprint {
     private PaymentLinkCreationFingerprint() { }
 
     /** 按创建契约版本对业务字段及规范化有效期生成摘要，供请求号重放核对。 */
     public static String canonical(Create input, BigDecimal amount) {
         var fields = fields(input, amount);
-        fields.put("contract", "PAYMENT_LINK_CREATE_V2");
+        boolean explicitMethods = input.getPaymentMethodKeys() != null;
+        fields.put("contract", explicitMethods ? "PAYMENT_LINK_CREATE_V3" : "PAYMENT_LINK_CREATE_V2");
+        if (explicitMethods) {
+            fields.remove("brands");
+            fields.put("paymentMethodKeys", normalizedKeys(input));
+        }
         fields.put("expiry", input.getExpireTime() == null
                 ? Objects.requireNonNullElse(input.getExpireMinutes(), PaymentLinkExpiryPolicy.DEFAULT_MINUTES)
                 : input.getExpireTime().truncatedTo(ChronoUnit.MILLIS).toString());
@@ -26,6 +31,9 @@ public final class PaymentLinkCreationFingerprint {
     /** 仅接受当前或可证明等价的旧摘要；同请求号不同业务参数拒绝重放。 */
     public static void requireMatch(PaymentLinkDO row, Create input, BigDecimal amount) {
         if (canonical(input, amount).equals(row.getRequestFingerprint())) return;
+        if (row.getAllowedMethodsJson() != null || input.getPaymentMethodKeys() != null) {
+            throw new ServiceException(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT);
+        }
         // 旧绝对时刻只接受能够由原摘要证明的请求；无法还原的亚毫秒原值不能猜测为相同请求。
         if (input.getExpireTime() != null) {
             if (input.getExpireTime().truncatedTo(ChronoUnit.MILLIS).equals(row.getExpireTime())
@@ -43,6 +51,20 @@ public final class PaymentLinkCreationFingerprint {
 
     private static String legacy(Create input, BigDecimal amount, Object expiry) {
         var fields = fields(input, amount); fields.put("expiry", expiry); return digest(fields);
+    }
+
+    /** 同一方式集合的顺序和重复项不改变幂等语义，冲突的新旧卡字段不得被忽略。 */
+    static List<String> normalizedKeys(Create input) {
+        List<String> keys = input.getPaymentMethodKeys().stream().distinct().sorted().toList();
+        if (input.getCardBrands() != null) {
+            List<String> requestedCards = input.getCardBrands().stream()
+                    .distinct().sorted().map(brand -> "CARD_BRAND:" + brand).toList();
+            List<String> explicitCards = keys.stream().filter(key -> key.startsWith("CARD_BRAND:")).toList();
+            if (!requestedCards.equals(explicitCards)) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+            }
+        }
+        return keys;
     }
     private static TreeMap<String, Object> fields(Create input, BigDecimal amount) {
         var fields = new TreeMap<String, Object>();

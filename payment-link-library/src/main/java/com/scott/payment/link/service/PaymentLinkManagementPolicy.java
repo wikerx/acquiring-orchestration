@@ -11,6 +11,7 @@ import com.scott.payment.link.model.PaymentLinkManagementModels.AllowedMethod;
 import com.scott.payment.link.model.PaymentLinkManagementModels.*;
 import com.scott.payment.link.config.PaymentLinkSettings;
 import jakarta.validation.Validator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
@@ -27,16 +28,25 @@ public class PaymentLinkManagementPolicy {
     private final PaymentLinkCapabilities capabilities;
     private final Validator validator;
     private final OutboundHttpUrlPolicy urlPolicy;
+    private final PaymentLinkMethodScope methodScope;
 
     public PaymentLinkManagementPolicy(PaymentLinkSettings properties, MerchantRuntimeProfileCacheService merchants,
                              IsoDictionaryService currencies, PaymentLinkCapabilities capabilities,
                              Validator validator, Environment environment) {
+        this(properties, merchants, currencies, capabilities, validator, environment, null);
+    }
+
+    @Autowired
+    public PaymentLinkManagementPolicy(PaymentLinkSettings properties, MerchantRuntimeProfileCacheService merchants,
+                             IsoDictionaryService currencies, PaymentLinkCapabilities capabilities,
+                             Validator validator, Environment environment, PaymentLinkMethodScope methodScope) {
         this.properties = properties;
         this.merchants = merchants;
         this.currencies = currencies;
         this.capabilities = capabilities;
         this.validator = validator;
         this.urlPolicy = new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles()));
+        this.methodScope = methodScope;
     }
 
     /** 链接入口与存储必须同时就绪，否则以配置不可用拒绝管理操作。 */
@@ -111,8 +121,31 @@ public class PaymentLinkManagementPolicy {
         return resolveMethods(merchantId, currency, brands, false);
     }
 
+    /** 新契约明确按规范方式冻结。授权、费率和当前配置由同一主库事实复核。 */
+    public List<AllowedMethod> resolveMethodScope(String merchantId, String currency, List<String> keys,
+                                                  boolean requireAll) {
+        if (methodScope == null) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE);
+        }
+        return methodScope.resolve(merchantId, currency, keys, requireAll);
+    }
+
     private List<AllowedMethod> resolveMethods(
             String merchantId, String currency, List<String> brands, boolean requireAll) {
+        if (methodScope != null) {
+            PaymentLinkMethodScope.Snapshot governed = methodScope.snapshot(merchantId);
+            if (governed.authority().mode() != null) {
+                List<String> enabledCards = methodScope.enabledKeys(governed, currency).stream()
+                        .filter(key -> key.startsWith("CARD_BRAND:")).toList();
+                List<String> requestedCards = brands == null || brands.isEmpty() ? enabledCards
+                        : brands.stream().map(brand -> "CARD_BRAND:" + brand).distinct().toList();
+                List<String> keys = requestedCards.stream().filter(enabledCards::contains).toList();
+                if (keys.isEmpty() || requireAll && keys.size() != requestedCards.size()) {
+                    throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE);
+                }
+                return methodScope.resolve(merchantId, currency, keys, requireAll);
+            }
+        }
         AllowedMethod requested =
                 new AllowedMethod();
         requested.setPaymentMethod("BANK_CARD");
@@ -139,11 +172,16 @@ public class PaymentLinkManagementPolicy {
         result.setMerchantDisplayName(merchant.getMerchantName());
         java.util.Map<String, List<String>> byCurrency = new java.util.TreeMap<>();
         java.util.Map<String, List<String>> methodsByCurrency = new java.util.TreeMap<>();
+        java.util.Map<String, List<String>> keysByCurrency = new java.util.TreeMap<>();
         java.util.Map<String, Integer> exponents = new java.util.TreeMap<>();
         PaymentLinkCapabilities snapshot = capabilities.snapshot(merchantId);
+        PaymentLinkMethodScope.Snapshot governed = methodScope == null ? null : methodScope.snapshot(merchantId);
         for (IsoCurrencyInfo currency : currencies.listCurrencies()) {
             if (currency.defaultFractionDigits() < 0 || currency.defaultFractionDigits() > 6) continue;
             exponents.put(currency.alphabeticCode(), currency.defaultFractionDigits());
+            if (governed != null && governed.authority().mode() != null) {
+                keysByCurrency.put(currency.alphabeticCode(), methodScope.enabledKeys(governed, currency.alphabeticCode()));
+            }
             var allowed = snapshot.resolve(merchantId, null, currency.alphabeticCode());
             methodsByCurrency.put(currency.alphabeticCode(), allowed.stream()
                     .map(AllowedMethod::getPaymentMethod)
@@ -154,6 +192,9 @@ public class PaymentLinkManagementPolicy {
             if (!brands.isEmpty()) { byCurrency.put(currency.alphabeticCode(), brands); }
         }
         result.setPaymentMethodsByCurrency(methodsByCurrency);
+        if (governed != null && governed.authority().mode() != null) {
+            result.setPaymentMethodKeysByCurrency(keysByCurrency);
+        }
         result.setCardBrandsByCurrency(byCurrency);
         result.setCurrencies(List.copyOf(exponents.keySet()));
         result.setCurrencyExponents(exponents);

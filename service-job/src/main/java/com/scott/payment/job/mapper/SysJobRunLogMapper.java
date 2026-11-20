@@ -15,6 +15,14 @@ import java.util.List;
  */
 public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
 
+    @Select("""
+            SELECT lease_epoch FROM sys_job_run_log
+            WHERE run_id = #{runId} AND job_id = #{jobId} AND executor_node = #{nodeId}
+              AND run_status = 'RUNNING'
+            """)
+    Long findRunningLease(@Param("runId") String runId, @Param("jobId") Long jobId,
+                          @Param("nodeId") String nodeId);
+
     /**
      * 仅在当前仍为 RUNNING 状态时更新任务日志终态，避免异步完成覆盖 TIMEOUT。
      *

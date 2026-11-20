@@ -33,6 +33,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * 管理后台数据字典领域服务实现
@@ -46,6 +48,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * 未删除标识。
      */
     private static final long NOT_DELETED = 0L;
+    private static final Set<String> PAYMENT_DIRECTORY = Set.of("acquiring_payment_method", "card_brand");
 
     /**
      * 默认启用状态。
@@ -119,7 +122,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     @Transactional(rollbackFor = Exception.class)
     public SysDictTypeDTO saveDictType(SysDictTypeSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
-        SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(request.getDictType());
+        SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(request.getDictType(), paymentDirectory(request.getDictType()));
         if (entity == null) {
             entity = new SysDictTypeDO();
             entity.setDictType(request.getDictType());
@@ -184,7 +187,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteDictType(String dictType) {
-        SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(dictType);
+        SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(dictType, paymentDirectory(dictType));
         if (entity == null) {
             return;
         }
@@ -206,7 +209,9 @@ public class AdminDictServiceImpl implements AdminDictService {
     public SysDictDataDTO saveDictData(SysDictDataSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         String locale = defaultIfBlank(request.getLocale(), DEFAULT_LOCALE);
-        SysDictDataDO entity = findDictDataOrThrowWhenBlank(request.getDictType(), request.getDictValue(), locale);
+        boolean currentRead = lockPaymentDirectory(request.getDictType());
+        SysDictDataDO entity = findDictDataOrThrowWhenBlank(request.getDictType(), request.getDictValue(), locale,
+                currentRead);
         String previousType = entity == null ? request.getDictType() : entity.getDictType();
         String previousLocale = entity == null ? locale : entity.getLocale();
         if (entity == null) {
@@ -218,11 +223,18 @@ public class AdminDictServiceImpl implements AdminDictService {
             entity.setCreatedAt(now);
             entity.setDeleted(NOT_DELETED);
         }
+        Integer previousStatus = entity.getStatus();
         fillDictData(entity, request, locale, now);
+        if (currentRead && request.getStatus() == null) {
+            entity.setStatus(previousStatus != null ? previousStatus : inheritedPaymentDirectoryStatus(entity));
+        }
         if (entity.getId() == null) {
             dictDataMapper.insert(entity);
         } else {
             dictDataMapper.updateById(entity);
+        }
+        if (currentRead) {
+            synchronizePaymentDirectoryStatus(entity, now);
         }
         evictOptionCaches(previousType, previousLocale, entity.getDictType(), entity.getLocale());
         return DictConverter.INSTANCE.toDataDTO(entity);
@@ -282,7 +294,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     @Override
     @DS(DataSourceName.SLAVE)
     public SysDictDataDTO getDictDataById(Long id) {
-        SysDictDataDO entity = findDictDataById(id);
+        SysDictDataDO entity = findDictDataById(id, false);
         return DictConverter.INSTANCE.toDataDTO(entity);
     }
 
@@ -297,12 +309,19 @@ public class AdminDictServiceImpl implements AdminDictService {
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SysDictDataDTO updateDictDataById(Long id, SysDictDataSaveRequest request) {
-        SysDictDataDO entity = findDictDataById(id);
+        SysDictDataDO entity = lockDictionaryItem(id);
         String previousType = entity.getDictType();
         String previousLocale = entity.getLocale();
         LocalDateTime now = LocalDateTime.now();
+        Integer previousStatus = entity.getStatus();
         fillDictData(entity, request, defaultIfBlank(request.getLocale(), entity.getLocale()), now);
+        if (paymentDirectory(entity.getDictType()) && request.getStatus() == null) {
+            entity.setStatus(previousStatus);
+        }
         dictDataMapper.updateById(entity);
+        if (paymentDirectory(entity.getDictType())) {
+            synchronizePaymentDirectoryStatus(entity, now);
+        }
         evictOptionCaches(previousType, previousLocale, entity.getDictType(), entity.getLocale());
         return DictConverter.INSTANCE.toDataDTO(entity);
     }
@@ -353,7 +372,9 @@ public class AdminDictServiceImpl implements AdminDictService {
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteDictData(String dictType, String dictValue, String locale) {
-        SysDictDataDO entity = findDictDataOrThrowWhenBlank(dictType, dictValue, defaultIfBlank(locale, DEFAULT_LOCALE));
+        boolean currentRead = lockPaymentDirectory(dictType);
+        SysDictDataDO entity = findDictDataOrThrowWhenBlank(
+                dictType, dictValue, defaultIfBlank(locale, DEFAULT_LOCALE), currentRead);
         if (entity == null) {
             return;
         }
@@ -372,7 +393,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteDictDataById(Long id) {
-        SysDictDataDO entity = findDictDataById(id);
+        SysDictDataDO entity = lockDictionaryItem(id);
         entity.setDeleted(entity.getId());
         entity.setUpdatedAt(LocalDateTime.now());
         dictDataMapper.updateById(entity);
@@ -442,7 +463,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param dictType 字典类型编码
      * @return 字典类型实体
      */
-    private SysDictTypeDO findDictTypeOrThrowWhenBlank(String dictType) {
+    private SysDictTypeDO findDictTypeOrThrowWhenBlank(String dictType, boolean lock) {
         if (!StringUtils.hasText(dictType)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), ApiResultEnum.PARAM_MISSING.getMessage() + ":dictType");
         }
@@ -450,7 +471,7 @@ public class AdminDictServiceImpl implements AdminDictService {
                 Wrappers.<SysDictTypeDO>lambdaQuery()
                         .eq(SysDictTypeDO::getDictType, dictType)
                         .eq(SysDictTypeDO::getDeleted, NOT_DELETED)
-                        .last("LIMIT 1")
+                        .last(lock ? "LIMIT 1 FOR UPDATE" : "LIMIT 1")
         );
     }
 
@@ -462,7 +483,8 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param locale    语言区域
      * @return 字典数据实体
      */
-    private SysDictDataDO findDictDataOrThrowWhenBlank(String dictType, String dictValue, String locale) {
+    private SysDictDataDO findDictDataOrThrowWhenBlank(String dictType, String dictValue, String locale,
+                                                        boolean lock) {
         if (!StringUtils.hasText(dictType) || !StringUtils.hasText(dictValue)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), ApiResultEnum.PARAM_MISSING.getMessage() + ":dictType/dictValue");
         }
@@ -472,7 +494,7 @@ public class AdminDictServiceImpl implements AdminDictService {
                         .eq(SysDictDataDO::getDictValue, dictValue)
                         .eq(SysDictDataDO::getLocale, locale)
                         .eq(SysDictDataDO::getDeleted, NOT_DELETED)
-                        .last("LIMIT 1")
+                        .last(lock ? "LIMIT 1 FOR UPDATE" : "LIMIT 1")
         );
     }
 
@@ -482,7 +504,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param id 字典数据主键
      * @return 字典数据实体
      */
-    private SysDictDataDO findDictDataById(Long id) {
+    private SysDictDataDO findDictDataById(Long id, boolean lock) {
         if (id == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), ApiResultEnum.PARAM_MISSING.getMessage() + ":id");
         }
@@ -490,12 +512,61 @@ public class AdminDictServiceImpl implements AdminDictService {
                 Wrappers.<SysDictDataDO>lambdaQuery()
                         .eq(SysDictDataDO::getId, id)
                         .eq(SysDictDataDO::getDeleted, NOT_DELETED)
-                        .last("LIMIT 1")
+                        .last(lock ? "LIMIT 1 FOR UPDATE" : "LIMIT 1")
         );
         if (entity == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), ApiResultEnum.NOT_FOUND.getMessage() + ":dictData");
         }
         return entity;
+    }
+
+    private boolean lockPaymentDirectory(String dictType) {
+        if (!paymentDirectory(dictType)) {
+            return false;
+        }
+        if (findDictTypeOrThrowWhenBlank(dictType, true) == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "支付方式字典类型不存在");
+        }
+        return true;
+    }
+
+    private SysDictDataDO lockDictionaryItem(Long id) {
+        SysDictDataDO candidate = findDictDataById(id, false);
+        return lockPaymentDirectory(candidate.getDictType()) ? findDictDataById(id, true) : candidate;
+    }
+
+    /** 无显式启停操作时，新语言继承原状态，混合存量状态按停用收敛。 */
+    private int inheritedPaymentDirectoryStatus(SysDictDataDO value) {
+        List<SysDictDataDO> translations = dictDataMapper.selectList(Wrappers.<SysDictDataDO>lambdaQuery()
+                .eq(SysDictDataDO::getDictType, value.getDictType())
+                .eq(SysDictDataDO::getDictValue, value.getDictValue())
+                .eq(SysDictDataDO::getDeleted, NOT_DELETED)
+                .orderByAsc(SysDictDataDO::getId)
+                .last("FOR UPDATE"));
+        return translations.stream().allMatch(row -> Integer.valueOf(ENABLED).equals(row.getStatus())) ? ENABLED : 0;
+    }
+
+    /** 同一规范方式的多语言行只承载展示差异，启停必须成为同一个事务事实。 */
+    private void synchronizePaymentDirectoryStatus(SysDictDataDO changed, LocalDateTime now) {
+        List<SysDictDataDO> translations = dictDataMapper.selectList(Wrappers.<SysDictDataDO>lambdaQuery()
+                .eq(SysDictDataDO::getDictType, changed.getDictType())
+                .eq(SysDictDataDO::getDictValue, changed.getDictValue())
+                .eq(SysDictDataDO::getDeleted, NOT_DELETED)
+                .ne(SysDictDataDO::getId, changed.getId())
+                .ne(SysDictDataDO::getStatus, changed.getStatus())
+                .orderByAsc(SysDictDataDO::getId)
+                .last("FOR UPDATE"));
+        for (SysDictDataDO translation : translations) {
+            translation.setStatus(changed.getStatus());
+            translation.setUpdatedBy(changed.getUpdatedBy());
+            translation.setUpdatedAt(now);
+            dictDataMapper.updateById(translation);
+            evictOptionCache(translation.getDictType(), translation.getLocale());
+        }
+    }
+
+    private static boolean paymentDirectory(String dictType) {
+        return dictType != null && PAYMENT_DIRECTORY.contains(dictType.trim().toLowerCase(Locale.ROOT));
     }
 
     /**

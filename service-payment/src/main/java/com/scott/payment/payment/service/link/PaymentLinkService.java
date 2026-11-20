@@ -84,7 +84,16 @@ public class PaymentLinkService {
         result.setCurrency(link.getCurrency()); result.setCurrencyExponent(link.getCurrencyExponent());
         result.setAmount(link.getAmount().setScale(link.getCurrencyExponent(), java.math.RoundingMode.UNNECESSARY).toPlainString());
         result.setLocale(link.getLocale()); result.setStatus(status);
-        result.setPayable(PaymentLinkStatus.ACTIVE.name().equals(status) && sessionPayable(link.getLinkId()) && merchantAvailable(link.getMerchantId()));
+        boolean entryAvailable = PaymentLinkStatus.ACTIVE.name().equals(status)
+                && sessionPayable(link.getLinkId()) && merchantAvailable(link.getMerchantId());
+        if (entryAvailable && link.getAllowedMethodsJson() != null) {
+            var eligible = policy.currentExplicitMethods(link.getMerchantId(), link.getCurrency(), link.getAllowedMethodsJson());
+            result.setCheckoutAvailable(!eligible.isEmpty());
+            result.setPayable(eligible.stream().anyMatch(method -> "BANK_CARD".equals(method.getPaymentMethod())));
+        } else {
+            result.setCheckoutAvailable(entryAvailable);
+            result.setPayable(entryAvailable);
+        }
         result.setProcessing("PROCESSING".equals(paymentStatus));
         // 会话当前仍处理中/已成功时不投影更早失败，避免把未知结果误判成失败。
         if ("FAILED".equals(paymentStatus)) {
@@ -94,6 +103,7 @@ public class PaymentLinkService {
             } else if (!latest.isEmpty() && "PROCESSING".equals(latest.get(0).getStatus())) {
                 result.setProcessing(true);
                 result.setPayable(false);
+                result.setCheckoutAvailable(false);
             }
         }
         result.setExpireTime(link.getExpireTime()); result.setServerTime(now());
@@ -114,7 +124,13 @@ public class PaymentLinkService {
             throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
         }
         policy.merchant(link.getMerchantId());
-        var methods = policy.currentMethods(link.getMerchantId(), link.getCurrency(), JsonUtils.parseArray(link.getAllowedBrandsJson(), String.class));
+        boolean explicitScope = link.getAllowedMethodsJson() != null;
+        var methods = explicitScope
+                ? policy.currentExplicitMethods(link.getMerchantId(), link.getCurrency(), link.getAllowedMethodsJson())
+                : policy.currentMethods(link.getMerchantId(), link.getCurrency(), JsonUtils.parseArray(link.getAllowedBrandsJson(), String.class));
+        if (methods.isEmpty()) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE);
+        }
         PaymentCheckoutSessionCreateCommandDTO command = new PaymentCheckoutSessionCreateCommandDTO();
         command.setMerchantId(link.getMerchantId()); command.setMerchantOrderNo(link.getMerchantOrderNo());
         command.setMerchantRequestId("PAYMENT_LINK:" + link.getLinkId());
@@ -126,6 +142,7 @@ public class PaymentLinkService {
         command.setMerchantDisplayName(link.getMerchantDisplayName()); command.setMerchantNotifyUrl(link.getNotifyUrl());
         command.setRedirectUrl(link.getRedirectUrl()); command.setRetryAllowed(1); command.setExpireTime(link.getExpireTime());
         command.setRequestSource("PAY_BY_LINK");
+        command.setExplicitLinkMethodScope(explicitScope);
         var session = checkout.createSession(command);
         PaymentLinkCheckoutBindingDO binding = binding(link.getLinkId());
         if (binding == null) {

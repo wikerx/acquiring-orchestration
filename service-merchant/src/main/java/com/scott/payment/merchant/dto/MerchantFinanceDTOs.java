@@ -3,6 +3,7 @@ package com.scott.payment.merchant.dto;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
+import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.AuthorizationCoverage;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -172,6 +173,8 @@ public final class MerchantFinanceDTOs {
          */
         private String tierPeriod;
         private List<FeeTierResponse> tiers = new ArrayList<>();
+        /** 与原始原子费率维度匹配的方式及独立授权事实。 */
+        private List<AuthorizationCoverage> paymentMethodCoverage;
     }
 
     /**
@@ -197,6 +200,7 @@ public final class MerchantFinanceDTOs {
         private String settlementFrequency;
         private Integer frequencyDay;
         private List<FeeRuleResponse> rules = new ArrayList<>();
+        private String authorizationAssessmentStatus;
     }
 
     /**

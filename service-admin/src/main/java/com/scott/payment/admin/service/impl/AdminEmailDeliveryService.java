@@ -7,6 +7,7 @@ import com.scott.payment.admin.mapper.EmailSendRecordMapper;
 import com.scott.payment.component.mq.email.EmailDeliveryFailureSummary;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
 import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.db.outbox.mapper.ReliableMqOutboxMapper;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
 import com.scott.payment.component.mq.message.EmailDeliveryMessage;
@@ -25,6 +26,8 @@ import java.util.List;
  */
 @Service
 public class AdminEmailDeliveryService {
+
+    public static final String PAYMENT_CAPABILITY_BIZ_TYPE = "MERCHANT_PAYMENT_CAPABILITY";
 
     /**
      * Admin 邮件记录固定应用边界。
@@ -81,7 +84,9 @@ public class AdminEmailDeliveryService {
      * 在当前业务事务中写入不含敏感内容的邮件投递 Outbox。
      */
     public void enqueue(EmailSendRecordDO record) {
-        reliableMqPublisher.publish(MqTopic.EMAIL_DELIVERY, MqTag.ADMIN_EMAIL_DELIVERY, toMessage(record));
+        String tag = PAYMENT_CAPABILITY_BIZ_TYPE.equals(record.getBizType())
+                ? ReliableMqOutboxMapper.CAPABILITY_MAIL_TAG : MqTag.ADMIN_EMAIL_DELIVERY;
+        reliableMqPublisher.publish(MqTopic.EMAIL_DELIVERY, tag, toMessage(record));
     }
 
     /**
@@ -95,6 +100,21 @@ public class AdminEmailDeliveryService {
                 now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L)), nextRetryTime, now);
         List<EmailSendRecordDO> dueRecords = recordMapper.selectDueForRetry(
                 APP_CODE, now, Math.max(properties.getBatchSize(), 1));
+        return requeue(dueRecords, now);
+    }
+
+    /** 仅由 Job 调用，恢复支付方式的到期和超时通知。 */
+    @Transactional(rollbackFor = Exception.class)
+    public int recoverPaymentCapabilityDelivery(int requestedLimit) {
+        int limit = Math.max(1, Math.min(100, requestedLimit));
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime staleBefore = now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L));
+        LocalDateTime nextRetryTime = now.plusSeconds(Math.max(properties.getRetryDelaySeconds(), 1L));
+        recordMapper.recoverCapabilityStaleDelivery(staleBefore, nextRetryTime, now, limit);
+        return requeue(recordMapper.selectCapabilityDue(now, limit), now);
+    }
+
+    private int requeue(List<EmailSendRecordDO> dueRecords, LocalDateTime now) {
         int requeued = 0;
         for (EmailSendRecordDO record : dueRecords) {
             if (recordMapper.requeueForDelivery(record.getId(), record.getEmailNo(), record.getAppCode(), now) == 1) {

@@ -3,6 +3,7 @@ package com.scott.payment.job.client.admin;
 import com.scott.payment.job.client.admin.dto.ExchangeRateAlertEvaluationClientDTOs.Request;
 import com.scott.payment.job.client.admin.dto.ExchangeRateAlertEvaluationClientDTOs.Response;
 import com.scott.payment.job.client.admin.dto.OperationalWorkItemSyncClientDTOs;
+import com.scott.payment.job.client.admin.dto.PaymentCapabilityOperationsClientDTOs;
 
 /**
  * service-job 调用 service-admin 内部管理命令的客户端契约。
@@ -25,4 +26,10 @@ public interface AdminInternalClient {
      */
     OperationalWorkItemSyncClientDTOs.Response synchronizeOperationalWorkItems(
             OperationalWorkItemSyncClientDTOs.Request request);
+
+    PaymentCapabilityOperationsClientDTOs.BoundaryResponse scanPaymentCapabilityBoundaries(
+            PaymentCapabilityOperationsClientDTOs.BoundaryRequest request);
+
+    PaymentCapabilityOperationsClientDTOs.RecoveryResponse recoverPaymentCapabilityDelivery(
+            PaymentCapabilityOperationsClientDTOs.RecoveryRequest request);
 }

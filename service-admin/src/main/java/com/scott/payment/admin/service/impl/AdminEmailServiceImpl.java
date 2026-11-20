@@ -549,13 +549,54 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public EmailSendResult sendByTemplate(EmailSendRequest request) {
+        if (AdminEmailDeliveryService.PAYMENT_CAPABILITY_BIZ_TYPE.equals(trimUpper(request.getBizType()))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "payment capability notification requires a business key");
+        }
+        return createTemplateEmail(request, null, null);
+    }
+
+    /** 支付方式通知按同一业务事件和受众去重，邮件与投递意图同事务。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public EmailSendResult sendPaymentCapabilityNotification(EmailSendRequest request, byte[] key, byte[] payloadHash) {
+        if (!AdminEmailDeliveryService.PAYMENT_CAPABILITY_BIZ_TYPE.equals(request.getBizType())
+                || key == null || key.length != 32 || payloadHash == null || payloadHash.length != 32) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        EmailSendRecordDO existing = recordMapper.findBusinessNotification(key);
+        if (existing != null) {
+            return existingBusinessNotification(existing, payloadHash);
+        }
+        try {
+            return createTemplateEmail(request, key, payloadHash);
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            existing = recordMapper.lockBusinessNotification(key);
+            if (existing == null) {
+                throw exception;
+            }
+            return existingBusinessNotification(existing, payloadHash);
+        }
+    }
+
+    private EmailSendResult existingBusinessNotification(EmailSendRecordDO existing, byte[] payloadHash) {
+        if (!java.util.Arrays.equals(existing.getBusinessNotificationPayloadHash(), payloadHash)) {
+            throw new ServiceException(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT);
+        }
+        return toSendResult(existing);
+    }
+
+    private EmailSendResult createTemplateEmail(EmailSendRequest request, byte[] key, byte[] payloadHash) {
         try {
             EmailTemplateDO template = requireEnabledTemplate(request.getTemplateCode(), defaultIfBlank(request.getLocale(), DEFAULT_LOCALE));
             Map<String, Object> variables = enrichSystemVariables(request.getVariables());
             Set<String> missing = missingVariables(template.getSubjectTemplate() + template.getContentTemplate(), variables);
             EmailAccountDO account = selectAccount(request.getAppCode(), request.getMerchantId(), defaultIfBlank(request.getSceneCode(), template.getSceneCode()));
             EmailSendRecordDO record = buildRecord(request, template, account);
+            record.setBusinessNotificationKey(key);
+            record.setBusinessNotificationPayloadHash(payloadHash);
             if (!missing.isEmpty()) {
+                if (key != null) {
+                    throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "payment capability notification template is incomplete");
+                }
                 record.setSubject(template.getSubjectTemplate());
                 record.setContentSnapshot("模板变量缺失：" + String.join(",", missing));
                 record.setSendStatus(SEND_FAILED);
@@ -582,7 +623,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
             deliveryService.enqueue(record);
             return toSendResult(record);
         } catch (RuntimeException exception) {
-            preparationFailureRecorder.record(request, preparationErrorCode(exception));
+            if (key == null) {
+                preparationFailureRecorder.record(request, preparationErrorCode(exception));
+            }
             throw exception;
         }
     }
@@ -606,6 +649,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public EmailSendResult resend(Long id) {
         EmailSendRecordDO source = requireRecord(id);
+        if (source.getBusinessNotificationKey() != null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "payment capability notification must be recovered using its original business key");
+        }
         EmailDeliveryStatus sourceStatus = EmailDeliveryStatus.fromCode(source.getSendStatus());
         if (sourceStatus != EmailDeliveryStatus.CLOSED && sourceStatus != EmailDeliveryStatus.CANCELLED) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "仅关闭或取消的邮件允许重新创建发送任务");

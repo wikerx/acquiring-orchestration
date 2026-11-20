@@ -440,6 +440,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         vo.setPaymentMethods(response.getPaymentMethods() == null ? List.of() : response.getPaymentMethods().stream()
                 .map(this::toPaymentMethodVO)
                 .toList());
+        vo.setPaymentOptions(response.getPaymentOptions() == null ? null : response.getPaymentOptions().stream()
+                .map(this::toPaymentMethodVO)
+                .toList());
         vo.setCheckout(toCheckoutVO(response.getCheckout()));
         vo.setPayerInfo(toPayerInfoVO(response.getPayerInfo()));
         vo.setBillingInfo(toBillingInfoVO(response.getBillingInfo()));
@@ -572,6 +575,8 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setChannelCode(source.getChannelCode());
         target.setBrands(source.getBrands());
         target.setThreeDsMode(source.getThreeDsMode());
+        target.setServerSubmitAllowed(source.getServerSubmitAllowed());
+        target.setExecutionStatus(source.getExecutionStatus());
         return target;
     }
 

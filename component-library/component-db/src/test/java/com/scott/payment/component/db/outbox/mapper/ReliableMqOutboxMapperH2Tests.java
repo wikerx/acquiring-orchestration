@@ -143,6 +143,33 @@ class ReliableMqOutboxMapperH2Tests {
         }
     }
 
+    @Test
+    void capabilityJobTagsAreInvisibleToLegacyAdminScanOnly() {
+        try (SqlSession session = sqlSessionFactory.openSession(true)) {
+            ReliableMqOutboxMapper mapper = session.getMapper(ReliableMqOutboxMapper.class);
+            LocalDateTime now = LocalDateTime.of(2026, 11, 20, 19, 0);
+            ReliableMqOutboxDO job = event("job-scope", "INIT", 0, 3, null, now, "service-admin");
+            job.setTag(ReliableMqOutboxMapper.CAPABILITY_EVENT_TAG);
+            mapper.insert(job);
+            ReliableMqOutboxDO mail = event("job-mail", "INIT", 0, 3, null, now, "service-admin");
+            mail.setTag(ReliableMqOutboxMapper.CAPABILITY_MAIL_TAG);
+            mapper.insert(mail);
+            ReliableMqOutboxDO other = event("same-tag-other-owner", "INIT", 0, 3, null, now, "service-payment");
+            other.setTag(job.getTag());
+            mapper.insert(other);
+            ReliableMqOutboxDO oldAdmin = event("old-admin", "INIT", 0, 3, null, now, "service-admin");
+            oldAdmin.setTag(null);
+            mapper.insert(oldAdmin);
+
+            assertThat(mapper.selectDue("service-admin", now, 10))
+                    .extracting(ReliableMqOutboxDO::getEventId).containsExactly("old-admin");
+            assertThat(mapper.selectDue("service-payment", now, 10))
+                    .extracting(ReliableMqOutboxDO::getEventId).containsExactly("same-tag-other-owner");
+            assertThat(mapper.selectPaymentCapabilityDue(now, 10))
+                    .extracting(ReliableMqOutboxDO::getEventId).containsExactly("job-scope", "job-mail");
+        }
+    }
+
     /**
      * 指标聚合必须返回各待处理状态、CLOSED 数量和最老积压时间。
      */

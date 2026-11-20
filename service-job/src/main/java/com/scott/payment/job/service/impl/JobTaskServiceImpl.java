@@ -20,6 +20,7 @@ import com.scott.payment.job.executor.JobHandlerRegistry;
 import com.scott.payment.job.mapper.SysJobTaskMapper;
 import com.scott.payment.job.service.JobTaskService;
 import com.scott.payment.job.service.JobTaskTimingService;
+import com.scott.payment.job.support.PaymentCapabilityJobCodes;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -241,8 +242,17 @@ public class JobTaskServiceImpl implements JobTaskService {
      * @return 当前节点成功更新锁时返回 {@code true}
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public boolean tryAcquireLock(SysJobTaskDO task, String nodeId, LocalDateTime currentTime) {
         LocalDateTime lockUntil = currentTime.plusSeconds(Math.max(task.getTimeoutSeconds(), 30));
+        if (PaymentCapabilityJobCodes.usesFencedLease(task.getHandlerCode())) {
+            if (task.getLeaseEpoch() == null
+                    || sysJobTaskMapper.acquireFencedLock(task.getId(), nodeId, lockUntil, task.getVersion()) != 1) {
+                return false;
+            }
+            task.setLeaseEpoch(Math.incrementExact(task.getLeaseEpoch()));
+            return true;
+        }
         return sysJobTaskMapper.acquireLock(task.getId(), nodeId, lockUntil, task.getVersion()) > 0;
     }
 
@@ -291,6 +301,25 @@ public class JobTaskServiceImpl implements JobTaskService {
                 LocalDateTime.now()) == 1;
     }
 
+    @Override
+    @DS(DataSourceName.MASTER)
+    public boolean renewFencedLock(Long taskId, String nodeId, Long epoch, LocalDateTime lockUntil) {
+        return sysJobTaskMapper.renewFencedLock(taskId, nodeId, epoch, lockUntil) == 1;
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    public boolean markFencedScheduled(Long taskId, String nodeId, Long epoch,
+                                       LocalDateTime lastTriggerTime, LocalDateTime nextTriggerTime) {
+        return sysJobTaskMapper.markFencedScheduled(taskId, nodeId, epoch, lastTriggerTime, nextTriggerTime) == 1;
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    public boolean finishFencedRun(Long taskId, String nodeId, Long epoch, JobRunStatusEnum status) {
+        return sysJobTaskMapper.finishFencedRun(taskId, nodeId, epoch, status.name()) == 1;
+    }
+
     /**
      * 填充任务可编辑字段。
      *
@@ -299,6 +328,14 @@ public class JobTaskServiceImpl implements JobTaskService {
      */
     private void fillTask(SysJobTaskDO task, JobTaskSaveRequest request) {
         JobHandlerDescriptor descriptor = jobHandlerRegistry.getRequiredDescriptor(request.getHandlerCode());
+        String requiredCode = switch (request.getHandlerCode()) {
+            case PaymentCapabilityJobCodes.BOUNDARY -> PaymentCapabilityJobCodes.BOUNDARY_JOB;
+            case PaymentCapabilityJobCodes.DELIVERY_RECOVERY -> PaymentCapabilityJobCodes.DELIVERY_RECOVERY_JOB;
+            default -> request.getJobCode();
+        };
+        if (!requiredCode.equals(request.getJobCode())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "payment capability job requires its system code");
+        }
         validateJson(request.getParams());
         task.setJobCode(request.getJobCode().trim());
         task.setJobName(request.getJobName().trim());
@@ -351,6 +388,10 @@ public class JobTaskServiceImpl implements JobTaskService {
             requiredHandler = RATE_VOLATILITY_MONITOR_HANDLER_CODE;
         } else if (OPERATIONAL_WORK_ITEM_SYNC_JOB_CODE.equals(currentTask.getJobCode())) {
             requiredHandler = OPERATIONAL_WORK_ITEM_SYNC_HANDLER_CODE;
+        } else if (PaymentCapabilityJobCodes.BOUNDARY_JOB.equals(currentTask.getJobCode())) {
+            requiredHandler = PaymentCapabilityJobCodes.BOUNDARY;
+        } else if (PaymentCapabilityJobCodes.DELIVERY_RECOVERY_JOB.equals(currentTask.getJobCode())) {
+            requiredHandler = PaymentCapabilityJobCodes.DELIVERY_RECOVERY;
         } else {
             requiredHandler = DATA_EXPORT_TASK_DISPATCH_HANDLER_CODE;
         }
@@ -364,7 +405,9 @@ public class JobTaskServiceImpl implements JobTaskService {
     private boolean isSystemTask(String jobCode) {
         return RATE_VOLATILITY_MONITOR_JOB_CODE.equals(jobCode)
                 || OPERATIONAL_WORK_ITEM_SYNC_JOB_CODE.equals(jobCode)
-                || DATA_EXPORT_TASK_DISPATCH_JOB_CODE.equals(jobCode);
+                || DATA_EXPORT_TASK_DISPATCH_JOB_CODE.equals(jobCode)
+                || PaymentCapabilityJobCodes.BOUNDARY_JOB.equals(jobCode)
+                || PaymentCapabilityJobCodes.DELIVERY_RECOVERY_JOB.equals(jobCode);
     }
 
     /**

@@ -5,6 +5,11 @@
     <artifactId>payment-link-library</artifactId>
     <description>支付链接管理规则与持久化协作；不执行交易、渠道或资金操作。</description>
     <dependencies>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-capability-library</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency><groupId>com.scott.payment</groupId><artifactId>component-db</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
         <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><optional>true</optional></dependency>

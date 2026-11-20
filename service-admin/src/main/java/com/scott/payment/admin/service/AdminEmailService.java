@@ -205,6 +205,9 @@ public interface AdminEmailService {
      */
     EmailSendResult sendByTemplate(EmailSendRequest request);
 
+    /** 支付方式通知的内部幂等入口。 */
+    EmailSendResult sendPaymentCapabilityNotification(EmailSendRequest request, byte[] key, byte[] payloadHash);
+
     /**
      * 从允许重发的历史邮件创建新的发送任务；验证码类邮件禁止重放。
      * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录

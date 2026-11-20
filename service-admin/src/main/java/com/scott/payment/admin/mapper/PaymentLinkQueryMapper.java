@@ -47,6 +47,7 @@ public interface PaymentLinkQueryMapper {
     class DetailMetadata {
         private String merchantId;
         private String allowedBrandsJson;
+        private String allowedMethodsJson;
         @lombok.ToString.Exclude
         private String notifyUrl;
         @lombok.ToString.Exclude

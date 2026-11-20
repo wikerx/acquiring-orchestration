@@ -111,4 +111,11 @@ public interface JobTaskService {
      * @return true 表示当前节点成功释放任务锁
      */
     boolean finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus, String nodeId);
+
+    boolean renewFencedLock(Long taskId, String nodeId, Long epoch, LocalDateTime lockUntil);
+
+    boolean markFencedScheduled(Long taskId, String nodeId, Long epoch,
+                                LocalDateTime lastTriggerTime, LocalDateTime nextTriggerTime);
+
+    boolean finishFencedRun(Long taskId, String nodeId, Long epoch, JobRunStatusEnum status);
 }

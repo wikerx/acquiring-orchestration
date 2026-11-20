@@ -111,6 +111,28 @@ class AdminEmailServiceAsyncTests {
         verify(deliveryService, never()).enqueue(any());
     }
 
+    @Test
+    void paymentCapabilityEventReusesOriginalEmailAndRejectsDifferentPayload() {
+        EmailSendRequest request = request();
+        request.setBizType(AdminEmailDeliveryService.PAYMENT_CAPABILITY_BIZ_TYPE);
+        byte[] key = new byte[32];
+        byte[] payload = new byte[32];
+        EmailSendRecordDO original = new EmailSendRecordDO();
+        original.setId(91L);
+        original.setBusinessNotificationPayloadHash(payload);
+        when(recordMapper.findBusinessNotification(key)).thenReturn(original);
+
+        assertThat(emailService.sendPaymentCapabilityNotification(request, key, payload).getRecordId()).isEqualTo(91L);
+        byte[] changed = new byte[32];
+        changed[0] = 1;
+        assertThatThrownBy(() -> emailService.sendPaymentCapabilityNotification(request, key, changed))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class);
+        assertThatThrownBy(() -> emailService.sendByTemplate(request))
+                .hasMessageContaining("requires a business key");
+        verify(recordMapper, never()).insert(any(EmailSendRecordDO.class));
+        verify(deliveryService, never()).enqueue(any());
+    }
+
     /**
      * 敏感变量配置非法时必须终止邮件准备并记录失败，不能把敏感值写入普通快照。
      */

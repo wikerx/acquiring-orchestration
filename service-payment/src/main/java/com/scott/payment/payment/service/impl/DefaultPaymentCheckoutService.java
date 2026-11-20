@@ -611,6 +611,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                     throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
                             "payment core preparation returned no transaction");
                 }
+            } catch (PreparationOutcomeUnknownException exception) {
+                logPreChannelFailure(context, "CORE_PREPARE_UNKNOWN", exception);
+                return paymentResult(context.sessionDO(), context.attemptDO());
             } catch (RuntimeException exception) {
                 logPreChannelFailure(context, "CORE_PREPARE", exception);
                 return applyPreChannelFailure(context, true);
@@ -1003,13 +1006,26 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         sessionDO.setOrderSubject(commandDTO.getOrderSubject());
         sessionDO.setOrderDescription(commandDTO.getOrderDescription());
         sessionDO.setOrderItemsJson(commandDTO.getOrderItemsJson());
-        List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> allowedMethods = cardCapabilityService == null
-                ? defaultAllowedPaymentMethods(commandDTO.getAllowedPaymentMethods())
-                : cardCapabilityService.resolveAllowedMethods(commandDTO.getMerchantId(), commandDTO.getAllowedPaymentMethods());
+        boolean explicitLinkScope = commandDTO.isExplicitLinkMethodScope();
+        if (explicitLinkScope && (!"PAY_BY_LINK".equals(commandDTO.getRequestSource())
+                || commandDTO.getAllowedPaymentMethods() == null || commandDTO.getAllowedPaymentMethods().isEmpty())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> allowedMethods;
+        if (explicitLinkScope) {
+            allowedMethods = List.copyOf(commandDTO.getAllowedPaymentMethods());
+            allowedMethods.forEach(method -> method.setLinkScopeVerified(true));
+        } else {
+            allowedMethods = cardCapabilityService == null
+                    ? defaultAllowedPaymentMethods(commandDTO.getAllowedPaymentMethods())
+                    : cardCapabilityService.resolveAllowedMethods(commandDTO.getMerchantId(), commandDTO.getAllowedPaymentMethods());
+        }
         sessionDO.setAllowedPaymentMethodsJson(JsonUtils.toJsonString(allowedMethods));
-        sessionDO.setSelectedPaymentMethod(PAYMENT_METHOD_BANK_CARD);
+        boolean hasCardOption = allowedMethods.stream()
+                .anyMatch(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod()));
+        sessionDO.setSelectedPaymentMethod(!explicitLinkScope || hasCardOption ? PAYMENT_METHOD_BANK_CARD : null);
         sessionDO.setSelectedPaymentBrand(null);
-        sessionDO.setChannelCode(resolveChannelCode(allowedMethods));
+        sessionDO.setChannelCode(explicitLinkScope ? null : resolveChannelCode(allowedMethods));
         sessionDO.setMerchantDisplayName(commandDTO.getMerchantDisplayName());
         sessionDO.setMerchantLogoUrl(commandDTO.getMerchantLogoUrl());
         sessionDO.setMerchantNotifyUrl(commandDTO.getMerchantNotifyUrl());
@@ -1665,22 +1681,6 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         PaymentCheckoutSessionQueryResultDTO.MerchantDTO merchantDTO = new PaymentCheckoutSessionQueryResultDTO.MerchantDTO();
         merchantDTO.setDisplayName(sessionDO.getMerchantDisplayName());
         merchantDTO.setLogoUrl(sessionDO.getMerchantLogoUrl());
-        if (cardCapabilityService != null) {
-            try {
-                var merchantMethods = cardCapabilityService.resolveAllowedMethods(
-                        sessionDO.getMerchantId(), List.of(), sessionDO.getLabelCurrency());
-                merchantDTO.setSupportedPaymentMethods(merchantMethods.stream()
-                        .map(PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO::getPaymentMethod)
-                        .distinct().toList());
-                merchantDTO.setSupportedCardBrands(merchantMethods.stream()
-                        .filter(method -> "BANK_CARD".equals(method.getPaymentMethod()))
-                        .flatMap(method -> method.getBrands().stream()).distinct().toList());
-            } catch (RuntimeException exception) {
-                // 品牌展示是辅助读取，不应因缓存/配置暂不可用而阻断已授权的收银台会话。
-                log.warn("收银台商户展示能力暂不可用, event: CHECKOUT_BRAND_CAPABILITY_UNAVAILABLE, merchantId: {}, exceptionType: {}",
-                        sessionDO.getMerchantId(), exception.getClass().getSimpleName());
-            }
-        }
         resultDTO.setMerchant(merchantDTO);
         PaymentCheckoutSessionQueryResultDTO.OrderDTO orderDTO = new PaymentCheckoutSessionQueryResultDTO.OrderDTO();
         orderDTO.setOrderNo(sessionDO.getMerchantOrderNo());
@@ -1691,7 +1691,27 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         orderDTO.setCurrencyExponent(sessionDO.getCurrencyExponent());
         orderDTO.setItemsJson(sessionDO.getOrderItemsJson());
         resultDTO.setOrder(orderDTO);
-        resultDTO.setPaymentMethods(parsePaymentMethods(sessionDO.getAllowedPaymentMethodsJson()));
+        List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> methodSnapshot = readSessionMethods(sessionDO);
+        boolean explicitScope = isExplicitLinkScope(methodSnapshot);
+        List<PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO> options =
+                resolvePaymentOptions(sessionDO, methodSnapshot, explicitScope);
+        for (var option : options) {
+            boolean card = PAYMENT_METHOD_BANK_CARD.equals(option.getPaymentMethod());
+            option.setServerSubmitAllowed(card && newSubmissionAllowed);
+            option.setExecutionStatus(!card ? "COMPONENT_UNAVAILABLE" : newSubmissionAllowed ? "READY" : "UNAVAILABLE");
+        }
+        resultDTO.setPaymentOptions(options);
+        resultDTO.setPaymentMethods(options.stream()
+                .filter(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod())).toList());
+        if (explicitScope) {
+            merchantDTO.setSupportedPaymentMethods(options.stream()
+                    .map(PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO::getPaymentMethod).distinct().toList());
+            merchantDTO.setSupportedCardBrands(resultDTO.getPaymentMethods().stream()
+                    .filter(method -> method.getBrands() != null)
+                    .flatMap(method -> method.getBrands().stream()).distinct().toList());
+        } else {
+            populateLegacyMerchantDisplay(sessionDO, merchantDTO);
+        }
         PaymentCheckoutSessionQueryResultDTO.CheckoutDTO checkoutDTO = new PaymentCheckoutSessionQueryResultDTO.CheckoutDTO();
         checkoutDTO.setExpireTime(sessionDO.getExpireTime());
         checkoutDTO.setServerTime(serverTime);
@@ -1706,7 +1726,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (latestAttempt != null || !PaymentCheckoutSessionStatusEnum.PENDING.getCode().equals(sessionDO.getCheckoutStatus())) {
             resultDTO.setPaymentResult(paymentResult(sessionDO, latestAttempt));
         }
-        if (cardEnvelopeService != null && newSubmissionAllowed) {
+        if (cardEnvelopeService != null && resultDTO.getPaymentMethods().stream()
+                .anyMatch(PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO::isServerSubmitAllowed)) {
             resultDTO.setCardEncryption(cardEnvelopeService.issue(sessionDO.getCheckoutSessionId()));
         }
         return resultDTO;
@@ -2364,7 +2385,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                     "hosted checkout v1 only supports BANK_CARD");
         }
         String cardBrand = resolveCardBrand(commandDTO.getCardInfo());
-        boolean allowed = parsePaymentMethods(sessionDO.getAllowedPaymentMethodsJson()).stream()
+        boolean allowed = resolvePaymentOptions(sessionDO).stream()
                 .anyMatch(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod())
                         && (method.getBrands() == null || method.getBrands().stream()
                         .map(this::normalizeCode).anyMatch(cardBrand::equals)));
@@ -2379,7 +2400,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      */
     private boolean isCardBrandAllowed(PaymentCheckoutSessionDO sessionDO, String cardBrand) {
         return StringUtils.hasText(cardBrand) && !"UNKNOWN".equals(cardBrand)
-                && parsePaymentMethods(sessionDO.getAllowedPaymentMethodsJson()).stream()
+                && resolvePaymentOptions(sessionDO).stream()
                 .filter(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod()))
                 .anyMatch(method -> method.getBrands() != null && method.getBrands().stream()
                         .map(this::normalizeCode).anyMatch(cardBrand::equals));
@@ -2550,15 +2571,43 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     /**
      * 解析创建会话时保存的支付方式快照，用于页面展示和提交校验。
      */
-    private List<PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO> parsePaymentMethods(String json) {
+    private List<PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO> resolvePaymentOptions(PaymentCheckoutSessionDO session) {
+        var methods = readSessionMethods(session);
+        return resolvePaymentOptions(session, methods, isExplicitLinkScope(methods));
+    }
+
+    private List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> readSessionMethods(
+            PaymentCheckoutSessionDO session) {
+        String json = session.getAllowedPaymentMethodsJson();
         if (!StringUtils.hasText(json)) {
             return Collections.emptyList();
         }
         List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> methods =
                 JsonUtils.parseObject(json, new TypeReference<>() {
                 });
-        if (methods == null) {
-            return Collections.emptyList();
+        return methods == null ? List.of() : methods;
+    }
+
+    private boolean isExplicitLinkScope(List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> methods) {
+        return !methods.isEmpty() && methods.stream()
+                .allMatch(PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO::isLinkScopeVerified);
+    }
+
+    private List<PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO> resolvePaymentOptions(
+            PaymentCheckoutSessionDO session,
+            List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> methods,
+            boolean explicit) {
+        if (explicit) {
+            try {
+                methods = cardCapabilityService == null ? List.of() : cardCapabilityService.revalidateLinkScope(
+                        session.getMerchantId(), session.getLabelCurrency(), methods);
+            } catch (RuntimeException exception) {
+                log.warn("支付链接选项本次无法核验, event: CHECKOUT_LINK_SCOPE_UNAVAILABLE, exceptionType: {}",
+                        exception.getClass().getSimpleName());
+                methods = List.of();
+            }
+        } else {
+            methods = methods.stream().filter(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod())).toList();
         }
         List<PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO> result = new ArrayList<>();
         for (PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO method : methods) {
@@ -2570,6 +2619,26 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             result.add(dto);
         }
         return result;
+    }
+
+    private void populateLegacyMerchantDisplay(PaymentCheckoutSessionDO session,
+                                                PaymentCheckoutSessionQueryResultDTO.MerchantDTO merchant) {
+        if (cardCapabilityService == null) {
+            return;
+        }
+        try {
+            var configured = cardCapabilityService.resolveAllowedMethods(
+                    session.getMerchantId(), List.of(), session.getLabelCurrency());
+            merchant.setSupportedPaymentMethods(configured.stream()
+                    .map(PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO::getPaymentMethod)
+                    .distinct().toList());
+            merchant.setSupportedCardBrands(configured.stream()
+                    .filter(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod()))
+                    .flatMap(method -> method.getBrands().stream()).distinct().toList());
+        } catch (RuntimeException exception) {
+            log.warn("收银台商户展示能力暂不可用, event: CHECKOUT_BRAND_CAPABILITY_UNAVAILABLE, merchantId: {}, exceptionType: {}",
+                    session.getMerchantId(), exception.getClass().getSimpleName());
+        }
     }
 
     /**

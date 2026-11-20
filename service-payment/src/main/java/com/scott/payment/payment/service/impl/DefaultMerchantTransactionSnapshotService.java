@@ -208,8 +208,10 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
                                 PaymentCreateResultDTO resultDTO,
                                 LocalDateTime now) {
         // 每个动作按自身发生时间冻结费用版本，不能复用根交易当前配置或事后重新查询 ACTIVE。
-        FrozenMerchantFeeVersionSnapshotDTO frozenFeeVersion =
-                feeVersionSnapshotService.freezeActiveVersion(commandDTO.getMerchantId(), now);
+        FrozenMerchantFeeVersionSnapshotDTO frozenFeeVersion = commandDTO.getProtectedFeeVersion();
+        if (frozenFeeVersion == null) {
+            frozenFeeVersion = feeVersionSnapshotService.freezeActiveVersion(commandDTO.getMerchantId(), now);
+        }
         TransactionMerchantSnapshotDO target = new TransactionMerchantSnapshotDO();
         target.setSnapshotId(PaymentOrderNoGenerator.nextOrderNo(
                 MERCHANT_PREFIX, commandDTO.getTransactionDateTime()));
@@ -220,6 +222,7 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
             target.setSubMerchantInfoJson(JsonUtils.toJsonString(commandDTO.getSubMerchantInfo()));
         }
         target.setFeeConfigSnapshotJson(frozenFeeVersion.snapshotJson());
+        target.setPaymentAdmissionSnapshotJson(commandDTO.getPaymentAdmissionSnapshotJson());
         target.setFeePlanId(frozenFeeVersion.snapshot().feePlanId());
         target.setFeePlanVersionId(frozenFeeVersion.snapshot().feePlanVersionId());
         target.setFeePlanVersionNo(frozenFeeVersion.snapshot().feePlanVersionNo());

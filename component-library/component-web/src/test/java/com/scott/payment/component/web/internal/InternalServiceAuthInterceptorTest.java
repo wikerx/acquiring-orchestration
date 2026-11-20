@@ -42,6 +42,21 @@ class InternalServiceAuthInterceptorTest {
 
         assertThat(allowed).isTrue();
         assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
+        assertThat(request.getAttribute(InternalServiceAuthInterceptor.AUTHENTICATED_CALLER_ATTRIBUTE))
+                .isEqualTo(CALLER);
+    }
+
+    @Test
+    void noAuthenticatedCallerIsExposedWhenAuthIsDisabled() throws Exception {
+        InternalServiceAuthProperties properties = new InternalServiceAuthProperties();
+        properties.setEnabled(false);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/internal/payment/authorization");
+        request.addHeader(InternalServiceSignature.HEADER_CALLER, CALLER);
+        InternalServiceAuthInterceptor interceptor = new InternalServiceAuthInterceptor(
+                properties, (caller, nonce, ttl) -> false);
+
+        assertThat(interceptor.preHandle(request, new MockHttpServletResponse(), new Object())).isTrue();
+        assertThat(request.getAttribute(InternalServiceAuthInterceptor.AUTHENTICATED_CALLER_ATTRIBUTE)).isNull();
     }
 
     /**

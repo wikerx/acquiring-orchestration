@@ -38,6 +38,30 @@ class PaymentLinkCreationFingerprintTest {
     @Test void newFingerprintDoesNotCollideWithLegacyDefaultBug() {
         assertThat(PaymentLinkCreationFingerprint.canonical(input(1440), amount)).isNotEqualTo(legacy(1440));
     }
+    @Test void explicitMethodScopeCannotReplayOnAStoredCardScopeOrExpandsAStoredWalletScope() {
+        var first = input(null);
+        first.setPaymentMethodKeys(List.of("METHOD:APPLE_PAY", "CARD_BRAND:VISA"));
+        var same = input(60);
+        same.setPaymentMethodKeys(List.of("CARD_BRAND:VISA", "METHOD:APPLE_PAY", "CARD_BRAND:VISA"));
+        assertThat(PaymentLinkCreationFingerprint.canonical(first, amount))
+                .isEqualTo(PaymentLinkCreationFingerprint.canonical(same, amount));
+        var stored = row(PaymentLinkCreationFingerprint.canonical(first, amount), 60);
+        stored.setAllowedMethodsJson(PaymentLinkMethodScope.serialize(first.getPaymentMethodKeys()));
+        PaymentLinkCreationFingerprint.requireMatch(stored, same, amount);
+        same.setPaymentMethodKeys(List.of("CARD_BRAND:VISA", "METHOD:GOOGLE_PAY"));
+        assertThatThrownBy(() -> PaymentLinkCreationFingerprint.requireMatch(stored, same, amount))
+                .isInstanceOf(ServiceException.class);
+        var old = row(PaymentLinkCreationFingerprint.canonical(input(null), amount), 60);
+        assertThatThrownBy(() -> PaymentLinkCreationFingerprint.requireMatch(old, first, amount))
+                .isInstanceOf(ServiceException.class);
+    }
+    @Test void explicitAndLegacyCardSelectionsMustAgree() {
+        var first = input(null);
+        first.setPaymentMethodKeys(List.of("CARD_BRAND:VISA", "METHOD:APPLE_PAY"));
+        first.setCardBrands(List.of("MASTERCARD"));
+        assertThatThrownBy(() -> PaymentLinkCreationFingerprint.canonical(first, amount))
+                .isInstanceOf(ServiceException.class);
+    }
     @Test void legacyOmittedHourReplaysAsDefaultOrExplicitHourWithoutChangingHistory() {
         var old = row(legacy(1440), 60);
         PaymentLinkCreationFingerprint.requireMatch(old, input(null), amount);

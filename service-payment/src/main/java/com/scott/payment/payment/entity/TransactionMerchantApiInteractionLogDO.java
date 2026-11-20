@@ -113,6 +113,9 @@ public class TransactionMerchantApiInteractionLogDO implements Serializable {
      */
     private String merchantResponseMessage;
 
+    /** 建单前的支付方式准入事实，仅含版本化的受控字段。 */
+    private String admissionContextJson;
+
     /**
      * 平台响应商户的脱敏明文 JSON。
      */
