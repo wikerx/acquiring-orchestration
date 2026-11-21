@@ -1,15 +1,15 @@
-package com.scott.payment.admin.application.merchantpayment;
+package com.scott.payment.capability.governance;
 
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.AccessSummary;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.AuthorizationCoverage;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.FeeReference;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.KnownCapability;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.CapabilityKey;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.ReadinessResult;
+import com.scott.payment.capability.governance.MerchantPaymentModels.AccessSummary;
+import com.scott.payment.capability.governance.MerchantPaymentModels.AuthorizationCoverage;
+import com.scott.payment.capability.governance.MerchantPaymentModels.FeeReference;
+import com.scott.payment.capability.governance.MerchantPaymentModels.KnownCapability;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService.CapabilityKey;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService.ReadinessResult;
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.capability.governance.MerchantPaymentReadinessFacts.FeeRuleDO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -20,25 +20,27 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /** 商户方式页面的配置摘要，无具体请求时不承诺任意币种、地区或入口可付款。 */
-@Service
-class MerchantPaymentMethodReadiness {
+public class MerchantPaymentMethodReadiness {
     private static final Logger LOG = LoggerFactory.getLogger(MerchantPaymentMethodReadiness.class);
     private static final Set<String> INITIAL = Set.of("PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION");
     private static final BiPredicate<String, String> NO_FEE_COVERAGE = (type, method) -> false;
     private final MerchantPaymentRepository repository;
     private final MerchantPaymentCapabilityReadinessService current;
+    private final PublishedMerchantFeeRules publishedRules;
 
-    MerchantPaymentMethodReadiness(MerchantPaymentRepository repository,
-                                    MerchantPaymentCapabilityReadinessService current) {
+    public MerchantPaymentMethodReadiness(MerchantPaymentRepository repository,
+                                    MerchantPaymentCapabilityReadinessService current,
+                                          PublishedMerchantFeeRules publishedRules) {
         this.repository = repository;
         this.current = current;
+        this.publishedRules = publishedRules;
     }
 
-    Evaluation evaluate(String merchant, LocalDateTime now) {
+    public Evaluation evaluate(String merchant, LocalDateTime now) {
         return evaluate(merchant, now, false);
     }
 
-    Evaluation evaluateForMethods(String merchant, LocalDateTime now) {
+    public Evaluation evaluateForMethods(String merchant, LocalDateTime now) {
         return evaluate(merchant, now, true);
     }
 
@@ -46,9 +48,11 @@ class MerchantPaymentMethodReadiness {
         try {
             FeeReference fee = repository.currentFeeReference(merchant, now).orElse(null);
             Long feeVersionId = fee == null ? null : Long.valueOf(fee.versionId());
-            ReadinessResult acquiring = current.evaluateCurrent(merchant, now, () -> feeVersionId).acquiring();
+            List<FeeRuleDO> rules = feeVersionId == null ? List.of()
+                    : JsonUtils.parseArray(publishedRules.byVersion(feeVersionId), FeeRuleDO.class);
+            ReadinessResult acquiring = current.evaluateCurrent(merchant, now, () -> feeVersionId, ignored -> rules).acquiring();
             BiPredicate<String, String> feeCoverage = includeIndependentFeeCoverage && feeVersionId != null && acquiring != null
-                    ? current.initialFeeCoverage(feeVersionId) : NO_FEE_COVERAGE;
+                    ? current.initialFeeCoverage(rules) : NO_FEE_COVERAGE;
             return new Evaluation(acquiring, fee, feeCoverage);
         } catch (RuntimeException exception) {
             LOG.warn("商户支付方式配置评估不可用, event: MERCHANT_PAYMENT_METHOD_READINESS_UNAVAILABLE, merchantId: {}, exceptionType: {}",
@@ -57,12 +61,12 @@ class MerchantPaymentMethodReadiness {
         }
     }
 
-    record AuthorityFacts(List<AuthorizationCoverage> coverage, Set<String> enabledMethods) {
+    public record AuthorityFacts(List<AuthorizationCoverage> coverage, Set<String> enabledMethods) {
     }
 
-    record Evaluation(ReadinessResult source, FeeReference fee, BiPredicate<String, String> initialFeeCoverage) {
+    public record Evaluation(ReadinessResult source, FeeReference fee, BiPredicate<String, String> initialFeeCoverage) {
 
-        AccessSummary accessSummary(AuthorityFacts authority, boolean held, LocalDateTime now) {
+        public AccessSummary accessSummary(AuthorityFacts authority, boolean held, LocalDateTime now) {
             if (source == null) {
                 return AccessSummary.unavailable("UNAVAILABLE");
             }
@@ -105,7 +109,7 @@ class MerchantPaymentMethodReadiness {
                     : "METHOD:" + key.paymentType();
         }
 
-        Projection forMethod(String itemKey) {
+        public Projection forMethod(String itemKey) {
             if (source == null) {
                 return new Projection("UNKNOWN", List.of("PAYMENT_CAPABILITY_READINESS_UNAVAILABLE"), null);
             }
@@ -141,5 +145,5 @@ class MerchantPaymentMethodReadiness {
         }
     }
 
-    record Projection(String status, List<String> reasons, FeeReference feeReference) {}
+    public record Projection(String status, List<String> reasons, FeeReference feeReference) {}
 }

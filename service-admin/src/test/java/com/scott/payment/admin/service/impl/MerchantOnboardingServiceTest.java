@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;

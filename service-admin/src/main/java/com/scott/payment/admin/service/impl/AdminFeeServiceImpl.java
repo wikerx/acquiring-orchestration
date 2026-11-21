@@ -1,7 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.admin.application.merchantpayment.MerchantPaymentFeeChangedEvent;
+import com.scott.payment.capability.governance.MerchantPaymentFeeChangedEvent;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;

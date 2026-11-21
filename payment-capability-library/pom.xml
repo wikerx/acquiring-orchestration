@@ -12,6 +12,12 @@
     <dependencies>
         <dependency>
             <groupId>com.scott.payment</groupId>
+            <artifactId>component-mq</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>

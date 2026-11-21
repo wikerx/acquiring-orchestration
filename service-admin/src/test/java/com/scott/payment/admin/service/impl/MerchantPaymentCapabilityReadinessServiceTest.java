@@ -1,22 +1,8 @@
 package com.scott.payment.admin.service.impl;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCardBrandDO;
-import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCurrencyDO;
-import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelInfoDO;
-import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelMidConfigDO;
-import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelPaymentCapabilityDO;
-import com.scott.payment.admin.entity.channel.ChannelEntities.MerchantChannelMidBindingDO;
-import com.scott.payment.admin.entity.fee.FeeEntities.FeeRuleDO;
-import com.scott.payment.admin.mapper.ChannelCapabilityCardBrandMapper;
-import com.scott.payment.admin.mapper.ChannelCapabilityCurrencyMapper;
-import com.scott.payment.admin.mapper.ChannelInfoMapper;
-import com.scott.payment.admin.mapper.ChannelMidConfigMapper;
-import com.scott.payment.admin.mapper.ChannelPaymentCapabilityMapper;
-import com.scott.payment.admin.mapper.FeeRuleMapper;
-import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService;
+import com.scott.payment.capability.governance.MerchantPaymentReadinessFacts;
+import com.scott.payment.capability.governance.MerchantPaymentReadinessFacts.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -40,39 +26,15 @@ import static org.mockito.Mockito.when;
 class MerchantPaymentCapabilityReadinessServiceTest {
 
     @Mock
-    private MerchantChannelMidBindingMapper bindingMapper;
-    @Mock
-    private ChannelMidConfigMapper midMapper;
-    @Mock
-    private ChannelInfoMapper channelMapper;
-    @Mock
-    private ChannelPaymentCapabilityMapper capabilityMapper;
-    @Mock
-    private ChannelCapabilityCurrencyMapper currencyMapper;
-    @Mock
-    private ChannelCapabilityCardBrandMapper cardBrandMapper;
-    @Mock
-    private FeeRuleMapper feeRuleMapper;
+    private MerchantPaymentReadinessFacts facts;
 
     private MerchantPaymentCapabilityReadinessService service;
 
-    /** 初始化嵌套实体的 MyBatis 元数据和默认可用支付能力。 */
     @BeforeEach
     void setUp() {
-        MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
-        assistant.setCurrentNamespace(getClass().getName());
-        TableInfoHelper.initTableInfo(assistant, MerchantChannelMidBindingDO.class);
-        TableInfoHelper.initTableInfo(assistant, ChannelMidConfigDO.class);
-        TableInfoHelper.initTableInfo(assistant, ChannelInfoDO.class);
-        TableInfoHelper.initTableInfo(assistant, ChannelPaymentCapabilityDO.class);
-        TableInfoHelper.initTableInfo(assistant, ChannelCapabilityCurrencyDO.class);
-        TableInfoHelper.initTableInfo(assistant, ChannelCapabilityCardBrandDO.class);
-        TableInfoHelper.initTableInfo(assistant, FeeRuleDO.class);
-        service = new MerchantPaymentCapabilityReadinessService(
-                bindingMapper, midMapper, channelMapper, capabilityMapper,
-                currencyMapper, cardBrandMapper, feeRuleMapper);
+        service = new MerchantPaymentCapabilityReadinessService(facts);
         useSingleRoute();
-        lenient().when(feeRuleMapper.selectList(any())).thenReturn(List.of(
+        lenient().when(facts.feeRules(8L)).thenReturn(List.of(
                 feeRule("TRANSACTION_FEE", "PAYMENT"),
                 feeRule("REFUND_FEE", "REFUND")));
     }
@@ -92,7 +54,7 @@ class MerchantPaymentCapabilityReadinessServiceTest {
     /** 退款能力没有退款费规则时必须报告覆盖缺口。 */
     @Test
     void shouldRejectMissingFeeCoverage() {
-        when(feeRuleMapper.selectList(any())).thenReturn(List.of(
+        when(facts.feeRules(8L)).thenReturn(List.of(
                 feeRule("TRANSACTION_FEE", "PAYMENT")));
 
         var result = service.evaluate("MTEST0001", 8L, LocalDateTime.now());
@@ -117,7 +79,7 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         riskOnly.setPaymentType("ACHPAY");
         riskOnly.setPaymentMethod("ALL");
         riskOnly.setRiskServiceType("THREEDS");
-        when(feeRuleMapper.selectList(any())).thenReturn(List.of(wildcardCard, walletRefundOnly, walletCaptureOnly, riskOnly));
+        when(facts.feeRules(8L)).thenReturn(List.of(wildcardCard, walletRefundOnly, walletCaptureOnly, riskOnly));
 
         var coverage = service.initialFeeCoverage(8L);
 
@@ -126,14 +88,14 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         assertThat(coverage.test("APPLE_PAY", "ALL")).isFalse();
         assertThat(coverage.test("GOOGLE_PAY", "ALL")).isFalse();
         assertThat(coverage.test("ACHPAY", "ALL")).isFalse();
-        verify(feeRuleMapper).selectList(any());
-        verifyNoInteractions(bindingMapper, midMapper);
+        verify(facts).feeRules(8L);
+        verifyNoMoreInteractions(facts);
     }
 
     /** 同一能力同时命中通用和精确费率时必须拒绝开通，避免清分费用规则出现歧义。 */
     @Test
     void shouldRejectAmbiguousFeeCoverage() {
-        when(feeRuleMapper.selectList(any())).thenReturn(List.of(
+        when(facts.feeRules(8L)).thenReturn(List.of(
                 feeRule("TRANSACTION_FEE", "PAYMENT"),
                 feeRule("TRANSACTION_FEE", "ALL"),
                 feeRule("REFUND_FEE", "REFUND")));
@@ -150,9 +112,9 @@ class MerchantPaymentCapabilityReadinessServiceTest {
     @Test
     void shouldRejectEqualPriorityRouteConflict() {
         MerchantChannelMidBindingDO secondBinding = binding(2L, 11L);
-        when(bindingMapper.selectList(any())).thenReturn(List.of(binding(1L, 10L), secondBinding));
+        when(facts.activeBindings(any(), any())).thenReturn(List.of(binding(1L, 10L), secondBinding));
         ChannelMidConfigDO secondMid = mid(11L);
-        when(midMapper.selectList(any())).thenReturn(List.of(mid(10L), secondMid));
+        when(facts.mids(any())).thenReturn(List.of(mid(10L), secondMid));
 
         var result = service.evaluate("MTEST0001", 8L, LocalDateTime.now());
 
@@ -165,7 +127,7 @@ class MerchantPaymentCapabilityReadinessServiceTest {
     void shouldRejectUnavailableMid() {
         ChannelMidConfigDO disabled = mid(10L);
         disabled.setMidStatus(0);
-        when(midMapper.selectList(any())).thenReturn(List.of(disabled));
+        when(facts.mids(any())).thenReturn(List.of(disabled));
 
         var result = service.evaluate("MTEST0001", 8L, LocalDateTime.now());
 
@@ -208,7 +170,7 @@ class MerchantPaymentCapabilityReadinessServiceTest {
     void currentDetailDistinguishesEmptyBusinessFromDisabledMid() {
         ChannelMidConfigDO disabled = mid(10L);
         disabled.setMidStatus(0);
-        when(midMapper.selectList(any())).thenReturn(List.of(disabled));
+        when(facts.mids(any())).thenReturn(List.of(disabled));
 
         var result = service.evaluateCurrent("200045", LocalDateTime.now(), () -> 8L);
 
@@ -221,7 +183,7 @@ class MerchantPaymentCapabilityReadinessServiceTest {
 
     @Test
     void currentDetailDoesNotGuessBusinessForMissingMid() {
-        when(midMapper.selectList(any())).thenReturn(List.of());
+        when(facts.mids(any())).thenReturn(List.of());
 
         var result = service.evaluateCurrent("200045", LocalDateTime.now(), () -> 8L);
 
@@ -236,36 +198,30 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         ChannelInfoDO channel = channel();
         channel.setSupportPayout(1);
         ChannelPaymentCapabilityDO payoutCapability = capability();
-        payoutCapability.setBusinessType("PAYOUT");
         payoutCapability.setTransactionType("PAYOUT,PAYMENT");
-        when(bindingMapper.selectList(any())).thenReturn(List.of(binding(1L, 10L), binding(2L, 11L)));
-        when(midMapper.selectList(any())).thenReturn(List.of(mid(10L), payoutMid));
-        when(channelMapper.selectList(any())).thenReturn(List.of(channel));
-        when(capabilityMapper.selectList(any())).thenAnswer(invocation -> {
-            var query = (com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<?>) invocation.getArgument(0);
-            query.getSqlSegment();
-            return query.getParamNameValuePairs().containsValue("PAYOUT")
+        when(facts.activeBindings(any(), any())).thenReturn(List.of(binding(1L, 10L), binding(2L, 11L)));
+        when(facts.mids(any())).thenReturn(List.of(mid(10L), payoutMid));
+        when(facts.channels(any())).thenReturn(List.of(channel));
+        when(facts.capabilities(any(), any())).thenAnswer(invocation -> {
+            return "PAYOUT".equals(invocation.getArgument(1))
                     ? List.of(payoutCapability) : List.of(capability());
         });
     }
 
     /** 配置单条银行卡能力和对应的启用币种、卡品牌。 */
     private void useSingleRoute() {
-        lenient().when(bindingMapper.selectList(any())).thenReturn(List.of(binding(1L, 10L)));
-        lenient().when(midMapper.selectList(any())).thenReturn(List.of(mid(10L)));
-        lenient().when(channelMapper.selectList(any())).thenReturn(List.of(channel()));
-        lenient().when(capabilityMapper.selectList(any())).thenReturn(List.of(capability()));
-        lenient().when(currencyMapper.selectList(any())).thenReturn(List.of(currency()));
-        lenient().when(cardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand()));
+        lenient().when(facts.activeBindings(any(), any())).thenReturn(List.of(binding(1L, 10L)));
+        lenient().when(facts.mids(any())).thenReturn(List.of(mid(10L)));
+        lenient().when(facts.channels(any())).thenReturn(List.of(channel()));
+        lenient().when(facts.capabilities(any(), any())).thenReturn(List.of(capability()));
+        lenient().when(facts.currencies(any())).thenReturn(List.of(currency()));
+        lenient().when(facts.cardBrands(any())).thenReturn(List.of(cardBrand()));
     }
 
     private MerchantChannelMidBindingDO binding(Long id, Long midId) {
         MerchantChannelMidBindingDO row = new MerchantChannelMidBindingDO();
         row.setId(id);
-        row.setMerchantId("MTEST0001");
         row.setMidConfigId(midId);
-        row.setBindingStatus(1);
-        row.setDeleted(0L);
         return row;
     }
 
@@ -273,14 +229,12 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         ChannelMidConfigDO row = new ChannelMidConfigDO();
         row.setId(id);
         row.setChannelId(5L);
-        row.setChannelCode("TEST_CHANNEL");
         row.setBusinessType("ACQUIRING");
         row.setPaymentMethodScope("BANK_CARD");
         row.setCardBrandScope("VISA");
         row.setTransactionTypeScope("PAYMENT,REFUND");
         row.setCurrencyScope("USD");
         row.setMidStatus(1);
-        row.setDeleted(0L);
         return row;
     }
 
@@ -290,7 +244,6 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         row.setChannelCode("TEST_CHANNEL");
         row.setChannelStatus(1);
         row.setSupportAcquiring(1);
-        row.setDeleted(0L);
         return row;
     }
 
@@ -298,14 +251,10 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         ChannelPaymentCapabilityDO row = new ChannelPaymentCapabilityDO();
         row.setId(16L);
         row.setChannelId(5L);
-        row.setChannelCode("TEST_CHANNEL");
-        row.setBusinessType("ACQUIRING");
         row.setPaymentMethod("BANK_CARD");
         row.setTransactionType("PAYMENT,REFUND");
         row.setSupportIncrementalAuthorization(0);
-        row.setCapabilityStatus(1);
         row.setSortOrder(10);
-        row.setDeleted(0L);
         return row;
     }
 
@@ -313,8 +262,6 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         ChannelCapabilityCurrencyDO row = new ChannelCapabilityCurrencyDO();
         row.setCapabilityId(16L);
         row.setCurrencyCode("USD");
-        row.setCurrencyStatus(1);
-        row.setDeleted(0L);
         return row;
     }
 
@@ -322,20 +269,16 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         ChannelCapabilityCardBrandDO row = new ChannelCapabilityCardBrandDO();
         row.setCapabilityId(16L);
         row.setCardBrand("VISA");
-        row.setBrandStatus(1);
-        row.setDeleted(0L);
         return row;
     }
 
     private FeeRuleDO feeRule(String category, String transactionType) {
         FeeRuleDO row = new FeeRuleDO();
-        row.setPlanVersionId(8L);
         row.setFeeCategory(category);
         row.setTransactionType(transactionType);
         row.setPaymentType("BANK_CARD");
         row.setPaymentMethod("VISA");
         row.setRiskServiceType("NONE");
-        row.setDeleted(0L);
         return row;
     }
 }

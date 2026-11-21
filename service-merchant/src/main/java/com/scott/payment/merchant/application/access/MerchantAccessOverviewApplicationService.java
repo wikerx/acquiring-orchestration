@@ -5,7 +5,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialVO;
 import com.scott.payment.merchant.application.merchantpayment.MerchantPaymentLinkedProjection;
-import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.AccessSummary;
+import com.scott.payment.capability.governance.MerchantPaymentModels.AccessSummary;
 import com.scott.payment.merchant.dto.access.MerchantAccessOverviewDTOs.AccessCheckStatus;
 import com.scott.payment.merchant.dto.access.MerchantAccessOverviewDTOs.AccessOverview;
 import com.scott.payment.merchant.dto.access.MerchantAccessOverviewDTOs.AccessRuleCheck;

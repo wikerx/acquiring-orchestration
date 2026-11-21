@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService;
+
 import com.scott.payment.admin.mapper.MerchantActivationReadinessMapper;
 import com.scott.payment.admin.mapper.MerchantActivationReadinessMapper.ChannelLimitRow;
 import com.scott.payment.admin.mapper.MerchantActivationReadinessMapper.MerchantLimitRow;

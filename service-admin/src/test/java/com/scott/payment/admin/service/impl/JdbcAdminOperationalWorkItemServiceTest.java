@@ -1,8 +1,12 @@
 package com.scott.payment.admin.service.impl;
 
+import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
+
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService;
+
 import com.scott.payment.admin.config.AdminOperationalWorkItemProperties;
-import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher;
-import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher.Message;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityEventPublisher;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityEventPublisher.Message;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityOperations;
 import com.scott.payment.admin.client.payment.PaymentInternalClient;
 import com.scott.payment.admin.client.payment.dto.PaymentCapabilityEvaluationDTOs;
@@ -11,7 +15,6 @@ import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SearchReque
 import com.scott.payment.admin.dto.operation.OperationalWorkItemDTOs.SyncRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminEmailService;
-import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
 import com.scott.payment.capability.MerchantAdmissionReader;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.sharding.RiskAuditLogicalReadExecutor;
@@ -141,7 +144,7 @@ class JdbcAdminOperationalWorkItemServiceTest {
         var events = mock(MerchantPaymentCapabilityEventPublisher.class);
         doThrow(new IllegalStateException("outbox failed")).doNothing().when(events)
                 .publishConfigurationBlocked(eq("merchant-1"), eq("CARD_BRAND:VISA"),
-                        any(ConfigurationBlockNotice.class), any(LocalDateTime.class));
+                        any(String.class), org.mockito.ArgumentMatchers.anyLong(), any(String.class), any(LocalDateTime.class));
         var admission = mock(MerchantAdmissionReader.class);
         when(admission.enabledDirectory()).thenReturn(Set.of("CARD_BRAND:VISA"));
         var payment = mock(PaymentInternalClient.class);

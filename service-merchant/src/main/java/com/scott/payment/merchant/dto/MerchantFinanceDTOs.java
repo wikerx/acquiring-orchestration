@@ -3,7 +3,7 @@ package com.scott.payment.merchant.dto;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
-import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.AuthorizationCoverage;
+import com.scott.payment.capability.governance.MerchantPaymentModels.AuthorizationCoverage;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

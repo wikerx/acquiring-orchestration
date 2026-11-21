@@ -144,7 +144,7 @@ class ReliableMqOutboxMapperH2Tests {
     }
 
     @Test
-    void capabilityJobTagsAreInvisibleToLegacyAdminScanOnly() {
+    void capabilityJobRecoversBothApplicationOwnersWithoutTakingOverOtherEvents() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
             ReliableMqOutboxMapper mapper = session.getMapper(ReliableMqOutboxMapper.class);
             LocalDateTime now = LocalDateTime.of(2026, 11, 20, 19, 0);
@@ -154,6 +154,9 @@ class ReliableMqOutboxMapperH2Tests {
             ReliableMqOutboxDO mail = event("job-mail", "INIT", 0, 3, null, now, "service-admin");
             mail.setTag(ReliableMqOutboxMapper.CAPABILITY_MAIL_TAG);
             mapper.insert(mail);
+            ReliableMqOutboxDO merchant = event("merchant-application", "INIT", 0, 3, null, now, "service-merchant");
+            merchant.setTag(job.getTag());
+            mapper.insert(merchant);
             ReliableMqOutboxDO other = event("same-tag-other-owner", "INIT", 0, 3, null, now, "service-payment");
             other.setTag(job.getTag());
             mapper.insert(other);
@@ -163,10 +166,11 @@ class ReliableMqOutboxMapperH2Tests {
 
             assertThat(mapper.selectDue("service-admin", now, 10))
                     .extracting(ReliableMqOutboxDO::getEventId).containsExactly("old-admin");
+            assertThat(mapper.selectDue("service-merchant", now, 10)).isEmpty();
             assertThat(mapper.selectDue("service-payment", now, 10))
                     .extracting(ReliableMqOutboxDO::getEventId).containsExactly("same-tag-other-owner");
             assertThat(mapper.selectPaymentCapabilityDue(now, 10))
-                    .extracting(ReliableMqOutboxDO::getEventId).containsExactly("job-scope", "job-mail");
+                    .extracting(ReliableMqOutboxDO::getEventId).containsExactly("job-scope", "job-mail", "merchant-application");
         }
     }
 

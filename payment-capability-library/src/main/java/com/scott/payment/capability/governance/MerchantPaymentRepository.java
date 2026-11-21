@@ -1,16 +1,14 @@
-package com.scott.payment.admin.application.merchantpayment;
+package com.scott.payment.capability.governance;
 
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.HistoryRow;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.FeeReference;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.MerchantOption;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Search;
-import com.scott.payment.admin.service.AdminMerchantDataScope;
+import com.scott.payment.capability.governance.MerchantPaymentModels.HistoryRow;
+import com.scott.payment.capability.governance.MerchantPaymentModels.FeeReference;
+import com.scott.payment.capability.governance.MerchantPaymentModels.MerchantOption;
+import com.scott.payment.capability.governance.MerchantPaymentModels.Search;
 import com.scott.payment.component.core.model.PageResult;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -20,8 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-@Repository
-class MerchantPaymentRepository {
+public class MerchantPaymentRepository {
     private static final RowMapper<Item> ITEM = (row, index) -> new Item(
             row.getLong("id"), row.getString("application_no"), row.getString("merchant_id"),
             row.getString("item_key"), row.getString("operation"), row.getString("status"),
@@ -33,17 +30,32 @@ class MerchantPaymentRepository {
             row.getLong("version"), time(row, "effective_time"), time(row, "expire_time"), row.getString("source"));
     private final NamedParameterJdbcTemplate jdbc;
 
-    MerchantPaymentRepository(NamedParameterJdbcTemplate jdbc) {
+    public MerchantPaymentRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
-    boolean merchantExists(String merchant) {
+    /** 比较同一商户的新旧读视图，不把其他商户的审批流量带到主库。 */
+    public ReadVersion readVersion(String merchant) {
+        return jdbc.query("""
+                SELECT m.payment_authorization_revision, m.payment_admission_mode, m.payment_baseline_batch_ref,
+                       COALESCE((SELECT MAX(r.id) FROM merchant_review_record r
+                                 WHERE r.review_scope = 'PAYMENT_METHOD' AND r.merchant_id = m.merchant_id), 0) review_id
+                FROM base_merchant_info m WHERE m.merchant_id = :merchant AND m.deleted = 0
+                """, Map.of("merchant", merchant), (row, index) -> new ReadVersion(
+                row.getLong("payment_authorization_revision"), row.getLong("review_id"),
+                row.getString("payment_admission_mode"), row.getString("payment_baseline_batch_ref")))
+                .stream().findFirst().orElse(null);
+    }
+
+    public record ReadVersion(long authorization, long review, String mode, String baseline) {}
+
+    public boolean merchantExists(String merchant) {
         return !jdbc.queryForList("""
                 SELECT id FROM base_merchant_info WHERE merchant_id = :merchant AND deleted = 0
                 """, Map.of("merchant", merchant), Long.class).isEmpty();
     }
 
-    List<MerchantOption> merchantOptions(AdminMerchantDataScope scope, String keyword) {
+    public List<MerchantOption> merchantOptions(MerchantPaymentScope scope, String keyword) {
         if (scope.empty()) {
             return List.of();
         }
@@ -58,14 +70,14 @@ class MerchantPaymentRepository {
                 (row, index) -> new MerchantOption(row.getString("merchant_id"), row.getString("merchant_name")));
     }
 
-    Optional<Long> lockMerchant(String merchant) {
+    public Optional<Long> lockMerchant(String merchant) {
         return query("""
                 SELECT payment_authorization_revision FROM base_merchant_info
                 WHERE merchant_id = :merchant AND deleted = 0 FOR UPDATE
                 """, merchant, (row, index) -> row.getLong(1)).stream().findFirst();
     }
 
-    long advanceRevision(String merchant, long expected) {
+    public long advanceRevision(String merchant, long expected) {
         int count = jdbc.update("""
                 UPDATE base_merchant_info SET payment_authorization_revision = payment_authorization_revision + 1
                 WHERE merchant_id = :merchant AND deleted = 0 AND payment_authorization_revision = :expected
@@ -76,7 +88,7 @@ class MerchantPaymentRepository {
         return Math.incrementExact(expected);
     }
 
-    boolean verifiedMerchantAccount(String merchant, long account, long user) {
+    public boolean verifiedMerchantAccount(String merchant, long account, long user) {
         Integer count = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM sys_account a
                 JOIN sys_app p ON p.id = a.app_id AND p.app_code = 'MERCHANT' AND p.deleted = 0 AND p.status = 1
@@ -87,7 +99,7 @@ class MerchantPaymentRepository {
         return Integer.valueOf(1).equals(count);
     }
 
-    List<DirectoryEntry> directory(boolean lock) {
+    public List<DirectoryEntry> directory(boolean lock) {
         String lockClause = lock ? " FOR SHARE" : "";
         if (lock) {
             jdbc.queryForList("""
@@ -107,19 +119,19 @@ class MerchantPaymentRepository {
                 row.getString("dict_value"), row.getString("dict_label"), row.getString("locale"), row.getBoolean("enabled")));
     }
 
-    Optional<Item> findItem(long id) {
+    public Optional<Item> findItem(long id) {
         return jdbc.query("SELECT * FROM merchant_payment_application_item WHERE id = :id",
                 Map.of("id", id), ITEM).stream().findFirst();
     }
 
-    Optional<Item> lockItem(String merchant, long id) {
+    public Optional<Item> lockItem(String merchant, long id) {
         return jdbc.query("""
                 SELECT * FROM merchant_payment_application_item
                 WHERE merchant_id = :merchant AND id = :id FOR UPDATE
                 """, Map.of("merchant", merchant, "id", id), ITEM).stream().findFirst();
     }
 
-    List<Item> items(String merchant) {
+    public List<Item> items(String merchant) {
         return query("""
                 SELECT a.* FROM merchant_payment_application_item a
                 JOIN (SELECT item_key, MAX(id) id FROM merchant_payment_application_item
@@ -129,7 +141,7 @@ class MerchantPaymentRepository {
                 """, merchant, ITEM);
     }
 
-    List<Item> listBatches(List<Batch> batches) {
+    public List<Item> listBatches(List<Batch> batches) {
         if (batches.isEmpty()) {
             return List.of();
         }
@@ -142,7 +154,7 @@ class MerchantPaymentRepository {
                 .stream().filter(item -> item.merchant().equals(scopes.get(item.application()))).toList();
     }
 
-    List<ItemReview> itemReviews(String merchant, String application) {
+    public List<ItemReview> itemReviews(String merchant, String application) {
         return jdbc.query("""
                 SELECT id, application_item_id, review_action, from_status, to_status, review_comment, round_no, gmt_create
                 FROM merchant_review_record
@@ -153,7 +165,7 @@ class MerchantPaymentRepository {
                 new ItemReview(row.getLong("application_item_id"), historyRow(row, index)));
     }
 
-    Optional<String> batchMerchant(AdminMerchantDataScope scope, String application) {
+    public Optional<String> batchMerchant(MerchantPaymentScope scope, String application) {
         if (scope.empty()) {
             return Optional.empty();
         }
@@ -165,7 +177,7 @@ class MerchantPaymentRepository {
                 """ + scopeClause + " LIMIT 1", parameters, String.class).stream().findFirst();
     }
 
-    PageResult<Batch> batches(AdminMerchantDataScope scope, Search query) {
+    public PageResult<Batch> batches(MerchantPaymentScope scope, Search query) {
         if (scope.empty()) {
             return PageResult.of(0, query.safePageNo(), query.safePageSize(), List.of());
         }
@@ -182,14 +194,14 @@ class MerchantPaymentRepository {
                 (row, index) -> new Batch(row.getString("merchant_id"), row.getString("application_no")));
     }
 
-    boolean hasActiveItem(String merchant, String itemKey) {
+    public boolean hasActiveItem(String merchant, String itemKey) {
         return !jdbc.queryForList("""
                 SELECT id FROM merchant_payment_application_item
                 WHERE merchant_id = :merchant AND item_key = :itemKey AND active_slot = 1
                 """, Map.of("merchant", merchant, "itemKey", itemKey), Long.class).isEmpty();
     }
 
-    long insertItem(String merchant, String itemKey, String application, String request, String reason,
+    public long insertItem(String merchant, String itemKey, String application, String request, String reason,
                     String source, String operation, long grantVersion, Actor actor, LocalDateTime now) {
         var parameters = actorParameters(actor)
                 .addValue("merchant", merchant).addValue("itemKey", itemKey).addValue("application", application)
@@ -206,7 +218,7 @@ class MerchantPaymentRepository {
                 """, parameters);
     }
 
-    int transitionItem(Item item, String status, LocalDateTime now) {
+    public int transitionItem(Item item, String status, LocalDateTime now) {
         boolean open = "RETURNED".equals(status);
         return jdbc.update("""
                 UPDATE merchant_payment_application_item
@@ -217,7 +229,7 @@ class MerchantPaymentRepository {
                 .addValue("merchant", item.merchant()).addValue("id", item.id()).addValue("version", item.version()));
     }
 
-    int resubmit(Item item, Actor actor, String reason, LocalDateTime now) {
+    public int resubmit(Item item, Actor actor, String reason, LocalDateTime now) {
         return jdbc.update("""
                 UPDATE merchant_payment_application_item
                 SET status = 'PENDING_REVIEW', version = version + 1, round_no = round_no + 1, reason = :reason,
@@ -228,11 +240,11 @@ class MerchantPaymentRepository {
                 .addValue("merchant", item.merchant()).addValue("id", item.id()).addValue("version", item.version()));
     }
 
-    List<Grant> grants(String merchant) {
+    public List<Grant> grants(String merchant) {
         return query("SELECT * FROM merchant_payment_authorization WHERE merchant_id = :merchant", merchant, GRANT);
     }
 
-    Optional<FeeReference> currentFeeReference(String merchant, LocalDateTime now) {
+    public Optional<FeeReference> currentFeeReference(String merchant, LocalDateTime now) {
         return jdbc.query("""
                 SELECT v.id, v.version_no, v.effective_time
                 FROM fee_plan p JOIN fee_plan_version v ON v.id = p.current_version_id AND v.plan_id = p.id
@@ -243,14 +255,14 @@ class MerchantPaymentRepository {
                 .stream().findFirst();
     }
 
-    Optional<Grant> lockGrant(String merchant, String itemKey) {
+    public Optional<Grant> lockGrant(String merchant, String itemKey) {
         return jdbc.query("""
                 SELECT * FROM merchant_payment_authorization
                 WHERE merchant_id = :merchant AND item_key = :itemKey FOR UPDATE
                 """, Map.of("merchant", merchant, "itemKey", itemKey), GRANT).stream().findFirst();
     }
 
-    void approve(Item item, Grant existing, Actor actor, long reviewId, LocalDateTime now) {
+    public void approve(Item item, Grant existing, Actor actor, long reviewId, LocalDateTime now) {
         var parameters = actorParameters(actor).addValue("merchant", item.merchant()).addValue("itemKey", item.itemKey())
                 .addValue("sourceRef", Long.toString(item.id())).addValue("reviewId", reviewId).addValue("now", now);
         if (existing == null) {
@@ -274,7 +286,7 @@ class MerchantPaymentRepository {
                 """, parameters));
     }
 
-    void revise(String merchant, Grant grant, String status, LocalDateTime effective, LocalDateTime expires,
+    public void revise(String merchant, Grant grant, String status, LocalDateTime effective, LocalDateTime expires,
                 long reviewId, LocalDateTime now) {
         requireChanged(jdbc.update("""
                 UPDATE merchant_payment_authorization SET authorization_status = :status, version = version + 1,
@@ -288,11 +300,11 @@ class MerchantPaymentRepository {
                 .addValue("expires", expires).addValue("reviewId", reviewId).addValue("now", now)));
     }
 
-    Optional<Review> replay(String merchant, String command) {
+    public Optional<Review> replay(String merchant, String command) {
         return replay("PAYMENT_METHOD", merchant, command);
     }
 
-    Optional<Review> replay(String scope, String merchant, String command) {
+    public Optional<Review> replay(String scope, String merchant, String command) {
         return jdbc.query("""
                 SELECT id, payload_hash, result_json FROM merchant_review_record
                 WHERE review_scope = :scope AND merchant_id = :merchant AND command_request_id = :command
@@ -301,7 +313,7 @@ class MerchantPaymentRepository {
                 .stream().findFirst();
     }
 
-    boolean submittedThisRound(Item item, long user) {
+    public boolean submittedThisRound(Item item, long user) {
         return item.initialUser() == user || item.currentUser() == user || !jdbc.queryForList("""
                 SELECT id FROM merchant_review_record
                 WHERE review_scope = 'PAYMENT_METHOD' AND merchant_id = :merchant AND application_item_id = :item
@@ -311,11 +323,11 @@ class MerchantPaymentRepository {
                 Long.class).isEmpty();
     }
 
-    long review(Audit audit, Actor actor) {
+    public long review(Audit audit, Actor actor) {
         return review("PAYMENT_METHOD", audit, actor);
     }
 
-    long review(String scope, Audit audit, Actor actor) {
+    public long review(String scope, Audit audit, Actor actor) {
         return insert("""
                 INSERT INTO merchant_review_record (
                     merchant_id, review_scope, request_no, review_action, from_status, to_status, review_comment,
@@ -334,7 +346,7 @@ class MerchantPaymentRepository {
                 .addValue("snapshot", audit.snapshot()));
     }
 
-    Optional<LegacyMerchant> legacyMerchant(String merchant) {
+    public Optional<LegacyMerchant> legacyMerchant(String merchant) {
         return query("""
                 SELECT payment_admission_mode, payment_baseline_batch_ref, gmt_create
                 FROM base_merchant_info WHERE merchant_id = :merchant AND deleted = 0
@@ -342,7 +354,7 @@ class MerchantPaymentRepository {
                 row.getString("payment_baseline_batch_ref"), time(row, "gmt_create"))).stream().findFirst();
     }
 
-    Optional<ReviewedBaseline> pendingBaseline(String merchant, String batch) {
+    public Optional<ReviewedBaseline> pendingBaseline(String merchant, String batch) {
         return jdbc.query("""
                 SELECT operator_user_id, fact_snapshot_json
                 FROM merchant_review_record WHERE review_scope = 'LEGACY_SCOPE'
@@ -353,7 +365,7 @@ class MerchantPaymentRepository {
                 .stream().findFirst();
     }
 
-    List<String> candidateEvidence(String merchant, String batch) {
+    public List<String> candidateEvidence(String merchant, String batch) {
         return jdbc.queryForList("""
                 SELECT fact_snapshot_json
                 FROM merchant_review_record WHERE review_scope = 'LEGACY_SCOPE'
@@ -362,7 +374,7 @@ class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "batch", batch), String.class);
     }
 
-    List<String> approvedBaselineKeys(String merchant, String batch) {
+    public List<String> approvedBaselineKeys(String merchant, String batch) {
         return jdbc.queryForList("""
                 SELECT target_key FROM merchant_review_record
                 WHERE review_scope = 'LEGACY_SCOPE' AND merchant_id = :merchant AND request_no = :batch
@@ -371,7 +383,7 @@ class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "batch", batch), String.class);
     }
 
-    void bindLegacyBaseline(String merchant, String batch, long revision, LocalDateTime now) {
+    public void bindLegacyBaseline(String merchant, String batch, long revision, LocalDateTime now) {
         requireChanged(jdbc.update("""
                 UPDATE base_merchant_info SET payment_admission_mode = 'LEGACY_OBSERVE',
                     payment_baseline_batch_ref = :batch, payment_authorization_revision = payment_authorization_revision + 1,
@@ -382,7 +394,7 @@ class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "batch", batch, "revision", revision, "now", now)));
     }
 
-    Set<String> frozenMethods(String merchant) {
+    public Set<String> frozenMethods(String merchant) {
         return Set.copyOf(jdbc.queryForList("""
                 SELECT DISTINCT r.target_key FROM base_merchant_info m
                 JOIN merchant_review_record r ON r.merchant_id = m.merchant_id
@@ -393,7 +405,7 @@ class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant), String.class));
     }
 
-    void restrictLegacy(String merchant, String itemKey, String batch, String status, long audit, LocalDateTime now) {
+    public void restrictLegacy(String merchant, String itemKey, String batch, String status, long audit, LocalDateTime now) {
         requireChanged(jdbc.update("""
                 INSERT INTO merchant_payment_authorization (
                     merchant_id, item_key, authorization_status, version, source, source_ref, effective_time,
@@ -406,7 +418,7 @@ class MerchantPaymentRepository {
                 "audit", audit, "now", now)));
     }
 
-    PageResult<HistoryRow> history(String merchant, String itemKey, Search query) {
+    public PageResult<HistoryRow> history(String merchant, String itemKey, Search query) {
         return page("""
                 SELECT r.id, r.review_action, r.from_status, r.to_status, r.review_comment, r.round_no, r.gmt_create
                 FROM merchant_review_record r
@@ -436,7 +448,7 @@ class MerchantPaymentRepository {
                 jdbc.query(body + " ORDER BY " + order + " LIMIT :limit OFFSET :offset", params, mapper));
     }
 
-    private String scopeFilter(AdminMerchantDataScope scope, MapSqlParameterSource params) {
+    private String scopeFilter(MerchantPaymentScope scope, MapSqlParameterSource params) {
         if (scope.allMerchants()) {
             return "";
         }
@@ -475,25 +487,25 @@ class MerchantPaymentRepository {
         return row.getObject(column, LocalDateTime.class);
     }
 
-    static void requireChanged(int count) {
+    public static void requireChanged(int count) {
         if (count != 1) {
             throw new IllegalStateException("merchant payment row changed under lock");
         }
     }
 
-    record Actor(String app, long account, long user, String name) {}
-    record DirectoryEntry(String type, String value, String label, String locale, boolean enabled) {}
-    record Batch(String merchant, String application) {}
-    record Item(long id, String application, String merchant, String itemKey, String operation, String status, int round,
+    public record Actor(String app, long account, long user, String name) {}
+    public record DirectoryEntry(String type, String value, String label, String locale, boolean enabled) {}
+    public record Batch(String merchant, String application) {}
+    public record Item(long id, String application, String merchant, String itemKey, String operation, String status, int round,
                 String source, long initialUser, long currentUser, String reason, long expectedGrantVersion, long version,
                 LocalDateTime submittedAt) {}
-    record Grant(long id, String itemKey, String status, long version, LocalDateTime effective, LocalDateTime expires,
+    public record Grant(long id, String itemKey, String status, long version, LocalDateTime effective, LocalDateTime expires,
                  String source) {}
-    record Review(long id, byte[] hash, String result) {}
-    record ItemReview(long itemId, HistoryRow history) {}
-    record LegacyMerchant(String mode, String batch, LocalDateTime createdAt) {}
-    record ReviewedBaseline(Long maker, String fact) {}
-    record Audit(String merchant, String application, String action, String from, String to, String reason,
+    public record Review(long id, byte[] hash, String result) {}
+    public record ItemReview(long itemId, HistoryRow history) {}
+    public record LegacyMerchant(String mode, String batch, LocalDateTime createdAt) {}
+    public record ReviewedBaseline(Long maker, String fact) {}
+    public record Audit(String merchant, String application, String action, String from, String to, String reason,
                  String targetType, String targetKey, Long item, Integer round, String command, byte[] hash,
                  String result, String snapshot, LocalDateTime now) {}
 }

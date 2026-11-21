@@ -1,72 +1,60 @@
 package com.scott.payment.merchant.application.merchantpayment;
 
-import com.scott.payment.component.core.auth.InternalAuthAccount;
-import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceService;
+import com.scott.payment.capability.governance.MerchantPaymentModels.*;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.merchant.client.admin.MerchantPaymentGovernanceClient;
-import com.scott.payment.merchant.client.admin.MerchantPaymentGovernanceClient.Identity;
-import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.*;
 import org.springframework.stereotype.Service;
 
-/** 将商户登录态绑定到权威支付方式用例，客户端不决定租户或操作者。 */
+/** 在商户应用内按登录态调用查询和申请用例。 */
 @Service
 public class MerchantPaymentMethodApplicationService {
-    private final MerchantPaymentGovernanceClient governance;
+    private final MerchantPaymentGovernanceService governance;
+    private final MerchantPaymentReads reads;
 
-    public MerchantPaymentMethodApplicationService(MerchantPaymentGovernanceClient governance) {
+    public MerchantPaymentMethodApplicationService(MerchantPaymentGovernanceService governance, MerchantPaymentReads reads) {
         this.governance = governance;
+        this.reads = reads;
     }
 
     public PageResult<MethodRow> methods(Search query) {
-        InternalAuthAccount session = account();
-        requireOwnFilter(session, query);
-        return governance.methods(session.getMerchantId(), actor(session), query);
+        String merchant = merchant();
+        requireOwnFilter(merchant, query);
+        return reads.read(merchant, scope -> governance.methods(scope, merchant, query));
     }
 
     public MethodRow method(String item) {
-        InternalAuthAccount session = account();
-        return governance.method(session.getMerchantId(), actor(session), item);
+        String merchant = merchant();
+        return reads.read(merchant, scope -> governance.method(scope, merchant, item));
     }
 
     public BatchReceipt apply(Apply command) {
-        InternalAuthAccount session = account();
-        return governance.apply(session.getMerchantId(), actor(session), command);
+        String merchant = merchant();
+        return governance.apply(reads.scope(merchant), merchant, command);
     }
 
     public PageResult<ApplicationRow> applications(Search query) {
-        InternalAuthAccount session = account();
-        requireOwnFilter(session, query);
-        return governance.applications(session.getMerchantId(), actor(session), query);
+        String merchant = merchant();
+        requireOwnFilter(merchant, query);
+        return reads.read(merchant, scope -> governance.applications(scope, query));
     }
 
     public ApplicationRow application(String application) {
-        InternalAuthAccount session = account();
-        return governance.application(session.getMerchantId(), actor(session), application);
+        return reads.read(merchant(), scope -> governance.application(scope, application));
     }
 
     public ItemReceipt change(long item, Change command, boolean resubmit) {
-        InternalAuthAccount session = account();
-        return governance.change(session.getMerchantId(), actor(session), item, command, resubmit);
+        return governance.changeApplication(reads.scope(merchant()), item, command, resubmit);
     }
 
-    private static InternalAuthAccount account() {
-        InternalAuthAccount value = InternalAuthContextHolder.get();
-        if (value == null || !"MERCHANT".equals(value.getAppCode()) || value.getMerchantId() == null
-                || value.getMerchantId().isBlank() || value.getAccountId() == null || value.getUserId() == null) {
-            throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
-        }
-        return value;
+    private static String merchant() {
+        return MerchantPaymentReads.account().getMerchantId();
     }
 
-    private static Identity actor(InternalAuthAccount value) {
-        return new Identity(value.getAccountId(), value.getUserId());
-    }
-
-    private static void requireOwnFilter(InternalAuthAccount session, Search query) {
+    private static void requireOwnFilter(String merchant, Search query) {
         if (query != null && query.getMerchantId() != null && !query.getMerchantId().isBlank()
-                && !session.getMerchantId().equals(query.getMerchantId())) {
+                && !merchant.equals(query.getMerchantId())) {
             throw new ServiceException(ApiResultEnum.FORBIDDEN);
         }
     }

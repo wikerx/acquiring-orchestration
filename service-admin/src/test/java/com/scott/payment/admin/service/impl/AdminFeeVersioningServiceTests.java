@@ -1619,7 +1619,7 @@ class AdminFeeVersioningServiceTests {
         order.verify(fixture.planMapper).updateById(plan);
         order.verify(fixture.approvalEvents).publishEvent(
                 org.mockito.ArgumentMatchers.argThat((Object value) ->
-                        value instanceof com.scott.payment.admin.application.merchantpayment.MerchantPaymentFeeChangedEvent event
+                        value instanceof com.scott.payment.capability.governance.MerchantPaymentFeeChangedEvent event
                                 && "M10001".equals(event.merchantId()) && Long.valueOf(21L).equals(event.versionId())));
     }
 

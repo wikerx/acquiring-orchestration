@@ -1,10 +1,12 @@
 package com.scott.payment.admin.application.merchantpayment;
 
-import com.scott.payment.admin.application.merchantpayment.MerchantPaymentGovernanceService.Scope;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.BatchDecision;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.BatchDecisionReceipt;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.DecisionItem;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.DecisionOutcome;
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceService;
+
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceService.Scope;
+import com.scott.payment.capability.governance.MerchantPaymentModels.BatchDecision;
+import com.scott.payment.capability.governance.MerchantPaymentModels.BatchDecisionReceipt;
+import com.scott.payment.capability.governance.MerchantPaymentModels.DecisionItem;
+import com.scott.payment.capability.governance.MerchantPaymentModels.DecisionOutcome;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import org.slf4j.Logger;

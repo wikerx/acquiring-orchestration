@@ -1,7 +1,9 @@
 package com.scott.payment.admin.application.operation;
 
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityEventPublisher;
+
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher.Message;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityEventPublisher.Message;
 import com.scott.payment.admin.client.payment.PaymentInternalClient;
 import com.scott.payment.admin.client.payment.dto.PaymentCapabilityEvaluationDTOs;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
@@ -11,9 +13,9 @@ import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService;
 import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.CapabilityBasis;
 import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.CapabilityTransition;
 import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.CapabilityKey;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.ReadinessResult;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService.CapabilityKey;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService.ReadinessResult;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -272,8 +274,9 @@ public class MerchantPaymentCapabilityOperations {
                 return;
             }
             if ("BLOCKED".equals(transition.status())) {
-                events.publishConfigurationBlocked(merchantId, grant.itemKey(),
-                        new ConfigurationBlockNotice(transition.workItemNo(), transition.version()), basis.measuredAt());
+                var notice = new ConfigurationBlockNotice(transition.workItemNo(), transition.version());
+                events.publishConfigurationBlocked(merchantId, grant.itemKey(), notice.workItemNo(), notice.generation(),
+                        notice.emailBusinessNumber(), basis.measuredAt());
             } else {
                 events.publishReady(merchantId, grant.itemKey(),
                         transition.workItemNo() + ":" + transition.version(), basis.measuredAt());

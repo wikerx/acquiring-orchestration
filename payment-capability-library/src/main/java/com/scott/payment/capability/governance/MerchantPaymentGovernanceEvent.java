@@ -1,4 +1,4 @@
-package com.scott.payment.admin.application.merchantpayment;
+package com.scott.payment.capability.governance;
 
 import java.time.LocalDateTime;
 

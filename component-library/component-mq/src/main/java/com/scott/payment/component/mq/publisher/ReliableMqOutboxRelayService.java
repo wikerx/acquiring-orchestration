@@ -84,11 +84,14 @@ public class ReliableMqOutboxRelayService {
      */
     public boolean relayEvent(String eventId) {
         ReliableMqOutboxDO event = outboxStore.findByEventId(eventId);
-        if (event == null
-                || !producerService.equals(event.getProducerService())
-                || "CLOSED".equals(event.getEventStatus())) {
+        return event != null && producerService.equals(event.getProducerService()) && dispatch(event);
+    }
+
+    private boolean dispatch(ReliableMqOutboxDO event) {
+        if ("CLOSED".equals(event.getEventStatus())) {
             return false;
         }
+        String eventId = event.getEventId();
         if ("SENT".equals(event.getEventStatus())) {
             return true;
         }
@@ -165,7 +168,8 @@ public class ReliableMqOutboxRelayService {
         outboxStore.recoverPaymentCapabilityStale(staleBefore, now, limit);
         int relayed = 0;
         for (ReliableMqOutboxDO event : outboxStore.findPaymentCapabilityDue(now, limit)) {
-            if (relayEvent(event.getEventId())) {
+            // 查询范围只包含两端的支付方式业务事件及 Admin 的能力邮件。
+            if (dispatch(event)) {
                 relayed++;
             }
         }

@@ -1,7 +1,7 @@
 package com.scott.payment.admin.mq;
 
 import com.scott.payment.admin.api.internal.AdminPaymentCapabilityOperationsInternalController;
-import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher.Message;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityEventPublisher.Message;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityOperations;
 import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityOperations.RecoveryRequest;
 import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;

@@ -1,6 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
-import com.scott.payment.admin.application.operation.MerchantPaymentCapabilityEventPublisher;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityEventPublisher;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.alibaba.fastjson2.TypeReference;

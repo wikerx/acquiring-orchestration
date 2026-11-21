@@ -17,6 +17,11 @@
         对费用和保证金的管理端试算复用 finance-library，配置版本选择和审批仍由本服务编排。
     -->
     <dependencies>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-capability-library</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--链接管理本地执行，复用幂等、凭据和行锁规则；不依赖其他服务实现。-->
         <dependency><groupId>com.scott.payment</groupId><artifactId>payment-link-library</artifactId><version>${project.version}</version></dependency>
         <!--服务注册、配置中心和服务间负载均衡。-->

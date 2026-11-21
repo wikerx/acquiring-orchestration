@@ -27,6 +27,7 @@ public final class PaymentCacheRegistry {
             Map.entry(PaymentCacheNames.CARD_BIN_MISS, Duration.ofMinutes(2)),
             Map.entry(PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH, Duration.ZERO),
             Map.entry(PaymentCacheNames.MERCHANT_ACTIVE_FEE, Duration.ZERO),
+            Map.entry(PaymentCacheNames.MERCHANT_CAPABILITY_FEE_RULES, Duration.ofMinutes(10)),
             Map.entry(PaymentCacheNames.ISO_COUNTRY, Duration.ZERO),
             Map.entry(PaymentCacheNames.ISO_CURRENCY, Duration.ZERO),
             Map.entry(PaymentCacheNames.MCC_OPTIONS, Duration.ZERO),

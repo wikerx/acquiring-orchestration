@@ -4,7 +4,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.merchant.application.merchantpayment.MerchantPaymentMethodApplicationService;
-import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.*;
+import com.scott.payment.capability.governance.MerchantPaymentModels.*;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 

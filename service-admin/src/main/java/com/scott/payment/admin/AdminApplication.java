@@ -1,5 +1,7 @@
 package com.scott.payment.admin;
 
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceConfiguration;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -7,6 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 /**
  * 管理端 Spring Boot 启动入口，用于运营后台，封装该业务的本地校验、转换或运行时协作入口。
  */
+@Import(MerchantPaymentGovernanceConfiguration.class)
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
 @EnableScheduling
 public class AdminApplication {

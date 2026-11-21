@@ -1,10 +1,12 @@
 package com.scott.payment.admin.application.merchantpayment;
 
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.AuthorizationCoverage;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.FeeReference;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.KnownCapability;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.CapabilityKey;
-import com.scott.payment.admin.service.impl.MerchantPaymentCapabilityReadinessService.ReadinessResult;
+import com.scott.payment.capability.governance.MerchantPaymentMethodReadiness;
+
+import com.scott.payment.capability.governance.MerchantPaymentModels.AuthorizationCoverage;
+import com.scott.payment.capability.governance.MerchantPaymentModels.FeeReference;
+import com.scott.payment.capability.governance.MerchantPaymentModels.KnownCapability;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService.CapabilityKey;
+import com.scott.payment.capability.governance.MerchantPaymentCapabilityReadinessService.ReadinessResult;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;

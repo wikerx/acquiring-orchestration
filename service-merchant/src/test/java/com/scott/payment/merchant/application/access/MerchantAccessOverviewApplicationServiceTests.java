@@ -2,8 +2,8 @@ package com.scott.payment.merchant.application.access;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.merchant.application.merchantpayment.MerchantPaymentLinkedProjection;
-import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.AccessSummary;
-import com.scott.payment.merchant.dto.merchantpayment.MerchantPaymentModels.KnownCapability;
+import com.scott.payment.capability.governance.MerchantPaymentModels.AccessSummary;
+import com.scott.payment.capability.governance.MerchantPaymentModels.KnownCapability;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialVO;

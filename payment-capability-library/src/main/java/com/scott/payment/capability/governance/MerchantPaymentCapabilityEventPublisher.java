@@ -1,8 +1,5 @@
-package com.scott.payment.admin.application.operation;
+package com.scott.payment.capability.governance;
 
-import com.scott.payment.admin.application.merchantpayment.MerchantPaymentGovernanceEvent;
-import com.scott.payment.admin.application.merchantpayment.MerchantPaymentFeeChangedEvent;
-import com.scott.payment.admin.service.impl.JdbcAdminOperationalWorkItemService.ConfigurationBlockNotice;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.outbox.mapper.ReliableMqOutboxMapper;
 import com.scott.payment.component.mq.constant.MqTopic;
@@ -11,7 +8,6 @@ import com.scott.payment.component.mq.publisher.ReliableMqPublisher;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
@@ -22,7 +18,6 @@ import java.util.Arrays;
 import java.util.HexFormat;
 
 /** 将确定提交的商户支付方式业务事件登记到原可靠发件箱。 */
-@Service
 public class MerchantPaymentCapabilityEventPublisher {
 
     public static final String TAG = ReliableMqOutboxMapper.CAPABILITY_EVENT_TAG;
@@ -58,12 +53,11 @@ public class MerchantPaymentCapabilityEventPublisher {
         publish(newMessage(merchantId, itemKey, "READY", transitionIdentity, occurredAt));
     }
 
-    public void publishConfigurationBlocked(String merchantId, String itemKey, ConfigurationBlockNotice notice,
-                                            LocalDateTime occurredAt) {
-        Message message = newMessage(merchantId, itemKey, ConfigurationBlockNotice.ACTION,
-                notice.emailBusinessNumber(), occurredAt);
-        message.setConfigurationWorkItemNo(notice.workItemNo());
-        message.setConfigurationGeneration(notice.generation());
+    public void publishConfigurationBlocked(String merchantId, String itemKey, String workItemNo, long generation,
+                                            String emailBusinessNumber, LocalDateTime occurredAt) {
+        Message message = newMessage(merchantId, itemKey, "CONFIGURATION_BLOCKED", emailBusinessNumber, occurredAt);
+        message.setConfigurationWorkItemNo(workItemNo);
+        message.setConfigurationGeneration(generation);
         publish(message);
     }
 
@@ -92,7 +86,7 @@ public class MerchantPaymentCapabilityEventPublisher {
         return message;
     }
 
-    static byte[] digest(Object... fields) {
+    public static byte[] digest(Object... fields) {
         try {
             String canonical = JsonUtils.toJsonString(Arrays.asList(fields));
             return MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8));

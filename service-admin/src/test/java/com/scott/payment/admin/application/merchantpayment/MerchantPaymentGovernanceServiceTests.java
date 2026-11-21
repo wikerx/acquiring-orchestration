@@ -1,15 +1,23 @@
 package com.scott.payment.admin.application.merchantpayment;
 
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceEvent;
+
+import com.scott.payment.capability.governance.MerchantPaymentScope;
+
+import com.scott.payment.capability.governance.MerchantPaymentMethodReadiness;
+
+import com.scott.payment.capability.governance.MerchantPaymentRepository;
+
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Apply;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.AuthorizationCoverage;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.BaselineApprove;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.BaselineSubmit;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Evidence;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Change;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Decision;
-import com.scott.payment.admin.service.AdminMerchantDataScope;
-import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
+import com.scott.payment.capability.governance.MerchantPaymentModels.Apply;
+import com.scott.payment.capability.governance.MerchantPaymentModels.AuthorizationCoverage;
+import com.scott.payment.capability.governance.MerchantPaymentModels.BaselineApprove;
+import com.scott.payment.capability.governance.MerchantPaymentModels.BaselineSubmit;
+import com.scott.payment.capability.governance.MerchantPaymentModels.Evidence;
+import com.scott.payment.capability.governance.MerchantPaymentModels.Change;
+import com.scott.payment.capability.governance.MerchantPaymentModels.Decision;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import org.junit.jupiter.api.Test;
@@ -24,7 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.scott.payment.admin.application.merchantpayment.MerchantPaymentRepository.*;
+import static com.scott.payment.capability.governance.MerchantPaymentRepository.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
@@ -37,17 +45,17 @@ class MerchantPaymentGovernanceServiceTests {
     private final MerchantPaymentRepository repository = mock(MerchantPaymentRepository.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final MerchantPaymentGovernanceService governance = new MerchantPaymentGovernanceService(
-            repository, mock(AdminMerchantDataScopeResolver.class), () -> "2600000000000000000001",
+            repository, () -> "2600000000000000000001",
             new ObjectMapper().findAndRegisterModules(), events, mock(MerchantPaymentMethodReadiness.class));
 
     @Test
     void merchantLookupBindsTheAdministratorsScopeAndStopsWhenItIsEmpty() {
         var jdbc = mock(NamedParameterJdbcTemplate.class);
         var lookup = new MerchantPaymentRepository(jdbc);
-        assertThat(lookup.merchantOptions(AdminMerchantDataScope.limited(Set.of()), "Example")).isEmpty();
+        assertThat(lookup.merchantOptions(MerchantPaymentScope.limited(Set.of()), "Example")).isEmpty();
         verifyNoInteractions(jdbc);
 
-        lookup.merchantOptions(AdminMerchantDataScope.limited(Set.of(MERCHANT)), " Example ");
+        lookup.merchantOptions(MerchantPaymentScope.limited(Set.of(MERCHANT)), " Example ");
 
         verify(jdbc).query(contains("AND merchant_id IN (:scopeMerchants)"),
                 argThat((MapSqlParameterSource parameters) -> "Example".equals(parameters.getValue("keyword"))
@@ -57,7 +65,7 @@ class MerchantPaymentGovernanceServiceTests {
 
     @Test
     void feeAuthorizationKeepsFormalAndRestrictedFactsWhileHistoryIsPending() {
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.limited(Set.of(MERCHANT)),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.limited(Set.of(MERCHANT)),
                 new Actor("MERCHANT", 19, 8, null));
         LocalDateTime past = LocalDateTime.of(2020, 1, 1, 0, 0);
         LocalDateTime future = LocalDateTime.of(2099, 1, 1, 0, 0);
@@ -91,7 +99,7 @@ class MerchantPaymentGovernanceServiceTests {
     @Test
     void applyNormalizesSetAndReplaysOriginalBatchBeforeReevaluatingDirectory() {
         var actor = new Actor("MERCHANT", 19, 8, null);
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.limited(Set.of(MERCHANT)), actor);
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.limited(Set.of(MERCHANT)), actor);
         when(repository.lockMerchant(MERCHANT)).thenReturn(Optional.of(1L));
         when(repository.lockGrant(MERCHANT, VISA)).thenReturn(Optional.empty());
         when(repository.directory(true)).thenReturn(cardDirectory());
@@ -126,7 +134,7 @@ class MerchantPaymentGovernanceServiceTests {
     void knownAdminCannotReviewUsingAnotherAccountOfSameNaturalPerson() {
         var maker = new Actor("ADMIN", 201, 8, "maker");
         var samePerson = new Actor("ADMIN", 202, 8, "another account");
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.all(), samePerson);
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.all(), samePerson);
         Item item = item();
         when(repository.findItem(5L)).thenReturn(Optional.of(item));
         when(repository.lockMerchant(MERCHANT)).thenReturn(Optional.of(1L));
@@ -145,7 +153,7 @@ class MerchantPaymentGovernanceServiceTests {
 
     @Test
     void approvalKeepsActorBoundReceiptAndAdvancesRevisionOnce() {
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.all(),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.all(),
                 new Actor("ADMIN", 202, 9, "checker"));
         Item item = item();
         when(repository.findItem(5L)).thenReturn(Optional.of(item));
@@ -175,7 +183,7 @@ class MerchantPaymentGovernanceServiceTests {
 
     @Test
     void crossScopeFailsBeforeLockAndCannotReadRequestedMerchant() {
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.limited(Set.of("200046")),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.limited(Set.of("200046")),
                 new Actor("ADMIN", 202, 9, "checker"));
         when(repository.findItem(5L)).thenReturn(Optional.of(item()));
         assertThatThrownBy(() -> governance.decide(scope, 5L, new Decision("cmd", "2", "APPROVE", null)))
@@ -202,7 +210,7 @@ class MerchantPaymentGovernanceServiceTests {
     void returnedApplicationFromDisabledMethodDoesNotEnterReviewAgain() {
         Item item = new Item(5, "application", MERCHANT, VISA, "APPLY", "RETURNED", 1, "MERCHANT", 7, 7,
                 null, 0, 2, LocalDateTime.of(2026, 11, 20, 12, 0));
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.limited(Set.of(MERCHANT)),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.limited(Set.of(MERCHANT)),
                 new Actor("MERCHANT", 26, 7, null));
         when(repository.findItem(5L)).thenReturn(Optional.of(item));
         when(repository.lockMerchant(MERCHANT)).thenReturn(Optional.of(1L));
@@ -220,7 +228,7 @@ class MerchantPaymentGovernanceServiceTests {
 
     @Test
     void baselineMakerCannotReviewFromAnotherAccount() {
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.all(),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.all(),
                 new Actor("ADMIN", 204, 8, "second account"));
         when(repository.lockMerchant(MERCHANT)).thenReturn(Optional.of(1L));
         when(repository.pendingBaseline(MERCHANT, "batch")).thenReturn(Optional.of(new ReviewedBaseline(8L, "{}")));
@@ -235,7 +243,7 @@ class MerchantPaymentGovernanceServiceTests {
 
     @Test
     void historicApprovalFreezesOnlyVerifiedScope() throws Exception {
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.all(),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.all(),
                 new Actor("ADMIN", 204, 9, "independent checker"));
         var observed = LocalDateTime.of(2026, 11, 15, 11, 0);
         var json = new ObjectMapper().findAndRegisterModules();
@@ -264,7 +272,7 @@ class MerchantPaymentGovernanceServiceTests {
 
     @Test
     void frozenScopeCanBeSuspendedWithoutFabricatingAnApproval() {
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.all(),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.all(),
                 new Actor("ADMIN", 204, 9, "authorized operator"));
         when(repository.lockMerchant(MERCHANT)).thenReturn(Optional.of(2L));
         when(repository.legacyMerchant(MERCHANT)).thenReturn(Optional.of(new LegacyMerchant(
@@ -287,7 +295,7 @@ class MerchantPaymentGovernanceServiceTests {
 
     @Test
     void historicalEvidenceOutsideTheClaimedCutoffCannotCreateABatch() {
-        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.all(),
+        var scope = new MerchantPaymentGovernanceService.Scope(MerchantPaymentScope.all(),
                 new Actor("ADMIN", 204, 9, "maker"));
         var cutoff = LocalDateTime.of(2026, 11, 15, 11, 0);
         when(repository.lockMerchant(MERCHANT)).thenReturn(Optional.of(1L));

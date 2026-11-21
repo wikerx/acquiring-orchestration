@@ -17,6 +17,11 @@
         交易和资金数据以对应核心服务/数据库事实为准，本地缓存用于查询抗压并按数据所有权失效。
     -->
     <dependencies>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-capability-library</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--链接管理本地执行，复用幂等、凭据和行锁规则；不依赖其他服务实现。-->
         <dependency><groupId>com.scott.payment</groupId><artifactId>payment-link-library</artifactId><version>${project.version}</version></dependency>
         <!--服务注册、配置中心和服务间负载均衡。-->

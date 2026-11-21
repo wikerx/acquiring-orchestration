@@ -1,12 +1,19 @@
 package com.scott.payment.admin.application.merchantpayment;
 
-import com.scott.payment.admin.application.merchantpayment.MerchantPaymentGovernanceService.Scope;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.BatchDecision;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Decision;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.DecisionItem;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.DecisionOutcome;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.ItemReceipt;
-import com.scott.payment.admin.service.AdminMerchantDataScope;
+import com.scott.payment.capability.governance.MerchantPaymentScope;
+
+import com.scott.payment.capability.governance.MerchantPaymentMethodReadiness;
+
+import com.scott.payment.capability.governance.MerchantPaymentRepository;
+
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceService;
+
+import com.scott.payment.capability.governance.MerchantPaymentGovernanceService.Scope;
+import com.scott.payment.capability.governance.MerchantPaymentModels.BatchDecision;
+import com.scott.payment.capability.governance.MerchantPaymentModels.Decision;
+import com.scott.payment.capability.governance.MerchantPaymentModels.DecisionItem;
+import com.scott.payment.capability.governance.MerchantPaymentModels.DecisionOutcome;
+import com.scott.payment.capability.governance.MerchantPaymentModels.ItemReceipt;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import org.junit.jupiter.api.Test;
@@ -24,7 +31,7 @@ import static org.mockito.Mockito.when;
 class MerchantPaymentBatchReviewServiceTests {
     private final MerchantPaymentGovernanceService authority = mock(MerchantPaymentGovernanceService.class);
     private final MerchantPaymentBatchReviewService batch = new MerchantPaymentBatchReviewService(authority);
-    private final Scope scope = new Scope(AdminMerchantDataScope.all(),
+    private final Scope scope = new Scope(MerchantPaymentScope.all(),
             new MerchantPaymentRepository.Actor("ADMIN", 16L, 17L, "checker"));
 
     @Test

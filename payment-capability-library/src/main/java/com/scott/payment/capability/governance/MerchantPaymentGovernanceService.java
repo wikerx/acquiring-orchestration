@@ -1,13 +1,9 @@
-package com.scott.payment.admin.application.merchantpayment;
+package com.scott.payment.capability.governance;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.*;
-import com.scott.payment.admin.service.AdminMerchantDataScope;
-import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
-import com.scott.payment.component.core.auth.InternalAuthAccount;
-import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.capability.governance.MerchantPaymentModels.*;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
@@ -15,7 +11,6 @@ import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,11 +32,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.scott.payment.admin.application.merchantpayment.MerchantPaymentRepository.*;
+import static com.scott.payment.capability.governance.MerchantPaymentRepository.*;
 
 /** 支付方式申请与正式授权的唯一写入入口。 */
-@Service
-@DS(DataSourceName.MASTER)
 public class MerchantPaymentGovernanceService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
     private static final String PENDING = "PENDING_REVIEW";
@@ -55,31 +48,19 @@ public class MerchantPaymentGovernanceService {
     private static final String PENDING_VERIFICATION = "PENDING_VERIFICATION";
 
     private final MerchantPaymentRepository repository;
-    private final AdminMerchantDataScopeResolver scopes;
     private final GlobalIdGenerator ids;
     private final ObjectMapper json;
     private final ApplicationEventPublisher events;
     private final MerchantPaymentMethodReadiness readiness;
 
-    MerchantPaymentGovernanceService(MerchantPaymentRepository repository, AdminMerchantDataScopeResolver scopes,
+    public MerchantPaymentGovernanceService(MerchantPaymentRepository repository,
                                      GlobalIdGenerator ids, ObjectMapper json, ApplicationEventPublisher events,
                                      MerchantPaymentMethodReadiness readiness) {
         this.repository = repository;
-        this.scopes = scopes;
         this.ids = ids;
         this.json = json;
         this.events = events;
         this.readiness = readiness;
-    }
-
-    public Scope adminScope() {
-        InternalAuthAccount account = InternalAuthContextHolder.get();
-        if (account == null || !"ADMIN".equals(account.getAppCode())
-                || account.getAccountId() == null || account.getUserId() == null) {
-            throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
-        }
-        return new Scope(scopes.resolve(account),
-                new Actor("ADMIN", account.getAccountId(), account.getUserId(), account.getRealName()));
     }
 
     public Scope merchantScope(String merchant, Long account, Long user) {
@@ -87,7 +68,7 @@ public class MerchantPaymentGovernanceService {
                 || !repository.verifiedMerchantAccount(merchant, account, user)) {
             throw new ServiceException(ApiResultEnum.FORBIDDEN);
         }
-        return new Scope(AdminMerchantDataScope.limited(Set.of(merchant)), new Actor("MERCHANT", account, user, null));
+        return new Scope(MerchantPaymentScope.limited(Set.of(merchant)), new Actor("MERCHANT", account, user, null));
     }
 
     public List<MerchantOption> merchantOptions(Scope scope, String keyword) {
@@ -220,6 +201,7 @@ public class MerchantPaymentGovernanceService {
         return applicationView(batch, repository.listBatches(List.of(batch)), history);
     }
 
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public BatchReceipt apply(Scope scope, String merchant, Apply input) {
         requireScope(scope, merchant);
@@ -277,6 +259,7 @@ public class MerchantPaymentGovernanceService {
         return receipt;
     }
 
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public ItemReceipt decide(Scope scope, long id, Decision input) {
         requireApplicationRole(scope, "ADMIN");
@@ -324,6 +307,7 @@ public class MerchantPaymentGovernanceService {
         return withReview(receipt, reviewId);
     }
 
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public ItemReceipt changeApplication(Scope scope, long id, Change input, boolean resubmit) {
         requireApplicationRole(scope, "MERCHANT");
@@ -332,6 +316,9 @@ public class MerchantPaymentGovernanceService {
         String reason = reason(input.reason(), resubmit);
         rejectUnexpectedTimes(input);
         long expected = version(input.expectedVersion());
+        if (expected <= 0L) {
+            throw invalid("申请记录版本无效");
+        }
         byte[] hash = fingerprint(scope.actor(), action, Long.toString(id), expected, reason);
         long revision = lockMerchant(merchant);
         ItemReceipt replay = itemReplay(merchant, input.requestId(), hash);
@@ -362,6 +349,7 @@ public class MerchantPaymentGovernanceService {
         return withReview(receipt, reviewId);
     }
 
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public ItemReceipt changeGrant(Scope scope, String merchant, String rawKey, String action, Change input) {
         requireApplicationRole(scope, "ADMIN");
@@ -432,6 +420,7 @@ public class MerchantPaymentGovernanceService {
         return withReview(receipt, reviewId);
     }
 
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public BaselineReceipt submitBaseline(Scope scope, String merchant, BaselineSubmit request) {
         requireApplicationRole(scope, "ADMIN");
@@ -482,6 +471,7 @@ public class MerchantPaymentGovernanceService {
                 approved.isEmpty() ? PENDING_VERIFICATION : APPROVED);
     }
 
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public BaselineReceipt approveBaseline(Scope scope, String merchant, String batch, BaselineApprove request) {
         requireApplicationRole(scope, "ADMIN");
@@ -615,7 +605,7 @@ public class MerchantPaymentGovernanceService {
                 readiness.status(), readiness.reasons(), readiness.feeReference(), catalogEnabled, requestable);
     }
 
-    static String effectiveStatus(String status, LocalDateTime effective, LocalDateTime expires, LocalDateTime now) {
+    public static String effectiveStatus(String status, LocalDateTime effective, LocalDateTime expires, LocalDateTime now) {
         if (!ACTIVE.equals(status)) {
             return status;
         }
@@ -625,7 +615,7 @@ public class MerchantPaymentGovernanceService {
         return expires != null && !now.isBefore(expires) ? "EXPIRED" : ACTIVE;
     }
 
-    static String nextGrantStatus(String status, String action) {
+    public static String nextGrantStatus(String status, String action) {
         return switch (action) {
             case "SUSPEND" -> ACTIVE.equals(status) ? SUSPENDED : illegalLifecycle();
             case "RESTORE" -> SUSPENDED.equals(status) ? ACTIVE : illegalLifecycle();
@@ -639,7 +629,7 @@ public class MerchantPaymentGovernanceService {
         throw invalid("授权状态不允许此操作");
     }
 
-    static String normalizeKey(String value) {
+    public static String normalizeKey(String value) {
         if (value == null) {
             throw invalid("支付方式无效");
         }
@@ -790,7 +780,7 @@ public class MerchantPaymentGovernanceService {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
-    public record Scope(AdminMerchantDataScope merchants, Actor actor) {}
+    public record Scope(MerchantPaymentScope merchants, Actor actor) {}
     private record BatchFact(int schemaVersion, List<String> itemKeys) {}
     private record BaselineFact(int schemaVersion, LocalDateTime cutoffTime) {}
     private record ApplicationFact(int schemaVersion, String itemKey, String operation, long expectedGrantVersion,

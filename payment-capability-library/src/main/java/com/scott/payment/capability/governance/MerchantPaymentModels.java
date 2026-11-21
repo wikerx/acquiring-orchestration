@@ -1,4 +1,4 @@
-package com.scott.payment.admin.dto.merchantpayment;
+package com.scott.payment.capability.governance;
 
 import com.scott.payment.component.core.model.PageRequest;
 import jakarta.validation.constraints.NotBlank;

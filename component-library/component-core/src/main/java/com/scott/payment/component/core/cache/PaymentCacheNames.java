@@ -68,6 +68,9 @@ public final class PaymentCacheNames {
      */
     public static final String MERCHANT_ACTIVE_FEE = "merchant:activeFee";
 
+    /** 商户支付方式展示使用的已发布费率原子范围，按内部版本 ID 读取。 */
+    public static final String MERCHANT_CAPABILITY_FEE_RULES = "merchant:capabilityFeeRules";
+
     /**
      * 全局启用国家地区快照，固定业务键为 {@code all}。
      */
