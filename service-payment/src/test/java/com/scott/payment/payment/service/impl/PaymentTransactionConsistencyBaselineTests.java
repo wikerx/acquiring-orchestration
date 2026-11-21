@@ -78,6 +78,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -498,38 +499,38 @@ class PaymentTransactionConsistencyBaselineTests {
      * T-P0-02：同一 merchantOrderNo 并发请求必须由持久幂等兜底，不能因 Redis 锁缺失而产生第二次渠道 Payment。
      */
     @Test
-    void shouldCreateOnlyOnePaymentForConcurrentDuplicateSameOrder() throws InterruptedException {
+    void shouldCreateOnlyOnePaymentForConcurrentDuplicateSameOrder() throws Exception {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
         CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CountDownLatch channelEntered = new CountDownLatch(1);
+        CountDownLatch releaseChannel = new CountDownLatch(1);
         InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
-                channelResponse(ChannelTradeStatus.PROCESSING));
-        channelService.blockFirstPayment = true;
+                channelResponse(ChannelTradeStatus.PROCESSING), () -> {
+                    channelEntered.countDown();
+                    try {
+                        assertThat(releaseChannel.await(10, TimeUnit.SECONDS)).isTrue();
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(exception);
+                    }
+                });
         PaymentTransactionServiceImpl service = newService(idempotencyService, recordService, outboxService, channelService);
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        AtomicReference<PaymentCreateResultDTO> first = new AtomicReference<>();
-        AtomicReference<PaymentCreateResultDTO> second = new AtomicReference<>();
-        AtomicReference<Throwable> firstError = new AtomicReference<>();
-        AtomicReference<Throwable> secondError = new AtomicReference<>();
-
-        Thread firstThread = new Thread(() -> runAfterStart(ready, start, () -> first.set(service.createPayment(baseCommand())), firstError),
-                "baseline-payment-first");
-        Thread secondThread = new Thread(() -> runAfterStart(ready, start, () -> {
-            second.set(service.createPayment(baseCommand()));
-        }, secondError), "baseline-payment-second");
-        firstThread.start();
-        secondThread.start();
-        assertThat(ready.await(2, TimeUnit.SECONDS)).isTrue();
-        start.countDown();
-        firstThread.join(3000);
-        secondThread.join(3000);
-
-        assertThat(firstError.get()).as("T-P0-02 first request must not fail").isNull();
-        assertThat(secondError.get()).as("T-P0-02 duplicate request should return original/current transaction instead of failing").isNull();
-        assertThat(second.get().getTransactionId())
-                .as("T-P0-02 concurrent duplicate merchantOrderNo must return original transaction")
-                .isEqualTo(first.get().getTransactionId());
+        var workers = Executors.newFixedThreadPool(2);
+        try {
+            var first = workers.submit(() -> service.createPayment(baseCommand()));
+            assertThat(channelEntered.await(5, TimeUnit.SECONDS))
+                    .as("T-P0-02 first request has prepared the payment and started the channel call").isTrue();
+            var duplicate = workers.submit(() -> service.createPayment(baseCommand()));
+            PaymentCreateResultDTO replay = duplicate.get(5, TimeUnit.SECONDS);
+            releaseChannel.countDown();
+            assertThat(replay.getTransactionId())
+                    .as("T-P0-02 concurrent duplicate merchantOrderNo must return original transaction")
+                    .isEqualTo(first.get(5, TimeUnit.SECONDS).getTransactionId());
+        } finally {
+            releaseChannel.countDown();
+            workers.shutdownNow();
+        }
         assertThat(channelService.paymentInvokeCount())
                 .as("T-P0-02 concurrent duplicate merchantOrderNo must not call MPGS Payment twice")
                 .isEqualTo(1);
