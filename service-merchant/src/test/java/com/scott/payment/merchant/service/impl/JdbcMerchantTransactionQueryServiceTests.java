@@ -21,6 +21,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -202,9 +203,10 @@ class JdbcMerchantTransactionQueryServiceTests {
         query.setBeginTime(LocalDateTime.of(2026, 4, 1, 0, 0));
         query.setEndTime(LocalDateTime.of(2099, 12, 31, 23, 59, 59));
 
-        LocalDateTime beforeQuery = LocalDateTime.now();
+        ZoneId storageZone = ZoneId.of("Asia/Shanghai");
+        LocalDateTime beforeQuery = LocalDateTime.now(storageZone);
         service.pageOrders(query);
-        LocalDateTime afterQuery = LocalDateTime.now();
+        LocalDateTime afterQuery = LocalDateTime.now(storageZone);
 
         assertThat(query.getBeginTime()).isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
         assertThat(query.getEndTime()).isBetween(beforeQuery, afterQuery);
