@@ -15,6 +15,7 @@ import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,6 +66,34 @@ class MerchantPaymentGovernanceClientTests {
         assertThatThrownBy(() -> client().methods("200045", new MerchantPaymentGovernanceClient.Identity(17, 19), null))
                 .isInstanceOfSatisfying(ServiceException.class,
                         error -> assertThat(error.getCode()).isEqualTo(ApiResultEnum.BAD_GATEWAY.getCode()));
+        mock.verify();
+    }
+
+    @Test
+    void readsAdminBusinessTimeInAuthorizedMethodsAndApplicationHistory() {
+        environment.withProperty("merchant.admin-payment-method-client.internal-secret",
+                "test-only-signing-fixture-for-admin-edge");
+        var mock = MockRestServiceServer.bindTo(direct).build();
+        mock.expect(requestTo("https://admin.test/internal/merchant/200046/payment-methods/search"))
+                .andRespond(withSuccess("""
+                        {"code":"T200","data":{"records":[{"itemKey":"CARD_BRAND:VISA",
+                          "effectiveTime":"2026-11-21 10:51:21.893",
+                          "expireTime":"2026-11-22T10:51:21"}]}}
+                        """, MediaType.APPLICATION_JSON));
+        mock.expect(requestTo("https://admin.test/internal/merchant/200046/payment-methods/applications/search"))
+                .andRespond(withSuccess("""
+                        {"code":"T200","data":{"records":[{"applicationNo":"sample",
+                          "items":[{"submittedAt":"2026-11-21 10:51:20.771"}]}]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        var client = client();
+        var actor = new MerchantPaymentGovernanceClient.Identity(17, 19);
+        var authorization = client.methods("200046", actor, null).getRecords().get(0);
+        var application = client.applications("200046", actor, null).getRecords().get(0);
+
+        assertThat(authorization.effectiveTime()).isEqualTo(LocalDateTime.parse("2026-11-21T10:51:21.893"));
+        assertThat(authorization.expireTime()).isEqualTo(LocalDateTime.parse("2026-11-22T10:51:21"));
+        assertThat(application.items().get(0).submittedAt()).isEqualTo(LocalDateTime.parse("2026-11-21T10:51:20.771"));
         mock.verify();
     }
 

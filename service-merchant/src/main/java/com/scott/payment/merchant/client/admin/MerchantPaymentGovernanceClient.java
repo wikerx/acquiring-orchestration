@@ -1,8 +1,12 @@
 package com.scott.payment.merchant.client.admin;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.CommonResult;
@@ -23,8 +27,11 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -41,6 +48,7 @@ public class MerchantPaymentGovernanceClient {
     private final RestTemplate discovery;
     private final RestTemplate direct;
     private final ObjectMapper json;
+    private final ObjectMapper responseJson;
     private final Environment environment;
 
     public MerchantPaymentGovernanceClient(
@@ -50,6 +58,17 @@ public class MerchantPaymentGovernanceClient {
         this.discovery = discovery;
         this.direct = direct;
         this.json = json;
+        this.responseJson = json.copy().registerModule(new SimpleModule().addDeserializer(
+                LocalDateTime.class, new LocalDateTimeDeserializer(DateTimeFormatter.ISO_LOCAL_DATE_TIME) {
+                    @Override
+                    protected LocalDateTime _fromString(JsonParser parser, DeserializationContext context,
+                                                        String value) throws IOException {
+                        // Admin 响应使用带空格的业务时间。只兼容此调用的响应，保留原精度和请求签名。
+                        String localTime = value.length() > 10 && value.charAt(10) == ' '
+                                ? value.substring(0, 10) + 'T' + value.substring(11) : value;
+                        return super._fromString(parser, context, localTime);
+                    }
+                }));
         this.environment = environment;
     }
 
@@ -110,7 +129,7 @@ public class MerchantPaymentGovernanceClient {
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY);
         }
         try {
-            CommonResult<T> result = json.readValue(new String(response, StandardCharsets.UTF_8), type);
+            CommonResult<T> result = responseJson.readValue(new String(response, StandardCharsets.UTF_8), type);
             if (CommonResult.isSuccess(result) && result.getData() != null) {
                 return result.getData();
             }
