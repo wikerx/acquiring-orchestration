@@ -98,7 +98,7 @@ public class RequestPayload {
         private String reference;
 
         /**
-         * 目标 MPGS transactionId，撤销或冲正时用于指向原授权/支付动作。
+         * 撤销、冲正或退款所引用的来源 MPGS 交易流水号。
          */
         private String targetTransactionId;
     }

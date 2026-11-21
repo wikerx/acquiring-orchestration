@@ -13,6 +13,8 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -144,6 +146,37 @@ class RefundPreparationDatabaseTests {
         assertThat(service.prepareRefund(command("R2", "700"), "R2").isCallChannel()).isTrue();
         assertThatThrownBy(() -> service.prepareRefund(command("R3", "0.01"), "R3")).isInstanceOf(ServiceException.class);
         assertThat(count("outbox")).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"AUTHORIZATION,CAPTURE,CHANNEL-CAPTURE", "PRE_AUTHORIZATION,PRE_AUTH_COMPLETION,CHANNEL-COMPLETION"})
+    void refundKeepsTheFundedSourceIdentityAndAmount(String rootType, String sourceType, String channelSourceId) {
+        TransactionOrderDO authorization = root();
+        authorization.setTransactionType(rootType);
+        authorization.setChannelOrderNo("CHANNEL-ORIGINAL-AUTHORIZATION");
+        jdbc.update("UPDATE root_order SET body = ? WHERE id = 'ROOT'", JsonUtils.toJsonString(authorization));
+
+        TransactionOperationDO source = source();
+        source.setTransactionType(sourceType);
+        source.setChannelTransactionId(channelSourceId);
+        source.setLabelAmount(new BigDecimal("28.46"));
+        source.setTransactionAmount(new BigDecimal("28.46"));
+        jdbc.update("UPDATE action SET body = ? WHERE id = ?", JsonUtils.toJsonString(source), source.getTransactionId());
+
+        assertThatThrownBy(() -> service.prepareRefund(command("OVER-SOURCE", "28.47"), "OVER-SOURCE"))
+                .isInstanceOf(ServiceException.class);
+        assertThat(count("idem")).isZero();
+        assertThat(count("outbox")).isZero();
+
+        var refund = command("FULL-SOURCE", "28.46");
+        var prepared = service.prepareRefund(refund, "FULL-SOURCE");
+        assertThat(prepared.isCallChannel()).isTrue();
+        assertThat(refund.getTransactionInfo().getSourceChannelTransactionId()).isEqualTo(channelSourceId);
+        assertThat(refund.getTransactionAmount()).isEqualByComparingTo("28.46");
+        assertThat(actions().stream().filter(action -> "REFUND".equals(action.getTransactionType())))
+                .singleElement().satisfies(action ->
+                        assertThat(action.getSourceTransactionId()).isEqualTo(source.getTransactionId()));
+        assertThat(count("outbox")).isEqualTo(1);
     }
 
     @Test

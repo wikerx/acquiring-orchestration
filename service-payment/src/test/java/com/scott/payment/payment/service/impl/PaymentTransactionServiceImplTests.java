@@ -884,6 +884,7 @@ class PaymentTransactionServiceImplTests {
     @Test
     void shouldUseRootTransactionIdAsChannelOrderNoWhenRefundSourceIsCaptureOperation() {
         CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.sourceCapturedAmount = new BigDecimal("5.00");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
@@ -2026,15 +2027,23 @@ class PaymentTransactionServiceImplTests {
             TransactionOperationDO operationDO = new TransactionOperationDO();
             operationDO.setOperationId(SOURCE_OPERATION_ID);
             operationDO.setTransactionId(sourceTransactionId);
+            boolean rootSource = SOURCE_TRANSACTION_ID.equals(sourceTransactionId);
+            BigDecimal amount = rootSource ? sourceTransactionAmount : sourceCapturedAmount;
+            operationDO.setTransactionType(rootSource ? sourceTransactionType : PaymentTransactionTypeEnum.CAPTURE.getCode());
+            operationDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+            operationDO.setLabelAmount(amount);
+            operationDO.setLabelCurrency("USD");
+            operationDO.setTransactionAmount(amount);
+            operationDO.setTransactionCurrency("USD");
             operationDO.setChannelCode("MPGS");
             operationDO.setChannelId(101L);
             operationDO.setChannelMidConfigId(1001L);
             operationDO.setChannelTerminalId("TESTDEVMER031");
             operationDO.setChannelOrderNo(SOURCE_TRANSACTION_ID);
-            operationDO.setChannelTransactionId(SOURCE_TRANSACTION_ID.equals(sourceTransactionId)
+            operationDO.setChannelTransactionId(rootSource
                     ? SOURCE_CHANNEL_TRANSACTION_ID
                     : "CH202607141615000000999");
-            operationDO.setTransactionDateTime(SOURCE_TRANSACTION_ID.equals(sourceTransactionId)
+            operationDO.setTransactionDateTime(rootSource
                     ? LocalDateTime.of(2026, 7, 12, 10, 30)
                     : LocalDateTime.of(2026, 7, 14, 16, 15));
             return operationDO;

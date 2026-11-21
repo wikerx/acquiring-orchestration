@@ -179,7 +179,7 @@ public class RequestConverter {
      * 构造 MPGS transaction 节点。
      * <p>
      * 请款、退款和增量授权在 transaction 节点携带本次操作金额与币种；所有交易均写入平台交易号作为 reference。
-     * 撤销和冲正还需要 targetTransactionId 指向原渠道交易，缺失时抛出 ChannelRequestException，避免无目标撤销。
+     * 退款有来源渠道流水时显式引用该笔资金动作，缺失时沿用网关的订单内匹配。撤销和冲正必须提供目标流水。
      * </p>
      * @param request 平台统一渠道请求，提供金额、币种、平台交易号和可选原渠道交易号
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
@@ -194,7 +194,14 @@ public class RequestConverter {
         transaction.setReference(request.getTransactionId());
         if (ChannelCapability.VOID.getCode().equals(transactionType)
                 || ChannelCapability.REVERSAL.getCode().equals(transactionType)) {
-            transaction.setTargetTransactionId(requiredTargetTransactionId(request));
+            String target = targetTransactionId(request);
+            requireText(target, "MPGS target transactionId is required for void");
+            transaction.setTargetTransactionId(target);
+        } else if (ChannelCapability.REFUND.getCode().equals(transactionType)) {
+            String target = targetTransactionId(request);
+            if (StringUtils.hasText(target)) {
+                transaction.setTargetTransactionId(target);
+            }
         }
         return transaction;
     }
@@ -471,18 +478,13 @@ public class RequestConverter {
     }
 
     /**
-     * 读取并校验撤销或冲正所需的原渠道交易号。
-     * <p>
-     * targetTransactionId 来自 request.extension，用于 MPGS transaction.targetTransactionId，必须指向待撤销的原授权或支付交易。
-     * 缺失时抛出 ChannelRequestException，避免渠道收到无法定位原交易的撤销请求。
-     * </p>
-     * @param request 平台统一渠道请求，extension 中应包含 targetTransactionId
-     * @return 原渠道交易号
+     * 从支付核心传入的扩展字段读取来源渠道流水。当前动作号和平台来源单号均不能替代该值。
+     *
+     * @param request 平台统一渠道请求
+     * @return 来源渠道流水号，历史记录缺失时为空
      */
-    private String requiredTargetTransactionId(ChannelPaymentRequest request) {
-        String targetTransactionId = request.getExtension() == null ? null : request.getExtension().get("targetTransactionId");
-        requireText(targetTransactionId, "MPGS target transactionId is required for void");
-        return targetTransactionId;
+    private String targetTransactionId(ChannelPaymentRequest request) {
+        return request.getExtension() == null ? null : request.getExtension().get("targetTransactionId");
     }
 
     /**

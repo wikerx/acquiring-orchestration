@@ -226,7 +226,7 @@ class RequestConverterTests {
     }
 
     /**
-     * 验证 REFUND 退款映射：退款只提交退款金额和币种，不能携带完整卡资料。
+     * 验证历史退款没有来源渠道流水时保留网关订单内匹配，也不提交完整卡资料。
      */
     @Test
     void shouldBuildRefundRequestWithoutCard() {
@@ -238,6 +238,7 @@ class RequestConverterTests {
 
         assertThat(payload.getApiOperation()).isEqualTo(ApiOperation.REFUND);
         assertThat(payload.getSourceOfFunds()).isNull();
+        assertThat(payload.getTransaction().getTargetTransactionId()).isNull();
         assertThat(payload.getTransaction().getAmount()).isEqualTo("10.25");
         assertThat(payload.getTransaction().getCurrency()).isEqualTo("USD");
     }

@@ -214,12 +214,14 @@ class PaymentChannelAdapterAllApiTests {
     @Test
     void shouldCallRefundApiAndPrintMaskedRequestResponseLogs(CapturedOutput output) {
         ChannelRefundRequest request = baseRequest(new ChannelRefundRequest(), ChannelCapability.REFUND, "REFUND");
+        request.getExtension().put("targetTransactionId", "CH-SELECTED-CAPTURE");
         logCaseStart("REFUND退款", request);
 
         ChannelPaymentResponse response = client.refund(request);
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, ApiOperation.REFUND);
+        assertThat(recordedRequest.body()).contains("\"targetTransactionId\":\"CH-SELECTED-CAPTURE\"");
         assertSuccessResponse(response, request, ApiOperation.REFUND, 201);
         logCaseEnd("REFUND退款", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, ApiOperation.REFUND);
