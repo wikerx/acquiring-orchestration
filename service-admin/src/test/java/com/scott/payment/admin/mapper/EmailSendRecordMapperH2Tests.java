@@ -38,6 +38,7 @@ class EmailSendRecordMapperH2Tests {
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
                     email_no VARCHAR(64) NOT NULL,
                     app_code VARCHAR(32) NOT NULL,
+                    biz_type VARCHAR(64),
                     account_id BIGINT,
                     send_status INT NOT NULL,
                     retry_count INT NOT NULL,
@@ -113,15 +114,23 @@ class EmailSendRecordMapperH2Tests {
             insert("EMAIL-FUTURE", 4, 1, 3, now.plusMinutes(1), now);
             insert("EMAIL-STALE", 1, 0, 3, null, now.minusMinutes(10));
             insert("EMAIL-SUCCESS", 2, 0, 3, null, now.minusMinutes(10));
+            insert("CAPABILITY-DUE", 4, 1, 3, now.minusSeconds(1), now);
+            insert("CAPABILITY-STALE", 1, 0, 3, null, now.minusMinutes(10));
+            jdbcTemplate.update("UPDATE msg_email_send_record SET biz_type = ? WHERE email_no LIKE 'CAPABILITY-%'",
+                    "MERCHANT_PAYMENT_CAPABILITY");
 
             assertThat(mapper.selectDueForRetry("ADMIN", now, 10))
                     .extracting(EmailSendRecordDO::getEmailNo)
                     .containsExactly("EMAIL-DUE");
+            assertThat(mapper.selectCapabilityDue(now, 10))
+                    .extracting(EmailSendRecordDO::getEmailNo)
+                    .containsExactly("CAPABILITY-DUE");
             assertThat(mapper.requeueForDelivery(1L, "EMAIL-DUE", "ADMIN", now)).isOne();
             assertThat(mapper.requeueForDelivery(1L, "EMAIL-DUE", "ADMIN", now)).isZero();
             assertThat(mapper.recoverStaleDelivery("ADMIN", now.minusMinutes(5), now.plusSeconds(30), now)).isOne();
             assertThat(mapper.selectByDeliveryKey(3L, "EMAIL-STALE", "ADMIN").getSendStatus()).isEqualTo(4);
             assertThat(mapper.selectByDeliveryKey(4L, "EMAIL-SUCCESS", "ADMIN").getSendStatus()).isEqualTo(2);
+            assertThat(mapper.selectByDeliveryKey(6L, "CAPABILITY-STALE", "ADMIN").getSendStatus()).isEqualTo(1);
         }
     }
 

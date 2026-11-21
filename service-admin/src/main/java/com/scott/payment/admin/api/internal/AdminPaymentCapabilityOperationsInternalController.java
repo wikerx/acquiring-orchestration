@@ -26,6 +26,9 @@ public class AdminPaymentCapabilityOperationsInternalController {
         this.operations = operations;
     }
 
+    /**
+     * 接收支付能力边界扫描请求并返回 Job 所需的分页进度。
+     */
     @PostMapping("/boundaries")
     public CommonResult<BoundaryResponse> scan(@RequestHeader(InternalServiceSignature.HEADER_CALLER) String caller,
                                                @RequestBody BoundaryRequest request) {
@@ -33,6 +36,9 @@ public class AdminPaymentCapabilityOperationsInternalController {
         return CommonResult.success(operations.boundaries(request));
     }
 
+    /**
+     * 接收有界的通知投递恢复请求，由管理服务按租约处理。
+     */
     @PostMapping("/delivery-recovery")
     public CommonResult<RecoveryResponse> recover(@RequestHeader(InternalServiceSignature.HEADER_CALLER) String caller,
                                                    @RequestBody RecoveryRequest request) {

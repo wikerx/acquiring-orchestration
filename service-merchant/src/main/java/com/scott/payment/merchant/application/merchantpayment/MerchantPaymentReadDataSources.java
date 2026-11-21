@@ -23,11 +23,17 @@ public class MerchantPaymentReadDataSources {
         this.governance = governance;
     }
 
+    /**
+     * 从权威数据源核验当前会话的商户与账号归属。
+     */
     @DS(DataSourceName.MASTER)
     public Scope verifyMerchant(String merchant, long account, long user) {
         return governance.merchantScope(merchant, account, user);
     }
 
+    /**
+     * 读取主库已提交版本，用于判断备库读取是否足够新。
+     */
     @DS(DataSourceName.MASTER)
     public ReadVersion committedVersion(String merchant) {
         return repository.readVersion(merchant);

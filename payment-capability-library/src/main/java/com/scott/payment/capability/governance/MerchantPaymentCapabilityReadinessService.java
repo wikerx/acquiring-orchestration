@@ -81,7 +81,7 @@ public class MerchantPaymentCapabilityReadinessService {
             bindings = activeBindings(merchantId, now);
             mids = mids(bindings);
         } catch (RuntimeException exception) {
-            log.warn("商户详情支付能力基础数据不可用, merchantId: {}, errorType: {}",
+            log.warn("商户详情支付能力基础数据不可用, event: MERCHANT_PAYMENT_READINESS_FACTS_UNAVAILABLE, merchantId: {}, errorType: {}",
                     merchantId, exception.getClass().getSimpleName());
             return new CurrentReadinessResult(null, null);
         }
@@ -95,7 +95,7 @@ public class MerchantPaymentCapabilityReadinessService {
             } else if (BUSINESS_PAYOUT.equals(businessType)) {
                 payout.add(binding);
             } else {
-                log.warn("商户详情绑定缺少有效业务归属, merchantId: {}, bindingId: {}",
+                log.warn("商户详情绑定缺少有效业务归属, event: MERCHANT_PAYMENT_BINDING_BUSINESS_TYPE_MISSING, merchantId: {}, bindingId: {}",
                         merchantId, binding.getId());
                 return new CurrentReadinessResult(null, null);
             }
@@ -116,7 +116,7 @@ public class MerchantPaymentCapabilityReadinessService {
                     .collect(Collectors.toMap(ChannelMidConfigDO::getId, Function.identity(), (left, right) -> left));
             return evaluateBindings(bindings, businessMids, activeFeeVersion.get(), now, businessType, true, loadRules);
         } catch (RuntimeException exception) {
-            log.warn("商户详情业务能力暂不可用, merchantId: {}, businessType: {}, errorType: {}",
+            log.warn("商户详情业务能力暂不可用, event: MERCHANT_PAYMENT_BUSINESS_READINESS_UNAVAILABLE, merchantId: {}, businessType: {}, errorType: {}",
                     merchantId, businessType, exception.getClass().getSimpleName());
             return null;
         }

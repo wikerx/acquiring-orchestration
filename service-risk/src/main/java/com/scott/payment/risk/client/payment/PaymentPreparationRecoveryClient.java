@@ -18,7 +18,9 @@ import org.springframework.web.client.RestTemplate;
 import java.net.URI;
 import java.util.UUID;
 
-/** 只有对确切准备代次取得可释放回执，Risk 才能取消已超时但没有确认交易事实的预占。 */
+/**
+ * 只有对确切准备代次取得可释放回执，Risk 才能取消已超时但没有确认交易事实的预占。
+ */
 @Component
 @Slf4j
 public class PaymentPreparationRecoveryClient {
@@ -35,6 +37,9 @@ public class PaymentPreparationRecoveryClient {
         this.secret = secret;
     }
 
+    /**
+     * 仅在支付服务确认这一准备代次可释放时授权风险侧取消预占。
+     */
     public boolean authorizesRelease(MerchantLimitReservationDO reservation) {
         if (secret.isBlank() || reservation.getPaymentPreparationKey() == null
                 || reservation.getPaymentPreparationGeneration() == null

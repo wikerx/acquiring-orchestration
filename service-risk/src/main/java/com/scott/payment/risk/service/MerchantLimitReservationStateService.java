@@ -11,7 +11,9 @@ import java.util.List;
  */
 public interface MerchantLimitReservationStateService {
 
-    /** 延后当前非终态的复查，保持原状态、余额和终态时间。 */
+    /**
+     * 延后当前非终态的复查，保持原状态、余额和终态时间。
+     */
     void deferReconciliation(MerchantLimitReservationDO reservation, LocalDateTime checkedAt);
 
     /**

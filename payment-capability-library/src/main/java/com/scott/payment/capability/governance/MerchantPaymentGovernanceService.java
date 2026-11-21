@@ -63,6 +63,9 @@ public class MerchantPaymentGovernanceService {
         this.readiness = readiness;
     }
 
+    /**
+     * 核验商户账号与用户归属后建立单商户治理范围。
+     */
     public Scope merchantScope(String merchant, Long account, Long user) {
         if (account == null || user == null || merchant == null || merchant.isBlank()
                 || !repository.verifiedMerchantAccount(merchant, account, user)) {
@@ -71,11 +74,17 @@ public class MerchantPaymentGovernanceService {
         return new Scope(MerchantPaymentScope.limited(Set.of(merchant)), new Actor("MERCHANT", account, user, null));
     }
 
+    /**
+     * 按已确认的治理范围和关键词列出可选商户。
+     */
     public List<MerchantOption> merchantOptions(Scope scope, String keyword) {
         requireApplicationRole(scope, "ADMIN");
         return repository.merchantOptions(scope.merchants(), keyword);
     }
 
+    /**
+     * 分页组合支付方式目录、商户授权和支付配置就绪结果。
+     */
     public PageResult<MethodRow> methods(Scope scope, String merchant, Search query) {
         requireScope(scope, merchant);
         if (!repository.merchantExists(merchant)) {
@@ -104,6 +113,9 @@ public class MerchantPaymentGovernanceService {
         return PageResult.of(rows.size(), page, size, rows.stream().skip((page - 1) * size).limit(size).toList());
     }
 
+    /**
+     * 读取指定商户和方式的完整授权及当前就绪状态。
+     */
     public MethodRow method(Scope scope, String merchant, String itemKey) {
         Search query = new Search();
         query.setItemKey(normalizeKey(itemKey));
@@ -111,6 +123,9 @@ public class MerchantPaymentGovernanceService {
                 () -> new ServiceException(ApiResultEnum.ORDER_NOT_FOUND));
     }
 
+    /**
+     * 生成费率页面使用的支付方式授权投影和授权版本。
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public FeeAuthorizationProjection feeAuthorizations(Scope scope, String merchant) {
         requireScope(scope, merchant);
@@ -123,6 +138,9 @@ public class MerchantPaymentGovernanceService {
         return new FeeAuthorizationProjection(pending ? "HISTORY_PENDING" : "EVALUATED", facts.coverage());
     }
 
+    /**
+     * 汇总商户接入概览所需的开通状态及就绪信息。
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public AccessSummary accessSummary(Scope scope, String merchant) {
         requireScope(scope, merchant);
@@ -176,6 +194,9 @@ public class MerchantPaymentGovernanceService {
         return new MerchantPaymentMethodReadiness.AuthorityFacts(coverage, Set.copyOf(directory.keySet()));
     }
 
+    /**
+     * 依据操作者范围和筛选条件分页组装申请批次与申请明细。
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PageResult<ApplicationRow> applications(Scope scope, Search search) {
         Search query = search == null ? new Search() : search;
@@ -190,6 +211,9 @@ public class MerchantPaymentGovernanceService {
                 .toList());
     }
 
+    /**
+     * 用申请编号定位所属商户并回读该申请的审核历史。
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ApplicationRow application(Scope scope, String application) {
         String merchant = repository.batchMerchant(scope.merchants(), application)
@@ -201,6 +225,9 @@ public class MerchantPaymentGovernanceService {
         return applicationView(batch, repository.listBatches(List.of(batch)), history);
     }
 
+    /**
+     * 校验方式申请并登记独立明细，按客户端请求编号保护重复提交。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public BatchReceipt apply(Scope scope, String merchant, Apply input) {
@@ -259,6 +286,9 @@ public class MerchantPaymentGovernanceService {
         return receipt;
     }
 
+    /**
+     * 按申请项当前审核状态处理审批并持久化可重放回执。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public ItemReceipt decide(Scope scope, long id, Decision input) {
@@ -307,6 +337,9 @@ public class MerchantPaymentGovernanceService {
         return withReview(receipt, reviewId);
     }
 
+    /**
+     * 以当前审核轮次为条件补充申请材料或撤回申请。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public ItemReceipt changeApplication(Scope scope, long id, Change input, boolean resubmit) {
@@ -349,6 +382,9 @@ public class MerchantPaymentGovernanceService {
         return withReview(receipt, reviewId);
     }
 
+    /**
+     * 按当前授权版本处理暂停、恢复、终止或有效期变更。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public ItemReceipt changeGrant(Scope scope, String merchant, String rawKey, String action, Change input) {
@@ -420,6 +456,9 @@ public class MerchantPaymentGovernanceService {
         return withReview(receipt, reviewId);
     }
 
+    /**
+     * 冻结历史授权候选事实，供另一操作员复核。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public BaselineReceipt submitBaseline(Scope scope, String merchant, BaselineSubmit request) {
@@ -459,6 +498,9 @@ public class MerchantPaymentGovernanceService {
         return result;
     }
 
+    /**
+     * 回读基线批次及提交时冻结的候选证据。
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public BaselineDetail baseline(Scope scope, String merchant, String batch) {
         requireApplicationRole(scope, "ADMIN");
@@ -471,6 +513,9 @@ public class MerchantPaymentGovernanceService {
                 approved.isEmpty() ? PENDING_VERIFICATION : APPROVED);
     }
 
+    /**
+     * 复核冻结的历史基线并登记确认后的授权依据。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class, isolation = Isolation.READ_COMMITTED)
     public BaselineReceipt approveBaseline(Scope scope, String merchant, String batch, BaselineApprove request) {
@@ -530,6 +575,9 @@ public class MerchantPaymentGovernanceService {
                 .map(prior -> receipt(prior, hash, BaselineReceipt.class)).orElse(null);
     }
 
+    /**
+     * 分页查询指定商户支付方式的授权和复核审计记录。
+     */
     public PageResult<HistoryRow> history(Scope scope, String merchant, String itemKey, Search query) {
         requireApplicationRole(scope, "ADMIN");
         requireScope(scope, merchant);
@@ -605,6 +653,9 @@ public class MerchantPaymentGovernanceService {
                 readiness.status(), readiness.reasons(), readiness.feeReference(), catalogEnabled, requestable);
     }
 
+    /**
+     * 结合授权状态与有效窗口计算当前可见状态。
+     */
     public static String effectiveStatus(String status, LocalDateTime effective, LocalDateTime expires, LocalDateTime now) {
         if (!ACTIVE.equals(status)) {
             return status;
@@ -615,6 +666,9 @@ public class MerchantPaymentGovernanceService {
         return expires != null && !now.isBefore(expires) ? "EXPIRED" : ACTIVE;
     }
 
+    /**
+     * 按治理动作及原状态判断授权允许进入的状态。
+     */
     public static String nextGrantStatus(String status, String action) {
         return switch (action) {
             case "SUSPEND" -> ACTIVE.equals(status) ? SUSPENDED : illegalLifecycle();
@@ -629,6 +683,9 @@ public class MerchantPaymentGovernanceService {
         throw invalid("授权状态不允许此操作");
     }
 
+    /**
+     * 将渠道品牌或支付方式申请转换为受支持的标准目录键。
+     */
     public static String normalizeKey(String value) {
         if (value == null) {
             throw invalid("支付方式无效");

@@ -14,14 +14,14 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 固定重构前的公开字段、默认值和校验边界，验证继承不会改变双端 JSON 契约。 */
+/** 固定支付链接公开字段、默认值和校验边界，覆盖 V1.5 新增的支付方式范围。 */
 class PaymentLinkDtoContractTest {
     private final ObjectMapper json = new ObjectMapper();
 
     static Stream<Arguments> publicModels() {
         return Stream.of(
                 Arguments.of(new PaymentLinkDTOs.Query(), "linkId,merchantOrderNo,merchantId,keyword,status,currency,channelCode,createTimeFrom,createTimeTo,pageNo,pageSize"),
-                Arguments.of(new PaymentLinkDTOs.View(), "linkId,merchantId,merchantOrderNo,linkName,description,merchantDisplayName,currency,amount,currencyExponent,locale,cardBrands,status,paymentStatus,attemptCount,transactionId,transactionDateTime,expireTime,createTime,paidTime,createdAppCode,createdBy,createdByName,disableReason,version,notifyUrl,redirectUrl"),
+                Arguments.of(new PaymentLinkDTOs.View(), "linkId,merchantId,merchantOrderNo,linkName,description,merchantDisplayName,currency,amount,currencyExponent,locale,cardBrands,paymentMethodKeys,paymentAvailable,status,paymentStatus,attemptCount,transactionId,transactionDateTime,expireTime,createTime,paidTime,createdAppCode,createdBy,createdByName,disableReason,version,notifyUrl,redirectUrl"),
                 Arguments.of(new PaymentLinkDTOs.Summary(), "total,active,completed,processing,failedAttempts,successfulAmounts"),
                 Arguments.of(new PaymentLinkDTOs.Collection(), "collectionId,linkId,merchantOrderNo,checkoutSessionId,paymentStatus,submissionDeadline,createTime"),
                 Arguments.of(new PaymentLinkDTOs.Attempt(), "checkoutAttemptId,attemptNo,transactionId,transactionDateTime,status,paymentMethod,cardBrand,currency,amount,currencyExponent,createTime,completeTime"),
@@ -32,10 +32,10 @@ class PaymentLinkDtoContractTest {
 
     @ParameterizedTest
     @MethodSource("publicModels")
-    void inheritedModelsKeepOriginalPublicFieldSet(Object model, String originalFields) {
+    void inheritedModelsKeepApprovedPublicFieldSet(Object model, String approvedFields) {
         var keys = new HashSet<String>();
         json.valueToTree(model).fieldNames().forEachRemaining(keys::add);
-        assertThat(keys).containsExactlyInAnyOrderElementsOf(Arrays.asList(originalFields.split(",")));
+        assertThat(keys).containsExactlyInAnyOrderElementsOf(Arrays.asList(approvedFields.split(",")));
     }
 
     @Test

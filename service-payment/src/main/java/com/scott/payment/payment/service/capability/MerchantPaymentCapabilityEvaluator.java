@@ -25,7 +25,6 @@ import java.util.Set;
 
 /** 批量评估当前授权、费用覆盖和路由候选。评估结果不替代交易的最终受理。 */
 @Service
-@DS(DataSourceName.MASTER)
 public class MerchantPaymentCapabilityEvaluator {
 
     private static final String BANK_CARD = "BANK_CARD";
@@ -44,6 +43,7 @@ public class MerchantPaymentCapabilityEvaluator {
     }
 
     /** 有界调用一次读取商户和费用版本，持久事实无法评估时保留与零数量的区别。 */
+    @DS(DataSourceName.MASTER)
     public Assessment evaluate(Query query) {
         List<String> keys = query.itemKeys().stream().distinct().toList();
         String action = query.transactionType() == null ? "PAYMENT" : normalize(query.transactionType());

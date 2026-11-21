@@ -21,6 +21,9 @@ public class AdminMerchantAdmissionInitialization {
         this.enforcedOnCreate = enforcedOnCreate;
     }
 
+    /**
+     * 为开户商户初始化支付准入治理状态，复用开户事务。
+     */
     @Transactional(propagation = Propagation.MANDATORY)
     public void initialize(String merchantId, LocalDateTime now) {
         if (!enforcedOnCreate) {

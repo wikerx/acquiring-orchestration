@@ -21,6 +21,9 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Res
  */
 public interface PaymentInternalClient {
 
+    /**
+     * 请求支付服务评估商户授权、费率覆盖与渠道可用性。
+     */
     PaymentCapabilityEvaluationDTOs.Response evaluateMerchantCapabilities(PaymentCapabilityEvaluationDTOs.Request request);
 
     /** 解析系统交易加黑所需的可信交易事实。 */

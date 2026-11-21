@@ -30,6 +30,9 @@ public class PaymentPreparationRecoveryInternalController {
         this.ownership = ownership;
     }
 
+    /**
+     * 为授权内部调用方复核准备归属，返回风险预占是否可释放的判定。
+     */
     @PostMapping("/reconcile-cancellation")
     public CommonResult<CancellationDecision> reconcile(@Valid @RequestBody CancellationRequest request,
             @RequestAttribute(name = InternalServiceAuthInterceptor.AUTHENTICATED_CALLER_ATTRIBUTE, required = false)

@@ -253,6 +253,9 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
         return reservations == null ? List.of() : reservations;
     }
 
+    /**
+     * 延后当前非终态预占的复核时间，沿用版本条件避免覆盖已完成决策。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     public void deferReconciliation(MerchantLimitReservationDO reservation, LocalDateTime checkedAt) {

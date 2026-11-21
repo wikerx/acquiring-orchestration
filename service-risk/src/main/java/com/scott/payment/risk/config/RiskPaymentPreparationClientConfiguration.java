@@ -7,9 +7,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
-/** 准备归属复核走内部服务发现，超时不作为释放证据。 */
+/**
+ * 准备归属复核走内部服务发现，超时不作为释放证据。
+ */
 @Configuration
 public class RiskPaymentPreparationClientConfiguration {
+    /**
+     * 提供使用服务发现的内部 HTTP 客户端供风险侧复核支付准备归属。
+     */
     @Bean
     @LoadBalanced
     public RestTemplate riskPaymentPreparationRestTemplate(TraceIdRestTemplateCustomizer trace) {

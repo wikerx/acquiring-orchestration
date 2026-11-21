@@ -32,7 +32,6 @@ import java.util.regex.Pattern;
  * 在远程风控前登记准备归属，并在交易事务中锁定同一行。归属记录不会进入交易查询。
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class PaymentPreparationOwnershipService {
 
     private static final String HEAD_SCOPE = "PAYMENT_PREPARATION";
@@ -57,6 +56,7 @@ public class PaymentPreparationOwnershipService {
     }
 
     /** 发号可能需要访问 Redis，只能在归属事务及其行锁之外调用。 */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.NEVER)
     public String nextCandidate() {
         String candidate = globalIdGenerator.nextId();
@@ -69,6 +69,7 @@ public class PaymentPreparationOwnershipService {
     /**
      * 关闭门禁时可复用已有动作，但已有归属的动作继续走原受理收敛。
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public TransactionIdempotencyDO readBeforeLegacyPreparation(String operationKey) {
         TransactionIdempotencyDO head = lock(HEAD_SCOPE, ownershipKey(operationKey));
@@ -80,6 +81,7 @@ public class PaymentPreparationOwnershipService {
     }
 
     /** 数据库写入前再次核对，防止旧路径覆盖规划期间登记的受保护归属。 */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.MANDATORY)
     public void requireLegacyPreparationAllowed(String operationKey) {
         if (lock(HEAD_SCOPE, ownershipKey(operationKey)) != null) {
@@ -87,6 +89,10 @@ public class PaymentPreparationOwnershipService {
         }
     }
 
+    /**
+     * 在独立事务中取得交易准备归属，使并发同键请求看到同一占用或交易事实。
+     */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public Acquisition acquire(PaymentCreateCommandDTO command,
                                String operationKey,
@@ -155,6 +161,7 @@ public class PaymentPreparationOwnershipService {
     /**
      * 在写入操作、交易和 outbox 前锁住本代，直到同一个 TRANSACTION 事务完成才释放锁。
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.MANDATORY)
     public void requireCurrent(Lease lease) {
         TransactionIdempotencyDO head = lock(HEAD_SCOPE, lease.key());
@@ -164,6 +171,10 @@ public class PaymentPreparationOwnershipService {
         }
     }
 
+    /**
+     * 将已取得的准备归属绑定到本事务创建的交易动作。
+     */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.MANDATORY)
     public void attach(Lease lease) {
         TransactionIdempotencyDO head = lock(HEAD_SCOPE, lease.key());
@@ -177,6 +188,10 @@ public class PaymentPreparationOwnershipService {
                 .set(TransactionIdempotencyDO::getUpdateTime, now)));
     }
 
+    /**
+     * 在独立读事务中回读已经绑定且提交的交易动作。
+     */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TransactionIdempotencyDO readCommittedOperation(Lease lease) {
         TransactionIdempotencyDO head = lock(HEAD_SCOPE, lease.key());
@@ -190,6 +205,7 @@ public class PaymentPreparationOwnershipService {
     /**
      * 按原收银台尝试核对主库。超时只允许经同一归属行锁终止，未知证据继续等待。
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CheckoutRecovery recoverCheckoutPreparation(String merchantId,
                                                         String merchantOrderNo,
@@ -249,11 +265,16 @@ public class PaymentPreparationOwnershipService {
     }
 
     /** 仅用于当前请求已确认没有提交的分支。风控调用始终在本事务之外。 */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CancellationDecision terminateUncommitted(Lease lease) {
         return reconcile(lease, true);
     }
 
+    /**
+     * 复核确切准备代次及交易事实后判定是否允许取消预占。
+     */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CancellationDecision reconcileCancellation(String merchantId,
                                                         String ownershipKey,
@@ -302,6 +323,9 @@ public class PaymentPreparationOwnershipService {
         return CancellationDecision.RELEASE_ALLOWED;
     }
 
+    /**
+     * 为同一准备身份登记风险调用使用的候选时间与归属范围。
+     */
     private void reserveCandidate(TransactionIdempotencyDO head, int generation, String candidate,
                                   LocalDateTime now) {
         if (!GlobalIdValidator.isValid(candidate) || Objects.equals(candidate, head.getOperationId())

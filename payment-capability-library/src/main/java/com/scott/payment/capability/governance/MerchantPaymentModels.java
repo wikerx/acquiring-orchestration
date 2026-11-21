@@ -18,6 +18,9 @@ public final class MerchantPaymentModels {
     private MerchantPaymentModels() {
     }
 
+    /**
+     * 支付方式及申请列表共用的分页和筛选条件。
+     */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class Search extends PageRequest {

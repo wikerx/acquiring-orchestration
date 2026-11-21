@@ -140,12 +140,18 @@ public class AdminInternalRestClient implements AdminInternalClient {
         }
     }
 
+    /**
+     * 用有界签名请求传递扫描窗口和恢复检查点。
+     */
     @Override
     public PaymentCapabilityOperationsClientDTOs.BoundaryResponse scanPaymentCapabilityBoundaries(
             PaymentCapabilityOperationsClientDTOs.BoundaryRequest request) {
         return paymentCapabilityPost("/boundaries", request, new TypeReference<>() { });
     }
 
+    /**
+     * 以签名内部请求触发到期通知的投递恢复。
+     */
     @Override
     public PaymentCapabilityOperationsClientDTOs.RecoveryResponse recoverPaymentCapabilityDelivery(
             PaymentCapabilityOperationsClientDTOs.RecoveryRequest request) {

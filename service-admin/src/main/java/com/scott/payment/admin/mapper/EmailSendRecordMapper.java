@@ -14,11 +14,17 @@ import java.time.LocalDateTime;
  */
 public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
 
+    /**
+     * 按业务类型与通知编号查找投递记录，供重复事件复用已有邮件任务。
+     */
     @Select("""
             SELECT * FROM msg_email_send_record WHERE business_notification_key = #{key} LIMIT 1
             """)
     EmailSendRecordDO findBusinessNotification(@Param("key") byte[] key);
 
+    /**
+     * 锁定对应业务通知记录，防止并发处理者各自创建投递任务。
+     */
     @Select("""
             SELECT * FROM msg_email_send_record WHERE business_notification_key = #{key} LIMIT 1 FOR UPDATE
             """)
@@ -202,6 +208,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
                              @Param("nextRetryTime") LocalDateTime nextRetryTime,
                              @Param("now") LocalDateTime now);
 
+    /**
+     * 有界筛选到达下次投递时间的支付能力邮件，避免扫描其他邮件场景。
+     */
     @Select("""
             SELECT * FROM msg_email_send_record
             WHERE app_code = 'ADMIN' AND biz_type = 'MERCHANT_PAYMENT_CAPABILITY'
@@ -211,6 +220,9 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
             """)
     java.util.List<EmailSendRecordDO> selectCapabilityDue(@Param("now") LocalDateTime now, @Param("limit") int limit);
 
+    /**
+     * 将支付能力通知中租约过期的发送任务恢复到可重试状态。
+     */
     @Update("""
             UPDATE msg_email_send_record
             SET send_status = CASE WHEN retry_count >= max_retry_count THEN 3 ELSE 4 END,

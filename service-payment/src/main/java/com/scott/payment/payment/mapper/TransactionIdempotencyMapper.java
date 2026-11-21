@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
  */
 public interface TransactionIdempotencyMapper extends BaseMapper<TransactionIdempotencyDO> {
 
+    /**
+     * 读取数据库时钟，统一幂等归属租约的时间判断。
+     */
     @Select("SELECT CURRENT_TIMESTAMP(3)")
     LocalDateTime currentDatabaseTime();
 }

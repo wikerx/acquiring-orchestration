@@ -831,6 +831,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         private int outcome = -1;
         private PaymentInitialPreparationResultDTO prepared;
 
+        /**
+         * 在事务结束后根据提交结果处理尚未绑定的准备资源。
+         */
         @Override
         public void afterCompletion(int outcome) {
             this.outcome = outcome;
@@ -948,6 +951,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return resolveDuplicate(commandDTO, idempotencyKey, transactionType, existing);
     }
 
+    /**
+     * 重放同一幂等身份的动作时返回原交易或准备中的结果。
+     */
     private PaymentInitialPreparationResultDTO resolveDuplicate(PaymentCreateCommandDTO commandDTO,
                                                                 String idempotencyKey,
                                                                 String transactionType,

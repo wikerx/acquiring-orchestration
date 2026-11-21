@@ -26,7 +26,13 @@ import java.util.UUID;
 @Component
 public class PaymentRiskReservationRecoveryJob implements JobHandler {
 
+    /**
+     * 风险预占恢复任务在调度记录中的固定编码。
+     */
     public static final String JOB_CODE = "MERCHANT_PAYMENT_RISK_RESERVATION_RECOVERY";
+    /**
+     * 调度器用于选择风险预占恢复执行器的编码。
+     */
     public static final String HANDLER_CODE = "merchantPaymentRiskReservationRecovery";
     private static final String PATH = "/internal/risk/merchant-limit-reservations/reconcile";
     private static final String CALLER = "service-job";
@@ -41,12 +47,18 @@ public class PaymentRiskReservationRecoveryJob implements JobHandler {
         this.secret = secret;
     }
 
+    /**
+     * 声明预占到期复核任务的调度识别信息。
+     */
     @Override
     public JobHandlerDescriptor descriptor() {
         return JobHandlerDescriptor.sync(HANDLER_CODE, "商户累计限额预占复核",
                 "operations", "按权威支付事实复核原累计限额预占");
     }
 
+    /**
+     * 按当前运行预算发起风险预占复核，返回本次处理结果。
+     */
     @Override
     public JobExecuteResult execute(JobExecuteContext context) {
         if (secret.isBlank()) {

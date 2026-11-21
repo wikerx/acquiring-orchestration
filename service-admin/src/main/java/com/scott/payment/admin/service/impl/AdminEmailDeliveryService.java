@@ -28,6 +28,9 @@ import java.util.List;
 @Service
 public class AdminEmailDeliveryService {
 
+    /**
+     * 支付能力通知在邮件投递记录中的业务分类。
+     */
     public static final String PAYMENT_CAPABILITY_BIZ_TYPE = "MERCHANT_PAYMENT_CAPABILITY";
 
     /**

@@ -15,7 +15,9 @@ import java.util.List;
  */
 public interface MerchantLimitReservationMapper {
 
-    /** 仅当前非终态版本可移动到下一轮复核。 */
+    /**
+     * 仅当前非终态版本可移动到下一轮复核。
+     */
     @Update("""
             UPDATE risk_merchant_limit_reservation SET update_time = #{now}
             WHERE id = #{id} AND version = #{version} AND reservation_status = #{status}

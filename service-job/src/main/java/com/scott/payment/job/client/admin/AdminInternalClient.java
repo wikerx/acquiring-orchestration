@@ -27,9 +27,15 @@ public interface AdminInternalClient {
     OperationalWorkItemSyncClientDTOs.Response synchronizeOperationalWorkItems(
             OperationalWorkItemSyncClientDTOs.Request request);
 
+    /**
+     * 调用管理服务扫描到达生效或失效边界的支付能力事实。
+     */
     PaymentCapabilityOperationsClientDTOs.BoundaryResponse scanPaymentCapabilityBoundaries(
             PaymentCapabilityOperationsClientDTOs.BoundaryRequest request);
 
+    /**
+     * 调用管理服务复核超时的支付能力通知投递。
+     */
     PaymentCapabilityOperationsClientDTOs.RecoveryResponse recoverPaymentCapabilityDelivery(
             PaymentCapabilityOperationsClientDTOs.RecoveryRequest request);
 }

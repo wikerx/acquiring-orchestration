@@ -11,14 +11,23 @@ public record MerchantPaymentScope(boolean allMerchants, Set<String> merchantIds
         }
     }
 
+    /**
+     * 为具备全商户可见权限的调用方创建访问范围。
+     */
     public static MerchantPaymentScope all() {
         return new MerchantPaymentScope(true, Set.of());
     }
 
+    /**
+     * 以已核验的商户编号集合限定查询范围。
+     */
     public static MerchantPaymentScope limited(Set<String> merchantIds) {
         return new MerchantPaymentScope(false, merchantIds);
     }
 
+    /**
+     * 创建无法访问任何商户记录的范围。
+     */
     public boolean empty() {
         return !allMerchants && merchantIds.isEmpty();
     }

@@ -20,12 +20,18 @@ public class PaymentCapabilityDeliveryRecoveryJob implements JobHandler {
         this.admin = admin;
     }
 
+    /**
+     * 声明支付能力通知恢复任务的调度编码和执行约束。
+     */
     @Override
     public JobHandlerDescriptor descriptor() {
         return JobHandlerDescriptor.sync(PaymentCapabilityJobCodes.DELIVERY_RECOVERY, "支付方式通知恢复",
                 "operations", "补发已提交的支付方式事件和通知投递意图");
     }
 
+    /**
+     * 要求管理服务恢复超时通知投递并返回本次处理结果。
+     */
     @Override
     public JobExecuteResult execute(JobExecuteContext context) {
         RecoveryResponse result = admin.recoverPaymentCapabilityDelivery(new RecoveryRequest(100));

@@ -18,6 +18,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * 访问支付治理申请、授权与审批审计事实，由调用方建立数据源和事务边界。
+ */
 public class MerchantPaymentRepository {
     private static final RowMapper<Item> ITEM = (row, index) -> new Item(
             row.getLong("id"), row.getString("application_no"), row.getString("merchant_id"),
@@ -49,12 +52,18 @@ public class MerchantPaymentRepository {
 
     public record ReadVersion(long authorization, long review, String mode, String baseline) {}
 
+    /**
+     * 核实治理操作目标商户是否存在。
+     */
     public boolean merchantExists(String merchant) {
         return !jdbc.queryForList("""
                 SELECT id FROM base_merchant_info WHERE merchant_id = :merchant AND deleted = 0
                 """, Map.of("merchant", merchant), Long.class).isEmpty();
     }
 
+    /**
+     * 按可见范围和关键词从商户目录读取选择项。
+     */
     public List<MerchantOption> merchantOptions(MerchantPaymentScope scope, String keyword) {
         if (scope.empty()) {
             return List.of();
@@ -70,6 +79,9 @@ public class MerchantPaymentRepository {
                 (row, index) -> new MerchantOption(row.getString("merchant_id"), row.getString("merchant_name")));
     }
 
+    /**
+     * 锁定商户治理行并读取当前授权版本，串行化同商户写入。
+     */
     public Optional<Long> lockMerchant(String merchant) {
         return query("""
                 SELECT payment_authorization_revision FROM base_merchant_info
@@ -77,6 +89,9 @@ public class MerchantPaymentRepository {
                 """, merchant, (row, index) -> row.getLong(1)).stream().findFirst();
     }
 
+    /**
+     * 按旧版号推进商户授权版本，检测并发写入冲突。
+     */
     public long advanceRevision(String merchant, long expected) {
         int count = jdbc.update("""
                 UPDATE base_merchant_info SET payment_authorization_revision = payment_authorization_revision + 1
@@ -88,6 +103,9 @@ public class MerchantPaymentRepository {
         return Math.incrementExact(expected);
     }
 
+    /**
+     * 核验所提供的商户、账号和用户是否属于同一身份。
+     */
     public boolean verifiedMerchantAccount(String merchant, long account, long user) {
         Integer count = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM sys_account a
@@ -99,6 +117,9 @@ public class MerchantPaymentRepository {
         return Integer.valueOf(1).equals(count);
     }
 
+    /**
+     * 加载支付方式目录，可在写事务内保护读取的目录行。
+     */
     public List<DirectoryEntry> directory(boolean lock) {
         String lockClause = lock ? " FOR SHARE" : "";
         if (lock) {
@@ -119,11 +140,17 @@ public class MerchantPaymentRepository {
                 row.getString("dict_value"), row.getString("dict_label"), row.getString("locale"), row.getBoolean("enabled")));
     }
 
+    /**
+     * 按申请项主键读取其商户、审核轮次和当前状态。
+     */
     public Optional<Item> findItem(long id) {
         return jdbc.query("SELECT * FROM merchant_payment_application_item WHERE id = :id",
                 Map.of("id", id), ITEM).stream().findFirst();
     }
 
+    /**
+     * 按商户和申请项主键锁定申请行，阻止跨商户或陈旧审核。
+     */
     public Optional<Item> lockItem(String merchant, long id) {
         return jdbc.query("""
                 SELECT * FROM merchant_payment_application_item
@@ -131,6 +158,9 @@ public class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "id", id), ITEM).stream().findFirst();
     }
 
+    /**
+     * 按商户读取支付方式申请项，供授权列表聚合使用。
+     */
     public List<Item> items(String merchant) {
         return query("""
                 SELECT a.* FROM merchant_payment_application_item a
@@ -141,6 +171,9 @@ public class MerchantPaymentRepository {
                 """, merchant, ITEM);
     }
 
+    /**
+     * 合并读取已分页批次对应的申请项，避免逐批访库。
+     */
     public List<Item> listBatches(List<Batch> batches) {
         if (batches.isEmpty()) {
             return List.of();
@@ -154,6 +187,9 @@ public class MerchantPaymentRepository {
                 .stream().filter(item -> item.merchant().equals(scopes.get(item.application()))).toList();
     }
 
+    /**
+     * 读取指定申请批次的明细审核轨迹。
+     */
     public List<ItemReview> itemReviews(String merchant, String application) {
         return jdbc.query("""
                 SELECT id, application_item_id, review_action, from_status, to_status, review_comment, round_no, gmt_create
@@ -165,6 +201,9 @@ public class MerchantPaymentRepository {
                 new ItemReview(row.getLong("application_item_id"), historyRow(row, index)));
     }
 
+    /**
+     * 在调用方的商户范围内定位指定申请编号的归属。
+     */
     public Optional<String> batchMerchant(MerchantPaymentScope scope, String application) {
         if (scope.empty()) {
             return Optional.empty();
@@ -177,6 +216,9 @@ public class MerchantPaymentRepository {
                 """ + scopeClause + " LIMIT 1", parameters, String.class).stream().findFirst();
     }
 
+    /**
+     * 依据商户范围与申请条件分页读取批次标识。
+     */
     public PageResult<Batch> batches(MerchantPaymentScope scope, Search query) {
         if (scope.empty()) {
             return PageResult.of(0, query.safePageNo(), query.safePageSize(), List.of());
@@ -194,6 +236,9 @@ public class MerchantPaymentRepository {
                 (row, index) -> new Batch(row.getString("merchant_id"), row.getString("application_no")));
     }
 
+    /**
+     * 检查同商户同方式是否已有未结束申请，供提交前判重。
+     */
     public boolean hasActiveItem(String merchant, String itemKey) {
         return !jdbc.queryForList("""
                 SELECT id FROM merchant_payment_application_item
@@ -201,6 +246,9 @@ public class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "itemKey", itemKey), Long.class).isEmpty();
     }
 
+    /**
+     * 写入申请批次中的单项方式及提交时的操作员和审核上下文。
+     */
     public long insertItem(String merchant, String itemKey, String application, String request, String reason,
                     String source, String operation, long grantVersion, Actor actor, LocalDateTime now) {
         var parameters = actorParameters(actor)
@@ -218,6 +266,9 @@ public class MerchantPaymentRepository {
                 """, parameters);
     }
 
+    /**
+     * 按已读取的申请状态和轮次更新审核结果。
+     */
     public int transitionItem(Item item, String status, LocalDateTime now) {
         boolean open = "RETURNED".equals(status);
         return jdbc.update("""
@@ -229,6 +280,9 @@ public class MerchantPaymentRepository {
                 .addValue("merchant", item.merchant()).addValue("id", item.id()).addValue("version", item.version()));
     }
 
+    /**
+     * 以原申请版本登记补充信息及下一轮审核状态。
+     */
     public int resubmit(Item item, Actor actor, String reason, LocalDateTime now) {
         return jdbc.update("""
                 UPDATE merchant_payment_application_item
@@ -240,10 +294,16 @@ public class MerchantPaymentRepository {
                 .addValue("merchant", item.merchant()).addValue("id", item.id()).addValue("version", item.version()));
     }
 
+    /**
+     * 读取商户已经建立的各项支付方式授权记录。
+     */
     public List<Grant> grants(String merchant) {
         return query("SELECT * FROM merchant_payment_authorization WHERE merchant_id = :merchant", merchant, GRANT);
     }
 
+    /**
+     * 读取指定时刻生效的商户费率方案版本引用。
+     */
     public Optional<FeeReference> currentFeeReference(String merchant, LocalDateTime now) {
         return jdbc.query("""
                 SELECT v.id, v.version_no, v.effective_time
@@ -255,6 +315,9 @@ public class MerchantPaymentRepository {
                 .stream().findFirst();
     }
 
+    /**
+     * 按商户和方式键锁定授权，供审查或修改授权使用。
+     */
     public Optional<Grant> lockGrant(String merchant, String itemKey) {
         return jdbc.query("""
                 SELECT * FROM merchant_payment_authorization
@@ -262,6 +325,9 @@ public class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "itemKey", itemKey), GRANT).stream().findFirst();
     }
 
+    /**
+     * 按原授权事实创建或更新授权并关联本次审核记录。
+     */
     public void approve(Item item, Grant existing, Actor actor, long reviewId, LocalDateTime now) {
         var parameters = actorParameters(actor).addValue("merchant", item.merchant()).addValue("itemKey", item.itemKey())
                 .addValue("sourceRef", Long.toString(item.id())).addValue("reviewId", reviewId).addValue("now", now);
@@ -286,6 +352,9 @@ public class MerchantPaymentRepository {
                 """, parameters));
     }
 
+    /**
+     * 依据原授权版本更新状态、有效窗口及治理审计引用。
+     */
     public void revise(String merchant, Grant grant, String status, LocalDateTime effective, LocalDateTime expires,
                 long reviewId, LocalDateTime now) {
         requireChanged(jdbc.update("""
@@ -300,10 +369,16 @@ public class MerchantPaymentRepository {
                 .addValue("expires", expires).addValue("reviewId", reviewId).addValue("now", now)));
     }
 
+    /**
+     * 按商户和命令查询支付治理审核回执。
+     */
     public Optional<Review> replay(String merchant, String command) {
         return replay("PAYMENT_METHOD", merchant, command);
     }
 
+    /**
+     * 按业务域、商户和命令查找幂等回执，区分基线与常规审核。
+     */
     public Optional<Review> replay(String scope, String merchant, String command) {
         return jdbc.query("""
                 SELECT id, payload_hash, result_json FROM merchant_review_record
@@ -313,6 +388,9 @@ public class MerchantPaymentRepository {
                 .stream().findFirst();
     }
 
+    /**
+     * 检查当前操作员是否为本轮申请提交者，供审核隔离判断。
+     */
     public boolean submittedThisRound(Item item, long user) {
         return item.initialUser() == user || item.currentUser() == user || !jdbc.queryForList("""
                 SELECT id FROM merchant_review_record
@@ -323,10 +401,16 @@ public class MerchantPaymentRepository {
                 Long.class).isEmpty();
     }
 
+    /**
+     * 写入常规支付方式治理审核记录并返回审计主键。
+     */
     public long review(Audit audit, Actor actor) {
         return review("PAYMENT_METHOD", audit, actor);
     }
 
+    /**
+     * 按审核业务域持久化回执及命令摘要，供不同治理流程独立判重。
+     */
     public long review(String scope, Audit audit, Actor actor) {
         return insert("""
                 INSERT INTO merchant_review_record (
@@ -346,6 +430,9 @@ public class MerchantPaymentRepository {
                 .addValue("snapshot", audit.snapshot()));
     }
 
+    /**
+     * 读取商户历史准入模式及绑定的基线批次。
+     */
     public Optional<LegacyMerchant> legacyMerchant(String merchant) {
         return query("""
                 SELECT payment_admission_mode, payment_baseline_batch_ref, gmt_create
@@ -354,6 +441,9 @@ public class MerchantPaymentRepository {
                 row.getString("payment_baseline_batch_ref"), time(row, "gmt_create"))).stream().findFirst();
     }
 
+    /**
+     * 查找指定商户待复核基线及原提交人。
+     */
     public Optional<ReviewedBaseline> pendingBaseline(String merchant, String batch) {
         return jdbc.query("""
                 SELECT operator_user_id, fact_snapshot_json
@@ -365,6 +455,9 @@ public class MerchantPaymentRepository {
                 .stream().findFirst();
     }
 
+    /**
+     * 提取基线提交时冻结的候选方式依据。
+     */
     public List<String> candidateEvidence(String merchant, String batch) {
         return jdbc.queryForList("""
                 SELECT fact_snapshot_json
@@ -374,6 +467,9 @@ public class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "batch", batch), String.class);
     }
 
+    /**
+     * 读取复核接受的方式键集合，用于历史授权范围计算。
+     */
     public List<String> approvedBaselineKeys(String merchant, String batch) {
         return jdbc.queryForList("""
                 SELECT target_key FROM merchant_review_record
@@ -383,6 +479,9 @@ public class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "batch", batch), String.class);
     }
 
+    /**
+     * 把通过复核的基线批次登记到历史商户治理记录。
+     */
     public void bindLegacyBaseline(String merchant, String batch, long revision, LocalDateTime now) {
         requireChanged(jdbc.update("""
                 UPDATE base_merchant_info SET payment_admission_mode = 'LEGACY_OBSERVE',
@@ -394,6 +493,9 @@ public class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant, "batch", batch, "revision", revision, "now", now)));
     }
 
+    /**
+     * 读取历史观察模式下已冻结并通过基线审核的支付方式集合。
+     */
     public Set<String> frozenMethods(String merchant) {
         return Set.copyOf(jdbc.queryForList("""
                 SELECT DISTINCT r.target_key FROM base_merchant_info m
@@ -405,6 +507,9 @@ public class MerchantPaymentRepository {
                 """, Map.of("merchant", merchant), String.class));
     }
 
+    /**
+     * 为历史授权登记限定措施及操作依据。
+     */
     public void restrictLegacy(String merchant, String itemKey, String batch, String status, long audit, LocalDateTime now) {
         requireChanged(jdbc.update("""
                 INSERT INTO merchant_payment_authorization (
@@ -418,6 +523,9 @@ public class MerchantPaymentRepository {
                 "audit", audit, "now", now)));
     }
 
+    /**
+     * 分页读取当前商户和方式关联的治理历史。
+     */
     public PageResult<HistoryRow> history(String merchant, String itemKey, Search query) {
         return page("""
                 SELECT r.id, r.review_action, r.from_status, r.to_status, r.review_comment, r.round_no, r.gmt_create
@@ -487,6 +595,9 @@ public class MerchantPaymentRepository {
         return row.getObject(column, LocalDateTime.class);
     }
 
+    /**
+     * 要求条件更新命中预期行数，否则以并发冲突终止事务。
+     */
     public static void requireChanged(int count) {
         if (count != 1) {
             throw new IllegalStateException("merchant payment row changed under lock");

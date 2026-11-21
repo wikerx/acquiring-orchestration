@@ -30,9 +30,9 @@ class PaymentLinkMapperIntegrationTest {
   source=new HikariDataSource();source.setJdbcUrl("jdbc:h2:mem:link_"+UUID.randomUUID()+";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");source.setUsername("sa");source.setPassword("");source.setMaximumPoolSize(4);
   db=new JdbcTemplate(source);
   String canonical=Files.readString(Path.of("../docs/sql/payment_acquiring_表结构.sql"));
-  for(String table:List.of("payment_checkout_session","payment_checkout_attempt","payment_checkout_event","transaction_locator")) ddl(canonical,table);
+  for(String table:List.of("payment_checkout_session","payment_checkout_attempt","payment_checkout_event","transaction_locator","payment_link")) ddl(canonical,table);
   String migration=Files.readString(Path.of("../docs/sql/20261117_01_payment_link_schema.sql"));
-  for(String table:List.of("payment_link","payment_link_access","payment_link_collection","payment_link_checkout_binding","payment_link_event")) ddl(migration,table);
+  for(String table:List.of("payment_link_access","payment_link_collection","payment_link_checkout_binding","payment_link_event")) ddl(migration,table);
   MybatisConfiguration c=new MybatisConfiguration();c.setMapUnderscoreToCamelCase(true);c.setEnvironment(new Environment("link-test",new JdbcTransactionFactory(),source));
   c.addMapper(com.scott.payment.payment.mapper.PaymentCheckoutSessionMapper.class);
   try(var shared=PaymentLinkMapperIntegrationTest.class.getResourceAsStream("/mapper/PaymentLinkQuerySql.xml")) {new XMLMapperBuilder(shared,c,"mapper/PaymentLinkQuerySql.xml",c.getSqlFragments()).parse();}

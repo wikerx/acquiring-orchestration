@@ -41,6 +41,9 @@ public class PaymentLinkMethodScope {
                 authorityReader.enabledDirectory(), capabilities.profile(merchantId), LocalDateTime.now());
     }
 
+    /**
+     * 从支付链接的允许范围提取启用的标准支付方式键。
+     */
     public List<String> enabledKeys(Snapshot snapshot, String currency) {
         var keys = snapshot.authority().items().keySet().stream().sorted().toList();
         if (keys.isEmpty()) {

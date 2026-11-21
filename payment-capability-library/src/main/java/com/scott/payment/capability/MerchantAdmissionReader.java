@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 
 /** 主库支付方式授权和冻结范围的只读访问。 */
 @Repository
-@DS(DataSourceName.MASTER)
 public class MerchantAdmissionReader {
 
     private final JdbcTemplate jdbcTemplate;
@@ -24,6 +23,7 @@ public class MerchantAdmissionReader {
     }
 
     /** 一次读取商户的准入模式和方式列表，不将运营投影作为付款授权。 */
+    @DS(DataSourceName.MASTER)
     public MerchantAuthority read(String merchantId) {
         List<MerchantMode> modes = jdbcTemplate.query("""
                 SELECT payment_admission_mode, payment_baseline_batch_ref
@@ -67,6 +67,7 @@ public class MerchantAdmissionReader {
     }
 
     /** 读取当前生效版本的主交易费率维度，保留零费率与缺失规则之间的区别。 */
+    @DS(DataSourceName.MASTER)
     public List<FeeCoverage> transactionFeeCoverage(String merchantId) {
         return jdbcTemplate.query("""
                 SELECT rule.transaction_type, rule.payment_type, rule.payment_method
@@ -85,6 +86,7 @@ public class MerchantAdmissionReader {
     }
 
     /** 任一语言状态冲突时暂不把该规范方式视作平台已启用。 */
+    @DS(DataSourceName.MASTER)
     public Set<String> enabledDirectory() {
         List<String> keys = jdbcTemplate.queryForList("""
                 SELECT CONCAT(IF(data.dict_type = 'card_brand', 'CARD_BRAND:', 'METHOD:'),
@@ -111,6 +113,9 @@ public class MerchantAdmissionReader {
 
     /** 原生效费率的覆盖维度，不重新计算或冻结金额。 */
     public record FeeCoverage(String action, String paymentType, String paymentMethod) {
+        /**
+         * 判断当前授权的生效和失效边界是否覆盖请求时间。
+         */
         public boolean covers(String transactionType, String actualType, String actualMethod) {
             return matches(action, transactionType)
                     && matches(paymentType, actualType) && matches(paymentMethod, actualMethod);

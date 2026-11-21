@@ -71,6 +71,9 @@ public interface ReliableMqOutboxMapper {
                                       @Param("now") LocalDateTime now,
                                       @Param("limit") int limit);
 
+    /**
+     * 读取已满足投递时间和状态条件的支付能力事件。
+     */
     @Select("""
             SELECT * FROM sys_mq_outbox
             WHERE """ + CAPABILITY_JOB_SCOPE + """
@@ -169,6 +172,9 @@ public interface ReliableMqOutboxMapper {
                      @Param("staleBefore") LocalDateTime staleBefore,
                      @Param("now") LocalDateTime now);
 
+    /**
+     * 恢复超过领取租约的能力事件，使其能够再次投递。
+     */
     @Update("""
             UPDATE sys_mq_outbox
             SET event_status = CASE WHEN retry_count + 1 >= max_retry_count THEN 'CLOSED' ELSE 'RETRY_WAIT' END,

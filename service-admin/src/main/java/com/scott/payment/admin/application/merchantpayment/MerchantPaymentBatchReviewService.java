@@ -30,6 +30,9 @@ public class MerchantPaymentBatchReviewService {
         this.governance = governance;
     }
 
+    /**
+     * 按批次审核申请项并为各项构造独立审核命令，保留各自的执行结果。
+     */
     public BatchDecisionReceipt decide(Scope scope, BatchDecision command) {
         List<Long> itemIds;
         try {

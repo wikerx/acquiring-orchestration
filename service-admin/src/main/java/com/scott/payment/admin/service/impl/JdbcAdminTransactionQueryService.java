@@ -544,6 +544,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         this.registeredNodeBegin = resolveRegisteredNodeBegin(shardingProperties.getPhysicalNodes());
     }
 
+    /**
+     * 从开放接口准入记录回读未进入正常交易流水的受理结果。
+     */
     @Override
     public OpenApiAdmissionAttemptResponse findOpenApiAdmissionAttempt(OpenApiAdmissionAttemptQuery query,
                                                                        AdminMerchantDataScope scope) {

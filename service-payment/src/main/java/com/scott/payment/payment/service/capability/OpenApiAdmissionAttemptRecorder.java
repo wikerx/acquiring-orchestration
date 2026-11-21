@@ -32,7 +32,6 @@ import java.util.Optional;
 
 /** 在原操作幂等键上记录 OpenAPI 建单前的确定拒绝。 */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class OpenApiAdmissionAttemptRecorder {
 
     private static final String OPERATION_SCOPE = "TRANSACTION_OPERATION";
@@ -58,6 +57,7 @@ public class OpenApiAdmissionAttemptRecorder {
      * 两种事实共同提交。插入失败时，仅按原动作键读取唯一提交胜者。
      * 应由明确拒绝的准备流程调用，并持有原动作幂等锁。
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public TransactionIdempotencyDO recordKnownRejection(PaymentCreateCommandDTO command,
                                                          String actionKey,
@@ -97,6 +97,7 @@ public class OpenApiAdmissionAttemptRecorder {
     }
 
     /** 锁忙及提交状态未知的恢复必须读取原动作幂等事实所在的交易主库。 */
+    @DS(DataSourceName.TRANSACTION)
     public Optional<TransactionIdempotencyDO> findCommittedAction(String actionKey) {
         try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
             return idempotencyService.find(OPERATION_SCOPE, actionKey);

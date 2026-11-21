@@ -18,32 +18,50 @@ public class MerchantPaymentMethodApplicationService {
         this.reads = reads;
     }
 
+    /**
+     * 使用已核验的商户范围读取分页支付方式及当前授权状态。
+     */
     public PageResult<MethodRow> methods(Search query) {
         String merchant = merchant();
         requireOwnFilter(merchant, query);
         return reads.read(merchant, scope -> governance.methods(scope, merchant, query));
     }
 
+    /**
+     * 读取指定支付方式的开通、审批与配置结果。
+     */
     public MethodRow method(String item) {
         String merchant = merchant();
         return reads.read(merchant, scope -> governance.method(scope, merchant, item));
     }
 
+    /**
+     * 在商户本人作用域内发起支付方式申请并返回可重放回执。
+     */
     public BatchReceipt apply(Apply command) {
         String merchant = merchant();
         return governance.apply(reads.scope(merchant), merchant, command);
     }
 
+    /**
+     * 按商户范围和筛选条件读取申请批次。
+     */
     public PageResult<ApplicationRow> applications(Search query) {
         String merchant = merchant();
         requireOwnFilter(merchant, query);
         return reads.read(merchant, scope -> governance.applications(scope, query));
     }
 
+    /**
+     * 读取由当前商户拥有的申请批次详情。
+     */
     public ApplicationRow application(String application) {
         return reads.read(merchant(), scope -> governance.application(scope, application));
     }
 
+    /**
+     * 以操作类型区分补充材料和撤回，复用治理服务的轮次校验。
+     */
     public ItemReceipt change(long item, Change command, boolean resubmit) {
         return governance.changeApplication(reads.scope(merchant()), item, command, resubmit);
     }

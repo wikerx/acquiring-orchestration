@@ -167,6 +167,9 @@ public class PaymentAdmissionExecutionGuard {
                 "Unable to complete merchant payment admission protection", cause);
     }
 
+    /**
+     * 冻结当前准入判定选中的费率版本，供交易准备持久化。
+     */
     private FrozenMerchantFeeVersionSnapshotDTO freezeFee(PaymentCreateCommandDTO command) {
         try {
             return fees.freezeActiveVersion(command.getMerchantId(), LocalDateTime.now());
@@ -309,6 +312,9 @@ public class PaymentAdmissionExecutionGuard {
         }
     }
 
+    /**
+     * 保护已选费率事实，避免支付提交窗口内读到相互矛盾的版本。
+     */
     private void protectFee(JdbcTemplate locked, String merchant, Long expectedFeeVersion, String action,
                             String itemKey, long revision) {
         if (expectedFeeVersion == null) {
@@ -341,6 +347,9 @@ public class PaymentAdmissionExecutionGuard {
         }
     }
 
+    /**
+     * 结束准入保护读事务并归还连接，分别记录回滚和归还异常。
+     */
     private void release(Connection connection) {
         if (connection == null) {
             return;
@@ -349,12 +358,14 @@ public class PaymentAdmissionExecutionGuard {
             // 外层连接只持有读锁，释放失败不得把已经提交的内层结果改成失败。
             connection.rollback();
         } catch (SQLException exception) {
-            log.warn("释放准入保护读事务失败, exceptionType: {}", exception.getClass().getSimpleName());
+            log.warn("释放准入保护读事务失败, event: PAYMENT_ADMISSION_READ_ROLLBACK_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName());
         } finally {
             try {
                 connection.close();
             } catch (SQLException exception) {
-                log.warn("关闭准入保护连接失败, exceptionType: {}", exception.getClass().getSimpleName());
+                log.warn("关闭准入保护连接失败, event: PAYMENT_ADMISSION_READ_CONNECTION_CLOSE_FAILED, exceptionType: {}",
+                        exception.getClass().getSimpleName());
             }
         }
     }

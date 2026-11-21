@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 
-/** 接收 Job 的有界预占复核命令，状态判断和写入仍由 Risk 所有。 */
+/**
+ * 接收 Job 的有界预占复核命令，状态判断和写入仍由 Risk 所有。
+ */
 @RestController
 @RequestMapping("/internal/risk/merchant-limit-reservations")
 public class RiskReservationReconciliationInternalController {
@@ -31,7 +33,9 @@ public class RiskReservationReconciliationInternalController {
         this.batchSize = Math.max(1, Math.min(batchSize, 500));
     }
 
-    /** Job 与服务内调度互斥，已保护的预占按真实支付状态进行对账。 */
+    /**
+     * Job 与服务内调度互斥，已保护的预占按真实支付状态进行对账。
+     */
     @PostMapping("/reconcile")
     public CommonResult<MerchantLimitReservationReconciliationSummary> reconcile(HttpServletRequest request) {
         if (!"service-job".equals(request.getHeader(InternalServiceSignature.HEADER_CALLER))) {

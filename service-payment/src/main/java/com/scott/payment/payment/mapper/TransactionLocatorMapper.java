@@ -24,6 +24,9 @@ public interface TransactionLocatorMapper extends BaseMapper<TransactionLocatorD
             """)
     TransactionLocatorDO selectByTransactionIdForTrustedService(@Param("transactionId") String transactionId);
 
+    /**
+     * 按平台交易编号查找管理端定位交易分片所需的记录。
+     */
     default TransactionLocatorDO selectByTransactionIdForAdmin(String transactionId) {
         return selectByTransactionIdForTrustedService(transactionId);
     }

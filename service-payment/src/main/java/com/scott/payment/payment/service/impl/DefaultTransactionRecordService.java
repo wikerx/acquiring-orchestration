@@ -1128,6 +1128,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 用可信渠道回调上下文定位已存在的 MPGS 动作记录。
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public TransactionOperationDO findOperationByTrustedMpgsCallback(String channelOrderNo, String channelTransactionId) {

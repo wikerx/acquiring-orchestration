@@ -71,7 +71,13 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
     private static final String OPEN = "OPEN";
     private static final String PROCESSING = "PROCESSING";
     private static final String CLOSED = "CLOSED";
+    /**
+     * 支付方式申请需要人工审核时使用的待办业务类型。
+     */
     public static final String PAYMENT_METHOD_APPROVAL = "PAYMENT_METHOD_APPROVAL";
+    /**
+     * 授权后仍缺支付配置时使用的待办业务类型。
+     */
     public static final String PAYMENT_METHOD_CONFIGURATION = "PAYMENT_METHOD_CONFIGURATION";
     private static final Set<String> LEGACY_SYNC_SOURCES = Set.of(
             REFUND_APPROVAL, SETTLEMENT_REVIEW, EXCHANGE_RATE_ALERT,
@@ -2123,10 +2129,16 @@ public class JdbcAdminOperationalWorkItemService implements AdminOperationalWork
             }
         }
 
+        /**
+         * 将邮件记录标识转换为待办所使用的业务编号。
+         */
         public String emailBusinessNumber() {
             return MAIL_PREFIX + workItemNo + ":" + generation;
         }
 
+        /**
+         * 从待办业务编号解析对应的邮件记录标识。
+         */
         public static ConfigurationBlockNotice fromEmailBusinessNumber(String number) {
             if (number == null || !number.startsWith(MAIL_PREFIX)) {
                 return null;

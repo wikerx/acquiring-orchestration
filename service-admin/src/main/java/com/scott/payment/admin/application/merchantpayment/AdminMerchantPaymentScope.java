@@ -19,6 +19,9 @@ public class AdminMerchantPaymentScope {
         this.scopes = scopes;
     }
 
+    /**
+     * 从当前平台操作员与数据权限派生支付治理访问范围。
+     */
     public Scope current() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !"ADMIN".equals(account.getAppCode())

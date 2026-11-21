@@ -5,7 +5,9 @@ import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-/** 补偿仅作用于同商户、同代及同原分片时间的预占。 */
+/**
+ * 补偿仅作用于同商户、同代及同原分片时间的预占。
+ */
 public record PaymentPreparationReservationScope(
         String merchantId, String key, Long generation, LocalDateTime transactionTime) {
 

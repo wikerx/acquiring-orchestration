@@ -183,6 +183,9 @@ public class SettlementReserveSourceResolver {
                 "replacement hold differs from the immutable original hold snapshot");
     }
 
+    /**
+     * 校验释放来源事实的有效状态，禁止候选从失效事实入账。
+     */
     private void validateState(SettlementReserveClearingDetailDO release, SettlementReserveHoldMigrationDO p,
                                SettlementReserveHoldStateDO state, SettlementFailureStage stage) {
         require(state != null && Objects.equals(state.getOriginalHoldDetailNo(), p.getNewHoldDetailNo())

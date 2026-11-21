@@ -12,6 +12,9 @@ public class PublishedMerchantFeeRules {
         this.facts = facts;
     }
 
+    /**
+     * 按不可变费率版本缓存读取已发布规则，避免使用变更中的草稿。
+     */
     @Cacheable(cacheNames = PaymentCacheNames.MERCHANT_CAPABILITY_FEE_RULES, key = "#p0",
             unless = "#result == '[]'")
     public String byVersion(long versionId) {

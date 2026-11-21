@@ -39,7 +39,6 @@ import java.util.stream.Collectors;
 
 /** 支付方式待办、通知与 Job 自然边界处理的归属服务。 */
 @Service
-@DS(DataSourceName.MASTER)
 public class MerchantPaymentCapabilityOperations {
 
     private static final String PENDING = "PENDING_REVIEW";
@@ -78,6 +77,7 @@ public class MerchantPaymentCapabilityOperations {
     }
 
     /** 消费已提交事件。重复消费重新读取权威事实，原业务通知按事件标识收敛。 */
+    @DS(DataSourceName.MASTER)
     public void consume(Message message) {
         if (message.getApplicationItemId() != null) {
             synchronizeApproval(message);
@@ -331,6 +331,7 @@ public class MerchantPaymentCapabilityOperations {
     }
 
     /** Job 给出固定上界和已确认位置，扫描成功后才返回可推进游标。 */
+    @DS(DataSourceName.MASTER)
     public BoundaryResponse boundaries(BoundaryRequest request) {
         LocalDateTime maximum = LocalDateTime.now().plusSeconds(2);
         if (request == null || request.source() == null || request.limit() < 1 || request.limit() > 100
@@ -376,6 +377,7 @@ public class MerchantPaymentCapabilityOperations {
     }
 
     /** 旧邮件扫描排除此业务类型，此处仅由 Job 恢复本业务及归属发件箱。 */
+    @DS(DataSourceName.MASTER)
     public RecoveryResponse recover(int requestedLimit) {
         int limit = Math.max(1, Math.min(100, requestedLimit));
         int requeued = delivery.recoverPaymentCapabilityDelivery(limit);
@@ -388,12 +390,33 @@ public class MerchantPaymentCapabilityOperations {
                 SELECT id boundary_id, effective_time occurred_at, merchant_id, item_key
                 FROM merchant_payment_authorization WHERE authorization_status='ACTIVE' AND effective_time > gmt_modified
                 """),
+        /**
+         * 支付方式授权在本次扫描窗口到期。
+         */
         AUTH_EXPIRY("SELECT id boundary_id, expire_time occurred_at, merchant_id, item_key FROM merchant_payment_authorization WHERE authorization_status='ACTIVE'"),
+        /**
+         * 商户与渠道商户号绑定到达生效时间。
+         */
         BINDING_EFFECTIVE("SELECT id boundary_id, effective_time occurred_at, merchant_id, NULL item_key FROM merchant_channel_mid_binding WHERE deleted=0"),
+        /**
+         * 商户与渠道商户号绑定到达失效时间。
+         */
         BINDING_EXPIRY("SELECT id boundary_id, expire_time occurred_at, merchant_id, NULL item_key FROM merchant_channel_mid_binding WHERE deleted=0"),
+        /**
+         * 渠道商户号配置到达生效时间。
+         */
         MID_EFFECTIVE(mid("effective_time")),
+        /**
+         * 渠道商户号配置到达失效时间。
+         */
         MID_EXPIRY(mid("expire_time")),
+        /**
+         * 绑定资料变更后需要重新评估可用性。
+         */
         BINDING_CHANGE("SELECT id boundary_id, update_time occurred_at, merchant_id, NULL item_key FROM merchant_channel_mid_binding"),
+        /**
+         * 渠道商户号配置变更后需要重新评估受影响的商户。
+         */
         MID_CHANGE(mid("update_time")),
         CHANNEL_CHANGE("""
                 SELECT b.id boundary_id, c.update_time occurred_at, b.merchant_id, NULL item_key
@@ -404,6 +427,9 @@ public class MerchantPaymentCapabilityOperations {
                 FROM channel_payment_capability c JOIN merchant_channel_mid_binding b ON b.channel_id=c.channel_id
                 WHERE b.deleted=0 AND c.business_type='ACQUIRING'
                 """),
+        /**
+         * 商户费率版本变动后需要刷新支付能力结论。
+         */
         FEE_CHANGE("SELECT id boundary_id, update_time occurred_at, merchant_id, NULL item_key FROM fee_plan WHERE plan_type='MERCHANT'"),
         DICTIONARY_CHANGE("""
                 SELECT DISTINCT a.id boundary_id, d.updated_at occurred_at, a.merchant_id, a.item_key

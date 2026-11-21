@@ -36,6 +36,9 @@ public class MerchantPaymentLinkedProjection {
         this.reads = reads;
     }
 
+    /**
+     * 读取商户接入概览及授权状态，必要时以主库版本校正。
+     */
     public AccessSummary overview(String merchant) {
         try {
             return reads.read(merchant, scope -> governance.accessSummary(scope, merchant));
@@ -51,6 +54,9 @@ public class MerchantPaymentLinkedProjection {
         }
     }
 
+    /**
+     * 组合当前商户生效费率和支付方式授权的展示投影。
+     */
     public CurrentFeeResponse currentFee(String merchant, CurrentFeeResponse source) {
         if (source == null) {
             return null;

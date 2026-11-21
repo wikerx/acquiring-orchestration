@@ -36,10 +36,16 @@ public class MerchantPaymentMethodReadiness {
         this.publishedRules = publishedRules;
     }
 
+    /**
+     * 汇总商户的授权、费率与路由事实，生成支付方式就绪结论。
+     */
     public Evaluation evaluate(String merchant, LocalDateTime now) {
         return evaluate(merchant, now, false);
     }
 
+    /**
+     * 仅评估指定的支付方式键，供分页或详情按需读取配置。
+     */
     public Evaluation evaluateForMethods(String merchant, LocalDateTime now) {
         return evaluate(merchant, now, true);
     }
@@ -66,6 +72,9 @@ public class MerchantPaymentMethodReadiness {
 
     public record Evaluation(ReadinessResult source, FeeReference fee, BiPredicate<String, String> initialFeeCoverage) {
 
+        /**
+         * 聚合商户接入概览所需的授权与就绪信息。
+         */
         public AccessSummary accessSummary(AuthorityFacts authority, boolean held, LocalDateTime now) {
             if (source == null) {
                 return AccessSummary.unavailable("UNAVAILABLE");
@@ -109,6 +118,9 @@ public class MerchantPaymentMethodReadiness {
                     : "METHOD:" + key.paymentType();
         }
 
+        /**
+         * 取指定支付方式的就绪结论，保留单项阻塞原因。
+         */
         public Projection forMethod(String itemKey) {
             if (source == null) {
                 return new Projection("UNKNOWN", List.of("PAYMENT_CAPABILITY_READINESS_UNAVAILABLE"), null);

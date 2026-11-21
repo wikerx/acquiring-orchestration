@@ -63,6 +63,9 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
                     @Param("lockUntil") LocalDateTime lockUntil,
                     @Param("version") Integer version);
 
+    /**
+     * 按调度条件取得任务租约，并推进栅栏版本拒绝旧执行者写入。
+     */
     @Update("""
             UPDATE sys_job_task
             SET lock_owner = #{nodeId}, lock_until = #{lockUntil},
@@ -76,6 +79,9 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
                           @Param("lockUntil") LocalDateTime lockUntil,
                           @Param("version") Integer version);
 
+    /**
+     * 仅在当前运行编号和栅栏版本匹配时延长任务租约。
+     */
     @Update("""
             UPDATE sys_job_task
             SET lock_until = GREATEST(lock_until, #{lockUntil}), version = version + 1, update_time = NOW()
@@ -87,6 +93,9 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
                         @Param("epoch") Long epoch,
                         @Param("lockUntil") LocalDateTime lockUntil);
 
+    /**
+     * 使用租约栅栏条件更新计划触发时间。
+     */
     @Update("""
             UPDATE sys_job_task
             SET last_trigger_time = #{lastTriggerTime}, next_trigger_time = #{nextTriggerTime},
@@ -100,6 +109,9 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
                             @Param("lastTriggerTime") LocalDateTime lastTriggerTime,
                             @Param("nextTriggerTime") LocalDateTime nextTriggerTime);
 
+    /**
+     * 仅让持有当前栅栏的执行者写入新的扫描检查点。
+     */
     @Update("""
             UPDATE sys_job_task
             SET checkpoint_json = #{checkpointJson}, checkpoint_version = checkpoint_version + 1, update_time = NOW()
@@ -113,6 +125,9 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
                                 @Param("expectedVersion") Long expectedVersion,
                                 @Param("checkpointJson") String checkpointJson);
 
+    /**
+     * 以当前执行归属和栅栏版本读取任务状态。
+     */
     @Select("""
             SELECT * FROM sys_job_task
             WHERE id = #{taskId} AND deleted = 0 AND status = 'ENABLED'
@@ -122,6 +137,9 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
                                @Param("nodeId") String nodeId,
                                @Param("epoch") Long epoch);
 
+    /**
+     * 按当前栅栏条件写回执行结果并解除任务占用。
+     */
     @Update("""
             UPDATE sys_job_task
             SET last_run_status = #{lastRunStatus}, lock_owner = NULL, lock_until = NULL,

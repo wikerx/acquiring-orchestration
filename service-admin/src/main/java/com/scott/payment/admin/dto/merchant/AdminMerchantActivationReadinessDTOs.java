@@ -39,7 +39,13 @@ public final class AdminMerchantActivationReadinessDTOs {
     }
 
     public enum EvaluationStatus {
+        /**
+         * 已取得评估结论，可按返回的阻塞项判断是否满足激活条件。
+         */
         EVALUATED,
+        /**
+         * 缺少评估所需的事实，激活条件尚未形成结论。
+         */
         NOT_EVALUATED,
         UNAVAILABLE
     }

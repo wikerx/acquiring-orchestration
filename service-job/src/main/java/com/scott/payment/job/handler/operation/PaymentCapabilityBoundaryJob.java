@@ -45,12 +45,18 @@ public class PaymentCapabilityBoundaryJob implements JobHandler {
         this.tasks = tasks;
     }
 
+    /**
+     * 声明支付能力边界扫描任务的调度编码和运行描述。
+     */
     @Override
     public JobHandlerDescriptor descriptor() {
         return JobHandlerDescriptor.sync(PaymentCapabilityJobCodes.BOUNDARY, "支付方式时间边界复核",
                 "operations", "按独立来源游标分批处理支付授权、绑定和 MID 的自然边界");
     }
 
+    /**
+     * 用任务持久化检查点推进授权与配置时间边界扫描。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     public JobExecuteResult execute(JobExecuteContext context) {

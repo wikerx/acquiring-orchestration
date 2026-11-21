@@ -129,6 +129,9 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 .last("limit 1")));
     }
 
+    /**
+     * 按收银尝试查找已绑定交易的准备记录，供回读恢复原动作。
+     */
     @Override
     public List<TransactionIdempotencyDO> findAttachedCheckoutPreparations(String checkoutAnchor) {
         return idempotencyMapper.selectList(Wrappers.<TransactionIdempotencyDO>lambdaQuery()

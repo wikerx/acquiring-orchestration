@@ -31,6 +31,9 @@ public class AdminPaymentCapabilityConsumer implements RocketMQListener<String> 
         this.operations = operations;
     }
 
+    /**
+     * 消费支付能力变更事件，依靠业务通知标识避免重复创建邮件。
+     */
     @Override
     public void onMessage(String payload) {
         Message event = JsonUtils.parseObject(payload, Message.class);

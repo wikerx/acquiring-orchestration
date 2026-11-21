@@ -301,12 +301,18 @@ public class JobTaskServiceImpl implements JobTaskService {
                 LocalDateTime.now()) == 1;
     }
 
+    /**
+     * 续期当前执行者持有的租约，返回条件更新是否成功。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     public boolean renewFencedLock(Long taskId, String nodeId, Long epoch, LocalDateTime lockUntil) {
         return sysJobTaskMapper.renewFencedLock(taskId, nodeId, epoch, lockUntil) == 1;
     }
 
+    /**
+     * 在调度任务仍归属当前执行者时更新计划标记。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     public boolean markFencedScheduled(Long taskId, String nodeId, Long epoch,
@@ -314,6 +320,9 @@ public class JobTaskServiceImpl implements JobTaskService {
         return sysJobTaskMapper.markFencedScheduled(taskId, nodeId, epoch, lastTriggerTime, nextTriggerTime) == 1;
     }
 
+    /**
+     * 写回当前归属的任务状态及检查点，结束本轮运行。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     public boolean finishFencedRun(Long taskId, String nodeId, Long epoch, JobRunStatusEnum status) {

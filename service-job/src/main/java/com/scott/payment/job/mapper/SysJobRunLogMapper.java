@@ -15,6 +15,9 @@ import java.util.List;
  */
 public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
 
+    /**
+     * 依据任务与租约标识读取对应的执行中日志。
+     */
     @Select("""
             SELECT lease_epoch FROM sys_job_run_log
             WHERE run_id = #{runId} AND job_id = #{jobId} AND executor_node = #{nodeId}

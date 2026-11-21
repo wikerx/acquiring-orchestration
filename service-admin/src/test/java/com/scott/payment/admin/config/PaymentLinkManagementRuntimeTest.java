@@ -1,5 +1,6 @@
 package com.scott.payment.admin.config;
 
+import com.scott.payment.capability.MerchantAdmissionReader;
 import com.scott.payment.link.config.PaymentLinkSettings;
 import com.scott.payment.link.mapper.*;
 import com.scott.payment.link.service.*;
@@ -19,12 +20,13 @@ import static org.mockito.Mockito.*;
 class PaymentLinkManagementRuntimeTest {
     @Configuration(proxyBeanMethods = false)
     @Import({AdminPaymentLinkProperties.class, PaymentLinkManagementService.class, PaymentLinkManagementPolicy.class,
-            PaymentLinkDatabaseCapabilities.class, PaymentLinkTokenService.class})
+            PaymentLinkDatabaseCapabilities.class, PaymentLinkMethodScope.class, PaymentLinkTokenService.class})
     static class LinkSlice {
         @Bean PaymentLinkManagementMapper links() { return mock(PaymentLinkManagementMapper.class); }
         @Bean PaymentLinkManagementAccessMapper access() { return mock(PaymentLinkManagementAccessMapper.class); }
         @Bean PaymentLinkManagementEventMapper events() { return mock(PaymentLinkManagementEventMapper.class); }
         @Bean PaymentLinkCapabilityMapper capabilities() { return mock(PaymentLinkCapabilityMapper.class); }
+        @Bean MerchantAdmissionReader admissionReader() { return mock(MerchantAdmissionReader.class); }
         @Bean MerchantRuntimeProfileCacheService merchants() { return mock(MerchantRuntimeProfileCacheService.class); }
         @Bean IsoDictionaryService currencies() { return mock(IsoDictionaryService.class); }
         @Bean Validator validator() { return mock(Validator.class); }
@@ -34,7 +36,8 @@ class PaymentLinkManagementRuntimeTest {
             .withConfiguration(AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class)).withUserConfiguration(LinkSlice.class);
     @Test void absentLinkConfigurationKeepsServiceAvailableAndWritesClosed() {
         runner.run(context -> {
-            assertThat(context).hasNotFailed().hasSingleBean(PaymentLinkManagementService.class);
+            assertThat(context).hasNotFailed().hasSingleBean(PaymentLinkManagementService.class)
+                    .hasSingleBean(PaymentLinkMethodScope.class);
             assertThat(context.getBean(PaymentLinkSettings.class).isEnabled()).isFalse();
         });
     }

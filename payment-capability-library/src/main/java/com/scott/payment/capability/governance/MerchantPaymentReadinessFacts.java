@@ -17,6 +17,9 @@ public class MerchantPaymentReadinessFacts {
         this.jdbc = jdbc;
     }
 
+    /**
+     * 读取当前时刻有效的商户与渠道商户号绑定。
+     */
     public List<MerchantChannelMidBindingDO> activeBindings(String merchant, LocalDateTime now) {
         return jdbc.query("""
                 SELECT id, mid_config_id FROM merchant_channel_mid_binding
@@ -27,6 +30,9 @@ public class MerchantPaymentReadinessFacts {
                 """, Map.of("merchant", merchant, "now", now), new BeanPropertyRowMapper<>(MerchantChannelMidBindingDO.class));
     }
 
+    /**
+     * 批量读取绑定所引用的渠道商户号配置。
+     */
     public List<ChannelMidConfigDO> mids(Set<Long> ids) {
         return jdbc.query("""
                 SELECT id, channel_id, business_type, mid_status, effective_time, expire_time,
@@ -35,6 +41,9 @@ public class MerchantPaymentReadinessFacts {
                 """, Map.of("ids", ids), new BeanPropertyRowMapper<>(ChannelMidConfigDO.class));
     }
 
+    /**
+     * 批量读取渠道主记录及支付用途所需状态。
+     */
     public List<ChannelInfoDO> channels(Set<Long> ids) {
         return jdbc.query("""
                 SELECT id, channel_code, channel_status, support_acquiring, support_payout
@@ -42,6 +51,9 @@ public class MerchantPaymentReadinessFacts {
                 """, Map.of("ids", ids), new BeanPropertyRowMapper<>(ChannelInfoDO.class));
     }
 
+    /**
+     * 按渠道标识批量加载声明的交易和支付能力。
+     */
     public List<ChannelPaymentCapabilityDO> capabilities(Set<Long> ids, String type) {
         return jdbc.query("""
                 SELECT id, channel_id, payment_method, transaction_type, support_incremental_authorization, sort_order
@@ -51,6 +63,9 @@ public class MerchantPaymentReadinessFacts {
                 """, Map.of("ids", ids, "type", type), new BeanPropertyRowMapper<>(ChannelPaymentCapabilityDO.class));
     }
 
+    /**
+     * 读取渠道能力允许的交易币种。
+     */
     public List<ChannelCapabilityCurrencyDO> currencies(Set<Long> ids) {
         return jdbc.query("""
                 SELECT capability_id, currency_code FROM channel_capability_currency
@@ -58,6 +73,9 @@ public class MerchantPaymentReadinessFacts {
                 """, Map.of("ids", ids), new BeanPropertyRowMapper<>(ChannelCapabilityCurrencyDO.class));
     }
 
+    /**
+     * 读取渠道能力允许的卡品牌。
+     */
     public List<ChannelCapabilityCardBrandDO> cardBrands(Set<Long> ids) {
         return jdbc.query("""
                 SELECT capability_id, card_brand FROM channel_capability_card_brand
@@ -65,6 +83,9 @@ public class MerchantPaymentReadinessFacts {
                 """, Map.of("ids", ids), new BeanPropertyRowMapper<>(ChannelCapabilityCardBrandDO.class));
     }
 
+    /**
+     * 读取指定生效费率方案版本的覆盖规则。
+     */
     public List<FeeRuleDO> feeRules(long versionId) {
         return jdbc.query("""
                 SELECT fee_category, risk_service_type, transaction_type, payment_type, payment_method
@@ -73,12 +94,18 @@ public class MerchantPaymentReadinessFacts {
                 """, Map.of("versionId", versionId), new BeanPropertyRowMapper<>(FeeRuleDO.class));
     }
 
+    /**
+     * 能力评估使用的商户与渠道商户号绑定投影。
+     */
     @Data
     public static class MerchantChannelMidBindingDO {
         private Long id;
         private Long midConfigId;
     }
 
+    /**
+     * 路由候选所引用的渠道商户号状态和有效窗口投影。
+     */
     @Data
     public static class ChannelMidConfigDO {
         private Long id;
@@ -93,6 +120,9 @@ public class MerchantPaymentReadinessFacts {
         private String currencyScope;
     }
 
+    /**
+     * 支付能力评估使用的渠道主记录投影。
+     */
     @Data
     public static class ChannelInfoDO {
         private Long id;
@@ -102,6 +132,9 @@ public class MerchantPaymentReadinessFacts {
         private Integer supportPayout;
     }
 
+    /**
+     * 渠道可受理的支付方式和交易种类投影。
+     */
     @Data
     public static class ChannelPaymentCapabilityDO {
         private Long id;
@@ -112,18 +145,27 @@ public class MerchantPaymentReadinessFacts {
         private Integer sortOrder;
     }
 
+    /**
+     * 渠道能力与支持币种之间的关联投影。
+     */
     @Data
     public static class ChannelCapabilityCurrencyDO {
         private Long capabilityId;
         private String currencyCode;
     }
 
+    /**
+     * 渠道能力与支持卡品牌之间的关联投影。
+     */
     @Data
     public static class ChannelCapabilityCardBrandDO {
         private Long capabilityId;
         private String cardBrand;
     }
 
+    /**
+     * 已发布费率版本的支付方式覆盖判断投影。
+     */
     @Data
     public static class FeeRuleDO {
         private String feeCategory;

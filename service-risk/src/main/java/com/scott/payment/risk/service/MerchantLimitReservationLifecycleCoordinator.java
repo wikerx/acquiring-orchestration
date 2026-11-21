@@ -25,7 +25,9 @@ public interface MerchantLimitReservationLifecycleCoordinator {
      */
     MerchantLimitReservationTransitionSummary cancel(String transactionId, String reason);
 
-    /** 取消无订单的准备预占。空范围是旧调用，仅匹配未受准备归属保护的记录。 */
+    /**
+     * 取消无订单的准备预占。空范围是旧调用，仅匹配未受准备归属保护的记录。
+     */
     MerchantLimitReservationTransitionSummary cancelCompensation(
             String transactionId, PaymentPreparationReservationScope scope, String reason);
 

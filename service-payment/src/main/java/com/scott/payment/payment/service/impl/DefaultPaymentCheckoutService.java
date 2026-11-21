@@ -1315,7 +1315,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             return applyPaymentCoreResult(session, associated, result);
         } catch (RuntimeException failure) {
             // 主库或关联 CAS 暂不可确认时保留原尝试，后续轮询继续回读。
-            log.warn("收银台核心准备回读待重试, checkoutAttemptId: {}, errorType: {}",
+            log.warn("收银台核心准备回读待重试, event: CHECKOUT_CORE_PREPARATION_READ_RETRY, checkoutAttemptId: {}, errorType: {}",
                     attempt.getCheckoutAttemptId(), failure.getClass().getSimpleName());
             return paymentResult(session, attempt);
         }

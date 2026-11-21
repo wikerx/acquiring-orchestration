@@ -38,6 +38,9 @@ public class MerchantPaymentReads {
         return sources.readMaster(() -> query.apply(scope));
     }
 
+    /**
+     * 由当前会话建立只允许访问其所属商户的治理读取范围。
+     */
     public Scope scope(String merchant) {
         InternalAuthAccount account = account();
         if (!account.getMerchantId().equals(merchant)) {

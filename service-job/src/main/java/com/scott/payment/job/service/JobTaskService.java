@@ -112,10 +112,19 @@ public interface JobTaskService {
      */
     boolean finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus, String nodeId);
 
+    /**
+     * 只有当前租约所有者才可以延长运行中的任务占用。
+     */
     boolean renewFencedLock(Long taskId, String nodeId, Long epoch, LocalDateTime lockUntil);
 
+    /**
+     * 在栅栏归属校验通过时登记下一计划时间。
+     */
     boolean markFencedScheduled(Long taskId, String nodeId, Long epoch,
                                 LocalDateTime lastTriggerTime, LocalDateTime nextTriggerTime);
 
+    /**
+     * 按任务当前栅栏提交结果，防止过期运行覆盖新运行。
+     */
     boolean finishFencedRun(Long taskId, String nodeId, Long epoch, JobRunStatusEnum status);
 }

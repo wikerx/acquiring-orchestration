@@ -55,6 +55,9 @@ public class ReliableMqOutboxStore {
         return mapper.selectDue(producerService, now, limit);
     }
 
+    /**
+     * 为支付能力事件提供独立的分页投递候选，避免与普通事件混用。
+     */
     @DS(DataSourceName.MASTER)
     public List<ReliableMqOutboxDO> findPaymentCapabilityDue(LocalDateTime now, int limit) {
         return mapper.selectPaymentCapabilityDue(now, limit);
@@ -101,6 +104,9 @@ public class ReliableMqOutboxStore {
         return mapper.recoverStale(producerService, staleBefore, now);
     }
 
+    /**
+     * 恢复租约到期且仍未完成的支付能力事件。
+     */
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int recoverPaymentCapabilityStale(LocalDateTime staleBefore, LocalDateTime now, int limit) {
