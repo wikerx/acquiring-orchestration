@@ -130,9 +130,13 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
         resultDTO.setChannelRequest(channelRequest);
         resultDTO.setRequestStartTime(LocalDateTime.now());
-        resultDTO.setHttpMethod(resolveHttpMethod(commandDTO));
         resultDTO.setRequestScene(resolveRequestScene(commandDTO));
-        resultDTO.setRequestUrlMasked(resolveRequestUrl(routeResult, channelRequest));
+        if ("MPGS".equalsIgnoreCase(channelRequest.getChannelCode())) {
+            resultDTO.setHttpMethod(resolveHttpMethod(commandDTO));
+            resultDTO.setRequestUrlMasked(resolveRequestUrl(routeResult, channelRequest));
+        } else {
+            resultDTO.setRequestUrlMasked(maskUrl(extension(channelRequest, "requestUrl")));
+        }
         log.info("渠道请求开始, event: PAYMENT_CHANNEL_REQUEST_START, stage: {}, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, channelCode: {}, channelMidId: {}, midNo: {}, requestId: {}, channelOrderNo: {}, channelTransactionId: {}, endpointHost: {}, endpointPath: {}, httpMethod: {}, requestScene: {}, connectTimeoutSeconds: {}, readTimeoutSeconds: {}, requestSummary: {}",
                 "CHANNEL_CALL",
                 TraceContext.getTraceId(),
@@ -193,6 +197,9 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                     resultDTO.getDurationMillis());
             return resultDTO;
         } catch (ChannelException exception) {
+            resultDTO.setHttpMethod(firstText(extension(channelRequest, "httpMethod"), resultDTO.getHttpMethod()));
+            resultDTO.setRequestUrlMasked(firstText(
+                    extension(channelRequest, "requestUrlMasked"), resultDTO.getRequestUrlMasked()));
             if (exception instanceof ChannelResponseException responseException
                     && responseException.getResponseEvidence() != null) {
                 // 证据不包含可解释的交易状态，只进入内部审计；资金结果仍按异常确定性处理。
@@ -206,10 +213,12 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setResponseTime(responseTime);
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
             resultDTO.setExceptionType(exception.getClass().getSimpleName());
-            resultDTO.setExceptionMessage(resultDTO.getExceptionType());
+            String causeType = exception.getCause() == null ? null : exception.getCause().getClass().getSimpleName();
+            resultDTO.setExceptionMessage(StringUtils.hasText(causeType)
+                    ? resultDTO.getExceptionType() + ":" + causeType : resultDTO.getExceptionType());
             resultDTO.setOutcomeUncertain(exception.isOutcomeUncertain());
             resultDTO.setFailureReasonCode(failureReasonCode(exception));
-            log.warn("渠道请求异常, event: PAYMENT_CHANNEL_REQUEST_FAILED, stage: {}, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, channelCode: {}, requestId: {}, channelOrderNo: {}, channelTransactionId: {}, endpointHost: {}, endpointPath: {}, requestStatus: {}, failureReasonCode: {}, exceptionType: {}, outcomeUncertain: {}, durationMs: {}",
+            log.warn("渠道请求异常, event: PAYMENT_CHANNEL_REQUEST_FAILED, stage: {}, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, channelCode: {}, requestId: {}, channelOrderNo: {}, channelTransactionId: {}, endpointHost: {}, endpointPath: {}, requestStatus: {}, failureReasonCode: {}, exceptionType: {}, causeType: {}, outcomeUncertain: {}, durationMs: {}",
                     "CHANNEL_CALL",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
@@ -229,6 +238,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                     resultDTO.getRequestStatus(),
                     resultDTO.getFailureReasonCode(),
                     resultDTO.getExceptionType(),
+                    causeType,
                     resultDTO.isOutcomeUncertain(),
                     resultDTO.getDurationMillis());
             throw new PaymentChannelInvokeException(resultDTO, exception);
@@ -402,7 +412,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     }
 
     /**
-     * 拼接脱敏后的渠道请求 URL。
+     * 拼接脱敏后的 MPGS 请求 URL。
      * <p>
      * URL 只包含平台生成的渠道订单号和渠道交易 ID，不包含渠道用户名、密码或认证头。
      *

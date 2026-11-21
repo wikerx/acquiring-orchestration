@@ -1446,14 +1446,22 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     /** 页面专用说明只解释已确认的渠道拒绝，不修改公开结果码或向商户返回渠道原文。 */
     static String resolveConsoleRefundMessage(String transactionType, String transactionStatus,
                                                String channelCode, String projectedMessage) {
-        if ("REFUND".equals(transactionType) && "FAILED".equals(transactionStatus)
-                && "ORDER_NOT_REFUNDABLE".equals(channelCode)) {
-            if ("zh".equals(LocaleContextHolder.getLocale().getLanguage())) {
-                return "当前渠道不支持这笔交易的退款，请联系平台协助处理。";
-            }
-            return "The channel does not support a refund for this transaction. Contact platform support for assistance.";
+        if (!"REFUND".equals(transactionType) || !"FAILED".equals(transactionStatus) || channelCode == null) {
+            return projectedMessage;
         }
-        return projectedMessage;
+        boolean chinese = "zh".equals(LocaleContextHolder.getLocale().getLanguage());
+        return switch (channelCode) {
+            case "ORDER_NOT_REFUNDABLE" -> chinese
+                    ? "当前渠道不支持这笔交易的退款，请联系平台协助处理。"
+                    : "The channel does not support a refund for this transaction. Contact platform support for assistance.";
+            case "INSUFFICIENT_FUNDS" -> chinese
+                    ? "渠道以资金不足拒绝了本次退款，请联系平台核对。"
+                    : "The channel declined this refund due to insufficient funds. Contact platform support for assistance.";
+            case "REFUND_NOT_FOUND" -> chinese
+                    ? "渠道未查到这笔退款，本次退款已失败。"
+                    : "The channel could not find this refund. The refund has failed.";
+            default -> projectedMessage;
+        };
     }
 
     /**

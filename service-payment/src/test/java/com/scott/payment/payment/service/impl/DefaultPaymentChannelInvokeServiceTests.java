@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
+import java.net.ConnectException;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -252,6 +253,35 @@ class DefaultPaymentChannelInvokeServiceTests {
         assertThat(exception.getInvokeResult().isOutcomeUncertain()).isFalse();
         assertThat(exception.getInvokeResult().getFailureReasonCode())
                 .isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_NOT_SENT.getCode());
+    }
+
+    /** 在未收到 HTTP 响应时保留适配器生成的请求地址和异常类型，继续按结果未知处理。 */
+    @Test
+    void shouldKeepScottRefundTransportEvidenceWithoutInventingAChannelResponse() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        String refundUrl = "https://channel.example.com/api/v1/payins/refunds";
+        when(executor.execute(any(ChannelPaymentRequest.class))).thenAnswer(invocation -> {
+            ChannelPaymentRequest request = invocation.getArgument(0);
+            request.getExtension().put("httpMethod", "POST");
+            request.getExtension().put("requestUrlMasked", refundUrl);
+            throw new ChannelRequestException("network request failed", new ConnectException("private details"), true);
+        });
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+        PaymentCreateCommandDTO commandDTO = followUpCommand();
+        commandDTO.setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+        PaymentRouteResultDTO route = PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A");
+        route.setRequestUrl("https://channel.example.com");
+
+        PaymentChannelInvokeException exception = catchThrowableOfType(
+                PaymentChannelInvokeException.class,
+                () -> invokeService.invoke(commandDTO, route, "OP260714180001", "TX260714180002", "TX260714180001"));
+
+        PaymentChannelInvokeResultDTO result = exception.getInvokeResult();
+        assertThat(result.isOutcomeUncertain()).isTrue();
+        assertThat(result.getChannelResponse()).isNull();
+        assertThat(result.getHttpMethod()).isEqualTo("POST");
+        assertThat(result.getRequestUrlMasked()).isEqualTo(refundUrl);
+        assertThat(result.getExceptionMessage()).isEqualTo("ChannelRequestException:ConnectException");
     }
 
     /**

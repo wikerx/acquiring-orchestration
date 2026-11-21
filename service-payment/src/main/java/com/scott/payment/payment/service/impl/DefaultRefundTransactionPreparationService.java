@@ -692,7 +692,9 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         invokeResultDTO.setRequestId(preparedChannelRequestDTO.getRequestId());
         invokeResultDTO.setChannelRequest(channelRequest);
         invokeResultDTO.setRequestStatus("INIT");
-        invokeResultDTO.setHttpMethod("PUT");
+        if ("MPGS".equalsIgnoreCase(channelRequest.getChannelCode())) {
+            invokeResultDTO.setHttpMethod("PUT");
+        }
         invokeResultDTO.setRequestScene(PaymentTransactionTypeEnum.REFUND.getCode());
         invokeResultDTO.setRequestStartTime(LocalDateTime.now());
         return invokeResultDTO;

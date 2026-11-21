@@ -51,6 +51,11 @@ public class PaymentApiClient {
      */
     private static final String CONTENT_TYPE = "application/json";
 
+    private static final String RAW_HTTP_METHOD = "httpMethod";
+    private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
+    private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
+    private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
+
     private final ChannelProperties properties;
     private final HttpClient httpClient;
     private final PaymentRequestConverter requestConverter;
@@ -126,6 +131,7 @@ public class PaymentApiClient {
                 properties.getMerchantId());
         String apiKey = requiredValue(request, new String[]{"mid.apiKey"}, properties.getApiKey());
         HttpRequest httpRequest = buildHttpRequest(request, url, merchantId, apiKey, body);
+        fillRequestAudit(request, httpRequest, merchantId, body);
         try {
             HttpResponse<String> response = httpClient.send(
                     httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -135,11 +141,11 @@ public class PaymentApiClient {
             } catch (ChannelResponseException exception) {
                 ChannelPaymentResponse evidence = new ChannelPaymentResponse();
                 evidence.setHttpStatus(response.statusCode());
-                addAuditEvidence(evidence, url, merchantId, body, response);
+                addAuditEvidence(evidence, request, response);
                 exception.setResponseEvidence(evidence);
                 throw exception;
             }
-            addAuditEvidence(result, url, merchantId, body, response);
+            addAuditEvidence(result, request, response);
             return result;
         } catch (java.net.http.HttpTimeoutException exception) {
             throw new ChannelTimeoutException("ScottChannelA request timed out", exception);
@@ -193,21 +199,32 @@ public class PaymentApiClient {
     }
 
     /**
-     * 保存脱敏后的请求和响应证据，禁止在响应对象中保留 API Key、PAN 或安全码明文。
-     **/
-    private void addAuditEvidence(ChannelPaymentResponse result,
-                                  String url,
-                                  String merchantId,
-                                  String requestBody,
-                                  HttpResponse<String> response) {
-        result.setHttpMethod("POST");
-        result.setRequestUrlMasked(url);
-        result.setRequestHeaderJsonMasked(JsonUtils.toJsonString(Map.of(
+     * 将实际生成的脱敏请求附于统一渠道请求，无响应时也能保存交互证据。
+     */
+    private void fillRequestAudit(ChannelPaymentRequest request, HttpRequest httpRequest,
+                                  String merchantId, String requestBody) {
+        Map<String, String> audit = request.getExtension();
+        audit.put(RAW_HTTP_METHOD, httpRequest.method());
+        audit.put(RAW_REQUEST_URL_MASKED, httpRequest.uri().toASCIIString());
+        audit.put(RAW_REQUEST_HEADER_JSON_MASKED, JsonUtils.toJsonString(Map.of(
                 HEADER_MERCHANT_ID, SensitiveDataMaskUtils.maskJson(
                         JsonUtils.toJsonString(Map.of("merchantId", merchantId))),
                 HEADER_API_KEY, "***",
                 "Content-Type", CONTENT_TYPE)));
-        result.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(requestBody));
+        audit.put(RAW_REQUEST_BODY_JSON_MASKED, SensitiveDataMaskUtils.maskJsonSafely(requestBody));
+    }
+
+    /**
+     * 复用脱敏的请求证据并附加渠道响应，供内部渠道交互审计。
+     */
+    private void addAuditEvidence(ChannelPaymentResponse result,
+                                  ChannelPaymentRequest request,
+                                  HttpResponse<String> response) {
+        Map<String, String> audit = request.getExtension();
+        result.setHttpMethod(audit.get(RAW_HTTP_METHOD));
+        result.setRequestUrlMasked(audit.get(RAW_REQUEST_URL_MASKED));
+        result.setRequestHeaderJsonMasked(audit.get(RAW_REQUEST_HEADER_JSON_MASKED));
+        result.setRequestBodyJsonMasked(audit.get(RAW_REQUEST_BODY_JSON_MASKED));
         result.setResponseHeaderJsonMasked(safeResponseHeaders(response));
         result.setResponseBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(response.body()));
     }

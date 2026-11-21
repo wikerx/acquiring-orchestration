@@ -61,10 +61,22 @@ class JdbcMerchantTransactionQueryServiceTests {
                     "CAPTURE", "FAILED", "ORDER_NOT_REFUNDABLE", fallback)).isEqualTo(fallback);
             assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
                     "REFUND", "FAILED", "UNKNOWN_CONFLICT", fallback)).isEqualTo(fallback);
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "REFUND", "FAILED", "INSUFFICIENT_FUNDS", fallback))
+                    .contains("refund due to insufficient funds").doesNotContain("issuer");
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "REFUND", "FAILED", "REFUND_NOT_FOUND", fallback))
+                    .contains("could not find this refund").doesNotContain("issuer");
             LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
             assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
                     "REFUND", "FAILED", "ORDER_NOT_REFUNDABLE", fallback))
                     .isEqualTo("当前渠道不支持这笔交易的退款，请联系平台协助处理。");
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "REFUND", "FAILED", "INSUFFICIENT_FUNDS", fallback))
+                    .contains("资金不足", "本次退款");
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "REFUND", "FAILED", "REFUND_NOT_FOUND", fallback))
+                    .isEqualTo("渠道未查到这笔退款，本次退款已失败。");
         } finally {
             LocaleContextHolder.setLocale(previousLocale);
         }

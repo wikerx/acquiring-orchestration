@@ -153,6 +153,40 @@ class PaymentApiClientTests {
                 .containsEntry("simulationResult", "SUCCESS");
     }
 
+    /** 连接失败时仍保留真正的退款报文和来源，且不把本地异常当作渠道拒绝。 */
+    @Test
+    void shouldRetainMaskedRefundRequestAfterConnectionFailure() {
+        PaymentApiClient client = paymentClient(properties());
+        ChannelPaymentRequest request = refundRequest();
+        server.stop(0);
+        server = null;
+
+        assertThatThrownBy(() -> client.execute(request))
+                .isInstanceOfSatisfying(ChannelRequestException.class,
+                        failure -> assertThat(failure.isOutcomeUncertain()).isTrue());
+        assertThat(request.getExtension()).containsEntry("httpMethod", "POST");
+        assertThat(request.getExtension().get("requestUrlMasked")).endsWith("/api/v7/payins/refunds");
+        assertThat(request.getExtension().get("requestHeaderJsonMasked")).contains("\"X-Api-Key\":\"***\"");
+        assertThat(request.getExtension().get("requestBodyJsonMasked"))
+                .contains("\"transactionId\":\"CMT-ORIGINAL-PAYMENT\"");
+    }
+
+    /** HTTP 成功仅表示收到业务响应，资金不足仍是明确失败。 */
+    @Test
+    void shouldReturnInsufficientFundsAsDefinitiveRefundFailure() {
+        responseStatus.set(201);
+        responseBody.set("""
+                {"code":"SUCCESS","message":"OK","data":{"status":"FAIL","responseCode":"INSUFFICIENT_FUNDS",
+                "message":"Insufficient funds","transactionId":"CMT-ORIGINAL-PAYMENT"}}
+                """);
+
+        ChannelPaymentResponse response = paymentClient(properties()).execute(refundRequest());
+
+        assertThat(response.getChannelTradeStatus()).isEqualTo("FAILED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("INSUFFICIENT_FUNDS");
+        assertThat(response.getHttpStatus()).isEqualTo(201);
+    }
+
     /**
      * 数据库存储的六位小数金额必须按渠道两位小数协议发送。
      **/
