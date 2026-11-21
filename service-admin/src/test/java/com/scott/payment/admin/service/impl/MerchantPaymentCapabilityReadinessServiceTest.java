@@ -29,6 +29,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -99,6 +101,33 @@ class MerchantPaymentCapabilityReadinessServiceTest {
         assertThat(result.feeGaps()).extracting(
                 MerchantPaymentCapabilityReadinessService.CapabilityKey::transactionType)
                 .containsExactly("REFUND");
+    }
+
+    @Test
+    void initialFeeCoverageUsesOriginalRulesWithoutRequiringMid() {
+        var wildcardCard = feeRule("TRANSACTION_FEE", "ALL");
+        wildcardCard.setPaymentMethod("ALL");
+        var walletRefundOnly = feeRule("REFUND_FEE", "REFUND");
+        walletRefundOnly.setPaymentType("APPLE_PAY");
+        walletRefundOnly.setPaymentMethod("ALL");
+        var walletCaptureOnly = feeRule("TRANSACTION_FEE", "CAPTURE");
+        walletCaptureOnly.setPaymentType("GOOGLE_PAY");
+        walletCaptureOnly.setPaymentMethod("ALL");
+        var riskOnly = feeRule("TRANSACTION_FEE", "PAYMENT");
+        riskOnly.setPaymentType("ACHPAY");
+        riskOnly.setPaymentMethod("ALL");
+        riskOnly.setRiskServiceType("THREEDS");
+        when(feeRuleMapper.selectList(any())).thenReturn(List.of(wildcardCard, walletRefundOnly, walletCaptureOnly, riskOnly));
+
+        var coverage = service.initialFeeCoverage(8L);
+
+        assertThat(coverage.test("BANK_CARD", "VISA")).isTrue();
+        assertThat(coverage.test("BANK_CARD", "MASTERCARD")).isTrue();
+        assertThat(coverage.test("APPLE_PAY", "ALL")).isFalse();
+        assertThat(coverage.test("GOOGLE_PAY", "ALL")).isFalse();
+        assertThat(coverage.test("ACHPAY", "ALL")).isFalse();
+        verify(feeRuleMapper).selectList(any());
+        verifyNoInteractions(bindingMapper, midMapper);
     }
 
     /** 同一能力同时命中通用和精确费率时必须拒绝开通，避免清分费用规则出现歧义。 */
@@ -222,8 +251,8 @@ class MerchantPaymentCapabilityReadinessServiceTest {
 
     /** 配置单条银行卡能力和对应的启用币种、卡品牌。 */
     private void useSingleRoute() {
-        when(bindingMapper.selectList(any())).thenReturn(List.of(binding(1L, 10L)));
-        when(midMapper.selectList(any())).thenReturn(List.of(mid(10L)));
+        lenient().when(bindingMapper.selectList(any())).thenReturn(List.of(binding(1L, 10L)));
+        lenient().when(midMapper.selectList(any())).thenReturn(List.of(mid(10L)));
         lenient().when(channelMapper.selectList(any())).thenReturn(List.of(channel()));
         lenient().when(capabilityMapper.selectList(any())).thenReturn(List.of(capability()));
         lenient().when(currencyMapper.selectList(any())).thenReturn(List.of(currency()));

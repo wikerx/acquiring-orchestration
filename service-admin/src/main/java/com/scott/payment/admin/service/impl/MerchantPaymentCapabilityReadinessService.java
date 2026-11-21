@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -51,6 +52,7 @@ public class MerchantPaymentCapabilityReadinessService {
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
     private static final String BUSINESS_PAYOUT = "PAYOUT";
     private static final Set<String> PAYOUT_TRANSACTION_TYPES = Set.of("PAYOUT", "CANCEL");
+    private static final Set<String> INITIAL_FEE_ACTIONS = Set.of("PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION");
     private static final Set<String> PLATFORM_TRANSACTION_TYPES = Set.of(
             "PAYMENT", "AUTHORIZATION", "CAPTURE", "REFUND", "VOID", "CHARGEBACK",
             "PRE_AUTHORIZATION", "PRE_AUTH_COMPLETION", "INCREMENTAL_AUTHORIZATION", "REPRESENTMENT");
@@ -198,7 +200,8 @@ public class MerchantPaymentCapabilityReadinessService {
                 continue;
             }
             long matchingRules = feeRules.stream()
-                    .filter(rule -> feeRuleMatches(rule, feeCategory, capability))
+                    .filter(rule -> feeRuleMatches(rule, feeCategory, capability.transactionType(),
+                            capability.paymentType(), capability.paymentMethod()))
                     .count();
             if (matchingRules == 0) {
                 feeGaps.add(capability);
@@ -303,6 +306,13 @@ public class MerchantPaymentCapabilityReadinessService {
                 .orderByAsc(FeeRuleDO::getId)));
     }
 
+    /** 当前费率版本对支付方式的静态覆盖，可独立于实际 MID 和路由检查。 */
+    public BiPredicate<String, String> initialFeeCoverage(long feePlanVersionId) {
+        List<FeeRuleDO> rules = feeRules(feePlanVersionId);
+        return (paymentType, paymentMethod) -> rules.stream().anyMatch(rule -> INITIAL_FEE_ACTIONS.stream()
+                .anyMatch(action -> feeRuleMatches(rule, "TRANSACTION_FEE", action, paymentType, paymentMethod)));
+    }
+
     /** 判断 MID、渠道和有效期是否满足支付运行时的基础硬约束。 */
     private boolean available(ChannelMidConfigDO mid, ChannelInfoDO channel, LocalDateTime now, String businessType) {
         return mid != null && channel != null
@@ -370,12 +380,13 @@ public class MerchantPaymentCapabilityReadinessService {
     }
 
     /** 使用清分维度的 ALL/精确匹配语义判断一条原子费率能否覆盖实际能力。 */
-    private boolean feeRuleMatches(FeeRuleDO rule, String feeCategory, CapabilityKey capability) {
+    private boolean feeRuleMatches(FeeRuleDO rule, String feeCategory, String transactionType,
+                                   String paymentType, String paymentMethod) {
         return feeCategory.equals(upper(rule.getFeeCategory()))
                 && NONE.equals(upper(rule.getRiskServiceType()))
-                && dimensionMatches(rule.getTransactionType(), capability.transactionType())
-                && dimensionMatches(rule.getPaymentType(), capability.paymentType())
-                && dimensionMatches(rule.getPaymentMethod(), capability.paymentMethod());
+                && dimensionMatches(rule.getTransactionType(), transactionType)
+                && dimensionMatches(rule.getPaymentType(), paymentType)
+                && dimensionMatches(rule.getPaymentMethod(), paymentMethod);
     }
 
     private boolean dimensionMatches(String configured, String actual) {

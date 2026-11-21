@@ -2,6 +2,7 @@ package com.scott.payment.admin.application.merchantpayment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Apply;
+import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.AuthorizationCoverage;
 import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.BaselineApprove;
 import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.BaselineSubmit;
 import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Evidence;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.scott.payment.admin.application.merchantpayment.MerchantPaymentRepository.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -51,6 +53,39 @@ class MerchantPaymentGovernanceServiceTests {
                 argThat((MapSqlParameterSource parameters) -> "Example".equals(parameters.getValue("keyword"))
                         && Set.of(MERCHANT).equals(parameters.getValue("scopeMerchants"))),
                 org.mockito.ArgumentMatchers.<RowMapper<?>>any());
+    }
+
+    @Test
+    void feeAuthorizationKeepsFormalAndRestrictedFactsWhileHistoryIsPending() {
+        var scope = new MerchantPaymentGovernanceService.Scope(AdminMerchantDataScope.limited(Set.of(MERCHANT)),
+                new Actor("MERCHANT", 19, 8, null));
+        LocalDateTime past = LocalDateTime.of(2020, 1, 1, 0, 0);
+        LocalDateTime future = LocalDateTime.of(2099, 1, 1, 0, 0);
+        when(repository.legacyMerchant(MERCHANT)).thenReturn(Optional.of(new LegacyMerchant(null, null, past)));
+        when(repository.directory(false)).thenReturn(List.of(
+                new DirectoryEntry("acquiring_payment_method", "BANK_CARD", "Card", "en-US", true),
+                new DirectoryEntry("card_brand", "VISA", "Visa", "en-US", true),
+                new DirectoryEntry("card_brand", "MASTERCARD", "Mastercard", "en-US", true)));
+        when(repository.grants(MERCHANT)).thenReturn(List.of(
+                new Grant(1, "CARD_BRAND:MASTERCARD", "ACTIVE", 1, past, null, "APPLICATION"),
+                new Grant(2, "METHOD:APPLE_PAY", "ACTIVE", 1, past, null, "HISTORICAL_BASELINE"),
+                new Grant(3, "METHOD:GOOGLE_PAY", "SUSPENDED", 1, past, null, "HISTORICAL_BASELINE"),
+                new Grant(4, "METHOD:PAYPAL", "ACTIVE", 1, future, null, "APPLICATION"),
+                new Grant(5, "METHOD:ACHPAY", "ACTIVE", 1, past, past.plusDays(1), "APPLICATION")));
+
+        var result = governance.feeAuthorizations(scope, MERCHANT);
+
+        assertThat(result.assessmentStatus()).isEqualTo("HISTORY_PENDING");
+        assertThat(result.methods()).extracting(AuthorizationCoverage::itemKey, AuthorizationCoverage::authorizationStatus)
+                .containsExactly(
+                        tuple("CARD_BRAND:MASTERCARD", "ACTIVE"),
+                        tuple(VISA, "NOT_AUTHORIZED"),
+                        tuple("METHOD:ACHPAY", "EXPIRED"),
+                        tuple("METHOD:APPLE_PAY", "NOT_AUTHORIZED"),
+                        tuple("METHOD:GOOGLE_PAY", "SUSPENDED"),
+                        tuple("METHOD:PAYPAL", "NOT_YET_EFFECTIVE"));
+        verify(repository, never()).frozenMethods(MERCHANT);
+        assertThat(governance.accessSummary(scope, MERCHANT).assessmentStatus()).isEqualTo("HISTORY_PENDING");
     }
 
     @Test

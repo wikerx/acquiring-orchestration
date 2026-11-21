@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 class MerchantPaymentMethodReadiness {
     private static final Logger LOG = LoggerFactory.getLogger(MerchantPaymentMethodReadiness.class);
     private static final Set<String> INITIAL = Set.of("PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION");
+    private static final BiPredicate<String, String> NO_FEE_COVERAGE = (type, method) -> false;
     private final MerchantPaymentRepository repository;
     private final MerchantPaymentCapabilityReadinessService current;
 
@@ -33,22 +35,32 @@ class MerchantPaymentMethodReadiness {
     }
 
     Evaluation evaluate(String merchant, LocalDateTime now) {
+        return evaluate(merchant, now, false);
+    }
+
+    Evaluation evaluateForMethods(String merchant, LocalDateTime now) {
+        return evaluate(merchant, now, true);
+    }
+
+    private Evaluation evaluate(String merchant, LocalDateTime now, boolean includeIndependentFeeCoverage) {
         try {
             FeeReference fee = repository.currentFeeReference(merchant, now).orElse(null);
-            ReadinessResult acquiring = current.evaluateCurrent(merchant, now,
-                    () -> fee == null ? null : Long.valueOf(fee.versionId())).acquiring();
-            return new Evaluation(acquiring, fee);
+            Long feeVersionId = fee == null ? null : Long.valueOf(fee.versionId());
+            ReadinessResult acquiring = current.evaluateCurrent(merchant, now, () -> feeVersionId).acquiring();
+            BiPredicate<String, String> feeCoverage = includeIndependentFeeCoverage && feeVersionId != null && acquiring != null
+                    ? current.initialFeeCoverage(feeVersionId) : NO_FEE_COVERAGE;
+            return new Evaluation(acquiring, fee, feeCoverage);
         } catch (RuntimeException exception) {
             LOG.warn("商户支付方式配置评估不可用, event: MERCHANT_PAYMENT_METHOD_READINESS_UNAVAILABLE, merchantId: {}, exceptionType: {}",
                     merchant, exception.getClass().getSimpleName());
-            return new Evaluation(null, null);
+            return new Evaluation(null, null, NO_FEE_COVERAGE);
         }
     }
 
     record AuthorityFacts(List<AuthorizationCoverage> coverage, Set<String> enabledMethods) {
     }
 
-    record Evaluation(ReadinessResult source, FeeReference fee) {
+    record Evaluation(ReadinessResult source, FeeReference fee, BiPredicate<String, String> initialFeeCoverage) {
 
         AccessSummary accessSummary(AuthorityFacts authority, boolean held, LocalDateTime now) {
             if (source == null) {
@@ -98,11 +110,16 @@ class MerchantPaymentMethodReadiness {
                 return new Projection("UNKNOWN", List.of("PAYMENT_CAPABILITY_READINESS_UNAVAILABLE"), null);
             }
             Predicate<CapabilityKey> applicable = key -> INITIAL.contains(key.transactionType())
-                    && itemKey.equals("BANK_CARD".equals(key.paymentType())
-                    ? "CARD_BRAND:" + key.paymentMethod() : "METHOD:" + key.paymentType());
+                    && itemKey.equals(itemKey(key));
             List<CapabilityKey> candidates = source.capabilities().stream().filter(applicable).toList();
             if (candidates.isEmpty()) {
-                return new Projection("BLOCKED", List.of("CHANNEL_MID_UNAVAILABLE"), null);
+                boolean cardBrand = itemKey.startsWith("CARD_BRAND:");
+                String code = itemKey.substring(itemKey.indexOf(':') + 1);
+                boolean feeCovered = fee != null && (cardBrand
+                        ? initialFeeCoverage.test("BANK_CARD", code) : initialFeeCoverage.test(code, "ALL"));
+                return feeCovered
+                        ? new Projection("BLOCKED", List.of("CHANNEL_MID_UNAVAILABLE"), fee)
+                        : new Projection("BLOCKED", List.of("CHANNEL_MID_UNAVAILABLE", "FEE_CAPABILITY_NOT_COVERED"), null);
             }
 
             List<String> reasons = new ArrayList<>();

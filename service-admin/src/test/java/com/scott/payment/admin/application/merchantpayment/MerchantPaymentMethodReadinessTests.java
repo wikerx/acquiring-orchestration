@@ -10,10 +10,13 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MerchantPaymentMethodReadinessTests {
+    private static final BiPredicate<String, String> NO_FEE_COVERAGE = (type, method) -> false;
+
     @Test
     void marksEvaluatedConfigurationsWithNoGapAsReady() {
         var visa = new CapabilityKey("PAYMENT", "BANK_CARD", "VISA", "USD");
@@ -21,7 +24,8 @@ class MerchantPaymentMethodReadinessTests {
         var fee = new FeeReference("11", "5", LocalDateTime.of(2026, 11, 20, 12, 0));
         var routes = new ReadinessResult(1, 0, List.of(visa, mastercard),
                 List.of(visa), List.of(), List.of(), List.of(), List.of());
-        var projection = new MerchantPaymentMethodReadiness.Evaluation(routes, fee).forMethod("CARD_BRAND:MASTERCARD");
+        var projection = new MerchantPaymentMethodReadiness.Evaluation(routes, fee, NO_FEE_COVERAGE)
+                .forMethod("CARD_BRAND:MASTERCARD");
 
         assertThat(projection.status()).isEqualTo("READY");
         assertThat(projection.reasons()).isEmpty();
@@ -34,7 +38,8 @@ class MerchantPaymentMethodReadinessTests {
         var eur = new CapabilityKey("PAYMENT", "BANK_CARD", "VISA", "EUR");
         var fee = new FeeReference("11", "1", LocalDateTime.of(2026, 11, 20, 12, 0));
         var result = new ReadinessResult(1, 0, List.of(usd, eur), List.of(usd), List.of(), List.of(), List.of(), List.of());
-        var candidate = new MerchantPaymentMethodReadiness.Evaluation(result, fee).forMethod("CARD_BRAND:VISA");
+        var candidate = new MerchantPaymentMethodReadiness.Evaluation(result, fee, NO_FEE_COVERAGE)
+                .forMethod("CARD_BRAND:VISA");
 
         assertThat(candidate.status()).isEqualTo("CONDITIONAL");
         assertThat(candidate.reasons()).containsExactly("CHANNEL_ROUTE_CONFLICT");
@@ -55,7 +60,7 @@ class MerchantPaymentMethodReadinessTests {
                 new AuthorizationCoverage("CARD_BRAND:MASTERCARD", "Mastercard", "NOT_AUTHORIZED"),
                 new AuthorizationCoverage("METHOD:APPLE_PAY", "Apple Pay", "LEGACY_OBSERVED")),
                 Set.of("CARD_BRAND:VISA", "CARD_BRAND:MASTERCARD", "METHOD:APPLE_PAY"));
-        var evaluation = new MerchantPaymentMethodReadiness.Evaluation(routes, reference);
+        var evaluation = new MerchantPaymentMethodReadiness.Evaluation(routes, reference, NO_FEE_COVERAGE);
 
         var overview = evaluation.accessSummary(authority, false, now);
 
@@ -69,14 +74,46 @@ class MerchantPaymentMethodReadinessTests {
 
     @Test
     void unknownAndMissingFeeRemainDistinct() {
-        var unknown = new MerchantPaymentMethodReadiness.Evaluation(null, null).forMethod("METHOD:APPLE_PAY");
+        var unknown = new MerchantPaymentMethodReadiness.Evaluation(null, null, NO_FEE_COVERAGE)
+                .forMethod("METHOD:APPLE_PAY");
         var wallet = new CapabilityKey("PAYMENT", "APPLE_PAY", "ALL", "USD");
         var result = new ReadinessResult(1, 0, List.of(wallet), List.of(), List.of(wallet), List.of(), List.of(), List.of());
-        var missingFee = new MerchantPaymentMethodReadiness.Evaluation(result, null).forMethod("METHOD:APPLE_PAY");
+        var missingFee = new MerchantPaymentMethodReadiness.Evaluation(result, null, NO_FEE_COVERAGE)
+                .forMethod("METHOD:APPLE_PAY");
 
         assertThat(unknown.status()).isEqualTo("UNKNOWN");
         assertThat(missingFee.status()).isEqualTo("BLOCKED");
         assertThat(missingFee.reasons()).containsExactly("FEE_CAPABILITY_NOT_COVERED");
         assertThat(missingFee.feeReference()).isNull();
+    }
+
+    @Test
+    void reportsBothGapsWhenNoMidAndNoActiveFeeVersionExist() {
+        var routes = new ReadinessResult(0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var projection = new MerchantPaymentMethodReadiness.Evaluation(routes, null, NO_FEE_COVERAGE)
+                .forMethod("CARD_BRAND:VISA");
+
+        assertThat(projection.status()).isEqualTo("BLOCKED");
+        assertThat(projection.reasons()).containsExactly("CHANNEL_MID_UNAVAILABLE", "FEE_CAPABILITY_NOT_COVERED");
+        assertThat(projection.feeReference()).isNull();
+    }
+
+    @Test
+    void reportsWhetherActiveFeeVersionCoversEachMethodWithoutMid() {
+        var routes = new ReadinessResult(0, 0, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var fee = new FeeReference("11", "5", LocalDateTime.of(2026, 11, 20, 12, 0));
+        var evaluation = new MerchantPaymentMethodReadiness.Evaluation(routes, fee,
+                (type, method) -> ("BANK_CARD".equals(type) && "VISA".equals(method))
+                        || ("APPLE_PAY".equals(type) && "ALL".equals(method)));
+
+        var visa = evaluation.forMethod("CARD_BRAND:VISA");
+        assertThat(visa.status()).isEqualTo("BLOCKED");
+        assertThat(visa.reasons()).containsExactly("CHANNEL_MID_UNAVAILABLE");
+        assertThat(visa.feeReference()).isEqualTo(fee);
+        assertThat(evaluation.forMethod("METHOD:APPLE_PAY").feeReference()).isEqualTo(fee);
+
+        var mastercard = evaluation.forMethod("CARD_BRAND:MASTERCARD");
+        assertThat(mastercard.reasons()).containsExactly("CHANNEL_MID_UNAVAILABLE", "FEE_CAPABILITY_NOT_COVERED");
+        assertThat(mastercard.feeReference()).isNull();
     }
 }

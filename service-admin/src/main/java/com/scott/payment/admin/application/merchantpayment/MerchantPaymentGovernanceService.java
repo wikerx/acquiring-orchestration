@@ -110,7 +110,7 @@ public class MerchantPaymentGovernanceService {
         keys.addAll(grants.keySet().stream().sorted().toList());
         keys.addAll(items.keySet().stream().sorted().toList());
         LocalDateTime now = now();
-        var assessment = readiness.evaluate(merchant, now);
+        var assessment = readiness.evaluateForMethods(merchant, now);
         var rows = keys.stream()
                 .filter(key -> input.getItemKey() == null || input.getItemKey().equals(key))
                 .map(key -> view(key, directory.get(key), items.get(key), grants.get(key), now,
@@ -134,14 +134,12 @@ public class MerchantPaymentGovernanceService {
     public FeeAuthorizationProjection feeAuthorizations(Scope scope, String merchant) {
         requireScope(scope, merchant);
         LegacyMerchant mode = merchantMode(merchant);
-        if (historyPending(mode)) {
-            return new FeeAuthorizationProjection("HISTORY_PENDING", List.of());
-        }
-        if (!knownMode(mode)) {
+        boolean pending = historyPending(mode);
+        if (!pending && !knownMode(mode)) {
             return new FeeAuthorizationProjection("UNAVAILABLE", List.of());
         }
-        var facts = authorizationFacts(merchant, now());
-        return new FeeAuthorizationProjection("EVALUATED", facts.coverage());
+        var facts = authorizationFacts(merchant, now(), !pending);
+        return new FeeAuthorizationProjection(pending ? "HISTORY_PENDING" : "EVALUATED", facts.coverage());
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -155,7 +153,7 @@ public class MerchantPaymentGovernanceService {
             return AccessSummary.unavailable("UNAVAILABLE");
         }
         LocalDateTime now = now();
-        var facts = authorizationFacts(merchant, now);
+        var facts = authorizationFacts(merchant, now, true);
         return readiness.evaluate(merchant, now).accessSummary(facts, "HOLD".equals(mode.mode()), now);
     }
 
@@ -171,11 +169,12 @@ public class MerchantPaymentGovernanceService {
         return Set.of("ENFORCED", "LEGACY_OBSERVE", "HOLD").contains(merchant.mode());
     }
 
-    private MerchantPaymentMethodReadiness.AuthorityFacts authorizationFacts(String merchant, LocalDateTime now) {
+    private MerchantPaymentMethodReadiness.AuthorityFacts authorizationFacts(String merchant, LocalDateTime now,
+                                                                             boolean historyVerified) {
         Map<String, String> directory = enabledDirectory(false);
         Map<String, Grant> grants = repository.grants(merchant).stream()
                 .collect(Collectors.toMap(Grant::itemKey, Function.identity()));
-        Set<String> frozen = repository.frozenMethods(merchant);
+        Set<String> frozen = historyVerified ? repository.frozenMethods(merchant) : Set.of();
         Set<String> keys = new java.util.TreeSet<>(directory.keySet());
         keys.addAll(grants.keySet());
         keys.addAll(frozen);
@@ -183,9 +182,12 @@ public class MerchantPaymentGovernanceService {
             Grant grant = grants.get(key);
             String status = grant == null ? (frozen.contains(key) ? LEGACY_OBSERVED : "NOT_AUTHORIZED")
                     : effectiveStatus(grant.status(), grant.effective(), grant.expires(), now);
-            if (grant != null && ACTIVE.equals(status) && "HISTORICAL_BASELINE".equals(grant.source())
-                    && frozen.contains(key)) {
-                status = LEGACY_OBSERVED;
+            if (grant != null && ACTIVE.equals(status) && "HISTORICAL_BASELINE".equals(grant.source())) {
+                if (frozen.contains(key)) {
+                    status = LEGACY_OBSERVED;
+                } else if (!historyVerified) {
+                    status = "NOT_AUTHORIZED";
+                }
             }
             String name = directory.getOrDefault(key, key.substring(key.indexOf(':') + 1));
             return new AuthorizationCoverage(key, name, status);

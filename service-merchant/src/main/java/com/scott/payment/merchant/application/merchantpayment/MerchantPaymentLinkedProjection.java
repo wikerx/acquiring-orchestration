@@ -45,9 +45,9 @@ public class MerchantPaymentLinkedProjection {
     }
 
     public AccessSummary overview(String merchant) {
-        String scope = eligibility(merchant);
-        if (!EVALUATED.equals(scope)) {
-            return AccessSummary.unavailable(scope);
+        Eligibility scope = eligibility(merchant);
+        if (scope != Eligibility.EVALUATED) {
+            return AccessSummary.unavailable(scope.assessmentStatus());
         }
         try {
             AccessSummary summary = owner.accessSummary(merchant, actor(merchant));
@@ -66,15 +66,17 @@ public class MerchantPaymentLinkedProjection {
         // 原费率结果跨请求缓存，只装饰本次返回的副本，避免把授权状态写进费用缓存。
         CurrentFeeResponse response = new CurrentFeeResponse();
         BeanUtils.copyProperties(source, response);
-        String scope = eligibility(merchant);
-        response.setAuthorizationAssessmentStatus(scope);
-        if (!EVALUATED.equals(scope)) {
+        Eligibility scope = eligibility(merchant);
+        response.setAuthorizationAssessmentStatus(scope.assessmentStatus());
+        if (scope == Eligibility.LEGACY_SCHEMA || scope == Eligibility.UNAVAILABLE) {
             return response;
         }
         try {
             var authority = owner.feeCoverage(merchant, actor(merchant));
             response.setAuthorizationAssessmentStatus(authority.assessmentStatus());
-            if (!EVALUATED.equals(authority.assessmentStatus())) {
+            boolean hasPendingCoverage = HISTORY_PENDING.equals(authority.assessmentStatus())
+                    && authority.methods() != null && !authority.methods().isEmpty();
+            if (!EVALUATED.equals(authority.assessmentStatus()) && !hasPendingCoverage) {
                 return response;
             }
             Map<String, List<AtomicFeeDimension>> dimensions = activeFeeDimensions(merchant, source.getVersionNo());
@@ -93,30 +95,30 @@ public class MerchantPaymentLinkedProjection {
         }
     }
 
-    private String eligibility(String merchant) {
+    private Eligibility eligibility(String merchant) {
         try {
             var modes = jdbc.query("""
                     SELECT payment_admission_mode, payment_baseline_batch_ref
                     FROM base_merchant_info WHERE merchant_id = :merchant AND deleted = 0
                     """, Map.of("merchant", merchant), (row, index) -> new Mode(row.getString(1), row.getString(2)));
             if (modes.isEmpty()) {
-                return UNAVAILABLE;
+                return Eligibility.UNAVAILABLE;
             }
             Mode mode = modes.get(0);
             if (mode.code() == null || "LEGACY_OBSERVE".equals(mode.code()) && mode.baseline() == null) {
-                return HISTORY_PENDING;
+                return Eligibility.HISTORY_PENDING;
             }
-            return ACTIVE_MODES.contains(mode.code()) ? EVALUATED : UNAVAILABLE;
+            return ACTIVE_MODES.contains(mode.code()) ? Eligibility.EVALUATED : Eligibility.UNAVAILABLE;
         } catch (BadSqlGrammarException exception) {
             if (exception.getSQLException() != null && exception.getSQLException().getErrorCode() == 1054) {
                 // 扩展列发布之前仍使用原历史口径，不影响旧库运行。
-                return HISTORY_PENDING;
+                return Eligibility.LEGACY_SCHEMA;
             }
             unavailable(merchant, exception);
-            return UNAVAILABLE;
+            return Eligibility.UNAVAILABLE;
         } catch (DataAccessException exception) {
             unavailable(merchant, exception);
-            return UNAVAILABLE;
+            return Eligibility.UNAVAILABLE;
         }
     }
 
@@ -169,6 +171,17 @@ public class MerchantPaymentLinkedProjection {
 
     private record Mode(String code, String baseline) {}
     private record Group(String code, String original) {}
+
+    private enum Eligibility {
+        EVALUATED,
+        HISTORY_PENDING,
+        LEGACY_SCHEMA,
+        UNAVAILABLE;
+
+        String assessmentStatus() {
+            return this == LEGACY_SCHEMA ? MerchantPaymentLinkedProjection.HISTORY_PENDING : name();
+        }
+    }
 
     record AtomicFeeDimension(String id, String group, String type, String method) {
         boolean matches(String itemKey) {
