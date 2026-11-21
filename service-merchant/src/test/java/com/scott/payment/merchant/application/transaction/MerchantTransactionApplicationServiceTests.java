@@ -17,12 +17,14 @@ import com.scott.payment.merchant.service.MerchantTransactionQueryService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.math.BigDecimal;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -338,7 +340,13 @@ class MerchantTransactionApplicationServiceTests {
         when(httpResponse.getWriter()).thenReturn(new PrintWriter(body));
         MerchantTransactionApplicationService service = service(queryService, properties, limiter);
 
-        service.exportOrders("merchant-a", new TransactionPageQuery(), "operator", httpResponse);
+        var originalLocale = LocaleContextHolder.getLocaleContext();
+        try {
+            LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
+            service.exportOrders("merchant-a", new TransactionPageQuery(), "operator", httpResponse);
+        } finally {
+            LocaleContextHolder.setLocaleContext(originalLocale);
+        }
 
         assertThat(body.toString()).contains("系统订单号");
     }
