@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -131,6 +132,27 @@ class AdminEmailServiceAsyncTests {
                 .hasMessageContaining("requires a business key");
         verify(recordMapper, never()).insert(any(EmailSendRecordDO.class));
         verify(deliveryService, never()).enqueue(any());
+    }
+
+    @Test
+    void differentPaymentCapabilityEventsUseIndependentEmailNumbers() {
+        EmailSendRequest request = request();
+        request.setBizType(AdminEmailDeliveryService.PAYMENT_CAPABILITY_BIZ_TYPE);
+        when(enabledTemplateCacheReader.findEnabled("LOGIN_NOTICE", "zh-CN")).thenReturn(templateSnapshot());
+        when(accountMapper.selectOne(any())).thenReturn(account());
+        byte[] first = new byte[32];
+        byte[] second = new byte[32];
+        second[0] = 1;
+
+        emailService.sendPaymentCapabilityNotification(request, first, first);
+        emailService.sendPaymentCapabilityNotification(request, second, second);
+
+        var records = ArgumentCaptor.forClass(EmailSendRecordDO.class);
+        verify(recordMapper, times(2)).insert(records.capture());
+        assertThat(records.getAllValues()).extracting(EmailSendRecordDO::getEmailNo)
+                .doesNotHaveDuplicates()
+                .allSatisfy(number -> assertThat(number).matches("EMAIL_[0-9a-f-]{36}"));
+        verify(deliveryService, times(2)).enqueue(any());
     }
 
     /**

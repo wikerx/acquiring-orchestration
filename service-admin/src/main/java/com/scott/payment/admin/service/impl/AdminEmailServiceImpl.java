@@ -57,6 +57,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -590,7 +591,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
             Map<String, Object> variables = enrichSystemVariables(request.getVariables());
             Set<String> missing = missingVariables(template.getSubjectTemplate() + template.getContentTemplate(), variables);
             EmailAccountDO account = selectAccount(request.getAppCode(), request.getMerchantId(), defaultIfBlank(request.getSceneCode(), template.getSceneCode()));
-            EmailSendRecordDO record = buildRecord(request, template, account);
+            // 支付方式边界可能同毫秒产生多个业务事件，展示编号不能随毫秒时间重复。
+            String emailNo = key == null ? generateCode("EMAIL") : "EMAIL_" + UUID.randomUUID();
+            EmailSendRecordDO record = buildRecord(request, template, account, emailNo);
             record.setBusinessNotificationKey(key);
             record.setBusinessNotificationPayloadHash(payloadHash);
             if (!missing.isEmpty()) {
@@ -850,10 +853,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     /**
      * 构建记录。
      */
-    private EmailSendRecordDO buildRecord(EmailSendRequest request, EmailTemplateDO template, EmailAccountDO account) {
+    private EmailSendRecordDO buildRecord(EmailSendRequest request, EmailTemplateDO template, EmailAccountDO account,
+                                          String emailNo) {
         LocalDateTime now = LocalDateTime.now();
         EmailSendRecordDO record = new EmailSendRecordDO();
-        record.setEmailNo(generateCode("EMAIL"));
+        record.setEmailNo(emailNo);
         record.setAppCode(trimUpper(request.getAppCode()));
         record.setMerchantId(trim(request.getMerchantId()));
         record.setMerchantNo(defaultIfBlank(trim(request.getMerchantNo()), record.getMerchantId()));
