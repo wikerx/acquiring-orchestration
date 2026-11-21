@@ -267,6 +267,8 @@ internal-service:
           - /internal/payment/refund-approvals/**
           # 路径说明：管理后台按可信交易定位信息解析系统交易黑名单候选事实。
           - /internal/payment/risk/trade-black/transactions/resolve
+          # 路径说明：管理后台只读评估商户支付方式授权、费率覆盖和路由配置。
+          - /internal/payment/merchant-capabilities/evaluate
       service-job:
         # 参数说明：Job 发起支付到期和补偿任务时使用的当前验签密钥引用。
         active-secret: ${acquiring.internal-auth.edges.job-payment.active-secret}
