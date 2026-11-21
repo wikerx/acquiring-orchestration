@@ -15,6 +15,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MerchantPaymentMethodReadinessTests {
     @Test
+    void marksEvaluatedConfigurationsWithNoGapAsReady() {
+        var visa = new CapabilityKey("PAYMENT", "BANK_CARD", "VISA", "USD");
+        var mastercard = new CapabilityKey("PAYMENT", "BANK_CARD", "MASTERCARD", "USD");
+        var fee = new FeeReference("11", "5", LocalDateTime.of(2026, 11, 20, 12, 0));
+        var routes = new ReadinessResult(1, 0, List.of(visa, mastercard),
+                List.of(visa), List.of(), List.of(), List.of(), List.of());
+        var projection = new MerchantPaymentMethodReadiness.Evaluation(routes, fee).forMethod("CARD_BRAND:MASTERCARD");
+
+        assertThat(projection.status()).isEqualTo("READY");
+        assertThat(projection.reasons()).isEmpty();
+        assertThat(projection.feeReference()).isEqualTo(fee);
+    }
+
+    @Test
     void doesNotTreatAnyKnownCoveredScopeAsUnconditionalExecution() {
         var usd = new CapabilityKey("PAYMENT", "BANK_CARD", "VISA", "USD");
         var eur = new CapabilityKey("PAYMENT", "BANK_CARD", "VISA", "EUR");

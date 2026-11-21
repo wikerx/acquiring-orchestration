@@ -119,7 +119,8 @@ class MerchantPaymentMethodReadiness {
                     key -> !source.feeGaps().contains(key) && !source.feeAmbiguities().contains(key));
             boolean selectable = covered && candidates.stream().anyMatch(key -> !source.routeConflicts().contains(key)
                     && !source.feeGaps().contains(key) && !source.feeAmbiguities().contains(key));
-            return new Projection(selectable ? "CONDITIONAL" : "BLOCKED", List.copyOf(reasons), covered ? fee : null);
+            String status = !selectable ? "BLOCKED" : reasons.isEmpty() ? "READY" : "CONDITIONAL";
+            return new Projection(status, List.copyOf(reasons), covered ? fee : null);
         }
     }
 

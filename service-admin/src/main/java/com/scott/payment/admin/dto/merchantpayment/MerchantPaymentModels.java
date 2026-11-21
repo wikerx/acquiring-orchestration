@@ -29,6 +29,9 @@ public final class MerchantPaymentModels {
         private String status;
     }
 
+    public record MerchantOption(String merchantId, String merchantName) {
+    }
+
     public record Apply(
             @NotBlank @Pattern(regexp = "[A-Za-z0-9_.:-]{1,64}") String requestId,
             @NotEmpty @Size(max = 100) List<@NotBlank @Size(max = 64) String> items,

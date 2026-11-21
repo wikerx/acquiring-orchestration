@@ -6,9 +6,14 @@ import com.scott.payment.payment.service.capability.PaymentAdmissionRejectedExce
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
+import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
@@ -19,14 +24,17 @@ import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipS
 import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.Acquisition;
 import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.CancellationDecision;
 import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.Lease;
+import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
@@ -223,6 +231,79 @@ class DefaultPaymentTransactionPreparationServiceTests {
         calls.verify(fixture.riskInvokeService).cancelMerchantLimitReservation(
                 eq(command), eq(fixture.riskDecisionDTO), eq("payment preparation not committed"));
         verify(ownership, never()).attach(any());
+        verify(ownership, never()).readCommittedOperation(any());
+    }
+
+    @Test
+    void recoversOriginalPreparedContextWhenSpringReportsRollbackAfterCommitFailure() {
+        var scenario = new CommitFailureFixture();
+        scenario.persistedFacts = true;
+
+        var result = scenario.prepare();
+
+        assertThat(scenario.completion).isEqualTo(TransactionSynchronization.STATUS_ROLLED_BACK);
+        assertThat(result.isDuplicate()).isFalse();
+        assertThat(result.isCallChannel()).isTrue();
+        assertThat(result.getCommandDTO()).isSameAs(scenario.command);
+        assertThat(result.getPreparedChannelRequestDTO().getRequestId()).isEqualTo(scenario.channel.getRequestId());
+        assertThat(result.getResultDTO().getTransactionId()).isEqualTo(scenario.lease.candidateTransactionId());
+        assertThat(result.getResultDTO().getOperationId()).isEqualTo(scenario.operation.getOperationId());
+        assertThat(result.getCommittedTransactionDateTime()).isEqualTo(scenario.lease.transactionDateTime());
+        scenario.verifyPreservation();
+    }
+
+    @Test
+    void keepsCommitFailureWithoutAuthoritativeEvidenceInProgress() {
+        var scenario = new CommitFailureFixture();
+
+        assertThatThrownBy(scenario::prepare)
+                .isInstanceOf(PreparationOutcomeUnknownException.class)
+                .hasCause(scenario.fixture.transactionManager.commitFailure);
+
+        assertThat(scenario.completion).isEqualTo(TransactionSynchronization.STATUS_ROLLED_BACK);
+        scenario.verifyPreservation();
+    }
+
+    @Test
+    void keepsCommitFailureWithUnverifiedOriginalShardInProgress() {
+        var scenario = new CommitFailureFixture();
+        scenario.persistedFacts = true;
+        when(scenario.fixture.recordService.findOrderPrimary(any(), any()))
+                .thenThrow(new ServiceException(ApiResultEnum.ORDER_NOT_FOUND));
+
+        assertThatThrownBy(scenario::prepare).isInstanceOf(PreparationOutcomeUnknownException.class);
+
+        scenario.verifyPreservation();
+    }
+
+    @Test
+    void observesCommittedOperationWithoutResendingWhenOriginalChannelWasSent() {
+        var scenario = new CommitFailureFixture();
+        scenario.persistedFacts = true;
+        scenario.channelStatus = "SENT";
+
+        var result = scenario.prepare();
+
+        assertThat(result.isDuplicate()).isTrue();
+        assertThat(result.isCallChannel()).isFalse();
+        assertThat(result.getPreparedChannelRequestDTO()).isNull();
+        assertThat(result.getResultDTO().getOperationId()).isEqualTo(scenario.operation.getOperationId());
+        scenario.verifyPreservation();
+    }
+
+    @Test
+    void observesCommittedOperationWithoutReusingMismatchedChannelContext() {
+        var scenario = new CommitFailureFixture();
+        scenario.persistedFacts = true;
+        scenario.channelTransactionOverride = "DIFFERENT-CHANNEL-TRANSACTION";
+
+        var result = scenario.prepare();
+
+        assertThat(result.isDuplicate()).isTrue();
+        assertThat(result.isCallChannel()).isFalse();
+        assertThat(result.getPreparedChannelRequestDTO()).isNull();
+        assertThat(result.getResultDTO().getOperationId()).isEqualTo(scenario.operation.getOperationId());
+        scenario.verifyPreservation();
     }
 
     @Test
@@ -450,6 +531,102 @@ class DefaultPaymentTransactionPreparationServiceTests {
         }
     }
 
+    private static final class CommitFailureFixture {
+        private final PreparationFixture fixture = new PreparationFixture();
+        private final PaymentPreparationOwnershipService ownership = mock(PaymentPreparationOwnershipService.class);
+        private final PaymentCreateCommandDTO command = fixture.command();
+        private final Lease lease = new Lease("preparation-key", IDEMPOTENCY_KEY, "200045", 1,
+                "TX-EXCLUSIVE-CANDIDATE", command.getTransactionDateTime(), null);
+        private final TransactionIdempotencyDO idempotency = new TransactionIdempotencyDO();
+        private final TransactionOperationDO operation = new TransactionOperationDO();
+        private final TransactionOrderDO order = new TransactionOrderDO();
+        private final TransactionChannelRequestDO channel = new TransactionChannelRequestDO();
+        private boolean persistedFacts;
+        private String channelStatus = "INIT";
+        private String channelTransactionOverride;
+        private int completion = -1;
+
+        private CommitFailureFixture() {
+            fixture.allowFreshRequest();
+            fixture.enableProtectedPreparation(ownership);
+            fixture.transactionManager.commitFailure =
+                    new DataAccessResourceFailureException("simulated loss of commit acknowledgment");
+            when(ownership.acquire(any(), eq(IDEMPOTENCY_KEY), eq("PAYMENT"),
+                    eq("Asia/Shanghai"), eq("global-candidate"))).thenReturn(new Acquisition(lease, null));
+            when(ownership.readCommittedOperation(lease)).thenAnswer(invocation -> {
+                assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+                return persistedFacts ? idempotency : null;
+            });
+            when(fixture.recordService.findSourceOperationByTransactionIdPrimary(
+                    lease.candidateTransactionId(), lease.transactionDateTime())).thenReturn(operation);
+            when(fixture.recordService.findOrderPrimary(eq(lease.transactionDateTime()), any())).thenAnswer(invocation ->
+                    order.getOperationId().equals(invocation.getArgument(1)) ? order : null);
+            when(fixture.recordService.findOriginalChannelRequestForQueryPrimary(operation)).thenReturn(channel);
+            doAnswer(invocation -> {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int outcome) {
+                        completion = outcome;
+                    }
+                });
+                capturePreparedRows(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3));
+                return null;
+            }).when(fixture.recordService).recordInitialTransaction(any(), any(), any(), any(), any(), anyInt());
+        }
+
+        private void capturePreparedRows(PaymentRouteResultDTO route, PaymentChannelInvokeResultDTO channelResult,
+                                         PaymentCreateResultDTO result) {
+            idempotency.setRequestFingerprint(command.getRequestFingerprint());
+            idempotency.setMerchantId(command.getMerchantId());
+            idempotency.setMerchantOrderNo(command.getMerchantOrderNo());
+            idempotency.setMerchantOrderId(command.getMerchantOrderId());
+            idempotency.setIdempotencyKey(IDEMPOTENCY_KEY);
+            idempotency.setTransactionType(result.getTransactionType());
+            idempotency.setTransactionId(result.getTransactionId());
+            idempotency.setOperationId(result.getOperationId());
+            idempotency.setTransactionStatus(result.getStatus());
+            idempotency.setTransactionDateTime(lease.transactionDateTime());
+            idempotency.setResultSnapshot(JsonUtils.toJsonString(result));
+            operation.setMerchantId(command.getMerchantId());
+            operation.setMerchantOrderNo(command.getMerchantOrderNo());
+            operation.setMerchantOrderId(command.getMerchantOrderId());
+            operation.setTransactionType(result.getTransactionType());
+            operation.setTransactionId(result.getTransactionId());
+            operation.setOperationId(result.getOperationId());
+            operation.setTransactionStatus(result.getStatus());
+            operation.setProcessStage(result.getProcessStage());
+            operation.setTransactionDateTime(lease.transactionDateTime());
+            order.setMerchantId(command.getMerchantId());
+            order.setMerchantOrderNo(command.getMerchantOrderNo());
+            order.setMerchantOrderId(command.getMerchantOrderId());
+            order.setRootTransactionId(result.getTransactionId());
+            order.setOperationId(result.getOperationId());
+            order.setTransactionDateTime(lease.transactionDateTime());
+            channel.setTransactionId(result.getTransactionId());
+            channel.setOperationId(result.getOperationId());
+            channel.setTransactionDateTime(lease.transactionDateTime());
+            channel.setRequestId(channelResult.getRequestId());
+            channel.setRequestStatus(channelStatus);
+            channel.setChannelId(route.getChannelId());
+            channel.setChannelCode(route.getChannelCode());
+            channel.setChannelMidConfigId(route.getMidConfigId());
+            channel.setChannelOrderNo(channelResult.getChannelRequest().getChannelOrderNo());
+            channel.setChannelTransactionId(channelTransactionOverride == null
+                    ? channelResult.getChannelRequest().getChannelTransactionId() : channelTransactionOverride);
+        }
+
+        private PaymentInitialPreparationResultDTO prepare() {
+            return fixture.service.prepareInitialTransaction(command, "PAYMENT");
+        }
+
+        private void verifyPreservation() {
+            verify(ownership).readCommittedOperation(lease);
+            verify(ownership, never()).terminateUncommitted(any());
+            verify(fixture.riskInvokeService, never()).cancelMerchantLimitReservation(any(), any(), any());
+            verify(fixture.recordService).recordInitialTransaction(any(), any(), any(), any(), any(), anyInt());
+        }
+    }
+
     /**
      * 最小本地事务管理器，用于验证 TransactionTemplate 的提交、回滚和同步回调行为。
      */
@@ -458,6 +635,7 @@ class DefaultPaymentTransactionPreparationServiceTests {
         private int beginCount;
         private int commitCount;
         private int rollbackCount;
+        private DataAccessResourceFailureException commitFailure;
 
         @Override
         protected Object doGetTransaction() {
@@ -472,6 +650,9 @@ class DefaultPaymentTransactionPreparationServiceTests {
         @Override
         protected void doCommit(DefaultTransactionStatus status) {
             commitCount++;
+            if (commitFailure != null) {
+                throw commitFailure;
+            }
         }
 
         @Override

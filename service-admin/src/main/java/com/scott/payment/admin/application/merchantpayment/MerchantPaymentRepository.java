@@ -2,6 +2,7 @@ package com.scott.payment.admin.application.merchantpayment;
 
 import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.HistoryRow;
 import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.FeeReference;
+import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.MerchantOption;
 import com.scott.payment.admin.dto.merchantpayment.MerchantPaymentModels.Search;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.core.model.PageResult;
@@ -40,6 +41,21 @@ class MerchantPaymentRepository {
         return !jdbc.queryForList("""
                 SELECT id FROM base_merchant_info WHERE merchant_id = :merchant AND deleted = 0
                 """, Map.of("merchant", merchant), Long.class).isEmpty();
+    }
+
+    List<MerchantOption> merchantOptions(AdminMerchantDataScope scope, String keyword) {
+        if (scope.empty()) {
+            return List.of();
+        }
+        var parameters = new MapSqlParameterSource("keyword", keyword == null ? "" : keyword.trim());
+        return jdbc.query("""
+                SELECT merchant_id, merchant_name
+                FROM base_merchant_info
+                WHERE deleted = 0 AND (:keyword = '' OR merchant_id LIKE CONCAT('%', :keyword, '%')
+                    OR merchant_name LIKE CONCAT('%', :keyword, '%')
+                    OR merchant_short_name LIKE CONCAT('%', :keyword, '%'))
+                """ + scopeFilter(scope, parameters) + " ORDER BY gmt_create DESC, id DESC LIMIT 50", parameters,
+                (row, index) -> new MerchantOption(row.getString("merchant_id"), row.getString("merchant_name")));
     }
 
     Optional<Long> lockMerchant(String merchant) {

@@ -13,6 +13,8 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.time.LocalDateTime;
@@ -35,6 +37,21 @@ class MerchantPaymentGovernanceServiceTests {
     private final MerchantPaymentGovernanceService governance = new MerchantPaymentGovernanceService(
             repository, mock(AdminMerchantDataScopeResolver.class), () -> "2600000000000000000001",
             new ObjectMapper().findAndRegisterModules(), events, mock(MerchantPaymentMethodReadiness.class));
+
+    @Test
+    void merchantLookupBindsTheAdministratorsScopeAndStopsWhenItIsEmpty() {
+        var jdbc = mock(NamedParameterJdbcTemplate.class);
+        var lookup = new MerchantPaymentRepository(jdbc);
+        assertThat(lookup.merchantOptions(AdminMerchantDataScope.limited(Set.of()), "Example")).isEmpty();
+        verifyNoInteractions(jdbc);
+
+        lookup.merchantOptions(AdminMerchantDataScope.limited(Set.of(MERCHANT)), " Example ");
+
+        verify(jdbc).query(contains("AND merchant_id IN (:scopeMerchants)"),
+                argThat((MapSqlParameterSource parameters) -> "Example".equals(parameters.getValue("keyword"))
+                        && Set.of(MERCHANT).equals(parameters.getValue("scopeMerchants"))),
+                org.mockito.ArgumentMatchers.<RowMapper<?>>any());
+    }
 
     @Test
     void applyNormalizesSetAndReplaysOriginalBatchBeforeReevaluatingDirectory() {

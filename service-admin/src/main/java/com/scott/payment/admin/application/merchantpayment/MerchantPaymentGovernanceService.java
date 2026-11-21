@@ -90,6 +90,11 @@ public class MerchantPaymentGovernanceService {
         return new Scope(AdminMerchantDataScope.limited(Set.of(merchant)), new Actor("MERCHANT", account, user, null));
     }
 
+    public List<MerchantOption> merchantOptions(Scope scope, String keyword) {
+        requireApplicationRole(scope, "ADMIN");
+        return repository.merchantOptions(scope.merchants(), keyword);
+    }
+
     public PageResult<MethodRow> methods(Scope scope, String merchant, Search query) {
         requireScope(scope, merchant);
         if (!repository.merchantExists(merchant)) {

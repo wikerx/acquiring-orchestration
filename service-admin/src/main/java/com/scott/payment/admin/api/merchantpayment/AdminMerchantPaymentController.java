@@ -7,7 +7,10 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -22,6 +25,13 @@ public class AdminMerchantPaymentController {
                                           MerchantPaymentBatchReviewService batchReview) {
         this.governance = governance;
         this.batchReview = batchReview;
+    }
+
+    @GetMapping("/merchant-payment-methods/merchant-options")
+    @RequiresPermission("merchant:payment-method:view")
+    public CommonResult<List<MerchantOption>> merchantOptions(
+            @RequestParam(name = "keyword", required = false) @Size(max = 128) String keyword) {
+        return success(governance.merchantOptions(governance.adminScope(), keyword));
     }
 
     @PostMapping("/merchants/{merchantId}/payment-methods/search")

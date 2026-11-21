@@ -20,8 +20,11 @@ import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
+import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
@@ -59,7 +62,6 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.scott.payment.payment.service.capability.PaymentAdmissionExecutionGuard;
@@ -91,6 +93,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      * 平台渠道请求 ID 前缀，对应 transaction_channel_request.request_id。
      */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
+    private static final String CHANNEL_REQUEST_STATUS_INIT = "INIT";
 
     /**
      * 渠道交易 ID 前缀，用于 MPGS transaction.id 等渠道侧资金动作幂等标识。
@@ -516,22 +519,21 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         PaymentInitialPreparationResultDTO target;
         AtomicBoolean riskCompensationManaged = new AtomicBoolean(false);
         boolean guardEnabled = admissionGuard != null && admissionGuard.isEnabled();
-        AtomicInteger completion = guardEnabled || attempt.lease != null ? new AtomicInteger(-1) : null;
+        PreparationCommit commit = guardEnabled || attempt.lease != null ? new PreparationCommit() : null;
         try {
             target = guardEnabled
                     ? admissionGuard.protect(commandDTO, plan.routeResultDTO(), transactionType,
-                            () -> persistPreparedFacts(plan, riskCompensationManaged, completion, attempt.lease))
-                    : persistPreparedFacts(plan, riskCompensationManaged, completion, attempt.lease);
+                            () -> persistPreparedFacts(plan, riskCompensationManaged, commit, attempt.lease))
+                    : persistPreparedFacts(plan, riskCompensationManaged, commit, attempt.lease);
         } catch (RuntimeException exception) {
-            if (completion != null) {
-                if (completion.get() == TransactionSynchronization.STATUS_UNKNOWN
-                        || completion.get() == TransactionSynchronization.STATUS_COMMITTED) {
+            if (commit != null) {
+                if (commit.requiresRecovery()) {
+                    // 本地事务及配置保护均已退出，才能回原主库确认。
                     try {
-                        TransactionIdempotencyDO operation = attempt.lease == null
-                                ? transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey).orElse(null)
-                                : preparationOwnership.readCommittedOperation(attempt.lease);
-                        if (operation != null) {
-                            return resolveDuplicate(commandDTO, idempotencyKey, transactionType, operation);
+                        PaymentInitialPreparationResultDTO recovered =
+                                recoverPreparedCommit(plan, attempt.lease, commit.prepared);
+                        if (recovered != null) {
+                            return recovered;
                         }
                     } catch (RuntimeException recoveryFailure) {
                         throw new PreparationOutcomeUnknownException(recoveryFailure);
@@ -554,7 +556,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
             // Redis 锁失效或并发穿透时数据库唯一约束仍可能判定重复，新生成交易号对应的预占必须释放。
             if (attempt.lease != null) {
                 terminateOwnedPreparation(commandDTO, attempt, "duplicate payment preparation");
-            } else if (completion == null || target.getResultDTO() == null
+            } else if (commit == null || target.getResultDTO() == null
                     || !Objects.equals(commandDTO.getTransactionId(), target.getResultDTO().getTransactionId())) {
                 cancelRiskReservationSafely(commandDTO, riskDecisionDTO, "duplicate payment preparation");
             }
@@ -581,28 +583,111 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     }
 
     /**
+     * 在原主库及分片确认提交事实。恢复渠道提交权仍需使用原 INIT 请求的现有 CAS。
+     */
+    private PaymentInitialPreparationResultDTO recoverPreparedCommit(InitialPreparationPlan plan,
+                                                                      Lease lease,
+                                                                      PaymentInitialPreparationResultDTO prepared) {
+        PaymentCreateCommandDTO command = plan.commandDTO();
+        TransactionIdempotencyDO idempotency = lease == null ? findCommittedInitialAction(plan.idempotencyKey())
+                : preparationOwnership.readCommittedOperation(lease);
+        if (idempotency == null || !StringUtils.hasText(idempotency.getTransactionId())
+                || !StringUtils.hasText(idempotency.getOperationId())
+                || !StringUtils.hasText(idempotency.getRequestFingerprint())
+                || !StringUtils.hasText(idempotency.getResultSnapshot())
+                || idempotency.getTransactionDateTime() == null
+                || !Objects.equals(command.getMerchantId(), idempotency.getMerchantId())
+                || !Objects.equals(command.getMerchantOrderNo(), idempotency.getMerchantOrderNo())
+                || !Objects.equals(command.getMerchantOrderId(), idempotency.getMerchantOrderId())
+                || !Objects.equals(command.getRequestFingerprint(), idempotency.getRequestFingerprint())
+                || !Objects.equals(plan.transactionType(), idempotency.getTransactionType())
+                || !Objects.equals(plan.idempotencyKey(), idempotency.getIdempotencyKey())) {
+            return null;
+        }
+        String transactionId = idempotency.getTransactionId();
+        String operationId = idempotency.getOperationId();
+        LocalDateTime originalTime = idempotency.getTransactionDateTime();
+        TransactionOperationDO operation = transactionRecordService.findSourceOperationByTransactionIdPrimary(
+                transactionId, originalTime);
+        TransactionOrderDO order = transactionRecordService.findOrderPrimary(originalTime, operationId);
+        if (operation == null || order == null
+                || !Objects.equals(transactionId, operation.getTransactionId())
+                || !Objects.equals(transactionId, order.getRootTransactionId())
+                || !Objects.equals(operationId, operation.getOperationId())
+                || !Objects.equals(operationId, order.getOperationId())
+                || !Objects.equals(originalTime, operation.getTransactionDateTime())
+                || !Objects.equals(originalTime, order.getTransactionDateTime())
+                || !Objects.equals(command.getMerchantId(), operation.getMerchantId())
+                || !Objects.equals(command.getMerchantId(), order.getMerchantId())
+                || !Objects.equals(plan.transactionType(), operation.getTransactionType())) {
+            return null;
+        }
+        PaymentInitialPreparationResultDTO recovered =
+                resolveDuplicate(command, plan.idempotencyKey(), plan.transactionType(), idempotency);
+        if (!Objects.equals(transactionId, recovered.getResultDTO().getTransactionId())
+                || !Objects.equals(operationId, recovered.getResultDTO().getOperationId())) {
+            return null;
+        }
+        if (prepared != null && !prepared.isDuplicate() && prepared.isCallChannel()
+                && Objects.equals(transactionId, prepared.getResultDTO().getTransactionId())
+                && Objects.equals(operationId, prepared.getResultDTO().getOperationId())
+                && Objects.equals(originalTime, prepared.getCommittedTransactionDateTime())) {
+            TransactionChannelRequestDO channel = transactionRecordService.findOriginalChannelRequestForQueryPrimary(
+                    operation);
+            if (channel == null || !Objects.equals(transactionId, channel.getTransactionId())
+                    || !Objects.equals(operationId, channel.getOperationId())
+                    || !Objects.equals(originalTime, channel.getTransactionDateTime())) {
+                return null;
+            }
+            if (canResumePreparedChannel(prepared, operation, channel)) {
+                return prepared;
+            }
+        }
+        PaymentPersistedResultSupport.overwriteAuthoritativeFields(recovered.getResultDTO(), operation, order);
+        return recovered;
+    }
+
+    private boolean canResumePreparedChannel(PaymentInitialPreparationResultDTO prepared,
+                                             TransactionOperationDO operation,
+                                             TransactionChannelRequestDO channel) {
+        PaymentPreparedChannelRequestDTO originalRequest = prepared.getPreparedChannelRequestDTO();
+        PaymentRouteResultDTO route = prepared.getRouteResultDTO();
+        return originalRequest != null && route != null
+                && CHANNEL_REQUEST_STATUS_INIT.equals(channel.getRequestStatus())
+                && Objects.equals(prepared.getResultDTO().getStatus(), operation.getTransactionStatus())
+                && Objects.equals(prepared.getResultDTO().getProcessStage(), operation.getProcessStage())
+                && Objects.equals(originalRequest.getRequestId(), channel.getRequestId())
+                && Objects.equals(originalRequest.getChannelOrderNo(), channel.getChannelOrderNo())
+                && Objects.equals(originalRequest.getChannelTransactionId(), channel.getChannelTransactionId())
+                && Objects.equals(route.getChannelCode(), channel.getChannelCode())
+                && Objects.equals(route.getChannelId(), channel.getChannelId())
+                && Objects.equals(route.getMidConfigId(), channel.getChannelMidConfigId());
+    }
+
+    /**
      * 在短事务内原子提交幂等、交易、渠道 INIT、汇率使用和生命周期事件。
      */
     private PaymentInitialPreparationResultDTO persistPreparedFacts(InitialPreparationPlan plan,
                                                                     AtomicBoolean riskCompensationManaged,
-                                                                    AtomicInteger completion,
+                                                                    PreparationCommit commit,
                                                                     Lease lease) {
         if (transactionOperations == null) {
             // 仅兼容现有直接构造的单元测试；Spring 生产构造器始终注入真实事务管理器。
             return persistPreparedFactsInTransaction(plan, riskCompensationManaged, null, lease);
         }
         return transactionOperations.execute(status -> {
-            if (completion != null) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                    @Override
-                    public void afterCompletion(int outcome) {
-                        completion.set(outcome);
-                    }
-                });
+            if (commit != null) {
+                TransactionSynchronizationManager.registerSynchronization(commit);
                 // 注册完成到事务结束之间的异常按未知处理，不提前撤销预占。
-                completion.set(TransactionSynchronization.STATUS_UNKNOWN);
+                commit.outcome = TransactionSynchronization.STATUS_UNKNOWN;
             }
-            return persistPreparedFactsInTransaction(plan, riskCompensationManaged, completion, lease);
+            PaymentInitialPreparationResultDTO result =
+                    persistPreparedFactsInTransaction(plan, riskCompensationManaged, commit, lease);
+            if (commit != null && !status.isRollbackOnly()) {
+                // JDBC 提交异常可能被 Spring 回报为回滚。回调结束前保留独立的写入完成证据。
+                commit.prepared = result;
+            }
+            return result;
         });
     }
 
@@ -612,7 +697,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     private PaymentInitialPreparationResultDTO persistPreparedFactsInTransaction(
             InitialPreparationPlan plan,
             AtomicBoolean riskCompensationManaged,
-            AtomicInteger completion,
+            PreparationCommit commit,
             Lease lease) {
         if (lease != null) {
             preparationOwnership.requireCurrent(lease);
@@ -645,7 +730,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         }
         // 远程风控已在事务外完成；从此处起，任一写入回滚都同步撤销对应累计限额预占。
         // register 在同步不可用时会先自行撤销再抛错，因此调用前即把预占交给补偿器管理。
-        if (completion == null) {
+        if (commit == null) {
             riskCompensationManaged.set(true);
             riskReservationCompensation.register(commandDTO, plan.riskDecisionDTO());
         }
@@ -739,6 +824,20 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
 
         private PreparationAttempt(Lease lease) {
             this.lease = lease;
+        }
+    }
+
+    private static final class PreparationCommit implements TransactionSynchronization {
+        private int outcome = -1;
+        private PaymentInitialPreparationResultDTO prepared;
+
+        @Override
+        public void afterCompletion(int outcome) {
+            this.outcome = outcome;
+        }
+
+        private boolean requiresRecovery() {
+            return prepared != null || outcome == STATUS_UNKNOWN || outcome == STATUS_COMMITTED;
         }
     }
 
@@ -1016,7 +1115,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         PaymentChannelInvokeResultDTO invokeResultDTO = new PaymentChannelInvokeResultDTO();
         invokeResultDTO.setRequestId(preparedChannelRequestDTO.getRequestId());
         invokeResultDTO.setChannelRequest(channelRequest);
-        invokeResultDTO.setRequestStatus("INIT");
+        invokeResultDTO.setRequestStatus(CHANNEL_REQUEST_STATUS_INIT);
         invokeResultDTO.setHttpMethod("QUERY".equalsIgnoreCase(commandDTO.getTransactionType()) ? "GET" : "PUT");
         invokeResultDTO.setRequestScene("QUERY".equalsIgnoreCase(commandDTO.getTransactionType()) ? "RETRIEVE" : commandDTO.getTransactionType());
         invokeResultDTO.setRequestUrlMasked(resolveRequestUrl(routeResultDTO, channelRequest));
