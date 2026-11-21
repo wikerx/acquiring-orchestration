@@ -87,11 +87,12 @@ public class MerchantAdmissionReader {
     /** 任一语言状态冲突时暂不把该规范方式视作平台已启用。 */
     public Set<String> enabledDirectory() {
         List<String> keys = jdbcTemplate.queryForList("""
-                SELECT CONCAT(if(data.dict_type = 'card_brand', 'CARD_BRAND:', 'METHOD:'), UPPER(data.dict_value))
+                SELECT CONCAT(IF(data.dict_type = 'card_brand', 'CARD_BRAND:', 'METHOD:'),
+                              UPPER(data.dict_value)) AS item_key
                 FROM sys_dict_data data
                 JOIN sys_dict_type type ON type.dict_type = data.dict_type AND type.deleted = 0 AND type.status = 1
                 WHERE data.dict_type IN ('acquiring_payment_method', 'card_brand') AND data.deleted = 0
-                GROUP BY data.dict_type, UPPER(data.dict_value)
+                GROUP BY item_key
                 HAVING MIN(data.status) = 1 AND MAX(data.status) = 1
                 """, String.class);
         boolean cardEnabled = keys.contains("METHOD:BANK_CARD");
