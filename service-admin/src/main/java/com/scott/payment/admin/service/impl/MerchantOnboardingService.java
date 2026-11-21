@@ -46,6 +46,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -336,6 +337,34 @@ public class MerchantOnboardingService {
     public void replaceRelatedPersons(String merchantId,
                                       List<MerchantOnboardingDTOs.RelatedPerson> persons,
                                       LocalDateTime now) {
+        replaceRelatedPersons(merchantId, persons, now, false);
+    }
+
+    /**
+     * 应用已审核的人员变更，保留同商户人员未修改的历史国籍、居住地和证件类型。
+     *
+     * @param merchantId 申请所属商户号
+     * @param persons 审核通过的人员列表
+     * @param now 审核生效时间
+     */
+    void replaceApprovedRelatedPersons(String merchantId,
+                                       List<MerchantOnboardingDTOs.RelatedPerson> persons,
+                                       LocalDateTime now) {
+        replaceRelatedPersons(merchantId, persons, now, true);
+    }
+
+    /**
+     * 替换人员列表并仅以同商户的历史记录关联证件信息。
+     *
+     * @param merchantId 平台商户号
+     * @param persons 提交的人员列表
+     * @param now 修改时间
+     * @param preserveDirectoryValues 审核路径是否保留未改的目录字段值
+     */
+    private void replaceRelatedPersons(String merchantId,
+                                       List<MerchantOnboardingDTOs.RelatedPerson> persons,
+                                       LocalDateTime now,
+                                       boolean preserveDirectoryValues) {
         List<MerchantRelatedPersonDO> existing = relatedPersonMapper.selectList(
                 Wrappers.<MerchantRelatedPersonDO>lambdaQuery()
                         .eq(MerchantRelatedPersonDO::getMerchantId, merchantId)
@@ -359,7 +388,31 @@ public class MerchantOnboardingService {
             }
             MerchantRelatedPersonDO previous = source.getId() == null ? null : existingById.get(source.getId());
             MerchantRelatedPersonDO row = toEntity(merchantId, source, previous, index, now);
+            if (preserveDirectoryValues && previous != null) {
+                preserveUnchangedDirectoryValues(source, previous, row);
+            }
             relatedPersonMapper.insert(row);
+        }
+    }
+
+    /**
+     * 审核其他人员资料时，保留未编辑的历史目录字段。
+     *
+     * @param source 拟生效的人员资料
+     * @param previous 同商户且相同人员 ID 的历史记录
+     * @param row 新的持久化实体
+     */
+    private void preserveUnchangedDirectoryValues(MerchantOnboardingDTOs.RelatedPerson source,
+                                                  MerchantRelatedPersonDO previous,
+                                                  MerchantRelatedPersonDO row) {
+        if (Objects.equals(source.getNationality(), previous.getNationality())) {
+            row.setNationality(previous.getNationality());
+        }
+        if (Objects.equals(source.getResidenceCountry(), previous.getResidenceCountry())) {
+            row.setResidenceCountry(previous.getResidenceCountry());
+        }
+        if (Objects.equals(source.getIdType(), previous.getIdType())) {
+            row.setIdType(previous.getIdType());
         }
     }
 

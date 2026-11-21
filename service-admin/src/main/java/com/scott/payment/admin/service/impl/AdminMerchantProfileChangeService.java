@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -27,6 +28,7 @@ import com.scott.payment.component.db.merchant.entity.MerchantProfileChangeReque
 import com.scott.payment.component.db.merchant.entity.MerchantProfileReviewRecordDO;
 import com.scott.payment.component.db.merchant.mapper.MerchantProfileChangeRequestMapper;
 import com.scott.payment.component.db.merchant.mapper.MerchantProfileReviewRecordMapper;
+import com.scott.payment.component.db.merchant.support.MerchantProfileDirectoryCsv;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -144,8 +146,9 @@ public class AdminMerchantProfileChangeService {
         }
         AdminMerchantProfileChangeDTOs.ProfileSnapshot proposed = readSnapshot(
                 row, row.getProposedSnapshotCipher());
+        List<String> changedFields = readChangedFields(row);
         if ("PASS".equals(decision)) {
-            ensureNoStaleChangedFields(row);
+            ensureNoStaleChangedFields(row, changedFields);
         }
         String targetStatus = switch (decision) {
             case "PASS" -> STATUS_APPROVED;
@@ -172,7 +175,7 @@ public class AdminMerchantProfileChangeService {
             throw invalid("merchant profile change status has changed, please refresh");
         }
         if ("PASS".equals(decision)) {
-            applySnapshot(row.getMerchantId(), row.getRequestNo(), proposed);
+            applySnapshot(row.getMerchantId(), row.getRequestNo(), proposed, changedFields);
         }
         appendReviewRecord(row, decision, STATUS_PENDING, targetStatus, comment);
         row.setStatus(targetStatus);
@@ -187,13 +190,13 @@ public class AdminMerchantProfileChangeService {
     /**
      * 对申请创建时快照中的实际变更字段执行并发校验，拒绝覆盖后续管理端修改。
      */
-    private void ensureNoStaleChangedFields(MerchantProfileChangeRequestDO row) {
+    private void ensureNoStaleChangedFields(MerchantProfileChangeRequestDO row, List<String> changedFields) {
         AdminMerchantProfileChangeDTOs.ProfileSnapshot original = readSnapshot(
                 row, row.getCurrentSnapshotCipher());
         AdminMerchantProfileChangeDTOs.ProfileSnapshot current = loadCurrent(row.getMerchantId());
         JsonNode originalNode = objectMapper.valueToTree(original);
         JsonNode currentNode = objectMapper.valueToTree(current);
-        for (String field : readChangedFields(row)) {
+        for (String field : changedFields) {
             if (!Objects.equals(originalNode.get(field), currentNode.get(field))) {
                 throw invalid("merchant profile field changed after submission: " + field);
             }
@@ -201,48 +204,62 @@ public class AdminMerchantProfileChangeService {
     }
 
     /**
-     * 只更新需审核的高风险字段，联系人、语言和时区等即时字段保持当前值。
+     * 应用需审核的资料。目录字段仅在申请中实际修改时写入，保留未改的历史编码。
+     *
+     * @param merchantId 申请所属商户号
+     * @param requestNo 审核通过的申请号
+     * @param value 申请的拟生效快照
+     * @param changedFields 申请实际变更字段
      */
     private void applySnapshot(String merchantId,
                                String requestNo,
-                               AdminMerchantProfileChangeDTOs.ProfileSnapshot value) {
+                               AdminMerchantProfileChangeDTOs.ProfileSnapshot value,
+                               List<String> changedFields) {
         BaseMerchantInfoDO merchant = requireMerchant(merchantId);
-        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, merchantId);
         LocalDateTime now = LocalDateTime.now();
-        int affected = merchantInfoMapper.update(null,
+        LambdaUpdateWrapper<BaseMerchantInfoDO> update =
                 Wrappers.<BaseMerchantInfoDO>lambdaUpdate()
                         .set(BaseMerchantInfoDO::getMerchantName, trimToNull(value.getMerchantName()))
                         .set(BaseMerchantInfoDO::getBillingDescriptor, trimToNull(value.getBillingDescriptor()))
                         .set(BaseMerchantInfoDO::getMerchantType, upper(value.getMerchantType()))
-                        .set(BaseMerchantInfoDO::getCountryCode, upper(value.getCountryCode()))
-                        .set(BaseMerchantInfoDO::getOperatingCountry, upper(value.getOperatingCountry()))
-                        .set(BaseMerchantInfoDO::getBusinessType, upper(value.getBusinessType()))
-                        .set(BaseMerchantInfoDO::getIndustryCategory, upper(value.getIndustryCategory()))
+                        .set(changedFields.contains("countryCode"),
+                                BaseMerchantInfoDO::getCountryCode, upper(value.getCountryCode()))
+                        .set(changedFields.contains("operatingCountry"),
+                                BaseMerchantInfoDO::getOperatingCountry, upper(value.getOperatingCountry()))
+                        .set(changedFields.contains("businessType"),
+                                BaseMerchantInfoDO::getBusinessType, upper(value.getBusinessType()))
+                        .set(changedFields.contains("industryCategory"),
+                                BaseMerchantInfoDO::getIndustryCategory, upper(value.getIndustryCategory()))
                         .set(BaseMerchantInfoDO::getMerchantDescription, trimToNull(value.getMerchantDescription()))
                         .set(BaseMerchantInfoDO::getRegistrationNumber, trimToNull(value.getRegistrationNumber()))
-                        .set(BaseMerchantInfoDO::getLegalEntityType, upper(value.getLegalEntityType()))
+                        .set(changedFields.contains("legalEntityType"),
+                                BaseMerchantInfoDO::getLegalEntityType, upper(value.getLegalEntityType()))
                         .set(BaseMerchantInfoDO::getIncorporationDate, value.getIncorporationDate())
-                        .set(BaseMerchantInfoDO::getIncorporationCountry, upper(value.getIncorporationCountry()))
+                        .set(changedFields.contains("incorporationCountry"),
+                                BaseMerchantInfoDO::getIncorporationCountry, upper(value.getIncorporationCountry()))
                         .set(BaseMerchantInfoDO::getRegisteredState, trimToNull(value.getRegisteredState()))
                         .set(BaseMerchantInfoDO::getRegisteredCity, trimToNull(value.getRegisteredCity()))
                         .set(BaseMerchantInfoDO::getRegisteredPostcode, trimToNull(value.getRegisteredPostcode()))
                         .set(BaseMerchantInfoDO::getRegisteredAddress, trimToNull(value.getRegisteredAddress()))
                         .set(BaseMerchantInfoDO::getOperatingSameAsRegistered, bool(value.getOperatingSameAsRegistered()))
                         .set(BaseMerchantInfoDO::getTaxId, trimToNull(value.getTaxId()))
-                        .set(BaseMerchantInfoDO::getCompanySize, upper(value.getCompanySize()))
+                        .set(changedFields.contains("companySize"),
+                                BaseMerchantInfoDO::getCompanySize, upper(value.getCompanySize()))
                         .set(BaseMerchantInfoDO::getEmployeeCount, value.getEmployeeCount())
                         .set(BaseMerchantInfoDO::getRegionCode, trimToNull(value.getRegionCode()))
                         .set(BaseMerchantInfoDO::getCity, trimToNull(value.getCity()))
                         .set(BaseMerchantInfoDO::getAddressLine, trimToNull(value.getAddressLine()))
                         .set(BaseMerchantInfoDO::getPostalCode, trimToNull(value.getPostalCode()))
-                        .set(BaseMerchantInfoDO::getBusinessModel, upper(value.getBusinessModel()))
-                        .set(BaseMerchantInfoDO::getSalesChannels, join(value.getSalesChannels(), false))
+                        .set(changedFields.contains("businessModel"),
+                                BaseMerchantInfoDO::getBusinessModel, upper(value.getBusinessModel()))
+                        .set(changedFields.contains("salesChannels"),
+                                BaseMerchantInfoDO::getSalesChannels, join(value.getSalesChannels()))
                         .set(BaseMerchantInfoDO::getProductsServices, trimToNull(value.getProductsServices()))
-                        .set(BaseMerchantInfoDO::getTargetMarkets, join(value.getTargetMarkets(), true))
-                        .set(BaseMerchantInfoDO::getCustomerType, upper(value.getCustomerType()))
-                        .set(BaseMerchantInfoDO::getTransactionCurrencies, join(value.getTransactionCurrencies(), true))
+                        .set(changedFields.contains("customerType"),
+                                BaseMerchantInfoDO::getCustomerType, upper(value.getCustomerType()))
                         .set(BaseMerchantInfoDO::getExpectedMonthlyVolume, value.getExpectedMonthlyVolume())
-                        .set(BaseMerchantInfoDO::getExpectedVolumeCurrency, upper(value.getExpectedVolumeCurrency()))
+                        .set(changedFields.contains("expectedVolumeCurrency"),
+                                BaseMerchantInfoDO::getExpectedVolumeCurrency, upper(value.getExpectedVolumeCurrency()))
                         .set(BaseMerchantInfoDO::getAverageTicket, value.getAverageTicket())
                         .set(BaseMerchantInfoDO::getMaxTicket, value.getMaxTicket())
                         .set(BaseMerchantInfoDO::getExpectedMonthlyCount, value.getExpectedMonthlyCount())
@@ -258,7 +275,7 @@ public class AdminMerchantProfileChangeService {
                         .set(BaseMerchantInfoDO::getAppStoreUrl, trimToNull(value.getAppStoreUrl()))
                         .set(BaseMerchantInfoDO::getGooglePlayUrl, trimToNull(value.getGooglePlayUrl()))
                         .set(BaseMerchantInfoDO::getOtherSalesUrl, trimToNull(value.getOtherSalesUrl()))
-                        .set(BaseMerchantInfoDO::getWebsiteLanguages, join(value.getWebsiteLanguages(), false))
+                        .set(BaseMerchantInfoDO::getWebsiteLanguages, join(value.getWebsiteLanguages()))
                         .set(BaseMerchantInfoDO::getWebsiteLiveFlag, bool(value.getWebsiteLiveFlag()))
                         .set(BaseMerchantInfoDO::getPrivacyPolicyUrl, trimToNull(value.getPrivacyPolicyUrl()))
                         .set(BaseMerchantInfoDO::getRefundPolicyUrl, trimToNull(value.getRefundPolicyUrl()))
@@ -267,12 +284,26 @@ public class AdminMerchantProfileChangeService {
                         .set(BaseMerchantInfoDO::getGmtModified, now)
                         .eq(BaseMerchantInfoDO::getId, merchant.getId())
                         .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
-                        .eq(BaseMerchantInfoDO::getDeleted, NOT_DELETED));
+                        .eq(BaseMerchantInfoDO::getDeleted, NOT_DELETED);
+        if (changedFields.contains("targetMarkets")) {
+            update.set(BaseMerchantInfoDO::getTargetMarkets,
+                    encodeDirectoryForApproval(merchant.getTargetMarkets(), value.getTargetMarkets(),
+                            MerchantProfileDirectoryCsv.TARGET_MARKETS_LIMIT, "targetMarkets"));
+        }
+        if (changedFields.contains("transactionCurrencies")) {
+            update.set(BaseMerchantInfoDO::getTransactionCurrencies,
+                    encodeDirectoryForApproval(merchant.getTransactionCurrencies(), value.getTransactionCurrencies(),
+                            MerchantProfileDirectoryCsv.TRANSACTION_CURRENCIES_LIMIT, "transactionCurrencies"));
+        }
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, merchantId);
+        int affected = merchantInfoMapper.update(null, update);
         if (affected != 1) {
             throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(),
                     "merchant profile approval did not affect exactly one row");
         }
-        onboardingService.replaceRelatedPersons(merchantId, value.getRelatedPersons(), now);
+        if (changedFields.contains("relatedPersons")) {
+            onboardingService.replaceApprovedRelatedPersons(merchantId, value.getRelatedPersons(), now);
+        }
         documentMapper.update(null, Wrappers.<BizDocumentDO>lambdaUpdate()
                 .set(BizDocumentDO::getDocumentStatus, "ACTIVE")
                 .set(BizDocumentDO::getGmtModified, now)
@@ -281,6 +312,23 @@ public class AdminMerchantProfileChangeService {
                 .eq(BizDocumentDO::getRequestNo, requestNo)
                 .eq(BizDocumentDO::getDocumentStatus, STATUS_PENDING)
                 .eq(BizDocumentDO::getDeleted, NOT_DELETED));
+    }
+
+    /**
+     * 使用草稿和审核共用的目录编码，并拦截历史申请中可能超出主档容量的变更。
+     *
+     * @param current 主档现有编码
+     * @param proposed 审核申请中的新列表
+     * @param limit 现有主档列的字符上限
+     * @param field 可供运营定位的字段名
+     * @return 可写入商户主档的编码
+     */
+    private String encodeDirectoryForApproval(String current, List<String> proposed, int limit, String field) {
+        String encoded = MerchantProfileDirectoryCsv.encode(split(current), proposed);
+        if (MerchantProfileDirectoryCsv.exceedsLimit(encoded, limit)) {
+            throw invalid(field + " exceeds the storage length of " + limit + " characters");
+        }
+        return encoded;
     }
 
     /**
@@ -582,11 +630,10 @@ public class AdminMerchantProfileChangeService {
     /**
      * 将非空文本集合连接为持久化字符串。
      */
-    private String join(List<String> values, boolean uppercase) {
+    private String join(List<String> values) {
         if (values == null) return null;
         String joined = values.stream().filter(Objects::nonNull).map(String::trim)
                 .filter(StringUtils::hasText)
-                .map(value -> uppercase ? value.toUpperCase(Locale.ROOT) : value)
                 .distinct().collect(Collectors.joining(","));
         return joined.isBlank() ? null : joined;
     }

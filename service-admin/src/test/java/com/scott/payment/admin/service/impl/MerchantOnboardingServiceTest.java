@@ -24,10 +24,12 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -154,6 +156,37 @@ class MerchantOnboardingServiceTest {
                 primaryAccountProvisioningService,
                 fundAccountProvisioningService,
                 settlementInternalClient);
+    }
+
+    /**
+     * 只更改人员的居住国家时，保留同一商户该人员的其他历史目录值和证件密文。
+     */
+    @Test
+    void shouldPreserveUnchangedDirectoryValuesWhenApprovingRelatedPersonUpdate() {
+        MerchantRelatedPersonDO previous = new MerchantRelatedPersonDO();
+        previous.setId(41L);
+        previous.setNationality("uSa");
+        previous.setResidenceCountry("CAN");
+        previous.setIdType("legacyType");
+        previous.setIdNumberCipher("synthetic-cipher");
+        previous.setIdNumberMasked("X***1");
+        MerchantOnboardingDTOs.RelatedPerson proposed = new MerchantOnboardingDTOs.RelatedPerson();
+        proposed.setId(previous.getId());
+        proposed.setFullName("Fixture Person");
+        proposed.setNationality("uSa");
+        proposed.setResidenceCountry("gbr");
+        proposed.setIdType("legacyType");
+        when(relatedPersonMapper.selectList(any())).thenReturn(List.of(previous));
+
+        service.replaceApprovedRelatedPersons("M-TEST", List.of(proposed), LocalDateTime.of(2026, 1, 1, 0, 0));
+
+        ArgumentCaptor<MerchantRelatedPersonDO> inserted = ArgumentCaptor.forClass(MerchantRelatedPersonDO.class);
+        verify(relatedPersonMapper).insert(inserted.capture());
+        assertThat(inserted.getValue().getNationality()).isEqualTo("uSa");
+        assertThat(inserted.getValue().getResidenceCountry()).isEqualTo("GBR");
+        assertThat(inserted.getValue().getIdType()).isEqualTo("legacyType");
+        assertThat(inserted.getValue().getIdNumberCipher()).isEqualTo("synthetic-cipher");
+        assertThat(inserted.getValue().getIdNumberMasked()).isEqualTo("X***1");
     }
 
     /**

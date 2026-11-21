@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.admin.dto.merchant.AdminMerchantProfileChangeDTOs;
@@ -22,6 +23,8 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,7 +35,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -60,6 +62,10 @@ class AdminMerchantProfileChangeServiceTest {
     private MerchantProfileSensitiveCrypto sensitiveCrypto;
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
+    /** 主档更新参数，用于核对实际 SQL 中的保留字段与变更值。 */
+    @Captor
+    private ArgumentCaptor<LambdaUpdateWrapper<BaseMerchantInfoDO>> updateCaptor;
 
     private ObjectMapper objectMapper;
     private AdminMerchantProfileChangeService service;
@@ -93,6 +99,9 @@ class AdminMerchantProfileChangeServiceTest {
     void shouldApplySnapshotAfterApprovalStateCasSucceeds() throws Exception {
         MerchantProfileChangeRequestDO request = pendingRequest();
         BaseMerchantInfoDO merchant = merchant("Current Legal Name");
+        merchant.setCountryCode("uSa");
+        merchant.setIndustryCategory("legacyCategory");
+        merchant.setExpectedVolumeCurrency("uSd");
         stubRequestAndSnapshots(request, snapshot("Current Legal Name"), snapshot("Approved Legal Name"));
         when(merchantInfoMapper.selectOne(any())).thenReturn(merchant);
         when(relatedPersonMapper.selectList(any())).thenReturn(List.of());
@@ -109,9 +118,44 @@ class AdminMerchantProfileChangeServiceTest {
         writeOrder.verify(merchantInfoMapper).update(any(), any());
         verify(cacheInvalidationCoordinator)
                 .prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, request.getMerchantId());
-        verify(onboardingService).replaceRelatedPersons(eq(request.getMerchantId()), any(), any());
+        verify(onboardingService, never()).replaceApprovedRelatedPersons(any(), any(), any());
+        verify(merchantInfoMapper).update(any(), updateCaptor.capture());
+        assertThat(updateCaptor.getValue().getSqlSet()).contains("merchant_name=")
+                .doesNotContain("country_code=", "industry_category=", "expected_volume_currency=",
+                        "target_markets=", "transaction_currencies=", "merchant_category_code=");
         verify(documentMapper).update(any(), any());
         verify(reviewRecordMapper).insert(any(MerchantProfileReviewRecordDO.class));
+    }
+
+    /**
+     * 更新多选项时保留仍被选中的历史编码，仅规范新加入的值。
+     */
+    @Test
+    void shouldPreserveRetainedDirectoryEntryWhenApprovingNewSelection() throws Exception {
+        MerchantProfileChangeRequestDO request = pendingRequest();
+        request.setChangedFieldsJson("[\"targetMarkets\",\"transactionCurrencies\"]");
+        BaseMerchantInfoDO merchant = merchant("Current Legal Name");
+        merchant.setTargetMarkets("uSa,CAN");
+        merchant.setTransactionCurrencies("uSd,CAD");
+        AdminMerchantProfileChangeDTOs.ProfileSnapshot current = snapshot("Current Legal Name");
+        current.setTargetMarkets(List.of("uSa", "CAN"));
+        current.setTransactionCurrencies(List.of("uSd", "CAD"));
+        AdminMerchantProfileChangeDTOs.ProfileSnapshot proposed = snapshot("Current Legal Name");
+        proposed.setTargetMarkets(List.of("uSa", "gbr"));
+        proposed.setTransactionCurrencies(List.of("uSd", "gbp"));
+        stubRequestAndSnapshots(request, current, proposed);
+        when(merchantInfoMapper.selectOne(any())).thenReturn(merchant);
+        when(relatedPersonMapper.selectList(any())).thenReturn(List.of());
+        when(documentMapper.selectList(any())).thenReturn(List.of());
+        when(requestMapper.update(any(), any())).thenReturn(1);
+        when(merchantInfoMapper.update(any(), any())).thenReturn(1);
+
+        service.review(request.getRequestNo(), review("PASS", null));
+
+        verify(merchantInfoMapper).update(any(), updateCaptor.capture());
+        assertThat(updateCaptor.getValue().getSqlSet()).contains("target_markets=", "transaction_currencies=");
+        assertThat(updateCaptor.getValue().getParamNameValuePairs().values())
+                .contains("uSa,GBR", "uSd,GBP");
     }
 
     /**
@@ -170,7 +214,7 @@ class AdminMerchantProfileChangeServiceTest {
 
         verify(merchantInfoMapper, never()).update(any(), any());
         verify(cacheInvalidationCoordinator, never()).prepare(any(), any());
-        verify(onboardingService, never()).replaceRelatedPersons(any(), any(), any());
+        verify(onboardingService, never()).replaceApprovedRelatedPersons(any(), any(), any());
         verify(documentMapper, never()).update(any(), any());
         verify(reviewRecordMapper, never()).insert(any(MerchantProfileReviewRecordDO.class));
     }

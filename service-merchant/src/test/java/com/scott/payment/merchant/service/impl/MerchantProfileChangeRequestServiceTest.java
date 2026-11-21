@@ -83,6 +83,69 @@ class MerchantProfileChangeRequestServiceTest {
     }
 
     /**
+     * 目录长度根据最终编码校验。新草稿变更超限时不得写入申请。
+     */
+    @Test
+    void shouldRejectChangesThatExceedDirectoryColumnLengths() {
+        MerchantProfileChangeRequestMapper requestMapper = mock(MerchantProfileChangeRequestMapper.class);
+        MerchantProfileSnapshotService snapshotService = mock(MerchantProfileSnapshotService.class);
+        when(snapshotService.loadCurrent("M-TEST")).thenReturn(snapshot("Current Legal Name"));
+        MerchantProfileChangeRequestService service = new MerchantProfileChangeRequestService(
+                requestMapper, mock(MerchantProfileReviewRecordMapper.class), mock(MerchantDocumentMapper.class),
+                snapshotService, mock(MerchantProfilePayloadCrypto.class), new ObjectMapper().findAndRegisterModules());
+        MerchantProfileChangeDTOs.ProfileSnapshot proposed = snapshot("Current Legal Name");
+        proposed.setTargetMarkets(List.of("a".repeat(509), "usa"));
+
+        assertThatThrownBy(() -> service.saveDraft("M-TEST", proposed))
+                .hasMessageContaining("targetMarkets exceeds the storage length of 512 characters");
+
+        proposed.setTargetMarkets(List.of());
+        proposed.setTransactionCurrencies(List.of("a".repeat(253), "usd"));
+        assertThatThrownBy(() -> service.saveDraft("M-TEST", proposed))
+                .hasMessageContaining("transactionCurrencies exceeds the storage length of 256 characters");
+
+        verify(requestMapper, never()).insert(any(MerchantProfileChangeRequestDO.class));
+
+        proposed.setTargetMarkets(List.of("a".repeat(508), "usa"));
+        proposed.setTransactionCurrencies(List.of("a".repeat(252), "usd"));
+        MerchantProfileChangeDTOs.ChangeRequest saved = service.saveDraft("M-TEST", proposed);
+
+        assertThat(saved.getChangedFields()).containsExactly("targetMarkets", "transactionCurrencies");
+        verify(requestMapper).insert(any(MerchantProfileChangeRequestDO.class));
+    }
+
+    /**
+     * 未改的旧草稿目录超限时，仍可保存其他字段的修改。
+     */
+    @Test
+    void shouldAllowUnrelatedEditWithoutChangingLegacyDraftDirectoryValues() throws Exception {
+        MerchantProfileChangeRequestMapper requestMapper = mock(MerchantProfileChangeRequestMapper.class);
+        MerchantProfileSnapshotService snapshotService = mock(MerchantProfileSnapshotService.class);
+        MerchantProfilePayloadCrypto payloadCrypto = mock(MerchantProfilePayloadCrypto.class);
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        MerchantProfileChangeRequestDO draft = draftRequest();
+        MerchantProfileChangeDTOs.ProfileSnapshot previous = snapshot("Draft Legal Name");
+        List<String> legacyMarkets = List.of("a".repeat(513));
+        previous.setTargetMarkets(legacyMarkets);
+        MerchantProfileChangeDTOs.ProfileSnapshot proposed = snapshot("Updated Legal Name");
+        proposed.setTargetMarkets(legacyMarkets);
+        when(snapshotService.loadCurrent("M-TEST")).thenReturn(snapshot("Current Legal Name"));
+        when(requestMapper.selectOne(any())).thenReturn(draft);
+        when(requestMapper.update(any(), any())).thenReturn(1);
+        when(payloadCrypto.decrypt(draft.getRequestNo(), draft.getProposedSnapshotCipher()))
+                .thenReturn(mapper.writeValueAsString(previous));
+
+        MerchantProfileChangeRequestService service = new MerchantProfileChangeRequestService(
+                requestMapper, mock(MerchantProfileReviewRecordMapper.class), mock(MerchantDocumentMapper.class),
+                snapshotService, payloadCrypto, mapper);
+        MerchantProfileChangeDTOs.ChangeRequest result = service.saveDraft("M-TEST", proposed);
+
+        assertThat(result.getProposedProfile().getTargetMarkets()).containsExactlyElementsOf(legacyMarkets);
+        assertThat(result.getProposedProfile().getMerchantName()).isEqualTo("Updated Legal Name");
+        verify(requestMapper).update(any(), any());
+    }
+
+    /**
      * 草稿提交后必须进入待审核且仍不得应用正式资料。
      */
     @Test

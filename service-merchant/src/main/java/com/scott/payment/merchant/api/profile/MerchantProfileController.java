@@ -11,6 +11,7 @@ import com.scott.payment.component.web.operation.constant.OperationTypeConstants
 import com.scott.payment.component.web.operation.constant.OperatorTypeConstants;
 import com.scott.payment.merchant.application.profile.MerchantProfileApplicationService;
 import com.scott.payment.merchant.dto.profile.MerchantProfileChangeDTOs;
+import com.scott.payment.merchant.dto.profile.MerchantProfileCountryOption;
 import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
 import com.scott.payment.merchant.dto.profile.MerchantProfileUpdateRequest;
 import jakarta.validation.Valid;
@@ -22,6 +23,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -55,6 +58,18 @@ public class MerchantProfileController {
     @RequiresPermission("merchant:info:view")
     public CommonResult<MerchantProfileResponse> getProfile() {
         return success(applicationService.getProfile(currentMerchantId()));
+    }
+
+    /**
+     * 查询当前商户资料可选的国家或地区。
+     *
+     * @return 启用的国家地区基础数据投影
+     */
+    @GetMapping("/country-options")
+    @RequiresPermission("merchant:info:view")
+    public CommonResult<List<MerchantProfileCountryOption>> listCountryOptions() {
+        currentMerchantId();
+        return success(applicationService.listCountryOptions());
     }
 
     /**

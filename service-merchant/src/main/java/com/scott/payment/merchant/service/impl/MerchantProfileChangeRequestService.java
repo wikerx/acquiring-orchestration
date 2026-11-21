@@ -18,6 +18,7 @@ import com.scott.payment.component.db.merchant.entity.MerchantProfileReviewRecor
 import com.scott.payment.component.db.merchant.mapper.MerchantDocumentMapper;
 import com.scott.payment.component.db.merchant.mapper.MerchantProfileChangeRequestMapper;
 import com.scott.payment.component.db.merchant.mapper.MerchantProfileReviewRecordMapper;
+import com.scott.payment.component.db.merchant.support.MerchantProfileDirectoryCsv;
 import com.scott.payment.merchant.dto.profile.MerchantProfileChangeDTOs;
 import com.scott.payment.merchant.service.profile.MerchantProfilePayloadCrypto;
 import com.scott.payment.merchant.service.profile.MerchantProfileSnapshotService;
@@ -194,9 +195,11 @@ public class MerchantProfileChangeRequestService {
                 && !STATUS_SUPPLEMENT_REQUIRED.equals(existing.getStatus())) {
             throw invalid("merchant profile change cannot be edited in current status");
         }
+        MerchantProfileChangeDTOs.ProfileSnapshot previous = existing == null ? current : readProposed(existing);
         if (existing != null) {
-            preserveSensitivePersonValues(readProposed(existing), proposed);
+            preserveSensitivePersonValues(previous, proposed);
         }
+        validateChangedDirectoryLengths(current, previous, proposed);
         List<String> changedFields = changedFields(current, proposed);
         if (changedFields.isEmpty()) {
             throw invalid("merchant profile change contains no differences");
@@ -313,6 +316,42 @@ public class MerchantProfileChangeRequestService {
             throw invalid("merchant profile change request was not found");
         }
         return row;
+    }
+
+    /**
+     * 校验本次实际改动的目录列表，避免历史草稿的未改条目阻断无关编辑。
+     *
+     * @param current 正式资料快照
+     * @param previous 编辑前的草稿快照，首次保存时为正式资料
+     * @param proposed 本次提交的新草稿
+     */
+    private void validateChangedDirectoryLengths(MerchantProfileChangeDTOs.ProfileSnapshot current,
+                                                 MerchantProfileChangeDTOs.ProfileSnapshot previous,
+                                                 MerchantProfileChangeDTOs.ProfileSnapshot proposed) {
+        validateDirectoryLength(current.getTargetMarkets(), previous.getTargetMarkets(), proposed.getTargetMarkets(),
+                MerchantProfileDirectoryCsv.TARGET_MARKETS_LIMIT, "targetMarkets");
+        validateDirectoryLength(current.getTransactionCurrencies(), previous.getTransactionCurrencies(),
+                proposed.getTransactionCurrencies(), MerchantProfileDirectoryCsv.TRANSACTION_CURRENCIES_LIMIT,
+                "transactionCurrencies");
+    }
+
+    /**
+     * 使用审核应用的编码计算字符长度。
+     *
+     * @param current 正式资料值
+     * @param previous 进入表单时的值
+     * @param proposed 当次提交值
+     * @param limit 主档列的最大字符长度
+     * @param field 发生错误时的稳定字段名
+     */
+    private void validateDirectoryLength(List<String> current, List<String> previous,
+                                         List<String> proposed, int limit, String field) {
+        if (Objects.equals(proposed, previous) || Objects.equals(proposed, current)) {
+            return;
+        }
+        if (MerchantProfileDirectoryCsv.exceedsLimit(MerchantProfileDirectoryCsv.encode(current, proposed), limit)) {
+            throw invalid(field + " exceeds the storage length of " + limit + " characters");
+        }
     }
 
     /**

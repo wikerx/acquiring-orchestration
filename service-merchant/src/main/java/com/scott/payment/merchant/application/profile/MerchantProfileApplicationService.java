@@ -1,11 +1,17 @@
 package com.scott.payment.merchant.application.profile;
 
-import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
+import com.scott.payment.component.core.iso.IsoCountryInfo;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.merchant.dto.profile.MerchantProfileChangeDTOs;
+import com.scott.payment.merchant.dto.profile.MerchantProfileCountryOption;
+import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
 import com.scott.payment.merchant.dto.profile.MerchantProfileUpdateRequest;
 import com.scott.payment.merchant.service.MerchantProfileService;
 import com.scott.payment.merchant.service.impl.MerchantProfileChangeRequestService;
 import org.springframework.stereotype.Service;
+
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * 商户主体资料应用服务，承接认证商户身份并编排资料查询和受限更新用例。
@@ -23,16 +29,37 @@ public class MerchantProfileApplicationService {
      */
     private final MerchantProfileChangeRequestService changeRequestService;
 
+    /** 与管理端商户资料共用的启用国家地区字典。 */
+    private final IsoDictionaryService isoDictionaryService;
+
     /**
      * 创建商户主体资料应用服务。
      *
      * @param merchantProfileService 商户主体资料领域服务
+     * @param changeRequestService 商户高风险资料变更申请服务
+     * @param isoDictionaryService 平台基础数据字典
      */
     public MerchantProfileApplicationService(
             MerchantProfileService merchantProfileService,
-            MerchantProfileChangeRequestService changeRequestService) {
+            MerchantProfileChangeRequestService changeRequestService,
+            IsoDictionaryService isoDictionaryService) {
         this.merchantProfileService = merchantProfileService;
         this.changeRequestService = changeRequestService;
+        this.isoDictionaryService = isoDictionaryService;
+    }
+
+    /**
+     * 返回与管理端商户资料同源的启用国家地区选项。
+     *
+     * @return 按三字母代码排列的商户表单选项
+     */
+    public List<MerchantProfileCountryOption> listCountryOptions() {
+        return isoDictionaryService.listCountries().stream()
+                .sorted(Comparator.comparing(IsoCountryInfo::alpha3))
+                .map(country -> new MerchantProfileCountryOption(
+                        country.alpha3(), country.alpha2(), country.chineseName(),
+                        country.englishName(), country.shortEnglishName(), country.flagEmoji()))
+                .toList();
     }
 
     /**
