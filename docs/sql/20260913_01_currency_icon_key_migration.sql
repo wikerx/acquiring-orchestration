@@ -36,7 +36,7 @@ BEGIN
     ) THEN
         ALTER TABLE base_iso_currency
             ADD COLUMN icon_key VARCHAR(64) NULL
-                COMMENT 'Controlled currency presentation icon key'
+                COMMENT '受控币种展示图标键'
                 AFTER currency_symbol;
     END IF;
 

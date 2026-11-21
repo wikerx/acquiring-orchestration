@@ -16,7 +16,7 @@ public class SysRoleCreateRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @NotBlank(message = "roleCode")
+    /** 新增角色由服务端生成编码；保留字段兼容旧客户端，提交值不参与创建。 */
     @Size(max = 80, message = "roleCode length must be less than 80")
     private String roleCode;
 

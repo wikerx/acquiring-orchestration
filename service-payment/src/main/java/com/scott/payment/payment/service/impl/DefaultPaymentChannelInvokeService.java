@@ -193,6 +193,14 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                     resultDTO.getDurationMillis());
             return resultDTO;
         } catch (ChannelException exception) {
+            if (exception instanceof ChannelResponseException responseException
+                    && responseException.getResponseEvidence() != null) {
+                // 证据不包含可解释的交易状态，只进入内部审计；资金结果仍按异常确定性处理。
+                ChannelPaymentResponse evidence = responseException.getResponseEvidence();
+                resultDTO.setChannelResponse(evidence);
+                resultDTO.setHttpMethod(firstText(evidence.getHttpMethod(), resultDTO.getHttpMethod()));
+                resultDTO.setRequestUrlMasked(firstText(evidence.getRequestUrlMasked(), resultDTO.getRequestUrlMasked()));
+            }
             LocalDateTime responseTime = LocalDateTime.now();
             resultDTO.setRequestStatus(exception instanceof ChannelTimeoutException ? "TIMEOUT" : "FAILED");
             resultDTO.setResponseTime(responseTime);

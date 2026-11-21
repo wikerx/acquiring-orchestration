@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS sys_password_reset_request (
     stage_token_expire_at DATETIME(3) NULL COMMENT '阶段令牌到期时间',
     reset_token_hash CHAR(64) NULL COMMENT '最终重置令牌SHA-256哈希',
     reset_token_expire_at DATETIME(3) NULL COMMENT '最终重置令牌到期时间',
-    state VARCHAR(30) NOT NULL COMMENT 'PENDING_EMAIL、PENDING_MFA、READY、COMPLETED、EXPIRED、LOCKED、BLOCKED',
+    state VARCHAR(30) NOT NULL COMMENT '密码重置请求状态：待邮箱验证、待多因素验证、就绪、已完成、已过期、已锁定或已阻断',
     request_ip VARCHAR(64) NOT NULL COMMENT '请求IP，用于限流和安全审计',
     user_agent VARCHAR(500) NULL COMMENT '截断后的User-Agent',
     locale VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '邮件语言',

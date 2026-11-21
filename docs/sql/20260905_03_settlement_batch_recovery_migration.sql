@@ -6,26 +6,26 @@
 SET NAMES utf8mb4;
 
 CREATE TABLE settlement_batch_recovery_audit (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    settlement_batch_no VARCHAR(19) NOT NULL,
-    request_key VARCHAR(64) NOT NULL,
-    expected_version BIGINT NOT NULL,
-    merchant_id VARCHAR(64) NOT NULL,
-    recovery_action VARCHAR(32) NOT NULL,
-    batch_status_before VARCHAR(24) NOT NULL,
-    failure_stage_before VARCHAR(32) NOT NULL,
-    failure_code_before VARCHAR(64) NOT NULL,
-    retry_count_before INT NOT NULL,
-    restored_candidate_count INT NOT NULL,
-    operator_account_id BIGINT NOT NULL,
-    operator_account_name VARCHAR(128) NOT NULL,
-    operator_role_snapshot VARCHAR(1000) NOT NULL,
-    client_ip VARCHAR(64) NOT NULL,
-    user_agent VARCHAR(500) NOT NULL,
-    reason VARCHAR(400) NOT NULL,
-    operation_time DATETIME(3) NOT NULL,
-    recovered_time DATETIME(3) NOT NULL,
-    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '物理主键' ,
+    settlement_batch_no VARCHAR(19) NOT NULL COMMENT '关联结算批次号' ,
+    request_key VARCHAR(64) NOT NULL COMMENT '操作请求持久化幂等键' ,
+    expected_version BIGINT NOT NULL COMMENT '请求携带的预期版本号' ,
+    merchant_id VARCHAR(64) NOT NULL COMMENT '平台商户号' ,
+    recovery_action VARCHAR(32) NOT NULL COMMENT '人工恢复动作类型' ,
+    batch_status_before VARCHAR(24) NOT NULL COMMENT '操作前结算批次状态快照' ,
+    failure_stage_before VARCHAR(32) NOT NULL COMMENT '恢复前失败阶段快照' ,
+    failure_code_before VARCHAR(64) NOT NULL COMMENT '恢复前失败原因码快照' ,
+    retry_count_before INT NOT NULL COMMENT '恢复前已重试次数' ,
+    restored_candidate_count INT NOT NULL COMMENT '恢复时重新关联的候选数量' ,
+    operator_account_id BIGINT NOT NULL COMMENT '操作人账号主键' ,
+    operator_account_name VARCHAR(128) NOT NULL COMMENT '操作人账号名称快照' ,
+    operator_role_snapshot VARCHAR(1000) NOT NULL COMMENT '操作人执行时的角色快照' ,
+    client_ip VARCHAR(64) NOT NULL COMMENT '客户端地址，仅用于受控审计' ,
+    user_agent VARCHAR(500) NOT NULL COMMENT '客户端用户代理信息' ,
+    reason VARCHAR(400) NOT NULL COMMENT '操作原因或业务说明' ,
+    operation_time DATETIME(3) NOT NULL COMMENT '业务操作发生时间' ,
+    recovered_time DATETIME(3) NOT NULL COMMENT '人工恢复完成时间' ,
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间' ,
     PRIMARY KEY (id),
     UNIQUE KEY uk_settlement_batch_recovery_request (request_key),
     KEY idx_settlement_batch_recovery_batch_time (settlement_batch_no, recovered_time, id),
@@ -41,7 +41,7 @@ CREATE TABLE settlement_batch_recovery_audit (
         AND failure_code_before = 'SETTLEMENT_RETRY_EXHAUSTED'
     )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-  COMMENT='Immutable audit for manually recovering exhausted settlement rate locking';
+  COMMENT='结算批次汇率锁定重试耗尽后的人工恢复审计记录';
 
 SET @cancellation_value_check_exists = (
     SELECT COUNT(*)

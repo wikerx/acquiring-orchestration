@@ -313,6 +313,10 @@ public final class AdminTransactionDTOs {
          */
         private String reasonCode;
 
+        /** 请款、预授权完成及撤销的补充说明；OTHER 必填，最多200字。 */
+        private String operationDescription;
+
+
         /**
          * 补充退款说明，最多 200 字；OTHER 必填，其他原因选填。
          */
@@ -712,6 +716,13 @@ public final class AdminTransactionDTOs {
     public static class TransactionOperationResponse implements Serializable {
 
         private static final long serialVersionUID = 1L;
+
+        /** 基于完整生命周期事实的页面操作提示；最终校验仍由支付核心在主单锁内执行。 */
+        private java.util.List<String> availableActions = java.util.List.of();
+
+        /** 当前成功资金来源的标签币种退款额度快照。 */
+        private com.scott.payment.component.core.model.RefundContext refundContext;
+
 
         /**
          * 平台操作号，由支付核心生成，用于定位一次授权、请款、退款、撤销或回调处理动作。

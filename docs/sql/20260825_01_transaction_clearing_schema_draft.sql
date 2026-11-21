@@ -615,7 +615,7 @@ CREATE TABLE transaction_clearing_detail (
     fee_group_no VARCHAR(64) NULL COMMENT '同一规则一次收费的稳定组号；本金为空',
     component_no SMALLINT NOT NULL COMMENT '费用组内稳定组件序号；本金固定1',
     component_type VARCHAR(24) NOT NULL
-        COMMENT 'PRINCIPAL、PERCENTAGE、FIXED、LIMIT_ADJUSTMENT、REVERSAL、ADJUSTMENT',
+        COMMENT '清分分量类型：本金、比例费用、固定费用、限额调整、冲正或调整',
     basis_currency CHAR(3) NOT NULL COMMENT '百分比基数或本金币种；固定费固定为USD',
     basis_amount DECIMAL(24,8) NOT NULL COMMENT '百分比基数、本金或固定费配置金额，始终非负',
     basis_currency_exponent TINYINT NOT NULL COMMENT '基础币种ISO小数位',
@@ -642,8 +642,8 @@ CREATE TABLE transaction_clearing_detail (
     minimum_amount_usd DECIMAL(24,8) NULL COMMENT '商户规则最低费USD快照',
     maximum_amount_usd DECIMAL(24,8) NULL COMMENT '商户规则最高费USD快照',
     limit_evaluation_status VARCHAR(32) NOT NULL DEFAULT 'NOT_REQUIRED'
-        COMMENT 'NOT_REQUIRED、FINAL_AT_CLEARING、PENDING_SETTLEMENT_RATE',
-    applied_limit VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT 'NONE、MINIMUM、MAXIMUM',
+        COMMENT '限额评估状态：无需评估、清分阶段已确定或等待结算汇率',
+    applied_limit VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT '限额命中类型：NONE未命中，MINIMUM最低限额，MAXIMUM最高限额',
     rounding_mode VARCHAR(16) NOT NULL COMMENT '最终明细舍入模式',
     formula_snapshot VARCHAR(1000) NOT NULL COMMENT '可审计计算公式快照',
     rule_snapshot_json JSON NULL COMMENT '命中规则的规范化非敏感快照',
@@ -902,7 +902,7 @@ CREATE TABLE transaction_reserve_clearing_detail (
     transaction_type VARCHAR(32) NOT NULL COMMENT '产生本保证金事实的交易动作类型',
     clearing_revision INT NOT NULL COMMENT '所属当前动作清分修订号，从1递增',
     line_no INT NOT NULL COMMENT '同一修订内保证金稳定明细序号，从1递增',
-    reserve_action_type VARCHAR(16) NOT NULL COMMENT 'HOLD、RETURN、RELEASE、ADJUSTMENT',
+    reserve_action_type VARCHAR(16) NOT NULL COMMENT '保证金清分动作：留存、退回、释放或调整',
     item_code VARCHAR(128) NOT NULL COMMENT '稳定业务项编码，例如RESERVE:HOLD或RESERVE:RETURN:原HOLD明细号',
     item_name VARCHAR(128) NOT NULL COMMENT '保证金项目名称快照',
     direction VARCHAR(8) NOT NULL COMMENT '商户视角：HOLD为DEBIT，RETURN或RELEASE为CREDIT',
@@ -925,7 +925,7 @@ CREATE TABLE transaction_reserve_clearing_detail (
     rounding_mode VARCHAR(16) NOT NULL COMMENT '原支付保证金舍入规则快照',
     formula_snapshot VARCHAR(1000) NOT NULL COMMENT '标签币种保证金扣留、返还或释放计算公式快照',
     expected_reserve_release_date DATE NULL COMMENT '预计保证金释放业务日期',
-    record_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE、SUPERSEDED',
+    record_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '清分事实状态：ACTIVE当前有效，SUPERSEDED已被替代',
     transaction_date_time DATETIME(3) NOT NULL COMMENT '产生本明细的当前动作业务时间，季度分片键',
     transaction_utc_time DATETIME(3) NOT NULL COMMENT '当前动作业务时间对应UTC时间',
     transaction_time_zone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '当前动作业务时区',
@@ -1062,7 +1062,7 @@ CREATE TABLE transaction_reserve_clearing_state (
     credit_adjustment_amount DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT '经双人复核减少的累计保证金负债',
     remaining_amount DECIMAL(24,8) NOT NULL COMMENT '剩余保证金负债金额',
     expected_reserve_release_date DATE NULL COMMENT '预计保证金释放业务日期',
-    reserve_status VARCHAR(24) NOT NULL DEFAULT 'OPEN' COMMENT 'OPEN、FULLY_RETURNED、FULLY_RELEASED、ADJUSTED',
+    reserve_status VARCHAR(24) NOT NULL DEFAULT 'OPEN' COMMENT '保证金状态：未完结、已全部退回、已全部释放或已调整',
     last_return_transaction_id VARCHAR(64) NULL COMMENT '最近成功返还保证金的退款动作交易号',
     last_return_transaction_date_time DATETIME(3) NULL COMMENT '最近成功返还动作时间',
     transaction_date_time DATETIME(3) NOT NULL COMMENT '原支付动作业务时间，统一季度分片键',
@@ -1158,7 +1158,7 @@ CREATE TABLE clearing_reserve_adjustment (
     review_operator VARCHAR(128) NULL COMMENT '可信Admin登录上下文复核人，必须不同于提交人',
     review_comment VARCHAR(400) NULL COMMENT '复核意见',
     adjustment_status VARCHAR(24) NOT NULL DEFAULT 'PENDING_REVIEW'
-        COMMENT 'PENDING_REVIEW、EXECUTED、REJECTED',
+        COMMENT '审批执行状态：PENDING_REVIEW待审批，EXECUTED已执行，REJECTED已拒绝',
     execution_transaction_id VARCHAR(64) NULL COMMENT '批准后形成的独立保证金调整动作号',
     source_revision INT NULL COMMENT '批准后形成的保证金来源修订',
     review_time DATETIME(3) NULL COMMENT '复核时间',
@@ -1217,7 +1217,7 @@ CREATE TABLE clearing_tier_period_replay (
     review_operator VARCHAR(128) NULL COMMENT '可信Admin登录上下文复核人，必须不同于提交人',
     review_comment VARCHAR(400) NULL COMMENT '复核意见',
     replay_status VARCHAR(24) NOT NULL DEFAULT 'PENDING_REVIEW'
-        COMMENT 'PENDING_REVIEW、PREPARING、RUNNING、COMPLETED、MANUAL_REVIEW、REJECTED',
+        COMMENT '重放状态：待审批、准备中、执行中、已完成、人工复核或已拒绝',
     item_count INT NOT NULL DEFAULT 0 COMMENT '复核后冻结的稳定动作项数量',
     completed_count INT NOT NULL DEFAULT 0 COMMENT '已按稳定顺序完成的动作项数量',
     last_clearing_complete_time DATETIME(3) NULL COMMENT '最后完成项的原清分完成时间游标',
@@ -1276,7 +1276,7 @@ CREATE TABLE clearing_tier_period_replay_item (
     expected_clearing_revision INT NOT NULL COMMENT '冻结时原清分修订',
     expected_finance_state_version INT NOT NULL COMMENT '冻结时finance state CAS版本',
     clearing_complete_time DATETIME(3) NOT NULL COMMENT '原清分完成时间，用于稳定顺序',
-    item_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING、FAILED、COMPLETED',
+    item_status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT '明细处理状态：PENDING待处理，FAILED失败，COMPLETED已完成',
     attempt_count INT NOT NULL DEFAULT 0 COMMENT '失败尝试次数，最大8次后转人工复核',
     next_retry_time DATETIME(3) NULL COMMENT 'FAILED项的下次重试时间',
     last_error_code VARCHAR(64) NULL COMMENT '有限错误码',
@@ -1334,8 +1334,8 @@ CREATE TABLE merchant_settlement_profile (
     target_currency_exponent TINYINT NOT NULL COMMENT '目标币种ISO小数位',
     business_time_zone VARCHAR(64) NOT NULL COMMENT '日切使用的IANA业务时区',
     daily_cutoff_time TIME NOT NULL COMMENT '商户本地每日结算日切时间',
-    processing_mode VARCHAR(16) NOT NULL DEFAULT 'AUTO_POST' COMMENT 'AUTO_POST、AUTO_REVIEW、MANUAL',
-    profile_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE、RETIRED、SUSPENDED',
+    processing_mode VARCHAR(16) NOT NULL DEFAULT 'AUTO_POST' COMMENT '结算处理模式：AUTO_POST自动入账，AUTO_REVIEW自动选取后审批，MANUAL人工选择',
+    profile_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '结算档案状态：ACTIVE活动，RETIRED已退役，SUSPENDED已暂停',
     active_slot TINYINT NULL COMMENT '活动档案固定为1，非活动档案为空，用于唯一约束',
     effective_date DATE NOT NULL COMMENT '档案生效业务日期',
     expire_date DATE NULL COMMENT '档案失效业务日期，长期有效为空',
@@ -1383,12 +1383,12 @@ CREATE TABLE settlement_batch (
     target_currency CHAR(3) NOT NULL COMMENT '本批目标结算币种',
     target_currency_exponent TINYINT NOT NULL COMMENT '目标币种ISO小数位',
     batch_type VARCHAR(24) NOT NULL DEFAULT 'REGULAR'
-        COMMENT 'REGULAR、RESERVE_RELEASE、REVERSAL、ADJUSTMENT',
+        COMMENT '结算批次类型：常规、保证金释放、冲正或调整',
     original_batch_no VARCHAR(19) NULL COMMENT '冲正或调整引用的原批次号',
     cutoff_begin_time DATETIME(3) NOT NULL COMMENT '候选窗口起始时间，闭区间',
     cutoff_end_time DATETIME(3) NOT NULL COMMENT '候选窗口结束时间，开区间',
     batch_status VARCHAR(24) NOT NULL DEFAULT 'CREATED'
-        COMMENT 'CREATED、CLAIMING、CLAIMED、RATE_LOCKED、CALCULATING、CALCULATED、POSTING、POSTED、FAILED_RETRYABLE、MANUAL_REVIEW、CANCELLED、REVERSING、REVERSED',
+        COMMENT '结算批次状态：已创建、认领中、已认领、已锁汇、计算中、已计算、入账中、已入账、可重试失败、人工复核、已取消、冲正中或已冲正',
     candidate_count INT NOT NULL DEFAULT 0 COMMENT '本批已认领候选数',
     retry_count INT NOT NULL DEFAULT 0 COMMENT '批次阶段重试次数',
     processing_owner VARCHAR(128) NULL COMMENT '当前处理租约所有者',
@@ -1432,7 +1432,7 @@ CREATE TABLE settlement_batch (
 CREATE TABLE settlement_candidate (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     candidate_no VARCHAR(64) NOT NULL COMMENT '候选业务号',
-    source_type VARCHAR(24) NOT NULL COMMENT 'CLEARING_REVISION、RESERVE_RELEASE、ADJUSTMENT',
+    source_type VARCHAR(24) NOT NULL COMMENT '结算候选来源：清分修订、保证金释放或调整',
     source_business_id VARCHAR(64) NOT NULL COMMENT 'finance_state_id、reserve_state_id或调整业务号',
     source_revision INT NOT NULL COMMENT '清分修订号或来源版本，从1递增',
     source_transaction_id VARCHAR(64) NULL COMMENT '来源动作交易号',
@@ -1443,7 +1443,7 @@ CREATE TABLE settlement_candidate (
     target_currency_exponent TINYINT NOT NULL COMMENT '目标结算币种ISO小数位',
     settlement_eligible_date DATE NOT NULL COMMENT '最早可认领业务日期',
     candidate_status VARCHAR(24) NOT NULL DEFAULT 'READY'
-        COMMENT 'READY、REPLAY_HOLD、SUPERSEDED、CLAIMED、POSTED、MANUAL_REVIEW、CANCELLED',
+        COMMENT '候选状态：就绪、重放冻结、已替代、已认领、已入账、人工复核或已取消',
     shadow_mode TINYINT NOT NULL DEFAULT 1 COMMENT '1=影子候选，任何结算扫描必须排除；0=可进入真实结算',
     settlement_batch_no VARCHAR(19) NULL COMMENT '当前独占本候选的批次号',
     claimed_time DATETIME(3) NULL COMMENT '最近成功认领时间',
@@ -1482,7 +1482,7 @@ CREATE TABLE settlement_candidate_dependency (
     candidate_id BIGINT NOT NULL COMMENT '当前退款、冲正或后续动作候选ID',
     depends_on_candidate_id BIGINT NOT NULL COMMENT '必须先入账或同批先处理的源候选ID',
     dependency_type VARCHAR(32) NOT NULL
-        COMMENT 'SOURCE_FINANCIAL_POSTED、RESERVE_HOLD_POSTED、SOURCE_FEE_RESULT_POSTED',
+        COMMENT '依赖完成条件：来源财务入账、保证金留存入账或来源费用结果入账',
     create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_settlement_candidate_dependency
@@ -1506,7 +1506,7 @@ CREATE TABLE settlement_batch_candidate (
     source_business_id VARCHAR(64) NOT NULL COMMENT '候选来源业务ID快照',
     source_revision INT NOT NULL COMMENT '候选来源修订号快照',
     relation_status VARCHAR(24) NOT NULL DEFAULT 'CLAIMED'
-        COMMENT 'CLAIMED、RELEASED、POSTED、MANUAL_REVIEW',
+        COMMENT '候选认领状态：已认领、已释放、已入账或人工复核',
     claimed_time DATETIME(3) NOT NULL COMMENT '本批认领时间',
     released_time DATETIME(3) NULL COMMENT '入账前取消并释放候选的时间',
     posted_time DATETIME(3) NULL COMMENT '候选随批次入账时间',
@@ -1532,7 +1532,7 @@ CREATE TABLE settlement_batch_rate (
     settlement_batch_no VARCHAR(19) NOT NULL COMMENT '所属结算批次号',
     source_currency CHAR(3) NOT NULL COMMENT '源币种',
     target_currency CHAR(3) NOT NULL COMMENT '目标结算币种',
-    rate_type VARCHAR(24) NOT NULL DEFAULT 'SETTLEMENT' COMMENT 'SETTLEMENT、RESERVE_RELEASE',
+    rate_type VARCHAR(24) NOT NULL DEFAULT 'SETTLEMENT' COMMENT '结算汇率用途：常规结算或保证金释放',
     direct_rate DECIMAL(24,12) NOT NULL COMMENT '1单位源币种兑换的目标币种数量',
     source_currency_exponent TINYINT NOT NULL COMMENT '源币种ISO小数位',
     target_currency_exponent TINYINT NOT NULL COMMENT '目标币种ISO小数位',
@@ -1570,16 +1570,16 @@ CREATE TABLE settlement_result_item (
     merchant_id VARCHAR(64) NOT NULL COMMENT '平台商户号',
     settlement_account_id BIGINT NOT NULL COMMENT '目标资金账户ID',
     source_detail_type VARCHAR(24) NOT NULL
-        COMMENT 'TRANSACTION_CLEARING、RESERVE_CLEARING、BATCH_LIMIT、BATCH_NET',
+        COMMENT '结算来源明细类型：交易清分、保证金清分、批次限额或批次净额',
     source_detail_no VARCHAR(64) NULL COMMENT '来源清分明细号；批次限额调整可为空',
     reversal_of_result_item_id BIGINT NULL COMMENT '冲正时引用的原结算结果项ID',
     source_transaction_id VARCHAR(64) NULL COMMENT '来源动作交易号',
     source_transaction_date_time DATETIME(3) NULL COMMENT '来源季度路由时间',
     fee_group_no VARCHAR(64) NULL COMMENT '费用组号；非费用为空',
     result_item_type VARCHAR(32) NOT NULL
-        COMMENT 'PRINCIPAL、FEE_COMPONENT、FEE_GROUP_FINAL、RESERVE_HOLD、RESERVE_RETURN、RESERVE_RELEASE、ADJUSTMENT、REVERSAL、NET_SETTLEMENT',
+        COMMENT '结算结果明细类型：本金、费用分量、费用组最终值、保证金留存、保证金退回、保证金释放、调整、冲正或净结算',
     result_role VARCHAR(24) NOT NULL
-        COMMENT 'TRACE、FINANCIAL_COMPONENT、LEDGER_POSTING',
+        COMMENT '结算结果角色：追踪说明、财务分量或资金入账',
     payment_type VARCHAR(32) NULL COMMENT '支付类型快照',
     payment_method VARCHAR(32) NULL COMMENT '支付方式快照',
     transaction_type VARCHAR(32) NULL COMMENT '交易动作类型',
@@ -1593,7 +1593,7 @@ CREATE TABLE settlement_result_item (
     target_amount DECIMAL(24,8) NOT NULL COMMENT '按目标币种舍入后的非负金额',
     target_currency CHAR(3) NOT NULL COMMENT '目标结算币种',
     target_currency_exponent TINYINT NOT NULL COMMENT '目标币种ISO小数位',
-    applied_limit VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT 'NONE、MINIMUM、MAXIMUM',
+    applied_limit VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT '限额命中类型：NONE未命中，MINIMUM最低限额，MAXIMUM最高限额',
     minimum_target_amount DECIMAL(48,20) NULL COMMENT '按批次汇率转换的最低费目标币种未舍入值',
     maximum_target_amount DECIMAL(48,20) NULL COMMENT '按批次汇率转换的最高费目标币种未舍入值',
     rounding_mode VARCHAR(16) NOT NULL COMMENT '目标金额舍入模式',
@@ -1664,7 +1664,7 @@ ALTER TABLE merchant_reserve_item
     CHANGE COLUMN currency reserve_currency CHAR(3) NOT NULL
         COMMENT '保证金负债币种，等于原支付标签币种',
     MODIFY COLUMN reserve_status VARCHAR(24) NOT NULL DEFAULT 'HELD'
-        COMMENT 'HELD、PARTIALLY_RETURNED、RETURNED、RELEASABLE、RELEASED、FROZEN、DEDUCTED',
+        COMMENT '状态：HELD、RELEASABLE、RELEASED、FROZEN、DEDUCTED',
     ADD COLUMN returned_amount DECIMAL(24,8) NOT NULL DEFAULT 0
         COMMENT '累计退款返还保证金金额' AFTER retained_amount,
     ADD COLUMN remaining_amount DECIMAL(24,8) NULL

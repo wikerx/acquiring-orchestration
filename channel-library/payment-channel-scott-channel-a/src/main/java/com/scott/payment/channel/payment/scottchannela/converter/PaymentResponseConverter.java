@@ -40,16 +40,34 @@ public class PaymentResponseConverter {
     public ChannelPaymentResponse convert(ChannelPaymentRequest request, int httpStatus, String responseBody) {
         boolean successfulHttpStatus = httpStatus >= 200 && httpStatus < 300;
         boolean deterministicRejection = DETERMINISTIC_HTTP_FAILURES.contains(httpStatus);
+        ApiResponsePayload root = null;
+        if (httpStatus == 409
+                && ChannelCapability.REFUND.getCode().equals(normalize(request.getTransactionType()))) {
+            root = parseResponse(responseBody, false);
+            // 渠道明确声明未受理的退款可以立即失败；幂等冲突及相互矛盾的资金证据仍保持未知。
+            TransactionResponsePayload conflictData = root.getData();
+            boolean contradictoryOutcome = conflictData != null && StringUtils.hasText(conflictData.getStatus())
+                    && mapStatus(request, conflictData.getStatus()) != ChannelTradeStatus.FAILED;
+            deterministicRejection = "ORDER_NOT_REFUNDABLE".equals(normalize(root.getCode()))
+                    && !contradictoryOutcome;
+        }
         if (!successfulHttpStatus && !deterministicRejection) {
             throw new ChannelResponseException(
                     "ScottChannelA returned HTTP status " + httpStatus, null, true);
         }
-        ApiResponsePayload root = parseResponse(responseBody, successfulHttpStatus);
+        if (root == null) {
+            root = parseResponse(responseBody, successfulHttpStatus);
+        }
         TransactionResponsePayload data = root.getData();
         if (successfulHttpStatus && data == null) {
             throw new ChannelResponseException("ScottChannelA successful response data is invalid");
         }
-        if (successfulHttpStatus) {
+        // HTTP 成功不等于资金成功。明确业务失败可以没有成功受理后才生成的渠道流水号。
+        boolean refundOperation = ChannelCapability.REFUND.getCode().equals(normalize(request.getTransactionType()))
+                || ChannelCapability.QUERY.getCode().equals(normalize(request.getTransactionType())) && isRefundQuery(request);
+        boolean definitiveFailure = refundOperation && data != null
+                && ChannelTradeStatus.FAILED == mapStatus(request, data.getStatus());
+        if (successfulHttpStatus && !definitiveFailure) {
             validateSuccessfulResponse(request, data, root.getCode());
         }
         String responseStatus = data == null ? null : firstText(data.getStatus(), processingCode(root.getCode()));

@@ -161,6 +161,9 @@ docs/sql/*
 !docs/sql/20261120_02_reserve_release_route_time_repair_draft.sql
 !docs/sql/20261120_03_reserve_release_route_time_rollback_draft.sql
 !docs/sql/20261120_04_reserve_release_route_time_postcheck.sql
+!docs/sql/20261120_05_database_chinese_comments_online.sql
+!docs/sql/20261120_06_database_chinese_comments_copy_pending.sql
+!docs/sql/20261120_07_database_chinese_comments_postcheck.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md
@@ -168,6 +171,8 @@ docs/archive/reports/*
 /scripts/*
 !/scripts/manage-nacos-internal-auth.sh
 !/scripts/verify-java-structural-rules.py
+!/scripts/verify-database-comments.py
+!/scripts/audit-database-comments.py
 !/scripts/bootstrap-local-dev-config.sh
 !/scripts/bootstrap-payment-link-config.py
 !/scripts/sync-payment-link-management-config.py
@@ -175,4 +180,7 @@ docs/archive/reports/*
 /scripts/tests/*
 !/scripts/tests/test_payment_link_management_config.py
 !/scripts/tests/test_quality_contracts.py
+!/scripts/tests/test_database_comments.py
 !/scripts/tests/verify_reserve_release_route_time_repair.py
+
+!/docs/sql/20261121_01_database_chinese_comments_repair.sql

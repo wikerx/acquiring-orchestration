@@ -11,8 +11,8 @@
 * [全系统数据源路由审计与整改基线](architecture/datasource-routing-audit-and-remediation.md)：`@DS` 方法级约束、主从路由、交易逻辑数据源和跨数据源事务风险。
 * [收单交易清分落地设计](architecture/transaction-clearing-implementation-design.md)：交易终态触发、费用和保证金计算、清分明细、MQ 幂等、补偿及后续结算边界。
 * [商户支持工单双端闭环设计](architecture/merchant-support-ticket-design.md)：单笔/多笔交易、系统功能与对接问题的双端页面、图文附件、处理协作、状态机、时效、通知和验收设计提案。
-* [商户支付方式开通与交易能力闭环需求](architecture/merchant-payment-capability-requirements.md)：R1.2 评审补齐稿，含 31 条确认要求、44 项验收场景及历史兼容、授权自然到期规则。
-* [商户支付方式准入与收银台联动方案](architecture/merchant-payment-capability-design.md)：V1.3 技术核验版，记录五项证据、开发准入缺口及现有表复用方案，保留申请明细和授权两张候选业务表。
+* [商户支付方式开通与交易能力闭环需求](architecture/merchant-payment-capability-requirements.md)：R1.4 评审稿，含 35 条确认要求、51 项验收场景，补充管理端商户详情能力展示。
+* [商户支付方式准入与收银台联动方案](architecture/merchant-payment-capability-design.md)：V1.5 技术设计候选，包含事务和恢复、Job 统一调度及 60 秒验证、环境及灰度证据清单，并补充商户详情收单、代付能力修复及 200045 的验收预期。保留申请明细和授权两张候选业务表。
 * [企业级重构路线图](architecture/refactor-roadmap.md)：后续分阶段重构顺序和重点。
 * [操作日志后续规划](architecture/operation-log-roadmap.md)：操作日志链路的后续演进方向。
 

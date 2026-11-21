@@ -124,9 +124,9 @@ CALL `migrate_20261017_02_risk_runtime_schema`();
 DROP PROCEDURE IF EXISTS `migrate_20261017_02_risk_runtime_schema`;
 
 -- 后检：必须确认表、唯一约束、查询索引和审计原因码列均存在。
-SHOW CREATE TABLE `risk_merchant_function_config`;
-SHOW CREATE TABLE `risk_evaluation_record`;
-SHOW CREATE TABLE `risk_evaluation_hit_detail`;
+SHOW CREATE TABLE `risk_merchant_function_config` COMMENT '商户可选风控功能开通状态；平台全局 AML 和监管规则不受该表控制。' ;
+SHOW CREATE TABLE `risk_evaluation_record` COMMENT '风控评估记录表' ;
+SHOW CREATE TABLE `risk_evaluation_hit_detail` COMMENT '风控评估命中明细表' ;
 
 SELECT `table_name`, `column_name`, `column_type`, `is_nullable`
 FROM `information_schema`.`columns`

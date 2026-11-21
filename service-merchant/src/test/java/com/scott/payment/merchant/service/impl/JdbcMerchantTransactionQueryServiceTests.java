@@ -16,12 +16,14 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.i18n.LocaleContextHolder;
 
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +41,33 @@ import static org.mockito.Mockito.when;
  * 验证商户交易查询、导出分页和展示富化始终绑定可信商户身份
  */
 class JdbcMerchantTransactionQueryServiceTests {
+
+    @Test
+    void knownRefundRejectionShouldNotBeDescribedAsIssuerDecline() {
+        Locale previousLocale = LocaleContextHolder.getLocale();
+        try {
+            LocaleContextHolder.setLocale(Locale.ENGLISH);
+            String fallback = "Existing merchant projection";
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "REFUND", "FAILED", "ORDER_NOT_REFUNDABLE", fallback))
+                    .contains("channel does not support a refund", "platform support")
+                    .doesNotContain("issuer", "ORDER_NOT_REFUNDABLE");
+            for (String status : List.of("SUCCESS", "PROCESSING", "PENDING")) {
+                assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                        "REFUND", status, "ORDER_NOT_REFUNDABLE", fallback)).isEqualTo(fallback);
+            }
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "CAPTURE", "FAILED", "ORDER_NOT_REFUNDABLE", fallback)).isEqualTo(fallback);
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "REFUND", "FAILED", "UNKNOWN_CONFLICT", fallback)).isEqualTo(fallback);
+            LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
+            assertThat(JdbcMerchantTransactionQueryService.resolveConsoleRefundMessage(
+                    "REFUND", "FAILED", "ORDER_NOT_REFUNDABLE", fallback))
+                    .isEqualTo("当前渠道不支持这笔交易的退款，请联系平台协助处理。");
+        } finally {
+            LocaleContextHolder.setLocale(previousLocale);
+        }
+    }
 
     /**
      * F 类描述故障来源而非交易终态，商户筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。
@@ -389,6 +418,31 @@ class JdbcMerchantTransactionQueryServiceTests {
                 .isEqualTo("The transaction was declined by the issuer bank. Check the original order, "
                         + "then ask the payer to contact their bank or use another payment method when applicable.")
                 .doesNotContain("MPGS", "05", "REF-1");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationMapperShouldExplainUnsupportedRefundWithoutChangingResultCode() throws Exception {
+        Locale previousLocale = LocaleContextHolder.getLocale();
+        try {
+            LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
+            JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(
+                    mock(NamedParameterJdbcTemplate.class));
+            ResultSet resultSet = mock(ResultSet.class);
+            when(resultSet.getString("transaction_type")).thenReturn("REFUND");
+            when(resultSet.getString("transaction_status")).thenReturn("FAILED");
+            when(resultSet.getString("process_stage")).thenReturn("FINISHED");
+            when(resultSet.getString("fail_reason_code")).thenReturn("CHANNEL_DECLINED");
+            when(resultSet.getString("channel_response_code")).thenReturn("ORDER_NOT_REFUNDABLE");
+            RowMapper<TransactionOperationResponse> mapper =
+                    (RowMapper<TransactionOperationResponse>) ReflectionTestUtils.invokeMethod(service, "operationMapper");
+            TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
+            assertThat(row.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
+            assertThat(row.getMerchantResponseMessage()).isEqualTo("当前渠道不支持这笔交易的退款，请联系平台协助处理。")
+                    .doesNotContain("ORDER_NOT_REFUNDABLE", "issuer");
+        } finally {
+            LocaleContextHolder.setLocale(previousLocale);
+        }
     }
 
     @Test

@@ -156,6 +156,8 @@ public final class AdminRefundDTOs {
          * 持久化的{@code processStage}，用于还原当前记录的业务事实。
          */
         private String processStage;
+        /** 区分真实渠道处理中与技术结果未知；仅用于控制台阶段投影。 */
+        private String pendingReasonCode;
         private String failReasonCode;
         /**
          * 持久化的{@code failReasonMessage}，用于还原当前记录的业务事实。

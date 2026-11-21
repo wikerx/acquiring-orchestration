@@ -42,6 +42,10 @@ BEGIN
         FETCH tables_to_change INTO v_table, v_width, v_charset, v_collation, v_comment;
         IF v_done THEN LEAVE alter_loop; END IF;
         IF v_width <> 512 THEN
+            IF v_comment IS NULL OR v_comment NOT REGEXP '[一-龥]'
+                OR v_comment REGEXP '[ÃÂâãäåæçèé�]' THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '操作描述字段必须先补齐无乱码的中文注释';
+            END IF;
             SET @checkout_description_sql = CONCAT('ALTER TABLE `', v_schema, '`.`', v_table,
                 '` MODIFY COLUMN `description` VARCHAR(512) CHARACTER SET ', v_charset,
                 ' COLLATE ', v_collation, ' NULL DEFAULT NULL COMMENT ', QUOTE(v_comment),

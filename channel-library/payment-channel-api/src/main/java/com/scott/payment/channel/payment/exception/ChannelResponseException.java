@@ -5,6 +5,26 @@ package com.scott.payment.channel.payment.exception;
  */
 public class ChannelResponseException extends ChannelException {
 
+    /** 仅供内部审计持久化的脱敏 HTTP 证据，不作为可解释的业务结果。 */
+    private com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse responseEvidence;
+
+    /**
+     * 读取已脱敏的交互证据，供结果未知时的内部审计使用，不据此推断成功。
+     */
+    public com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse getResponseEvidence() {
+        return responseEvidence;
+    }
+
+    /**
+     * 附加客户端已经脱敏的响应证据；持久化仍由支付服务在其事务边界内负责。
+     *
+     * @param responseEvidence 受控 HTTP 证据，不得携带卡敏感数据或凭据
+     */
+    public void setResponseEvidence(
+            com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse responseEvidence) {
+        this.responseEvidence = responseEvidence;
+    }
+
     /**
      * 创建渠道响应异常。请求已经发出但响应不可用，结果固定为不确定。
      *

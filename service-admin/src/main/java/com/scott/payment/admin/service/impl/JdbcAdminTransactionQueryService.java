@@ -2037,6 +2037,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setAvailableCaptureAmount(order.getAvailableCaptureAmount());
             row.setAvailableRefundAmount(order.getAvailableRefundAmount());
         }
+        enrichActionContexts(rows);
     }
 
     /**
@@ -2094,6 +2095,24 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .distinct()
                 .toList());
         rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+
+    /** 查询当前页关联生命周期的完整动作事实，跨页关闭及预占不能遗漏。 */
+    private void enrichActionContexts(List<TransactionOperationResponse> rows) {
+        List<String> ids = rows.stream().map(TransactionOperationResponse::getOperationId).distinct().toList();
+        if (ids.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("ids", ids)
+                .addValue("begin", registeredNodeBegin).addValue("end", exclusiveEnd(LocalDateTime.now()));
+
+        List<TransactionOperationResponse> facts = jdbcTemplate.query("""
+                SELECT %s FROM transaction_operation o
+                WHERE o.operation_id IN (:ids) AND o.transaction_date_time >= :begin AND o.transaction_date_time < :end
+                  AND o.deleted = 0
+                """.formatted(OPERATION_QUERY_COLUMNS), params, operationMapper(false));
+        com.scott.payment.admin.application.transaction.ConsoleTransactionPolicy.enrich(rows, facts);
     }
 
     /**

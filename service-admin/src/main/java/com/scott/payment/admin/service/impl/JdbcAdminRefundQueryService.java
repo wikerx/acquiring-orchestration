@@ -72,7 +72,7 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
             o.operation_id, o.source_transaction_id, o.merchant_id, o.merchant_order_no,
             o.merchant_operation_no, o.transaction_type, o.refund_scope, o.request_source,
             o.request_reason, o.applicant_type, o.applicant_id, o.applicant_name,
-            o.execution_mode, o.transaction_status, o.process_stage,
+            o.execution_mode, o.transaction_status, o.process_stage, o.pending_reason_code,
             o.fail_reason_code, o.fail_reason_message, o.label_currency, o.label_amount,
             o.transaction_currency, o.transaction_amount, o.currency_exponent,
             p.payment_method, p.payment_brand, o.channel_code, o.channel_order_no,

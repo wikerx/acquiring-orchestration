@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `transaction_card_vault` (
     `pan_hmac` CHAR(64) NOT NULL COMMENT '带 secret pepper 的 PAN HMAC-SHA256',
     `pan_hmac_key_version` VARCHAR(32) NOT NULL COMMENT 'PAN HMAC 密钥版本',
     `pan_ciphertext` VARCHAR(128) NOT NULL COMMENT 'PAN AES-256-GCM 密文',
-    `pan_iv` VARCHAR(32) NOT NULL COMMENT 'PAN AES-GCM IV',
+    `pan_iv` VARCHAR(32) NOT NULL COMMENT '卡号加密使用的初始化向量',
     `pan_auth_tag` VARCHAR(32) NOT NULL COMMENT 'PAN AES-GCM 认证标签',
     `expiration_ciphertext` VARCHAR(64) NOT NULL COMMENT '有效期 AES-256-GCM 密文',
     `expiration_iv` VARCHAR(32) NOT NULL COMMENT '有效期 AES-GCM IV',

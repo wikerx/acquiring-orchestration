@@ -66,7 +66,7 @@ CREATE TABLE `transaction_merchant_snapshot` (
   `sub_merchant_info_json` json DEFAULT NULL COMMENT '商户上送的完整子商户信息明文 JSON；未上送时为空。',
   `merchant_name` varchar(256) DEFAULT NULL COMMENT '交易发生时商户名称快照。',
   `merchant_country` varchar(3) DEFAULT NULL COMMENT '商户国家/地区。',
-  `merchant_category_code` varchar(16) DEFAULT NULL COMMENT 'MCC。',
+  `merchant_category_code` varchar(16) DEFAULT NULL COMMENT '商户类别码',
   `merchant_status` varchar(32) DEFAULT NULL COMMENT '交易发生时商户状态。',
   `channel_id` bigint DEFAULT NULL COMMENT '渠道信息ID。',
   `channel_code` varchar(32) DEFAULT NULL COMMENT '渠道编码。',

@@ -3,7 +3,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 -- 商户系统菜单物理清理脚本：仅处理 MERCHANT app 下未接真实功能的菜单和权限。
 -- 执行前请确认当前库 sys_app 中 MERCHANT 的 app_id 正确；本脚本不会匹配 ADMIN app。
-CREATE TEMPORARY TABLE tmp_merchant_mock_menu_ids AS
+CREATE TEMPORARY TABLE tmp_merchant_mock_menu_ids  COMMENT '商户演示菜单清理的临时主键集合' AS
 SELECT menu.id
 FROM sys_menu menu
 JOIN sys_app app ON app.id = menu.app_id
@@ -32,7 +32,7 @@ WHERE app.app_code = 'MERCHANT'
       OR menu.menu_code LIKE 'merchant_oper_log_%'
   );
 
-CREATE TEMPORARY TABLE tmp_merchant_mock_permission_ids AS
+CREATE TEMPORARY TABLE tmp_merchant_mock_permission_ids  COMMENT '商户演示权限清理的临时主键集合' AS
 SELECT permission.id
 FROM sys_permission permission
 JOIN sys_app app ON app.id = permission.app_id

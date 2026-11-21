@@ -222,6 +222,138 @@ class PaymentApiClientTests {
                         exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
     }
 
+    /** 明确失败不要求渠道生成仅在受理成功后才有的退款流水号。 */
+    @Test
+    void shouldAcceptDefinitiveRefundFailureWithoutSuccessIdentifiers() {
+        responseBody.set("{\"code\":\"FAILED\",\"message\":\"Declined\",\"data\":{\"status\":\"FAILED\",\"responseCode\":\"REFUND_DECLINED\"}}");
+        ChannelPaymentRequest request = refundRequest();
+
+        ChannelPaymentResponse response = paymentClient(properties()).execute(request);
+
+        assertThat(response.getChannelTradeStatus()).isEqualTo("FAILED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("REFUND_DECLINED");
+        assertThat(response.getResponseBodyJsonMasked()).contains("REFUND_DECLINED");
+    }
+
+    /** 明确未受理的退款拒绝应立即失败，不得等待补查不存在后才释放预占。 */
+    @Test
+    void shouldRejectNonRefundableRefundConflictImmediately() {
+        responseStatus.set(409);
+        responseBody.set("{\"code\":\"ORDER_NOT_REFUNDABLE\",\"message\":\"Card authorization operations cannot be refunded before capture settlement support\"}");
+
+        ChannelPaymentResponse response = paymentClient(properties()).execute(refundRequest());
+
+        assertThat(response.getChannelTradeStatus()).isEqualTo("FAILED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("ORDER_NOT_REFUNDABLE");
+        assertThat(response.getChannelResponseMessage()).contains("cannot be refunded");
+        assertThat(response.getHttpStatus()).isEqualTo(409);
+        assertThat(response.getResponseBodyJsonMasked()).contains("ORDER_NOT_REFUNDABLE");
+    }
+
+    /** 幂等冲突或未知冲突可能对应已经受理的资金请求，不能一律按 409 失败。 */
+    @Test
+    void shouldKeepDuplicateAndUnknownRefundConflictsUncertain() {
+        responseStatus.set(409);
+        for (String code : new String[]{"DUPLICATE_REQUEST", "DUPLICATE_REFUND_CONFLICT", "UNRECOGNIZED_CONFLICT"}) {
+            responseBody.set("{\"code\":\"" + code + "\"}");
+            assertThatThrownBy(() -> paymentClient(properties()).execute(refundRequest()))
+                    .as("退款冲突码 %s 必须保留结果未知", code)
+                    .isInstanceOfSatisfying(ChannelResponseException.class,
+                            exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+        }
+    }
+
+    /** 明确拒绝分类仅覆盖退款提交，不改变其他交易类型的冲突语义。 */
+    @Test
+    void shouldPreserveNonRefundConflictEvenWithRefundRejectionCode() {
+        responseStatus.set(409);
+        responseBody.set("{\"code\":\"ORDER_NOT_REFUNDABLE\"}");
+        assertThatThrownBy(() -> paymentClient(properties()).execute(cardlessPaymentRequest("PAYIN-CONFLICT")))
+                .isInstanceOfSatisfying(ChannelResponseException.class,
+                        exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+    }
+
+    /** 服务端错误不能仅凭正文中的业务码推断退款未发生。 */
+    @Test
+    void shouldNotTrustRefundRejectionCodeOnServerError() {
+        responseStatus.set(500);
+        responseBody.set("{\"code\":\"ORDER_NOT_REFUNDABLE\"}");
+        assertThatThrownBy(() -> paymentClient(properties()).execute(refundRequest()))
+                .isInstanceOfSatisfying(ChannelResponseException.class,
+                        exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+    }
+
+    /** 无法识别的 409 正文仍需查询确认，不能伪造拒绝事实。 */
+    @Test
+    void shouldKeepMalformedRefundConflictUncertain() {
+        responseStatus.set(409);
+        for (String body : new String[]{"", "invalid-json", "{\"message\":\"Conflict\"}"}) {
+            responseBody.set(body);
+            assertThatThrownBy(() -> paymentClient(properties()).execute(refundRequest()))
+                    .isInstanceOfSatisfying(ChannelResponseException.class,
+                            exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+        }
+    }
+
+    /** 冲突响应若同时声明资金成功，必须保留矛盾证据并等待核实。 */
+    @Test
+    void shouldKeepContradictoryRefundConflictUncertain() {
+        responseStatus.set(409);
+        responseBody.set("{\"code\":\"ORDER_NOT_REFUNDABLE\",\"data\":{\"status\":\"SUCCESS\"}}");
+        assertThatThrownBy(() -> paymentClient(properties()).execute(refundRequest()))
+                .isInstanceOfSatisfying(ChannelResponseException.class,
+                        exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+    }
+
+    /** 查询拒绝不能证明此前的退款提交已经失败。 */
+    @Test
+    void shouldKeepRefundQueryConflictUncertain() {
+        responseStatus.set(409);
+        responseBody.set("{\"code\":\"ORDER_NOT_REFUNDABLE\"}");
+        ChannelPaymentRequest request = refundRequest();
+        request.setTransactionType("QUERY");
+        request.getExtension().put("merchantRefundNo", "REFUND-QUERY-CONFLICT");
+        assertThatThrownBy(() -> paymentClient(properties()).execute(request))
+                .isInstanceOfSatisfying(ChannelResponseException.class,
+                        exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+    }
+
+    /** 本次退款纠错不扩大到其他公开交易类型的协议校验。 */
+    @Test
+    void shouldPreservePayinValidationOutsideRefundFix() {
+        responseBody.set("{\"code\":\"FAILED\",\"data\":{\"status\":\"FAILED\"}}");
+        assertThatThrownBy(() -> paymentClient(properties()).execute(cardlessPaymentRequest("PAYIN-COMPATIBILITY")))
+                .isInstanceOfSatisfying(ChannelResponseException.class,
+                        exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+    }
+
+    /** 畸形成功仍为未知，但异常路径必须留下实际 HTTP 和脱敏响应证据。 */
+    @Test
+    void shouldRetainSafeEvidenceWhenRefundResponseCannotBeInterpreted() {
+        responseBody.set("{\"code\":\"SUCCESS\",\"data\":{\"status\":\"SUCCESS\",\"cardNumber\":\"4111111111111111\",\"cvv\":\"123\"}}");
+
+        assertThatThrownBy(() -> paymentClient(properties()).execute(refundRequest()))
+                .isInstanceOfSatisfying(ChannelResponseException.class, exception -> {
+                    assertThat(exception.isOutcomeUncertain()).isTrue();
+                    assertThat(exception.getResponseEvidence()).isNotNull();
+                    assertThat(exception.getResponseEvidence().getHttpStatus()).isEqualTo(200);
+                    assertThat(exception.getResponseEvidence().getRequestUrlMasked()).endsWith("/payins/refunds");
+                    assertThat(exception.getResponseEvidence().getResponseBodyJsonMasked())
+                            .doesNotContain("4111111111111111", "\"123\"");
+                });
+    }
+
+    private ChannelPaymentRequest refundRequest() {
+        ChannelPaymentRequest request = new ChannelPaymentRequest();
+        request.setTransactionType("REFUND");
+        request.setTransactionId("REFUND-ACTION-REGRESSION");
+        request.setMerchantOrderId("REFUND-REGRESSION");
+        request.setAmount(new java.math.BigDecimal("0.78"));
+        request.setCurrency("USD");
+        request.getExtension().put("targetTransactionId", "CMT-ORIGINAL-PAYMENT");
+        return request;
+    }
+
     /**
      * 幂等冲突不能证明首个资金请求失败，必须等待查询或回调确认。
      **/

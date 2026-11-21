@@ -59,6 +59,11 @@ If an R3 item is unknown and the answer changes behavior, stop for a decision.
 ### SQL And MyBatis
 
 - Match the owning schema and existing audit-column convention.
+- Enforce meaningful Chinese table/column COMMENT attributes in migrations and the schema baseline;
+  reject missing/English-only/enum-only comments, malformed UTF-8 and mojibake with
+  `scripts/verify-database-comments.py`. Run its contract tests and, after approved execution,
+  `scripts/audit-database-comments.py` against the actual target schema. A sample or screenshot is
+  not full-schema acceptance. Preserve English identifiers and protocol literals.
 - Verify nullability, defaults, precision, indexes, unique constraints, soft-delete interaction, and
   online compatibility.
 - State changes and claims use current-state predicates; money/idempotency writes have durable

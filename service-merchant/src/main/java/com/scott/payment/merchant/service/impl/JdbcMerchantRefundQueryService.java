@@ -62,7 +62,7 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
             o.transaction_id AS refund_transaction_id,
             o.source_transaction_id, o.merchant_order_no, o.merchant_operation_no,
             o.transaction_type, o.refund_scope, o.request_source, o.request_reason,
-            o.transaction_status, o.process_stage, o.label_currency, o.label_amount,
+            o.transaction_status, o.process_stage, o.pending_reason_code, o.label_currency, o.label_amount,
             o.label_currency_exponent AS currency_exponent,
             p.payment_method, p.payment_brand, NULL AS merchant_notification_status,
             o.transaction_date_time, o.complete_time,

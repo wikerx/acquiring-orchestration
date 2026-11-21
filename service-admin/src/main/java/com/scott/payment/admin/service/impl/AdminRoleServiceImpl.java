@@ -21,6 +21,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.db.auth.support.GeneratedAuthCode;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
@@ -145,11 +146,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     @Transactional(rollbackFor = Exception.class)
     public SysRoleDTO createRole(SysRoleCreateRequest request) {
         SysAppDO app = getAdminApp();
-        assertRoleCodeNotExists(app.getId(), request.getRoleCode());
         LocalDateTime now = LocalDateTime.now();
         SysRoleDO role = new SysRoleDO();
         role.setAppId(app.getId());
-        role.setRoleCode(normalize(request.getRoleCode()));
         role.setRoleName(normalize(request.getRoleName()));
         role.setRoleType(ROLE_TYPE_CUSTOM);
         role.setDataScope(resolveDataScope(request.getDataScope()));
@@ -159,7 +158,11 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         role.setCreatedAt(now);
         role.setUpdatedAt(now);
         role.setDeleted(NOT_DELETED);
-        sysRoleMapper.insert(role);
+        GeneratedAuthCode.insert("ADMIN_ROLE_", code -> {
+            role.setId(null);
+            role.setRoleCode(code);
+            sysRoleMapper.insert(role);
+        });
         return toDTO(role, Collections.emptyMap(), Collections.emptyMap());
     }
 

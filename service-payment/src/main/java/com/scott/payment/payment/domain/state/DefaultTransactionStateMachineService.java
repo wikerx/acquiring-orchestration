@@ -19,7 +19,6 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
      * 允许发起增量授权的原始交易类型。
      */
     private static final Set<String> INCREMENTAL_AUTHORIZATION_SOURCE_TYPES = Set.of(
-            PaymentTransactionTypeEnum.AUTHORIZATION.getCode(),
             PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode()
     );
 

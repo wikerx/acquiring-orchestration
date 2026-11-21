@@ -7,11 +7,13 @@ import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
+import com.scott.payment.payment.domain.order.RefundSourceAmountCalculator;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -277,14 +279,22 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         }
         List<TransactionOperationDO> nonTerminalRefunds = findNonTerminalRefunds(
                 commandDTO, sourceOrderDO, LocalDateTime.now());
+        // 保留公开接口历史根来源退款的全生命周期预占保护，再校验显式请款来源的独立上限。
+        List<TransactionOperationDO> allPendingRefunds = nonTerminalRefunds;
+        TransactionOrderDO refundBudget = RefundSourceAmountCalculator.sourceBudget(
+                sourceOrderDO, plan.sourceOperationDO(),
+                transactionRecordService.findOperationsByOperationId(sourceOrderDO.getOperationId(),
+                        sourceOrderDO.getTransactionDateTime(), LocalDateTime.now()));
+        nonTerminalRefunds = RefundSourceAmountCalculator.pendingForSource(plan.sourceOperationDO(), nonTerminalRefunds);
         FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan =
                 FrozenRateFollowUpAmountCalculator.calculateRefund(
-                        sourceOrderDO,
+                        refundBudget,
                         nonTerminalRefunds,
                         commandDTO.getAmount(),
                         commandDTO.getCurrency(),
                         plan.labelCurrencyExponent(),
                         plan.transactionCurrencyExponent());
+        RefundSourceAmountCalculator.validateRootCapacity(sourceOrderDO, allPendingRefunds, amountPlan);
         commandDTO.setLabelCurrencyExponent(plan.labelCurrencyExponent());
         applyRefundAmountPlan(commandDTO, sourceOrderDO, plan.sourceOperationDO(), amountPlan);
         // 标签额度和渠道额度已在同一锁快照内校验；状态机继续校验渠道口径状态与余额。
@@ -296,7 +306,7 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         BigDecimal pendingLabelRefundAmount = sumNonTerminalLabelRefundAmount(nonTerminalRefunds);
         validateNoNonTerminalVoid(commandDTO, sourceOrderDO, LocalDateTime.now());
         commandDTO.setRefundScope(refundScopeService.resolve(
-                sourceOrderDO, commandDTO.getLabelAmount(), pendingLabelRefundAmount));
+                refundBudget, commandDTO.getLabelAmount(), pendingLabelRefundAmount));
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
                 TRANSACTION_OPERATION_SCOPE,
@@ -434,7 +444,12 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         if (transactionOperations == null) {
             return callback.get();
         }
-        return transactionOperations.execute(status -> callback.get());
+        return transactionOperations.execute(status -> {
+            // 金额及未决动作必须与主单锁同走主库，不能让副本延迟漏掉刚提交的预占或关闭事实。
+            try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+                return callback.get();
+            }
+        });
     }
 
     /**

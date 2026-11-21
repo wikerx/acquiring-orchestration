@@ -41,19 +41,19 @@ DROP PROCEDURE admin_owi_add_column;
 
 DROP TEMPORARY TABLE IF EXISTS admin_owi_projection_source;
 CREATE TEMPORARY TABLE admin_owi_projection_source (
-    source_type VARCHAR(48) NOT NULL,
-    logical_table VARCHAR(64) NOT NULL,
-    key_expression VARCHAR(255) NOT NULL,
-    merchant_expression VARCHAR(255) NOT NULL,
-    merchant_name_expression VARCHAR(255) NOT NULL,
-    merchant_join_expression VARCHAR(255) NOT NULL,
-    business_expression VARCHAR(255) NOT NULL,
-    related_business_expression VARCHAR(255) NOT NULL,
-    transaction_expression VARCHAR(255) NOT NULL,
-    transaction_time_expression VARCHAR(255) NOT NULL,
-    occurred_expression VARCHAR(255) NOT NULL,
+    source_type VARCHAR(48) NOT NULL COMMENT '候选来源业务类型' ,
+    logical_table VARCHAR(64) NOT NULL COMMENT '待办来源逻辑表名' ,
+    key_expression VARCHAR(255) NOT NULL COMMENT '来源业务主键的查询表达式' ,
+    merchant_expression VARCHAR(255) NOT NULL COMMENT '来源商户号的查询表达式' ,
+    merchant_name_expression VARCHAR(255) NOT NULL COMMENT '来源商户名称的查询表达式' ,
+    merchant_join_expression VARCHAR(255) NOT NULL COMMENT '关联商户资料的连接表达式' ,
+    business_expression VARCHAR(255) NOT NULL COMMENT '来源业务单号的查询表达式' ,
+    related_business_expression VARCHAR(255) NOT NULL COMMENT '关联业务单号的查询表达式' ,
+    transaction_expression VARCHAR(255) NOT NULL COMMENT '来源系统交易号的查询表达式' ,
+    transaction_time_expression VARCHAR(255) NOT NULL COMMENT '来源交易时间的查询表达式' ,
+    occurred_expression VARCHAR(255) NOT NULL COMMENT '来源事件发生时间的查询表达式' ,
     PRIMARY KEY (source_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '统一待办来源检索投影的临时查询表达式清单' ;
 
 INSERT INTO admin_owi_projection_source VALUES
     ('REFUND_APPROVAL', 'transaction_refund_approval', 'src.approval_id',

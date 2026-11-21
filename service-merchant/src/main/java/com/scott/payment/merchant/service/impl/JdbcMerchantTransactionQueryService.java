@@ -27,6 +27,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
@@ -84,7 +85,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private static final String OPERATION_QUERY_COLUMNS = """
             operation_id, transaction_id, source_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, operation_sequence,
-            transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
+            transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code, channel_response_code,
             label_currency, label_amount, label_currency_exponent AS currency_exponent,
             transaction_currency, transaction_amount, transaction_rate, dcc_enabled, edc_enabled, auth_code,
             settlement_currency, settlement_amount, settlement_rate,
@@ -609,6 +610,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         }
         enrichAccessTypes(rows);
         enrichOperationThreeDs(rows);
+        enrichActionContexts(rows);
     }
 
     /**
@@ -692,6 +694,24 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .distinct()
                 .toList(), rows.get(0).getMerchantId());
         rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+
+    /** 查询当前页关联生命周期的完整动作事实，跨页关闭及预占不能遗漏。 */
+    private void enrichActionContexts(List<TransactionOperationResponse> rows) {
+        List<String> ids = rows.stream().map(TransactionOperationResponse::getOperationId).distinct().toList();
+        if (ids.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("ids", ids)
+                .addValue("begin", registeredNodeBegin).addValue("end", exclusiveEnd(LocalDateTime.now()));
+        params.addValue("merchantId", rows.get(0).getMerchantId());
+        List<TransactionOperationResponse> facts = jdbcTemplate.query("""
+                SELECT %s FROM transaction_operation
+                WHERE operation_id IN (:ids) AND transaction_date_time >= :begin AND transaction_date_time < :end
+                  AND deleted = 0 AND merchant_id = :merchantId
+                """.formatted(OPERATION_QUERY_COLUMNS), params, operationMapper());
+        com.scott.payment.merchant.application.transaction.ConsoleTransactionPolicy.enrich(rows, facts);
     }
 
     /**
@@ -1216,8 +1236,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             OpenApiTransactionProjection projection = projectResult(rs, row.getTransactionStatus());
             row.setMerchantResponseCode(projection.resultCode().getCode());
-            row.setMerchantResponseMessage(projection.message(
-                    OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+            row.setMerchantResponseMessage(resolveConsoleRefundMessage(row.getTransactionType(),
+                    row.getTransactionStatus(), getStringIfExists(rs, "channel_response_code"),
+                    projection.message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US)));
             row.setAuthCode(rs.getString("auth_code"));
             row.setSettlementCurrency(rs.getString("settlement_currency"));
             row.setSettlementAmount(rs.getBigDecimal("settlement_amount"));
@@ -1420,6 +1441,19 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return OpenApiTransactionResultProjector.project(
                 transactionStatus, null, null, null, null).message(
                 OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US);
+    }
+
+    /** 页面专用说明只解释已确认的渠道拒绝，不修改公开结果码或向商户返回渠道原文。 */
+    static String resolveConsoleRefundMessage(String transactionType, String transactionStatus,
+                                               String channelCode, String projectedMessage) {
+        if ("REFUND".equals(transactionType) && "FAILED".equals(transactionStatus)
+                && "ORDER_NOT_REFUNDABLE".equals(channelCode)) {
+            if ("zh".equals(LocaleContextHolder.getLocale().getLanguage())) {
+                return "当前渠道不支持这笔交易的退款，请联系平台协助处理。";
+            }
+            return "The channel does not support a refund for this transaction. Contact platform support for assistance.";
+        }
+        return projectedMessage;
     }
 
     /**

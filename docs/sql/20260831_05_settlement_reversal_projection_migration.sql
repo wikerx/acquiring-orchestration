@@ -7,60 +7,60 @@
 SET NAMES utf8mb4;
 
 CREATE TABLE settlement_reversal_daily_sequence (
-    business_date DATE NOT NULL,
-    current_sequence INT NOT NULL DEFAULT 0,
-    version BIGINT NOT NULL DEFAULT 0,
-    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    business_date DATE NOT NULL COMMENT '结算业务日期' ,
+    current_sequence INT NOT NULL DEFAULT 0 COMMENT '业务日期内已分配的最大流水序号' ,
+    version BIGINT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号，防止并发覆盖' ,
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间' ,
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间' ,
     PRIMARY KEY (business_date),
     CONSTRAINT chk_settlement_reversal_sequence CHECK (
         current_sequence BETWEEN 0 AND 99999999 AND version >= 0
     )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-  COMMENT='Settlement reversal database daily sequence';
+  COMMENT='结算冲正单号的数据库业务日流水序列表';
 
 CREATE TABLE settlement_reversal_order (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    reversal_order_no VARCHAR(20) NOT NULL,
-    create_request_key VARCHAR(128) NOT NULL,
-    original_batch_no VARCHAR(19) NOT NULL,
-    reversal_batch_no VARCHAR(19) NULL,
-    merchant_id VARCHAR(64) NOT NULL,
-    settlement_account_id BIGINT NOT NULL,
-    target_currency CHAR(3) NOT NULL,
-    target_currency_exponent TINYINT NOT NULL,
-    original_batch_version BIGINT NOT NULL,
-    original_net_result_item_id BIGINT NOT NULL,
-    original_fund_ledger_id BIGINT NOT NULL,
-    net_direction VARCHAR(8) NOT NULL,
-    net_amount DECIMAL(24,8) NOT NULL,
-    source_fingerprint CHAR(64) NOT NULL,
-    reversal_status VARCHAR(24) NOT NULL,
-    submitted_by_account_id BIGINT NOT NULL,
-    submitted_by_account_name VARCHAR(128) NOT NULL,
-    submitted_role_snapshot VARCHAR(1000) NOT NULL,
-    submit_client_ip VARCHAR(64) NOT NULL,
-    submit_user_agent VARCHAR(500) NOT NULL,
-    submit_reason VARCHAR(400) NOT NULL,
-    submitted_time DATETIME(3) NOT NULL,
-    decided_by_account_id BIGINT NULL,
-    decided_by_account_name VARCHAR(128) NULL,
-    decided_role_snapshot VARCHAR(1000) NULL,
-    decision_client_ip VARCHAR(64) NULL,
-    decision_user_agent VARCHAR(500) NULL,
-    decision_action VARCHAR(16) NULL,
-    decision_request_key VARCHAR(128) NULL,
-    decision_comment VARCHAR(400) NULL,
-    decision_time DATETIME(3) NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '物理主键' ,
+    reversal_order_no VARCHAR(20) NOT NULL COMMENT '结算冲正申请单号' ,
+    create_request_key VARCHAR(128) NOT NULL COMMENT '创建请求持久化幂等键' ,
+    original_batch_no VARCHAR(19) NOT NULL COMMENT '被冲正的原结算批次号' ,
+    reversal_batch_no VARCHAR(19) NULL COMMENT '实际生成的冲正结算批次号' ,
+    merchant_id VARCHAR(64) NOT NULL COMMENT '平台商户号' ,
+    settlement_account_id BIGINT NOT NULL COMMENT '目标商户结算资金账户主键' ,
+    target_currency CHAR(3) NOT NULL COMMENT '目标结算币种代码' ,
+    target_currency_exponent TINYINT NOT NULL COMMENT '目标结算币种小数位' ,
+    original_batch_version BIGINT NOT NULL COMMENT '提交时冻结的原批次版本' ,
+    original_net_result_item_id BIGINT NOT NULL COMMENT '原净结算结果明细主键' ,
+    original_fund_ledger_id BIGINT NOT NULL COMMENT '原结算资金流水主键' ,
+    net_direction VARCHAR(8) NOT NULL COMMENT '净结算收付方向' ,
+    net_amount DECIMAL(24,8) NOT NULL COMMENT '冻结净结算金额，以目标币种主单位计价' ,
+    source_fingerprint CHAR(64) NOT NULL COMMENT '冻结来源事实集合的摘要指纹' ,
+    reversal_status VARCHAR(24) NOT NULL COMMENT '结算冲正申请状态' ,
+    submitted_by_account_id BIGINT NOT NULL COMMENT '提交人账号主键' ,
+    submitted_by_account_name VARCHAR(128) NOT NULL COMMENT '提交人账号名称快照' ,
+    submitted_role_snapshot VARCHAR(1000) NOT NULL COMMENT '提交时的操作人角色快照' ,
+    submit_client_ip VARCHAR(64) NOT NULL COMMENT '提交客户端地址，仅用于受控审计' ,
+    submit_user_agent VARCHAR(500) NOT NULL COMMENT '提交客户端用户代理信息' ,
+    submit_reason VARCHAR(400) NOT NULL COMMENT '提交原因' ,
+    submitted_time DATETIME(3) NOT NULL COMMENT '申请提交时间' ,
+    decided_by_account_id BIGINT NULL COMMENT '审批决策人账号主键' ,
+    decided_by_account_name VARCHAR(128) NULL COMMENT '审批决策人账号名称快照' ,
+    decided_role_snapshot VARCHAR(1000) NULL COMMENT '审批决策时的角色快照' ,
+    decision_client_ip VARCHAR(64) NULL COMMENT '审批客户端地址，仅用于受控审计' ,
+    decision_user_agent VARCHAR(500) NULL COMMENT '审批客户端用户代理信息' ,
+    decision_action VARCHAR(16) NULL COMMENT '审批决定类型' ,
+    decision_request_key VARCHAR(128) NULL COMMENT '审批决定持久化幂等键' ,
+    decision_comment VARCHAR(400) NULL COMMENT '审批决定说明' ,
+    decision_time DATETIME(3) NULL COMMENT '审批决定发生时间' ,
     active_original_batch_no VARCHAR(19) GENERATED ALWAYS AS (
         CASE
             WHEN reversal_status IN ('PENDING_APPROVAL', 'APPROVED') THEN original_batch_no
             ELSE NULL
         END
-    ) STORED,
-    version BIGINT NOT NULL DEFAULT 0,
-    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    ) STORED COMMENT '活动冲正申请的原批次唯一占位，终态时为空' ,
+    version BIGINT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号，防止并发覆盖' ,
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间' ,
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间' ,
     PRIMARY KEY (id),
     UNIQUE KEY uk_settlement_reversal_no (reversal_order_no),
     UNIQUE KEY uk_settlement_reversal_create_request (create_request_key),
@@ -104,7 +104,7 @@ CREATE TABLE settlement_reversal_order (
                  AND submitted_by_account_id <> decided_by_account_id))
     )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-  COMMENT='Settlement reversal Maker-Checker order and frozen posting identity';
+  COMMENT='结算冲正申请及双人复核主单，保留冻结的入账身份';
 
 -- The action projection is the authoritative settlement snapshot for each real transaction action.
 ALTER TABLE transaction_operation

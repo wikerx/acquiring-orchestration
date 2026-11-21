@@ -16,7 +16,7 @@ CREATE TABLE `transaction_callback_inbox` (
   `request_header_json_masked` json DEFAULT NULL COMMENT '数量和长度受控的脱敏请求头摘要。',
   `request_body_length` int unsigned NOT NULL COMMENT '原始回调报文字节数。',
   `request_body_sha256` char(64) NOT NULL COMMENT '原始回调报文 SHA-256。',
-  `inbox_status` varchar(16) NOT NULL COMMENT 'RECEIVED、PROCESSING、RETRY、PROCESSED、CLOSED。',
+  `inbox_status` varchar(16) NOT NULL COMMENT '回调收件箱状态：已接收、处理中、待重试、已处理或已关闭',
   `retry_count` int unsigned NOT NULL DEFAULT 0 COMMENT '已记录的处理失败次数。',
   `max_retry_count` int unsigned NOT NULL DEFAULT 12 COMMENT '最大处理失败次数。',
   `next_retry_time` datetime(3) DEFAULT NULL COMMENT '下一次允许抢占的时间。',
@@ -43,7 +43,7 @@ CREATE TABLE `transaction_callback_inbox` (
   COMMENT='渠道回调可靠受理 Inbox；先落库提交再返回渠道 ACK，Worker 至少一次消费。';
 
 -- 后检：表、唯一约束和扫描索引必须全部存在。
-SHOW CREATE TABLE `transaction_callback_inbox`;
+SHOW CREATE TABLE `transaction_callback_inbox` COMMENT '渠道回调可靠受理 Inbox；先落库提交再返回渠道 ACK，Worker 至少一次消费。' ;
 
 SELECT `index_name`, GROUP_CONCAT(`column_name` ORDER BY `seq_in_index`) AS `columns`
 FROM `information_schema`.`statistics`

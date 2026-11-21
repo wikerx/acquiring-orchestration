@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS clearing_label_principal_repair (
     review_operator VARCHAR(128) NULL COMMENT 'service-admin注入的可信Checker身份',
     review_comment VARCHAR(400) NULL COMMENT '复核意见',
     repair_status VARCHAR(24) NOT NULL DEFAULT 'PENDING_REVIEW'
-        COMMENT 'PENDING_REVIEW、EXECUTED、REJECTED',
+        COMMENT '审批执行状态：PENDING_REVIEW待审批，EXECUTED已执行，REJECTED已拒绝',
     new_clearing_revision INT NULL COMMENT '批准后生成的新清分修订',
     new_candidate_no VARCHAR(64) NULL COMMENT '批准后生成的新结算候选业务号',
     new_candidate_id BIGINT NULL COMMENT '批准后生成的新结算候选主键，仅用于依赖迁移审计',

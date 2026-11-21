@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS sys_email_verification_request (
     verified_at DATETIME(3) NULL COMMENT '验证码验证成功时间',
     action_token_hash CHAR(64) NULL COMMENT '首次设密一次性动作令牌SHA-256哈希',
     action_token_expire_at DATETIME(3) NULL COMMENT '首次设密动作令牌到期时间',
-    state VARCHAR(30) NOT NULL COMMENT 'PENDING、VERIFIED、COMPLETED、EXPIRED、LOCKED、SUPERSEDED、BLOCKED',
+    state VARCHAR(30) NOT NULL COMMENT '邮箱验证请求状态：待验证、已验证、已完成、已过期、已锁定、已替代或已阻断',
     request_ip VARCHAR(64) NOT NULL COMMENT '发起IP，用于限流和安全审计',
     user_agent VARCHAR(500) NULL COMMENT '截断后的User-Agent',
     locale VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '邮件语言',

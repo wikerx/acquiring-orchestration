@@ -7,11 +7,13 @@ import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
+import com.scott.payment.payment.domain.state.AuthorizationLifecycleGuard;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -243,6 +245,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
         }
+        AuthorizationLifecycleGuard.validateOpen(sourceOrderDO,
+                transactionRecordService.findOperationsByOperationId(sourceOrderDO.getOperationId(),
+                        sourceOrderDO.getTransactionDateTime(), LocalDateTime.now()));
         FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan = calculateIncrementalAuthorizationAmountPlan(
                 commandDTO,
                 sourceOrderDO,
@@ -390,7 +395,12 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         if (transactionOperations == null) {
             return callback.get();
         }
-        return transactionOperations.execute(status -> callback.get());
+        return transactionOperations.execute(status -> {
+            // 金额及未决动作必须与主单锁同走主库，不能让副本延迟漏掉刚提交的预占或关闭事实。
+            try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+                return callback.get();
+            }
+        });
     }
 
     /**

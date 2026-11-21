@@ -38,7 +38,7 @@ public final class SensitiveDataMaskUtils {
      * 卡号字段保留前 6 后 4，用于 BIN、尾号和链路排查。
      */
     private static final Pattern CARD_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:cardNo|pan)\"\\s*:\\s*\")([0-9]{6})([0-9]{1,19})([0-9]{4})(\")",
+            "(\"(?:cardNo|cardNumber|pan)\"\\s*:\\s*\")([0-9]{6})([0-9]{1,19})([0-9]{4})(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -214,7 +214,7 @@ public final class SensitiveDataMaskUtils {
                 || isIdField(key) || isPersonalField(key) || isMerchantUrlField(key)) {
             return "***";
         }
-        if ("cardno".equals(key) || "pan".equals(key)) {
+        if ("cardno".equals(key) || "cardnumber".equals(key) || "pan".equals(key)) {
             return maskPan(value);
         }
         if (isAccountField(key)) {

@@ -24,7 +24,7 @@ route_mid_dual_currency: BEGIN
     ) THEN
         ALTER TABLE channel_mid_config
             ADD COLUMN default_transaction_currency CHAR(3) NULL
-                COMMENT 'Default transaction currency for future initial transactions'
+                COMMENT '后续新发起交易默认使用的交易币种'
                 AFTER allowed_country_scope;
     END IF;
 
@@ -76,7 +76,7 @@ route_mid_dual_currency: BEGIN
 
     ALTER TABLE channel_mid_config
         MODIFY COLUMN default_transaction_currency CHAR(3) NOT NULL
-            COMMENT 'Default transaction currency for future initial transactions';
+            COMMENT '后续新发起交易默认使用的交易币种';
 
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -86,7 +86,7 @@ route_mid_dual_currency: BEGIN
     ) THEN
         ALTER TABLE payment_route_method
             ADD COLUMN card_brand VARCHAR(64) NOT NULL DEFAULT 'NONE'
-                COMMENT 'Card brand; NONE for non-card payment methods'
+                COMMENT '支付卡品牌，非卡支付方式使用NONE'
                 AFTER payment_method;
     END IF;
 
@@ -98,7 +98,7 @@ route_mid_dual_currency: BEGIN
     ) THEN
         ALTER TABLE payment_route_candidate
             ADD COLUMN card_brand VARCHAR(64) NOT NULL DEFAULT 'NONE'
-                COMMENT 'Card brand; NONE for non-card payment methods'
+                COMMENT '支付卡品牌，非卡支付方式使用NONE'
                 AFTER payment_method;
     END IF;
 
@@ -186,20 +186,20 @@ route_mid_dual_currency: BEGIN
 
     DROP TEMPORARY TABLE IF EXISTS tmp_route_candidate_scope;
     CREATE TEMPORARY TABLE tmp_route_candidate_scope (
-        source_candidate_id BIGINT NOT NULL,
-        rule_id BIGINT NOT NULL,
-        payment_method VARCHAR(64) NOT NULL,
-        card_brand VARCHAR(64) NOT NULL,
-        channel_id BIGINT NOT NULL,
-        mid_config_id BIGINT NOT NULL,
-        candidate_priority INT NOT NULL,
-        candidate_weight DECIMAL(5, 2) NULL,
-        candidate_status TINYINT NOT NULL,
-        create_by VARCHAR(64) NULL,
-        create_time DATETIME(3) NULL,
-        update_by VARCHAR(64) NULL,
-        update_time DATETIME(3) NULL
-    );
+        source_candidate_id BIGINT NOT NULL COMMENT '迁移前候选主键' ,
+        rule_id BIGINT NOT NULL COMMENT '关联规则主键' ,
+        payment_method VARCHAR(64) NOT NULL COMMENT '收单支付方式' ,
+        card_brand VARCHAR(64) NOT NULL COMMENT '支付卡品牌，非卡支付方式使用约定的空品牌编码' ,
+        channel_id BIGINT NOT NULL COMMENT '收单渠道主键' ,
+        mid_config_id BIGINT NOT NULL COMMENT '渠道商户号配置主键' ,
+        candidate_priority INT NOT NULL COMMENT '同一支付方式下候选优先级' ,
+        candidate_weight DECIMAL(5, 2) NULL COMMENT '同一支付方式下候选路由权重' ,
+        candidate_status TINYINT NOT NULL COMMENT '路由候选启停状态' ,
+        create_by VARCHAR(64) NULL COMMENT '创建人标识' ,
+        create_time DATETIME(3) NULL COMMENT '创建时间' ,
+        update_by VARCHAR(64) NULL COMMENT '更新人标识' ,
+        update_time DATETIME(3) NULL COMMENT '更新时间'
+    ) COMMENT '渠道双币种路由迁移的候选范围临时快照' ;
     INSERT INTO tmp_route_candidate_scope (
         source_candidate_id, rule_id, payment_method, card_brand,
         channel_id, mid_config_id, candidate_priority, candidate_weight,
@@ -307,7 +307,7 @@ route_mid_dual_currency: BEGIN
     END IF;
 
     DROP TEMPORARY TABLE IF EXISTS tmp_route_method_scope;
-    CREATE TEMPORARY TABLE tmp_route_method_scope AS
+    CREATE TEMPORARY TABLE tmp_route_method_scope  COMMENT '渠道双币种路由迁移的支付方式范围临时快照' AS
     SELECT DISTINCT rule_id, payment_method, card_brand
     FROM tmp_route_candidate_scope
     UNION

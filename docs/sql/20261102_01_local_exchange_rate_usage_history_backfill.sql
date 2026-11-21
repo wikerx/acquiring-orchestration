@@ -63,11 +63,11 @@ BEGIN
 
     DROP TEMPORARY TABLE IF EXISTS tmp_exchange_rate_source_order;
     CREATE TEMPORARY TABLE tmp_exchange_rate_source_order (
-        root_transaction_id VARCHAR(64) NOT NULL,
-        rate_source VARCHAR(64) NOT NULL,
-        rate_time DATETIME(3) NOT NULL,
+        root_transaction_id VARCHAR(64) NOT NULL COMMENT '原始交易生命周期编号' ,
+        rate_source VARCHAR(64) NOT NULL COMMENT '汇率取值来源' ,
+        rate_time DATETIME(3) NOT NULL COMMENT '原交易采用汇率的时刻' ,
         PRIMARY KEY (root_transaction_id)
-    ) ENGINE=InnoDB;
+    ) ENGINE=InnoDB COMMENT '历史汇率回填的原交易来源临时快照' ;
 
     INSERT INTO tmp_exchange_rate_source_order (root_transaction_id, rate_source, rate_time)
     SELECT history.root_transaction_id, history.rate_source, history.rate_time
@@ -85,20 +85,20 @@ BEGIN
 
     DROP TEMPORARY TABLE IF EXISTS tmp_exchange_rate_transaction_fact;
     CREATE TEMPORARY TABLE tmp_exchange_rate_transaction_fact (
-        business_no VARCHAR(128) NOT NULL,
-        business_type VARCHAR(64) NOT NULL,
-        base_currency CHAR(3) NOT NULL,
-        quote_currency CHAR(3) NOT NULL,
-        used_rate DECIMAL(24, 12) NOT NULL,
-        business_rate_id BIGINT NOT NULL,
-        raw_rate_id BIGINT NULL,
-        rule_id BIGINT NULL,
-        rate_source VARCHAR(64) NOT NULL,
-        rate_effective_time DATETIME(3) NOT NULL,
-        calculation_description VARCHAR(512) NOT NULL,
-        applied_time DATETIME(3) NOT NULL,
+        business_no VARCHAR(128) NOT NULL COMMENT '汇率使用业务单号' ,
+        business_type VARCHAR(64) NOT NULL COMMENT '汇率使用业务类型' ,
+        base_currency CHAR(3) NOT NULL COMMENT '汇率原始币种' ,
+        quote_currency CHAR(3) NOT NULL COMMENT '汇率目标币种' ,
+        used_rate DECIMAL(24, 12) NOT NULL COMMENT '本次业务采用的汇率' ,
+        business_rate_id BIGINT NOT NULL COMMENT '关联业务汇率记录主键' ,
+        raw_rate_id BIGINT NULL COMMENT '关联原始汇率记录主键' ,
+        rule_id BIGINT NULL COMMENT '关联规则主键' ,
+        rate_source VARCHAR(64) NOT NULL COMMENT '汇率取值来源' ,
+        rate_effective_time DATETIME(3) NOT NULL COMMENT '采用汇率的生效时间' ,
+        calculation_description VARCHAR(512) NOT NULL COMMENT '金额换算过程说明' ,
+        applied_time DATETIME(3) NOT NULL COMMENT '汇率应用于业务的时间' ,
         PRIMARY KEY (business_no)
-    ) ENGINE=InnoDB;
+    ) ENGINE=InnoDB COMMENT '历史汇率回填的交易汇率事实临时表' ;
 
     -- 首次支付、授权和预授权使用主单冻结的真实跨币种交易汇率。
     INSERT INTO tmp_exchange_rate_transaction_fact (

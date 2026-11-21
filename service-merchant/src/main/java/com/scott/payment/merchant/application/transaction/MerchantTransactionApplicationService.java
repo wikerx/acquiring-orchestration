@@ -2,6 +2,7 @@ package com.scott.payment.merchant.application.transaction;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.enums.RefundReasonEnum;
+import com.scott.payment.component.core.enums.ConsoleTransactionReason;
 import com.scott.payment.component.core.model.RefundContext;
 import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -90,7 +91,7 @@ public class MerchantTransactionApplicationService {
     /**
      * 可作为退款源的交易动作类型。
      */
-    private static final Set<String> REFUND_SOURCE_TYPES = Set.of("PAYMENT", "CAPTURE");
+    private static final Set<String> REFUND_SOURCE_TYPES = Set.of("PAYMENT", "CAPTURE", "PRE_AUTH_COMPLETION");
 
     /**
      * 可作为请款源的授权类动作类型。
@@ -180,7 +181,7 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 当前商户发起全额请款动作。
+     * 当前商户发起请款动作。
      *
      * @param merchantId    当前登录商户号
      * @param transactionId 原授权平台交易 ID
@@ -199,7 +200,18 @@ public class MerchantTransactionApplicationService {
         if (!CAPTURE_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
-        BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        BigDecimal labelAmount = request == null ? null : request.getAmount();
+        if (labelAmount == null || labelAmount.signum() <= 0) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
+        }
+        String actionCurrency = resolveLabelCurrency(sourceOperation, request);
+        int exponent = IsoCurrencyResolver.resolve(actionCurrency).map(info -> info.defaultFractionDigits())
+                .filter(value -> value >= 0).orElseThrow(() -> new ApiException(ApiResultEnum.PARAM_INVALID));
+        if (labelAmount.stripTrailingZeros().scale() > exponent) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount has invalid currency precision");
+        }
+        request.setReason(ConsoleTransactionReason.resolve("CAPTURE", request.getReasonCode(),
+                request.getOperationDescription(), request.getReason(), LocaleContextHolder.getLocale()));
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 merchantId,
                 sourceOperation,
@@ -210,7 +222,7 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 当前商户发起全额预授权完成动作。
+     * 当前商户发起预授权完成动作。
      *
      * @param merchantId 当前登录商户号
      * @param transactionId 原预授权平台交易 ID
@@ -232,7 +244,18 @@ public class MerchantTransactionApplicationService {
         if (!PRE_AUTH_COMPLETION_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
-        BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        BigDecimal labelAmount = request == null ? null : request.getAmount();
+        if (labelAmount == null || labelAmount.signum() <= 0) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
+        }
+        String actionCurrency = resolveLabelCurrency(sourceOperation, request);
+        int exponent = IsoCurrencyResolver.resolve(actionCurrency).map(info -> info.defaultFractionDigits())
+                .filter(value -> value >= 0).orElseThrow(() -> new ApiException(ApiResultEnum.PARAM_INVALID));
+        if (labelAmount.stripTrailingZeros().scale() > exponent) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount has invalid currency precision");
+        }
+        request.setReason(ConsoleTransactionReason.resolve("CAPTURE", request.getReasonCode(),
+                request.getOperationDescription(), request.getReason(), LocaleContextHolder.getLocale()));
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 merchantId,
                 sourceOperation,
@@ -298,11 +321,14 @@ public class MerchantTransactionApplicationService {
         if (!VOID_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
+        request.setReason(ConsoleTransactionReason.resolve("VOID", request.getReasonCode(),
+                request.getOperationDescription(), request.getReason(), LocaleContextHolder.getLocale()));
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 merchantId,
                 sourceOperation,
                 request,
-                fullLabelAmount(sourceOperation, sourceOperation.getTransactionAmount()),
+                sourceOperation.getAvailableCaptureAmount() != null ? sourceOperation.getAvailableCaptureAmount()
+                        : fullLabelAmount(sourceOperation, sourceOperation.getTransactionAmount()),
                 MERCHANT_VOID_ORDER_ID_PREFIX);
         return paymentInternalClient.voidPayment(requestDTO);
     }
@@ -564,29 +590,7 @@ public class MerchantTransactionApplicationService {
         if (!SUCCESS_STATUS.equals(source.getTransactionStatus()) || !REFUND_SOURCE_TYPES.contains(source.getTransactionType())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
         }
-        String currency = resolveLabelCurrency(source, null);
-        int digits = IsoCurrencyResolver.resolve(currency)
-                .map(info -> info.defaultFractionDigits()).filter(value -> value >= 0)
-                .orElseThrow(() -> new ApiException(ApiResultEnum.PARAM_INVALID));
-        if (currency.equalsIgnoreCase(source.getTransactionCurrency())
-                && source.getCurrencyExponent() != null && source.getCurrencyExponent() >= 0) {
-            digits = source.getCurrencyExponent();
-        }
-        BigDecimal available = source.getAvailableRefundAmount();
-        if (available == null) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID);
-        }
-        BigDecimal pending = detailResponse.getOperations().stream()
-                .filter(operation -> REFUND_OPERATION_TYPE.equals(operation.getTransactionType()))
-                .filter(operation -> operation.getTransactionStatus() != null
-                        && REFUND_IN_PROGRESS_STATUSES.contains(operation.getTransactionStatus()))
-                .map(operation -> operationLabelAmount(operation, source))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal refunded = source.getRefundedAmount() == null ? BigDecimal.ZERO : source.getRefundedAmount();
-        return new RefundContext(currency, digits,
-                normalizeLabelAmount(refunded, digits, RoundingMode.HALF_UP),
-                normalizeLabelAmount(pending, digits, RoundingMode.HALF_UP),
-                normalizeLabelAmount(available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
+        return ConsoleTransactionPolicy.refundContext(source, detailResponse.getOperations());
     }
 
     /**

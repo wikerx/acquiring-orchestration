@@ -10,6 +10,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.db.auth.support.GeneratedAuthCode;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysPostDO;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
@@ -123,9 +124,6 @@ public class AdminPostServiceImpl implements AdminPostService {
      */
     @Override
     public SysPostDO createPost(SysPostDO post) {
-        if (!StringUtils.hasText(post.getPostCode())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "岗位编码不能为空");
-        }
         if (!StringUtils.hasText(post.getPostName())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "岗位名称不能为空");
         }
@@ -141,7 +139,11 @@ public class AdminPostServiceImpl implements AdminPostService {
         if (post.getSortNo() == null) {
             post.setSortNo(100);
         }
-        sysPostMapper.insert(post);
+        GeneratedAuthCode.insert("ADMIN_POST_", code -> {
+            post.setId(null);
+            post.setPostCode(code);
+            sysPostMapper.insert(post);
+        });
         return post;
     }
 

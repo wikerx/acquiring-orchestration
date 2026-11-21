@@ -26,7 +26,7 @@ BEGIN
     ) THEN
         ALTER TABLE merchant_settlement_profile
             ADD COLUMN processing_mode VARCHAR(16) NOT NULL DEFAULT 'AUTO_POST'
-                COMMENT 'AUTO_POST automatic posting, AUTO_REVIEW automatic selection with approval, MANUAL admin selection'
+                COMMENT '结算处理模式：AUTO_POST自动入账，AUTO_REVIEW自动选取后审批，MANUAL人工选择'
                 AFTER daily_cutoff_time;
     END IF;
 

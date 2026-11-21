@@ -290,6 +290,7 @@ class MerchantTransactionApplicationServiceTests {
         when(paymentInternalClient.voidPayment(commandCaptor.capture()))
                 .thenReturn(new TransactionActionResponse());
         TransactionActionRequest request = new TransactionActionRequest();
+        request.setReasonCode("MERCHANT_CONFIRMED");
         request.setTransactionDateTime(TRANSACTION_DATE_TIME);
         request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
 
@@ -377,6 +378,8 @@ class MerchantTransactionApplicationServiceTests {
 
     private TransactionActionRequest actionRequest() {
         TransactionActionRequest request = new TransactionActionRequest();
+        request.setAmount(new BigDecimal("1.00"));
+        request.setReasonCode("MERCHANT_CONFIRMED");
         request.setTransactionDateTime(TRANSACTION_DATE_TIME);
         request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
         return request;

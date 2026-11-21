@@ -129,8 +129,16 @@ public class PaymentApiClient {
         try {
             HttpResponse<String> response = httpClient.send(
                     httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            ChannelPaymentResponse result = responseConverter.convert(
-                    request, response.statusCode(), response.body());
+            ChannelPaymentResponse result;
+            try {
+                result = responseConverter.convert(request, response.statusCode(), response.body());
+            } catch (ChannelResponseException exception) {
+                ChannelPaymentResponse evidence = new ChannelPaymentResponse();
+                evidence.setHttpStatus(response.statusCode());
+                addAuditEvidence(evidence, url, merchantId, body, response);
+                exception.setResponseEvidence(evidence);
+                throw exception;
+            }
             addAuditEvidence(result, url, merchantId, body, response);
             return result;
         } catch (java.net.http.HttpTimeoutException exception) {

@@ -11,6 +11,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.db.auth.support.GeneratedAuthCode;
 import com.scott.payment.component.db.auth.dto.AuthMenuDTO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
@@ -457,9 +458,8 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     @Transactional(rollbackFor = Exception.class)
     public PostDTO createPost(PostSaveRequest request) {
         String merchantId = currentMerchantId();
-        assertPostCodeAvailable(merchantId, request.getPostCode(), null);
         SysMerchantPostDO post = new SysMerchantPostDO();
-        applyPost(post, request);
+        applyPostFields(post, request);
         LocalDateTime now = LocalDateTime.now();
         post.setMerchantId(merchantId);
         post.setCreatedAt(now);
@@ -467,7 +467,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         post.setCreatedBy(currentAccountId());
         post.setUpdatedBy(currentAccountId());
         post.setDeleted(AuthConstants.NOT_DELETED);
-        sysMerchantPostMapper.insert(post);
+        GeneratedAuthCode.insert("MERCHANT_" + merchantId + "_", code -> {
+            post.setId(null);
+            post.setPostCode(code);
+            sysMerchantPostMapper.insert(post);
+        });
         return MerchantSystemConverter.INSTANCE.toPostDTO(post);
     }
 
@@ -1143,12 +1147,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     public RoleDTO createRole(RoleSaveRequest request) {
         SysAppDO app = merchantApp();
         String merchantId = currentMerchantId();
-        assertRoleCodeAvailable(app.getId(), merchantId, request.getRoleCode(), null);
         LocalDateTime now = LocalDateTime.now();
         SysRoleDO role = new SysRoleDO();
         role.setAppId(app.getId());
         role.setMerchantId(merchantId);
-        role.setRoleCode(required(request.getRoleCode(), "roleCode"));
         role.setRoleName(required(request.getRoleName(), "roleName"));
         role.setRoleType(ROLE_TYPE_CUSTOM);
         role.setDataScope(resolveDataScope(request.getDataScope()));
@@ -1160,7 +1162,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         role.setCreatedBy(currentAccountId());
         role.setUpdatedBy(currentAccountId());
         role.setDeleted(AuthConstants.NOT_DELETED);
-        sysRoleMapper.insert(role);
+        GeneratedAuthCode.insert("MERCHANT_" + merchantId + "_", code -> {
+            role.setId(null);
+            role.setRoleCode(code);
+            sysRoleMapper.insert(role);
+        });
         replaceRoleGrants(app.getId(), merchantId, role.getId(), request.getMenuIds(), request.getPermissionIds());
         return MerchantSystemConverter.INSTANCE.toRoleDTO(role);
     }
@@ -1509,6 +1515,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      */
     private void applyPost(SysMerchantPostDO post, PostSaveRequest request) {
         post.setPostCode(required(request.getPostCode(), "postCode"));
+        applyPostFields(post, request);
+    }
+
+    /** 岗位名称等业务字段的既有校验；创建与更新只在编码来源上区分。 */
+    private void applyPostFields(SysMerchantPostDO post, PostSaveRequest request) {
         post.setPostName(required(request.getPostName(), "postName"));
         post.setSortNo(request.getSortNo() == null ? 0 : request.getSortNo());
         post.setStatus(validStatus(request.getStatus()));

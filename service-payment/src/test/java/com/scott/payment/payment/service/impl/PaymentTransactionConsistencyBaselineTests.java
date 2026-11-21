@@ -2062,7 +2062,7 @@ class PaymentTransactionConsistencyBaselineTests {
     void shouldCommitIncrementalAuthorizationFactsBeforeCallingChannel() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
-        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
@@ -2106,6 +2106,23 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
     }
 
+    /** 普通授权增量在公共支付编排入口即被拒绝，不创建资金动作或调用渠道。 */
+    @Test
+    void shouldRejectOrdinaryAuthorizationIncrementBeforeAnyChannelAction() {
+        CapturingTransactionRecordService records = new CapturingTransactionRecordService();
+        records.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        records.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        InspectingPaymentChannelInvokeService channel = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(new InMemoryTransactionIdempotencyService(), records,
+                new CapturingTransactionEventOutboxService(), channel);
+        assertThatThrownBy(() -> service.createIncrementalAuthorization(
+                followUpCommand("ORDINARY-INCREMENT-NOT-ALLOWED", new BigDecimal("3.00"))))
+                .isInstanceOf(ServiceException.class).extracting("code").isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+        assertThat(channel.paymentInvokeCount()).isZero();
+        assertThat(records.followUpRecordCount).isZero();
+    }
+
     /**
      * 跨币种增量授权应继续使用首笔冻结汇率，并记录真实动作类型的汇率使用事件。
      */
@@ -2113,6 +2130,7 @@ class PaymentTransactionConsistencyBaselineTests {
     void shouldRecordFrozenRateUsageForIncrementalAuthorization() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = frozenRateSourceRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
         InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
                 channelResponse(ChannelTradeStatus.SUCCESS));
@@ -2140,7 +2158,7 @@ class PaymentTransactionConsistencyBaselineTests {
     void shouldKeepIncrementalAuthorizationRecoverableFactsWhenResultTransactionFailsAfterChannelSuccess() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
-        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
@@ -2251,7 +2269,7 @@ class PaymentTransactionConsistencyBaselineTests {
     void shouldReturnOriginalIncrementalAuthorizationForDuplicateSameMerchantActionNo() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
-        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
@@ -2279,7 +2297,7 @@ class PaymentTransactionConsistencyBaselineTests {
     void shouldRejectSameIncrementalAuthorizationActionNoWithDifferentAmountBeforeChannelInvocation() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
-        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
@@ -2306,7 +2324,7 @@ class PaymentTransactionConsistencyBaselineTests {
     void shouldReturnPersistedIncrementalAuthorizationTerminalStateWhenCallbackWinsSyncResultCas() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
-        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         recordService.enableCurrentOperationLookup = true;
@@ -2419,7 +2437,7 @@ class PaymentTransactionConsistencyBaselineTests {
     @Test
     void shouldBlockIncrementalAuthorizationCaptureAndCancelWhenIncrementalAuthorizationIsPending() {
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
-        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         recordService.pendingIncrementalAuthorizationExists = true;
@@ -2457,7 +2475,7 @@ class PaymentTransactionConsistencyBaselineTests {
     @Test
     void shouldBlockIncrementalAuthorizationWhenCaptureOrCancelIsPending() {
         CapturingTransactionRecordService capturePendingRecordService = new CapturingTransactionRecordService();
-        capturePendingRecordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        capturePendingRecordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         capturePendingRecordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         capturePendingRecordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         capturePendingRecordService.pendingCaptureExists = true;
@@ -2476,7 +2494,7 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(captureChannelService.paymentInvokeCount()).isZero();
 
         CapturingTransactionRecordService cancelPendingRecordService = new CapturingTransactionRecordService();
-        cancelPendingRecordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        cancelPendingRecordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         cancelPendingRecordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
         cancelPendingRecordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
         cancelPendingRecordService.pendingVoidExists = true;
@@ -2625,6 +2643,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 "void-short-transaction");
 
         TransactionBoundaryRecordService incrementalRecordService = new TransactionBoundaryRecordService();
+        ((CapturingTransactionRecordService) incrementalRecordService).sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
         IncrementalAuthorizationPreparationResultDTO incrementalResult =
                 new DefaultIncrementalAuthorizationTransactionPreparationService(
                         isoDictionaryService(),

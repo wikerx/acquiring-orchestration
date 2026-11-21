@@ -112,6 +112,8 @@ public final class MerchantRefundDTOs {
         private String requestReason;
         private String transactionStatus;
         private String processStage;
+        /** 区分真实渠道处理中与技术结果未知；仅用于控制台阶段投影。 */
+        private String pendingReasonCode;
         private String labelCurrency;
         private BigDecimal labelAmount;
         /**

@@ -37,7 +37,7 @@ BEGIN
     ) THEN
         ALTER TABLE channel_payment_capability
             ADD COLUMN default_transaction_currency CHAR(3) NULL
-                COMMENT 'Default transaction currency; must belong to capability currencies'
+                COMMENT '默认交易币种，必须属于该支付能力允许的币种集合'
                 AFTER transaction_type;
     END IF;
 
@@ -105,7 +105,7 @@ BEGIN
 
     ALTER TABLE channel_payment_capability
         MODIFY COLUMN default_transaction_currency CHAR(3) NOT NULL
-            COMMENT 'Default transaction currency; must belong to capability currencies';
+            COMMENT '默认交易币种，必须属于该支付能力允许的币种集合';
 
     IF NOT EXISTS (
         SELECT 1

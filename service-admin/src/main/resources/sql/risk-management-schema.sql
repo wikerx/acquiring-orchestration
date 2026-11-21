@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS risk_trade_black_batch (
     action_type VARCHAR(16) NOT NULL COMMENT '操作：ADD、RELEASE',
     function_count INT NOT NULL DEFAULT 0 COMMENT '选择的黑名单功能数',
     order_count INT NOT NULL DEFAULT 0 COMMENT '输入订单数',
-    status VARCHAR(24) NOT NULL COMMENT 'PROCESSING、SUCCESS、PARTIAL_SUCCESS、FAILED',
+    status VARCHAR(24) NOT NULL COMMENT '批量任务状态：处理中、全部成功、部分成功或失败',
     total_count INT NOT NULL DEFAULT 0 COMMENT '候选项总数',
     success_count INT NOT NULL DEFAULT 0 COMMENT '实际变更成功数',
     skipped_count INT NOT NULL DEFAULT 0 COMMENT '幂等跳过数',

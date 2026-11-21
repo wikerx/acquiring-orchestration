@@ -101,6 +101,29 @@ After implementation:
   focused startup verification for every affected service. Security hardening is incomplete when it
   only removes a fallback and leaves approved local development unable to start.
 
+### Database Comment Governance
+
+- New or changed tables and columns require meaningful Chinese MySQL `COMMENT` attributes. Empty,
+  English-only, enum-only, placeholder, malformed UTF-8, replacement characters and mojibake fail
+  verification. Protocol names and enum codes may remain unchanged inside Chinese explanations.
+- Table and column identifiers remain lower snake case English. Do not rename identifiers or alter
+  business data, types, defaults, expressions, indexes or constraints merely to repair comments.
+- Update the owning migration and schema baseline together. SQL `--` comments and Java Javadoc do
+  not substitute for database comments. Dynamic DDL and reusable migration procedure arguments must
+  also be checked; inherited comments require source validation and live schema verification.
+- Run `python3 scripts/verify-database-comments.py` and its contract tests before completion. After
+  any approved schema execution, run `scripts/audit-database-comments.py` against the actual target
+  database and report all-table/all-column counts, not a screenshot or a sample-only check.
+- SQL containing Chinese text must use an explicit UTF-8 client connection: for the MySQL CLI,
+  specify `--default-character-set=utf8mb4` and execute `SET NAMES utf8mb4`. Verify the client,
+  connection and result character sets before executing DDL; database/table defaults do not prove
+  the executing connection is UTF-8. A nonzero live comment audit blocks delivery even when the
+  source SQL comment check passes.
+- Comment-only DDL can still rebuild or lock a table. Back up metadata, rehearse and verify unchanged
+  non-comment attributes. If MySQL requires a copying ALTER for an active financial table, prepare
+  data backup and a specific write-pause window before obtaining execution approval; never silently
+  fall back to COPY or disable constraints.
+
 ### File Template Governance
 
 - Reusable Admin and Merchant upload/input templates are governed by Template Center. New business

@@ -208,6 +208,7 @@ class AdminTransactionApplicationServiceTests {
         TransactionActionResponse actual = service.capture("TX-AUTH-001", actionRequest());
 
         assertThat(actual).isSameAs(expected);
+        assertThat(captor.getValue().getAmount()).isEqualByComparingTo("1.00");
         assertThat(captor.getValue().getMerchantOrderId()).startsWith("ADMCP");
         assertThat(captor.getValue().getTransactionInfo().getSourceTransactionId())
                 .isEqualTo("TX-AUTH-001");
@@ -232,6 +233,7 @@ class AdminTransactionApplicationServiceTests {
         TransactionActionResponse actual = service.preAuthCompletion("TX-PREAUTH-001", actionRequest());
 
         assertThat(actual).isSameAs(expected);
+        assertThat(captor.getValue().getAmount()).isEqualByComparingTo("1.00");
         assertThat(captor.getValue().getMerchantOrderId()).startsWith("ADMPA");
         assertThat(captor.getValue().getTransactionInfo().getSourceTransactionId())
                 .isEqualTo("TX-PREAUTH-001");
@@ -302,6 +304,7 @@ class AdminTransactionApplicationServiceTests {
         when(paymentInternalClient.voidPayment(captor.capture())).thenReturn(expected);
 
         TransactionActionRequest request = new TransactionActionRequest();
+        request.setReasonCode("MERCHANT_CONFIRMED");
         request.setTransactionDateTime(TRANSACTION_DATE_TIME);
         request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
         TransactionActionResponse actual = service.voidPayment("TX202607140010", request);
@@ -471,6 +474,8 @@ class AdminTransactionApplicationServiceTests {
 
     private TransactionActionRequest actionRequest() {
         TransactionActionRequest request = new TransactionActionRequest();
+        request.setAmount(new BigDecimal("1.00"));
+        request.setReasonCode("MERCHANT_CONFIRMED");
         request.setTransactionDateTime(TRANSACTION_DATE_TIME);
         request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
         return request;

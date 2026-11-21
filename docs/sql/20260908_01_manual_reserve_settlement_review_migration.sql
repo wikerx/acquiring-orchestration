@@ -3,10 +3,10 @@
 
 ALTER TABLE settlement_manual_review_task
     DROP CHECK chk_manual_review_task_value,
-    MODIFY COLUMN initial_delay_unit CHAR(1) NULL,
-    MODIFY COLUMN initial_delay_days INT NULL,
-    MODIFY COLUMN regular_delay_days INT NULL,
-    MODIFY COLUMN settlement_frequency VARCHAR(16) NULL,
+    MODIFY COLUMN initial_delay_unit CHAR(1) NULL COMMENT '首笔结算延迟的日期计算单位' ,
+    MODIFY COLUMN initial_delay_days INT NULL COMMENT '首笔结算延迟天数' ,
+    MODIFY COLUMN regular_delay_days INT NULL COMMENT '常规结算延迟天数' ,
+    MODIFY COLUMN settlement_frequency VARCHAR(16) NULL COMMENT '商户结算频率' ,
     ADD CONSTRAINT chk_manual_review_task_value CHECK (
         review_type IN ('REGULAR', 'RESERVE_RELEASE')
         AND target_currency_exponent BETWEEN 0 AND 8
