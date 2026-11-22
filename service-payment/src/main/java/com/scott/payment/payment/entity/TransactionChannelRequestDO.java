@@ -102,6 +102,13 @@ public class TransactionChannelRequestDO implements Serializable {
      */
     private String channelTransactionId;
 
+    /** Scott 实际发出的商户侧动作参考号。空值表示旧请求。 */
+    private String channelMerchantReference;
+
+    /** Scott 逐笔回调地址。未配置时冻结为空字符串。 */
+    private String channelNotifyUrl;
+
+
     /**
      * 渠道网关外层结果，例如 MPGS result；该字段不等同于资金成功。
      */

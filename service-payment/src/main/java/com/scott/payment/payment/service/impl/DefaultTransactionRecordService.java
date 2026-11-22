@@ -1,6 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
+import com.scott.payment.channel.payment.dto.request.ChannelRequestReference;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -74,6 +76,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -1128,6 +1131,200 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionOperationDO findOperationByScottPayinReference(
+            String reference, String channelOrderNo, String channelTransactionId, String credentialHint, boolean refund) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            return findScottPreparedPayin(reference, channelOrderNo, channelTransactionId, credentialHint, refund);
+        }
+    }
+
+    private TransactionOperationDO findScottPreparedPayin(String reference, String channelOrderNo,
+                                                           String channelTransactionId, String credentialHint, boolean refund) {
+        if (!ChannelRequestReference.isPrepared(reference)) {
+            return null;
+        }
+        LocalDateTime time = transactionShardingKeyParser.parseTransactionDateTime(reference.substring(2));
+        if (time == null) {
+            return null;
+        }
+        TransactionChannelRequestDO request = transactionChannelRequestMapper.selectByRequestId(reference, time);
+        if (request == null || !"SCOTT_CHANNEL_A".equalsIgnoreCase(request.getChannelCode())
+                || !"PAYMENT".equals(request.getTransactionType())) {
+            return null;
+        }
+        TransactionOperationDO payment = transactionOperationMapper.selectByTransactionId(
+                request.getTransactionId(), request.getTransactionDateTime());
+        if (payment == null || !"SCOTT_CHANNEL_A".equalsIgnoreCase(payment.getChannelCode())
+                || !Objects.equals(request.getOperationId(), payment.getOperationId())) {
+            return null;
+        }
+        if (!StringUtils.hasText(credentialHint) || !StringUtils.hasText(payment.getChannelRouteSnapshotJson())) {
+            return null;
+        }
+        PaymentRouteResultDTO route = JsonUtils.parseObject(payment.getChannelRouteSnapshotJson(), PaymentRouteResultDTO.class);
+        if (route == null || !credentialHint.equals(route.getMidNo())) {
+            return null;
+        }
+        if (refund) {
+            List<TransactionOperationDO> matches = transactionOperationMapper.selectByChannelTransactionInLifecycle(
+                    "SCOTT_CHANNEL_A", channelOrderNo, channelTransactionId, payment.getOperationId(),
+                    payment.getTransactionDateTime(), exclusiveEnd(LocalDateTime.now()));
+            return matches.size() == 1 && "REFUND".equals(matches.get(0).getTransactionType()) ? matches.get(0) : null;
+        }
+        // 在同步应答到达前，动作单仍使用准备时保存的 CR；应答到达后只接受同一个渠道订单。
+        return reference.equals(payment.getChannelOrderNo())
+                || (StringUtils.hasText(channelOrderNo) && channelOrderNo.equals(payment.getChannelOrderNo()))
+                ? payment : null;
+    }
+
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionOperationDO findScottCallbackOperation(TransactionChannelCallbackCommandDTO command) {
+        Map<String, String> fields = command.getExtension() == null ? Map.of() : command.getExtension();
+        String pathId = command.getPathTransactionId();
+        String refundId = fields.get("refundId");
+        String merchantReference = fields.get("merchantOrderNo");
+        String refundReference = fields.get("merchantRefundNo");
+        if (StringUtils.hasText(refundReference) && !StringUtils.hasText(refundId)) {
+            return null;
+        }
+        String mid = command.getChannelCredentialHint();
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            if (StringUtils.hasText(pathId)) {
+                TransactionOperationDO candidate = findSourceOperationByTransactionId(pathId, resolveSourceTransactionDateTime(pathId));
+                if (!scottMidMatches(candidate, mid)) {
+                    return null;
+                }
+                TransactionChannelRequestDO request = findOriginalChannelRequestForQuery(candidate);
+                if (request == null || !StringUtils.hasText(request.getChannelMerchantReference())) {
+                    return null;
+                }
+                if ("REFUND".equals(candidate.getTransactionType())) {
+                    if (!StringUtils.hasText(refundId)
+                            || !Objects.equals(request.getChannelMerchantReference(), refundReference)
+                            || !knownScottIdentityMatches(candidate, refundId, "CMR")) {
+                        return null;
+                    }
+                    TransactionOperationDO source = findSourceOperationByTransactionId(candidate.getSourceTransactionId(), resolveSourceTransactionDateTime(candidate.getSourceTransactionId()));
+                    return matchesScottSource(source, merchantReference, fields.get("originalChannelTransactionId"), mid)
+                            ? candidate : null;
+                }
+                return !StringUtils.hasText(refundId)
+                        && Objects.equals(request.getChannelMerchantReference(), merchantReference)
+                        && knownScottIdentityMatches(candidate, command.getChannelTransactionId(), "CMT")
+                        && scottCallbackTypeMatches(candidate, fields.get("operationType"))
+                        && scottAuthorizationMatches(candidate, fields.get("authorizationId"))
+                        ? candidate : null;
+            }
+            if (StringUtils.hasText(refundId)) {
+                TransactionOperationDO source = ChannelRequestReference.isPrepared(merchantReference)
+                        ? findScottPreparedPayin(merchantReference, fields.get("originalChannelTransactionId"),
+                                fields.get("originalChannelTransactionId"), mid, false)
+                        : findSourceOperationByTransactionId(merchantReference, resolveSourceTransactionDateTime(merchantReference));
+                String sourceProviderId = fields.get("originalChannelTransactionId");
+                if (!matchesScottSource(source, merchantReference,
+                        firstText(sourceProviderId, source == null ? null : source.getChannelTransactionId()), mid)) {
+                    return null;
+                }
+                List<TransactionOperationDO> matches = transactionOperationMapper.selectScottRefundCallbackCandidates(
+                        source.getOperationId(), source.getTransactionId(), source.getTransactionDateTime(),
+                        exclusiveEnd(LocalDateTime.now()), refundId, refundReference);
+                if (matches.size() != 1) {
+                    return null;
+                }
+                TransactionOperationDO refund = matches.get(0);
+                TransactionChannelRequestDO request = findOriginalChannelRequestForQuery(refund);
+                String frozenReference = request == null ? null : request.getChannelMerchantReference();
+                String expectedReference = firstText(frozenReference, refund.getMerchantOrderId(), refund.getMerchantOperationNo());
+                return scottMidMatches(refund, mid) && knownScottIdentityMatches(refund, refundId, "CMR")
+                        && (StringUtils.hasText(sourceProviderId) || refundId.equals(refund.getChannelTransactionId()))
+                        && (!StringUtils.hasText(refundReference) || Objects.equals(expectedReference, refundReference))
+                        ? refund : null;
+            }
+            if (ChannelRequestReference.isPrepared(merchantReference)) {
+                return findScottPreparedPayin(merchantReference, command.getChannelOrderNo(),
+                        command.getChannelTransactionId(), mid, false);
+            }
+            if (!StringUtils.hasText(merchantReference)) {
+                return null;
+            }
+            TransactionOperationDO candidate = findSourceOperationByTransactionId(merchantReference, resolveSourceTransactionDateTime(merchantReference));
+            return scottMidMatches(candidate, mid)
+                    && knownScottIdentityMatches(candidate, command.getChannelTransactionId(), "CMT")
+                    && scottCallbackTypeMatches(candidate, fields.get("operationType")) ? candidate : null;
+        } catch (ServiceException exception) {
+            if (ApiResultEnum.ORDER_NOT_FOUND.getCode().equals(exception.getCode())) {
+                return null;
+            }
+            throw exception;
+        }
+    }
+
+    private boolean scottAuthorizationMatches(TransactionOperationDO candidate, String authorizationId) {
+        if ("PAYMENT".equals(candidate.getTransactionType())) {
+            return !StringUtils.hasText(authorizationId);
+        }
+        if (authorizationId == null || !authorizationId.startsWith("CMA")) {
+            return false;
+        }
+        TransactionOrderDO root = findOrder(resolveOrderDateTime(candidate), candidate.getOperationId());
+        if (root == null) {
+            return false;
+        }
+        String storedId = root.getChannelAuthorizationId();
+        if (!StringUtils.hasText(storedId) && root.getChannelOrderNo() != null
+                && root.getChannelOrderNo().startsWith("CMA")) {
+            storedId = root.getChannelOrderNo();
+        }
+        return StringUtils.hasText(storedId) ? storedId.equals(authorizationId)
+                : isAuthorizationLike(candidate.getTransactionType());
+    }
+
+    private boolean matchesScottSource(TransactionOperationDO source, String reference, String providerId, String mid) {
+        if (!scottMidMatches(source, mid)
+                || !knownScottIdentityMatches(source, providerId, "CMT")) {
+            return false;
+        }
+        if (ChannelRequestReference.isPrepared(reference)) {
+            TransactionChannelRequestDO request = transactionChannelRequestMapper.selectByRequestId(
+                    reference, source.getTransactionDateTime());
+            return request != null && Objects.equals(source.getTransactionId(), request.getTransactionId());
+        }
+        return StringUtils.hasText(reference) && reference.equals(source.getTransactionId());
+    }
+
+    private boolean scottMidMatches(TransactionOperationDO operation, String mid) {
+        if (operation == null || !"SCOTT_CHANNEL_A".equalsIgnoreCase(operation.getChannelCode())
+                || !StringUtils.hasText(mid) || !StringUtils.hasText(operation.getChannelRouteSnapshotJson())) {
+            return false;
+        }
+        PaymentRouteResultDTO route = JsonUtils.parseObject(operation.getChannelRouteSnapshotJson(), PaymentRouteResultDTO.class);
+        return route != null && mid.equals(route.getMidNo());
+    }
+
+    private boolean knownScottIdentityMatches(TransactionOperationDO operation, String providerId, String prefix) {
+        String known = operation.getChannelTransactionId();
+        return providerId != null && providerId.startsWith(prefix)
+                && (known == null || !known.startsWith(prefix) || known.equals(providerId));
+    }
+
+    private boolean scottCallbackTypeMatches(TransactionOperationDO operation, String callbackOperation) {
+        if (!StringUtils.hasText(callbackOperation)) {
+            return "PAYMENT".equals(operation.getTransactionType());
+        }
+        String expected = switch (callbackOperation.trim().toUpperCase(Locale.ROOT)) {
+            case "AUTH", "AUTHORIZE" -> "AUTHORIZATION";
+            case "PREAUTH", "PREAUTHORIZE", "PRE_AUTHORIZE" -> "PRE_AUTHORIZATION";
+            case "INCREMENT" -> "INCREMENTAL_AUTHORIZATION";
+            case "COMPLETE", "PREAUTH_COMPLETE", "PRE_AUTH_COMPLETE" -> "PRE_AUTH_COMPLETION";
+            case "CANCEL" -> "VOID";
+            default -> callbackOperation.trim().toUpperCase(Locale.ROOT);
+        };
+        return expected.equals(operation.getTransactionType());
+    }
+
     /**
      * 用可信渠道回调上下文定位已存在的 MPGS 动作记录。
      */
@@ -1589,6 +1786,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 operationDO.getChannelOrderNo(),
                 operationDO.getChannelTransactionId());
         updateInitialOrderChannelIdentity(operationDO, operationDO.getChannelOrderNo());
+        persistScottAuthorization(operationDO, operationDO.getCallbackAuthorizationId());
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(operationDO.getChannelCode())
+                && StringUtils.hasText(operationDO.getChannelTransactionId())) {
+            transactionChannelRequestMapper.bindScottCallbackIdentity(
+                    operationDO.getTransactionId(), operationDO.getTransactionDateTime(),
+                    operationDO.getChannelOrderNo(), operationDO.getChannelTransactionId());
+        }
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus);
         // 主单只承载生命周期累计事实；后续动作允许主单状态不变化，但首次动作必须成功推进主单。
         boolean orderUpdated = updateOrderByCallback(orderDO, operationDO, success,
@@ -1624,6 +1828,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         activateMerchantNotification(operationDO, targetTransactionStatus, failReasonCode, failReasonMessage, now);
         synchronizeTerminalIdempotencyStatus(operationDO.getTransactionId(), targetTransactionStatus);
         return true;
+    }
+
+    /**
+     * 优先使用交易定位表保存的根主单时间，避免后续动作用自身时间定位生命周期主单。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public LocalDateTime resolveOrderDateTime(TransactionOperationDO operationDO) {
+        TransactionLocatorDO locator = transactionLocatorMapper == null ? null
+                : transactionLocatorMapper.selectByTransactionIdForTrustedService(operationDO.getTransactionId());
+        if (locator != null && locator.getRootTransactionDateTime() != null) {
+            return locator.getRootTransactionDateTime();
+        }
+        LocalDateTime legacyOrderDateTime = parseOperationDateTime(operationDO.getOperationId());
+        return legacyOrderDateTime == null ? operationDO.getTransactionDateTime() : legacyOrderDateTime;
     }
 
     /**
@@ -1702,9 +1921,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 nextMatchTime,
                 safeLength(failReason, 512));
         if (updated == 1) {
+            LocalDateTime orderDateTime = "SCOTT_CHANNEL_A".equalsIgnoreCase(operationDO.getChannelCode())
+                    ? resolveOrderDateTime(operationDO) : operationDO.getTransactionDateTime();
             transactionOrderMapper.updateLatestChannelMatch(
                     operationDO.getOperationId(),
-                    operationDO.getTransactionDateTime(),
+                    orderDateTime,
                     operationDO.getTransactionId(),
                     matchStatus,
                     safeLength(matchResult, 256),
@@ -1785,6 +2006,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 || operationDO.getTransactionDateTime() == null || expectedVersion == null) {
             return;
         }
+        persistScottAuthorization(operationDO, rawResponseValue(response, "authorizationId"));
         transactionOperationMapper.updateChannelReferencesLogical(
                 operationDO.getId(),
                 operationDO.getTransactionDateTime(),
@@ -1794,6 +2016,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 response.getAuthCode(),
                 response.getRrn(),
                 response.getAcquirerReferenceNo());
+    }
+
+    private void persistScottAuthorization(TransactionOperationDO operation, String authorizationId) {
+        if (operation != null && "SCOTT_CHANNEL_A".equalsIgnoreCase(operation.getChannelCode())
+                && isAuthorizationLike(operation.getTransactionType())
+                && StringUtils.hasText(authorizationId)) {
+            transactionOrderMapper.updateScottAuthorizationId(
+                    operation.getOperationId(), operation.getTransactionDateTime(), authorizationId);
+        }
     }
 
     /**
@@ -2068,6 +2299,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return;
         }
         operationDO.setChannelCode(firstText(operationDO.getChannelCode(), invokeResultDTO.getChannelRequest().getChannelCode()));
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(invokeResultDTO.getChannelRequest().getChannelCode())) {
+            return;
+        }
         operationDO.setChannelOrderNo(firstText(operationDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
         operationDO.setChannelTransactionId(firstText(operationDO.getChannelTransactionId(), invokeResultDTO.getChannelRequest().getChannelTransactionId()));
     }
@@ -2081,6 +2315,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return;
         }
         orderDO.setChannelCode(firstText(orderDO.getChannelCode(), invokeResultDTO.getChannelRequest().getChannelCode()));
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(invokeResultDTO.getChannelRequest().getChannelCode())) {
+            return;
+        }
         orderDO.setChannelOrderNo(firstText(orderDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
     }
 
@@ -2315,6 +2552,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (channelResponse != null) {
             orderDO.setChannelCode(channelResponse.getChannelCode());
             orderDO.setChannelOrderNo(channelResponse.getChannelOrderNo());
+            if ("SCOTT_CHANNEL_A".equalsIgnoreCase(channelResponse.getChannelCode())
+                    && isAuthorizationLike(orderDO.getTransactionType())) {
+                orderDO.setChannelAuthorizationId(rawResponseValue(channelResponse, "authorizationId"));
+            }
         }
         orderDO.setInternalRiskDecision(riskDecisionEnum == null ? PaymentRiskDecisionEnum.UNKNOWN.getCode() : riskDecisionEnum.getCode());
     }
@@ -2926,6 +3167,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return;
         }
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        persistScottAuthorization(operationDO, rawResponseValue(response, "authorizationId"));
         transactionOperationMapper.updateChannelReferencesLogical(
                 operationDO.getId(),
                 operationDO.getTransactionDateTime(),
@@ -3534,12 +3776,20 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         requestDO.setRequestScene(invokeResultDTO.getRequestScene());
         requestDO.setChannelMatchFlag(0);
         requestDO.setRequestStatus(invokeResultDTO.getRequestStatus());
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(requestDO.getChannelCode())
+                && "INIT".equals(requestDO.getRequestStatus())) {
+            requestDO.setChannelMerchantReference(resultDTO.getTransactionId());
+        }
         requestDO.setHttpMethod(resolveChannelHttpMethod(invokeResultDTO));
         requestDO.setRequestUrlMasked(resolveChannelRequestUrl(invokeResultDTO));
         requestDO.setRequestCurrency(invokeResultDTO.getChannelRequest().getCurrency());
         requestDO.setRequestAmount(invokeResultDTO.getChannelRequest().getAmount());
         requestDO.setChannelOrderNo(response == null ? invokeResultDTO.getChannelRequest().getChannelOrderNo() : response.getChannelOrderNo());
         requestDO.setChannelTransactionId(response == null ? invokeResultDTO.getChannelRequest().getChannelTransactionId() : response.getChannelTransactionId());
+        if (requestDO.getChannelMerchantReference() != null && response == null) {
+            requestDO.setChannelOrderNo(null);
+            requestDO.setChannelTransactionId(null);
+        }
         Map<String, String> rawResponse = response == null ? Map.of() : response.getRawResponse();
         requestDO.setGatewayResult(rawResponse.get("result"));
         requestDO.setGatewayCode(rawResponse.get("gatewayCode"));

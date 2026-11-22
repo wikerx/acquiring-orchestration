@@ -76,6 +76,33 @@ class DefaultTransactionChannelMatchServiceTests {
         assertThat(recordService.completedStatus).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"CMR-KNOWN", "CH-PREPARED"})
+    void scottRefundQuerySelectsOneIdentifierAndDoesNotApplyMismatchedEvidence(String knownId) {
+        TransactionOperationDO operation = pendingOperation();
+        operation.setTransactionType("REFUND");
+        operation.setChannelCode("SCOTT_CHANNEL_A");
+        operation.setChannelOrderNo("SCOTT-ORDER");
+        operation.setChannelTransactionId(knownId);
+        TransactionChannelRequestDO request = originalRequest(operation);
+        request.setChannelMerchantReference(operation.getTransactionId());
+        InMemoryRecordService records = new InMemoryRecordService(operation, request);
+        QueryCaptureInvokeService invoke = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        var result = matchService(records, invoke, new CapturingMatchResultTransactionService(records))
+                .matchOne(operation.getTransactionId(), TRANSACTION_TIME);
+
+        if (knownId.startsWith("CMR")) {
+            assertThat(invoke.lastRequest.getExtension()).containsEntry("refundId", knownId)
+                    .doesNotContainKey("merchantRefundNo");
+        } else {
+            assertThat(invoke.lastRequest.getExtension()).containsEntry("merchantRefundNo", operation.getTransactionId())
+                    .doesNotContainKey("refundId");
+        }
+        assertThat(result.getPendingCount()).isEqualTo(1);
+        assertThat(operation.getChannelTransactionId()).isEqualTo(knownId);
+        assertThat(records.completeAttemptCount).isZero();
+    }
+
     @Test
     void shouldCarryOriginalTransactionTypeIntoChannelQuery() {
         TransactionOperationDO operationDO = pendingOperation();
@@ -237,6 +264,27 @@ class DefaultTransactionChannelMatchServiceTests {
         assertThat(resultDTO.getMatchedCount()).isEqualTo(1);
         assertThat(invokeService.queryInvokeCount()).isEqualTo(1);
         assertThat(recordService.completedStatus).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+    }
+
+    @Test
+    void shouldSkipManualAndScheduledMpgsCheckoutQueryUntilFundsSubmission() {
+        TransactionOperationDO operation = pendingOperation();
+        operation.setRequestSource("HOSTED_CHECKOUT");
+        TransactionChannelRequestDO request = originalRequest(operation);
+        request.setRequestStatus("INIT");
+        request.setCreateTime(LocalDateTime.now().minusMinutes(10));
+        InMemoryRecordService records = new InMemoryRecordService(operation, request);
+        QueryCaptureInvokeService invoke = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        var service = matchService(records, invoke, new CapturingMatchResultTransactionService(records));
+
+        assertThat(service.matchDue(matchCommand()).getPendingCount()).isEqualTo(1);
+        assertThat(service.matchOne(operation.getTransactionId(), TRANSACTION_TIME).getPendingCount()).isEqualTo(1);
+        assertThat(invoke.queryInvokeCount()).isZero();
+        assertThat(records.completedStatus).isNull();
+
+        request.setRequestStatus("SENT");
+        assertThat(service.matchDue(matchCommand()).getMatchedCount()).isEqualTo(1);
+        assertThat(invoke.queryInvokeCount()).isEqualTo(1);
     }
 
     @Test

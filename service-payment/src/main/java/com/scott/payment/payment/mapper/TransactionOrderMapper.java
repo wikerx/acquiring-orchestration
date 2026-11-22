@@ -38,7 +38,7 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             channel_match_result, channel_match_count, last_channel_match_request_id,
             last_channel_match_time, next_channel_match_time, channel_match_fail_reason,
             settlement_batch_no, reconciliation_batch_no,
-            channel_id, channel_code, channel_mid_config_id, channel_merchant_id, channel_order_no,
+            channel_id, channel_code, channel_mid_config_id, channel_merchant_id, channel_order_no, channel_authorization_id,
             internal_risk_decision, internal_risk_record_no,
             merchant_website, callback_url, redirect_url, language,
             transaction_date_time, transaction_utc_time, transaction_time_zone,
@@ -358,6 +358,22 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                            @Param("transactionAmount") BigDecimal transactionAmount,
                            @Param("expectedVersion") Integer expectedVersion,
                            @Param("channelMatchStatus") String channelMatchStatus);
+
+    /**
+     * 在同一生命周期中冻结首次收到的 Scott 授权引用。
+     */
+    @Update("""
+            UPDATE transaction_order
+            SET channel_authorization_id = #{channelAuthorizationId}
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND channel_code = 'SCOTT_CHANNEL_A'
+              AND channel_authorization_id IS NULL
+              AND deleted = 0
+            """)
+    int updateScottAuthorizationId(@Param("operationId") String operationId,
+                                  @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                  @Param("channelAuthorizationId") String channelAuthorizationId);
 
     /**
      * 首次授权在同步响应、回调或查询后补写渠道授权号。

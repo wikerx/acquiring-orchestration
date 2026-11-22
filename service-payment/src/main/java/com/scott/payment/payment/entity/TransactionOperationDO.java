@@ -281,6 +281,10 @@ public class TransactionOperationDO implements Serializable {
      */
     private String channelTransactionId;
 
+    /** 已验签回调提供的原授权引用；生命周期主单负责持久化。 */
+    @TableField(exist = false)
+    private String callbackAuthorizationId;
+
     /**
      * 渠道原始交易状态。
      */

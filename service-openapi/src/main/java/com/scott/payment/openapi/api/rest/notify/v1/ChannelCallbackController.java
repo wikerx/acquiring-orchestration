@@ -89,6 +89,19 @@ public class ChannelCallbackController {
     public ResponseEntity<?> receive(@PathVariable("channelCode") String channelCode,
                                      HttpServletRequest request,
                                      @RequestBody(required = false) byte[] rawBody) {
+        return receiveStandard(channelCode, null, request, rawBody);
+    }
+
+    @RequestMapping({"/SCOTT_CHANNEL_A/{transactionId:[A-Za-z0-9_-]{16,64}}",
+            "/SCOTT_CHANNEL_A/{transactionId:[A-Za-z0-9_-]{16,64}}/"})
+    public ResponseEntity<?> receiveScottTransaction(@PathVariable("transactionId") String transactionId,
+                                                     HttpServletRequest request,
+                                                     @RequestBody(required = false) byte[] rawBody) {
+        return receiveStandard("SCOTT_CHANNEL_A", transactionId, request, rawBody);
+    }
+
+    private ResponseEntity<?> receiveStandard(String channelCode, String transactionId,
+                                               HttpServletRequest request, byte[] rawBody) {
         long startNanos = System.nanoTime();
         log.info("OpenAPI渠道回调接收开始, event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, method: {}, path: {}, sourceIpHash: {}, headerCount: {}, bodyLength: {}, bodyDigest: {}",
                 TraceContext.getTraceId(),
@@ -102,8 +115,10 @@ public class ChannelCallbackController {
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(
                         channelCode, ChannelCallbackScene.STANDARD, request, rawBody);
-        paymentInternalClient.acceptChannelCallback(buildCallbackRequest(channelCode, CHANNEL_CALLBACK_TYPE,
-                null, request, rawBody, securityResult));
+        TransactionChannelCallbackClientRequestDTO command = buildCallbackRequest(channelCode,
+                CHANNEL_CALLBACK_TYPE, null, request, rawBody, securityResult);
+        command.setPathTransactionId(transactionId);
+        paymentInternalClient.acceptChannelCallback(command);
         log.info("OpenAPI渠道回调接收完成, event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, signatureValid: {}, ipAllowed: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,

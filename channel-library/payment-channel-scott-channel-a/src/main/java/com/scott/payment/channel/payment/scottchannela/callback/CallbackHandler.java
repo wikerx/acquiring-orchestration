@@ -71,16 +71,15 @@ public class CallbackHandler {
             throw new ChannelRequestException("ScottChannelA callback status is required");
         }
         boolean authorizationCallback = "CARD_AUTH_CALLBACK".equalsIgnoreCase(body.getEventType());
-        result.setChannelOrderNo(authorizationCallback
-                ? body.getAuthorizationId()
-                : body.getMerchantOrderNo());
         boolean refundCallback = "REFUND_CALLBACK".equalsIgnoreCase(body.getEventType())
                 || StringUtils.hasText(body.getRefundId());
-        result.setChannelTransactionId(refundCallback
-                ? firstText(body.getRefundId(), body.getTransactionId())
-                : body.getTransactionId());
+        String providerTransactionId = refundCallback ? body.getRefundId() : body.getTransactionId();
+        result.setChannelOrderNo(providerTransactionId);
+        result.setChannelTransactionId(providerTransactionId);
         if (!StringUtils.hasText(result.getChannelOrderNo())
-                || !StringUtils.hasText(result.getChannelTransactionId())) {
+                || !StringUtils.hasText(result.getChannelTransactionId())
+                || (authorizationCallback && !StringUtils.hasText(body.getAuthorizationId()))
+                || (!authorizationCallback && !StringUtils.hasText(body.getMerchantOrderNo()))) {
             throw new ChannelRequestException("ScottChannelA callback transaction identity is incomplete");
         }
         result.setRawChannelStatus(body.getStatus());
@@ -93,6 +92,9 @@ public class CallbackHandler {
         put(result, "paymentScene", body.getPaymentScene());
         put(result, "paymentMethod", body.getPaymentMethod());
         put(result, "merchantRefundNo", body.getMerchantRefundNo());
+        if (refundCallback) {
+            put(result, "originalChannelTransactionId", body.getTransactionId());
+        }
         put(result, "refundId", body.getRefundId());
         put(result, "merchantOrderNo", body.getMerchantOrderNo());
         put(result, "authorizationId", body.getAuthorizationId());

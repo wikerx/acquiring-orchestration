@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.channel.payment.dto.request.ChannelRequestReference;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -438,6 +439,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                              String callbackId,
                                                              LocalDateTime now) {
         String securityFailReason = callbackSecurityFailReason(commandDTO);
+        boolean scottCallback = "SCOTT_CHANNEL_A".equals(normalizeChannelCode(commandDTO.getChannelCode()));
+        if (securityFailReason == null && scottCallback && context.operationDO() != null
+                && !"SCOTT_CHANNEL_A".equals(normalizeChannelCode(context.operationDO().getChannelCode()))) {
+            securityFailReason = "callback channel does not match the transaction channel";
+        }
         if (securityFailReason != null) {
             log.warn("渠道回调安全校验拒绝, event: PAYMENT_CHANNEL_CALLBACK_SECURITY_REJECTED, stage: CALLBACK_SECURITY, traceId: {}, channelCode: {}, callbackId: {}, transactionId: {}, operationId: {}, channelOrderNo: {}, channelTransactionId: {}, signatureValid: {}, ipAllowed: {}, failReason: {}",
                     TraceContext.getTraceId(),
@@ -766,13 +772,19 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         TransactionOperationDO operationDO = null;
         TransactionOrderDO orderDO = null;
         boolean resolved = false;
-        if (transactionDateTime != null || globalTransactionId || GlobalIdValidator.isValid(channelOrderNo)) {
+        boolean scottReference = "SCOTT_CHANNEL_A".equals(normalizeChannelCode(commandDTO.getChannelCode()))
+                && ChannelRequestReference.isPrepared(transactionId);
+        if (transactionDateTime != null || globalTransactionId || scottReference
+                || StringUtils.hasText(commandDTO.getPathTransactionId()) || GlobalIdValidator.isValid(channelOrderNo)) {
             try {
                 operationDO = resolveCallbackOperation(
                         commandDTO, channelCallbackResult, transactionId, channelOrderNo, channelTransactionId);
                 if (operationDO != null) {
                     resolved = true;
-                    LocalDateTime orderTransactionDateTime = parseOperationDateTime(operationDO.getOperationId());
+                    LocalDateTime orderTransactionDateTime = "SCOTT_CHANNEL_A".equals(
+                            normalizeChannelCode(commandDTO.getChannelCode()))
+                            ? transactionRecordService.resolveOrderDateTime(operationDO)
+                            : parseOperationDateTime(operationDO.getOperationId());
                     if (orderTransactionDateTime == null) {
                         orderTransactionDateTime = operationDO.getTransactionDateTime();
                     }
@@ -823,6 +835,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         if (isThreeDsCallback(commandDTO, channelCallbackResult)) {
             return transactionRecordService.findSourceOperationByTransactionId(transactionId);
         }
+        if ("SCOTT_CHANNEL_A".equals(normalizeChannelCode(commandDTO.getChannelCode()))) {
+            return callbackSecurityFailReason(commandDTO) == null && !commandDTO.isScottIdentityUnresolved()
+                    ? transactionRecordService.findScottCallbackOperation(commandDTO) : null;
+        }
         if (StringUtils.hasText(channelOrderNo) && StringUtils.hasText(channelTransactionId)) {
             try {
                 boolean trustedMpgs = "MPGS".equals(normalizeChannelCode(commandDTO.getChannelCode()))
@@ -871,10 +887,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         Map<String, String> extension = channelCallbackResult.getExtension() == null
                 ? Map.of()
                 : channelCallbackResult.getExtension();
-        operationDO.setChannelOrderNo(firstText(
-                extension.get("authorizationId"),
-                channelCallbackResult.getChannelOrderNo(),
-                operationDO.getChannelOrderNo()));
+        operationDO.setCallbackAuthorizationId(extension.get("authorizationId"));
+        String channelOrderNo = "SCOTT_CHANNEL_A".equalsIgnoreCase(channelCallbackResult.getChannelCode())
+                ? firstText(extension.get("refundId"), channelCallbackResult.getChannelTransactionId())
+                : channelCallbackResult.getChannelOrderNo();
+        operationDO.setChannelOrderNo(firstText(channelOrderNo, operationDO.getChannelOrderNo()));
         operationDO.setChannelTransactionId(firstText(
                 channelCallbackResult.getChannelTransactionId(),
                 operationDO.getChannelTransactionId()));
@@ -959,7 +976,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                        CallbackContext context) {
         String eventId = channelCallbackResult == null ? null : channelCallbackResult.getCallbackEventId();
         if (StringUtils.hasText(eventId)) {
-            return normalizeChannelCode(commandDTO.getChannelCode()) + ":EVENT:" + eventId;
+            boolean unresolvedScott = "SCOTT_CHANNEL_A".equals(normalizeChannelCode(commandDTO.getChannelCode()))
+                    && !context.transactionIdResolved();
+            return normalizeChannelCode(commandDTO.getChannelCode())
+                    + (unresolvedScott ? ":UNRESOLVED_EVENT:" : ":EVENT:") + eventId;
         }
         return normalizeChannelCode(commandDTO.getChannelCode())
                 + ":ORDER:" + firstText(context.channelOrderNo(), "-")

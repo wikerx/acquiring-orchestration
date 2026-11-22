@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -149,6 +150,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         if (policy == null || !policy.isRequired()) {
             return routeResult(new PaymentCheckoutThreeDsResultDTO(), routeResultDTO, policy, "NOT_REQUIRED");
         }
+        if (missingMpgsHttpsReturnUrl(routeResultDTO, returnUrl)) {
+            return unavailableBrowserReturn(routeResultDTO, policy);
+        }
         if (!routeResultDTO.isThreeDsSupported()
                 || !paymentChannelExecutor.supports(
                 routeResultDTO.getChannelCode(),
@@ -180,6 +184,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         }
         PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.restore(
                 attemptDO.getChannelCode(), null, attemptDO.getChannelMidConfigId(), null);
+        if (ChannelThreeDsPhase.AUTHENTICATE.equals(phase) && missingMpgsHttpsReturnUrl(routeResultDTO, returnUrl)) {
+            return unavailableBrowserReturn(routeResultDTO, null);
+        }
         if (!paymentChannelExecutor.supports(routeResultDTO.getChannelCode(),
                 com.scott.payment.channel.payment.enums.ChannelCapability.THREE_DS_AUTHENTICATION)) {
             PaymentCheckoutThreeDsResultDTO result = routeResult(
@@ -192,6 +199,22 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
                 sessionDO, attemptDO, commandDTO, returnUrl, routeResultDTO, phase);
         PaymentCheckoutThreeDsResultDTO result = invoke(request, routeResultDTO, null, false);
         result.setThreeDsPolicyAction("FORCE_3DS");
+        return result;
+    }
+
+    private boolean missingMpgsHttpsReturnUrl(PaymentRouteResultDTO route, String returnUrl) {
+        return "MPGS".equalsIgnoreCase(route.getChannelCode())
+                && !StringUtils.startsWithIgnoreCase(returnUrl, "https://");
+    }
+
+    private PaymentCheckoutThreeDsResultDTO unavailableBrowserReturn(
+            PaymentRouteResultDTO route, RiskThreeDsPolicyClientResponseDTO policy) {
+        PaymentCheckoutThreeDsResultDTO result = routeResult(
+                new PaymentCheckoutThreeDsResultDTO(), route, policy, "FAILED");
+        result.setThreeDsPolicyAction("FORCE_3DS");
+        result.setFailureCode("THREE_DS_AUTHENTICATION_FAILED");
+        result.setFailureMessage("MPGS 3DS browser return URL requires HTTPS");
+        log.warn("MPGS 3DS 缺少 HTTPS 回跳地址, event: CHECKOUT_THREE_DS_HTTPS_RETURN_UNAVAILABLE");
         return result;
     }
 
@@ -278,10 +301,25 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         request.setChannelCode(routeResultDTO.getChannelCode());
         request.setPaymentMethod(attemptDO.getPaymentMethod());
         request.setCardBrand(attemptDO.getPaymentBrand());
-        request.setAmount(sessionDO.getLabelAmount());
-        request.setCurrency(sessionDO.getLabelCurrency());
+        ThreeDsAmount amount = threeDsAmount(sessionDO, attemptDO, routeResultDTO.getChannelCode());
+        request.setAmount(amount.value());
+        request.setCurrency(amount.currency());
         request.setCurrentRiskLevel("LOW");
         return request;
+    }
+
+    /** MPGS 的策略判断和认证使用付款时已确定的渠道金额及币种。 */
+    private ThreeDsAmount threeDsAmount(PaymentCheckoutSessionDO sessionDO,
+                                         PaymentCheckoutAttemptDO attemptDO,
+                                         String channelCode) {
+        if ("MPGS".equalsIgnoreCase(channelCode) && attemptDO.getChannelRequestAmount() != null
+                && StringUtils.hasText(attemptDO.getChannelRequestCurrency())) {
+            return new ThreeDsAmount(attemptDO.getChannelRequestAmount(), attemptDO.getChannelRequestCurrency());
+        }
+        return new ThreeDsAmount(sessionDO.getLabelAmount(), sessionDO.getLabelCurrency());
+    }
+
+    private record ThreeDsAmount(BigDecimal value, String currency) {
     }
 
     /**
@@ -351,8 +389,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         request.setMerchantOrderNo(sessionDO.getMerchantOrderNo());
         request.setMerchantOrderId(attemptDO.getAttemptRequestId());
         request.setPaymentMethod(attemptDO.getPaymentMethod());
-        request.setAmount(sessionDO.getLabelAmount());
-        request.setCurrency(sessionDO.getLabelCurrency());
+        ThreeDsAmount amount = threeDsAmount(sessionDO, attemptDO, routeResultDTO.getChannelCode());
+        request.setAmount(amount.value());
+        request.setCurrency(amount.currency());
         request.setTransactionDateTime(attemptDO.getTransactionDateTime());
         request.setCardBrand(attemptDO.getPaymentBrand());
         request.setRedirectResponseUrl(returnUrl);

@@ -10,9 +10,11 @@ import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
 import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
 import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
 import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -76,6 +78,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -297,10 +300,17 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     /** 只约束关联支付链接的新尝试，3DS 在途续程和普通 Checkout 保持原规则。 */
     private com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard paymentLinkGuard;
     private PaymentPreparationOwnershipService preparationOwnership;
+    private SystemConfigReadService systemConfigReadService;
+
 
     @Autowired
     void setPreparationOwnership(PaymentPreparationOwnershipService preparationOwnership) {
         this.preparationOwnership = preparationOwnership;
+    }
+
+    @Autowired
+    void setSystemConfigReadService(SystemConfigReadService systemConfigReadService) {
+        this.systemConfigReadService = systemConfigReadService;
     }
 
     /**
@@ -2279,13 +2289,29 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private String buildThreeDsReturnUrl(PaymentCheckoutSessionDO sessionDO,
                                          PaymentCheckoutAttemptDO attemptDO,
                                          String threeDsReturnToken) {
-        String domain = sessionDO.getCheckoutDomain().endsWith("/")
-                ? sessionDO.getCheckoutDomain().substring(0, sessionDO.getCheckoutDomain().length() - 1)
-                : sessionDO.getCheckoutDomain();
+        String origin = threeDsReturnOrigin(sessionDO.getCheckoutDomain(), attemptDO.getChannelCode());
+        String domain = origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin;
         return domain + "/checkout/api/v1/3ds/bridge"
                 + "?checkoutSessionId=" + urlEncode(attemptDO.getCheckoutSessionId())
                 + "&checkoutAttemptId=" + urlEncode(attemptDO.getCheckoutAttemptId())
                 + "&threeDsReturnToken=" + urlEncode(threeDsReturnToken);
+    }
+
+    /** 本地 HTTP 收银台通过平台已配置的 HTTPS 网关接收外部 ACS 浏览器回跳。 */
+    private String threeDsReturnOrigin(String checkoutOrigin, String channelCode) {
+        if (!"MPGS".equalsIgnoreCase(channelCode) || systemConfigReadService == null
+                || !StringUtils.startsWithIgnoreCase(checkoutOrigin, "http://")) {
+            return checkoutOrigin;
+        }
+        return systemConfigReadService.findEnabledValue("platform.gateway.base-url")
+                .map(String::trim)
+                .filter(OutboundHttpUrlPolicy::isStructurallyValid)
+                .filter(value -> {
+                    URI uri = URI.create(value);
+                    return "https".equalsIgnoreCase(uri.getScheme()) && uri.getRawQuery() == null
+                            && (uri.getRawPath().isEmpty() || "/".equals(uri.getRawPath()));
+                })
+                .orElse(checkoutOrigin);
     }
 
     /**

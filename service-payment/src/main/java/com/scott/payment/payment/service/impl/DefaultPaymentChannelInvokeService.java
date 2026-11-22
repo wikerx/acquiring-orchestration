@@ -7,12 +7,14 @@ import com.scott.payment.channel.payment.exception.ChannelException;
 import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
@@ -20,7 +22,9 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -50,6 +54,9 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
+    /** 网关公开地址配置，供渠道向平台投递交易通知。 */
+    private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
+
     private final PaymentChannelExecutor paymentChannelExecutor;
 
     /**
@@ -57,13 +64,18 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      */
     private final IsoDictionaryService isoDictionaryService;
 
+    private final SystemConfigReadService systemConfigReadService;
+
+    private final OutboundHttpUrlPolicy.Mode gatewayUrlMode;
+    private ScottChannelRequestIdentityStore scottIdentityStore;
+
     /**
      * 创建渠道调用服务。
      *
      * @param paymentChannelExecutor 渠道执行器
      */
     public DefaultPaymentChannelInvokeService(PaymentChannelExecutor paymentChannelExecutor) {
-        this(paymentChannelExecutor, null);
+        this(paymentChannelExecutor, null, null, null);
     }
 
     /**
@@ -71,12 +83,24 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      *
      * @param paymentChannelExecutor 渠道执行器
      * @param isoDictionaryService 数据库币种字典服务
+     * @param systemConfigReadService 平台网关地址读取服务
+     * @param environment 当前运行环境，用于识别允许内网 HTTP 的联调环境
      */
     @Autowired
     public DefaultPaymentChannelInvokeService(PaymentChannelExecutor paymentChannelExecutor,
-                                              IsoDictionaryService isoDictionaryService) {
+                                              IsoDictionaryService isoDictionaryService,
+                                              SystemConfigReadService systemConfigReadService,
+                                              Environment environment) {
         this.paymentChannelExecutor = paymentChannelExecutor;
         this.isoDictionaryService = isoDictionaryService;
+        this.systemConfigReadService = systemConfigReadService;
+        this.gatewayUrlMode = environment == null ? OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY
+                : OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles());
+    }
+
+    @Autowired
+    void setScottIdentityStore(ScottChannelRequestIdentityStore scottIdentityStore) {
+        this.scottIdentityStore = scottIdentityStore;
     }
 
     /**
@@ -126,6 +150,10 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                 preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo(),
                 preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
         copyPreparedExtensions(preparedChannelRequest, channelRequest);
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(channelRequest.getChannelCode())
+                && !"QUERY".equalsIgnoreCase(channelRequest.getTransactionType())) {
+            applyScottOutboundIdentity(channelRequest, commandDTO, preparedChannelRequest);
+        }
         PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
         resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
         resultDTO.setChannelRequest(channelRequest);
@@ -338,10 +366,14 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         if (commandDTO.getTransactionInfo() != null) {
             request.setCardBrand(commandDTO.getTransactionInfo().getCardBrand());
             request.getExtension().put("targetTransactionId", emptyIfNull(commandDTO.getTransactionInfo().getSourceChannelTransactionId()));
+            request.getExtension().put("rootTransactionId", emptyIfNull(commandDTO.getTransactionInfo().getRootTransactionId()));
+            String authorizationId = commandDTO.getTransactionInfo().getSourceChannelAuthorizationId();
+            if (StringUtils.hasText(authorizationId)) {
+                request.getExtension().put("authorizationId", authorizationId);
+            }
         }
         request.setBillingInfo(toBillingInfo(commandDTO.getBillingCardHolderInfo()));
         request.setThreeDsInfo(toThreeDsInfo(commandDTO.getThreeDsInfo()));
-        request.getExtension().put("callbackUrl", emptyIfNull(commandDTO.getCallbackUrl()));
         request.getExtension().put("sourceUrl", emptyIfNull(commandDTO.getSourceUrl()));
         request.getExtension().put("payerIp", emptyIfNull(commandDTO.getPayerIp()));
         request.getExtension().put("userAgent", emptyIfNull(commandDTO.getUserAgent()));
@@ -355,6 +387,48 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             request.getExtension().put("mid." + entry.getKey(), emptyIfNull(entry.getValue()));
         }
         return request;
+    }
+
+    private void applyScottOutboundIdentity(ChannelPaymentRequest request, PaymentCreateCommandDTO command,
+                                             PaymentPreparedChannelRequestDTO prepared) {
+        String origin = resolveScottCallbackUrl();
+        if (scottIdentityStore == null || prepared == null
+                || !StringUtils.hasText(prepared.getRequestId()) || command.getTransactionDateTime() == null) {
+            request.setChannelCallbackUrl(origin);
+            return;
+        }
+        TransactionChannelRequestDO record = scottIdentityStore.freezeNotifyUrl(
+                prepared.getRequestId(), command.getTransactionDateTime(),
+                origin == null ? null : origin + "/" + request.getTransactionId());
+        if (record == null || record.getChannelMerchantReference() == null) {
+            request.setChannelCallbackUrl(origin);
+            return;
+        }
+        request.getExtension().put("channelMerchantReference", record.getChannelMerchantReference());
+        if (StringUtils.hasText(record.getChannelNotifyUrl())) {
+            request.setChannelCallbackUrl(record.getChannelNotifyUrl());
+        }
+    }
+
+    /**
+     * 生成渠道可访问的网关回调地址。不可用的配置不随请求外发，渠道结果仍可由原查询链路恢复。
+     */
+    private String resolveScottCallbackUrl() {
+        String configured = systemConfigReadService == null ? null
+                : systemConfigReadService.findEnabledValue(GATEWAY_BASE_URL_CONFIG_KEY).orElse(null);
+        String originText = configured == null ? null : configured.trim();
+        if (OutboundHttpUrlPolicy.isStructurallyValid(originText)) {
+            URI origin = URI.create(originText);
+            if ((gatewayUrlMode == OutboundHttpUrlPolicy.Mode.DEVELOPMENT
+                    || "https".equalsIgnoreCase(origin.getScheme()))
+                    && origin.getRawQuery() == null
+                    && (!StringUtils.hasText(origin.getRawPath()) || "/".equals(origin.getRawPath()))) {
+                return origin.resolve("/channel/v1/callbacks/SCOTT_CHANNEL_A").toString();
+            }
+        }
+        log.warn("渠道交易回调地址未配置或无效, event: PAYMENT_CHANNEL_CALLBACK_URL_UNAVAILABLE, channelCode: {}, configKey: {}",
+                "SCOTT_CHANNEL_A", GATEWAY_BASE_URL_CONFIG_KEY);
+        return null;
     }
 
     /**
@@ -466,7 +540,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                 request.getThreeDsInfo() != null && StringUtils.hasText(request.getThreeDsInfo().getCavv()),
                 extension(request, "payerIp"),
                 maskUrl(extension(request, "sourceUrl")),
-                maskUrl(extension(request, "callbackUrl")),
+                maskUrl(request.getChannelCallbackUrl()),
                 endpointHost(extension(request, "requestUrl")),
                 endpointPath(extension(request, "requestUrl")),
                 extension(request, "midConfigId"),

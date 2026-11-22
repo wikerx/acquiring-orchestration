@@ -16,6 +16,9 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.entity.TransactionOperationDO;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -90,6 +93,41 @@ class DefaultTransactionCallbackInboxServiceTests {
         assertThat(result.getAcceptResult()).isEqualTo("DUPLICATE");
         assertThat(result.getInboxId()).isEqualTo("CBI-FIRST");
         verify(mapper).upsertInbox(any());
+    }
+
+    @Test
+    void unmatchedScottPathDoesNotConsumeTheVerifiedEventAcrossBothValidRoutes() {
+        var mapper = mock(TransactionCallbackInboxMapper.class);
+        var records = mock(TransactionRecordService.class);
+        var rows = new java.util.HashMap<String, TransactionCallbackInboxDO>();
+        doAnswer(invocation -> {
+            TransactionCallbackInboxDO row = invocation.getArgument(0);
+            rows.putIfAbsent(row.getIdempotencyKey(), row);
+            return 1;
+        }).when(mapper).upsertInbox(any());
+        when(mapper.selectByIdempotency(eq("SCOTT_CHANNEL_A"), anyString()))
+                .thenAnswer(invocation -> rows.get(invocation.getArgument(1)));
+        var service = new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+        service.setTransactionRecordService(records);
+        var wrong = command();
+        wrong.setChannelCode("SCOTT_CHANNEL_A");
+        wrong.setPathTransactionId("202611211849178300231");
+        var correct = command();
+        correct.setChannelCode("SCOTT_CHANNEL_A");
+        correct.setPathTransactionId("202611211849178300230");
+        var legacy = command();
+        legacy.setChannelCode("SCOTT_CHANNEL_A");
+        when(records.findScottCallbackOperation(correct)).thenReturn(new TransactionOperationDO());
+        when(records.findScottCallbackOperation(legacy)).thenReturn(new TransactionOperationDO());
+
+        var first = service.accept(wrong);
+        var second = service.accept(correct);
+        var duplicate = service.accept(legacy);
+
+        assertThat(wrong.isScottIdentityUnresolved()).isTrue();
+        assertThat(second.getInboxId()).isNotEqualTo(first.getInboxId());
+        assertThat(duplicate.getInboxId()).isEqualTo(second.getInboxId());
+        assertThat(duplicate.getAcceptResult()).isEqualTo("DUPLICATE");
     }
 
     /**

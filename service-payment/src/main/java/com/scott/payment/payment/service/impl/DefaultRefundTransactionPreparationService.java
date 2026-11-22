@@ -279,13 +279,25 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         }
         List<TransactionOperationDO> nonTerminalRefunds = findNonTerminalRefunds(
                 commandDTO, sourceOrderDO, LocalDateTime.now());
-        // 保留公开接口历史根来源退款的全生命周期预占保护，再校验显式请款来源的独立上限。
         List<TransactionOperationDO> allPendingRefunds = nonTerminalRefunds;
-        TransactionOrderDO refundBudget = RefundSourceAmountCalculator.sourceBudget(
-                sourceOrderDO, plan.sourceOperationDO(),
-                transactionRecordService.findOperationsByOperationId(sourceOrderDO.getOperationId(),
-                        sourceOrderDO.getTransactionDateTime(), LocalDateTime.now()));
-        nonTerminalRefunds = RefundSourceAmountCalculator.pendingForSource(plan.sourceOperationDO(), nonTerminalRefunds);
+        List<TransactionOperationDO> operations = transactionRecordService.findOperationsByOperationId(
+                sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(), LocalDateTime.now());
+        PaymentRouteResultDTO plannedRoute = plan.routeResolution().routeResult();
+        String channelCode = plannedRoute == null ? null : plannedRoute.getChannelCode();
+        TransactionOperationDO refundSource = plan.sourceOperationDO();
+        if (plannedRoute != null && !plan.routeResolution().rejected()
+                && "SCOTT_CHANNEL_A".equalsIgnoreCase(channelCode)) {
+            refundSource = resolveRefundFundingAction(sourceOrderDO, refundSource, operations);
+            if (!channelCode.equalsIgnoreCase(refundSource.getChannelCode())
+                    || !Objects.equals(plannedRoute.getMidConfigId(), refundSource.getChannelMidConfigId())) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                        "refund source does not belong to the original channel MID");
+            }
+            commandDTO.getTransactionInfo().setSourceTransactionId(refundSource.getTransactionId());
+            commandDTO.getTransactionInfo().setSourceTransactionDateTime(refundSource.getTransactionDateTime());
+        }
+        TransactionOrderDO refundBudget = RefundSourceAmountCalculator.sourceBudget(sourceOrderDO, refundSource, operations);
+        nonTerminalRefunds = RefundSourceAmountCalculator.pendingForSource(refundSource, nonTerminalRefunds);
         FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan =
                 FrozenRateFollowUpAmountCalculator.calculateRefund(
                         refundBudget,
@@ -296,7 +308,7 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                         plan.transactionCurrencyExponent());
         RefundSourceAmountCalculator.validateRootCapacity(sourceOrderDO, allPendingRefunds, amountPlan);
         commandDTO.setLabelCurrencyExponent(plan.labelCurrencyExponent());
-        applyRefundAmountPlan(commandDTO, sourceOrderDO, plan.sourceOperationDO(), amountPlan);
+        applyRefundAmountPlan(commandDTO, sourceOrderDO, refundSource, amountPlan);
         // 标签额度和渠道额度已在同一锁快照内校验；状态机继续校验渠道口径状态与余额。
         transactionStateMachineService.validateFollowUpAction(
                 sourceOrderDO,
@@ -405,6 +417,39 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return sourceOrderDO;
+    }
+
+    /**
+     * 为要求明确资金动作的渠道解析退款来源。读取发生在生命周期主单锁内。
+     */
+    private TransactionOperationDO resolveRefundFundingAction(TransactionOrderDO order,
+                                                             TransactionOperationDO requested,
+                                                             List<TransactionOperationDO> operations) {
+        TransactionOperationDO source = requested;
+        if (source != null && Objects.equals(order.getRootTransactionId(), source.getTransactionId())
+                && ("AUTHORIZATION".equals(source.getTransactionType())
+                || "PRE_AUTHORIZATION".equals(source.getTransactionType()))) {
+            List<TransactionOperationDO> captures = operations.stream()
+                    .filter(action -> "CAPTURE".equals(action.getTransactionType())
+                            || "PRE_AUTH_COMPLETION".equals(action.getTransactionType()))
+                    .filter(action -> PaymentTransactionStatusEnum.SUCCESS.getCode().equals(action.getTransactionStatus()))
+                    .limit(2)
+                    .toList();
+            if (captures.size() != 1) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                        "specify the captured transaction to refund");
+            }
+            source = captures.get(0);
+        }
+        if (source == null || !Objects.equals(order.getOperationId(), source.getOperationId())
+                || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(source.getTransactionStatus())
+                || !("PAYMENT".equals(source.getTransactionType()) || "CAPTURE".equals(source.getTransactionType())
+                || "PRE_AUTH_COMPLETION".equals(source.getTransactionType()))
+                || !StringUtils.hasText(source.getChannelTransactionId())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "refund source must be a successful payment or capture with a channel transaction id");
+        }
+        return source;
     }
 
     /**

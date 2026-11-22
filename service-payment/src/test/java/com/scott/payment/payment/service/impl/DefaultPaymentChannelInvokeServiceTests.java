@@ -3,12 +3,18 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
-import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
+import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
+import com.scott.payment.channel.payment.registry.PaymentChannelRegistry;
+import com.scott.payment.channel.payment.scottchannela.adapter.PaymentChannelAdapter;
+import com.scott.payment.channel.payment.scottchannela.client.PaymentApiClient;
+import com.scott.payment.channel.payment.scottchannela.converter.PaymentRequestConverter;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -16,17 +22,25 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.math.BigDecimal;
 import java.net.ConnectException;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,6 +52,89 @@ import static org.mockito.Mockito.when;
  * 无效响应和明确渠道拒绝对应的受控失败原因。</p>
  */
 class DefaultPaymentChannelInvokeServiceTests {
+
+    /** 每种 Scott 写请求都使用本笔系统订单号的回调地址，不透传商户通知地址。 */
+    @ParameterizedTest
+    @ValueSource(strings = {"PAYMENT", "AUTHORIZATION", "PRE_AUTHORIZATION", "CAPTURE",
+            "PRE_AUTH_COMPLETION", "INCREMENTAL_AUTHORIZATION", "VOID", "REFUND"})
+    void shouldSendGatewayCallbackToScott(String transactionType) {
+        PaymentApiClient client = mock(PaymentApiClient.class);
+        PaymentChannelRegistry registry = new PaymentChannelRegistry(
+                Optional.of(List.of(new PaymentChannelAdapter(client))));
+        PaymentChannelExecutor executor = new PaymentChannelExecutor(registry);
+        SystemConfigReadService config = mock(SystemConfigReadService.class);
+        when(config.findEnabledValue("platform.gateway.base-url")).thenReturn(Optional.of("https://gateway.example/"));
+        DefaultPaymentChannelInvokeService service =
+                new DefaultPaymentChannelInvokeService(executor, null, config, null);
+        var store = mock(ScottChannelRequestIdentityStore.class);
+        service.setScottIdentityStore(store);
+        var frozen = new TransactionChannelRequestDO();
+        frozen.setChannelMerchantReference("TX260714180002");
+        frozen.setChannelNotifyUrl("https://gateway.example/channel/v1/callbacks/SCOTT_CHANNEL_A/TX260714180002");
+        when(store.freezeNotifyUrl(anyString(), any(), eq(frozen.getChannelNotifyUrl()))).thenReturn(frozen);
+        PaymentCreateCommandDTO command = followUpCommand();
+        command.setTransactionType(transactionType);
+        command.getTransactionInfo().setSourceChannelTransactionId("CMT-ORIGINAL");
+        command.getTransactionInfo().setSourceChannelAuthorizationId("CMA-ORIGINAL");
+        command.setCallbackUrl("https://merchant.example/notify");
+
+        service.invoke(command, PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A"),
+                "OP260714180001", "TX260714180002", "ORIGINAL-ORDER");
+
+        ArgumentCaptor<ChannelPaymentRequest> sent = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(client).execute(sent.capture());
+        ChannelPaymentRequest request = sent.getValue();
+        Object payload = new PaymentRequestConverter().convert(request).payload();
+        Map<?, ?> wire = JsonUtils.parseObject(JsonUtils.toJsonString(payload), Map.class);
+        assertThat(wire.get("notifyUrl")).isEqualTo(frozen.getChannelNotifyUrl());
+        assertThat(wire.get("REFUND".equals(transactionType) ? "merchantRefundNo" : "merchantOrderNo"))
+                .isEqualTo(frozen.getChannelMerchantReference());
+        if ("REFUND".equals(transactionType)) {
+            assertThat(wire.get("transactionId")).isEqualTo("CMT-ORIGINAL");
+        }
+        assertThat(request.getExtension()).doesNotContainKey("callbackUrl");
+        assertThat(command.getCallbackUrl()).isEqualTo("https://merchant.example/notify");
+    }
+
+    /** 地址不可用时保留同步响应及主动查询链路。 */
+    @ParameterizedTest
+    @ValueSource(strings = {"", "http://gateway.example", "https://gateway.example/not-an-origin",
+            "https://user@gateway.example", "https://gateway.example/?token=value"})
+    void shouldOmitScottCallbackWithoutValidGatewayOrigin(String gatewayOrigin) {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        SystemConfigReadService config = mock(SystemConfigReadService.class);
+        when(config.findEnabledValue("platform.gateway.base-url")).thenReturn(Optional.of(gatewayOrigin));
+        DefaultPaymentChannelInvokeService service =
+                new DefaultPaymentChannelInvokeService(executor, null, config, null);
+        PaymentCreateCommandDTO command = followUpCommand();
+        command.setCallbackUrl("https://merchant.example/notify");
+
+        PaymentChannelInvokeResultDTO result = service.invoke(command, PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A"),
+                "OP260714180001", "TX260714180002", "ORIGINAL-ORDER");
+
+        Object payload = new PaymentRequestConverter().convert(result.getChannelRequest()).payload();
+        assertThat(JsonUtils.parseObject(JsonUtils.toJsonString(payload), Map.class).get("notifyUrl")).isNull();
+        assertThat(result.getChannelRequest().getExtension()).doesNotContainKey("callbackUrl");
+    }
+
+    /** 联调环境使用参数设置中的内网网关地址。 */
+    @Test
+    void shouldAllowConfiguredHttpGatewayOriginInDevelopment() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        SystemConfigReadService config = mock(SystemConfigReadService.class);
+        when(config.findEnabledValue("platform.gateway.base-url")).thenReturn(Optional.of("http://192.168.2.7:8000"));
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("dev");
+        DefaultPaymentChannelInvokeService service =
+                new DefaultPaymentChannelInvokeService(executor, null, config, environment);
+
+        PaymentChannelInvokeResultDTO result = service.invoke(followUpCommand(),
+                PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A"), "OP260714180001",
+                "TX260714180002", "ORIGINAL-ORDER");
+
+        assertThat(result.getChannelRequest().getChannelCallbackUrl())
+                .isEqualTo("http://192.168.2.7:8000/channel/v1/callbacks/SCOTT_CHANNEL_A");
+    }
 
     /**
      * 后续动作调用渠道时，MPGS orderId 使用原平台交易 ID，targetTransactionId 使用原渠道交易 ID。
@@ -183,7 +280,8 @@ class DefaultPaymentChannelInvokeServiceTests {
         IsoDictionaryService isoDictionaryService = mock(IsoDictionaryService.class);
         when(isoDictionaryService.getCurrency("USD")).thenReturn(Optional.of(new IsoCurrencyInfo(
                 "USD", "840", "US Dollar", "美元", 3, 1000, new BigDecimal("0.001"), "$")));
-        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor, isoDictionaryService);
+        DefaultPaymentChannelInvokeService invokeService =
+                new DefaultPaymentChannelInvokeService(executor, isoDictionaryService, null, null);
 
         invokeService.invoke(followUpCommand(), routeResult(), "OP260714180001", "TX260714180002", "TX260714180001");
 

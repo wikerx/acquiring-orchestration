@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service;
 
+import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
@@ -354,6 +355,17 @@ public interface TransactionRecordService {
      */
     TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId);
 
+    /** 定位并核对已验签的 Scott 动作。 */
+    default TransactionOperationDO findScottCallbackOperation(TransactionChannelCallbackCommandDTO command) {
+        return null;
+    }
+
+    /** 用 Scott 回传的已准备代收请求编号定位该渠道动作。 */
+    default TransactionOperationDO findOperationByScottPayinReference(
+            String reference, String channelOrderNo, String channelTransactionId, String credentialHint, boolean refund) {
+        return null;
+    }
+
     /** 已验签且通过来源检查的 MPGS 资金回调可使用此入口解析已承接的 Checkout 订单锚点。 */
     default TransactionOperationDO findOperationByTrustedMpgsCallback(String channelOrderNo,
                                                                        String channelTransactionId) {
@@ -558,6 +570,16 @@ public interface TransactionRecordService {
                                       String channelStatus,
                                       String channelResponseCode,
                                       String channelResponseMessage);
+
+    /**
+     * 获取与指定交易动作关联的生命周期主单分片时间。
+     *
+     * @param operationDO 当前交易动作
+     * @return 主单分片时间
+     */
+    default LocalDateTime resolveOrderDateTime(TransactionOperationDO operationDO) {
+        return operationDO.getTransactionDateTime();
+    }
 
     /**
      * 更新渠道查询勾兑摘要。

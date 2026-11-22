@@ -185,6 +185,30 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             @Param("beginTime") LocalDateTime beginTime,
             @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
+    /** 在已核对的原动作与生命周期中定位 Scott 退款。 */
+    @Select("""
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
+            FROM transaction_operation
+            WHERE operation_id = #{operationId}
+              AND source_transaction_id = #{sourceTransactionId}
+              AND channel_code = 'SCOTT_CHANNEL_A'
+              AND transaction_type = 'REFUND'
+              AND (channel_transaction_id = #{refundId} OR transaction_id = #{refundReference}
+                   OR merchant_operation_no = #{refundReference} OR merchant_order_id = #{refundReference})
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND deleted = 0
+            LIMIT 2
+            """)
+    List<TransactionOperationDO> selectScottRefundCallbackCandidates(
+            @Param("operationId") String operationId,
+            @Param("sourceTransactionId") String sourceTransactionId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
+            @Param("refundId") String refundId,
+            @Param("refundReference") String refundReference);
+
     /**
      * 使用分片时间和版本 CAS 将非终态动作推进到目标终态。
      *

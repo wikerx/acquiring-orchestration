@@ -1,6 +1,7 @@
 package com.scott.payment.channel.payment.scottchannela.converter;
 
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
+import com.scott.payment.channel.payment.dto.request.ChannelRequestReference;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.scottchannela.model.request.CardAuthorizationRequestPayload;
@@ -129,11 +130,14 @@ public class PaymentRequestConverter {
     }
 
     /**
-     * 构造直连代收请求，平台系统交易号作为渠道幂等订单号。
+     * 直连代收以平台系统交易号作为 Scott 的 merchantOrderNo。
      **/
     private PayinRequestPayload buildPayinRequest(ChannelPaymentRequest request) {
-        String merchantOrderNo = firstText(request.getTransactionId(), request.getChannelOrderNo(),
-                request.getMerchantOrderNo());
+        String reference = request.getChannelOrderNo();
+        // 已冻结为 CR 的历史请求仍用原标识，重试时避免以新标识再次下单。
+        String merchantOrderNo = firstText(request.getExtension().get("channelMerchantReference"),
+                ChannelRequestReference.isPrepared(reference)
+                        ? reference : firstText(request.getTransactionId(), reference, request.getMerchantOrderNo()));
         if (!StringUtils.hasText(merchantOrderNo)) {
             throw new ChannelRequestException("ScottChannelA merchantOrderNo is required for payins");
         }
@@ -142,7 +146,7 @@ public class PaymentRequestConverter {
         payload.setAmount(normalizeAmount(request.getAmount()));
         payload.setCurrency(upper(request.getCurrency()));
         payload.setPaymentMethod(resolveChannelPaymentMethod(request.getPaymentMethod()));
-        payload.setNotifyUrl(request.getExtension().get("callbackUrl"));
+        payload.setNotifyUrl(request.getChannelCallbackUrl());
         payload.setReturnUrl(request.getExtension().get("returnUrl"));
         payload.setClientIp(request.getExtension().get("payerIp"));
         payload.setRequestTime(requestTime(request));
@@ -157,14 +161,14 @@ public class PaymentRequestConverter {
     private RefundRequestPayload buildRefundRequest(ChannelPaymentRequest request) {
         RefundRequestPayload payload = new RefundRequestPayload();
         putRefundOrderIdentity(payload, request);
-        String merchantRefundNo = firstText(request.getExtension().get("merchantRefundNo"),
-                request.getMerchantOrderId());
+        String merchantRefundNo = firstText(request.getExtension().get("channelMerchantReference"),
+                request.getExtension().get("merchantRefundNo"), request.getMerchantOrderId());
         if (!StringUtils.hasText(merchantRefundNo)) {
             throw new ChannelRequestException("ScottChannelA merchantRefundNo is required for refunds");
         }
         payload.setMerchantRefundNo(merchantRefundNo);
         payload.setAmount(normalizeAmount(request.getAmount()));
-        payload.setNotifyUrl(request.getExtension().get("callbackUrl"));
+        payload.setNotifyUrl(request.getChannelCallbackUrl());
         payload.setSimulationResult(request.getExtension().get("simulationResult"));
         return payload;
     }
@@ -227,7 +231,7 @@ public class PaymentRequestConverter {
      * <p>平台交易号作为 merchantOrderNo；后续动作使用首次授权返回的 authorizationId。VOID 不发送金额。</p>
      **/
     private Object buildCardAuthorizationPayload(ChannelPaymentRequest request, String operation) {
-        String merchantOrderNo = request.getTransactionId();
+        String merchantOrderNo = firstText(request.getExtension().get("channelMerchantReference"), request.getTransactionId());
         if (!StringUtils.hasText(merchantOrderNo)) {
             throw new ChannelRequestException("ScottChannelA card merchantOrderNo is required");
         }
@@ -238,13 +242,15 @@ public class PaymentRequestConverter {
             payload.setCurrency(upper(request.getCurrency()));
             payload.setClientIp(request.getExtension().get("payerIp"));
             payload.setRequestTime(requestTime(request));
-            payload.setNotifyUrl(request.getExtension().get("callbackUrl"));
+            payload.setNotifyUrl(request.getChannelCallbackUrl());
             payload.setSimulationResult(request.getExtension().get("simulationResult"));
             return payload;
         }
         String authorizationId = firstText(
                 request.getExtension().get("authorizationId"), request.getChannelOrderNo());
-        if (!StringUtils.hasText(authorizationId)) {
+        if (!StringUtils.hasText(authorizationId)
+                || (StringUtils.hasText(request.getExtension().get("channelMerchantReference"))
+                && !authorizationId.startsWith("CMA"))) {
             throw new ChannelRequestException("ScottChannelA authorizationId is required");
         }
         CardOperationRequestPayload payload = new CardOperationRequestPayload();
@@ -253,7 +259,7 @@ public class PaymentRequestConverter {
         if (!ChannelCapability.VOID.getCode().equals(operation)) {
             payload.setAmount(normalizeAmount(request.getAmount()));
         }
-        payload.setNotifyUrl(request.getExtension().get("callbackUrl"));
+        payload.setNotifyUrl(request.getChannelCallbackUrl());
         payload.setSimulationResult(request.getExtension().get("simulationResult"));
         return payload;
     }
@@ -263,6 +269,15 @@ public class PaymentRequestConverter {
      **/
     private CardQueryRequestPayload buildCardAuthorizationQueryRequest(ChannelPaymentRequest request) {
         CardQueryRequestPayload payload = new CardQueryRequestPayload();
+        String frozenReference = request.getExtension().get("channelMerchantReference");
+        if (StringUtils.hasText(frozenReference)) {
+            if (StringUtils.hasText(request.getChannelTransactionId())) {
+                payload.setTransactionId(request.getChannelTransactionId());
+            } else {
+                payload.setMerchantOrderNo(frozenReference);
+            }
+            return payload;
+        }
         String merchantOrderNo = firstText(
                 request.getExtension().get("originalMerchantOrderNo"), request.getTransactionId());
         if (StringUtils.hasText(merchantOrderNo)) {
@@ -288,12 +303,23 @@ public class PaymentRequestConverter {
      **/
     private OrderQueryRequestPayload buildOrderQueryRequest(ChannelPaymentRequest request) {
         OrderQueryRequestPayload payload = new OrderQueryRequestPayload();
+        String frozenReference = request.getExtension().get("channelMerchantReference");
+        if (StringUtils.hasText(frozenReference)) {
+            if (StringUtils.hasText(request.getChannelTransactionId())) {
+                payload.setTransactionId(request.getChannelTransactionId());
+            } else {
+                payload.setMerchantOrderNo(frozenReference);
+            }
+            return payload;
+        }
+        String reference = request.getChannelOrderNo();
         String transactionId = firstText(request.getChannelTransactionId(), request.getSourceTransactionId());
-        if (StringUtils.hasText(transactionId)) {
+        if (StringUtils.hasText(transactionId) && !ChannelRequestReference.isPrepared(reference)) {
             payload.setTransactionId(transactionId);
             return payload;
         }
-        String merchantOrderNo = firstText(request.getMerchantOrderNo(), request.getChannelOrderNo());
+        String merchantOrderNo = ChannelRequestReference.isPrepared(reference)
+                ? reference : firstText(request.getMerchantOrderNo(), reference);
         if (!StringUtils.hasText(merchantOrderNo)) {
             throw new ChannelRequestException("ScottChannelA order query requires merchantOrderNo or transactionId");
         }
@@ -320,8 +346,12 @@ public class PaymentRequestConverter {
      * 退款只引用原支付渠道身份，不能使用退款动作新生成的渠道交易号。
      **/
     private void putRefundOrderIdentity(RefundRequestPayload payload, ChannelPaymentRequest request) {
-        String sourceTransactionId = firstText(request.getExtension().get("targetTransactionId"),
-                request.getChannelTransactionId(), request.getChannelOrderNo());
+        String target = request.getExtension().get("targetTransactionId");
+        if (StringUtils.hasText(request.getExtension().get("channelMerchantReference"))
+                && (target == null || !target.startsWith("CMT"))) {
+            throw new ChannelRequestException("ScottChannelA refund requires the original channel transactionId");
+        }
+        String sourceTransactionId = firstText(target, request.getChannelTransactionId(), request.getChannelOrderNo());
         if (StringUtils.hasText(sourceTransactionId)) {
             payload.setTransactionId(sourceTransactionId);
             return;
@@ -361,8 +391,8 @@ public class PaymentRequestConverter {
                 || (currencyRequired && !StringUtils.hasText(request.getCurrency())))) {
             throw new ChannelRequestException("ScottChannelA order identity, amount and currency are required");
         }
-        if (refund && !StringUtils.hasText(firstText(request.getExtension().get("merchantRefundNo"),
-                request.getMerchantOrderId()))) {
+        if (refund && !StringUtils.hasText(firstText(request.getExtension().get("channelMerchantReference"),
+                request.getExtension().get("merchantRefundNo"), request.getMerchantOrderId()))) {
             throw new ChannelRequestException("ScottChannelA merchantRefundNo is required for refunds");
         }
     }

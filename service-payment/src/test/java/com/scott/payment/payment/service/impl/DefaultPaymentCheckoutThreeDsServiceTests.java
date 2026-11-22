@@ -27,6 +27,8 @@ import com.scott.payment.payment.service.dto.PaymentCheckoutThreeDsResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,6 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,6 +50,61 @@ import static org.mockito.Mockito.when;
  */
 @Slf4j
 class DefaultPaymentCheckoutThreeDsServiceTests {
+
+    @ParameterizedTest
+    @CsvSource({"USD, 30.00, 30.00, true", "AUD, 95.40, 66.78, true", "AUD, 79.80, 55.86, true",
+            "AUD, 42.84, 29.99, false"})
+    void shouldUseFinalMpgsAmountForPolicyAndAuthentication(String labelCurrency, BigDecimal labelAmount,
+                                                            BigDecimal channelAmount, boolean required) {
+        CapturingThreeDsChannelClient client = new CapturingThreeDsChannelClient();
+        PaymentChannelExecutor executor = new PaymentChannelExecutor(
+                new PaymentChannelRegistry(Optional.of(List.of(client))));
+        RiskInternalClient risk = mock(RiskInternalClient.class);
+        when(risk.evaluateThreeDsPolicy(any())).thenAnswer(invocation -> {
+            RiskThreeDsPolicyClientRequestDTO request = invocation.getArgument(0);
+            assertThat(request.getChannelCode()).isEqualTo("MPGS");
+            assertThat(request.getCurrency()).isEqualTo("USD");
+            assertThat(request.getAmount()).isEqualByComparingTo(channelAmount);
+            return policyClient(request.getAmount().compareTo(new BigDecimal("30.00")) >= 0)
+                    .evaluateThreeDsPolicy(request);
+        });
+        DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
+                executor, command -> routeResult(), risk);
+        PaymentCheckoutSessionDO session = session();
+        session.setLabelCurrency(labelCurrency);
+        session.setLabelAmount(labelAmount);
+        PaymentCheckoutAttemptDO attempt = attempt();
+        attempt.setChannelRequestCurrency("USD");
+        attempt.setChannelRequestAmount(channelAmount);
+
+        PaymentCheckoutThreeDsResultDTO result = service.authenticate(session, attempt, submitCommand(),
+                "https://checkout.example.test/checkout/api/v1/3ds/bridge", routeResult());
+
+        assertThat(result.methodRequired()).isEqualTo(required);
+        assertThat(result.notRequired()).isEqualTo(!required);
+        if (required) {
+            assertThat(client.request.getCurrency()).isEqualTo("USD");
+            assertThat(client.request.getAmount()).isEqualByComparingTo(channelAmount);
+        } else {
+            assertThat(client.request).isNull();
+        }
+    }
+
+    @Test
+    void shouldFailBeforeCallingMpgsWhenRequiredBrowserReturnIsHttp() {
+        CapturingThreeDsChannelClient client = new CapturingThreeDsChannelClient();
+        PaymentChannelExecutor executor = new PaymentChannelExecutor(
+                new PaymentChannelRegistry(Optional.of(List.of(client))));
+        DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
+                executor, command -> routeResult(), policyClient(true));
+
+        PaymentCheckoutThreeDsResultDTO result = service.authenticate(session(), attempt(), submitCommand(),
+                "http://127.0.0.1:5175/checkout/api/v1/3ds/bridge", routeResult());
+
+        assertThat(result.failed()).isTrue();
+        assertThat(result.getFailureCode()).isEqualTo("THREE_DS_AUTHENTICATION_FAILED");
+        assertThat(client.request).isNull();
+    }
 
     @Test
     void shouldPreserveCardBrandInPaymentRouteCommand() {

@@ -1,5 +1,6 @@
 package com.scott.payment.channel.payment.mpgs.converter;
 
+import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.mpgs.model.response.ResponsePayload;
 import com.scott.payment.channel.payment.mpgs.model.response.ResponseSummary;
 import com.scott.payment.channel.payment.mpgs.support.ChannelCode;
@@ -57,6 +58,7 @@ public class ResponseConverter {
             target.setChannelResponseMessage(responseCodeMapper.responseMessage(null));
             return target;
         }
+        validateRefundQueryIdentity(request, response);
         target.setChannelTradeStatus(tradeStatusMapper.map(response));
         target.setRawChannelStatus(response.getResult());
         target.setChannelResponseCode(responseCodeMapper.responseCode(response));
@@ -76,6 +78,29 @@ public class ResponseConverter {
         target.setPaymentMethodSummary(paymentMethodSummary(summary));
         target.setRawResponse(summary.toRawResponseMap());
         return target;
+    }
+
+    private void validateRefundQueryIdentity(
+            com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest request, ResponsePayload response) {
+        if (!"QUERY".equalsIgnoreCase(request.getTransactionType())
+                || !"REFUND".equalsIgnoreCase(request.getExtension().get("originalTransactionType"))) {
+            return;
+        }
+        var order = response.getOrder();
+        var transaction = response.getTransaction();
+        if (order != null && order.getId() != null && !order.getId().equals(request.getChannelOrderNo())) {
+            throw new ChannelResponseException("MPGS refund inquiry returned a different order");
+        }
+        if (transaction == null) {
+            return;
+        }
+        String target = request.getExtension().get("targetTransactionId");
+        if ((transaction.getId() != null && !transaction.getId().equals(request.getChannelTransactionId()))
+                || (transaction.getType() != null && !"REFUND".equalsIgnoreCase(transaction.getType()))
+                || (target != null && transaction.getTargetTransactionId() != null
+                        && !target.equals(transaction.getTargetTransactionId()))) {
+            throw new ChannelResponseException("MPGS refund inquiry returned a different transaction");
+        }
     }
 
     /**

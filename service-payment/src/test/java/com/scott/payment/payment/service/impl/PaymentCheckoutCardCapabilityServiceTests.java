@@ -9,6 +9,8 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCo
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.util.ArrayList;
@@ -48,7 +50,7 @@ class PaymentCheckoutCardCapabilityServiceTests {
     }
 
     /**
-     * BIN 基础表命中必须优先于公开前缀兜底，避免页面和服务端品牌结论不一致。
+     * BIN 基础表命中的已知品牌优先于公开前缀兜底。
      */
     @Test
     void shouldPreferDatabaseBinBrandOverPrefixFallback() {
@@ -62,6 +64,30 @@ class PaymentCheckoutCardCapabilityServiceTests {
         String brand = service.resolveCardBrand("411111");
 
         assertThat(brand).isEqualTo("MASTERCARD");
+    }
+
+    /**
+     * Maestro 测试号段的 BIN 记录缺少品牌时，查卡和交易补全均识别 Maestro，并保留发卡国家。
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"50000000000", "56665555444"})
+    void shouldFallbackForUnknownDatabaseBrandAndKeepIssuerCountry(String prefix) {
+        CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
+        when(cardBinCacheReader.findByPrefix(prefix)).thenReturn(cacheHit(prefix, "UNKNOWN", "GB", "GBR"));
+        PaymentCheckoutCardCapabilityService service = new PaymentCheckoutCardCapabilityService(
+                mock(MerchantRouteProfileCacheService.class), cardBinCacheReader);
+        assertThat(service.resolveCardBrand(prefix)).isEqualTo("MAESTRO");
+
+        PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
+        commandDTO.setPaymentMethod("BANK_CARD");
+        PaymentCreateCommandDTO.CardInfoDTO cardInfoDTO = new PaymentCreateCommandDTO.CardInfoDTO();
+        cardInfoDTO.setCardNo(prefix + "0".repeat(5));
+        commandDTO.setCardInfo(cardInfoDTO);
+
+        service.enrichCardBrand(commandDTO);
+
+        assertThat(commandDTO.getTransactionInfo().getCardBrand()).isEqualTo("MAESTRO");
+        assertThat(commandDTO.getTransactionInfo().getIssuerCountry()).isEqualTo("GBR");
     }
 
     /**
@@ -83,6 +109,10 @@ class PaymentCheckoutCardCapabilityServiceTests {
         assertThat(service.resolveCardBrand("6011111111111117")).isEqualTo("DISCOVER");
         assertThat(service.resolveCardBrand("6212345678901234")).isEqualTo("UNIONPAY");
         assertThat(service.resolveCardBrand("6759649826438453")).isEqualTo("MAESTRO");
+        assertThat(service.resolveCardBrand("13549235487")).isEqualTo("UATP");
+        assertThat(service.resolveCardBrand("13542000156")).isEqualTo("UATP");
+        assertThat(service.resolveCardBrand("180012")).isEqualTo("JCB");
+        assertThat(service.resolveCardBrand("999999")).isEqualTo("UNKNOWN");
     }
 
     /**

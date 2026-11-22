@@ -105,7 +105,7 @@ public class PaymentCheckoutCardCapabilityService {
     /**
      * 按 BIN 基础数据优先、平台卡组织规则降级的顺序解析卡品牌。
      *
-     * <p>BIN 基础数据未命中或查询异常时均执行平台规则，避免辅助查询故障阻断收银台。</p>
+     * <p>BIN 未命中、品牌缺失或查询异常时执行平台品牌规则。</p>
      *
      * @param cardDigits 6 至 11 位 BIN 或完整卡号；非数字字符会在查询前移除
      * @return 平台标准卡品牌，无法识别时返回 {@code UNKNOWN}
@@ -113,10 +113,7 @@ public class PaymentCheckoutCardCapabilityService {
     public String resolveCardBrand(String cardDigits) {
         String digits = digits(cardDigits);
         CardBinLookupCacheEntry matched = resolveCardBin(digits);
-        if (matched != null && StringUtils.hasText(matched.result().cardBrand())) {
-            return normalizeCardBrand(matched.result().cardBrand());
-        }
-        return PaymentCardBrandRuleMatcher.resolve(digits);
+        return resolveCardBrand(digits, matched);
     }
 
     /**
@@ -135,17 +132,25 @@ public class PaymentCheckoutCardCapabilityService {
         }
         String cardDigits = digits(commandDTO.getCardInfo().getCardNo());
         CardBinLookupCacheEntry matched = resolveCardBin(cardDigits);
-        String cardBrand = matched != null && StringUtils.hasText(matched.result().cardBrand())
-                ? normalizeCardBrand(matched.result().cardBrand())
-                : PaymentCardBrandRuleMatcher.resolve(cardDigits);
         if (commandDTO.getTransactionInfo() == null) {
             commandDTO.setTransactionInfo(new PaymentCreateCommandDTO.TransactionInfoDTO());
         }
-        commandDTO.getTransactionInfo().setCardBrand(cardBrand);
+        commandDTO.getTransactionInfo().setCardBrand(resolveCardBrand(cardDigits, matched));
         if (matched != null) {
             commandDTO.getTransactionInfo().setIssuerCountry(
                     normalizeIssuerCountryAlpha3(matched.result().issuerCountryAlpha3()));
         }
+    }
+
+    /**
+     * 优先采用 BIN 数据提供的已知品牌。记录中的 UNKNOWN 仅表示缺少品牌信息。
+     */
+    private String resolveCardBrand(String digits, CardBinLookupCacheEntry matched) {
+        String databaseBrand = matched == null ? "" : normalizeCardBrand(matched.result().cardBrand());
+        if (!databaseBrand.isEmpty() && !"UNKNOWN".equals(databaseBrand)) {
+            return databaseBrand;
+        }
+        return PaymentCardBrandRuleMatcher.resolve(digits);
     }
 
     /**

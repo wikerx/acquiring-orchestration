@@ -143,6 +143,7 @@ public class PaymentChannelExecutor {
         target.setCardBrand(source.getCardBrand());
         target.setBillingInfo(source.getBillingInfo());
         target.setThreeDsInfo(source.getThreeDsInfo());
+        target.setChannelCallbackUrl(source.getChannelCallbackUrl());
         target.setExtension(source.getExtension());
         if (target instanceof ChannelQueryRequest queryRequest) {
             queryRequest.setRequestId(source.getExtension() == null ? null : source.getExtension().get("requestId"));

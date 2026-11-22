@@ -96,15 +96,13 @@ public class PaymentResponseConverter {
         result.setChannelCode(ChannelCode.VALUE);
         result.setOperationId(request.getOperationId());
         result.setTransactionId(request.getTransactionId());
-        result.setChannelOrderNo(isCardAuthorizationRequest(request)
-                ? firstText(data == null ? null : data.getAuthorizationId(), request.getChannelOrderNo())
-                : firstText(data == null ? null : data.getMerchantOrderNo(), request.getChannelOrderNo()));
         boolean refundResponse = ChannelCapability.REFUND.getCode().equals(normalize(request.getTransactionType()))
                 || (ChannelCapability.QUERY.getCode().equals(normalize(request.getTransactionType()))
                 && isRefundQuery(request));
-        result.setChannelTransactionId(refundResponse
-                ? firstText(data == null ? null : data.getRefundId(), request.getChannelTransactionId())
-                : firstText(data == null ? null : data.getTransactionId(), request.getChannelTransactionId()));
+        String providerTransactionId = data == null ? null
+                : refundResponse ? data.getRefundId() : data.getTransactionId();
+        result.setChannelOrderNo(providerTransactionId);
+        result.setChannelTransactionId(providerTransactionId);
         result.setRawChannelStatus(status);
         result.setChannelTradeStatus(deterministicRejection
                 ? ChannelTradeStatus.FAILED.getCode()
@@ -130,6 +128,7 @@ public class PaymentResponseConverter {
         result.getRawResponse().put("responseCode", result.getChannelResponseCode());
         result.getRawResponse().put("responseDescription", result.getChannelResponseMessage());
         putRawIfText(result.getRawResponse(), "merchantRefundNo", data == null ? null : data.getMerchantRefundNo());
+        putRawIfText(result.getRawResponse(), "transactionId", data == null ? null : data.getTransactionId());
         putRawIfText(result.getRawResponse(), "refundId", data == null ? null : data.getRefundId());
         putRawIfText(result.getRawResponse(), "merchantOrderNo", data == null ? null : data.getMerchantOrderNo());
         putRawIfText(result.getRawResponse(), "authorizationId", data == null ? null : data.getAuthorizationId());
@@ -175,6 +174,18 @@ public class PaymentResponseConverter {
         if (!StringUtils.hasText(data.getStatus())
                 && !StringUtils.hasText(processingCode(rootCode))) {
             throw new ChannelResponseException("ScottChannelA successful response status is missing");
+        }
+        String reference = request.getExtension().get("channelMerchantReference");
+        if (StringUtils.hasText(reference)) {
+            boolean refund = ChannelCapability.REFUND.getCode().equals(normalize(request.getTransactionType()));
+            if (!reference.equals(refund ? data.getMerchantRefundNo() : data.getMerchantOrderNo())) {
+                throw new ChannelResponseException("ScottChannelA response does not match the action reference");
+            }
+            String target = request.getExtension().get("targetTransactionId");
+            if (refund && StringUtils.hasText(target) && StringUtils.hasText(data.getTransactionId())
+                    && !target.equals(data.getTransactionId())) {
+                throw new ChannelResponseException("ScottChannelA refund response does not match the funding transaction");
+            }
         }
         if (isCardAuthorizationRequest(request)) {
             if (!StringUtils.hasText(data.getAuthorizationId())

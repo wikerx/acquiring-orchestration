@@ -218,6 +218,9 @@ public class ResponsePayload {
          */
         private String type;
 
+        /** 被退款或撤销的原 MPGS 资金交易编号。 */
+        private String targetTransactionId;
+
         /**
          * MPGS 交易金额，原始字符串。
          */

@@ -54,6 +54,8 @@ import com.scott.payment.payment.support.PaymentCheckoutTokenSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -291,19 +293,20 @@ class DefaultPaymentCheckoutServiceTests {
                 .isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
     }
 
-    @Test
-    void shouldReportRecognizedButUnsupportedCardBin() {
+    @ParameterizedTest
+    @CsvSource({"378282,AMEX", "500000,MAESTRO", "135492,UATP"})
+    void shouldReportRecognizedButUnsupportedCardBin(String prefix, String brand) {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
         when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId())).thenReturn(sessionDO);
         PaymentCheckoutCardBinCommandDTO commandDTO = new PaymentCheckoutCardBinCommandDTO();
         commandDTO.setTokenHash("token-hash");
         commandDTO.setCheckoutSessionId(sessionDO.getCheckoutSessionId());
-        commandDTO.setCardBin("378282");
+        commandDTO.setCardBin(prefix);
 
         PaymentCheckoutCardBinResultDTO resultDTO = service.resolveCardBin(commandDTO);
 
-        assertThat(resultDTO.getCardBrand()).isEqualTo("AMEX");
+        assertThat(resultDTO.getCardBrand()).isEqualTo(brand);
         assertThat(resultDTO.getRecognized()).isTrue();
         assertThat(resultDTO.getSupported()).isFalse();
     }
@@ -1196,8 +1199,15 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldReturnThreeDsHtmlWithoutSubmittingFundsBeforeAuthenticationPasses() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
+        sessionDO.setCheckoutDomain("http://127.0.0.1:5175");
+        var config = mock(com.scott.payment.component.db.systemconfig.service.SystemConfigReadService.class);
+        when(config.findEnabledValue("platform.gateway.base-url"))
+                .thenReturn(java.util.Optional.of("https://gateway.example.test/"));
+        service.setSystemConfigReadService(config);
         PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        payingSessionDO.setCheckoutDomain(sessionDO.getCheckoutDomain());
+        processingSessionDO.setCheckoutDomain(sessionDO.getCheckoutDomain());
         PaymentCheckoutAttemptDO channelSubmittedAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
                 PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
@@ -1214,9 +1224,11 @@ class DefaultPaymentCheckoutServiceTests {
         PaymentCheckoutAttemptDO initiatedAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_INITIATED,
                 PaymentCheckoutProcessStageEnum.AUTHENTICATE_PAYER);
+        initiatedAttempt.setChannelCode("MPGS");
         PaymentCheckoutAttemptDO requiredAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED,
                 PaymentCheckoutProcessStageEnum.WAITING_3DS);
+        requiredAttempt.setChannelCode("MPGS");
         when(attemptMapper.markAuthenticationResultCas(anyString(), anyString(), anyString(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
         when(attemptMapper.markThreeDsRequiredCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any()))
@@ -1230,6 +1242,8 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.THREE_DS_REQUIRED.getCode());
         assertThat(resultDTO.getThreeDsAction().getPhase()).isEqualTo(ChannelThreeDsPhase.AUTHENTICATE.name());
         assertThat(resultDTO.getThreeDsAction().getHtml()).contains("acs.example.test/challenge");
+        assertThat(resultDTO.getThreeDsAction().getReturnUrl())
+                .startsWith("https://gateway.example.test/checkout/api/v1/3ds/bridge?");
         verify(threeDsService).authenticate(any(), any(), any(), anyString(), any());
         verify(paymentTransactionService).preparePayment(any());
         verify(paymentTransactionService, never()).submitPreparedTransaction(any());

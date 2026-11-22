@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -221,13 +222,14 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                             LocalDateTime now,
                             TransactionChannelMatchResultDTO resultDTO) {
         TransactionChannelRequestDO originalRequestDO = transactionRecordService.findOriginalChannelRequestForQuery(operationDO);
-        if (originalRequestDO != null && !isQueryableOriginalRequest(originalRequestDO, now)) {
+        if (isUnsubmittedMpgsCheckout(operationDO, originalRequestDO)
+                || (originalRequestDO != null && !isQueryableOriginalRequest(originalRequestDO, now))) {
             resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
             return;
         }
-        PaymentPreparedChannelRequestDTO preparedQueryRequest = buildQueryReference(operationDO, originalRequestDO);
-        PaymentCreateCommandDTO queryCommand = toQueryCommand(operationDO);
         try {
+            PaymentPreparedChannelRequestDTO preparedQueryRequest = buildQueryReference(operationDO, originalRequestDO);
+            PaymentCreateCommandDTO queryCommand = toQueryCommand(operationDO);
             PaymentRouteResultDTO routeResult = restoreRouteResult(operationDO);
             if (!hasSupportedQueryIdentity(queryCommand, routeResult, operationDO, preparedQueryRequest)) {
                 // 缺少渠道支持的查询身份时延长重试间隔，避免无意义高频调用耗尽渠道配额。
@@ -246,6 +248,13 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                     operationDO.getTransactionId(),
                     preparedQueryRequest);
             ChannelPaymentResponse response = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            if ("SCOTT_CHANNEL_A".equalsIgnoreCase(operationDO.getChannelCode())
+                    && originalRequestDO != null && StringUtils.hasText(originalRequestDO.getChannelMerchantReference())
+                    && !matchesScottQueryResponse(operationDO, originalRequestDO, response)) {
+                markPending(operationDO, originalRequestDO, now, null, "Scott query action identity is unconfirmed");
+                resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
+                return;
+            }
             ChannelTransactionStatusResolution resolution = channelStatusResolver.resolveSync(
                     operationDO.getChannelCode(),
                     operationDO.getTransactionType(),
@@ -372,6 +381,14 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         return createTime == null || !createTime.isAfter(actualNow.minusSeconds(graceSeconds));
     }
 
+    /** 收银台认证期间只准备资金请求，抢占提交将请求推进为 SENT 前不可查询该笔资金交易。 */
+    private boolean isUnsubmittedMpgsCheckout(TransactionOperationDO operation,
+                                               TransactionChannelRequestDO request) {
+        return "MPGS".equalsIgnoreCase(operation.getChannelCode())
+                && "HOSTED_CHECKOUT".equalsIgnoreCase(operation.getRequestSource())
+                && (request == null || "INIT".equalsIgnoreCase(request.getRequestStatus()));
+    }
+
     /**
      * 比较渠道查询响应明确返回的币种；缺少结构化金额信息时不推断异常。
      */
@@ -436,6 +453,22 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         prepared.setChannelTransactionId(firstText(operationDO.getChannelTransactionId(),
                 originalRequestDO == null ? null : originalRequestDO.getChannelTransactionId()));
         prepared.getExtension().put("originalTransactionType", operationDO.getTransactionType());
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(operationDO.getChannelCode()) && originalRequestDO != null
+                && StringUtils.hasText(originalRequestDO.getChannelMerchantReference())) {
+            boolean refund = PaymentTransactionTypeEnum.REFUND.getCode().equals(operationDO.getTransactionType());
+            String providerId = operationDO.getChannelTransactionId();
+            if (refund) {
+                if (providerId != null && providerId.startsWith("CMR")) {
+                    prepared.getExtension().put("refundId", providerId);
+                } else {
+                    prepared.getExtension().put("merchantRefundNo", originalRequestDO.getChannelMerchantReference());
+                }
+            } else {
+                prepared.setChannelTransactionId(providerId != null && providerId.startsWith("CMT") ? providerId : null);
+                prepared.getExtension().put("channelMerchantReference", originalRequestDO.getChannelMerchantReference());
+            }
+            return prepared;
+        }
         if (PaymentTransactionTypeEnum.REFUND.getCode().equals(operationDO.getTransactionType())) {
             String merchantRefundNo = firstText(operationDO.getMerchantOrderId(), operationDO.getMerchantOperationNo());
             if (StringUtils.hasText(merchantRefundNo)) {
@@ -443,6 +476,41 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             }
         }
         return prepared;
+    }
+
+    private TransactionOperationDO refundQuerySource(TransactionOperationDO refund) {
+        try {
+            return transactionRecordService.findSourceOperationByTransactionId(refund.getSourceTransactionId());
+        } catch (ServiceException exception) {
+            if (ApiResultEnum.ORDER_NOT_FOUND.getCode().equals(exception.getCode())) {
+                return null;
+            }
+            throw exception;
+        }
+    }
+
+    private boolean matchesScottQueryResponse(TransactionOperationDO operation, TransactionChannelRequestDO request,
+                                              ChannelPaymentResponse response) {
+        if (response == null || !StringUtils.hasText(response.getChannelTransactionId())) {
+            return false;
+        }
+        boolean refund = PaymentTransactionTypeEnum.REFUND.getCode().equals(operation.getTransactionType());
+        String known = operation.getChannelTransactionId();
+        String prefix = refund ? "CMR" : "CMT";
+        if (!response.getChannelTransactionId().startsWith(prefix)
+                || (known != null && known.startsWith(prefix) && !known.equals(response.getChannelTransactionId()))) {
+            return false;
+        }
+        Map<String, String> evidence = response.getRawResponse();
+        if (evidence == null || !request.getChannelMerchantReference().equals(
+                evidence.get(refund ? "merchantRefundNo" : "merchantOrderNo"))) {
+            return false;
+        }
+        if (!refund || !StringUtils.hasText(evidence.get("transactionId"))) {
+            return true;
+        }
+        TransactionOperationDO source = refundQuerySource(operation);
+        return source != null && evidence.get("transactionId").equals(source.getChannelTransactionId());
     }
 
     /**

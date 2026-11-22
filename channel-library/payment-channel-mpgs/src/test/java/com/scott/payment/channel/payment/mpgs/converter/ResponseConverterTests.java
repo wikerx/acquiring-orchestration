@@ -40,6 +40,28 @@ class ResponseConverterTests {
         assertThat(response.getRawResponse()).containsEntry("acquirerCode", "00");
     }
 
+    @Test
+    void refundInquiryChecksReturnedRefundAndFundingTransactionIdentities() {
+        var request = request();
+        request.setTransactionType("QUERY");
+        request.setChannelOrderNo("O1");
+        request.setChannelTransactionId("R1");
+        request.getExtension().put("originalTransactionType", "REFUND");
+        request.getExtension().put("targetTransactionId", "T3");
+        var payload = successPayload("SUCCESS");
+        payload.setOrder(new ResponsePayload.Order());
+        payload.getOrder().setId("O1");
+        payload.getTransaction().setId("R1");
+        payload.getTransaction().setType("REFUND");
+        payload.getTransaction().setTargetTransactionId("T3");
+
+        assertThat(mapper.toChannelResponse(request, payload).getChannelTransactionId()).isEqualTo("R1");
+
+        payload.getTransaction().setTargetTransactionId("T2");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> mapper.toChannelResponse(request, payload))
+                .isInstanceOf(com.scott.payment.channel.payment.exception.ChannelResponseException.class);
+    }
+
     /**
      * 验证 MPGS transaction.reference 不会被当成 ARN 返回；该字段通常是平台请求 reference 的回显。
      */

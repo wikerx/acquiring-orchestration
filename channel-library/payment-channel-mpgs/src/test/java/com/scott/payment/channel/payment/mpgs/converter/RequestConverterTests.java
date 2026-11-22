@@ -231,6 +231,7 @@ class RequestConverterTests {
     @Test
     void shouldBuildRefundRequestWithoutCard() {
         ChannelPaymentRequest request = baseRequest(ChannelCapability.REFUND.getCode());
+        request.getExtension().put("targetTransactionId", "CH-CAPTURE");
         logCaseStart("REFUND退款映射", request);
 
         RequestPayload payload = mapper.toRequest(request);
@@ -238,7 +239,7 @@ class RequestConverterTests {
 
         assertThat(payload.getApiOperation()).isEqualTo(ApiOperation.REFUND);
         assertThat(payload.getSourceOfFunds()).isNull();
-        assertThat(payload.getTransaction().getTargetTransactionId()).isNull();
+        assertThat(payload.getTransaction().getTargetTransactionId()).isEqualTo("CH-CAPTURE");
         assertThat(payload.getTransaction().getAmount()).isEqualTo("10.25");
         assertThat(payload.getTransaction().getCurrency()).isEqualTo("USD");
     }
@@ -249,13 +250,15 @@ class RequestConverterTests {
     @Test
     void shouldBuildIncrementalAuthorizeRequestAsUpdateAuthorization() {
         ChannelPaymentRequest request = baseRequest(ChannelCapability.INCREMENTAL_AUTHORIZATION.getCode());
+        request.getExtension().put("rootTransactionId", "TX-ROOT");
         logCaseStart("INCREMENTAL_AUTHORIZATION增量授权映射", request);
 
         RequestPayload payload = mapper.toRequest(request);
         logPayload("INCREMENTAL_AUTHORIZATION增量授权映射", payload);
 
         assertThat(payload.getApiOperation()).isEqualTo(ApiOperation.UPDATE_AUTHORIZATION);
-        assertThat(payload.getOrder().getReference()).isEqualTo("TX-001");
+        assertThat(payload.getOrder().getReference()).isEqualTo("TX-ROOT");
+        assertThat(payload.getTransaction().getReference()).isEqualTo("TX-001");
         assertThat(payload.getTransaction().getAmount()).isEqualTo("10.25");
     }
 

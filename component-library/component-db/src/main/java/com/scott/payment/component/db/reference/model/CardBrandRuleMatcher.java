@@ -32,6 +32,10 @@ public final class CardBrandRuleMatcher {
         if (startsWithAny(digits, "1800", "2131") || prefixInRange(digits, 4, 3528, 3589)) {
             return "JCB";
         }
+        // UATP 使用航空业 1xxx 前缀，保留上面的具体 JCB 号段优先级。
+        if (digits.length() >= 6 && digits.startsWith("1")) {
+            return "UATP";
+        }
         if (startsWithAny(digits, "36", "38") || prefixInRange(digits, 3, 300, 305)) {
             return "DINERS_CLUB";
         }

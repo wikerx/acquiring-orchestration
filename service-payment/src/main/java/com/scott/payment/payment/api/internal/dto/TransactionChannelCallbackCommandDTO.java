@@ -91,6 +91,12 @@ public class TransactionChannelCallbackCommandDTO implements Serializable {
      */
     private String requestUri;
 
+    /** 渠道回调地址中的平台动作号，仅用于定位候选交易。 */
+    private String pathTransactionId;
+
+    /** 已验签的 Scott 回调在入箱前未能确认本笔动作。 */
+    private boolean scottIdentityUnresolved;
+
     /**
      * HTTP 方法。
      */

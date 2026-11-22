@@ -15,6 +15,8 @@ import com.scott.payment.payment.domain.callback.TransactionCallbackInboxStatusE
 import com.scott.payment.payment.entity.TransactionCallbackInboxDO;
 import com.scott.payment.payment.mapper.TransactionCallbackInboxMapper;
 import com.scott.payment.payment.service.TransactionCallbackInboxService;
+import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.TransactionRecordService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,13 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
     private static final String INBOX_PREFIX = "CBI";
 
     private static final String ACCEPTED = "ACCEPTED";
+    private TransactionRecordService transactionRecordService;
+
+    @Autowired
+    void setTransactionRecordService(TransactionRecordService transactionRecordService) {
+        this.transactionRecordService = transactionRecordService;
+    }
+
     /**
      * 是否命中既有幂等结果；为 true 时必须复用原结果且禁止重复调用渠道。
      */
@@ -99,6 +108,11 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         validate(commandDTO);
         LocalDateTime now = LocalDateTime.now(clock);
         String channelCode = normalizeChannelCode(commandDTO.getChannelCode());
+        if ("SCOTT_CHANNEL_A".equals(channelCode) && transactionRecordService != null
+                && Boolean.TRUE.equals(commandDTO.getSignatureValid()) && Boolean.TRUE.equals(commandDTO.getIpAllowed())
+                && transactionRecordService.findScottCallbackOperation(commandDTO) == null) {
+            commandDTO.setScottIdentityUnresolved(true);
+        }
         String idempotencyKey = buildIdempotencyKey(commandDTO);
         String inboxId = PaymentOrderNoGenerator.nextOrderNo(INBOX_PREFIX, now);
 
@@ -279,7 +293,9 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 StringUtils.hasText(commandDTO.getChannelCredentialHint())
                         ? commandDTO.getChannelCredentialHint().trim() : "-",
-                commandDTO.getCallbackEventId().trim()));
+                commandDTO.isScottIdentityUnresolved()
+                        ? "UNRESOLVED\n" + commandDTO.getCallbackEventId().trim()
+                        : commandDTO.getCallbackEventId().trim()));
     }
 
     /**

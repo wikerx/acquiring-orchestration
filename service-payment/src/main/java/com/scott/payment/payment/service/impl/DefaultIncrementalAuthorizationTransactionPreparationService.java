@@ -222,6 +222,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             IncrementalAuthorizationPreparationPlan plan) {
         // 主单锁把增量授权、请款和撤销对授权额度的竞争收敛为单点串行决策。
         TransactionOrderDO sourceOrderDO = lockSourceOrder(resolvedSourceOrderDO);
+        commandDTO.getTransactionInfo().setRootTransactionId(sourceOrderDO.getRootTransactionId());
         // 锁内使用数据库权威原交易身份计算指纹，阻止同一商户操作号替换金额或币种后重放。
         commandDTO.setRequestFingerprint(canonicalIncrementalAuthorizationRequestFingerprint(commandDTO, sourceOrderDO));
         return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
@@ -666,6 +667,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
         prepared.setRequestId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_REQUEST_ID_PREFIX, commandDTO.getTransactionDateTime()));
         prepared.setChannelOrderNo(resolveChannelOrderNo(sourceOrderDO));
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(sourceOrderDO.getChannelCode())) {
+            commandDTO.getTransactionInfo().setSourceChannelAuthorizationId(firstText(
+                    sourceOrderDO.getChannelAuthorizationId(), sourceOrderDO.getChannelOrderNo()));
+        }
         prepared.setChannelTransactionId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX));
         return prepared;
     }

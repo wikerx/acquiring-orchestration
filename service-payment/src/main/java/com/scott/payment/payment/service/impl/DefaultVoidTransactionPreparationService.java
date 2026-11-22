@@ -546,6 +546,10 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
         prepared.setRequestId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_REQUEST_ID_PREFIX, commandDTO.getTransactionDateTime()));
         prepared.setChannelOrderNo(resolveChannelOrderNo(sourceOrderDO));
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(sourceOrderDO.getChannelCode())) {
+            commandDTO.getTransactionInfo().setSourceChannelAuthorizationId(firstText(
+                    sourceOrderDO.getChannelAuthorizationId(), sourceOrderDO.getChannelOrderNo()));
+        }
         prepared.setChannelTransactionId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX));
         return prepared;
     }

@@ -363,6 +363,10 @@ public class TransactionOrderDO implements Serializable {
      */
     private String channelOrderNo;
 
+    /** Scott 原授权生命周期编号，供该授权的后续写操作使用。 */
+    private String channelAuthorizationId;
+
+
     /**
      * 最近一次内风控决策。
      */

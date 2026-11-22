@@ -26,7 +26,7 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             (
               request_id, transaction_id, operation_id, channel_id, channel_code, channel_mid_config_id,
               transaction_type, request_scene, channel_match_flag, request_status, http_method,
-              request_url_masked, request_currency, request_amount, channel_order_no, channel_transaction_id,
+              request_url_masked, request_currency, request_amount, channel_order_no, channel_transaction_id, channel_merchant_reference, channel_notify_url,
               gateway_result, gateway_code, acquirer_code, acquirer_message, channel_status,
               platform_success, platform_result_code, platform_fail_reason, request_start_time,
               response_time, duration_millis, transaction_date_time, transaction_utc_time,
@@ -39,7 +39,7 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
               #{requestDO.transactionType}, #{requestDO.requestScene}, #{requestDO.channelMatchFlag},
               #{requestDO.requestStatus}, #{requestDO.httpMethod}, #{requestDO.requestUrlMasked},
               #{requestDO.requestCurrency}, #{requestDO.requestAmount}, #{requestDO.channelOrderNo},
-              #{requestDO.channelTransactionId}, #{requestDO.gatewayResult}, #{requestDO.gatewayCode},
+              #{requestDO.channelTransactionId}, #{requestDO.channelMerchantReference}, #{requestDO.channelNotifyUrl}, #{requestDO.gatewayResult}, #{requestDO.gatewayCode},
               #{requestDO.acquirerCode}, #{requestDO.acquirerMessage}, #{requestDO.channelStatus},
               #{requestDO.platformSuccess}, #{requestDO.platformResultCode}, #{requestDO.platformFailReason},
               #{requestDO.requestStartTime}, #{requestDO.responseTime}, #{requestDO.durationMillis},
@@ -48,6 +48,37 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             )
             """)
     int insertLogical(@Param("requestDO") TransactionChannelRequestDO requestDO);
+
+    /** 将已验签且已确认的 Scott 首次结果补写到新请求记录。 */
+    @Update("""
+            UPDATE transaction_channel_request
+            SET channel_order_no = #{channelOrderNo}, channel_transaction_id = #{channelTransactionId}
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND channel_code = 'SCOTT_CHANNEL_A'
+              AND channel_merchant_reference IS NOT NULL
+              AND channel_match_flag = 0
+              AND (channel_transaction_id IS NULL OR channel_transaction_id = #{channelTransactionId})
+              AND deleted = 0
+            """)
+    int bindScottCallbackIdentity(@Param("transactionId") String transactionId,
+                                  @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                  @Param("channelOrderNo") String channelOrderNo,
+                                  @Param("channelTransactionId") String channelTransactionId);
+
+    /** 在调用渠道前冻结本笔回调地址，并发或再次读取时使用先写入的值。 */
+    @Update("""
+            UPDATE transaction_channel_request
+            SET channel_notify_url = #{notifyUrl}
+            WHERE request_id = #{requestId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND channel_merchant_reference IS NOT NULL
+              AND channel_notify_url IS NULL
+              AND deleted = 0
+            """)
+    int freezeScottNotifyUrl(@Param("requestId") String requestId,
+                            @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                            @Param("notifyUrl") String notifyUrl);
 
     /**
      * 按请求 ID 和精确分片时间查询渠道请求。
@@ -213,6 +244,8 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             WHERE request_id = #{requestId}
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
+              AND (channel_merchant_reference IS NULL OR channel_transaction_id IS NULL
+                   OR #{channelTransactionId} IS NULL OR channel_transaction_id = #{channelTransactionId})
               AND deleted = 0
             """)
     int updateChannelIdentityLogical(@Param("requestId") String requestId,

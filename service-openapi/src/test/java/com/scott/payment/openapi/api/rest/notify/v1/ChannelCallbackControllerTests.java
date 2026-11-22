@@ -113,9 +113,41 @@ class ChannelCallbackControllerTests {
                 .hasMessageContaining("inbox unavailable");
     }
 
+    @Test
+    void shouldForwardScottPathIdentitySeparatelyFromVerifiedChannelBody() throws Exception {
+        var paymentClient = new CapturingPaymentInternalClient();
+        var controller = new ChannelCallbackController(
+                securitySupport(new FixedProtocol(false, ChannelCallbackAcknowledgement.plainText("SUCCESS"))),
+                paymentClient);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller).build();
+        String transactionId = "202611211849178300230";
+        String root = "/channel/v1/callbacks/SCOTT_CHANNEL_A";
+        var response = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post(root + "/" + transactionId)
+                .contentType("application/x-www-form-urlencoded").content("{}"))
+                .andReturn().getResponse();
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(paymentClient.callbackRequestDTO.getPathTransactionId()).isEqualTo(transactionId);
+        assertThat(paymentClient.callbackRequestDTO.getRequestUri()).endsWith("/" + transactionId);
+        assertThat(paymentClient.callbackRequestDTO.getChannelOrderNo()).isNotEqualTo(transactionId);
+        assertThat(response.getContentAsString()).isEqualTo("SUCCESS");
+
+        assertThat(mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post(root).contentType("application/x-www-form-urlencoded").content("{}"))
+                .andReturn().getResponse().getStatus()).isEqualTo(200);
+        assertThat(paymentClient.callbackRequestDTO.getPathTransactionId()).isNull();
+
+        assertThat(mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post(root + "/3ds").contentType("application/x-www-form-urlencoded").content("{}"))
+                .andReturn().getResponse().getStatus()).isEqualTo(200);
+        assertThat(paymentClient.callbackRequestDTO.getCallbackType()).isEqualTo("THREE_DS_AUTHENTICATION_CALLBACK");
+    }
+
     private OpenApiCallbackSecuritySupport securitySupport(PaymentChannelCallbackProtocol protocol) {
         OpenApiCallbackProperties properties = new OpenApiCallbackProperties();
         properties.getChannelSecrets().put(CHANNEL_CODE, "test-secret");
+        properties.getChannelSecrets().put("SCOTT_CHANNEL_A", "test-secret");
         return new OpenApiCallbackSecuritySupport(
                 properties,
                 mock(SecurityInterceptEventRecorder.class),
@@ -142,7 +174,7 @@ class ChannelCallbackControllerTests {
 
         @Override
         public Set<String> channelCodes() {
-            return Set.of(CHANNEL_CODE);
+            return Set.of(CHANNEL_CODE, "SCOTT_CHANNEL_A");
         }
 
         @Override
@@ -164,7 +196,7 @@ class ChannelCallbackControllerTests {
                         "invalid provider signature");
             }
             return new VerifiedChannelEvent(
-                    CHANNEL_CODE, null, "event-3ds-001",
+                    request.channelCode(), null, "event-3ds-001",
                     request.scene() == ChannelCallbackScene.THREE_DS
                             ? ChannelCallbackKind.THREE_DS_AUTHENTICATION
                             : ChannelCallbackKind.FINANCIAL_TRANSACTION,

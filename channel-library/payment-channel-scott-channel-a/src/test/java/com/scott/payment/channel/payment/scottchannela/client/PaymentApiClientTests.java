@@ -58,8 +58,13 @@ class PaymentApiClientTests {
         PaymentApiClient client = paymentClient(properties);
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("PAYMENT");
-        request.setTransactionId("CMT-001");
+        request.setTransactionId("202611211816573540075");
+        request.setChannelOrderNo("CMT-OTHER-REFERENCE");
         request.setMerchantOrderNo("ORDER-001");
+        responseBody.set("""
+                {"code":"SUCCESS","message":"OK","data":{"merchantOrderNo":"202611211816573540075",
+                 "transactionId":"CMT-001","status":"SUCCESS","responseCode":"SUCCESS","currency":"USD","amount":10.25}}
+                """);
         request.setAmount(new java.math.BigDecimal("10.25"));
         request.setCurrency("USD");
         request.setPaymentMethod("BANK_CARD");
@@ -69,7 +74,8 @@ class PaymentApiClientTests {
         assertThat(response.getChannelTradeStatus()).isEqualTo("SUCCESS");
         assertThat(requestPath).hasValue("/api/v7/payins/direct");
         Map<String, Object> payload = parsePayload();
-        assertThat(payload).containsEntry("merchantOrderNo", "CMT-001");
+        assertThat(payload).containsEntry("merchantOrderNo", "202611211816573540075");
+        assertThat(response.getChannelOrderNo()).isEqualTo("CMT-001");
         assertThat(payload).containsEntry("currency", "USD");
         assertThat(payload).containsEntry("paymentMethod", "CARD");
         assertThat(payload).containsKey("requestTime");
@@ -119,6 +125,30 @@ class PaymentApiClientTests {
         Map<String, Object> payload = parsePayload();
         assertThat(payload).containsEntry("merchantOrderNo", "ORDER-QUERY-001");
         assertThat(payload).doesNotContainKey("transactionId");
+    }
+
+    @Test
+    void retainsPreviouslyFrozenReferenceForLegacyPayin() {
+        ChannelPaymentRequest request = cardlessPaymentRequest("202611211816573540075");
+        request.setChannelOrderNo("CR202611211816573540077");
+
+        paymentClient(properties()).execute(request);
+
+        assertThat(parsePayload()).containsEntry("merchantOrderNo", "CR202611211816573540077");
+    }
+
+    @Test
+    void queriesUnconfirmedPayinUsingFrozenRequestReference() {
+        PaymentApiClient client = paymentClient(properties());
+        ChannelPaymentRequest request = new ChannelPaymentRequest();
+        request.setTransactionType("QUERY");
+        request.setChannelOrderNo("CR202611211816573540077");
+        request.setChannelTransactionId("CH202611211816573540078");
+
+        client.execute(request);
+
+        assertThat(parsePayload()).containsOnlyKeys("merchantOrderNo")
+                .containsEntry("merchantOrderNo", "CR202611211816573540077");
     }
 
     @Test
@@ -429,6 +459,24 @@ class PaymentApiClientTests {
     }
 
     @Test
+    void shouldQueryRefundByItsOwnProviderIdAndKeepTheOriginalPaymentIdAsEvidence() {
+        responseBody.set("""
+                {"code":"SUCCESS","data":{"merchantOrderNo":"PLATFORM-SOURCE","merchantRefundNo":"PLATFORM-REFUND",
+                 "transactionId":"CMT-SOURCE","refundId":"CMR-REFUND","status":"SUCCESS","responseCode":"SUCCESS"}}
+                """);
+        ChannelPaymentRequest request = new ChannelPaymentRequest();
+        request.setTransactionType("QUERY");
+        request.getExtension().put("refundId", "CMR-REFUND");
+
+        var response = paymentClient(properties()).execute(request);
+
+        assertThat(requestPath).hasValue("/api/v7/payins/refunds/query");
+        assertThat(parsePayload()).containsOnlyKeys("refundId").containsEntry("refundId", "CMR-REFUND");
+        assertThat(response.getChannelOrderNo()).isEqualTo("CMR-REFUND");
+        assertThat(response.getRawResponse()).containsEntry("transactionId", "CMT-SOURCE");
+    }
+
+    @Test
     void shouldMapPlatformProcessingCodesToProcessing() {
         responseBody.set("{\"code\":\"T202\",\"message\":\"Processing\",\"data\":{\"merchantOrderNo\":\"CMT-001\",\"transactionId\":\"TX-001\",\"responseCode\":\"T202\",\"currency\":\"USD\",\"amount\":10.25}}");
         PaymentApiClient client = paymentClient(properties());
@@ -477,7 +525,7 @@ class PaymentApiClientTests {
                 .containsEntry("amount", new java.math.BigDecimal("10.25"))
                 .containsEntry("currency", "USD")
                 .doesNotContainKey("authorizationId");
-        assertThat(response.getChannelOrderNo()).isEqualTo("CMA-001");
+        assertThat(response.getChannelOrderNo()).isEqualTo("CMT-CHANNEL-001");
         assertThat(response.getChannelTransactionId()).isEqualTo("CMT-CHANNEL-001");
         assertThat(response.getAuthCode()).isEqualTo("000101");
         assertThat(response.getAcquirerReferenceNo()).isNull();
@@ -593,7 +641,7 @@ class PaymentApiClientTests {
         assertThat(parsePayload())
                 .containsOnlyKeys("merchantOrderNo")
                 .containsEntry("merchantOrderNo", "CMT-CAPTURE-QUERY-001");
-        assertThat(response.getChannelOrderNo()).isEqualTo("CMA-001");
+        assertThat(response.getChannelOrderNo()).isEqualTo("CMT-CHANNEL-001");
         assertThat(response.getChannelTransactionId()).isEqualTo("CMT-CHANNEL-001");
         assertThat(response.getAuthCode()).isEqualTo("000106");
         assertThat(response.getAcquirerReferenceNo()).isEqualTo("20261031000000000000103");

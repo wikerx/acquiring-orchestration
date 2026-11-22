@@ -43,7 +43,7 @@ class CallbackHandlerTests {
         assertThat(result.getChannelCode()).isEqualTo(ChannelCode.VALUE);
         assertThat(result.getCallbackEventId()).isEqualTo("EVENT-001");
         assertThat(result.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.SUCCESS.getCode());
-        assertThat(result.getChannelOrderNo()).isEqualTo("ORDER-001");
+        assertThat(result.getChannelOrderNo()).isEqualTo("TX-001");
         assertThat(result.getAmount()).isEqualByComparingTo("10.25");
         assertThat(result.getExtension()).containsEntry("paymentMethod", "CARD");
     }
@@ -106,7 +106,7 @@ class CallbackHandlerTests {
 
         ChannelCallbackResult result = new CallbackHandler().handle(request);
 
-        assertThat(result.getChannelOrderNo()).isEqualTo("CMT-ORIGINAL-PAYMENT");
+        assertThat(result.getChannelOrderNo()).isEqualTo("CMR-001");
         assertThat(result.getChannelTransactionId()).isEqualTo("CMR-001");
         assertThat(result.getExtension()).containsEntry("merchantRefundNo", "REFUND-001");
         assertThat(result.getExtension()).containsEntry("refundId", "CMR-001");
@@ -139,7 +139,7 @@ class CallbackHandlerTests {
 
         ChannelCallbackResult result = new CallbackHandler().handle(request);
 
-        assertThat(result.getChannelOrderNo()).isEqualTo("CMA-001");
+        assertThat(result.getChannelOrderNo()).isEqualTo("CMT-CHANNEL-001");
         assertThat(result.getChannelTransactionId()).isEqualTo("CMT-CHANNEL-001");
         assertThat(result.getExtension())
                 .containsEntry("merchantOrderNo", "CMT-CAPTURE-001")

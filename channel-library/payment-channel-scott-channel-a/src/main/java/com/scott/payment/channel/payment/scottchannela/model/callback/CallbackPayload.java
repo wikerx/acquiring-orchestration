@@ -29,7 +29,7 @@ public final class CallbackPayload {
     private String merchantId;
 
     /**
-     * 平台系统交易号；非授权回调的渠道订单身份。
+     * 调用方提交的代收请求参考号，用于关联平台交易。
      **/
     private String merchantOrderNo;
 

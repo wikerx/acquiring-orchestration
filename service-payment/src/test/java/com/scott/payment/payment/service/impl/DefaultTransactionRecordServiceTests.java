@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.component.core.id.LuhnMod10Utils;
@@ -162,6 +163,86 @@ class DefaultTransactionRecordServiceTests {
         org.mockito.Mockito.verifyNoInteractions(operationMapper);
     }
 
+    @Test
+    void resolvesScottPreparedPaymentReferenceWithinItsVerifiedMid() {
+        var requestMapper = mock(TransactionChannelRequestMapper.class);
+        var operationMapper = mock(TransactionOperationMapper.class);
+        var service = lookupService(operationMapper, mock(TransactionLocatorMapper.class), null, requestMapper);
+        var time = LocalDateTime.parse("2026-11-21T18:16:57.354");
+        String reference = "CR202611211816573540077";
+        var request = new TransactionChannelRequestDO();
+        request.setChannelCode("SCOTT_CHANNEL_A");
+        request.setTransactionType("PAYMENT");
+        request.setTransactionId("202611211816573540075");
+        request.setOperationId("OP202611211816573540074");
+        request.setTransactionDateTime(time);
+        when(requestMapper.selectByRequestId(reference, time)).thenReturn(request);
+        var payment = new TransactionOperationDO();
+        payment.setChannelCode(request.getChannelCode());
+        payment.setOperationId(request.getOperationId());
+        payment.setChannelOrderNo(reference);
+        payment.setChannelRouteSnapshotJson("{\"midNo\":\"TEST-MID-A\"}");
+        when(operationMapper.selectByTransactionId(request.getTransactionId(), time)).thenReturn(payment);
+
+        assertThat(service.findOperationByScottPayinReference(reference, "CMT-1", "CMT-1", "TEST-MID-A", false))
+                .isSameAs(payment);
+        assertThat(service.findOperationByScottPayinReference(reference, "CMT-1", "CMT-1", "TEST-MID-B", false))
+                .isNull();
+        payment.setChannelOrderNo("CMT-1");
+        assertThat(service.findOperationByScottPayinReference(reference, "CMT-2", "CMT-2", "TEST-MID-A", false))
+                .isNull();
+    }
+
+    @Test
+    void resolvesScottRefundBeforeSynchronousResponseOnlyForItsFrozenReferenceAndFundingAction() {
+        var requestMapper = mock(TransactionChannelRequestMapper.class);
+        var operationMapper = mock(TransactionOperationMapper.class);
+        var service = lookupService(operationMapper, mock(TransactionLocatorMapper.class), null, requestMapper);
+        var funding = new TransactionOperationDO();
+        funding.setTransactionId("202611211847086000198");
+        funding.setTransactionDateTime(LocalDateTime.parse("2026-11-21T18:47:08.600"));
+        funding.setTransactionType("PAYMENT");
+        funding.setChannelCode("SCOTT_CHANNEL_A");
+        funding.setChannelRouteSnapshotJson("{\"midNo\":\"TEST-MID-A\"}");
+        funding.setChannelTransactionId("CMT-ORIGINAL");
+        var refund = new TransactionOperationDO();
+        refund.setTransactionId("202611211849178300230");
+        refund.setTransactionDateTime(LocalDateTime.parse("2026-11-21T18:49:17.830"));
+        refund.setSourceTransactionId(funding.getTransactionId());
+        refund.setChannelCode("SCOTT_CHANNEL_A");
+        refund.setChannelRouteSnapshotJson(funding.getChannelRouteSnapshotJson());
+        refund.setTransactionType("REFUND");
+        var request = new TransactionChannelRequestDO();
+        request.setChannelMerchantReference(refund.getTransactionId());
+        when(operationMapper.selectByTransactionId(eq(refund.getTransactionId()), any())).thenReturn(refund);
+        when(operationMapper.selectByTransactionId(eq(funding.getTransactionId()), any())).thenReturn(funding);
+        when(requestMapper.selectOriginalByTransaction(refund.getTransactionId(), "SCOTT_CHANNEL_A",
+                refund.getTransactionDateTime())).thenReturn(request);
+        var fundingRequest = new TransactionChannelRequestDO();
+        fundingRequest.setChannelMerchantReference(funding.getTransactionId());
+        when(requestMapper.selectOriginalByTransaction(funding.getTransactionId(), "SCOTT_CHANNEL_A",
+                funding.getTransactionDateTime())).thenReturn(fundingRequest);
+        var command = new TransactionChannelCallbackCommandDTO();
+        command.setPathTransactionId(refund.getTransactionId());
+        command.setChannelCredentialHint("TEST-MID-A");
+        command.setExtension(new java.util.HashMap<>(java.util.Map.of(
+                "merchantRefundNo", refund.getTransactionId(), "refundId", "CMR-REFUND",
+                "merchantOrderNo", funding.getTransactionId(), "originalChannelTransactionId", "CMT-ORIGINAL")));
+
+        assertThat(service.findScottCallbackOperation(command)).isSameAs(refund);
+        command.setPathTransactionId(funding.getTransactionId());
+        assertThat(service.findScottCallbackOperation(command)).isNull();
+        command.setPathTransactionId(refund.getTransactionId());
+        command.getExtension().put("originalChannelTransactionId", "CMT-OTHER");
+        assertThat(service.findScottCallbackOperation(command)).isNull();
+        command.getExtension().put("originalChannelTransactionId", "CMT-ORIGINAL");
+        command.setChannelCredentialHint("TEST-MID-B");
+        assertThat(service.findScottCallbackOperation(command)).isNull();
+        command.setChannelCredentialHint("TEST-MID-A");
+        refund.setChannelTransactionId("CMR-DIFFERENT");
+        assertThat(service.findScottCallbackOperation(command)).isNull();
+    }
+
     private static String fixtureGlobalId(String body) {
         return body + LuhnMod10Utils.calculateCheckDigit(body);
     }
@@ -183,8 +264,15 @@ class DefaultTransactionRecordServiceTests {
     private DefaultTransactionRecordService lookupService(TransactionOperationMapper operationMapper,
                                                             TransactionLocatorMapper locatorMapper,
                                                             TransactionIdempotencyService idempotency) {
+        return lookupService(operationMapper, locatorMapper, idempotency, mock(TransactionChannelRequestMapper.class));
+    }
+
+    private DefaultTransactionRecordService lookupService(TransactionOperationMapper operationMapper,
+                                                          TransactionLocatorMapper locatorMapper,
+                                                          TransactionIdempotencyService idempotency,
+                                                          TransactionChannelRequestMapper requestMapper) {
         return new DefaultTransactionRecordService(mock(TransactionOrderMapper.class), operationMapper,
-                mock(TransactionStatusHistoryMapper.class), mock(TransactionChannelRequestMapper.class),
+                mock(TransactionStatusHistoryMapper.class), requestMapper,
                 mock(TransactionChannelInteractionLogMapper.class), mock(TransactionFlowEventMapper.class),
                 mock(TransactionAmountChangeLogMapper.class), mock(TransactionMerchantNotificationMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class), mock(TransactionPaymentMethodInfoMapper.class),

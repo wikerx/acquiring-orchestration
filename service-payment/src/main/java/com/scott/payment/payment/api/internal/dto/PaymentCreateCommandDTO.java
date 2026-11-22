@@ -655,6 +655,10 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String sourceChannelTransactionId;
 
+        /** 原授权生命周期编号，由支付核心从冻结主单读取。 */
+        private String sourceChannelAuthorizationId;
+
+
 
         private String description;
 

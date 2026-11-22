@@ -352,6 +352,27 @@ class DefaultPaymentTransactionPreparationServiceTests {
     }
 
     @Test
+    void scottInitialPaymentUsesSystemOrderNumberAsMerchantReference() {
+        PreparationFixture fixture = new PreparationFixture();
+        fixture.allowFreshRequest();
+        PaymentRouteResultDTO route = PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A");
+        route.setChannelId(101L);
+        route.setMidConfigId(1001L);
+        route.setMidNo("TEST-MID");
+        route.setRequestedCurrency("EUR");
+        route.setRoutedCurrency("USD");
+        route.setEdcRequired(true);
+        when(fixture.routeService.route(any(PaymentCreateCommandDTO.class))).thenReturn(route);
+
+        var result = fixture.service.prepareInitialTransaction(fixture.command(), "PAYMENT");
+
+        assertThat(result.isCallChannel()).isTrue();
+        assertThat(result.getPreparedChannelRequestDTO().getChannelOrderNo())
+                .isEqualTo(result.getResultDTO().getTransactionId())
+                .isNotEqualTo(result.getPreparedChannelRequestDTO().getRequestId());
+    }
+
+    @Test
     void disabledGateWaitsForAnExistingProtectedPreparationBeforeRisk() {
         var fixture = new PreparationFixture();
         var ownership = mock(PaymentPreparationOwnershipService.class);

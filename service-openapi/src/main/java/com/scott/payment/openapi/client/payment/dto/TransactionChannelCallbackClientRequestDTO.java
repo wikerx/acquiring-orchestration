@@ -91,6 +91,9 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
 
     private String requestUri;
 
+    /** 渠道回调地址中的平台动作号，仅用于定位候选交易。 */
+    private String pathTransactionId;
+
 
     private String httpMethod;
 

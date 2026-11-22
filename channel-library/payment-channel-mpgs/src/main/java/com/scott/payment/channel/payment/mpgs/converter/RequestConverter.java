@@ -36,9 +36,10 @@ public class RequestConverter {
         payload.setApiOperation(toApiOperation(transactionType));
         if (requiresOrderAmount(transactionType)) {
             payload.setOrder(order(request));
-        } else if (ChannelCapability.INCREMENTAL_AUTHORIZATION.getCode().equals(transactionType)) {
+        } else if (ChannelCapability.INCREMENTAL_AUTHORIZATION.getCode().equals(transactionType)
+                && StringUtils.hasText(request.getExtension().get("rootTransactionId"))) {
             RequestPayload.Order order = new RequestPayload.Order();
-            order.setReference(request.getTransactionId());
+            order.setReference(request.getExtension().get("rootTransactionId"));
             payload.setOrder(order);
         }
         payload.setTransaction(transaction(request, transactionType));
@@ -179,7 +180,7 @@ public class RequestConverter {
      * 构造 MPGS transaction 节点。
      * <p>
      * 请款、退款和增量授权在 transaction 节点携带本次操作金额与币种；所有交易均写入平台交易号作为 reference。
-     * 退款有来源渠道流水时显式引用该笔资金动作，缺失时沿用网关的订单内匹配。撤销和冲正必须提供目标流水。
+     * 退款、撤销和冲正均明确引用目标渠道流水。
      * </p>
      * @param request 平台统一渠道请求，提供金额、币种、平台交易号和可选原渠道交易号
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
@@ -199,9 +200,8 @@ public class RequestConverter {
             transaction.setTargetTransactionId(target);
         } else if (ChannelCapability.REFUND.getCode().equals(transactionType)) {
             String target = targetTransactionId(request);
-            if (StringUtils.hasText(target)) {
-                transaction.setTargetTransactionId(target);
-            }
+            requireText(target, "MPGS target transactionId is required for refund");
+            transaction.setTargetTransactionId(target);
         }
         return transaction;
     }

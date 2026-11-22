@@ -87,6 +87,11 @@ public class ChannelPaymentRequest implements Serializable {
     private LocalDateTime transactionDateTime;
 
     /**
+     * 平台网关接收渠道交易回调的地址，由服务端网关配置生成。
+     */
+    private String channelCallbackUrl;
+
+    /**
      * PAN 卡号，只允许内存渠道调用，不允许明文日志、MQ 或落库。
      */
     private String cardNo;

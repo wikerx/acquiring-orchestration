@@ -49,6 +49,29 @@ import static org.mockito.Mockito.when;
 class DefaultTransactionCallbackServiceTests {
 
     @Test
+    void unconfirmedScottCallbackUsesSeparateBusinessIdempotencyKey() {
+        var callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        var callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        var recordService = mock(TransactionRecordService.class);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any())).thenReturn(1);
+        var service = new DefaultTransactionCallbackService(callbackLogMapper, callbackMapper, recordService,
+                new CapturingEventOutboxService(), new TransactionShardingKeyParser(),
+                new DefaultChannelTransactionStatusResolver());
+        var command = callbackCommand();
+        command.setChannelCode("SCOTT_CHANNEL_A");
+        command.setCallbackEventId("same-event");
+        command.setScottIdentityUnresolved(true);
+
+        service.recordChannelCallback(command);
+
+        verify(callbackMapper).selectByIdempotency(eq("SCOTT_CHANNEL_A"),
+                eq("SCOTT_CHANNEL_A:UNRESOLVED_EVENT:same-event"), any());
+    }
+
+    @Test
     void shouldApplyCardAuthorizationReferencesBeforeCompletingCallback() {
         TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
         TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
@@ -58,10 +81,9 @@ class DefaultTransactionCallbackServiceTests {
         when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
                 any(), any(), any(), anyString(), any(), any())).thenReturn(1);
         TransactionOperationDO operationDO = operation();
-        when(recordService.findOperationByChannelTransaction("CMA-001", "CMT-CHANNEL-001"))
-                .thenReturn(null);
-        when(recordService.findSourceOperationByTransactionId("202607141000000000001"))
-                .thenReturn(operationDO);
+        operationDO.setChannelCode("SCOTT_CHANNEL_A");
+        when(recordService.findScottCallbackOperation(any())).thenReturn(operationDO);
+        when(recordService.resolveOrderDateTime(operationDO)).thenReturn(operationDO.getTransactionDateTime());
         when(recordService.findOrder(any(LocalDateTime.class), eq("OP202607141000000000001")))
                 .thenReturn(order());
         when(recordService.completeByChannelCallback(any(), any(), anyString(),
@@ -104,7 +126,8 @@ class DefaultTransactionCallbackServiceTests {
                 eq("succeeded"),
                 eq("SUCCESS"),
                 eq("Captured"));
-        assertThat(operationCaptor.getValue().getChannelOrderNo()).isEqualTo("CMA-001");
+        assertThat(operationCaptor.getValue().getChannelOrderNo()).isEqualTo("CMT-CHANNEL-001");
+        assertThat(operationCaptor.getValue().getCallbackAuthorizationId()).isEqualTo("CMA-001");
         assertThat(operationCaptor.getValue().getChannelTransactionId()).isEqualTo("CMT-CHANNEL-001");
         assertThat(operationCaptor.getValue().getAuthCode()).isEqualTo("000101");
         assertThat(operationCaptor.getValue().getAcquirerReferenceNo())
