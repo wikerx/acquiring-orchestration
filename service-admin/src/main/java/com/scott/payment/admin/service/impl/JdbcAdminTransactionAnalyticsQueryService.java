@@ -2,7 +2,15 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AmountMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AnalyticsQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelBreakdown;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelCohort;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelDiagnosis;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelDiagnosisDay;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelDiagnosisQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelFailedTransaction;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelMetric;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelOutcome;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelPaymentMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelTrendMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.CountMetric;
@@ -16,8 +24,10 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.Thr
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsTrendMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.TrendMetric;
 import com.scott.payment.admin.service.AdminTransactionAnalyticsQueryService;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -30,6 +40,8 @@ import org.springframework.util.StringUtils;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -50,6 +62,15 @@ import java.util.Set;
  */
 @Service
 public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransactionAnalyticsQueryService {
+
+    private static final String DIAGNOSTIC_METHOD = "COALESCE(NULLIF(p.payment_method, ''), 'UNKNOWN')";
+    private static final String DIAGNOSTIC_BRAND = "COALESCE(p.payment_brand, '')";
+    private static final String DIAGNOSTIC_REASON = "COALESCE(NULLIF(o.fail_reason_code, ''), 'UNKNOWN')";
+    private static final String DIAGNOSTIC_RESPONSE_CODE = """
+            COALESCE(NULLIF(r.acquirer_code, ''), NULLIF(r.gateway_code, ''), NULLIF(r.platform_result_code, ''), 'UNKNOWN')
+            """.strip();
+    private static final ChannelOutcome EMPTY_CHANNEL_OUTCOME = new ChannelOutcome(0, 0, 0, 0, null);
+    private static final ChannelCohort EMPTY_CHANNEL_COHORT = new ChannelCohort(EMPTY_CHANNEL_OUTCOME, EMPTY_CHANNEL_OUTCOME);
 
     /**
      * 交易操作逻辑表名，仅用于受控静态 SQL 拼装。
@@ -214,9 +235,77 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
      * @return 渠道请求成功率、耗时和最终交易表现
      */
     @Override
-    public ChannelPerformanceResponse channelPerformance(AnalyticsQuery query) {
-        AnalyticsQuery safeQuery = normalize(query);
-        return transactionLogicalReadExecutor.read(() -> channelPerformanceNormalized(safeQuery));
+    public ChannelPerformanceResponse channelPerformance(AnalyticsQuery query, AdminMerchantDataScope scope) {
+        var filters = scopedChannelQuery(query, scope);
+        if (scope.empty()) return new ChannelPerformanceResponse();
+        return transactionLogicalReadExecutor.read(() -> channelPerformanceNormalized(filters));
+    }
+
+    @Override
+    public ChannelBreakdown channelBreakdown(AnalyticsQuery query, AdminMerchantDataScope scope) {
+        var filters = scopedChannelQuery(query, scope);
+        if (scope.empty()) return new ChannelBreakdown(List.of(), false);
+        return transactionLogicalReadExecutor.read(() -> {
+            Map<ChannelGroup, ChannelCohort[]> groups = channelGroups(filters, null);
+            var rows = groups.entrySet().stream().map(entry -> {
+                ChannelGroup key = entry.getKey();
+                return new ChannelPaymentMetric(key.channel(), key.method(), key.brand(),
+                        entry.getValue()[0], filters.hasComparison() ? entry.getValue()[1] : null);
+            }).sorted(Comparator.comparing(ChannelPaymentMetric::channelCode)
+                    .thenComparing(ChannelPaymentMetric::paymentMethod)
+                    .thenComparing(ChannelPaymentMetric::paymentBrand)).toList();
+            return new ChannelBreakdown(rows, filters.hasComparison());
+        });
+    }
+
+    @Override
+    public ChannelDiagnosis channelDiagnosis(ChannelDiagnosisQuery query, AdminMerchantDataScope scope) {
+        var filters = diagnosticQuery(query, scope);
+        if (scope.empty()) return new ChannelDiagnosis(List.of(), List.of(), List.of());
+        return transactionLogicalReadExecutor.read(() -> {
+            Map<ChannelGroup, ChannelCohort[]> groups = channelGroups(filters, query);
+            var trend = fillTrendDates(filters.query(), List.of()).stream().map(day -> {
+                var counts = groups.get(new ChannelGroup(day.getDate(), "", "", ""));
+                return new ChannelDiagnosisDay(day.getDate(), counts == null ? EMPTY_CHANNEL_COHORT : counts[0],
+                        filters.hasComparison() ? (counts == null ? EMPTY_CHANNEL_COHORT : counts[1]) : null);
+            }).toList();
+            long failedRequests = trend.stream().mapToLong(day -> day.selected().requests().failedCount()).sum();
+            long failedTransactions = trend.stream().mapToLong(day -> day.selected().transactions().failedCount()).sum();
+            return new ChannelDiagnosis(trend, channelFailureReasons(filters, query, failedTransactions),
+                    channelFailedResponseCodes(filters, query, failedRequests));
+        });
+    }
+
+    @Override
+    public PageResult<ChannelFailedTransaction> channelFailedTransactions(ChannelDiagnosisQuery query, AdminMerchantDataScope scope) {
+        var filters = diagnosticQuery(query, scope);
+        int page = query.getPageNo() == null ? 1 : query.getPageNo();
+        int size = query.getPageSize() == null ? 10 : query.getPageSize();
+        if (page < 1 || size < 1 || size > 100) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "invalid channel failures pagination");
+        }
+        if (scope.empty()) return PageResult.of(0, page, size, List.of());
+        return transactionLogicalReadExecutor.read(() -> {
+            var parameters = diagnosticParams(filters, query)
+                    .addValue("reasonCode", trimToNull(query.getReasonCode()))
+                    .addValue("offset", (long) (page - 1) * size)
+                    .addValue("size", size);
+            String selection = diagnosticFrom(false) + " WHERE " + diagnosticWhere(filters, query, false, false)
+                    + " AND o.transaction_status = :failedStatus"
+                    + (StringUtils.hasText(query.getReasonCode()) ? " AND " + DIAGNOSTIC_REASON + " = :reasonCode" : "");
+            Long total = jdbcTemplate.queryForObject("SELECT COUNT(1) " + selection, parameters, Long.class);
+            if (total == null || total <= (long) (page - 1) * size) {
+                return PageResult.of(total == null ? 0L : total, page, size, List.of());
+            }
+            String sql = """
+                    SELECT o.transaction_id, o.transaction_date_time, o.merchant_id, o.merchant_order_no, %s AS reason_code
+                    %s ORDER BY o.transaction_date_time DESC, o.transaction_id DESC LIMIT :offset, :size
+                    """.formatted(DIAGNOSTIC_REASON, selection);
+            var records = jdbcTemplate.query(sql, parameters, (rs, rowNum) -> new ChannelFailedTransaction(
+                    rs.getString("transaction_id"), rs.getObject("transaction_date_time", LocalDateTime.class),
+                    rs.getString("merchant_id"), rs.getString("merchant_order_no"), rs.getString("reason_code")));
+            return PageResult.of(total, page, size, records);
+        });
     }
 
     /**
@@ -293,14 +382,15 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     /**
      * 组合请求级渠道指标，并合并最终交易口径，禁止混用两个成功率分母。
      */
-    private ChannelPerformanceResponse channelPerformanceNormalized(AnalyticsQuery query) {
-        ChannelPerformanceResponse response = queryChannelSummary(query);
+    private ChannelPerformanceResponse channelPerformanceNormalized(ChannelFilters filters) {
+        AnalyticsQuery query = filters.query();
+        ChannelPerformanceResponse response = queryChannelSummary(filters);
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
-        List<ChannelMetric> channels = queryChannelMetrics(query);
-        mergeChannelTransactionMetrics(query, channels);
+        List<ChannelMetric> channels = queryChannelMetrics(filters);
+        mergeChannelTransactionMetrics(filters, channels);
         response.setChannels(channels);
-        response.setTrend(fillChannelTrendDates(query, queryChannelTrend(query)));
-        response.setResponseCodes(queryChannelResponseCodes(query, response.getCompletedRequestCount()));
+        response.setTrend(fillChannelTrendDates(query, queryChannelTrend(filters)));
+        response.setResponseCodes(queryChannelResponseCodes(filters, response.getCompletedRequestCount()));
         return response;
     }
 
@@ -639,7 +729,7 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     /**
      * 查询非勾兑业务渠道请求汇总，未完成请求不进入请求成功率分母。
      */
-    private ChannelPerformanceResponse queryChannelSummary(AnalyticsQuery query) {
+    private ChannelPerformanceResponse queryChannelSummary(ChannelFilters filters) {
         String sql = """
                 SELECT COUNT(1) AS total_request_count,
                        SUM(CASE WHEN r.request_status IN (:channelTerminalStatuses) THEN 1 ELSE 0 END) AS completed_request_count,
@@ -653,8 +743,8 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 JOIN %s o ON o.transaction_id = r.transaction_id
                                AND o.transaction_date_time = r.transaction_date_time
                 WHERE %s
-                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
-        return jdbcTemplate.queryForObject(sql, params(query), (rs, rowNum) -> {
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(filters, false, true));
+        return jdbcTemplate.queryForObject(sql, channelParams(filters), (rs, rowNum) -> {
             ChannelPerformanceResponse response = new ChannelPerformanceResponse();
             response.setTotalRequestCount(rs.getLong("total_request_count"));
             response.setCompletedRequestCount(rs.getLong("completed_request_count"));
@@ -673,7 +763,7 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     /**
      * 查询各渠道请求量、成功率和耗时。
      */
-    private List<ChannelMetric> queryChannelMetrics(AnalyticsQuery query) {
+    private List<ChannelMetric> queryChannelMetrics(ChannelFilters filters) {
         String sql = """
                 SELECT COALESCE(NULLIF(r.channel_code, ''), 'UNKNOWN') AS channel_code,
                        COUNT(1) AS total_request_count,
@@ -691,8 +781,8 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 GROUP BY COALESCE(NULLIF(r.channel_code, ''), 'UNKNOWN')
                 ORDER BY total_request_count DESC, channel_code ASC
                 LIMIT 50
-                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
-        return jdbcTemplate.query(sql, params(query), (rs, rowNum) -> {
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(filters, false, true));
+        return jdbcTemplate.query(sql, channelParams(filters), (rs, rowNum) -> {
             ChannelMetric metric = new ChannelMetric();
             metric.setChannelCode(rs.getString("channel_code"));
             metric.setTotalRequestCount(rs.getLong("total_request_count"));
@@ -712,7 +802,7 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     /**
      * 为渠道请求表现补充首笔交易最终状态，两个口径独立计算并在DTO中分别命名。
      */
-    private void mergeChannelTransactionMetrics(AnalyticsQuery query, List<ChannelMetric> channels) {
+    private void mergeChannelTransactionMetrics(ChannelFilters filters, List<ChannelMetric> channels) {
         Map<String, ChannelMetric> indexed = new LinkedHashMap<>();
         channels.forEach(metric -> indexed.put(metric.getChannelCode(), metric));
         String sql = """
@@ -726,8 +816,8 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 GROUP BY COALESCE(NULLIF(o.channel_code, ''), 'UNKNOWN')
                 ORDER BY transaction_count DESC, channel_code ASC
                 LIMIT 50
-                """.formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
-        jdbcTemplate.query(sql, params(query), rs -> {
+                """.formatted(TRANSACTION_OPERATION_TABLE, channelOrderWhere(filters, false, true));
+        jdbcTemplate.query(sql, channelParams(filters), rs -> {
             String channelCode = rs.getString("channel_code");
             ChannelMetric metric = indexed.computeIfAbsent(channelCode, key -> {
                 ChannelMetric created = new ChannelMetric();
@@ -748,7 +838,7 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     /**
      * 查询渠道请求自然日趋势，超时与其他失败拆开以避免图表重复计数。
      */
-    private List<ChannelTrendMetric> queryChannelTrend(AnalyticsQuery query) {
+    private List<ChannelTrendMetric> queryChannelTrend(ChannelFilters filters) {
         String sql = """
                 SELECT DATE_FORMAT(CONVERT_TZ(r.request_start_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d') AS stat_date,
                        COUNT(1) AS total_request_count,
@@ -762,8 +852,8 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 WHERE %s
                 GROUP BY DATE_FORMAT(CONVERT_TZ(r.request_start_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d')
                 ORDER BY stat_date ASC
-                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
-        return jdbcTemplate.query(sql, params(query), (rs, rowNum) -> {
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(filters, false, true));
+        return jdbcTemplate.query(sql, channelParams(filters), (rs, rowNum) -> {
             ChannelTrendMetric metric = new ChannelTrendMetric();
             metric.setDate(rs.getString("stat_date"));
             metric.setTotalRequestCount(rs.getLong("total_request_count"));
@@ -781,7 +871,7 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     /**
      * 查询渠道响应码分布，优先使用收单码，其次网关码和平台结果码。
      */
-    private List<CountMetric> queryChannelResponseCodes(AnalyticsQuery query, long completedCount) {
+    private List<CountMetric> queryChannelResponseCodes(ChannelFilters filters, long completedCount) {
         String sql = """
                 SELECT COALESCE(NULLIF(r.acquirer_code, ''), NULLIF(r.gateway_code, ''),
                                 NULLIF(r.platform_result_code, ''), 'UNKNOWN') AS dimension_key,
@@ -795,19 +885,187 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                                   NULLIF(r.platform_result_code, ''), 'UNKNOWN')
                 ORDER BY total_count DESC, dimension_key ASC
                 LIMIT 12
-                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
-        return jdbcTemplate.query(sql, params(query), (rs, rowNum) ->
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(filters, false, true));
+        return jdbcTemplate.query(sql, channelParams(filters), (rs, rowNum) ->
                 countMetric(rs.getString("dimension_key"), rs.getLong("total_count"), completedCount));
     }
 
     /**
      * 构造渠道请求分析条件，显式携带两个逻辑表的分片时间谓词。
      */
-    private String channelWhere(AnalyticsQuery query) {
+    private String channelWhere(ChannelFilters filters, boolean comparison, boolean usePaymentExists) {
         return "r.deleted = 0 AND r.channel_match_flag = 0"
                 + " AND r.transaction_date_time >= :beginTime AND r.transaction_date_time < :endTime"
-                + " AND " + baseWhere(query);
+                + " AND " + scopedOrders(filters, comparison, usePaymentExists)
+                + channelCodeWhere("r", filters);
     }
+
+    private ChannelFilters scopedChannelQuery(AnalyticsQuery source, AdminMerchantDataScope scope) {
+        var query = normalize(source);
+        query.setChannelCode(trimToNull(query.getChannelCode()));
+        if (query.getChannelCode() != null && query.getChannelCode().length() > 32) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "invalid channel code");
+        }
+        if (!scope.allMerchants() && !scope.merchantIds().containsAll(query.getMerchantIds())) {
+            throw new ApiException(ApiResultEnum.FORBIDDEN);
+        }
+        return new ChannelFilters(query, scope);
+    }
+
+    private ChannelFilters diagnosticQuery(ChannelDiagnosisQuery query, AdminMerchantDataScope scope) {
+        var filters = scopedChannelQuery(query, scope);
+        if (query == null || filters.query().getChannelCode() == null || !StringUtils.hasText(query.getGroupPaymentMethod())) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "channel and payment method are required");
+        }
+        return filters;
+    }
+
+    private MapSqlParameterSource channelParams(ChannelFilters filters) {
+        return params(filters.query()).addValue("channelCode", filters.query().getChannelCode())
+                .addValue("visibleMerchantIds", filters.scope().merchantIds());
+    }
+
+    private String scopedOrders(ChannelFilters filters, boolean comparison, boolean usePaymentExists) {
+        return baseWhere(filters.query(), !comparison, usePaymentExists)
+                + (filters.scope().allMerchants() ? "" : " AND o.merchant_id IN (:visibleMerchantIds)");
+    }
+
+    private String channelOrderWhere(ChannelFilters filters, boolean comparison, boolean usePaymentExists) {
+        return scopedOrders(filters, comparison, usePaymentExists) + " AND o.channel_code IS NOT NULL"
+                + channelCodeWhere("o", filters);
+    }
+
+    private String channelCodeWhere(String alias, ChannelFilters filters) {
+        String channel = filters.query().getChannelCode();
+        if (channel == null) return "";
+        if ("UNKNOWN".equals(channel)) return " AND COALESCE(NULLIF(" + alias + ".channel_code, ''), 'UNKNOWN') = :channelCode";
+        return " AND " + alias + ".channel_code = :channelCode";
+    }
+
+    private MapSqlParameterSource diagnosticParams(ChannelFilters filters, ChannelDiagnosisQuery group) {
+        var parameters = channelParams(filters);
+        if (filters.hasComparison()) parameters.addValue("comparisonMerchant", filters.query().getMerchantIds().get(0));
+        if (group != null) {
+            parameters.addValue("groupPaymentMethod", upperToNull(group.getGroupPaymentMethod()))
+                    .addValue("groupPaymentBrand", group.getGroupPaymentBrand() == null ? "" : group.getGroupPaymentBrand().trim().toUpperCase(Locale.ROOT));
+        }
+        return parameters;
+    }
+
+    /** 最新支付摘要与单笔交易查询对齐，避免历史重复摘要放大交易和请求分母。 */
+    private String diagnosticFrom(boolean requests) {
+        String source = requests ? """
+                FROM %s r JOIN %s o ON o.transaction_id = r.transaction_id
+                                  AND o.transaction_date_time = r.transaction_date_time
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE)
+                : " FROM " + TRANSACTION_OPERATION_TABLE + " o";
+        return source + """
+                 LEFT JOIN %s p ON p.transaction_id = o.transaction_id
+                               AND p.transaction_date_time = o.transaction_date_time
+                               AND p.id = (SELECT MAX(p_latest.id) FROM %s p_latest
+                                           WHERE p_latest.transaction_id = o.transaction_id
+                                             AND p_latest.transaction_date_time = o.transaction_date_time
+                                             AND p_latest.transaction_date_time >= :beginTime
+                                             AND p_latest.transaction_date_time < :endTime)
+                """.formatted(TRANSACTION_PAYMENT_METHOD_TABLE, TRANSACTION_PAYMENT_METHOD_TABLE);
+    }
+
+    private String diagnosticWhere(ChannelFilters filters, ChannelDiagnosisQuery group, boolean requests, boolean comparison) {
+        var query = filters.query();
+        StringBuilder where = new StringBuilder(requests ? channelWhere(filters, comparison, false)
+                : channelOrderWhere(filters, comparison, false));
+        appendTextFilter(where, query.getPaymentMethod(), "AND p.payment_method = :paymentMethod");
+        appendTextFilter(where, query.getPaymentBrand(), "AND p.payment_brand = :paymentBrand");
+        appendTextFilter(where, query.getIssuerCountry(), "AND p.issuer_country = :issuerCountry");
+        if (group != null) {
+            where.append(" AND ").append(DIAGNOSTIC_METHOD).append(" = :groupPaymentMethod AND ")
+                    .append(DIAGNOSTIC_BRAND).append(" = :groupPaymentBrand");
+        }
+        return where.toString();
+    }
+
+    private Map<ChannelGroup, ChannelCohort[]> channelGroups(ChannelFilters filters, ChannelDiagnosisQuery group) {
+        Map<ChannelGroup, ChannelCohort[]> counts = new LinkedHashMap<>();
+        collectChannelGroups(filters, group, false, counts);
+        collectChannelGroups(filters, group, true, counts);
+        return counts;
+    }
+
+    /** 按首笔交易业务日对齐趋势；两个事实表分别聚合后合并，渠道重试不会重复计算交易。 */
+    private void collectChannelGroups(ChannelFilters filters, ChannelDiagnosisQuery group, boolean requests,
+                                      Map<ChannelGroup, ChannelCohort[]> counts) {
+        boolean daily = group != null;
+        String channel = "COALESCE(NULLIF(" + (requests ? "r" : "o") + ".channel_code, ''), 'UNKNOWN')";
+        String date = "DATE_FORMAT(CONVERT_TZ(o.transaction_date_time, :storageTimeZone, :querySqlTimeZone), '%Y-%m-%d')";
+        String keys = daily ? date + " AS stat_date" : channel + " AS channel_code, "
+                + DIAGNOSTIC_METHOD + " AS payment_method, " + DIAGNOSTIC_BRAND + " AS payment_brand";
+        String groupKeys = daily ? "stat_date" : "channel_code, payment_method, payment_brand";
+        boolean compare = filters.hasComparison();
+        String cohort = compare ? "CASE WHEN o.merchant_id = :comparisonMerchant THEN 0 ELSE 1 END" : "0";
+        String terminal = requests ? "r.request_status IN (:channelTerminalStatuses)"
+                : "o.transaction_status IN (:successStatus, :failedStatus)";
+        String success = requests ? terminal + " AND r.platform_success = 1" : "o.transaction_status = :successStatus";
+        String sql = """
+                SELECT %s, %s AS cohort_key, COUNT(1) AS total_count,
+                       SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS completed_count,
+                       SUM(CASE WHEN %s THEN 1 ELSE 0 END) AS success_count
+                %s WHERE %s
+                GROUP BY %s
+                """.formatted(keys, cohort, terminal, success, diagnosticFrom(requests),
+                diagnosticWhere(filters, group, requests, compare), groupKeys + (compare ? ", cohort_key" : ""));
+        jdbcTemplate.query(sql, diagnosticParams(filters, group), rs -> {
+            var key = daily ? new ChannelGroup(rs.getString("stat_date"), "", "", "")
+                    : new ChannelGroup("", rs.getString("channel_code"), rs.getString("payment_method"), rs.getString("payment_brand"));
+            var values = counts.computeIfAbsent(key, ignored -> new ChannelCohort[]{EMPTY_CHANNEL_COHORT, EMPTY_CHANNEL_COHORT});
+            int bucket = rs.getInt("cohort_key");
+            var outcome = channelOutcome(rs);
+            var prior = values[bucket];
+            values[bucket] = requests ? new ChannelCohort(prior.transactions(), outcome) : new ChannelCohort(outcome, prior.requests());
+        });
+    }
+
+    private ChannelOutcome channelOutcome(ResultSet rs) throws SQLException {
+        long completed = rs.getLong("completed_count");
+        long success = rs.getLong("success_count");
+        return new ChannelOutcome(rs.getLong("total_count"), completed, success, completed - success,
+                completed == 0 ? null : percentage(success, completed));
+    }
+
+    private List<FailureReasonMetric> channelFailureReasons(ChannelFilters filters, ChannelDiagnosisQuery group, long failedCount) {
+        if (failedCount == 0L) return List.of();
+        String sql = """
+                SELECT %s AS reason_code, COUNT(1) AS total_count
+                %s WHERE %s AND o.transaction_status = :failedStatus
+                GROUP BY reason_code ORDER BY total_count DESC, reason_code ASC LIMIT 12
+                """.formatted(DIAGNOSTIC_REASON, diagnosticFrom(false), diagnosticWhere(filters, group, false, false));
+        return jdbcTemplate.query(sql, diagnosticParams(filters, group), (rs, rowNum) -> {
+            var reason = new FailureReasonMetric();
+            reason.setKey(rs.getString("reason_code"));
+            reason.setCategory(failureCategory(reason.getKey()));
+            reason.setTotalCount(rs.getLong("total_count"));
+            reason.setPercentage(percentage(reason.getTotalCount(), failedCount));
+            return reason;
+        });
+    }
+
+    private List<CountMetric> channelFailedResponseCodes(ChannelFilters filters, ChannelDiagnosisQuery group, long failedCount) {
+        if (failedCount == 0L) return List.of();
+        String sql = """
+                SELECT %s AS response_code, COUNT(1) AS total_count
+                %s WHERE %s AND r.request_status IN (:channelTerminalStatuses) AND r.platform_success = 0
+                GROUP BY response_code ORDER BY total_count DESC, response_code ASC LIMIT 12
+                """.formatted(DIAGNOSTIC_RESPONSE_CODE, diagnosticFrom(true), diagnosticWhere(filters, group, true, false));
+        return jdbcTemplate.query(sql, diagnosticParams(filters, group), (rs, rowNum) ->
+                countMetric(rs.getString("response_code"), rs.getLong("total_count"), failedCount));
+    }
+
+    private record ChannelFilters(AnalyticsQuery query, AdminMerchantDataScope scope) {
+        boolean hasComparison() {
+            return query.getMerchantIds().size() == 1 && (scope.allMerchants() || scope.merchantIds().size() > 1);
+        }
+    }
+
+    private record ChannelGroup(String date, String channel, String method, String brand) {}
 
     /**
      * 查询筛选范围内首笔银行卡交易数，作为3DS覆盖率分母。
@@ -1036,6 +1294,10 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
      * 构造首笔交易统一过滤条件；支付方式和发卡国家通过摘要表存在性过滤。
      */
     private String baseWhere(AnalyticsQuery query) {
+        return baseWhere(query, true, true);
+    }
+
+    private String baseWhere(AnalyticsQuery query, boolean selectedMerchantsOnly, boolean usePaymentExists) {
         StringBuilder where = new StringBuilder("""
                 o.deleted = 0
                   AND o.operation_sequence = :operationSequence
@@ -1043,12 +1305,12 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                   AND o.transaction_date_time >= :beginTime
                   AND o.transaction_date_time < :endTime
                 """);
-        if (!query.getMerchantIds().isEmpty()) {
+        if (selectedMerchantsOnly && !query.getMerchantIds().isEmpty()) {
             where.append(" AND o.merchant_id IN (:merchantIds)");
         }
         appendTextFilter(where, query.getCurrency(), "AND o.transaction_currency = :currency");
-        if (StringUtils.hasText(query.getPaymentMethod()) || StringUtils.hasText(query.getPaymentBrand())
-                || StringUtils.hasText(query.getIssuerCountry())) {
+        if (usePaymentExists && (StringUtils.hasText(query.getPaymentMethod()) || StringUtils.hasText(query.getPaymentBrand())
+                || StringUtils.hasText(query.getIssuerCountry()))) {
             where.append(" AND EXISTS (SELECT 1 FROM ").append(TRANSACTION_PAYMENT_METHOD_TABLE).append(" p_filter")
                     .append(" WHERE p_filter.transaction_id = o.transaction_id")
                     .append(" AND p_filter.transaction_date_time = o.transaction_date_time");

@@ -2,12 +2,17 @@ package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionAnalyticsApplicationService;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AnalyticsQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelBreakdown;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelDiagnosis;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelDiagnosisQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelFailedTransaction;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.FailureResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.MerchantPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.OverviewResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsResponse;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
@@ -89,6 +94,30 @@ public class AdminTransactionAnalyticsController {
     @OperationLog(moduleName = "交易分析", businessType = OperationTypeConstants.QUERY, operation = "查询渠道表现")
     public CommonResult<ChannelPerformanceResponse> channels(@RequestBody(required = false) AnalyticsQuery query) {
         return success(analyticsApplicationService.channelPerformance(query));
+    }
+
+    /** 查询单渠道展开项或全部渠道支付方式矩阵。 */
+    @PostMapping("/channels/breakdown")
+    @RequiresPermission("transaction:analytics:channels")
+    @OperationLog(moduleName = "交易分析", businessType = OperationTypeConstants.QUERY, operation = "查询渠道支付方式表现")
+    public CommonResult<ChannelBreakdown> channelBreakdown(@RequestBody AnalyticsQuery query) {
+        return success(analyticsApplicationService.channelBreakdown(query));
+    }
+
+    /** 查询单个渠道支付方式组合的诊断指标。 */
+    @PostMapping("/channels/diagnosis")
+    @RequiresPermission("transaction:analytics:channels")
+    @OperationLog(moduleName = "交易分析", businessType = OperationTypeConstants.QUERY, operation = "查询渠道组合诊断")
+    public CommonResult<ChannelDiagnosis> channelDiagnosis(@RequestBody ChannelDiagnosisQuery query) {
+        return success(analyticsApplicationService.channelDiagnosis(query));
+    }
+
+    /** 分页读取组合内可见的失败交易。 */
+    @PostMapping("/channels/failures")
+    @RequiresPermission("transaction:analytics:channels")
+    @OperationLog(moduleName = "交易分析", businessType = OperationTypeConstants.QUERY, operation = "查询渠道组合失败交易")
+    public CommonResult<PageResult<ChannelFailedTransaction>> channelFailedTransactions(@RequestBody ChannelDiagnosisQuery query) {
+        return success(analyticsApplicationService.channelFailedTransactions(query));
     }
 
     /**

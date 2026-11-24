@@ -1,11 +1,16 @@
 package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AnalyticsQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelBreakdown;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelDiagnosis;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelDiagnosisQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelFailedTransaction;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.FailureResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.MerchantPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.OverviewResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsResponse;
+import com.scott.payment.component.core.model.PageResult;
 
 /**
  * 管理端交易分析只读服务契约，负责按统一首笔交易口径查询总览和商户表现，不处理 HTTP 或权限校验。
@@ -42,7 +47,16 @@ public interface AdminTransactionAnalyticsQueryService {
      * @param query 已校验并限制在31天内的分析条件
      * @return 渠道表现分析
      */
-    ChannelPerformanceResponse channelPerformance(AnalyticsQuery query);
+    ChannelPerformanceResponse channelPerformance(AnalyticsQuery query, AdminMerchantDataScope scope);
+
+    /** 查询渠道与支付工具交叉聚合。 */
+    ChannelBreakdown channelBreakdown(AnalyticsQuery query, AdminMerchantDataScope scope);
+
+    /** 查询单个渠道支付工具组合的趋势和失败原因。 */
+    ChannelDiagnosis channelDiagnosis(ChannelDiagnosisQuery query, AdminMerchantDataScope scope);
+
+    /** 分页读取符合单元格条件的失败交易。 */
+    PageResult<ChannelFailedTransaction> channelFailedTransactions(ChannelDiagnosisQuery query, AdminMerchantDataScope scope);
 
     /**
      * 查询按交易去重的3DS认证分析。

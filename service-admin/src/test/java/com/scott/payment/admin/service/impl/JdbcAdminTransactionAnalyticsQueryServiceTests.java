@@ -190,7 +190,8 @@ class JdbcAdminTransactionAnalyticsQueryServiceTests {
                 new JdbcAdminTransactionAnalyticsQueryService(jdbcTemplate);
 
         ChannelPerformanceResponse response = service.channelPerformance(query(
-                LocalDateTime.of(2026, 8, 1, 0, 0), LocalDateTime.of(2026, 8, 8, 0, 0)));
+                LocalDateTime.of(2026, 8, 1, 0, 0), LocalDateTime.of(2026, 8, 8, 0, 0)),
+                com.scott.payment.admin.service.AdminMerchantDataScope.all());
 
         assertThat(response.getRequestSuccessRate()).isEqualByComparingTo("75.00");
         ArgumentCaptor<String> summarySql = ArgumentCaptor.forClass(String.class);

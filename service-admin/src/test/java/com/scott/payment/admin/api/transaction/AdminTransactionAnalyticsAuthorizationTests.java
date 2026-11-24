@@ -74,6 +74,9 @@ class AdminTransactionAnalyticsAuthorizationTests {
                 Arguments.of("/admin/transactions/analytics/merchants", "transaction:analytics:merchants"),
                 Arguments.of("/admin/transactions/analytics/failures", "transaction:analytics:failures"),
                 Arguments.of("/admin/transactions/analytics/channels", "transaction:analytics:channels"),
+                Arguments.of("/admin/transactions/analytics/channels/breakdown", "transaction:analytics:channels"),
+                Arguments.of("/admin/transactions/analytics/channels/diagnosis", "transaction:analytics:channels"),
+                Arguments.of("/admin/transactions/analytics/channels/failures", "transaction:analytics:channels"),
                 Arguments.of("/admin/transactions/analytics/three-ds", "transaction:analytics:three-ds")
         );
     }

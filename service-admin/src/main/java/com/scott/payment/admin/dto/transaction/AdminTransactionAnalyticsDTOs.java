@@ -63,7 +63,46 @@ public final class AdminTransactionAnalyticsDTOs {
          * 查询时间所属 IANA 时区，允许为空时使用 Asia/Shanghai。
          */
         private String queryTimeZone;
+        /**
+         * 渠道编码，仅渠道表现查询使用；为空表示全部渠道。
+         */
+        private String channelCode;
     }
+
+    /** 渠道单元格筛选复用分析条件，并固定单元格的支付方式和品牌。 */
+    @Data
+    public static class ChannelDiagnosisQuery extends AnalyticsQuery {
+        private String groupPaymentMethod;
+        private String groupPaymentBrand;
+        private String reasonCode;
+        private Integer pageNo;
+        private Integer pageSize;
+    }
+
+    /** 两套成功率均提供原始计数；分母为零时成功率为空。 */
+    public record ChannelOutcome(long totalCount, long completedCount, long successCount, long failedCount,
+                                 BigDecimal successRate) {}
+
+    /** 首笔交易与独立渠道请求分别统计，保留不同的渠道归属。 */
+    public record ChannelCohort(ChannelOutcome transactions, ChannelOutcome requests) {}
+
+    /** 对照只包含查询者有权访问的其他商户。 */
+    public record ChannelPaymentMetric(String channelCode, String paymentMethod, String paymentBrand,
+                                       ChannelCohort selected, ChannelCohort comparison) {}
+
+    /** 渠道展开和矩阵共用的分组结果。 */
+    public record ChannelBreakdown(List<ChannelPaymentMetric> rows, boolean comparisonAvailable) {}
+
+    /** 以查询时区自然日对齐的交易和请求趋势。 */
+    public record ChannelDiagnosisDay(String date, ChannelCohort selected, ChannelCohort comparison) {}
+
+    /** 单元格的诊断数据；失败原因统计只包含选定范围的首笔失败交易。 */
+    public record ChannelDiagnosis(List<ChannelDiagnosisDay> trend, List<FailureReasonMetric> failureReasons,
+                                   List<CountMetric> responseCodes) {}
+
+    /** 失败交易定位字段，仅返回内部编号、业务时间和稳定失败原因码。 */
+    public record ChannelFailedTransaction(String transactionId, LocalDateTime transactionDateTime,
+                                           String merchantId, String merchantOrderNo, String reasonCode) {}
 
     /**
      * 交易总览响应，只包含平台级聚合数据和可用于图表展示的非敏感维度。
