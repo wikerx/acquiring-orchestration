@@ -66,6 +66,9 @@ logging:
 
 payment:
   checkout:
+    wallet-simulation:
+      # 留空时沿用付款浏览器访问收银台的开发主机和本地网关端口。
+      browser-return-base-url: ${PAYMENT_CHECKOUT_WALLET_SIMULATION_BROWSER_RETURN_BASE_URL:}
     card-encryption:
       # 仅本地单实例联调允许进程级临时密钥和内存 nonce；UAT/生产禁止。
       allow-ephemeral-key: true

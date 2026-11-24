@@ -5,6 +5,8 @@ import com.scott.payment.channel.payment.api.HostedWalletSimulator;
 import com.scott.payment.channel.payment.api.HostedWalletSimulator.Order;
 import com.scott.payment.channel.payment.api.HostedWalletSimulator.Result;
 import com.scott.payment.channel.payment.api.HostedWalletSimulator.State;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
@@ -17,6 +19,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.config.MerchantNotificationProperties;
 import com.scott.payment.payment.config.PaymentCheckoutProperties;
+import com.scott.payment.payment.service.impl.CheckoutWalletTransactionLedger.WalletEndpoints;
 import com.scott.payment.payment.domain.state.PaymentCheckoutPayability;
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
@@ -49,7 +52,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-/** dev 专用钱包渠道适配，按真实渠道职责接入本机挡板并完全隔离资金交易。 */
+/** dev 专用钱包渠道适配，使用渠道路由接入挡板并隔离资金交易。 */
 @Service
 @Profile("dev & !test & !uat & !prod & !live-regression")
 @DS(DataSourceName.TRANSACTION)
@@ -57,8 +60,12 @@ public class CheckoutWalletSimulationService {
     private static final String CHANNEL = "SCOTT_CHANNEL_A";
     private static final String ATTEMPT_PREFIX = "DEV-INTERACTIVE-";
     private static final String CHANNEL_ORDER_PREFIX = "DEV-IW-";
-    private static final String CHANNEL_NOTIFY_URL = "http://127.0.0.1:8000/channel/v1/callbacks/SCOTT_CHANNEL_A";
+    private static final String CHANNEL_NOTIFY_PATH = "/channel/v1/callbacks/SCOTT_CHANNEL_A";
     private static final String CHANNEL_RETURN_PATH = "/checkout/api/v1/wallet/authorization/return";
+    private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
+    // 旧尝试创建时只支持同机挡板，须沿用原请求参数才能向挡板幂等查单、提交。
+    private static final String LEGACY_CHANNEL_BASE_URL = "http://127.0.0.1:58090";
+    private static final String LEGACY_CALLBACK_BASE_URL = "http://127.0.0.1:8000";
     private static final Set<String> WALLETS = Set.of("APPLE_PAY", "GOOGLE_PAY");
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("10000.00");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
@@ -71,6 +78,7 @@ public class CheckoutWalletSimulationService {
     private final PaymentCheckoutSessionMapper sessions;
     private final GlobalIdGenerator ids;
     private final PaymentCheckoutProperties properties;
+    private final SystemConfigReadService systemConfigReadService;
     private final TransactionOperations transactions;
     private final TransactionMerchantNotificationMapper notifications;
     private final MerchantNotificationInitialDeliveryService delivery;
@@ -80,7 +88,8 @@ public class CheckoutWalletSimulationService {
     public CheckoutWalletSimulationService(PaymentChannelRouteService routes, PaymentExchangeRateService exchangeRates,
             IsoDictionaryService isoDictionary, Optional<HostedWalletSimulator> channel,
             PaymentCheckoutAttemptMapper attempts, PaymentCheckoutSessionMapper sessions, GlobalIdGenerator ids,
-            PaymentCheckoutProperties properties, TransactionOperations transactions,
+            PaymentCheckoutProperties properties, SystemConfigReadService systemConfigReadService,
+            TransactionOperations transactions,
             TransactionMerchantNotificationMapper notifications, MerchantNotificationInitialDeliveryService delivery,
             MerchantNotificationProperties notificationProperties, CheckoutWalletTransactionLedger ledger) {
         this.routes = routes;
@@ -91,6 +100,7 @@ public class CheckoutWalletSimulationService {
         this.sessions = sessions;
         this.ids = ids;
         this.properties = properties;
+        this.systemConfigReadService = systemConfigReadService;
         this.transactions = transactions;
         this.notifications = notifications;
         this.delivery = delivery;
@@ -133,7 +143,8 @@ public class CheckoutWalletSimulationService {
         PaymentCheckoutAttemptDO attempt;
         if ("PREPARE".equals(action)) {
             route = route(session, method);
-            attempt = transactions.execute(tx -> reserveAttempt(session, method, route));
+            String callbackGateway = resolveCallbackGateway(route);
+            attempt = transactions.execute(tx -> reserveAttempt(session, method, route, callbackGateway));
         } else {
             attempt = attempts.selectLatestWalletAttempt(session.getCheckoutSessionId(), method);
             route = restoreRoute(attempt);
@@ -148,12 +159,13 @@ public class CheckoutWalletSimulationService {
         if ("STATUS".equals(action)) {
             return synchronize(session, attempt);
         }
-        Order order = order(attempt, route);
-        String returnUrl = channelReturnUrl(session, attempt);
+        WalletEndpoints endpoints = walletEndpoints(session, attempt);
+        Order order = order(attempt, route, endpoints);
+        String returnUrl = endpoints.browserReturnBaseUrl() + CHANNEL_RETURN_PATH + "?returnToken=" + returnToken(attempt);
         Result result;
         try {
             // 同一订单号、相同参数重试，渠道回读原订单及授权页。
-            result = channel.prepare(order, returnUrl, CHANNEL_NOTIFY_URL);
+            result = channel.prepare(order, returnUrl, endpoints.callbackBaseUrl() + CHANNEL_NOTIFY_PATH);
         } catch (RuntimeException exception) {
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
         }
@@ -223,7 +235,8 @@ public class CheckoutWalletSimulationService {
         return true;
     }
 
-    private PaymentCheckoutAttemptDO reserveAttempt(PaymentCheckoutSessionDO source, String method, PaymentRouteResultDTO route) {
+    private PaymentCheckoutAttemptDO reserveAttempt(PaymentCheckoutSessionDO source, String method,
+                                                     PaymentRouteResultDTO route, String callbackGateway) {
         PaymentCheckoutSessionDO session = sessions.selectByCheckoutSessionIdForUpdate(source.getCheckoutSessionId());
         if (!supports(session, method)) {
             throw unavailable();
@@ -255,7 +268,8 @@ public class CheckoutWalletSimulationService {
         attempt.setPaymentMethod(method);
         attempt.setLabelAmount(session.getLabelAmount());
         attempt.setLabelCurrency(normalizeCurrency(session.getLabelCurrency()));
-        ChannelAmountPlan amountPlan = channelAmountPlan(session, route, now);
+        var endpoints = configuredWalletEndpoints(session, route, callbackGateway);
+        ChannelAmountPlan amountPlan = channelAmountPlan(session, route, now, endpoints);
         attempt.setChannelRequestAmount(amountPlan.amount());
         attempt.setChannelRequestCurrency(amountPlan.currency());
         attempt.setResultSnapshot(JsonUtils.toJsonString(amountPlan.quote()));
@@ -316,7 +330,7 @@ public class CheckoutWalletSimulationService {
         PaymentRouteResultDTO route;
         try {
             route = restoreRoute(attempt);
-            Order order = order(attempt, route);
+            Order order = order(attempt, route, walletEndpoints(session, attempt));
             result = channel.query(order);
             if (!Objects.equals(attempt.getChannelTransactionId(), result.transactionId())) {
                 throw unavailable();
@@ -489,7 +503,7 @@ public class CheckoutWalletSimulationService {
         return route;
     }
 
-    private Order order(PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route) {
+    private Order order(PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route, WalletEndpoints endpoints) {
         BigDecimal storedAmount = attempt.getChannelRequestAmount();
         String currency = attempt.getChannelRequestCurrency();
         if (!Objects.equals(attempt.getChannelMidConfigId(), route.getMidConfigId()) || storedAmount == null) {
@@ -502,7 +516,8 @@ public class CheckoutWalletSimulationService {
         } catch (ArithmeticException exception) {
             throw unavailable();
         }
-        return new Order(route.getMetadataValues().get("apiKey"), route.getMidNo(), attempt.getChannelOrderNo(),
+        return new Order(endpoints.channelBaseUrl(), route.getMetadataValues().get("apiKey"),
+                route.getMidNo(), attempt.getChannelOrderNo(),
                 channelAmount, currency, attempt.getPaymentMethod());
     }
 
@@ -518,7 +533,7 @@ public class CheckoutWalletSimulationService {
 
     /** 钱包沿用支付核心 EDC 方向：标签币种乘以交易汇率，且只在渠道目标币种精度处舍入一次。 */
     private ChannelAmountPlan channelAmountPlan(PaymentCheckoutSessionDO session, PaymentRouteResultDTO route,
-                                                LocalDateTime rateTime) {
+                                                LocalDateTime rateTime, WalletEndpoints endpoints) {
         String labelCurrency = normalizeCurrency(session.getLabelCurrency());
         String routedCurrency = normalizeCurrency(route.getRoutedCurrency());
         if (!StringUtils.hasText(routedCurrency)) {
@@ -552,7 +567,7 @@ public class CheckoutWalletSimulationService {
         }
         return new ChannelAmountPlan(routedCurrency, channelAmount,
                 new CheckoutWalletTransactionLedger.Quote(
-                        labelExponent, channelExponent, lockedRate, rateSource, lockedRateTime));
+                        labelExponent, channelExponent, lockedRate, rateSource, lockedRateTime, endpoints));
     }
 
     private boolean validChannelAmount(BigDecimal amount, String currency) {
@@ -608,14 +623,56 @@ public class CheckoutWalletSimulationService {
                 "dev-wallet-return:" + id + ":" + attempt.getCheckoutSessionId(), properties.getTokenPepper());
     }
 
-    /** 渠道浏览器回跳必须沿用付款人进入收银台的开发主机，否则局域网设备会被错误带回自身回环地址。 */
-    private String channelReturnUrl(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt) {
-        if (!allowedDevelopmentCheckoutOrigin(session.getCheckoutDomain())) {
+    private String resolveCallbackGateway(PaymentRouteResultDTO route) {
+        if (isLoopback(route.getRequestUrl())) {
+            return LEGACY_CALLBACK_BASE_URL;
+        }
+        return systemConfigReadService.findEnabledValue(GATEWAY_BASE_URL_CONFIG_KEY)
+                .filter(StringUtils::hasText).map(String::trim).orElse(null);
+    }
+
+    private WalletEndpoints configuredWalletEndpoints(PaymentCheckoutSessionDO session, PaymentRouteResultDTO route,
+                                                       String callbackGateway) {
+        var configured = properties.getWalletSimulation();
+        String browserBase = normalizeGatewayBase(firstText(configured.getBrowserReturnBaseUrl(), checkoutGatewayBase(session)));
+        String callbackBase = normalizeGatewayBase(firstText(callbackGateway, browserBase));
+        if (!isLoopback(route.getRequestUrl()) && isLoopback(callbackBase)) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE.getCode(),
+                    "Remote wallet simulator requires a reachable platform gateway base URL");
+        }
+        return new WalletEndpoints(route.getRequestUrl(), browserBase, callbackBase);
+    }
+
+    /** 复用下单时锁定的地址，避免配置变更后向另一台挡板重放同一个订单号。 */
+    private WalletEndpoints walletEndpoints(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt) {
+        var quote = StringUtils.hasText(attempt.getResultSnapshot())
+                ? JsonUtils.parseObject(attempt.getResultSnapshot(), CheckoutWalletTransactionLedger.Quote.class) : null;
+        return quote != null && quote.walletEndpoints() != null ? quote.walletEndpoints()
+                : new WalletEndpoints(LEGACY_CHANNEL_BASE_URL, checkoutGatewayBase(session), LEGACY_CALLBACK_BASE_URL);
+    }
+
+    private String normalizeGatewayBase(String value) {
+        if (!OutboundHttpUrlPolicy.isStructurallyValid(value)) {
             throw unavailable();
         }
+        URI uri = URI.create(value);
+        if (uri.getRawQuery() != null || !uri.getRawPath().matches("(?:/[A-Za-z0-9_-]+)*/?")) {
+            throw unavailable();
+        }
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private boolean isLoopback(String value) {
+        String host = URI.create(value).getHost();
+        return "localhost".equalsIgnoreCase(host) || "[::1]".equals(host)
+                || (host != null && host.matches("127(?:\\.[0-9]{1,3}){3}"));
+    }
+
+    /** 默认沿用付款人进入收银台的开发主机，支持局域网浏览器回跳。 */
+    private String checkoutGatewayBase(PaymentCheckoutSessionDO session) {
         String checkoutHost = URI.create(session.getCheckoutDomain()).getHost();
         String gatewayHost = "localhost".equals(checkoutHost) ? "127.0.0.1" : checkoutHost;
-        return "http://" + gatewayHost + ":8000" + CHANNEL_RETURN_PATH + "?returnToken=" + returnToken(attempt);
+        return "http://" + gatewayHost + ":8000";
     }
 
     private static boolean isTerminal(State state) {

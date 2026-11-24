@@ -62,6 +62,15 @@ public class PaymentCheckoutProperties {
      */
     private CardVault cardVault = new CardVault();
 
+    /** 开发环境钱包模拟的网关地址配置。 */
+    private WalletSimulation walletSimulation = new WalletSimulation();
+
+    @Data
+    public static class WalletSimulation {
+        /** 付款浏览器可以访问的 Vexra 网关基础地址，留空时沿用收银台开发主机。 */
+        private String browserReturnBaseUrl;
+    }
+
     /**
      * 浏览器卡数据加密和随机数防重配置。
      */

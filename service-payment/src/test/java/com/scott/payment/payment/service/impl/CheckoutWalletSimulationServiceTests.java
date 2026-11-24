@@ -5,6 +5,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
@@ -73,9 +74,11 @@ class CheckoutWalletSimulationServiceTests {
     private final TransactionRecordService records = mock(TransactionRecordService.class);
     private final TransactionIdempotencyService idempotency = mock(TransactionIdempotencyService.class);
     private final TransactionChannelInteractionLogMapper interactionLogs = mock(TransactionChannelInteractionLogMapper.class);
+    private final PaymentCheckoutProperties properties = new PaymentCheckoutProperties();
+    private final SystemConfigReadService configs = mock(SystemConfigReadService.class);
     private final CheckoutWalletSimulationService service = new CheckoutWalletSimulationService(
             routes, exchangeRates, isoDictionary, Optional.of(simulator), attempts, sessions, ids,
-            new PaymentCheckoutProperties(),
+            properties, configs,
             TransactionOperations.withoutTransaction(), notifications, delivery,
             new MerchantNotificationProperties(), new CheckoutWalletTransactionLedger(ids, records, idempotency, interactionLogs));
 
@@ -449,6 +452,57 @@ class CheckoutWalletSimulationServiceTests {
         verify(simulator).prepare(any(), returnUrl.capture(), anyString());
         assertThat(returnUrl.getValue())
                 .startsWith("http://192.168.0.110:8000/checkout/api/v1/wallet/authorization/return?returnToken=");
+    }
+
+    @Test
+    void remoteWalletFreezesChannelAndGatewayAddressesAcrossRetries() {
+        var route = route(MID);
+        route.setRequestUrl("https://channel.example.test:8443/mock");
+        when(configs.findEnabledValue("platform.gateway.base-url"))
+                .thenReturn(Optional.of("https://callback.example.test/vexra/"));
+        properties.getWalletSimulation().setBrowserReturnBaseUrl("https://browser.example.test/gateway/");
+        var session = session(MERCHANT, "7.00");
+        var inserted = stubInsertedAttempt(session);
+        stubCoreActivation(session, inserted);
+        stubPreparationRoute(route);
+
+        service.execute(session, "GOOGLE_PAY", "PREPARE");
+        when(attempts.selectLatestWalletAttempt(session.getCheckoutSessionId(), "GOOGLE_PAY"))
+                .thenReturn(inserted.get());
+        var replacement = route(MID);
+        replacement.setRequestUrl("https://other-channel.example.test");
+        when(routes.restore("SCOTT_CHANNEL_A", null, 17L, null)).thenReturn(replacement);
+        when(simulator.supportsRoute("SCOTT_CHANNEL_A", replacement.getRequestUrl(), MID)).thenReturn(true);
+        when(configs.findEnabledValue("platform.gateway.base-url"))
+                .thenReturn(Optional.of("https://different-gateway.example.test"));
+        properties.getWalletSimulation().setBrowserReturnBaseUrl(null);
+        service.execute(session, "GOOGLE_PAY", "OPEN");
+
+        var orders = ArgumentCaptor.forClass(HostedWalletSimulator.Order.class);
+        var returnUrls = ArgumentCaptor.forClass(String.class);
+        var callbackUrls = ArgumentCaptor.forClass(String.class);
+        verify(simulator, times(2)).prepare(orders.capture(), returnUrls.capture(), callbackUrls.capture());
+        assertThat(orders.getAllValues()).extracting(HostedWalletSimulator.Order::channelBaseUrl)
+                .containsExactly(route.getRequestUrl(), route.getRequestUrl());
+        assertThat(returnUrls.getAllValues()).containsOnly(returnUrls.getValue());
+        assertThat(returnUrls.getValue())
+                .startsWith("https://browser.example.test/gateway/checkout/api/v1/wallet/authorization/return?returnToken=");
+        assertThat(callbackUrls.getAllValues()).containsOnly(
+                "https://callback.example.test/vexra/channel/v1/callbacks/SCOTT_CHANNEL_A");
+    }
+
+    @Test
+    void remoteWalletRejectsLoopbackCallbackBeforeCreatingAttempt() {
+        var route = route(MID);
+        route.setRequestUrl("https://channel.example.test");
+        var session = session(MERCHANT, "7.00");
+        when(sessions.selectByCheckoutSessionIdForUpdate(session.getCheckoutSessionId())).thenReturn(session);
+        stubPreparationRoute(route);
+
+        assertThatThrownBy(() -> service.execute(session, "GOOGLE_PAY", "PREPARE"))
+                .isInstanceOf(ServiceException.class).hasMessageContaining("reachable platform gateway base URL");
+        verify(attempts, never()).insert(any(PaymentCheckoutAttemptDO.class));
+        verify(simulator, never()).prepare(any(), anyString(), anyString());
     }
 
     @Test

@@ -2,10 +2,10 @@ package com.scott.payment.channel.payment.api;
 
 import java.math.BigDecimal;
 
-/** dev 环境本机挡板的钱包托管支付能力，不参与真实资金渠道下单。 */
+/** dev 环境渠道挡板的钱包托管支付能力，不参与真实资金渠道下单。 */
 public interface HostedWalletSimulator {
-    record Order(String apiKey, String channelMerchantId, String number, BigDecimal amount, String currency,
-                 String method) {
+    record Order(String channelBaseUrl, String apiKey, String channelMerchantId, String number,
+                 BigDecimal amount, String currency, String method) {
         @Override
         public String toString() {
             return "HostedWalletOrder[number=" + number + ", method=" + method + "]";

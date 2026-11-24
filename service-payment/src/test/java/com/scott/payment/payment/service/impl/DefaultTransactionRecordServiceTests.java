@@ -117,7 +117,7 @@ class DefaultTransactionRecordServiceTests {
         attempt.setChannelOrderNo("DEV-IW-" + attempt.getCheckoutAttemptId());
         attempt.setChannelTransactionId("CMT-WALLET-TEST");
         attempt.setTransactionDateTime(time);
-        var quote = new CheckoutWalletTransactionLedger.Quote(2, 2, new BigDecimal("0.71231"), "TEST_RATE", time);
+        var quote = new CheckoutWalletTransactionLedger.Quote(2, 2, new BigDecimal("0.71231"), "TEST_RATE", time, null);
         attempt.setResultSnapshot(JsonUtils.toJsonString(quote));
         var route = PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A");
         route.setChannelId(5L);

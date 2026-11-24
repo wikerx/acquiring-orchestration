@@ -201,7 +201,11 @@ class CheckoutWalletTransactionLedger {
         return audit;
     }
 
-    record Quote(int labelExponent, int channelExponent, BigDecimal rate, String rateSource, LocalDateTime rateTime) {
+    record Quote(int labelExponent, int channelExponent, BigDecimal rate, String rateSource, LocalDateTime rateTime,
+                 WalletEndpoints walletEndpoints) {
+    }
+
+    record WalletEndpoints(String channelBaseUrl, String browserReturnBaseUrl, String callbackBaseUrl) {
     }
 
     record Identity(String transactionId, String operationId, String requestId) {

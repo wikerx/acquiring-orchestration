@@ -3,6 +3,7 @@ package com.scott.payment.channel.payment.scottchannela.client;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.scott.payment.channel.payment.api.HostedWalletSimulator;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 
 import java.io.IOException;
 import java.net.URI;
@@ -11,12 +12,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Objects;
 
-/** ScottChannelA 专用本机挡板协议，钱包凭证只在服务端调用栈内流转。 */
+/** ScottChannelA 挡板协议，通过渠道路由配置访问，钱包凭证只在服务端调用栈内流转。 */
 public final class HostedWalletSimulationClient implements HostedWalletSimulator {
-    private static final String LOCAL_ORIGIN = "http://127.0.0.1:58090";
-    private static final String PATH = LOCAL_ORIGIN + "/api/v1/payins/hosted";
+    private static final String API_PATH = "/api/v1/payins/hosted";
+    private static final String AUTHORIZATION_PATH = "/simulate/hosted-payins/";
     private static final String MODE = "INTERACTIVE_SIMULATION";
 
     private final HttpClient http = HttpClient.newBuilder()
@@ -27,8 +27,8 @@ public final class HostedWalletSimulationClient implements HostedWalletSimulator
     @Override
     public boolean supportsRoute(String channelCode, String requestUrl, String midNo) {
         return "SCOTT_CHANNEL_A".equals(channelCode)
-                && (LOCAL_ORIGIN.equals(requestUrl) || (LOCAL_ORIGIN + "/").equals(requestUrl))
-                && midNo != null && !midNo.isBlank() && midNo.length() <= 64;
+                && midNo != null && !midNo.isBlank() && midNo.length() <= 64
+                && simulatorBase(requestUrl) != null;
     }
 
     @Override
@@ -40,18 +40,18 @@ public final class HostedWalletSimulationClient implements HostedWalletSimulator
         if (!returnUrl.equals(data.getString("returnUrl")) || !notifyUrl.equals(data.getString("notifyUrl"))) {
             throw new SimulationUnavailable();
         }
-        return snapshot(data);
+        return snapshot(data, order);
     }
 
     @Override
     public Result query(Order order) {
-        return snapshot(queryData(order));
+        return snapshot(queryData(order), order);
     }
 
     @Override
     public Result submitApproved(Order order) {
         JSONObject current = queryData(order);
-        Result before = snapshot(current);
+        Result before = snapshot(current, order);
         if (before.state() != State.APPROVED) {
             return before;
         }
@@ -73,7 +73,7 @@ public final class HostedWalletSimulationClient implements HostedWalletSimulator
         try {
             return snapshot(checked(post(order, "/submit", Map.of("transactionId", transactionId,
                     "idempotencyKey", order.number(), "credentialType", order.method() + "_TOKEN",
-                    "credential", credential)), order));
+                    "credential", credential)), order), order);
         } catch (SimulationUnavailable exception) {
             // 响应异常时查询原单；同一次调用绝不重发提交。
             return query(order);
@@ -98,7 +98,7 @@ public final class HostedWalletSimulationClient implements HostedWalletSimulator
         return data;
     }
 
-    private Result snapshot(JSONObject data) {
+    private Result snapshot(JSONObject data, Order order) {
         JSONObject next = data.getJSONObject("nextAction");
         String code = data.getString("responseCode");
         String action = next == null ? "" : next.getString("type", "");
@@ -114,22 +114,53 @@ public final class HostedWalletSimulationClient implements HostedWalletSimulator
             };
             default -> State.UNKNOWN;
         };
-        String redirect = state == State.READY ? requireLocalApprovalUrl(next.getString("redirectUrl")) : null;
+        String redirect = state == State.READY
+                ? requireApprovalUrl(order, next.getString("redirectUrl")) : null;
         return new Result(state, data.getString("transactionId"), redirect, code);
     }
 
-    private String requireLocalApprovalUrl(String value) {
-        URI uri = URI.create(Objects.requireNonNull(value));
-        if (!"http".equals(uri.getScheme()) || !"127.0.0.1".equals(uri.getHost()) || uri.getPort() != 58090
-                || uri.getUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null
-                || !uri.getPath().matches("/simulate/hosted-payins/[a-f0-9-]{32,36}")) {
+    private String requireApprovalUrl(Order order, String value) {
+        URI base = requireSimulatorBase(order);
+        if (!OutboundHttpUrlPolicy.isStructurallyValid(value)) {
+            throw new SimulationUnavailable();
+        }
+        URI uri = URI.create(value);
+        String prefix = base.getRawPath() + AUTHORIZATION_PATH;
+        String path = uri.getRawPath();
+        if (!base.getScheme().equalsIgnoreCase(uri.getScheme()) || !base.getHost().equalsIgnoreCase(uri.getHost())
+                || effectivePort(base) != effectivePort(uri) || uri.getRawQuery() != null
+                || !path.startsWith(prefix) || !path.substring(prefix.length()).matches("[a-f0-9-]{32,36}")) {
             throw new SimulationUnavailable();
         }
         return uri.toString();
     }
 
+    private static int effectivePort(URI uri) {
+        return uri.getPort() == -1 ? ("https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80) : uri.getPort();
+    }
+
+    private static URI simulatorBase(String value) {
+        if (!OutboundHttpUrlPolicy.isStructurallyValid(value)) {
+            return null;
+        }
+        URI uri = URI.create(value);
+        String path = uri.getRawPath();
+        if (uri.getRawQuery() != null || !path.matches("(?:/[A-Za-z0-9_-]+)*/?")) {
+            return null;
+        }
+        return path.endsWith("/") ? URI.create(value.substring(0, value.length() - 1)) : uri;
+    }
+
+    private static URI requireSimulatorBase(Order order) {
+        URI base = simulatorBase(order.channelBaseUrl());
+        if (base == null) {
+            throw new SimulationUnavailable();
+        }
+        return base;
+    }
+
     private JSONObject post(Order order, String suffix, Map<String, ?> body) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(PATH + suffix))
+        HttpRequest request = HttpRequest.newBuilder(URI.create(requireSimulatorBase(order) + API_PATH + suffix))
                 .timeout(Duration.ofSeconds(4))
                 .header("Content-Type", "application/json")
                 .header("X-Merchant-Id", order.channelMerchantId())
