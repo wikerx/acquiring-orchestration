@@ -322,6 +322,29 @@ class MerchantTransactionApplicationServiceTests {
     }
 
     @Test
+    void splitQueriesBindBothRequestsToAuthenticatedMerchant() {
+        MerchantTransactionQueryService queryService = mock(MerchantTransactionQueryService.class);
+        MerchantTransactionApplicationService service = service(
+                queryService, new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
+        TransactionPageQuery supplied = new TransactionPageQuery();
+        supplied.setMerchantId("another-merchant");
+        supplied.setMerchantOrderNo("merchant-order");
+
+        service.pageOperations("merchant-a", supplied);
+        service.summarizeOperations("merchant-a", supplied);
+
+        ArgumentCaptor<TransactionPageQuery> pageQuery = ArgumentCaptor.forClass(TransactionPageQuery.class);
+        ArgumentCaptor<TransactionPageQuery> summaryQuery = ArgumentCaptor.forClass(TransactionPageQuery.class);
+        verify(queryService).pageOperations(pageQuery.capture());
+        verify(queryService).summarizeOperations(summaryQuery.capture());
+        assertThat(pageQuery.getValue().getMerchantId()).isEqualTo("merchant-a");
+        assertThat(summaryQuery.getValue().getMerchantId()).isEqualTo("merchant-a");
+        assertThat(pageQuery.getValue().getMerchantOrderNo()).isEqualTo("merchant-order");
+        assertThat(summaryQuery.getValue().getMerchantOrderNo()).isEqualTo("merchant-order");
+        assertThat(supplied.getMerchantId()).isEqualTo("another-merchant");
+    }
+
+    @Test
     void exportShouldIgnoreQueryResultLimitAndStreamRows() throws Exception {
         MerchantTransactionQueryService queryService = mock(MerchantTransactionQueryService.class);
         RedisConcurrencyLimiter limiter = mock(RedisConcurrencyLimiter.class);

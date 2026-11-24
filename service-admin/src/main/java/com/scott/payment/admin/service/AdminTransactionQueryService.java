@@ -14,7 +14,9 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmis
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
@@ -59,6 +61,9 @@ public interface AdminTransactionQueryService {
      */
     TransactionOrderSearchResponse searchOrders(TransactionPageQuery query);
 
+    /** 查询交易主单全量统计。 */
+    TransactionOrderSummaryResponse summarizeOrders(TransactionPageQuery query);
+
     /**
      * 查询交易动作；筛选条件、分页上限和数据范围由方法参数共同限定。
      * <p>
@@ -88,6 +93,9 @@ public interface AdminTransactionQueryService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     TransactionOperationSearchResponse searchOperations(TransactionPageQuery query);
+
+    /** 查询交易动作全量统计。 */
+    TransactionOperationSummaryResponse summarizeOperations(TransactionPageQuery query);
 
     /**
      * 查询指定业务单据详情，并执行调用方数据范围校验。

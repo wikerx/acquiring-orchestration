@@ -11,7 +11,7 @@ public interface InternalAuthChecker {
      * @param appCode       应用编码，例如 ADMIN、MERCHANT
      * @param authorization Authorization 请求头
      * @param requestMethod HTTP 请求方法
-     * @param requestPath   请求路径
+     * @param requestPath   用于查找兜底权限的请求路径，应用服务校验范围权限时可空
      * @param permissionCode 接口显式声明的权限编码
      * @return 当前登录账号上下文
      */

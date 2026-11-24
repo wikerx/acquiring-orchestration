@@ -6,6 +6,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.OpenApiAdmis
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -82,6 +83,15 @@ public class AdminTransactionOrderController {
     public CommonResult<TransactionOrderSearchResponse> searchWithSummary(
             @RequestBody(required = false) TransactionPageQuery query) {
         return success(transactionApplicationService.searchOrders(query));
+    }
+
+    /** 查询相同筛选条件下的全量统计。 */
+    @PostMapping("/summary")
+    @RequiresPermission("transaction:order:list")
+    @OperationLog(moduleName = "交易主单管理", businessType = OperationTypeConstants.QUERY, operation = "汇总交易主单")
+    public CommonResult<TransactionOrderSummaryResponse> summary(
+            @RequestBody(required = false) TransactionPageQuery query) {
+        return success(transactionApplicationService.summarizeOrders(query));
     }
 
     /**

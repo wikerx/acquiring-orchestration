@@ -22,7 +22,9 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionA
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
@@ -220,6 +222,11 @@ public class AdminTransactionApplicationService {
         return transactionQueryService.searchOrders(query);
     }
 
+    /** 查询交易主单全量统计。 */
+    public TransactionOrderSummaryResponse summarizeOrders(TransactionPageQuery query) {
+        return transactionQueryService.summarizeOrders(query);
+    }
+
     /**
      * 按查询条件导出交易生命周期主单。
      *
@@ -274,6 +281,11 @@ public class AdminTransactionApplicationService {
      */
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         return transactionQueryService.searchOperations(query);
+    }
+
+    /** 查询交易动作全量统计。 */
+    public TransactionOperationSummaryResponse summarizeOperations(TransactionPageQuery query) {
+        return transactionQueryService.summarizeOperations(query);
     }
 
     /**

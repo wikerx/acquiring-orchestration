@@ -6,6 +6,7 @@ import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.web.auth.annotation.ApplicationPermissionCheck;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.alibaba.fastjson2.JSON;
 import jakarta.servlet.http.HttpServletRequest;
@@ -81,12 +82,18 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
             return false;
         }
         try {
+            String permission = requiredPermission(handler);
+            String permissionPath = request.getRequestURI();
+            if (!StringUtils.hasText(permission) && handler instanceof HandlerMethod method
+                    && method.hasMethodAnnotation(ApplicationPermissionCheck.class)) {
+                permissionPath = null;
+            }
             InternalAuthAccount account = authChecker.check(
                     appCode,
                     authorization,
                     request.getMethod(),
-                    request.getRequestURI(),
-                    requiredPermission(handler)
+                    permissionPath,
+                    permission
             );
             InternalAuthContextHolder.set(account);
             return true;

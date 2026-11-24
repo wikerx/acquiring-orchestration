@@ -14,6 +14,8 @@ import com.scott.payment.merchant.application.transaction.MerchantTransactionApp
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionRequest;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
@@ -74,6 +76,24 @@ public class MerchantTransactionOrderController {
     @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.QUERY, operation = "查询商户交易动作统计")
     public CommonResult<TransactionOperationSearchResponse> searchOperations(@RequestBody(required = false) TransactionPageQuery query) {
         return success(transactionApplicationService.searchOperations(currentMerchantId(), query));
+    }
+
+    /** 分页查询当前商户交易动作单。 */
+    @PostMapping("/operations/page")
+    @RequiresPermission("merchant:transaction:order:list")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.QUERY, operation = "分页查询商户交易动作")
+    public CommonResult<PageResult<TransactionOperationResponse>> pageOperations(
+            @RequestBody(required = false) TransactionPageQuery query) {
+        return success(transactionApplicationService.pageOperations(currentMerchantId(), query));
+    }
+
+    /** 查询当前商户交易动作单全量统计。 */
+    @PostMapping("/operations/summary")
+    @RequiresPermission("merchant:transaction:order:list")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.QUERY, operation = "汇总商户交易动作")
+    public CommonResult<TransactionOperationSummaryResponse> summarizeOperations(
+            @RequestBody(required = false) TransactionPageQuery query) {
+        return success(transactionApplicationService.summarizeOperations(currentMerchantId(), query));
     }
 
     /**

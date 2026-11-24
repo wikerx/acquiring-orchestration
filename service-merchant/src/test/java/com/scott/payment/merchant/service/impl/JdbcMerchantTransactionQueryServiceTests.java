@@ -6,7 +6,6 @@ import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
-import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
@@ -316,6 +315,30 @@ class JdbcMerchantTransactionQueryServiceTests {
 
     @Test
     @SuppressWarnings("unchecked")
+    void summaryShouldUseMerchantPredicateWithoutRequestingPageOrCount() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setMerchantId("merchant-a");
+        query.setBeginTime(LocalDateTime.of(2026, 7, 1, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 7, 31, 23, 59));
+        query.setPageNo(3);
+
+        assertThat(service.summarizeOperations(query).getTotalCount()).isZero();
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.times(2)).query(
+                sql.capture(), params.capture(), any(RowMapper.class));
+        assertThat(sql.getAllValues()).allSatisfy(statement ->
+                assertThat(statement).contains("o.merchant_id = :merchantId", "GROUP BY").doesNotContain("LIMIT"));
+        assertThat(params.getAllValues()).allSatisfy(values ->
+                assertThat(values.getValue("merchantId")).isEqualTo("merchant-a"));
+        verify(jdbcTemplate, never()).queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void operationPageShouldLoadLifecycleOrdersOnceWithMerchantAndRegisteredNodeRange() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         LocalDateTime actionTime = LocalDateTime.of(2026, 7, 21, 19, 53, 50);
@@ -354,18 +377,19 @@ class JdbcMerchantTransactionQueryServiceTests {
         query.setBeginTime(LocalDateTime.of(2026, 7, 1, 0, 0));
         query.setEndTime(LocalDateTime.of(2026, 7, 31, 23, 59));
 
-        TransactionOperationSearchResponse response = service.searchOperations(query);
+        var response = service.pageOperations(query);
 
-        assertThat(response.getPage().getRecords())
+        assertThat(response.getRecords())
                 .extracting(TransactionOperationResponse::getRootTransactionDateTime)
                 .containsExactly(rootTime, rootTime.plusSeconds(1));
-        assertThat(response.getPage().getRecords())
+        assertThat(response.getRecords())
                 .extracting(TransactionOperationResponse::getAccessType)
                 .containsExactly("HOSTED_CHECKOUT", "DIRECT_API");
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(jdbcTemplate, atLeast(2)).query(
                 sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+        assertThat(sqlCaptor.getAllValues()).noneMatch(sql -> sql.contains("GROUP BY"));
         List<Integer> lifecycleIndexes = new java.util.ArrayList<>();
         for (int index = 0; index < sqlCaptor.getAllValues().size(); index++) {
             String sql = sqlCaptor.getAllValues().get(index);

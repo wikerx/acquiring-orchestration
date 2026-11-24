@@ -583,6 +583,37 @@ class JdbcAdminTransactionQueryServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void splitSummaryQueriesShouldRunOnlyExistingAggregates() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        LocalDateTime beginTime = LocalDateTime.of(2026, 10, 17, 0, 0);
+        TransactionPageQuery orderQuery = new TransactionPageQuery();
+        orderQuery.setBeginTime(beginTime);
+        orderQuery.setEndTime(beginTime.plusDays(1));
+        orderQuery.setMerchantId("merchant-a");
+        orderQuery.setPageNo(3);
+        TransactionPageQuery operationQuery = new TransactionPageQuery();
+        operationQuery.setBeginTime(beginTime);
+        operationQuery.setEndTime(beginTime.plusDays(1));
+        operationQuery.setMerchantId("merchant-a");
+        operationQuery.setPageNo(3);
+
+        service.summarizeOrders(orderQuery);
+        service.summarizeOperations(operationQuery);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.times(3)).query(
+                sql.capture(), params.capture(), any(RowMapper.class));
+        assertThat(sql.getAllValues()).allSatisfy(statement ->
+                assertThat(statement).contains("merchant_id = :merchantId", "GROUP BY").doesNotContain("LIMIT"));
+        assertThat(params.getAllValues()).allSatisfy(values ->
+                assertThat(values.getValue("merchantId")).isEqualTo("merchant-a"));
+        verify(jdbcTemplate, never()).queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void searchOrdersShouldReturnFullQuerySummaryIncludingCapturedAndProcessing() throws Exception {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         ResultSet hkdSummary = orderSummaryResultSet(

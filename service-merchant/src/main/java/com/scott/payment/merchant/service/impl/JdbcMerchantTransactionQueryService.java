@@ -203,10 +203,28 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         }
         return executeRead(false, () -> {
             TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
-            response.setPage(pageOperations(safeQuery));
+            response.setPage(pageOperationsNormalized(safeQuery));
             response.setSummary(operationSummary(safeQuery));
             return response;
         });
+    }
+
+    @Override
+    public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
+        TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery)) {
+            return emptyPage(safeQuery);
+        }
+        return executeRead(false, () -> pageOperationsNormalized(safeQuery));
+    }
+
+    @Override
+    public TransactionOperationSummaryResponse summarizeOperations(TransactionPageQuery query) {
+        TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery)) {
+            return new TransactionOperationSummaryResponse();
+        }
+        return executeRead(false, () -> operationSummary(safeQuery));
     }
 
     /**
@@ -276,7 +294,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @param safeQuery 已校验并绑定 merchantId 和时间范围的查询
      * @return 跨季度统一分页结果
      */
-    private PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery safeQuery) {
+    private PageResult<TransactionOperationResponse> pageOperationsNormalized(TransactionPageQuery safeQuery) {
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
         long total = countOperations(

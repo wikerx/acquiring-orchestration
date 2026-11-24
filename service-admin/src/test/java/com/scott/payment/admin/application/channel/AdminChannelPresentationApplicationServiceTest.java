@@ -9,11 +9,18 @@ import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelInfoDO;
 import com.scott.payment.admin.mapper.ChannelInfoMapper;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.web.auth.InternalAuthInterceptor;
+import com.scott.payment.component.web.handler.GlobalExceptionHandler;
 import com.scott.payment.component.web.upload.ManagedImageStore;
+import jakarta.servlet.http.Cookie;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import java.util.Collections;
 import java.util.List;
 import static org.assertj.core.api.Assertions.*;
@@ -123,6 +130,62 @@ class AdminChannelPresentationApplicationServiceTest {
                 .andExpect(header().string("Cache-Control", "private, no-store"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(content().bytes(new byte[]{1, 2}));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Scope.class, names = {"ORDER", "OPERATION"})
+    void requestUsesPagePermissionBeforeAnyWildcardPathRule(Scope scope) throws Exception {
+        var mvc = mvcWithWildcardRule(scope.listPermission());
+        when(mapper.selectList(any())).thenReturn(List.of(channel()));
+        when(mapper.selectOne(any())).thenReturn(channel());
+        when(images.read(KEY, "channel/10")).thenReturn(new byte[]{1, 2});
+
+        mvc.perform(authenticatedSearch(scope))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].logoVersion").value(VERSION));
+        mvc.perform(get("/admin/channel/presentation/{id}/logo", 10)
+                        .header("Authorization", "Bearer test-admin")
+                        .param("scope", scope.name()).param("version", VERSION))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "private, no-store"));
+    }
+
+    @Test
+    void scopedRoutesStillRejectAnonymousBadCsrfAndUnrelatedPermissions() throws Exception {
+        var mvc = mvcWithWildcardRule(Scope.ORDER.detailPermission());
+        mvc.perform(post("/admin/channel/presentation/search").param("scope", "ORDER"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/admin/channel/presentation/search").param("scope", "ORDER")
+                        .cookie(new Cookie("VEXRA_ADMIN_SESSION", "test-session")))
+                .andExpect(status().isForbidden());
+        mvc.perform(authenticatedSearch(Scope.OPERATION))
+                .andExpect(jsonPath("$.code").value("F403"))
+                .andExpect(jsonPath("$.message").value("无权查看渠道展示信息"));
+        mvc.perform(get("/admin/channel/presentation/{id}/logo", 10)
+                        .header("Authorization", "Bearer test-admin")
+                        .param("scope", "OPERATION").param("version", VERSION))
+                .andExpect(jsonPath("$.code").value("F403"));
+        verifyNoInteractions(mapper, images);
+    }
+
+    private MockMvc mvcWithWildcardRule(String permission) {
+        var account = InternalAuthContextHolder.get();
+        account.setPermissions(List.of(permission));
+        return standaloneSetup(new AdminChannelPresentationController(service))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .addInterceptors(new InternalAuthInterceptor("ADMIN", (app, auth, method, path, explicitPermission) -> {
+                    if (path != null && explicitPermission == null) {
+                        throw new ServiceException(ApiResultEnum.FORBIDDEN);
+                    }
+                    return account;
+                }, List.of()))
+                .build();
+    }
+
+    private MockHttpServletRequestBuilder authenticatedSearch(Scope scope) {
+        return post("/admin/channel/presentation/search").param("scope", scope.name())
+                .header("Authorization", "Bearer test-admin")
+                .contentType("application/json").content("{\"ids\":[10]}");
     }
 
     /** 未定义页面范围必须在 MVC 参数转换时拒绝，不能退化为任意权限读取。 */

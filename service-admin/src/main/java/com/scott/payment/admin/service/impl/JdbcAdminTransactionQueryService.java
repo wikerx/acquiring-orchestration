@@ -661,6 +661,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return executeRead(false, () -> searchOrdersNormalized(safeQuery));
     }
 
+    @Override
+    public TransactionOrderSummaryResponse summarizeOrders(TransactionPageQuery query) {
+        TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            return new TransactionOrderSummaryResponse();
+        }
+        return executeRead(false, () -> orderSummary(safeQuery));
+    }
+
     /**
      * 分页查询并规范化交易订单摘要。
      */
@@ -763,6 +772,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             response.setSummary(operationSummary(safeQuery));
             return response;
         });
+    }
+
+    @Override
+    public TransactionOperationSummaryResponse summarizeOperations(TransactionPageQuery query) {
+        TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            return new TransactionOperationSummaryResponse();
+        }
+        return executeRead(false, () -> operationSummary(safeQuery));
     }
 
     /**

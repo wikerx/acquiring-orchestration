@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatch
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailRecordResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
@@ -75,6 +76,15 @@ public class AdminTransactionOperationController {
     @OperationLog(moduleName = "交易管理", businessType = OperationTypeConstants.QUERY, operation = "分页查询交易动作及统计")
     public CommonResult<TransactionOperationSearchResponse> searchWithSummary(@RequestBody(required = false) TransactionPageQuery query) {
         return success(transactionApplicationService.searchOperations(query));
+    }
+
+    /** 查询相同筛选条件下的全量统计。 */
+    @PostMapping("/summary")
+    @RequiresPermission("transaction:operation:list")
+    @OperationLog(moduleName = "交易管理", businessType = OperationTypeConstants.QUERY, operation = "汇总交易动作")
+    public CommonResult<TransactionOperationSummaryResponse> summary(
+            @RequestBody(required = false) TransactionPageQuery query) {
+        return success(transactionApplicationService.summarizeOperations(query));
     }
 
     /**

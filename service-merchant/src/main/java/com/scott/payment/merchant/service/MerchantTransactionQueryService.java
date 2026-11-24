@@ -2,6 +2,8 @@ package com.scott.payment.merchant.service;
 
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
@@ -28,6 +30,12 @@ public interface MerchantTransactionQueryService {
      * @return 动作单分页与统计
      */
     TransactionOperationSearchResponse searchOperations(TransactionPageQuery query);
+
+    /** 分页查询认证商户的交易动作单。 */
+    PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query);
+
+    /** 查询认证商户交易动作单全量统计。 */
+    TransactionOperationSummaryResponse summarizeOperations(TransactionPageQuery query);
 
     /**
      * 查询当前商户交易聚合详情。

@@ -2,16 +2,33 @@ package com.scott.payment.admin.application.auth;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.scott.payment.admin.api.auth.AdminAvatarController;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.web.auth.BrowserSessionCookieSupport;
+import com.scott.payment.component.web.auth.InternalAuthInterceptor;
+import jakarta.servlet.http.Cookie;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import com.scott.payment.component.core.auth.*;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.web.upload.*;
 import org.junit.jupiter.api.*;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 class AdminAvatarApplicationServiceTest {
     private final SysUserMapper users = mock(SysUserMapper.class);
@@ -51,4 +68,85 @@ class AdminAvatarApplicationServiceTest {
         var u = user(); when(users.selectById(7L)).thenReturn(u); service.remove(); verify(users, never()).update(any(), any());
         u.setAvatarUrl("reference"); service.read(); verify(store).read("reference", "avatar/7");
     }
+
+    @Test
+    void profileReadUsesAuthenticatedSubjectEvenWithoutWildcardGrant() throws Exception {
+        var currentUser = user();
+        currentUser.setAvatarUrl("self-reference");
+        byte[] png = {1, 2};
+        when(users.selectById(7L)).thenReturn(currentUser);
+        when(store.read("self-reference", "avatar/7")).thenReturn(png);
+        var mvc = mvcWithWildcardRule();
+
+        mvc.perform(get("/admin/auth/avatar").param("userId", "9")
+                        .cookie(new Cookie("VEXRA_ADMIN_SESSION", "test-session")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "private, no-store"))
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(png));
+
+        verify(users).selectById(7L);
+        verifyNoMoreInteractions(users);
+    }
+
+    @Test
+    void profileUploadAndRemovalUseSessionWithoutWildcardGrant() throws Exception {
+        var currentUser = user();
+        when(users.selectById(7L)).thenReturn(currentUser);
+        byte[] png = {1, 2};
+        var upload = new MockMultipartFile("file", "avatar.png", "image/png", png);
+        when(processor.process(eq(upload), eq(true))).thenReturn(png);
+        String key = "images/avatar/7/" + "a".repeat(32) + "-" + "b".repeat(64) + ".png";
+        when(store.write("avatar/7", png)).thenReturn(key);
+        when(users.update(isNull(), any())).thenReturn(1);
+        var mvc = mvcWithWildcardRule();
+
+        mvc.perform(withCsrf(multipart("/admin/auth/avatar").file(upload).param("userId", "9")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value("a".repeat(32)));
+        currentUser.setAvatarUrl(key);
+        mvc.perform(withCsrf(delete("/admin/auth/avatar").param("userId", "9")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("T200"));
+
+        verify(processor).process(upload, true);
+        verify(store).write("avatar/7", png);
+        verify(store).deleteAfterCommit(key);
+        verify(users, times(2)).selectById(7L);
+        verify(users, times(2)).update(isNull(), any());
+        verifyNoMoreInteractions(users);
+    }
+
+    @Test
+    void profileEndpointsRequireLoginAndRejectCookieMutationsWithoutCsrf() throws Exception {
+        var mvc = mvcWithWildcardRule();
+
+        mvc.perform(get("/admin/auth/avatar")).andExpect(status().isUnauthorized());
+        var cookie = new Cookie("VEXRA_ADMIN_SESSION", "test-session");
+        mvc.perform(multipart("/admin/auth/avatar")
+                        .file(new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1}))
+                        .cookie(cookie))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/admin/auth/avatar").cookie(cookie))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(users, processor, store);
+    }
+
+    private MockMvc mvcWithWildcardRule() {
+        var account = InternalAuthContextHolder.get();
+        return standaloneSetup(new AdminAvatarController(service))
+                .addInterceptors(new InternalAuthInterceptor("ADMIN", (app, auth, method, path, permission) -> {
+                    if (path != null && permission == null) throw new ServiceException(ApiResultEnum.FORBIDDEN);
+                    return account;
+                }, List.of()))
+                .build();
+    }
+
+    private MockHttpServletRequestBuilder withCsrf(MockHttpServletRequestBuilder request) {
+        return request.cookie(new Cookie("VEXRA_ADMIN_SESSION", "test-session"),
+                        new Cookie("VEXRA_ADMIN_CSRF", "test-csrf"))
+                .header(BrowserSessionCookieSupport.CSRF_HEADER, "test-csrf");
+    }
+
 }

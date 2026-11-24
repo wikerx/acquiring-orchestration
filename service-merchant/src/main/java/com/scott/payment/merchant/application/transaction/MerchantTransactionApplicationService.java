@@ -20,6 +20,7 @@ import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.Transa
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionAmountSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
@@ -163,6 +164,16 @@ public class MerchantTransactionApplicationService {
      */
     public TransactionOperationSearchResponse searchOperations(String merchantId, TransactionPageQuery query) {
         return transactionQueryService.searchOperations(merchantScopedQuery(merchantId, query));
+    }
+
+    /** 分页查询当前商户交易动作单。 */
+    public PageResult<TransactionOperationResponse> pageOperations(String merchantId, TransactionPageQuery query) {
+        return transactionQueryService.pageOperations(merchantScopedQuery(merchantId, query));
+    }
+
+    /** 查询当前商户交易动作单全量统计。 */
+    public TransactionOperationSummaryResponse summarizeOperations(String merchantId, TransactionPageQuery query) {
+        return transactionQueryService.summarizeOperations(merchantScopedQuery(merchantId, query));
     }
 
     /**
