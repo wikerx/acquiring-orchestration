@@ -43,7 +43,7 @@ public class AdminPaymentCapabilityOperationsInternalController {
     public CommonResult<RecoveryResponse> recover(@RequestHeader(InternalServiceSignature.HEADER_CALLER) String caller,
                                                    @RequestBody RecoveryRequest request) {
         requireJob(caller);
-        return CommonResult.success(operations.recover(request.limit()));
+        return CommonResult.success(operations.recover(request));
     }
 
     private static void requireJob(String caller) {

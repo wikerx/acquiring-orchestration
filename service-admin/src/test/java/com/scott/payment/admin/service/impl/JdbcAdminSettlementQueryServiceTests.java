@@ -8,14 +8,22 @@ import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.core.exception.ServiceException;
+import org.apache.shardingsphere.driver.api.ShardingSphereDataSourceFactory;
+import org.apache.shardingsphere.driver.jdbc.core.datasource.ShardingSphereDataSource;
+import org.apache.shardingsphere.single.config.SingleRuleConfiguration;
+import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -212,6 +220,7 @@ class JdbcAdminSettlementQueryServiceTests {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         BatchSummary batch = new BatchSummary();
         batch.setSettlementBatchNo("SB20260831-00000001");
+        batch.setMerchantId("M1001");
         batch.setBusinessDate(LocalDate.of(2026, 8, 31));
         batch.setDailySequence(1);
         when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
@@ -248,6 +257,133 @@ class JdbcAdminSettlementQueryServiceTests {
 
     @Test
     @SuppressWarnings("unchecked")
+    void reserveVoucherAndSummaryPageShouldSplitConservedAmountsByTransactionType() throws Exception {
+        JdbcDataSource dataSource = new JdbcDataSource();
+        dataSource.setURL("jdbc:h2:mem:reserve_voucher;MODE=MySQL;DB_CLOSE_DELAY=-1");
+        JdbcTemplate database = new JdbcTemplate(dataSource);
+        database.execute("""
+                CREATE TABLE settlement_batch (settlement_batch_no VARCHAR, merchant_id VARCHAR,
+                    target_currency_exponent INT, batch_type VARCHAR);
+                CREATE TABLE base_iso_currency (alpha3_code VARCHAR, fraction_digits INT, deleted INT);
+                CREATE TABLE settlement_result_summary (id BIGINT, settlement_batch_no VARCHAR, merchant_id VARCHAR,
+                    payment_type VARCHAR, payment_method VARCHAR, transaction_type VARCHAR, result_item_type VARCHAR,
+                    fee_category VARCHAR, direction VARCHAR, source_currency VARCHAR, target_currency VARCHAR,
+                    transaction_count BIGINT, source_amount DECIMAL, target_amount DECIMAL);
+                CREATE TABLE settlement_result_item (settlement_batch_no VARCHAR, merchant_id VARCHAR, candidate_id BIGINT,
+                    source_detail_type VARCHAR, source_detail_no VARCHAR, result_role VARCHAR, payment_type VARCHAR,
+                    payment_method VARCHAR, transaction_type VARCHAR, result_item_type VARCHAR, fee_category VARCHAR,
+                    direction VARCHAR, source_currency VARCHAR, target_currency VARCHAR, source_amount DECIMAL, target_amount DECIMAL);
+                CREATE TABLE merchant_reserve_action (settlement_batch_no VARCHAR, candidate_id BIGINT,
+                    source_reserve_detail_no VARCHAR, action_type VARCHAR, reserve_item_id BIGINT, reserve_no VARCHAR);
+                CREATE TABLE merchant_reserve_item (id BIGINT, merchant_id VARCHAR, source_transaction_id VARCHAR, reserve_no VARCHAR);
+                CREATE TABLE transaction_locator (transaction_id VARCHAR, merchant_id VARCHAR, transaction_type VARCHAR);
+                INSERT INTO settlement_batch VALUES
+                    ('SB20260831-00000001', 'M1001', 2, 'RESERVE_RELEASE'),
+                    ('SB20260831-00000002', 'M1001', 2, 'REGULAR'),
+                    ('SB20260831-00000003', 'M1001', 2, 'ADJUSTMENT');
+                INSERT INTO base_iso_currency VALUES ('USD', 2, 0);
+                INSERT INTO settlement_result_summary VALUES
+                    (1,'SB20260831-00000001','M1001','BANK_CARD','VISA','RESERVE_RELEASE','RESERVE_RELEASE','NONE','CREDIT','USD','USD',2,42,42),
+                    (2,'SB20260831-00000001','M1001','BANK_CARD','JCB','RESERVE_RELEASE','RESERVE_RELEASE','NONE','CREDIT','USD','USD',2,19,19),
+                    (3,'SB20260831-00000002','M1001','BANK_CARD','JCB','PAYMENT','PRINCIPAL','NONE','CREDIT','USD','USD',1,60,60),
+                    (4,'SB20260831-00000001','M1001','BANK_CARD','AMEX','RESERVE_RELEASE','RESERVE_RELEASE','NONE','CREDIT','USD','USD',1,5,5),
+                    (5,'SB20260831-00000003','M1001','BANK_CARD','VISA','ADJUSTMENT','ADJUSTMENT','NONE','DEBIT','USD','USD',1,6,6);
+                INSERT INTO settlement_result_item VALUES
+                    ('SB20260831-00000001','M1001',11,'RESERVE_CLEARING','RD11','FINANCIAL_COMPONENT','BANK_CARD','VISA','RESERVE_RELEASE','RESERVE_RELEASE',NULL,'CREDIT','USD','USD',22,22),
+                    ('SB20260831-00000001','M1001',12,'RESERVE_CLEARING','RD12','FINANCIAL_COMPONENT','BANK_CARD','VISA','RESERVE_RELEASE','RESERVE_RELEASE',NULL,'CREDIT','USD','USD',20,20),
+                    ('SB20260831-00000001','M1001',21,'RESERVE_CLEARING','RD21','FINANCIAL_COMPONENT','BANK_CARD','JCB','RESERVE_RELEASE','RESERVE_RELEASE',NULL,'CREDIT','USD','USD',10,10),
+                    ('SB20260831-00000001','M1001',22,'RESERVE_CLEARING','RD22','FINANCIAL_COMPONENT','BANK_CARD','JCB','RESERVE_RELEASE','RESERVE_RELEASE',NULL,'CREDIT','USD','USD',9,9),
+                    ('SB20260831-00000001','M1001',31,'RESERVE_CLEARING','RD31','FINANCIAL_COMPONENT','BANK_CARD','AMEX','RESERVE_RELEASE','RESERVE_RELEASE',NULL,'CREDIT','USD','USD',4,4),
+                    ('SB20260831-00000003','M1001',41,'RESERVE_CLEARING','RD41','FINANCIAL_COMPONENT','BANK_CARD','VISA','ADJUSTMENT','ADJUSTMENT',NULL,'DEBIT','USD','USD',6,6);
+                INSERT INTO merchant_reserve_action VALUES
+                    ('SB20260831-00000001',11,'RD11','RELEASE',11,'R11'), ('SB20260831-00000001',12,'RD12','RELEASE',12,'R12'),
+                    ('SB20260831-00000001',21,'RD21','RELEASE',21,'R21'), ('SB20260831-00000001',22,'RD22','RELEASE',22,'R22'),
+                    ('SB20260831-00000001',31,'RD31','RELEASE',31,'R31'),
+                    ('SB20260831-00000003',41,'RD41','ADJUSTMENT',11,'R11');
+                INSERT INTO merchant_reserve_item VALUES (11,'M1001','TX11','R11'), (12,'M1001','TX12','R12'),
+                    (21,'M1001','TX21','R21'), (22,'M1001','TX22','R22'), (31,'M1001','TX31','R31');
+                INSERT INTO transaction_locator VALUES ('TX11','M1001','CAPTURE'), ('TX12','M1001','PAYMENT'),
+                    ('TX21','M1001','PAYMENT'), ('TX22','M1002','PAYMENT'), ('TX31','M1001','PAYMENT');
+                """);
+        try (var logicalDataSource = (ShardingSphereDataSource) ShardingSphereDataSourceFactory.createDataSource(
+                Map.of("master", dataSource), List.of(new SingleRuleConfiguration(List.of("master.*"), "master")),
+                new Properties())) {
+            var realJdbc = new NamedParameterJdbcTemplate(logicalDataSource);
+            NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+            BatchSummary batch = new BatchSummary();
+            batch.setSettlementBatchNo("SB20260831-00000001");
+            batch.setMerchantId("M1001");
+            batch.setBatchType("RESERVE_RELEASE");
+            batch.setBusinessDate(LocalDate.of(2026, 8, 31));
+            batch.setDailySequence(1);
+            when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                    .thenAnswer(invocation -> {
+                        String sql = invocation.getArgument(0);
+                        if (sql.contains("FROM settlement_batch\n")) return List.of(batch);
+                        if (sql.contains("FROM settlement_result_summary summary")) {
+                            return realJdbc.query(sql, invocation.<MapSqlParameterSource>getArgument(1),
+                                    invocation.<RowMapper<ResultSummaryLine>>getArgument(2));
+                        }
+                        return List.of();
+                    });
+            when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                    .thenAnswer(invocation -> realJdbc.queryForObject(invocation.<String>getArgument(0),
+                            invocation.<MapSqlParameterSource>getArgument(1), Long.class));
+
+            var service = new JdbcAdminSettlementQueryService(jdbcTemplate, executingReadExecutor(),
+                    new TransactionShardingProperties());
+            var scope = AdminMerchantDataScope.limited(Set.of(batch.getMerchantId()));
+            var detail = service.voucherDetail(batch.getSettlementBatchNo(), scope);
+
+            assertThat(detail.getResultSummaries()).satisfiesExactly(drift -> {
+                assertThat(drift.getPaymentMethod()).isEqualTo("AMEX");
+                assertThat(drift.getTransactionType()).isNull();
+                assertThat(drift.getTargetAmount()).isEqualByComparingTo("5");
+            }, unknown -> {
+                assertThat(unknown.getPaymentMethod()).isEqualTo("JCB");
+                assertThat(unknown.getOriginalTransactionTypes()).isEmpty();
+                assertThat(unknown.getTransactionType()).isNull();
+                assertThat(unknown.getTargetAmount()).isEqualByComparingTo("9");
+            }, known -> {
+                assertThat(known.getPaymentMethod()).isEqualTo("JCB");
+                assertThat(known.getTransactionType()).isEqualTo("PAYMENT");
+                assertThat(known.getTargetAmount()).isEqualByComparingTo("10");
+            }, capture -> {
+                assertThat(capture.getPaymentMethod()).isEqualTo("VISA");
+                assertThat(capture.getOriginalTransactionTypes()).containsExactly("CAPTURE");
+                assertThat(capture.getTransactionType()).isEqualTo("CAPTURE");
+                assertThat(capture.getResultItemType()).isEqualTo("RESERVE_RELEASE");
+                assertThat(capture.getTransactionCount()).isEqualTo(1L);
+                assertThat(capture.getSourceAmount()).isEqualByComparingTo("22");
+                assertThat(capture.getTargetAmount()).isEqualByComparingTo("22");
+            }, payment -> {
+                assertThat(payment.getPaymentMethod()).isEqualTo("VISA");
+                assertThat(payment.getTransactionType()).isEqualTo("PAYMENT");
+                assertThat(payment.getTransactionCount()).isEqualTo(1L);
+                assertThat(payment.getTargetAmount()).isEqualByComparingTo("20");
+            });
+            var releasePage = service.searchResultSummaries(batch.getSettlementBatchNo(), 2, 2, scope);
+            assertThat(releasePage.getTotal()).isEqualTo(5L);
+            assertThat(releasePage.getRecords()).usingRecursiveFieldByFieldElementComparator()
+                    .containsExactlyElementsOf(detail.getResultSummaries().subList(2, 4));
+            var regularPage = service.searchResultSummaries("SB20260831-00000002", 1, 10, scope);
+            assertThat(regularPage.getRecords()).singleElement().satisfies(row -> {
+                assertThat(row.getTransactionType()).isEqualTo("PAYMENT");
+                assertThat(row.getOriginalTransactionTypes()).isNull();
+                assertThat(row.getTargetAmount()).isEqualByComparingTo("60");
+            });
+            var adjustmentPage = service.searchResultSummaries("SB20260831-00000003", 1, 10, scope);
+            assertThat(adjustmentPage.getRecords()).singleElement().satisfies(row -> {
+                assertThat(row.getTransactionType()).isEqualTo("CAPTURE");
+                assertThat(row.getResultItemType()).isEqualTo("ADJUSTMENT");
+                assertThat(row.getDirection()).isEqualTo("DEBIT");
+                assertThat(row.getTargetAmount()).isEqualByComparingTo("6");
+            });
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void resultSummaryShouldUseStablePaginationAndAdminMerchantScope() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         when(jdbcTemplate.queryForObject(
@@ -273,12 +409,10 @@ class JdbcAdminSettlementQueryServiceTests {
                 "FROM settlement_result_summary summary",
                 "batch.merchant_id IN (:permittedMerchantIds)",
                 "AS source_currency_exponent",
-                "batch.target_currency_exponent",
+                "summary.target_currency_exponent",
                 "ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method",
                 "summary.target_currency, summary.id",
-                "LIMIT :offset, :limit");
-        assertThat(parameters.getValue().getValue("offset")).isEqualTo(20L);
-        assertThat(parameters.getValue().getValue("limit")).isEqualTo(20);
+                "LIMIT 20, 20");
         assertThat(parameters.getValue().getValue("permittedMerchantIds"))
                 .isEqualTo(java.util.Set.of("M1001", "M1002"));
     }

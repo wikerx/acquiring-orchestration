@@ -6,6 +6,7 @@ import com.scott.payment.component.job.enums.JobSchedulerModeEnum;
 import com.scott.payment.component.job.enums.JobTriggerTypeEnum;
 import lombok.Data;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 /**
@@ -68,6 +69,9 @@ public class JobExecuteContext {
      * 实际触发时间。
      */
     private LocalDateTime actualTriggerTime;
+
+    /** 本轮执行截止时间，包含排队和处理时间。 */
+    private Instant executionDeadline;
 
     /**
      * 当前重试序号。

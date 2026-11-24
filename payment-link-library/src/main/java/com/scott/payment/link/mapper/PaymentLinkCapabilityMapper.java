@@ -15,7 +15,9 @@ public interface PaymentLinkCapabilityMapper {
     @Select("SELECT b.binding_status, b.effective_time AS binding_effective_time, b.expire_time AS binding_expire_time, "
             + "m.business_type, m.id AS mid_config_id, m.mid_status, m.effective_time AS mid_effective_time, m.expire_time AS mid_expire_time, "
             + "m.payment_method_scope, m.card_brand_scope, m.currency_scope, m.transaction_type_scope, "
-            + "c.channel_code, c.channel_status, c.support_acquiring, p.id AS capability_id, p.capability_status, "
+            + "m.allowed_country_scope, m.default_transaction_currency, "
+            + "c.id AS channel_id, c.channel_code, c.channel_status, c.support_acquiring, "
+            + "p.id AS capability_id, p.capability_status, p.business_type AS capability_business_type, "
             + "p.payment_method AS capability_payment_method, p.transaction_type AS capability_transaction_type, "
             + "p.sort_order AS capability_sort_order, p.support_3ds AS capability_support3ds "
             + JOINS + " WHERE " + SCOPE + " ORDER BY b.id, p.sort_order, p.id")

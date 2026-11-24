@@ -166,6 +166,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(captured.getRetryAllowed()).isEqualTo(1);
         assertThat(captured.getMerchantDisplayName()).isEqualTo("Demo Sub Merchant");
+        assertThat(captured.isIncludeConfiguredNonCardOptions()).isTrue();
         assertThat(captured.getAllowedPaymentMethods()).singleElement()
                 .satisfies(method -> {
                     assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD");
@@ -186,7 +187,7 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
-    void shouldLimitHostedCheckoutV1ToBankCardWithoutPinningAChannel() {
+    void shouldAskPaymentToDiscoverNonCardOptionsWithoutPinningACardChannel() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
         bindRequestContext("200001");
@@ -199,6 +200,7 @@ class HostedCheckoutServiceImplTests {
                     assertThat(method.getChannelCode()).isNull();
                     assertThat(method.getBrands()).isEmpty();
                 });
+        assertThat(paymentInternalClient.sessionCreateRequest.isIncludeConfiguredNonCardOptions()).isTrue();
         assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(paymentInternalClient.sessionCreateRequest.getRetryAllowed()).isEqualTo(1);
     }

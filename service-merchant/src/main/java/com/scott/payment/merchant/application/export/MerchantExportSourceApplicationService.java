@@ -3,6 +3,7 @@ package com.scott.payment.merchant.application.export;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.merchant.application.transaction.MerchantRefundApplicationService;
 import com.scott.payment.merchant.application.transaction.MerchantTransactionApplicationService;
 import com.scott.payment.merchant.client.data.dto.MerchantDataExportTaskClientDTOs.MerchantRefundQuery;
@@ -141,6 +142,10 @@ public class MerchantExportSourceApplicationService {
         if (query == null || !StringUtils.hasText(query.getSettlementBatchNo())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        if (StringUtils.hasText(query.getBatchDomain())) {
+            settlementQueryService.requireBatchDomain(
+                    request.getMerchantId(), query.getSettlementBatchNo(), query.getBatchDomain());
+        }
         PageResult<SummaryLine> page = settlementQueryService.searchResultSummaries(
                 request.getMerchantId(), query.getSettlementBatchNo().trim(),
                 request.getPageNo(), request.getPageSize());
@@ -181,11 +186,17 @@ public class MerchantExportSourceApplicationService {
                 toSettlementReserveQuery(request.getQuery());
         query.setPageNo(request.getPageNo());
         query.setPageSize(request.getPageSize());
-        PageResult<ReserveItem> page = settlementQueryService.searchReserveItems(request.getMerchantId(), query);
+        PageResult<ReserveItem> page = request.getAfterAction() == null
+                ? settlementQueryService.searchReserveItems(request.getMerchantId(), query)
+                : settlementQueryService.readReserveExportPage(request.getMerchantId(), query, request.getAfterAction());
         SettlementReservePageResponse response = new SettlementReservePageResponse();
+        List<ReserveItem> records = page == null || page.getRecords() == null ? List.of() : page.getRecords();
         response.setTotal(page == null ? 0L : page.getTotal());
-        response.setRecords(page == null || page.getRecords() == null
-                ? List.of() : page.getRecords().stream().map(this::toSettlementReserveRow).toList());
+        response.setRecords(records.stream().map(this::toSettlementReserveRow).toList());
+        if (!records.isEmpty()) {
+            ReserveItem last = records.get(records.size() - 1);
+            response.setNextAction(new ReserveActionCursor(last.getActionTime(), last.getActionId()));
+        }
         return response;
     }
 
@@ -278,6 +289,7 @@ public class MerchantExportSourceApplicationService {
                 new com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchQuery();
         target.setSettlementBatchNo(source.getSettlementBatchNo());
         target.setBatchType(source.getBatchType());
+        target.setBatchDomain(source.getBatchDomain());
         target.setBatchStatus(source.getBatchStatus());
         target.setBeginBusinessDate(source.getBeginBusinessDate());
         target.setEndBusinessDate(source.getEndBusinessDate());

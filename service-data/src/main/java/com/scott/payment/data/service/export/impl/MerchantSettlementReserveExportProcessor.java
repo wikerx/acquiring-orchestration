@@ -70,10 +70,11 @@ public class MerchantSettlementReserveExportProcessor implements ExportTaskProce
                 task.getDataScopeSnapshot(), MerchantExportScopeSnapshot.class);
         MerchantSettlementExportSupport.requireScope(task, query, scope);
         Locale locale = MerchantSettlementExportSupport.resolveLocale(task.getLocale());
+        ReserveExportPagination pagination = new ReserveExportPagination();
         return artifactWriter.write(task, storage, progressListener, now,
                 "excel.merchantSettlement.reserveTitle", "保证金结算明细", "Settlement Reserves",
                 MerchantSettlementReserveExportRow.class,
-                pageNo -> loadPage(task, query, pageNo, locale));
+                pageNo -> loadPage(task, query, pageNo, locale, pagination));
     }
 
     /**
@@ -83,19 +84,21 @@ public class MerchantSettlementReserveExportProcessor implements ExportTaskProce
             DataExportTaskDO task,
             MerchantSettlementReserveQuery query,
             int pageNo,
-            Locale locale) {
+            Locale locale,
+            ReserveExportPagination pagination) {
         SettlementReservePageRequest request = new SettlementReservePageRequest();
         request.setMerchantId(task.getMerchantId());
         request.setQuery(query);
         request.setPageNo(pageNo);
         request.setPageSize(properties.getPageSize());
+        request.setAfterAction(pagination.afterAction());
         SettlementReservePageResponse response = sourceClient.loadSettlementReservePage(request);
         if (response == null) {
             throw new IllegalStateException("merchant settlement reserve source response is missing");
         }
         List<MerchantSettlementReserveExportRow> rows = response.getRecords() == null
                 ? List.of() : response.getRecords().stream().map(row -> toExportRow(row, locale)).toList();
-        return new ExportPage<>(response.getTotal(), rows);
+        return new ExportPage<>(pagination.advance(response.getTotal(), response.getNextAction()), rows);
     }
 
     /**

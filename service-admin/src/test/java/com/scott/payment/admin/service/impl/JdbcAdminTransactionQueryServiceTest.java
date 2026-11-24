@@ -60,6 +60,90 @@ import static org.mockito.Mockito.when;
 class JdbcAdminTransactionQueryServiceTest {
 
     @Test
+    void hostedWalletShowsProviderOrderNumberAndAllowsExactSearch() throws Exception {
+        var service = buildService(mock(NamedParameterJdbcTemplate.class));
+        var row = mock(ResultSet.class);
+        String providerOrderNo = "CMT20261122190612115010008WPLF";
+        when(row.getString("transaction_id")).thenReturn("2611221906121070000020");
+        when(row.getString("transaction_type")).thenReturn("PAYMENT");
+        when(row.getString("channel_code")).thenReturn("SCOTT_CHANNEL_A");
+        when(row.getString("channel_order_no")).thenReturn("DEV-IW-2611221906121070000011");
+        when(row.getString("channel_transaction_id")).thenReturn(providerOrderNo);
+
+        var mapper = (RowMapper<?>) org.springframework.test.util.ReflectionTestUtils
+                .invokeMethod(service, "operationMapper", false);
+        assertThat(org.springframework.test.util.ReflectionTestUtils.invokeGetterMethod(
+                mapper.mapRow(row, 0), "channelOrderNo")).isEqualTo(providerOrderNo);
+
+        var query = new TransactionPageQuery();
+        query.setChannelOrderNo(providerOrderNo);
+        String where = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                service, "operationWhereSql", query, "transaction_payment_method_info_202604");
+        assertThat(where).contains("o.channel_order_no LIKE 'DEV-IW-%'", "o.channel_transaction_id = :channelOrderNo");
+    }
+
+    @Test
+    void channelCallbackDetailBindsAuditLogToTheCallbackAndRequiresMerchantScope() throws Exception {
+        var jdbc = mock(NamedParameterJdbcTemplate.class);
+        var time = LocalDateTime.parse("2026-11-21T17:28:57.549");
+        var callback = mock(ResultSet.class);
+        var operation = mock(ResultSet.class);
+        var log = mock(ResultSet.class);
+        when(callback.getString("callback_id")).thenReturn("CCB1");
+        when(callback.getString("transaction_id")).thenReturn("TX1");
+        when(callback.getString("channel_code")).thenReturn("SCOTT_CHANNEL_A");
+        when(callback.getString("callback_log_id")).thenReturn("CCL1");
+        when(operation.getString("merchant_id")).thenReturn("M1001");
+        when(log.getString("platform_response_body")).thenReturn("SUCCESS");
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0);
+                    MapSqlParameterSource params = invocation.getArgument(1);
+                    RowMapper<?> mapper = invocation.getArgument(2);
+                    if (sql.contains("FROM transaction_channel_callback_log")) {
+                        assertThat(sql).contains("transaction_date_time = :transactionDateTime",
+                                "channel_code = :channelCode", "transaction_id = :transactionId");
+                        assertThat(params.getValue("callbackLogId")).isEqualTo("CCL1");
+                        assertThat(params.getValue("transactionDateTime")).isEqualTo(time);
+                        return List.of(mapper.mapRow(log, 0));
+                    }
+                    if (sql.contains("FROM transaction_channel_callback")) {
+                        assertThat(params.getValue("callbackId")).isEqualTo("CCB1");
+                        return List.of(mapper.mapRow(callback, 0));
+                    }
+                    return List.of(mapper.mapRow(operation, 0));
+                });
+        var service = buildService(jdbc);
+        assertThatThrownBy(() -> service.channelCallbackDetail("CCB1", time, 1,
+                AdminMerchantDataScope.limited(Set.of("M2002")))).isInstanceOf(ApiException.class);
+        verify(jdbc, never()).query(org.mockito.ArgumentMatchers.contains("FROM transaction_channel_callback_log"),
+                any(MapSqlParameterSource.class), any(RowMapper.class));
+        var detail = service.channelCallbackDetail("CCB1", time, 1, AdminMerchantDataScope.limited(Set.of("M1001")));
+        assertThat(detail.log().getPlatformResponseBody()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void readsNewScottRefundOrderNumberFromBothActionAndCallbackInItsOwnRight() throws Exception {
+        var service = buildService(mock(NamedParameterJdbcTemplate.class));
+        var row = mock(ResultSet.class);
+        when(row.getString("transaction_id")).thenReturn("202611211849178300230");
+        when(row.getString("source_transaction_id")).thenReturn("202611211847086000198");
+        when(row.getString("transaction_type")).thenReturn("REFUND");
+        when(row.getString("channel_code")).thenReturn("SCOTT_CHANNEL_A");
+        when(row.getString("channel_order_no")).thenReturn("CMR-NEW-REFUND");
+        when(row.getString("channel_transaction_id")).thenReturn("CMR-NEW-REFUND");
+        var operationMapper = (RowMapper<?>) org.springframework.test.util.ReflectionTestUtils
+                .invokeMethod(service, "operationMapper", false);
+        var callbackMapper = (RowMapper<?>) org.springframework.test.util.ReflectionTestUtils
+                .invokeMethod(service, "channelCallbackMapper");
+
+        assertThat(org.springframework.test.util.ReflectionTestUtils.invokeGetterMethod(
+                operationMapper.mapRow(row, 0), "channelOrderNo")).isEqualTo("CMR-NEW-REFUND");
+        assertThat(org.springframework.test.util.ReflectionTestUtils.invokeGetterMethod(
+                callbackMapper.mapRow(row, 0), "channelOrderNo")).isEqualTo("CMR-NEW-REFUND");
+    }
+
+    @Test
     void openApiAdmissionInquiryShouldRejectRestrictedMerchantBeforeReading() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         var query = new OpenApiAdmissionAttemptQuery("M1001", "ACTION-1", "PAYMENT");

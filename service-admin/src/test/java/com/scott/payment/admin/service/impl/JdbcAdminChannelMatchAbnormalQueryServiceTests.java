@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterUtils;
 
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
@@ -45,7 +46,14 @@ class JdbcAdminChannelMatchAbnormalQueryServiceTests {
         ResultSet resultSet = mock(ResultSet.class);
         when(resultSet.getLong(anyString())).thenReturn(0L);
         when(jdbcTemplate.queryForObject(
-                anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(0L);
+                anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(1L);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    NamedParameterUtils.buildValueArray(
+                            NamedParameterUtils.parseSqlStatement(invocation.getArgument(0)),
+                            invocation.getArgument(1), null);
+                    return Collections.emptyList();
+                });
         when(jdbcTemplate.queryForObject(
                 anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> invocation.<RowMapper<AbnormalSummary>>getArgument(2)

@@ -29,6 +29,14 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
             """)
     PaymentCheckoutSessionDO selectByCheckoutSessionId(@Param("checkoutSessionId") String checkoutSessionId);
 
+    /** 锁定收银台会话，串行化同一会话的模拟尝试登记及终态收敛。 */
+    @Select("""
+            SELECT * FROM payment_checkout_session
+            WHERE checkout_session_id = #{checkoutSessionId} AND deleted = 0
+            FOR UPDATE
+            """)
+    PaymentCheckoutSessionDO selectByCheckoutSessionIdForUpdate(@Param("checkoutSessionId") String checkoutSessionId);
+
     /** 结果投影只引用已持久化且属于同一商户订单的系统订单，排除准备事务回滚后的预分配号。 */
     @Select("""
             SELECT transaction_id FROM transaction_locator
@@ -58,6 +66,18 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
             """)
     PaymentCheckoutSessionDO selectByMerchantRequest(@Param("merchantId") String merchantId,
                                                      @Param("merchantRequestId") String merchantRequestId);
+
+    /** 并发插入冲突后使用当前读，避免从事务的旧快照继续读到空记录。 */
+    @Select("""
+            SELECT *
+            FROM payment_checkout_session
+            WHERE merchant_id = #{merchantId}
+              AND merchant_request_id = #{merchantRequestId}
+              AND deleted = 0
+            LIMIT 1 FOR SHARE
+            """)
+    PaymentCheckoutSessionDO selectByMerchantRequestForShare(@Param("merchantId") String merchantId,
+                                                             @Param("merchantRequestId") String merchantRequestId);
 
     /**
      * 记录付款人最近打开会话的时间。

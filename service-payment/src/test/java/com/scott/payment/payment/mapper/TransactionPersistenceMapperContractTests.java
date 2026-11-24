@@ -765,6 +765,7 @@ class TransactionPersistenceMapperContractTests {
                 TransactionOrderMapper.class, "updateLatestChannelMatch"), Update.class);
 
         assertThat(selectSql).contains("channel_code IS NOT NULL");
+        assertThat(selectSql).contains("o.channel_match_status = 'PENDING'", "OR o.channel_code = 'SCOTT_CHANNEL_A'");
         assertThat(selectSql).doesNotContain("NOT EXISTS");
         assertThat(selectSql).doesNotContain("request_status = 'INIT'");
         assertThat(selectSql).doesNotContain("channel_order_no IS NOT NULL");
@@ -786,6 +787,24 @@ class TransactionPersistenceMapperContractTests {
                 "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
         assertThat(orderUpdateSql).contains("channel_match_status = #{matchStatus}");
         assertThat(orderUpdateSql).doesNotContain("transaction_status =");
+    }
+
+    /** 只有相反终态可新登记勾兑，主单摘要只跟随当前最新动作。 */
+    @Test
+    void callbackConflictQueueShouldGuardTerminalStateAndLatestOrderProjection() {
+        String enqueueSql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "enqueueTerminalCallbackMatch"), Update.class);
+        String orderSql = annotationValue(methodNamed(
+                TransactionOrderMapper.class, "enqueueLatestTerminalCallbackMatch"), Update.class);
+
+        assertThat(enqueueSql).contains("transaction_date_time = #{transactionDateTime}",
+                "channel_code = #{channelCode}", "transaction_status IN ('SUCCESS', 'FAILED')",
+                "transaction_status <> #{callbackStatus}", "channel_match_status IN ('NOT_REQUIRED', 'MATCHED')",
+                "SET channel_match_status = 'PENDING'", "next_channel_match_time = #{now}");
+        assertThat(orderSql).contains("latest_transaction_id = #{transactionId}",
+                "transaction_date_time = #{transactionDateTime}", "SET channel_match_status = 'PENDING'");
+        assertThat(enqueueSql).doesNotContain("SET transaction_status", "transaction_amount =");
+        assertThat(orderSql).doesNotContain("transaction_status =", "transaction_amount =");
     }
 
     /**

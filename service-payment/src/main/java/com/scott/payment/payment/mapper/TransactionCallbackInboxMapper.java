@@ -85,13 +85,14 @@ public interface TransactionCallbackInboxMapper extends BaseMapper<TransactionCa
      */
     @Update("""
             UPDATE transaction_callback_inbox
-            SET inbox_status = #{processedStatus}, processed_time = #{now}, last_error = NULL,
+            SET inbox_status = #{processedStatus}, processed_time = #{now}, callback_id = #{callbackId}, last_error = NULL,
                 next_retry_time = NULL, version = version + 1, update_time = #{now}
             WHERE id = #{id} AND version = #{version} AND inbox_status = #{processingStatus}
             """)
     int markProcessed(@Param("id") Long id,
                       @Param("version") Integer version,
                       @Param("now") LocalDateTime now,
+                      @Param("callbackId") String callbackId,
                       @Param("processingStatus") String processingStatus,
                       @Param("processedStatus") String processedStatus);
 

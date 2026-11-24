@@ -165,6 +165,8 @@ class MerchantExportSourceApplicationServiceTest {
                 mock(MerchantRefundApplicationService.class), settlementService,
                 mock(MerchantFinanceService.class));
         ReserveItem reserve = new ReserveItem();
+        reserve.setActionId(7001L);
+        reserve.setActionTime(java.time.LocalDateTime.of(2026, 11, 8, 2, 15));
         reserve.setSettlementBatchNo("ST20261110-001");
         reserve.setReserveNo("RSV2001");
         reserve.setCurrency("EUR");
@@ -180,6 +182,14 @@ class MerchantExportSourceApplicationServiceTest {
 
         var response = service.pageSettlementReserves(request);
 
+        assertThat(response.getNextAction().actionId()).isEqualTo(7001L);
+        assertThat(response.getNextAction().actionTime()).isEqualTo(reserve.getActionTime());
+        request.setAfterAction(response.getNextAction());
+        when(settlementService.readReserveExportPage(eq("M1001"), any(), eq(response.getNextAction())))
+                .thenReturn(PageResult.of(0, 2, 100, List.of()));
+        request.setPageNo(2);
+        assertThat(service.pageSettlementReserves(request).getNextAction()).isNull();
+        verify(settlementService).readReserveExportPage(eq("M1001"), any(), eq(response.getNextAction()));
         assertThat(response.getRecords()).singleElement().satisfies(row -> {
             assertThat(row.getCurrency()).isEqualTo("EUR");
             assertThat(row.getAmount()).isEqualByComparingTo("7.12340000");

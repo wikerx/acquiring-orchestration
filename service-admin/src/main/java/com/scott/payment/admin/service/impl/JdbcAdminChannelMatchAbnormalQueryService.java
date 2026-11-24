@@ -176,7 +176,7 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         List<AbnormalRecord> records = offset < total
                 ? jdbcTemplate.query(
                         "SELECT " + ABNORMAL_COLUMNS + " FROM transaction_abnormal_event "
-                                + whereSql + """
+                                + whereSql + "\n" + """
                                 ORDER BY first_seen_time DESC, id DESC
                                 LIMIT :offset, :limit
                                 """,

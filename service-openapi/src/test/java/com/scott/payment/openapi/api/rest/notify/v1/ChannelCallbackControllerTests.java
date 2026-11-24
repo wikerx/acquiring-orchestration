@@ -114,6 +114,29 @@ class ChannelCallbackControllerTests {
     }
 
     @Test
+    void shouldForwardScottAcknowledgementForAuditAndReturnTheSameResponse() {
+        var paymentClient = new CapturingPaymentInternalClient();
+        var controller = new ChannelCallbackController(
+                securitySupport(new FixedProtocol(false, ChannelCallbackAcknowledgement.plainText("SUCCESS"))),
+                paymentClient);
+        var request = request("/channel/v1/callbacks/SCOTT_CHANNEL_A");
+        String body = """
+                {"eventId":"evt-2","merchantOrderNo":"CR202611211816573540077","transactionId":"CMT-2",
+                 "status":"SUCCESS","amount":920.79,"currency":"USD",
+                 "cardNumber":"test-sensitive-data","signature":"test-signature","unknown":{"secret":"test-secret"}}
+                """;
+        var response = controller.receive("SCOTT_CHANNEL_A", request, body.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(paymentClient.callbackRequestDTO.getDeliveryRequestBodyMasked())
+                .contains("\"eventId\":\"evt-2\"", "\"merchantOrderNo\":\"CR202611211816573540077\"", "920.79")
+                .doesNotContain("cardNumber", "signature", "unknown", "test-sensitive-data");
+        assertThat(paymentClient.callbackRequestDTO.getGatewayAckHttpStatus())
+                .isEqualTo(response.getStatusCode().value());
+        assertThat(paymentClient.callbackRequestDTO.getGatewayAckBody()).isEqualTo(response.getBody());
+        assertThat(response.getBody()).isEqualTo("SUCCESS");
+    }
+
+    @Test
     void shouldForwardScottPathIdentitySeparatelyFromVerifiedChannelBody() throws Exception {
         var paymentClient = new CapturingPaymentInternalClient();
         var controller = new ChannelCallbackController(

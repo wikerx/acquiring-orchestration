@@ -14,6 +14,7 @@ import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.Transa
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.DetailQuery;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundAccountResponse;
 import com.scott.payment.merchant.service.MerchantFinanceService;
+import com.scott.payment.merchant.service.MerchantSettlementQueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -46,7 +47,7 @@ class MerchantExportTaskApplicationServiceTest {
     void shouldFreezeAuthenticatedMerchantAndAccountForTransactionExport() {
         MerchantDataExportTaskClient dataClient = mock(MerchantDataExportTaskClient.class);
         MerchantExportTaskApplicationService service = new MerchantExportTaskApplicationService(
-                dataClient, mock(MerchantFinanceService.class));
+                dataClient, mock(MerchantFinanceService.class), mock(MerchantSettlementQueryService.class));
         InternalAuthContextHolder.set(account("M1001", 88L));
         TransactionPageQuery query = new TransactionPageQuery();
         query.setMerchantId("M9999");
@@ -77,7 +78,7 @@ class MerchantExportTaskApplicationServiceTest {
     void shouldFreezeSettlementTransactionQueryWithoutPageParameters() {
         MerchantDataExportTaskClient dataClient = mock(MerchantDataExportTaskClient.class);
         MerchantExportTaskApplicationService service = new MerchantExportTaskApplicationService(
-                dataClient, mock(MerchantFinanceService.class));
+                dataClient, mock(MerchantFinanceService.class), mock(MerchantSettlementQueryService.class));
         InternalAuthContextHolder.set(account("M1001", 88L));
         TransactionItemQuery query = new TransactionItemQuery();
         query.setSettlementBatchNo("ST20261110-001");
@@ -113,7 +114,7 @@ class MerchantExportTaskApplicationServiceTest {
     void shouldRejectExportWithoutAuthenticatedMerchant() {
         MerchantDataExportTaskClient dataClient = mock(MerchantDataExportTaskClient.class);
         MerchantExportTaskApplicationService service = new MerchantExportTaskApplicationService(
-                dataClient, mock(MerchantFinanceService.class));
+                dataClient, mock(MerchantFinanceService.class), mock(MerchantSettlementQueryService.class));
         TransactionSubmitRequest request = new TransactionSubmitRequest();
         request.setRequestId("request-1001");
         request.setQuery(new TransactionPageQuery());
@@ -131,7 +132,7 @@ class MerchantExportTaskApplicationServiceTest {
         MerchantDataExportTaskClient dataClient = mock(MerchantDataExportTaskClient.class);
         MerchantFinanceService financeService = mock(MerchantFinanceService.class);
         MerchantExportTaskApplicationService service = new MerchantExportTaskApplicationService(
-                dataClient, financeService);
+                dataClient, financeService, mock(MerchantSettlementQueryService.class));
         InternalAuthContextHolder.set(account("M1001", 88L));
         FundAccountResponse fundAccount = new FundAccountResponse();
         fundAccount.setId(7001L);
@@ -160,6 +161,32 @@ class MerchantExportTaskApplicationServiceTest {
                 .extracting(java.lang.reflect.Field::getName)
                 .doesNotContain("pageNo", "pageSize", "merchantId");
         verify(financeService).getFundAccount("M1001");
+    }
+
+    @Test
+    void revokedReserveSummaryExportGrantBlocksDownloadAndRetry() {
+        MerchantDataExportTaskClient client = mock(MerchantDataExportTaskClient.class);
+        MerchantExportTaskApplicationService service = new MerchantExportTaskApplicationService(
+                client, mock(MerchantFinanceService.class), mock(MerchantSettlementQueryService.class));
+        var account = account("M1001", 88L);
+        account.setPermissions(java.util.List.of("merchant:settlement:batch:summary:export"));
+        InternalAuthContextHolder.set(account);
+        var task = new TaskSummary();
+        task.setTaskType("MERCHANT_SETTLEMENT_SUMMARY");
+        task.setSettlementBatchDomain("RESERVE");
+        when(client.detail(any())).thenReturn(task);
+        var retry = new com.scott.payment.merchant.dto.exporttask.MerchantExportTaskDTOs.RetryRequest();
+
+        assertThatThrownBy(() -> service.retry("EXP-RBAC", retry)).isInstanceOf(ServiceException.class);
+        assertThatThrownBy(() -> service.download("EXP-RBAC", null, null)).isInstanceOf(ServiceException.class);
+        verify(client, never()).retry(any());
+        verify(client, never()).download(any(), any());
+
+        account.setPermissions(java.util.List.of("merchant:settlement:reserve-batch:summary:export"));
+        service.retry("EXP-RBAC", retry);
+        service.download("EXP-RBAC", null, null);
+        verify(client).retry(any());
+        verify(client).download(any(), any());
     }
 
     /**

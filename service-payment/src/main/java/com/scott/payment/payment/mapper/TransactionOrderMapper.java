@@ -292,6 +292,28 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                                  @Param("failReason") String failReason);
 
     /**
+     * 将最新动作对应的主单勾兑摘要标为待勾兑，旧动作的回调不得改变主单勾兑摘要。
+     *
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_order
+            SET channel_match_status = 'PENDING',
+                next_channel_match_time = #{now},
+                version = version + 1,
+                update_time = #{now}
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND latest_transaction_id = #{transactionId}
+              AND channel_match_status IN ('NOT_REQUIRED', 'MATCHED')
+              AND deleted = 0
+            """)
+    int enqueueLatestTerminalCallbackMatch(@Param("operationId") String operationId,
+                                           @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                           @Param("transactionId") String transactionId,
+                                           @Param("now") LocalDateTime now);
+
+    /**
      * 使用分片时间和版本 CAS 推进首次交易成功并初始化金额汇总。
      *
      * @return 影响行数

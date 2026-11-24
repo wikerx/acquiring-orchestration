@@ -13,6 +13,7 @@ import com.scott.payment.job.mapper.SysJobTaskMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -53,7 +54,9 @@ class PaymentCapabilityBoundaryJobTests {
             return new BoundaryResponse(null, false, 0);
         });
 
-        assertThat(job.execute(context()).isSuccess()).isFalse();
+        var result = job.execute(context());
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).contains("failed=[AUTH_EFFECTIVE]", "AUTH_EXPIRY", "budgetExhausted=false");
         ArgumentCaptor<String> checkpoint = ArgumentCaptor.forClass(String.class);
         verify(tasks).advanceFencedCheckpoint(eq(10L), eq("node"), eq(3L), eq(1L), checkpoint.capture());
         Map<String, PaymentCapabilityBoundaryJob.Window> saved = JsonUtils.parseObject(checkpoint.getValue(), new TypeReference<>() { });
@@ -72,12 +75,27 @@ class PaymentCapabilityBoundaryJobTests {
         verify(tasks).advanceFencedCheckpoint(eq(10L), eq("node"), eq(3L), eq(1L), anyString());
     }
 
+    @Test
+    void skipsOwnerCallsWhenTheJobBudgetHasExpired() {
+        configureLease();
+        when(tasks.advanceFencedCheckpoint(eq(10L), eq("node"), eq(3L), eq(0L), anyString())).thenReturn(1);
+        JobExecuteContext context = context();
+        context.setExecutionDeadline(Instant.now().minusSeconds(1));
+
+        var result = job.execute(context);
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).contains("processed=0", "deferred=[AUTH_EFFECTIVE", "budgetExhausted=true");
+        verifyNoInteractions(admin);
+    }
+
     private JobExecuteContext context() {
         JobExecuteContext context = new JobExecuteContext();
         context.setJobId(10L);
         context.setRunId("run");
         context.setExecutorNode("node");
         context.setActualTriggerTime(at);
+        context.setExecutionDeadline(Instant.now().plusSeconds(30));
         return context;
     }
 

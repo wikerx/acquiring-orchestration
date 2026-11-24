@@ -1,5 +1,6 @@
 package com.scott.payment.data.client.admin.dto;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementReserveQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementPostingQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SettlementReviewQuery;
@@ -54,6 +55,7 @@ public final class AdminSettlementExportSourceDTOs {
         private SettlementReserveQuery query;
         private Integer pageNo;
         private Integer pageSize;
+        private ReserveActionCursor afterAction;
     }
 
     /**
@@ -106,6 +108,7 @@ public final class AdminSettlementExportSourceDTOs {
         private long pageNo;
         private long pageSize;
         private List<SettlementReserveRow> records = new ArrayList<>();
+        private ReserveActionCursor nextAction;
     }
 
     /**
@@ -142,6 +145,7 @@ public final class AdminSettlementExportSourceDTOs {
         private String paymentType;
         private String paymentMethod;
         private String transactionType;
+        private List<String> originalTransactionTypes;
         private String resultItemType;
         private String feeCategory;
         private String direction;

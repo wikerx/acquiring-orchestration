@@ -1,5 +1,8 @@
 package com.scott.payment.payment.application;
 
+import com.scott.payment.payment.api.internal.dto.CheckoutWalletSimulationCommand;
+import com.scott.payment.payment.api.internal.dto.WalletSimulationReturnCommand;
+
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -97,5 +100,15 @@ public class PaymentCheckoutApplicationService {
      */
     public PaymentCheckoutCardBinResultDTO resolveCardBin(PaymentCheckoutCardBinCommandDTO commandDTO) {
         return paymentCheckoutService.resolveCardBin(commandDTO);
+    }
+
+    /** 将钱包授权指令交由支付服务校验会话和路由。 */
+    public java.util.Map<String, String> simulateWallet(CheckoutWalletSimulationCommand command) {
+        return paymentCheckoutService.simulateWallet(command);
+    }
+
+    /** 受理渠道回跳并签发正常收银台结果页地址。 */
+    public PaymentCheckoutSessionCreateResultDTO handleWalletReturn(WalletSimulationReturnCommand command) {
+        return paymentCheckoutService.handleWalletReturn(command);
     }
 }

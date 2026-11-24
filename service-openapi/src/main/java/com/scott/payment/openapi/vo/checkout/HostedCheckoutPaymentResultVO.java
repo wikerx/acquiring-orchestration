@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
 @Data
 public class HostedCheckoutPaymentResultVO implements Serializable {
 
+    /** 序列化版本号；支付结果是否可作为资金凭证由后端终态和业务规则决定。 */
     private static final long serialVersionUID = 1L;
 
     /**

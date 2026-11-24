@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.service.impl;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -10,9 +11,11 @@ import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.Clearing
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.SummaryLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.TransactionItemQuery;
+import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -56,26 +59,31 @@ class JdbcMerchantSettlementQueryServiceTests {
 
         service.searchBatches("merchant-a", batchQuery);
         service.searchTransactionItems("merchant-a", transactionQuery);
-        service.searchReserveItems("merchant-a", reserveQuery);
+        assertThat(service.searchReserveItems("merchant-a", reserveQuery).getTotal()).isZero();
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
-        verify(jdbcTemplate, atLeast(3)).queryForObject(
+        verify(jdbcTemplate, atLeast(2)).queryForObject(
                 sqlCaptor.capture(), paramsCaptor.capture(), eq(Long.class));
         assertThat(paramsCaptor.getAllValues()).allSatisfy(parameters ->
                 assertThat(parameters.getValue("merchantId")).isEqualTo("merchant-a"));
         assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql)
                 .contains("batch.merchant_id = :merchantId", "batch.batch_status IN ('POSTED', 'REVERSED')"));
         assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql)
-                .contains("candidate.merchant_id = :merchantId",
-                        "item.merchant_id = candidate.merchant_id",
+                .contains("candidate.merchant_id = :merchantId", "AND EXISTS (",
+                        "component.merchant_id = candidate.merchant_id",
                         "candidate.source_transaction_id IS NOT NULL",
-                        "item.source_detail_type = 'TRANSACTION_CLEARING'",
-                        "item.result_role = 'FINANCIAL_COMPONENT'",
-                        "batch.batch_status IN ('POSTED', 'REVERSED')"));
-        assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql)
-                .contains("reserve.merchant_id = :merchantId", "FROM merchant_reserve_action action",
-                        "batch.batch_status IN ('POSTED', 'REVERSED')"));
+                        "component.source_detail_type = 'TRANSACTION_CLEARING'",
+                        "component.result_role = 'FINANCIAL_COMPONENT'",
+                        "batch.batch_status IN ('POSTED', 'REVERSED')").doesNotContain("LEFT JOIN transaction_locator", "COUNT(DISTINCT"));
+        ArgumentCaptor<String> reserveSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> reserveParameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).query(reserveSql.capture(), reserveParameters.capture(),
+                org.mockito.ArgumentMatchers.<RowMapper<Object>>any());
+        assertThat(reserveSql.getValue()).contains("reserve.merchant_id = :merchantId",
+                "FROM merchant_reserve_action action", "batch.batch_status IN ('POSTED', 'REVERSED')");
+        assertThat(reserveParameters.getValue().getValue("merchantId")).isEqualTo("merchant-a");
+        org.mockito.Mockito.verifyNoMoreInteractions(jdbcTemplate);
     }
 
     @Test
@@ -287,16 +295,14 @@ class JdbcMerchantSettlementQueryServiceTests {
         assertThat(sqlCaptor.getValue()).contains(
                 "FROM settlement_result_summary summary",
                 "summary.merchant_id = :merchantId",
-                "batch.merchant_id = :merchantId",
+                "batch.merchant_id = summary.merchant_id",
                 "batch.batch_status IN ('POSTED', 'REVERSED')",
                 "AS source_currency_exponent",
-                "batch.target_currency_exponent",
+                "summary.target_currency_exponent",
                 "ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method",
                 "summary.target_currency, summary.id",
-                "LIMIT :offset, :limit");
+                "LIMIT 20, 20");
         assertThat(paramsCaptor.getValue().getValue("merchantId")).isEqualTo("merchant-a");
-        assertThat(paramsCaptor.getValue().getValue("offset")).isEqualTo(20L);
-        assertThat(paramsCaptor.getValue().getValue("limit")).isEqualTo(20);
     }
 
     @Test
@@ -344,7 +350,33 @@ class JdbcMerchantSettlementQueryServiceTests {
         assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql).contains(
                 "FROM settlement_result_summary summary",
                 "summary.settlement_batch_no = :batchNo",
-                "ORDER BY summary.payment_type, summary.payment_method"));
+                "ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reserveExportContinuationShouldUseTheLastActionAndSkipTheCount() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class))).thenReturn(List.of());
+        ReserveItemQuery request = new ReserveItemQuery();
+        request.setBeginBusinessDate(LocalDate.of(2026, 8, 1));
+        request.setEndBusinessDate(LocalDate.of(2026, 8, 31));
+        request.setPageNo(200);
+        request.setPageSize(50);
+        ReserveActionCursor cursor = new ReserveActionCursor(LocalDateTime.of(2026, 8, 2, 2, 30), 450L);
+
+        assertThat(service(jdbc).readReserveExportPage("merchant-a", request, cursor).getRecords()).isEmpty();
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertThat(sql.getValue()).contains("reserve_detail.record_status = 'ACTIVE'",
+                "action.action_time < :afterTime", "action.action_time = :afterTime AND action.id < :afterId",
+                "ORDER BY action.action_time DESC, action.id DESC");
+        assertThat(parameters.getValue().getValue("offset")).isEqualTo(0L);
+        assertThat(parameters.getValue().getValue("afterTime")).isEqualTo(cursor.actionTime());
+        assertThat(parameters.getValue().getValue("afterId")).isEqualTo(cursor.actionId());
+        org.mockito.Mockito.verifyNoMoreInteractions(jdbc);
     }
 
     @Test
@@ -430,13 +462,16 @@ class JdbcMerchantSettlementQueryServiceTests {
         when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(List.of());
         BatchQuery query = new BatchQuery();
+        query.setBatchDomain("RESERVE");
         query.setBeginBusinessDate(LocalDate.of(2026, 8, 1));
         query.setEndBusinessDate(LocalDate.of(2026, 8, 31));
 
         service(jdbcTemplate).searchBatches("merchant-a", query);
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate).query(sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+        assertThat(paramsCaptor.getValue().getValue("merchantId")).isEqualTo("merchant-a");
         assertThat(sqlCaptor.getValue()).contains(
                 "COUNT(DISTINCT item.source_transaction_id)",
                 "AS transaction_count",
@@ -445,7 +480,40 @@ class JdbcMerchantSettlementQueryServiceTests {
                 "account.account_no AS settlement_account_no",
                 "batch.candidate_count",
                 "net.direction AS net_direction",
-                "net.target_amount AS net_amount");
+                "net.target_amount AS net_amount",
+                "batch.batch_type IN ('RESERVE_RELEASE', 'ADJUSTMENT')",
+                "original_batch.merchant_id = batch.merchant_id");
+    }
+
+    @Test
+    void requireBatchDomainRejectsCrossTenantAndWrongDomainIncludingReversals() {
+        var dataSource = new JdbcDataSource();
+        dataSource.setURL("jdbc:h2:mem:merchant_settlement_domain;MODE=MySQL;DB_CLOSE_DELAY=-1");
+        var database = new JdbcTemplate(dataSource);
+        database.execute("""
+                CREATE TABLE settlement_batch (settlement_batch_no VARCHAR, merchant_id VARCHAR,
+                    batch_status VARCHAR, batch_type VARCHAR, original_batch_no VARCHAR);
+                INSERT INTO settlement_batch VALUES
+                    ('SB20260831-00000001', 'M1', 'REVERSED', 'REGULAR', NULL),
+                    ('SB20260831-00000002', 'M1', 'REVERSED', 'RESERVE_RELEASE', NULL),
+                    ('SB20260831-00000003', 'M1', 'POSTED', 'REVERSAL', 'SB20260831-00000002'),
+                    ('SB20260831-00000004', 'M1', 'POSTED', 'REVERSAL', 'SB20260831-00000001'),
+                    ('SB20260831-00000005', 'M2', 'POSTED', 'REVERSAL', 'SB20260831-00000002'),
+                    ('SB20260831-00000006', 'M1', 'CALCULATED', 'ADJUSTMENT', NULL);
+                """);
+        var query = service(new NamedParameterJdbcTemplate(dataSource));
+        query.requireBatchDomain("M1", "SB20260831-00000003", "RESERVE");
+        query.requireBatchDomain("M1", "SB20260831-00000004", "TRANSACTION");
+        assertThatThrownBy(() -> query.requireBatchDomain("M1", "SB20260831-00000003", "TRANSACTION"))
+                .isInstanceOf(ServiceException.class);
+        assertThatThrownBy(() -> query.requireBatchDomain("M1", "SB20260831-00000004", "RESERVE"))
+                .isInstanceOf(ServiceException.class);
+        assertThatThrownBy(() -> query.requireBatchDomain("M2", "SB20260831-00000005", "RESERVE"))
+                .isInstanceOf(ServiceException.class);
+        assertThatThrownBy(() -> query.requireBatchDomain("M2", "SB20260831-00000005", "TRANSACTION"))
+                .isInstanceOf(ServiceException.class);
+        assertThatThrownBy(() -> query.requireBatchDomain("M1", "SB20260831-00000006", "RESERVE"))
+                .isInstanceOf(ServiceException.class);
     }
 
     private JdbcMerchantSettlementQueryService service(NamedParameterJdbcTemplate jdbcTemplate) {

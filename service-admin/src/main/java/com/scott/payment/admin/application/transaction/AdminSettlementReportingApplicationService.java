@@ -16,6 +16,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchR
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
+import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
 import com.scott.payment.admin.service.AdminSettlementQueryService;
 import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
@@ -25,6 +26,7 @@ import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -38,6 +40,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Admin 结算预审、逐笔结果、保证金动作和资金流水的本地查询与分页导出编排；每页重新应用当前账号数据范围。
@@ -265,11 +269,19 @@ public class AdminSettlementReportingApplicationService {
     public void exportReserveItems(ReserveItemSearchRequest request, HttpServletResponse response) {
         ReserveItemSearchRequest query = request == null ? new ReserveItemSearchRequest() : request;
         Locale locale = localeResolver.resolveCurrentLocale();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(currentAdminAccount());
+        AtomicReference<ReserveActionCursor> afterAction = new AtomicReference<>();
         exportPaged("excel.settlement.reserveTitle", SettlementReserveItemExportRow.class,
                 pageNo -> {
                     query.setPageNo(pageNo);
                     query.setPageSize(EXPORT_PAGE_SIZE);
-                    return searchReserveItems(query).getRecords().stream()
+                    List<ReserveItemSummary> rows = reportingQueryService
+                            .readReserveExportPage(query, scope, afterAction.get()).getRecords();
+                    if (!rows.isEmpty()) {
+                        ReserveItemSummary last = rows.get(rows.size() - 1);
+                        afterAction.set(new ReserveActionCursor(last.getActionTime(), last.getActionId()));
+                    }
+                    return rows.stream()
                             .map(item -> toReserveExportRow(item, locale)).toList();
                 }, reserveQuerySummary(query), response);
     }
@@ -345,7 +357,14 @@ public class AdminSettlementReportingApplicationService {
         SettlementBatchSummaryExportRow row = new SettlementBatchSummaryExportRow();
         row.setPaymentType(settlementLabel("paymentType", source.getPaymentType(), locale));
         row.setPaymentMethod(settlementLabel("paymentMethod", source.getPaymentMethod(), locale));
-        row.setTransactionType(settlementLabel("transactionType", source.getTransactionType(), locale));
+        List<String> originalTypes = source.getOriginalTransactionTypes();
+        if (originalTypes == null) {
+            row.setTransactionType(settlementLabel("transactionType", source.getTransactionType(), locale));
+        } else {
+            row.setTransactionType(originalTypes.isEmpty() ? "-" : originalTypes.stream()
+                    .map(type -> settlementLabel("transactionType", type, locale))
+                    .collect(Collectors.joining(" / ")));
+        }
         row.setResultItemType(settlementLabel("resultItemType", source.getResultItemType(), locale));
         row.setFeeCategory(settlementLabel("feeCategory", source.getFeeCategory(), locale));
         row.setDirection(settlementLabel("direction", source.getDirection(), locale));

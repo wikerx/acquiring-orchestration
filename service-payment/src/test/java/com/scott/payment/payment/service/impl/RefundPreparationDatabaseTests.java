@@ -107,8 +107,11 @@ class RefundPreparationDatabaseTests {
         IsoDictionaryService iso = mock(IsoDictionaryService.class);
         when(iso.getCurrency(anyString())).thenAnswer(invocation -> IsoCurrencyResolver.resolve(invocation.getArgument(0)));
         PaymentChannelRouteService routes = mock(PaymentChannelRouteService.class);
-        var route = PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A"); route.setMidConfigId(10L);
-        when(routes.restore(anyString(), any(), any(), any())).thenReturn(route);
+        when(routes.restore(anyString(), any(), any(), any())).thenAnswer(invocation -> {
+            var route = PaymentRouteResultDTO.routed(invocation.getArgument(0));
+            route.setMidConfigId(10L);
+            return route;
+        });
         service = new DefaultRefundTransactionPreparationService(iso, routes, idempotency, outbox, records,
                 new DefaultTransactionStateMachineService(), new RefundScopeService(),
                 new RefundApprovalPolicyService(new RefundManagementProperties()), null,
@@ -218,6 +221,43 @@ class RefundPreparationDatabaseTests {
                 .isInstanceOf(ServiceException.class).hasMessageContaining("closed");
         assertThat(readRoot(false).getTransactionStatus()).isEqualTo("SUCCESS");
         assertThat(count("action")).isEqualTo(2); assertThat(count("outbox")).isEqualTo(1);
+    }
+
+    @Test
+    void mpgsRootRefundUsesOnlySuccessfulCaptureAndRequiresExplicitSourceWhenAmbiguous() {
+        TransactionOrderDO mpgs = root();
+        mpgs.setChannelCode("MPGS");
+        jdbc.update("UPDATE root_order SET body = ? WHERE id = 'ROOT'", JsonUtils.toJsonString(mpgs));
+        TransactionOperationDO authorized = source();
+        authorized.setTransactionId("AUTH-1");
+        authorized.setTransactionType("AUTHORIZATION");
+        authorized.setChannelCode("MPGS");
+        jdbc.update("INSERT INTO action VALUES (?, ?)", authorized.getTransactionId(), JsonUtils.toJsonString(authorized));
+        TransactionOperationDO firstCapture = source();
+        firstCapture.setChannelCode("MPGS");
+        jdbc.update("UPDATE action SET body = ? WHERE id = 'CAPTURE-1'", JsonUtils.toJsonString(firstCapture));
+
+        var first = command("REFUND-FIRST", "100");
+        first.getTransactionInfo().setSourceTransactionId("AUTH-1");
+        var prepared = service.prepareRefund(first, "REFUND-FIRST");
+        assertThat(prepared.getResultDTO().getSourceTransactionId()).isEqualTo("CAPTURE-1");
+        assertThat(prepared.getCommandDTO().getTransactionInfo().getSourceChannelTransactionId())
+                .isEqualTo("CHANNEL-CAPTURE-1");
+
+        TransactionOperationDO secondCapture = source();
+        secondCapture.setChannelCode("MPGS");
+        secondCapture.setTransactionId("CAPTURE-2");
+        secondCapture.setChannelTransactionId("CHANNEL-CAPTURE-2");
+        jdbc.update("INSERT INTO action VALUES (?, ?)", secondCapture.getTransactionId(), JsonUtils.toJsonString(secondCapture));
+        var ambiguous = command("REFUND-AMBIGUOUS", "100");
+        ambiguous.getTransactionInfo().setSourceTransactionId("AUTH-1");
+
+        assertThatThrownBy(() -> service.prepareRefund(ambiguous, "REFUND-AMBIGUOUS"))
+                .isInstanceOf(ServiceException.class).hasMessageContaining("specify the captured transaction");
+        var explicit = command("REFUND-EXPLICIT", "100");
+        explicit.getTransactionInfo().setSourceTransactionId("CAPTURE-2");
+        assertThat(service.prepareRefund(explicit, "REFUND-EXPLICIT").getCommandDTO().getTransactionInfo()
+                .getSourceChannelTransactionId()).isEqualTo("CHANNEL-CAPTURE-2");
     }
 
     private boolean reserveAfter(CountDownLatch start, String id, String amount) throws InterruptedException {

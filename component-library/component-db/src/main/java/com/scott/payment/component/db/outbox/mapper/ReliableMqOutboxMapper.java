@@ -21,7 +21,6 @@ public interface ReliableMqOutboxMapper {
               ((producer_service = 'service-admin' AND tag IN ('MERCHANT_PAYMENT_CAPABILITY','MERCHANT_PAYMENT_CAPABILITY_MAIL'))
                OR (producer_service = 'service-merchant' AND tag = 'MERCHANT_PAYMENT_CAPABILITY'))
             """;
-    String EXCLUDE_JOB_SCOPE = " AND (tag IS NULL OR NOT " + CAPABILITY_JOB_SCOPE + ") ";
 
     /**
      * 在调用方事务中写入消息意图。
@@ -63,7 +62,6 @@ public interface ReliableMqOutboxMapper {
               AND event_status IN ('INIT', 'RETRY_WAIT')
               AND retry_count < max_retry_count
               AND (next_retry_time IS NULL OR next_retry_time <= #{now})
-            """ + EXCLUDE_JOB_SCOPE + """
             ORDER BY create_time ASC, id ASC
             LIMIT #{limit}
             """)
@@ -155,11 +153,11 @@ public interface ReliableMqOutboxMapper {
                     WHEN retry_count + 1 >= max_retry_count THEN 'CLOSED'
                     ELSE 'RETRY_WAIT'
                 END,
-                retry_count = retry_count + 1,
                 next_retry_time = CASE
                     WHEN retry_count + 1 >= max_retry_count THEN NULL
                     ELSE #{now}
                 END,
+                retry_count = retry_count + 1,
                 processing_started_time = NULL,
                 failure_reason = 'relay processing timeout',
                 version = version + 1,
@@ -167,7 +165,7 @@ public interface ReliableMqOutboxMapper {
             WHERE producer_service = #{producerService}
               AND event_status = 'PROCESSING'
               AND processing_started_time < #{staleBefore}
-            """ + EXCLUDE_JOB_SCOPE)
+            """)
     int recoverStale(@Param("producerService") String producerService,
                      @Param("staleBefore") LocalDateTime staleBefore,
                      @Param("now") LocalDateTime now);

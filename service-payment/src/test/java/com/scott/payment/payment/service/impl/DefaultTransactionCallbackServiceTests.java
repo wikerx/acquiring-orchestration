@@ -17,12 +17,15 @@ import com.scott.payment.payment.entity.TransactionChannelCallbackDO;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.payment.entity.TransactionChannelCallbackLogDO;
 import com.scott.payment.payment.mapper.TransactionChannelCallbackLogMapper;
 import com.scott.payment.payment.mapper.TransactionChannelCallbackMapper;
 import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
@@ -105,6 +108,9 @@ class DefaultTransactionCallbackServiceTests {
         commandDTO.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
         commandDTO.setChannelResponseCode("SUCCESS");
         commandDTO.setChannelResponseMessage("Captured");
+        commandDTO.setCallbackKind("FINANCIAL_TRANSACTION");
+        commandDTO.setGatewayAckHttpStatus(200);
+        commandDTO.setGatewayAckBody("SUCCESS");
         commandDTO.setExtension(Map.of(
                 "merchantOrderNo", "202607141000000000001",
                 "authorizationId", "CMA-001",
@@ -132,6 +138,64 @@ class DefaultTransactionCallbackServiceTests {
         assertThat(operationCaptor.getValue().getAuthCode()).isEqualTo("000101");
         assertThat(operationCaptor.getValue().getAcquirerReferenceNo())
                 .isEqualTo("20261031000000000000101");
+        var auditCaptor = ArgumentCaptor.forClass(TransactionChannelCallbackLogDO.class);
+        verify(callbackLogMapper).insertLogical(auditCaptor.capture());
+        var audit = auditCaptor.getValue();
+        assertThat(audit.getPlatformResponseCode()).isEqualTo("200");
+        assertThat(audit.getPlatformResponseBody()).isEqualTo("SUCCESS");
+        assertThat(audit.getRequestBodyJsonMasked()).contains(
+                "sha256", "verifiedFields", "channelTradeStatus", "FINANCIAL_TRANSACTION");
+        assertThat(audit.getRequestBodyJsonMasked()).doesNotContain("Captured", "authorizationCode",
+                "merchantOrderNo", "acquirerReferenceNumber");
+    }
+
+    /** 终态冲突或回调 CAS 竞争只登记勾兑，不能生成商户通知事件。 */
+    @ParameterizedTest
+    @CsvSource({
+            "SUCCESS,FAILED,SCOTT_CHANNEL_A,true,CHANNEL_MATCH_QUEUED",
+            "FAILED,SUCCESS,SCOTT_CHANNEL_A,true,CHANNEL_MATCH_QUEUED",
+            "PROCESSING,SUCCESS,SCOTT_CHANNEL_A,true,CHANNEL_MATCH_QUEUED",
+            "SUCCESS,SUCCESS,SCOTT_CHANNEL_A,false,TERMINAL_IGNORED",
+            "FAILED,SUCCESS,MPGS,false,SECURITY_REJECTED"
+    })
+    void shouldQueueScottTerminalConflictWithoutSendingAnotherNotification(
+            String currentStatus, String incomingStatus, String storedChannel,
+            boolean expectQueue, String processResult) {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(1);
+        TransactionOperationDO operation = operation();
+        operation.setChannelCode(storedChannel);
+        operation.setTransactionType("PAYMENT");
+        operation.setTransactionStatus(currentStatus);
+        TransactionOrderDO order = order();
+        when(recordService.findScottCallbackOperation(any())).thenReturn(operation);
+        when(recordService.resolveOrderDateTime(operation)).thenReturn(order.getTransactionDateTime());
+        when(recordService.findOrder(order.getTransactionDateTime(), operation.getOperationId())).thenReturn(order);
+        if (expectQueue) {
+            when(recordService.enqueueTerminalCallbackMatch(eq(operation), eq(order), eq(incomingStatus), any()))
+                    .thenReturn(true);
+        }
+        CapturingEventOutboxService outbox = new CapturingEventOutboxService();
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper, callbackMapper, recordService, outbox, new TransactionShardingKeyParser());
+        TransactionChannelCallbackCommandDTO command = callbackCommand();
+        command.setChannelCode("SCOTT_CHANNEL_A");
+        command.setRawChannelStatus(incomingStatus);
+        command.setChannelTradeStatus(incomingStatus.equals("SUCCESS")
+                ? ChannelTradeStatus.SUCCESS.getCode() : ChannelTradeStatus.FAILED.getCode());
+
+        TransactionChannelCallbackResultDTO result = callbackService.recordChannelCallback(command);
+
+        assertThat(result.getProcessResult()).isEqualTo(processResult);
+        assertThat(outbox.eventDO).isNull();
+        verify(recordService, times(expectQueue ? 1 : 0))
+                .enqueueTerminalCallbackMatch(eq(operation), eq(order), eq(incomingStatus), any());
+        assertThat(operation.getTransactionStatus()).isEqualTo(currentStatus);
     }
 
     /**

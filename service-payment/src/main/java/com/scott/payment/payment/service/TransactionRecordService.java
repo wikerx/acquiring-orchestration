@@ -572,6 +572,22 @@ public interface TransactionRecordService {
                                       String channelResponseMessage);
 
     /**
+     * 将与已验签回调冲突的终态动作加入渠道补查，保留平台交易与资金事实。
+     *
+     * @param operationDO 被回调的交易动作
+     * @param orderDO 生命周期主单
+     * @param callbackStatus 已验签回调映射出的终态
+     * @param now 本次回调处理时间
+     * @return 是否新登记一条待勾兑动作
+     */
+    default boolean enqueueTerminalCallbackMatch(TransactionOperationDO operationDO,
+                                                  TransactionOrderDO orderDO,
+                                                  String callbackStatus,
+                                                  LocalDateTime now) {
+        return false;
+    }
+
+    /**
      * 获取与指定交易动作关联的生命周期主单分片时间。
      *
      * @param operationDO 当前交易动作

@@ -340,6 +340,9 @@ public class MerchantPaymentCapabilityOperations {
                 || request.after().time().isAfter(request.through())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "payment capability boundary range is invalid");
         }
+        if (request.deadlineEpochMillis() > 0 && System.currentTimeMillis() >= request.deadlineEpochMillis()) {
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "payment capability boundary budget exhausted");
+        }
         BoundarySource source;
         try {
             source = BoundarySource.valueOf(request.source());
@@ -359,7 +362,9 @@ public class MerchantPaymentCapabilityOperations {
         int processed = 0;
         long started = System.nanoTime();
         for (Boundary boundary : rows) {
-            if (processed >= request.limit() || (processed > 0 && System.nanoTime() - started >= SOURCE_SLICE_NANOS)) {
+            if (processed >= request.limit() || (processed > 0 && System.nanoTime() - started >= SOURCE_SLICE_NANOS)
+                    || (request.deadlineEpochMillis() > 0
+                        && System.currentTimeMillis() >= request.deadlineEpochMillis())) {
                 break;
             }
             if (source == BoundarySource.AUTH_EFFECTIVE || source == BoundarySource.AUTH_EXPIRY) {
@@ -371,18 +376,26 @@ public class MerchantPaymentCapabilityOperations {
             }
             processed++;
         }
+        if (processed == 0 && request.deadlineEpochMillis() > 0
+                && System.currentTimeMillis() >= request.deadlineEpochMillis()) {
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "payment capability boundary budget exhausted");
+        }
         Boundary last = processed == 0 ? null : rows.get(processed - 1);
         Cursor next = last == null ? null : new Cursor(last.occurredAt(), last.id());
         return new BoundaryResponse(next, rows.size() > processed, processed);
     }
 
-    /** 旧邮件扫描排除此业务类型，此处仅由 Job 恢复本业务及归属发件箱。 */
+    /** 恢复支付方式的邮件队列与发件箱，保留已提交部分及投递结果。 */
     @DS(DataSourceName.MASTER)
-    public RecoveryResponse recover(int requestedLimit) {
-        int limit = Math.max(1, Math.min(100, requestedLimit));
-        int requeued = delivery.recoverPaymentCapabilityDelivery(limit);
-        int relayed = relay.recoverPaymentCapabilityDelivery(limit);
-        return new RecoveryResponse(requeued, relayed);
+    public RecoveryResponse recover(RecoveryRequest request) {
+        int limit = Math.max(1, Math.min(100, request.limit()));
+        long now = System.currentTimeMillis();
+        long deadline = request.deadlineEpochMillis() > 0
+                ? Math.min(request.deadlineEpochMillis(), now + 30_000) : now + 30_000;
+        int requeued = delivery.recoverPaymentCapabilityDelivery(limit, deadline);
+        var batch = relay.recoverPaymentCapabilityDelivery(limit, deadline);
+        return new RecoveryResponse(requeued, batch.relayed(), batch.selected(), batch.failed(),
+                batch.deferred(), batch.budgetExhausted());
     }
 
     private enum BoundarySource {
@@ -464,16 +477,18 @@ public class MerchantPaymentCapabilityOperations {
     public record Cursor(LocalDateTime time, long sourceId) {
     }
 
-    public record BoundaryRequest(String source, Cursor after, LocalDateTime through, int limit) {
+    public record BoundaryRequest(String source, Cursor after, LocalDateTime through, int limit,
+                                  long deadlineEpochMillis) {
     }
 
     public record BoundaryResponse(Cursor next, boolean hasMore, int processed) {
     }
 
-    public record RecoveryRequest(int limit) {
+    public record RecoveryRequest(int limit, long deadlineEpochMillis) {
     }
 
-    public record RecoveryResponse(int requeued, int relayed) {
+    public record RecoveryResponse(int requeued, int relayed, int selected, int failed, int deferred,
+                                   boolean budgetExhausted) {
     }
 
     private record Boundary(long id, LocalDateTime occurredAt, String merchantId, String itemKey) {

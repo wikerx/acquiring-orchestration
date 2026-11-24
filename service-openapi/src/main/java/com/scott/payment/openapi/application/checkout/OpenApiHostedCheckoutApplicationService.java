@@ -93,4 +93,14 @@ public class OpenApiHostedCheckoutApplicationService {
     public HostedCheckoutCardBinVO resolveCardBin(HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
         return hostedCheckoutService.resolveCardBin(requestDTO);
     }
+
+    public String handleWalletReturn(
+            HostedCheckoutBrowserRequestDTOs.WalletSimulationReturnRequest request) {
+        return hostedCheckoutService.handleWalletReturn(request);
+    }
+
+    /** 编排钱包渠道授权动作，不走银行卡提交。 */
+    public java.util.Map<String, String> simulateWallet(HostedCheckoutBrowserRequestDTOs.WalletSimulationRequest request) {
+        return hostedCheckoutService.simulateWallet(request);
+    }
 }

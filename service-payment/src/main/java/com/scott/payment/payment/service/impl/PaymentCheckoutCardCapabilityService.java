@@ -1,5 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.route.model.MerchantRouteProfile;
 import com.scott.payment.component.db.reference.cache.CardBinCacheReader;
 import com.scott.payment.component.db.reference.model.CardBinLookupCacheEntry;
@@ -7,12 +9,16 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
+import com.scott.payment.payment.service.PaymentExchangeRateService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -42,6 +48,8 @@ public class PaymentCheckoutCardCapabilityService {
     private final MerchantRouteProfileCacheService routeProfileCacheService;
     private final CardBinCacheReader cardBinCacheReader;
     private final com.scott.payment.link.service.PaymentLinkMethodScope linkMethodScope;
+    private final DefaultPaymentChannelRouteService channelRoutes;
+    private final PaymentExchangeRateService exchangeRates;
 
     /**
      * 创建收银台银行卡能力服务。
@@ -51,16 +59,20 @@ public class PaymentCheckoutCardCapabilityService {
      */
     public PaymentCheckoutCardCapabilityService(MerchantRouteProfileCacheService routeProfileCacheService,
                                                 CardBinCacheReader cardBinCacheReader) {
-        this(routeProfileCacheService, cardBinCacheReader, null);
+        this(routeProfileCacheService, cardBinCacheReader, null, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     public PaymentCheckoutCardCapabilityService(MerchantRouteProfileCacheService routeProfileCacheService,
                                                 CardBinCacheReader cardBinCacheReader,
-                                                com.scott.payment.link.service.PaymentLinkMethodScope linkMethodScope) {
+                                                com.scott.payment.link.service.PaymentLinkMethodScope linkMethodScope,
+                                                DefaultPaymentChannelRouteService channelRoutes,
+                                                PaymentExchangeRateService exchangeRates) {
         this.routeProfileCacheService = routeProfileCacheService;
         this.cardBinCacheReader = cardBinCacheReader;
         this.linkMethodScope = linkMethodScope;
+        this.channelRoutes = channelRoutes;
+        this.exchangeRates = exchangeRates;
     }
 
     /**
@@ -100,6 +112,45 @@ public class PaymentCheckoutCardCapabilityService {
                         : java.util.stream.Stream.of("METHOD:" + method.getPaymentMethod()))
                 .distinct().toList();
         return linkMethodScope.resolve(merchantId, currency, keys, false).stream().map(this::checkoutMethod).toList();
+    }
+
+    /** 在独立主库只读事务内核验非卡展示，避免会话回读沿用交易库连接。 */
+    @DS(DataSourceName.MASTER)
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> resolveHostedNonCardMethods(
+            String merchantId, String currency, String billingCountry, Set<String> frozenMethods) {
+        if (linkMethodScope == null) {
+            return List.of();
+        }
+        var facts = linkMethodScope.snapshot(merchantId);
+        var command = new PaymentCreateCommandDTO();
+        command.setMerchantId(merchantId);
+        command.setCurrency(currency);
+        command.setTransactionType("PAYMENT");
+        if (StringUtils.hasText(billingCountry)) {
+            var billing = new PaymentCreateCommandDTO.BillingCardHolderInfoDTO();
+            billing.setCountry(billingCountry);
+            command.setBillingCardHolderInfo(billing);
+        }
+        Map<String, Boolean> usableRates = new HashMap<>();
+        List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> options = new ArrayList<>();
+        for (String method : linkMethodScope.hostedNonCardMethods(facts, frozenMethods)) {
+            command.setPaymentMethod(method);
+            var route = channelRoutes.assessCandidates(facts.profile(), command, facts.evaluatedAt());
+            if (route.status() == DefaultPaymentChannelRouteService.CandidateStatus.UNIQUE_DIRECT
+                    || (route.status() == DefaultPaymentChannelRouteService.CandidateStatus.UNIQUE_EDC
+                    && usableRates.computeIfAbsent(route.routedCurrency(), target ->
+                    exchangeRates.findTransactionRate(currency, target, facts.evaluatedAt())
+                            .filter(rate -> rate.getRateId() != null && rate.getRateId() > 0
+                                    && rate.getFinalRate() != null && rate.getFinalRate().signum() > 0)
+                            .isPresent()))) {
+                var option = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+                option.setPaymentMethod(method);
+                option.setBrands(List.of());
+                options.add(option);
+            }
+        }
+        return options;
     }
 
     /**

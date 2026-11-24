@@ -11,15 +11,17 @@ public final class PaymentCapabilityOperationsClientDTOs {
     public record Cursor(LocalDateTime time, long sourceId) {
     }
 
-    public record BoundaryRequest(String source, Cursor after, LocalDateTime through, int limit) {
+    public record BoundaryRequest(String source, Cursor after, LocalDateTime through, int limit,
+                                  long deadlineEpochMillis) {
     }
 
     public record BoundaryResponse(Cursor next, boolean hasMore, int processed) {
     }
 
-    public record RecoveryRequest(int limit) {
+    public record RecoveryRequest(int limit, long deadlineEpochMillis) {
     }
 
-    public record RecoveryResponse(int requeued, int relayed) {
+    public record RecoveryResponse(int requeued, int relayed, Integer selected, Integer failed,
+                                   Integer deferred, Boolean budgetExhausted) {
     }
 }

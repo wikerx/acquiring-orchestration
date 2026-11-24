@@ -1,5 +1,7 @@
 package com.scott.payment.merchant.service.impl;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
+import com.scott.payment.component.db.settlement.SettlementSummaryProjection;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -34,6 +36,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.Locale;
 import java.util.Set;
 
@@ -48,6 +51,25 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
     private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> BATCH_TYPES = Set.of(
             "REGULAR", "RESERVE_RELEASE", "REVERSAL", "ADJUSTMENT");
+    private static final Set<String> BATCH_DOMAINS = Set.of("TRANSACTION", "RESERVE");
+    private static final String RESERVE_DOMAIN = """
+            (batch.batch_type IN ('RESERVE_RELEASE', 'ADJUSTMENT') OR
+             (batch.batch_type = 'REVERSAL' AND EXISTS (
+                 SELECT 1 FROM settlement_batch original_batch
+                 WHERE original_batch.settlement_batch_no = batch.original_batch_no
+                   AND original_batch.merchant_id = batch.merchant_id
+                   AND original_batch.batch_type IN ('RESERVE_RELEASE', 'ADJUSTMENT')
+             )))
+            """;
+    private static final String TRANSACTION_DOMAIN = """
+            (batch.batch_type = 'REGULAR' OR
+             (batch.batch_type = 'REVERSAL' AND EXISTS (
+                 SELECT 1 FROM settlement_batch original_batch
+                 WHERE original_batch.settlement_batch_no = batch.original_batch_no
+                   AND original_batch.merchant_id = batch.merchant_id
+                   AND original_batch.batch_type = 'REGULAR'
+             )))
+            """;
     private static final Set<String> BATCH_STATUSES = Set.of("POSTED", "REVERSED");
     private static final Set<String> RESERVE_ACTION_TYPES = Set.of(
             "HOLD", "RETURN", "RELEASE", "ADJUSTMENT",
@@ -55,6 +77,15 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
     private static final Set<String> RESERVE_STATUSES = Set.of(
             "HELD", "PARTIALLY_RETURNED", "RELEASABLE", "FROZEN",
             "RETURNED", "RELEASED", "ADJUSTED", "REVERSED");
+    /**
+     * 汇总投影的商户范围来自登录身份，且仅开放可见的正式批次。
+     */
+    private static final String SUMMARY_SCOPE = """
+            WHERE summary.settlement_batch_no = :batchNo
+              AND summary.merchant_id = :merchantId
+              AND batch.batch_status IN ('POSTED', 'REVERSED')
+            """;
+
     private static final String BATCH_COLUMNS = """
             batch.settlement_batch_no, batch.merchant_id, merchant.merchant_name,
             batch.settlement_account_id, account.account_no AS settlement_account_no,
@@ -122,7 +153,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
             finance.settlement_eligible_date, finance.transaction_date_time
             """;
     private static final String RESERVE_COLUMN_PREFIX = """
-            action.reserve_action_no, action.reserve_no, action.settlement_batch_no,
+            action.id AS action_id, action.reserve_action_no, action.reserve_no, action.settlement_batch_no,
             batch.business_date,
             """;
     private static final String EFFECTIVE_RESERVE_STATUS_SQL = """
@@ -381,7 +412,30 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
     public PageResult<ReserveItem> searchReserveItems(String merchantId, ReserveItemQuery request) {
         String scopedMerchantId = requireMerchantId(merchantId);
         ReserveItemQuery query = normalizeReserveQuery(request);
-        return readExecutor.read(() -> reservePage(scopedMerchantId, query));
+        return readExecutor.read(() -> reservePage(scopedMerchantId, query, true, null));
+    }
+
+    @Override
+    public PageResult<ReserveItem> readReserveExportPage(String merchantId, ReserveItemQuery request,
+                                                        ReserveActionCursor afterAction) {
+        String scopedMerchantId = requireMerchantId(merchantId);
+        ReserveItemQuery query = normalizeReserveQuery(request);
+        return readExecutor.read(() -> reservePage(scopedMerchantId, query, false, afterAction));
+    }
+
+    /**
+     * 按动作号精确读取详情，跨历史日期也仍须符合当前商户及批次状态。
+     */
+    @Override
+    public ReserveItem getReserveItem(String merchantId, String reserveActionNo) {
+        String scope = requireMerchantId(merchantId);
+        ReserveItemQuery query = new ReserveItemQuery();
+        query.setReserveActionNo(optionalText(reserveActionNo, 64));
+        if (query.getReserveActionNo() == null) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        query.setPageNo(1);
+        query.setPageSize(1);
+        return readExecutor.read(() -> reservePage(scope, query, false, null).getRecords().stream().findFirst()
+                .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_NOT_FOUND)));
     }
 
     /**
@@ -417,6 +471,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 """);
         if (query.getSettlementBatchNo() != null) where.append(" AND batch.settlement_batch_no = :batchNo\n");
         if (query.getBatchType() != null) where.append(" AND batch.batch_type = :batchType\n");
+        where.append(batchDomainPredicate(query.getBatchDomain()));
         if (query.getBatchStatus() != null) where.append(" AND batch.batch_status = :batchStatus\n");
         MapSqlParameterSource parameters = commonParameters(merchantId, query.getBeginBusinessDate(),
                 query.getEndBusinessDate()).addValue("batchNo", query.getSettlementBatchNo())
@@ -486,35 +541,18 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
     }
 
     /**
-     * 凭证使用完整不可变汇总快照，普通详情和列表仍使用分页查询。
+     * 凭证使用完整汇总投影，分页及导出复用相同的正式结果及拆分口径。
      */
     private List<SummaryLine> resultSummaries(String merchantId, String batchNo) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("merchantId", merchantId)
                 .addValue("batchNo", batchNo);
-        return jdbcTemplate.query("""
-                SELECT summary.payment_type, summary.payment_method, summary.transaction_type,
-                       summary.result_item_type, summary.fee_category, summary.direction,
-                       summary.source_currency,
-                       COALESCE(NULLIF(source_currency.fraction_digits, -1), 2)
-                           AS source_currency_exponent,
-                       summary.target_currency, batch.target_currency_exponent,
-                       summary.transaction_count, summary.source_amount, summary.target_amount
-                FROM settlement_result_summary summary
-                JOIN settlement_batch batch ON batch.settlement_batch_no = summary.settlement_batch_no
-                LEFT JOIN base_iso_currency source_currency
-                  ON source_currency.alpha3_code = summary.source_currency
-                 AND source_currency.deleted = 0
-                WHERE batch.merchant_id = :merchantId
-                  AND summary.settlement_batch_no = :batchNo
-                ORDER BY summary.payment_type, summary.payment_method, summary.transaction_type,
-                         summary.result_item_type, summary.fee_category, summary.direction,
-                         summary.source_currency, summary.target_currency, summary.id
-                """, parameters, BeanPropertyRowMapper.newInstance(SummaryLine.class));
+        return jdbcTemplate.query(SettlementSummaryProjection.scopedRows(SUMMARY_SCOPE)
+                + SettlementSummaryProjection.SELECT_ROWS, parameters, BeanPropertyRowMapper.newInstance(SummaryLine.class));
     }
 
     /**
-     * 使用批次维度唯一索引分页读取商户可见的结算汇总。
+     * 以拆分后行数稳定分页，查不到记录时仍校验批次访问权限。
      */
     private PageResult<SummaryLine> resultSummaryPage(String merchantId,
                                                       String batchNo,
@@ -522,42 +560,16 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("merchantId", merchantId)
                 .addValue("batchNo", batchNo);
-        String from = """
-                FROM settlement_result_summary summary
-                JOIN settlement_batch batch
-                  ON batch.settlement_batch_no = summary.settlement_batch_no
-                 AND batch.merchant_id = summary.merchant_id
-                LEFT JOIN base_iso_currency source_currency
-                  ON source_currency.alpha3_code = summary.source_currency
-                 AND source_currency.deleted = 0
-                """;
-        String where = """
-                WHERE summary.settlement_batch_no = :batchNo
-                  AND summary.merchant_id = :merchantId
-                  AND batch.merchant_id = :merchantId
-                  AND batch.batch_status IN ('POSTED', 'REVERSED')
-                """;
-        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) " + from + where,
+        String projection = SettlementSummaryProjection.scopedRows(SUMMARY_SCOPE);
+        Long count = jdbcTemplate.queryForObject(projection + "SELECT COUNT(1) FROM projected_summary",
                 parameters, Long.class);
         long total = count == null ? 0L : count;
         long offset = (long) (page.pageNo() - 1) * page.pageSize();
-        List<SummaryLine> records = offset < total ? jdbcTemplate.query("""
-                SELECT summary.payment_type, summary.payment_method, summary.transaction_type,
-                       summary.result_item_type, summary.fee_category, summary.direction,
-                       summary.source_currency,
-                       COALESCE(NULLIF(source_currency.fraction_digits, -1), 2)
-                           AS source_currency_exponent,
-                       summary.target_currency, batch.target_currency_exponent,
-                       summary.transaction_count, summary.source_amount, summary.target_amount
-                """ + from + where + """
-                ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method,
-                         summary.transaction_type, summary.result_item_type, summary.fee_category,
-                         summary.direction, summary.source_currency, summary.target_currency, summary.id
-                LIMIT :offset, :limit
-                """, new MapSqlParameterSource(parameters.getValues())
-                .addValue("offset", offset)
-                .addValue("limit", page.pageSize()),
-                BeanPropertyRowMapper.newInstance(SummaryLine.class)) : List.of();
+        List<SummaryLine> records = offset < total
+                ? jdbcTemplate.query(projection + SettlementSummaryProjection.SELECT_ROWS
+                                + SettlementSummaryProjection.pagination(offset, page.pageSize()), parameters,
+                        BeanPropertyRowMapper.newInstance(SummaryLine.class))
+                : List.of();
         if (total == 0L) {
             requireAccessibleBatch(merchantId, batchNo);
         }
@@ -575,8 +587,6 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                   AND batch.batch_status IN ('POSTED', 'REVERSED')
                   AND candidate.source_type = 'CLEARING_REVISION'
                   AND candidate.source_transaction_id IS NOT NULL
-                  AND item.source_detail_type = 'TRANSACTION_CLEARING'
-                  AND item.result_role = 'FINANCIAL_COMPONENT'
                 """);
         if (query.getSettlementBatchNo() != null) where.append(" AND candidate.settlement_batch_no = :batchNo\n");
         if (query.getSourceTransactionId() != null) where.append(" AND candidate.source_transaction_id = :transactionId\n");
@@ -596,18 +606,24 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 .addValue("endTransactionTime", query.getEndTransactionTime())
                 .addValue("paymentType", query.getPaymentType()).addValue("paymentMethod", query.getPaymentMethod())
                 .addValue("transactionType", query.getTransactionType()).addValue("feeCategory", query.getFeeCategory());
-        String from = """
+        String candidateFrom = """
                 FROM settlement_candidate candidate
                 JOIN settlement_batch batch
                   ON batch.settlement_batch_no = candidate.settlement_batch_no
                  AND batch.merchant_id = candidate.merchant_id
+                """;
+        String locatorJoin = """
+                LEFT JOIN transaction_locator locator
+                  ON locator.transaction_id = candidate.source_transaction_id
+                 AND locator.merchant_id = candidate.merchant_id
+                """;
+        String componentJoin = """
                 JOIN settlement_result_item item
                   ON item.settlement_batch_no = candidate.settlement_batch_no
                  AND item.candidate_id = candidate.id
                  AND item.merchant_id = candidate.merchant_id
-                LEFT JOIN transaction_locator locator
-                  ON locator.transaction_id = candidate.source_transaction_id
-                 AND locator.merchant_id = candidate.merchant_id
+                 AND item.source_detail_type = 'TRANSACTION_CLEARING'
+                 AND item.result_role = 'FINANCIAL_COMPONENT'
                 """;
         String groupBy = """
                 GROUP BY batch.settlement_batch_no, batch.business_date, batch.batch_status,
@@ -615,14 +631,37 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                          candidate.source_transaction_id, locator.transaction_date_time,
                          candidate.source_transaction_date_time, locator.transaction_type
                 """;
+        // 财务组件用于确认候选可见性，分页后再读取当前页的完整组件以计算金额。
+        String eligible = """
+                 AND EXISTS (
+                     SELECT 1 FROM settlement_result_item component
+                     WHERE component.settlement_batch_no = candidate.settlement_batch_no
+                       AND component.candidate_id = candidate.id
+                       AND component.merchant_id = candidate.merchant_id
+                       AND component.source_detail_type = 'TRANSACTION_CLEARING'
+                       AND component.result_role = 'FINANCIAL_COMPONENT'
+                 )
+                """;
+        boolean filtersOnLocator = query.getMerchantOrderNo() != null
+                || query.getBeginTransactionTime() != null || query.getEndTransactionTime() != null;
+        String countFrom = filtersOnLocator ? candidateFrom + locatorJoin : candidateFrom;
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT candidate.id) " + from + where,
-                parameters, Long.class);
+                "SELECT COUNT(1) " + countFrom + where + eligible, parameters, Long.class);
         long total = count == null ? 0L : count;
         long offset = (long) (query.getPageNo() - 1) * query.getPageSize();
+        String pageFrom = """
+                 JOIN (
+                     SELECT candidate.id,
+                            COALESCE(locator.transaction_date_time, candidate.source_transaction_date_time)
+                                AS source_transaction_date_time
+                """ + candidateFrom + locatorJoin + where + eligible + """
+                     ORDER BY source_transaction_date_time DESC, candidate.id DESC
+                     LIMIT :offset, :limit
+                 ) selected ON selected.id = candidate.id
+                """;
         List<TransactionSettlement> records = offset < total ? jdbcTemplate.query(
-                "SELECT " + TRANSACTION_SETTLEMENT_COLUMNS + from + where + groupBy
-                        + " ORDER BY source_transaction_date_time DESC, candidate.id DESC LIMIT :offset, :limit",
+                "SELECT " + TRANSACTION_SETTLEMENT_COLUMNS + candidateFrom + pageFrom + locatorJoin + componentJoin + groupBy
+                        + " ORDER BY source_transaction_date_time DESC, candidate.id DESC",
                 new MapSqlParameterSource(parameters.getValues())
                         .addValue("offset", offset).addValue("limit", query.getPageSize()),
                 BeanPropertyRowMapper.newInstance(TransactionSettlement.class)) : List.of();
@@ -835,13 +874,16 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
      * 查询不可变保证金动作，并按 retained + debitAdjustment - return - release - creditAdjustment - reversal
      * 计算动作对应责任余额；保证金币种保持原标签币种且不使用汇率。
      */
-    private PageResult<ReserveItem> reservePage(String merchantId, ReserveItemQuery query) {
+    private PageResult<ReserveItem> reservePage(String merchantId, ReserveItemQuery query,
+                                               boolean includeTotal, ReserveActionCursor afterAction) {
         StringBuilder where = new StringBuilder("""
                 WHERE reserve.merchant_id = :merchantId
                   AND batch.merchant_id = :merchantId
-                  AND batch.business_date BETWEEN :beginDate AND :endDate
                   AND batch.batch_status IN ('POSTED', 'REVERSED')
                 """);
+        if (query.getBeginBusinessDate() != null) {
+            where.append(" AND batch.business_date BETWEEN :beginDate AND :endDate\n");
+        }
         if (query.getSettlementBatchNo() != null) where.append(" AND action.settlement_batch_no = :batchNo\n");
         if (query.getReserveNo() != null) where.append(" AND action.reserve_no = :reserveNo\n");
         if (query.getReserveActionNo() != null) where.append(" AND action.reserve_action_no = :reserveActionNo\n");
@@ -872,7 +914,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                 .addValue("endTransactionTime", query.getEndTransactionTime())
                 .addValue("beginExpectedReleaseDate", query.getBeginExpectedReleaseDate())
                 .addValue("endExpectedReleaseDate", query.getEndExpectedReleaseDate());
-        String from = """
+        String reserveFrom = """
                 FROM merchant_reserve_action action
                 JOIN merchant_reserve_item reserve
                   ON reserve.id = action.reserve_item_id AND reserve.reserve_no = action.reserve_no
@@ -890,14 +932,53 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
                  AND reserve_detail.merchant_id = reserve.merchant_id
                  AND reserve_detail.record_status = 'ACTIVE'
                 JOIN settlement_batch batch ON batch.settlement_batch_no = action.settlement_batch_no
+                """;
+        String locatorJoin = """
                 LEFT JOIN transaction_locator locator
                   ON locator.transaction_id = reserve_detail.original_transaction_id
                  AND locator.merchant_id = reserve.merchant_id
+                """;
+        String displayJoins = """
                 LEFT JOIN base_iso_currency currency
                   ON currency.alpha3_code = action.currency AND currency.deleted = 0
                 """;
-        return page(RESERVE_COLUMNS, from, where.toString(), parameters,
-                "action.action_time DESC, action.id DESC", query.getPageNo(), query.getPageSize(), ReserveItem.class);
+        boolean filtersOnLocator = query.getMerchantOrderNo() != null || query.getBeginTransactionTime() != null;
+        String countFrom = filtersOnLocator ? reserveFrom + locatorJoin : reserveFrom;
+        String from = reserveFrom + locatorJoin + displayJoins;
+        boolean preferOrderedScan = !filtersOnLocator && query.getSettlementBatchNo() == null
+                && query.getReserveActionNo() == null && query.getReserveNo() == null
+                && query.getBeginBusinessDate() != null && query.getSourceTransactionId() == null
+                && query.getBeginExpectedReleaseDate() == null
+                && query.getReserveStatus() == null && query.getActionType() == null && query.getCurrency() == null;
+        long offset = includeTotal ? (long) (query.getPageNo() - 1) * query.getPageSize() : 0;
+        if (afterAction != null) {
+            where.append("""
+                     AND (action.action_time < :afterTime
+                          OR (action.action_time = :afterTime AND action.id < :afterId))
+                    """);
+            parameters.addValue("afterTime", afterAction.actionTime()).addValue("afterId", afterAction.actionId());
+        }
+        parameters.addValue("offset", offset).addValue("limit", query.getPageSize());
+        // 范围扫描优先走动作时间索引，精确筛选仍交给优化器选择索引。
+        String select = preferOrderedScan && offset == 0
+                ? "SELECT /*+ ORDER_INDEX(action idx_reserve_action_time) */ " : "SELECT ";
+        List<ReserveItem> rows = jdbcTemplate.query(
+                select + RESERVE_COLUMNS + from + where
+                        + " ORDER BY action.action_time DESC, action.id DESC LIMIT :offset, :limit",
+                parameters, BeanPropertyRowMapper.newInstance(ReserveItem.class));
+        long total = 0;
+        if (includeTotal) {
+            // 首页不足一页时，结果行数就是精确总数。
+            if (offset == 0 && rows.size() < query.getPageSize()) {
+                total = rows.size();
+            } else {
+                String countSelect = preferOrderedScan ? "SELECT /*+ JOIN_PREFIX(action) */ " : "SELECT ";
+                Long count = jdbcTemplate.queryForObject(countSelect + "COUNT(1) " + countFrom + where,
+                        parameters, Long.class);
+                total = count == null ? 0 : count;
+            }
+        }
+        return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
     /**
@@ -938,7 +1019,13 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
     private <T> PageResult<T> page(String columns, String from, String where,
                                    MapSqlParameterSource parameters, String orderBy,
                                    int pageNo, int pageSize, Class<T> type) {
-        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) " + from + where, parameters, Long.class);
+        return page(columns, from, from, where, parameters, orderBy, pageNo, pageSize, type);
+    }
+
+    private <T> PageResult<T> page(String columns, String from, String countFrom, String where,
+                                   MapSqlParameterSource parameters, String orderBy,
+                                   int pageNo, int pageSize, Class<T> type) {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) " + countFrom + where, parameters, Long.class);
         long total = count == null ? 0L : count;
         long offset = (long) (pageNo - 1) * pageSize;
         List<T> rows = offset < total ? jdbcTemplate.query(
@@ -956,6 +1043,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
         normalizeRangeAndPage(query.getBeginBusinessDate(), query.getEndBusinessDate(), query.getPageNo(), query.getPageSize(),
                 query::setBeginBusinessDate, query::setEndBusinessDate, query::setPageNo, query::setPageSize);
         query.setSettlementBatchNo(optionalBatchNo(query.getSettlementBatchNo()));
+        query.setBatchDomain(optionalEnum(query.getBatchDomain(), BATCH_DOMAINS));
         query.setBatchType(optionalEnum(query.getBatchType(), BATCH_TYPES));
         query.setBatchStatus(optionalEnum(query.getBatchStatus(), BATCH_STATUSES));
         return query;
@@ -1192,18 +1280,48 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
      * 校验结算批次属于当前认证商户。
      */
     private void requireAccessibleBatch(String merchantId, String batchNo) {
+        requireAccessibleBatch(merchantId, batchNo, null);
+    }
+
+    /**
+     * 对外批次操作始终校验已入账批次归属及入口域，避免用另一入口的权限读取。
+     */
+    @Override
+    public void requireBatchDomain(String merchantId, String batchNo, String batchDomain) {
+        String scope = requireMerchantId(merchantId);
+        String normalizedBatchNo = requireBatchNo(batchNo);
+        String domain = optionalEnum(batchDomain, BATCH_DOMAINS);
+        Objects.requireNonNull(domain, "batchDomain");
+        readExecutor.read(() -> {
+            requireAccessibleBatch(scope, normalizedBatchNo, domain);
+            return null;
+        });
+    }
+
+    /**
+     * 使用批次唯一键同时校验商户、状态及结算域。
+     */
+    private void requireAccessibleBatch(String merchantId, String batchNo, String batchDomain) {
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
-                FROM settlement_batch
-                WHERE settlement_batch_no = :batchNo
-                  AND merchant_id = :merchantId
-                  AND batch_status IN ('POSTED', 'REVERSED')
-                """, new MapSqlParameterSource()
+                FROM settlement_batch batch
+                WHERE batch.settlement_batch_no = :batchNo
+                  AND batch.merchant_id = :merchantId
+                  AND batch.batch_status IN ('POSTED', 'REVERSED')
+                """ + batchDomainPredicate(batchDomain), new MapSqlParameterSource()
                 .addValue("merchantId", merchantId)
                 .addValue("batchNo", batchNo), Integer.class);
         if (count == null || count == 0) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
+    }
+
+    /**
+     * 在服务端按批次事实划分交易和保证金域，保证金冲正归属原保证金批次。
+     */
+    private static String batchDomainPredicate(String domain) {
+        if (domain == null) return "";
+        return " AND " + ("RESERVE".equals(domain) ? RESERVE_DOMAIN : TRANSACTION_DOMAIN);
     }
 
     /**

@@ -2553,6 +2553,7 @@ CREATE TABLE `merchant_reserve_action` (
   UNIQUE KEY `uk_reserve_action_reversal_ref` (`reversal_of_action_id`),
   KEY `idx_reserve_action_item` (`reserve_item_id`,`id`),
   KEY `idx_reserve_action_batch` (`settlement_batch_no`,`candidate_id`,`id`),
+  KEY `idx_reserve_action_time` (`action_time`,`id`) COMMENT '按动作时间及主键续读保证金结算明细',
   CONSTRAINT `chk_reserve_action_value` CHECK (((`amount` > 0) and (`direction` in (_utf8mb4'DEBIT',_utf8mb4'CREDIT')) and (`action_type` in (_utf8mb4'HOLD',_utf8mb4'RETURN',_utf8mb4'RELEASE',_utf8mb4'ADJUSTMENT',_utf8mb4'REVERSAL_HOLD',_utf8mb4'REVERSAL_RETURN',_utf8mb4'REVERSAL_RELEASE',_utf8mb4'REVERSAL_ADJUSTMENT')) and (((`action_type` in (_utf8mb4'HOLD',_utf8mb4'RETURN',_utf8mb4'RELEASE',_utf8mb4'ADJUSTMENT')) and (`reversal_of_action_id` is null)) or ((`action_type` in (_utf8mb4'REVERSAL_HOLD',_utf8mb4'REVERSAL_RETURN',_utf8mb4'REVERSAL_RELEASE',_utf8mb4'REVERSAL_ADJUSTMENT')) and (`reversal_of_action_id` is not null))) and (((`action_type` = _utf8mb4'HOLD') and (`direction` = _utf8mb4'DEBIT')) or ((`action_type` in (_utf8mb4'RETURN',_utf8mb4'RELEASE')) and (`direction` = _utf8mb4'CREDIT')) or ((`action_type` = _utf8mb4'REVERSAL_HOLD') and (`direction` = _utf8mb4'CREDIT')) or ((`action_type` in (_utf8mb4'REVERSAL_RETURN',_utf8mb4'REVERSAL_RELEASE')) and (`direction` = _utf8mb4'DEBIT')) or (`action_type` in (_utf8mb4'ADJUSTMENT',_utf8mb4'REVERSAL_ADJUSTMENT')))))
 ) ENGINE=InnoDB AUTO_INCREMENT=60944 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='保证金聚合不可变动作和最终幂等事实；保证金始终使用原标签币种';
 

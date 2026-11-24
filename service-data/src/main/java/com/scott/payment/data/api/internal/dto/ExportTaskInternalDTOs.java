@@ -685,6 +685,8 @@ public final class ExportTaskInternalDTOs {
         private static final long serialVersionUID = 1L;
         private String settlementBatchNo;
         private String batchType;
+        /** 保证金批次入口使用 RESERVE 限定查询及导出范围。 */
+        private String batchDomain;
         private String batchStatus;
         private LocalDate beginBusinessDate;
         private LocalDate endBusinessDate;
@@ -697,6 +699,8 @@ public final class ExportTaskInternalDTOs {
     public static class MerchantSettlementSummaryQuery implements Serializable {
         private static final long serialVersionUID = 1L;
         private String settlementBatchNo;
+        /** 由商户服务根据入口权限冻结的批次域。 */
+        private String batchDomain;
     }
 
     /**
@@ -1010,6 +1014,8 @@ public final class ExportTaskInternalDTOs {
         private static final long serialVersionUID = 1L;
         private String taskNo;
         private String taskType;
+        /** 结算批次及汇总任务的冻结域，旧任务可空。 */
+        private String settlementBatchDomain;
         private String taskName;
         private String status;
         private Integer progressPercent;

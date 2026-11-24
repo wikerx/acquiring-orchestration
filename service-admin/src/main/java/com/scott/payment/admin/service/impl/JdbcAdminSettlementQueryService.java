@@ -9,6 +9,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.RateLine;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultSummaryLine;
 import com.scott.payment.admin.service.AdminSettlementQueryService;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
+import com.scott.payment.component.db.settlement.SettlementSummaryProjection;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -248,7 +249,7 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
                 ORDER BY source_currency ASC, id ASC
                 """, parameters, BeanPropertyRowMapper.newInstance(RateLine.class)));
         if (includeResultSummaries) {
-            response.setResultSummaries(resultSummaries(settlementBatchNo, dataScope));
+            response.setResultSummaries(resultSummaries(batch, dataScope));
         }
         List<NetPosting> postings = jdbcTemplate.query("""
                 SELECT id, settlement_result_item_no, reversal_of_result_item_id, direction,
@@ -285,38 +286,42 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
     }
 
     /**
-     * 正式凭证只加载按支付维度聚合后的不可变汇总，不加载逐笔交易或组件明细。
+     * 凭证读取同一结算汇总投影，一次加载指定批次的所有行。
      */
-    private List<ResultSummaryLine> resultSummaries(String settlementBatchNo,
+    private List<ResultSummaryLine> resultSummaries(BatchSummary batch,
                                                     AdminMerchantDataScope dataScope) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("settlementBatchNo", settlementBatchNo)
+                .addValue("settlementBatchNo", batch.getSettlementBatchNo())
+                .addValue("batchMerchantId", batch.getMerchantId())
                 .addValue("permittedMerchantIds", dataScope.merchantIds());
-        return jdbcTemplate.query("""
-                SELECT summary.payment_type, summary.payment_method, summary.transaction_type,
-                       summary.result_item_type, summary.fee_category, summary.direction,
-                       summary.source_currency,
-                       COALESCE(NULLIF(source_currency.fraction_digits, -1), 2)
-                           AS source_currency_exponent,
-                       summary.target_currency, batch.target_currency_exponent,
-                       summary.transaction_count, summary.source_amount, summary.target_amount
-                FROM settlement_result_summary summary
-                JOIN settlement_batch batch
-                  ON batch.settlement_batch_no = summary.settlement_batch_no
-                 AND batch.merchant_id = summary.merchant_id
-                LEFT JOIN base_iso_currency source_currency
-                  ON source_currency.alpha3_code = summary.source_currency
-                 AND source_currency.deleted = 0
+        String where = """
                 WHERE summary.settlement_batch_no = :settlementBatchNo
-                """ + merchantScopeSql(dataScope, "batch.merchant_id") + """
-                ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method,
-                         summary.transaction_type, summary.result_item_type, summary.fee_category,
-                         summary.direction, summary.source_currency, summary.target_currency, summary.id
-                """, parameters, BeanPropertyRowMapper.newInstance(ResultSummaryLine.class));
+                  AND summary.merchant_id = :batchMerchantId
+                """ + merchantScopeSql(dataScope, "batch.merchant_id");
+        return resultSummaryRows(parameters, where, "");
     }
 
     /**
-     * 使用 settlement_result_summary 的批次维度唯一索引稳定分页，避免正式批次详情一次加载全部汇总。
+     * 为批次凭证、分页和导出提供同一份汇总投影，保留已冻结的合计。
+     */
+    private List<ResultSummaryLine> resultSummaryRows(MapSqlParameterSource parameters,
+                                                      String where,
+                                                      String pagination) {
+        var mapper = BeanPropertyRowMapper.newInstance(ResultSummaryLine.class);
+        return jdbcTemplate.query(SettlementSummaryProjection.scopedRows(where)
+                + SettlementSummaryProjection.SELECT_ROWS + pagination, parameters, (rs, rowNum) -> {
+            ResultSummaryLine row = mapper.mapRow(rs, rowNum);
+            if (RESERVE_BATCH_TYPES.contains(rs.getString("batch_type"))) {
+                // 兼容已发布的管理端和导出服务，单行只对应一个类型。
+                row.setOriginalTransactionTypes(row.getTransactionType() == null
+                        ? List.of() : List.of(row.getTransactionType()));
+            }
+            return row;
+        });
+    }
+
+    /**
+     * 按拆分后的行数稳定分页，权限范围同时约束冻结汇总与拆分明细。
      */
     private PageResult<ResultSummaryLine> resultSummaryPage(String settlementBatchNo,
                                                             PageWindow page,
@@ -327,39 +332,16 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("settlementBatchNo", settlementBatchNo)
                 .addValue("permittedMerchantIds", dataScope.merchantIds());
-        String from = """
-                FROM settlement_result_summary summary
-                JOIN settlement_batch batch
-                  ON batch.settlement_batch_no = summary.settlement_batch_no
-                 AND batch.merchant_id = summary.merchant_id
-                LEFT JOIN base_iso_currency source_currency
-                  ON source_currency.alpha3_code = summary.source_currency
-                 AND source_currency.deleted = 0
-                """;
         String where = """
                 WHERE summary.settlement_batch_no = :settlementBatchNo
                 """ + merchantScopeSql(dataScope, "batch.merchant_id");
-        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) " + from + where,
+        Long count = jdbcTemplate.queryForObject(SettlementSummaryProjection.scopedRows(where)
+                + "SELECT COUNT(1) FROM projected_summary",
                 parameters, Long.class);
         long total = count == null ? 0L : count;
         long offset = (long) (page.pageNo() - 1) * page.pageSize();
-        List<ResultSummaryLine> records = offset < total ? jdbcTemplate.query("""
-                SELECT summary.payment_type, summary.payment_method, summary.transaction_type,
-                       summary.result_item_type, summary.fee_category, summary.direction,
-                       summary.source_currency,
-                       COALESCE(NULLIF(source_currency.fraction_digits, -1), 2)
-                           AS source_currency_exponent,
-                       summary.target_currency, batch.target_currency_exponent,
-                       summary.transaction_count, summary.source_amount, summary.target_amount
-                """ + from + where + """
-                ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method,
-                         summary.transaction_type, summary.result_item_type, summary.fee_category,
-                         summary.direction, summary.source_currency, summary.target_currency, summary.id
-                LIMIT :offset, :limit
-                """, new MapSqlParameterSource(parameters.getValues())
-                .addValue("offset", offset)
-                .addValue("limit", page.pageSize()),
-                BeanPropertyRowMapper.newInstance(ResultSummaryLine.class)) : List.of();
+        List<ResultSummaryLine> records = offset < total ? resultSummaryRows(parameters,
+                where, SettlementSummaryProjection.pagination(offset, page.pageSize())) : List.of();
         if (total == 0L) {
             requireAccessibleBatch(settlementBatchNo, dataScope);
         }

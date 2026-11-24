@@ -190,10 +190,13 @@ class MerchantSettlementApplicationServiceTests {
                 .thenReturn(PageResult.of(1L, 1, 200, List.of(transaction)));
 
         ReserveItem reserve = new ReserveItem();
+        reserve.setActionId(10L);
+        reserve.setActionTime(java.time.LocalDateTime.of(2026, 11, 10, 2, 30));
         reserve.setActionType("RELEASE");
         reserve.setDirection("CREDIT");
         reserve.setReserveStatus("FROZEN");
-        when(queryService.searchReserveItems(eq("M10000001"), any(ReserveItemQuery.class)))
+        when(queryService.readReserveExportPage(eq("M10000001"), any(ReserveItemQuery.class),
+                org.mockito.ArgumentMatchers.isNull()))
                 .thenReturn(PageResult.of(1L, 1, 200, List.of(reserve)));
 
         MerchantSettlementApplicationService service = new MerchantSettlementApplicationService(

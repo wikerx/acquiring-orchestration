@@ -107,23 +107,32 @@ public class AdminEmailDeliveryService {
                 now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L)), nextRetryTime, now);
         List<EmailSendRecordDO> dueRecords = recordMapper.selectDueForRetry(
                 APP_CODE, now, Math.max(properties.getBatchSize(), 1));
-        return requeue(dueRecords, now);
+        return requeue(dueRecords, now, Long.MAX_VALUE);
     }
 
-    /** 仅由 Job 调用，恢复支付方式的到期和超时通知。 */
+    /** 专用 Job 按同一邮件状态条件恢复支付方式通知。 */
     @Transactional(rollbackFor = Exception.class)
-    public int recoverPaymentCapabilityDelivery(int requestedLimit) {
+    public int recoverPaymentCapabilityDelivery(int requestedLimit, long deadlineEpochMillis) {
+        if (System.currentTimeMillis() >= deadlineEpochMillis) {
+            return 0;
+        }
         int limit = Math.max(1, Math.min(100, requestedLimit));
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime staleBefore = now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L));
         LocalDateTime nextRetryTime = now.plusSeconds(Math.max(properties.getRetryDelaySeconds(), 1L));
         recordMapper.recoverCapabilityStaleDelivery(staleBefore, nextRetryTime, now, limit);
-        return requeue(recordMapper.selectCapabilityDue(now, limit), now);
+        if (System.currentTimeMillis() >= deadlineEpochMillis) {
+            return 0;
+        }
+        return requeue(recordMapper.selectCapabilityDue(now, limit), now, deadlineEpochMillis);
     }
 
-    private int requeue(List<EmailSendRecordDO> dueRecords, LocalDateTime now) {
+    private int requeue(List<EmailSendRecordDO> dueRecords, LocalDateTime now, long deadlineEpochMillis) {
         int requeued = 0;
         for (EmailSendRecordDO record : dueRecords) {
+            if (System.currentTimeMillis() >= deadlineEpochMillis) {
+                break;
+            }
             if (recordMapper.requeueForDelivery(record.getId(), record.getEmailNo(), record.getAppCode(), now) == 1) {
                 enqueue(record);
                 requeued++;

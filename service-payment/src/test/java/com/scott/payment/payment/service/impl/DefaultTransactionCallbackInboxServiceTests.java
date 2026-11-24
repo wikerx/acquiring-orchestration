@@ -6,6 +6,7 @@ import com.scott.payment.payment.api.internal.dto.TransactionCallbackInboxAccept
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.entity.TransactionCallbackInboxDO;
 import com.scott.payment.payment.mapper.TransactionCallbackInboxMapper;
+import com.scott.payment.payment.mapper.TransactionCallbackDeliveryMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -61,7 +62,7 @@ class DefaultTransactionCallbackInboxServiceTests {
         when(mapper.selectByIdempotency(eq("MPGS"), anyString()))
                 .thenAnswer(invocation -> inserted.get());
         DefaultTransactionCallbackInboxService service =
-                new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+                new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
 
         TransactionCallbackInboxAcceptResultDTO result = service.accept(command());
 
@@ -86,13 +87,40 @@ class DefaultTransactionCallbackInboxServiceTests {
         TransactionCallbackInboxDO existing = persistedInbox();
         when(mapper.selectByIdempotency(eq("MPGS"), anyString())).thenReturn(existing);
         DefaultTransactionCallbackInboxService service =
-                new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+                new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
 
         TransactionCallbackInboxAcceptResultDTO result = service.accept(command());
 
         assertThat(result.getAcceptResult()).isEqualTo("DUPLICATE");
         assertThat(result.getInboxId()).isEqualTo("CBI-FIRST");
         verify(mapper).upsertInbox(any());
+    }
+
+    @Test
+    void recordsInitialAndRepeatedHttpDeliveriesAgainstTheSameInbox() {
+        var mapper = mock(TransactionCallbackInboxMapper.class);
+        var deliveryMapper = mock(TransactionCallbackDeliveryMapper.class);
+        var inserted = new AtomicReference<TransactionCallbackInboxDO>();
+        doAnswer(invocation -> {
+            inserted.compareAndSet(null, invocation.getArgument(0));
+            return 1;
+        }).when(mapper).upsertInbox(any());
+        when(mapper.selectByIdempotency(eq("MPGS"), anyString()))
+                .thenAnswer(invocation -> inserted.get());
+        var service = new DefaultTransactionCallbackInboxService(mapper, deliveryMapper, CLOCK);
+        var first = command();
+        first.setDeliveryId("11111111111111111111111111111111");
+        var retry = command();
+        retry.setDeliveryId("22222222222222222222222222222222");
+
+        var accepted = service.accept(first);
+        var duplicate = service.accept(retry);
+
+        assertThat(duplicate.getInboxId()).isEqualTo(accepted.getInboxId());
+        verify(deliveryMapper).record(eq(first.getDeliveryId()), eq(accepted.getInboxId()),
+                anyString(), any(), eq(true), eq("ACCEPTED"), eq(first.getRequestBodySha256()), org.mockito.ArgumentMatchers.isNull());
+        verify(deliveryMapper).record(eq(retry.getDeliveryId()), eq(accepted.getInboxId()),
+                anyString(), any(), eq(true), eq("DUPLICATE"), eq(retry.getRequestBodySha256()), org.mockito.ArgumentMatchers.isNull());
     }
 
     @Test
@@ -107,7 +135,7 @@ class DefaultTransactionCallbackInboxServiceTests {
         }).when(mapper).upsertInbox(any());
         when(mapper.selectByIdempotency(eq("SCOTT_CHANNEL_A"), anyString()))
                 .thenAnswer(invocation -> rows.get(invocation.getArgument(1)));
-        var service = new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+        var service = new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
         service.setTransactionRecordService(records);
         var wrong = command();
         wrong.setChannelCode("SCOTT_CHANNEL_A");
@@ -137,7 +165,7 @@ class DefaultTransactionCallbackInboxServiceTests {
     void shouldRejectUnverifiedCallbackBeforeDatabaseAccess() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
         DefaultTransactionCallbackInboxService service =
-                new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+                new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
         TransactionChannelCallbackCommandDTO command = command();
         command.setSignatureValid(false);
 
@@ -152,7 +180,7 @@ class DefaultTransactionCallbackInboxServiceTests {
     void shouldRejectOversizedCallbackEventIdBeforeDatabaseAccess() {
         TransactionCallbackInboxMapper mapper = mock(TransactionCallbackInboxMapper.class);
         DefaultTransactionCallbackInboxService service =
-                new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+                new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
         TransactionChannelCallbackCommandDTO command = command();
         command.setCallbackEventId("E".repeat(257));
 
@@ -169,7 +197,7 @@ class DefaultTransactionCallbackInboxServiceTests {
         when(mapper.claim(eq(1L), eq(3), eq(NOW), anyString(), anyString(), anyString()))
                 .thenReturn(1);
         DefaultTransactionCallbackInboxService service =
-                new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+                new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
         TransactionCallbackInboxDO inbox = persistedInbox();
         inbox.setVersion(3);
 
@@ -187,7 +215,7 @@ class DefaultTransactionCallbackInboxServiceTests {
         when(mapper.markFailed(any(), any(), anyString(), any(), anyString(), any(), anyString()))
                 .thenReturn(1);
         DefaultTransactionCallbackInboxService service =
-                new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+                new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
         TransactionCallbackInboxDO retry = persistedInbox();
         retry.setVersion(4);
         retry.setRetryCount(0);
@@ -215,7 +243,7 @@ class DefaultTransactionCallbackInboxServiceTests {
         when(mapper.recoverStaleProcessing(any(), any(), anyString(), anyString(), anyString(), anyInt()))
                 .thenReturn(2);
         DefaultTransactionCallbackInboxService service =
-                new DefaultTransactionCallbackInboxService(mapper, CLOCK);
+                new DefaultTransactionCallbackInboxService(mapper, mock(TransactionCallbackDeliveryMapper.class), CLOCK);
 
         assertThat(service.recoverStaleProcessing(NOW.minusMinutes(2), NOW, 800)).isEqualTo(2);
         verify(mapper).recoverStaleProcessing(

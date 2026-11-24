@@ -2,6 +2,11 @@ package com.scott.payment.merchant.api.settlement;
 
 import com.scott.payment.merchant.application.settlement.MerchantSettlementApplicationService;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.web.auth.InternalAuthInterceptor;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItem;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchDetail;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingDetail;
@@ -14,9 +19,12 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
@@ -49,6 +57,59 @@ class MerchantSettlementControllerTests {
                     .extracting(RequiresPermission::value)
                     .isEqualTo(permission);
         });
+    }
+
+    @Test
+    void reservePreviewDoesNotGrantDownloadOrTransactionEndpoint() throws Exception {
+        MerchantSettlementApplicationService service = mock(MerchantSettlementApplicationService.class);
+        when(service.getVoucher(SETTLEMENT_BATCH_NO, "RESERVE")).thenReturn(new BatchDetail());
+        var interceptor = new InternalAuthInterceptor("MERCHANT", (app, token, method, path, permission) -> {
+            if (!"merchant:settlement:reserve-batch:voucher:view".equals(permission)) {
+                throw new ServiceException(ApiResultEnum.FORBIDDEN);
+            }
+            return new InternalAuthAccount();
+        }, List.of());
+        MockMvc mvc = standaloneSetup(new MerchantSettlementController(service))
+                .addInterceptors(interceptor).build();
+
+        mvc.perform(get("/merchant/settlements/reserve-batches/{batch}/voucher", SETTLEMENT_BATCH_NO)
+                        .header("Authorization", "Bearer fixture"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/merchant/settlements/{batch}/voucher/preview", SETTLEMENT_BATCH_NO)
+                        .header("Authorization", "Bearer fixture"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+        mvc.perform(get("/merchant/settlements/reserve-batches/{batch}/voucher/preview", SETTLEMENT_BATCH_NO)
+                        .header("Authorization", "Bearer fixture"))
+                .andExpect(status().isOk());
+        verify(service).getVoucher(SETTLEMENT_BATCH_NO, "RESERVE");
+    }
+
+    @Test
+    void reserveListDoesNotExposeCumulativeFieldsOrGrantActionDetails() throws Exception {
+        MerchantSettlementApplicationService service = mock(MerchantSettlementApplicationService.class);
+        ReserveItem item = new ReserveItem();
+        item.setReserveActionNo("RA-fixture");
+        item.setRetainedAmount(java.math.BigDecimal.TEN);
+        item.setRemainingAmount(java.math.BigDecimal.ONE);
+        when(service.searchReserveItems(null)).thenReturn(PageResult.of(1L, 1L, 10L, List.of(item)));
+        var interceptor = new InternalAuthInterceptor("MERCHANT", (app, token, method, path, permission) -> {
+            if (!"merchant:settlement:reserve-item:list".equals(permission)) {
+                throw new ServiceException(ApiResultEnum.FORBIDDEN);
+            }
+            return new InternalAuthAccount();
+        }, List.of());
+        MockMvc mvc = standaloneSetup(new MerchantSettlementController(service))
+                .addInterceptors(interceptor).build();
+
+        mvc.perform(get("/merchant/settlements/reserve-items/RA-fixture").header("Authorization", "Bearer fixture"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+        mvc.perform(post("/merchant/settlements/reserve-items/search").header("Authorization", "Bearer fixture"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].reserveActionNo").value("RA-fixture"))
+                .andExpect(jsonPath("$.data.records[0].remainingAmount").value(1))
+                .andExpect(jsonPath("$.data.records[0].retainedAmount").doesNotExist());
     }
 
     @Test
@@ -87,6 +148,21 @@ class MerchantSettlementControllerTests {
                 .andExpect(status().isOk());
 
         verify(applicationService).searchResultSummaries(SETTLEMENT_BATCH_NO, 2, 50);
+    }
+
+    @Test
+    void reserveItemDetailShouldHideInternalPaginationKey() throws Exception {
+        MerchantSettlementApplicationService applicationService = mock(MerchantSettlementApplicationService.class);
+        ReserveItem detail = new ReserveItem();
+        detail.setActionId(10L);
+        detail.setReserveActionNo("RA-1001");
+        when(applicationService.getReserveItem("RA-1001")).thenReturn(detail);
+        MockMvc mockMvc = standaloneSetup(new MerchantSettlementController(applicationService)).build();
+
+        mockMvc.perform(get("/merchant/settlements/reserve-items/{reserveActionNo}", "RA-1001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reserveActionNo").value("RA-1001"))
+                .andExpect(jsonPath("$.data.actionId").doesNotExist());
     }
 
     @Test

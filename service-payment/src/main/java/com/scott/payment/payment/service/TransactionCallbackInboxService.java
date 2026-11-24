@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service;
 
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
+import com.scott.payment.payment.api.internal.dto.CallbackDeliveryResponseCommand;
 import com.scott.payment.payment.api.internal.dto.TransactionCallbackInboxAcceptResultDTO;
 import com.scott.payment.payment.entity.TransactionCallbackInboxDO;
 
@@ -30,7 +31,10 @@ public interface TransactionCallbackInboxService {
     /**
      * 使用抢占后的版本号 CAS 标记处理完成。
      */
-    boolean markProcessed(TransactionCallbackInboxDO inbox, LocalDateTime now);
+    boolean markProcessed(TransactionCallbackInboxDO inbox, String callbackId, LocalDateTime now);
+
+    /** 回写实际 HTTP 应答。 */
+    boolean completeDelivery(CallbackDeliveryResponseCommand command);
 
     /**
      * 使用抢占后的版本号 CAS 记录失败、安排重试或封顶关闭。

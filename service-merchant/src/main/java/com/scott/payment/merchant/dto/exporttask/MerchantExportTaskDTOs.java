@@ -160,6 +160,8 @@ public final class MerchantExportTaskDTOs {
         private static final long serialVersionUID = 1L;
         private String taskNo;
         private String taskType;
+        /** 结算批次及汇总任务的冻结域，旧任务可空。 */
+        private String settlementBatchDomain;
         private String taskName;
         private String status;
         private Integer progressPercent;

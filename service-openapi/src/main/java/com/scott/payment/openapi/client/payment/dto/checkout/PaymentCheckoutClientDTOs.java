@@ -89,6 +89,9 @@ public final class PaymentCheckoutClientDTOs {
          */
         private List<AllowedPaymentMethod> allowedPaymentMethods;
 
+        /** 由 Hosted Checkout 创建入口请求 Payment 计算该订单可展示的非卡方式。 */
+        private boolean includeConfiguredNonCardOptions;
+
         /**
          * 收银台前端域名；已在 OpenAPI 层完成协议和长度校验。
          */
@@ -1151,5 +1154,9 @@ public final class PaymentCheckoutClientDTOs {
         private String code;
 
         private String message;
+    }
+
+    /** 本机钱包模拟的签名内部请求，浏览器令牌转为摘要后才允许转发。 */
+    public record WalletSimulationRequest(String tokenHash, String checkoutSessionId, String paymentMethod, String action) {
     }
 }

@@ -9,6 +9,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSe
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.model.ReserveActionCursor;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -79,6 +80,13 @@ public interface AdminSettlementReportingQueryService {
      */
     PageResult<ReserveItemSummary> searchReserveItems(ReserveItemSearchRequest request,
                                                       AdminMerchantDataScope dataScope);
+
+    /**
+     * 按动作位置续读导出明细，保留查询范围和筛选条件。
+     */
+    PageResult<ReserveItemSummary> readReserveExportPage(ReserveItemSearchRequest request,
+                                                        AdminMerchantDataScope dataScope,
+                                                        ReserveActionCursor afterAction);
 
     /**
      * 按原支付交易号和原支付时间分页查询完整保证金动作历史。

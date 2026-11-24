@@ -102,7 +102,8 @@ public class MerchantSettlementSummaryExportProcessor implements ExportTaskProce
         MerchantSettlementSummaryExportRow row = new MerchantSettlementSummaryExportRow();
         row.setPaymentType(label("paymentType", source.getPaymentType(), locale));
         row.setPaymentMethod(label("paymentMethod", source.getPaymentMethod(), locale));
-        row.setTransactionType(label("transactionType", source.getTransactionType(), locale));
+        row.setTransactionType(source.getTransactionType() == null
+                ? "-" : label("transactionType", source.getTransactionType(), locale));
         row.setResultItemType(label("resultItemType", source.getResultItemType(), locale));
         row.setFeeCategory(label("feeCategory", source.getFeeCategory(), locale));
         row.setDirection(label("direction", source.getDirection(), locale));

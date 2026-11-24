@@ -73,10 +73,11 @@ public class SettlementReserveExportProcessor implements ExportTaskProcessor {
             throw new IllegalStateException("export task snapshot is invalid");
         }
         Locale locale = resolveLocale(task.getLocale());
+        ReserveExportPagination pagination = new ReserveExportPagination();
         return artifactWriter.write(task, storage, progressListener, now,
                 "excel.settlement.reserveTitle", "保证金结算明细", "Settlement Reserves",
                 SettlementReserveExportRow.class,
-                pageNo -> loadPage(task, query, scope, pageNo, locale));
+                pageNo -> loadPage(task, query, scope, pageNo, locale, pagination));
     }
 
     /**
@@ -87,7 +88,8 @@ public class SettlementReserveExportProcessor implements ExportTaskProcessor {
             SettlementReserveQuery query,
             AdminExportScopeSnapshot scope,
             int pageNo,
-            Locale locale) {
+            Locale locale,
+            ReserveExportPagination pagination) {
         SettlementReservePageRequest request = new SettlementReservePageRequest();
         request.setCreatorAccountId(task.getCreatorAccountId());
         request.setAllMerchants(scope.isAllMerchants());
@@ -95,6 +97,7 @@ public class SettlementReserveExportProcessor implements ExportTaskProcessor {
         request.setQuery(query);
         request.setPageNo(pageNo);
         request.setPageSize(properties.getPageSize());
+        request.setAfterAction(pagination.afterAction());
         SettlementReservePageResponse response = sourceClient.loadSettlementReservePage(request);
         if (response == null) {
             throw new IllegalStateException("export source response is missing");
@@ -102,7 +105,7 @@ public class SettlementReserveExportProcessor implements ExportTaskProcessor {
         List<SettlementReserveExportRow> rows = response.getRecords() == null
                 ? List.of() : response.getRecords().stream()
                 .map(row -> toExportRow(row, locale)).toList();
-        return new ExportPage<>(response.getTotal(), rows);
+        return new ExportPage<>(pagination.advance(response.getTotal(), response.getNextAction()), rows);
     }
 
     /**

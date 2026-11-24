@@ -1,6 +1,7 @@
 package com.scott.payment.merchant.service;
 
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchDetail;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchSummary;
@@ -31,6 +32,16 @@ public interface MerchantSettlementQueryService {
      * @return 当前商户范围内的批次分页
      */
     PageResult<BatchSummary> searchBatches(String merchantId, BatchQuery query);
+
+    /**
+     * 校验正式批次属于当前商户和入口对应的结算域。
+     */
+    void requireBatchDomain(String merchantId, String batchNo, String batchDomain);
+
+    /**
+     * 以单个动作号读取保证金完整详情。
+     */
+    ReserveItem getReserveItem(String merchantId, String reserveActionNo);
 
     /**
      * 查询商户指定批次详情。
@@ -152,6 +163,12 @@ public interface MerchantSettlementQueryService {
      * @return 当前商户范围内的保证金结算明细
      */
     PageResult<ReserveItem> searchReserveItems(String merchantId, ReserveItemQuery query);
+
+    /**
+     * 按动作位置续读导出明细，保留查询范围和筛选条件。
+     */
+    PageResult<ReserveItem> readReserveExportPage(String merchantId, ReserveItemQuery query,
+                                                 ReserveActionCursor afterAction);
 
     /**
      * 按原支付交易身份查询跨批次保证金动作，不受列表业务日期窗口限制。

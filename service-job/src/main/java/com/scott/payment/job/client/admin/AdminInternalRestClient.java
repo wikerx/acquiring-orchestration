@@ -17,11 +17,13 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.Proxy;
 import java.net.URI;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -146,7 +148,8 @@ public class AdminInternalRestClient implements AdminInternalClient {
     @Override
     public PaymentCapabilityOperationsClientDTOs.BoundaryResponse scanPaymentCapabilityBoundaries(
             PaymentCapabilityOperationsClientDTOs.BoundaryRequest request) {
-        return paymentCapabilityPost("/boundaries", request, new TypeReference<>() { });
+        return paymentCapabilityPost("/boundaries", request, request.deadlineEpochMillis(),
+                new TypeReference<>() { });
     }
 
     /**
@@ -155,13 +158,15 @@ public class AdminInternalRestClient implements AdminInternalClient {
     @Override
     public PaymentCapabilityOperationsClientDTOs.RecoveryResponse recoverPaymentCapabilityDelivery(
             PaymentCapabilityOperationsClientDTOs.RecoveryRequest request) {
-        return paymentCapabilityPost("/delivery-recovery", request, new TypeReference<>() { });
+        return paymentCapabilityPost("/delivery-recovery", request, request.deadlineEpochMillis(),
+                new TypeReference<>() { });
     }
 
-    private <T> T paymentCapabilityPost(String path, Object request, TypeReference<CommonResult<T>> responseType) {
+    private <T> T paymentCapabilityPost(String path, Object request, long deadlineEpochMillis,
+                                        TypeReference<CommonResult<T>> responseType) {
         URI uri = URI.create(SERVICE_ADMIN_BASE_URL + PAYMENT_CAPABILITY_PATH + path);
         try {
-            String body = chooseRestTemplate(uri).exchange(uri, HttpMethod.POST,
+            String body = capabilityRequestClient(uri, deadlineEpochMillis).exchange(uri, HttpMethod.POST,
                     buildSignedEntity(uri, request), String.class).getBody();
             CommonResult<T> result = JsonUtils.parseObject(body, responseType);
             if (result == null || result.getData() == null) {
@@ -176,6 +181,26 @@ public class AdminInternalRestClient implements AdminInternalClient {
                     uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-admin payment capability call failed");
         }
+    }
+
+    /** 为本次请求分配连接和读取预算，沿用服务发现和链路追踪拦截器。 */
+    private RestTemplate capabilityRequestClient(URI uri, long deadlineEpochMillis) {
+        long remaining = deadlineEpochMillis - System.currentTimeMillis();
+        if (remaining < 2) {
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "payment capability call budget exhausted");
+        }
+        int connectTimeout = (int) Math.min(properties.getConnectTimeoutMillis(), Math.max(1, remaining / 3));
+        int readTimeout = (int) Math.min(properties.getReadTimeoutMillis(), remaining - connectTimeout);
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setProxy(Proxy.NO_PROXY);
+        factory.setConnectTimeout(connectTimeout);
+        factory.setReadTimeout(readTimeout);
+        RestTemplate template = new RestTemplate(factory);
+        RestTemplate configured = chooseRestTemplate(uri);
+        template.setInterceptors(configured.getInterceptors());
+        template.setMessageConverters(configured.getMessageConverters());
+        template.setErrorHandler(configured.getErrorHandler());
+        return template;
     }
 
     /**

@@ -14,7 +14,8 @@ public final class ChannelPresentationDTOs {
         /** 渠道预警规则及事件页面使用各自权限前缀。 */
         ALERT_RULE("channel:alert-rule"), ALERT_EVENT("channel:alert-event"),
         /** 交易订单及操作页面使用各自权限前缀，不复用渠道编辑权限。 */
-        ORDER("transaction:order"), OPERATION("transaction:operation");
+        ORDER("transaction:order"), OPERATION("transaction:operation"),
+        CHANNEL_CALLBACK("transaction:channel-callback");
 
         private final String permission;
         Scope(String permission) { this.permission = permission; }

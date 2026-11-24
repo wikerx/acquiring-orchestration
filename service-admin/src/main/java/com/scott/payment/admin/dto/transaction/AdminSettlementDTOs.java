@@ -623,6 +623,10 @@ public final class AdminSettlementDTOs {
          */
         private String transactionType;
         /**
+         * 保证金释放汇总分组可完整追溯的交易类型，追溯不完整时为空列表。
+         */
+        private List<String> originalTransactionTypes;
+        /**
          * 结算结果项目类型。
          */
         private String resultItemType;

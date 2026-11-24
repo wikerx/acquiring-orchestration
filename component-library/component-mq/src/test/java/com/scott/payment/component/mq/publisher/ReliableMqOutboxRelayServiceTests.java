@@ -37,14 +37,15 @@ class ReliableMqOutboxRelayServiceTests {
         MqProducer producer = mock(MqProducer.class);
         ReliableMqOutboxRelayService unauthorized = new ReliableMqOutboxRelayService(
                 store, producer, new ReliableMqOutboxProperties(), "service-payment");
-        assertThatThrownBy(() -> unauthorized.recoverPaymentCapabilityDelivery(100))
+        assertThatThrownBy(() -> unauthorized.recoverPaymentCapabilityDelivery(100, Long.MAX_VALUE))
                 .hasMessageContaining("owned by service-admin");
         verifyNoInteractions(store);
 
         ReliableMqOutboxRelayService admin = new ReliableMqOutboxRelayService(
                 store, producer, new ReliableMqOutboxProperties(), "service-admin");
         when(store.findPaymentCapabilityDue(any(), eq(100))).thenReturn(List.of());
-        assertThat(admin.recoverPaymentCapabilityDelivery(500)).isZero();
+        assertThat(admin.recoverPaymentCapabilityDelivery(500, Long.MAX_VALUE))
+                .isEqualTo(new ReliableMqOutboxRelayService.CapabilityRecovery(0, 0, 0, 0, false));
         verify(store).recoverPaymentCapabilityStale(any(), any(), eq(100));
         verify(store, never()).findDue(any(), any(), any(Integer.class));
         verifyNoInteractions(producer);
@@ -98,6 +99,22 @@ class ReliableMqOutboxRelayServiceTests {
                 eq(1L), eq(1), eq("RETRY_WAIT"), any(LocalDateTime.class),
                 eq("IllegalStateException"), any(LocalDateTime.class));
         log.info("Outbox失败重试测试完成，结果: RETRY_WAIT且未保存异常详情");
+    }
+
+    @Test
+    void keepsAnAcceptedBrokerSendPendingWhenItsDatabaseAcknowledgementIsUnknown() {
+        ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
+        MqProducer producer = mock(MqProducer.class);
+        ReliableMqOutboxDO event = event();
+        when(store.findPaymentCapabilityDue(any(), eq(100))).thenReturn(List.of(event));
+        when(store.claim(eq(1L), eq(0), any())).thenReturn(1);
+        when(store.markSent(eq(1L), eq(1), any())).thenThrow(new IllegalStateException("database unavailable"));
+        ReliableMqOutboxRelayService service = new ReliableMqOutboxRelayService(
+                store, producer, new ReliableMqOutboxProperties(), "service-admin");
+
+        assertThat(service.recoverPaymentCapabilityDelivery(100, Long.MAX_VALUE))
+                .isEqualTo(new ReliableMqOutboxRelayService.CapabilityRecovery(1, 0, 0, 1, false));
+        verify(store, never()).markFailed(any(), any(), any(), any(), any(), any());
     }
 
     /**

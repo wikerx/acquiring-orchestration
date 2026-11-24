@@ -39,6 +39,7 @@ class EmailSendRecordMapperH2Tests {
                     email_no VARCHAR(64) NOT NULL,
                     app_code VARCHAR(32) NOT NULL,
                     biz_type VARCHAR(64),
+                    merchant_id VARCHAR(32),
                     account_id BIGINT,
                     send_status INT NOT NULL,
                     retry_count INT NOT NULL,
@@ -121,16 +122,18 @@ class EmailSendRecordMapperH2Tests {
 
             assertThat(mapper.selectDueForRetry("ADMIN", now, 10))
                     .extracting(EmailSendRecordDO::getEmailNo)
-                    .containsExactly("EMAIL-DUE");
+                    .containsExactly("EMAIL-DUE", "CAPABILITY-DUE");
             assertThat(mapper.selectCapabilityDue(now, 10))
                     .extracting(EmailSendRecordDO::getEmailNo)
                     .containsExactly("CAPABILITY-DUE");
             assertThat(mapper.requeueForDelivery(1L, "EMAIL-DUE", "ADMIN", now)).isOne();
             assertThat(mapper.requeueForDelivery(1L, "EMAIL-DUE", "ADMIN", now)).isZero();
-            assertThat(mapper.recoverStaleDelivery("ADMIN", now.minusMinutes(5), now.plusSeconds(30), now)).isOne();
+            assertThat(mapper.requeueForDelivery(5L, "CAPABILITY-DUE", "ADMIN", now)).isOne();
+            assertThat(mapper.requeueForDelivery(5L, "CAPABILITY-DUE", "ADMIN", now)).isZero();
+            assertThat(mapper.recoverStaleDelivery("ADMIN", now.minusMinutes(5), now.plusSeconds(30), now)).isEqualTo(2);
             assertThat(mapper.selectByDeliveryKey(3L, "EMAIL-STALE", "ADMIN").getSendStatus()).isEqualTo(4);
             assertThat(mapper.selectByDeliveryKey(4L, "EMAIL-SUCCESS", "ADMIN").getSendStatus()).isEqualTo(2);
-            assertThat(mapper.selectByDeliveryKey(6L, "CAPABILITY-STALE", "ADMIN").getSendStatus()).isEqualTo(1);
+            assertThat(mapper.selectByDeliveryKey(6L, "CAPABILITY-STALE", "ADMIN").getSendStatus()).isEqualTo(4);
         }
     }
 

@@ -16,10 +16,10 @@ JOIN sys_menu parent ON parent.app_id = app.id
 JOIN (
     SELECT 'merchant_settlement_batch_v1' menu_code, '交易结算' menu_name,
            '/finance/settlements' route_path, 'finance/settlement' component_path,
-           'merchant:settlement:batch:list' permission_code, 'Landmark' icon, 3 sort_no
+           NULL permission_code, 'Landmark' icon, 3 sort_no
     UNION ALL SELECT 'merchant_settlement_reserve_v1', '保证金结算',
            '/finance/reserves', 'finance/reserve',
-           'merchant:settlement:reserve-item:list', 'ShieldCheck', 4
+           NULL, 'ShieldCheck', 4
 ) item
 WHERE app.app_code = 'MERCHANT' AND app.deleted = 0
   AND NOT EXISTS (
@@ -35,10 +35,10 @@ JOIN sys_menu parent ON parent.app_id = menu.app_id
 JOIN (
     SELECT 'merchant_settlement_batch_v1' menu_code, '交易结算' menu_name,
            '/finance/settlements' route_path, 'finance/settlement' component_path,
-           'merchant:settlement:batch:list' permission_code, 'Landmark' icon, 3 sort_no
+           NULL permission_code, 'Landmark' icon, 3 sort_no
     UNION ALL SELECT 'merchant_settlement_reserve_v1', '保证金结算',
            '/finance/reserves', 'finance/reserve',
-           'merchant:settlement:reserve-item:list', 'ShieldCheck', 4
+           NULL, 'ShieldCheck', 4
 ) item ON item.menu_code = menu.menu_code
 SET menu.parent_id = parent.id, menu.menu_name = BINARY item.menu_name, menu.menu_type = 'MENU',
     menu.route_path = item.route_path, menu.component_path = item.component_path,
@@ -135,7 +135,7 @@ SELECT app.id, menu.id, item.permission_code, item.permission_name, item.permiss
 FROM sys_app app
 JOIN (
     SELECT 'merchant_settlement_batch_v1' menu_code, 'merchant:settlement:batch:list' permission_code,
-           '交易结算查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
+           '交易结算查询' permission_name, 'BUTTON' permission_type, 'POST' resource_method,
            '/merchant/settlements/search' resource_path, '查询当前认证商户正式交易结算批次' description
     UNION ALL SELECT 'merchant_settlement_batch_detail_v1', 'merchant:settlement:batch:detail',
            '交易结算详情', 'BUTTON', 'GET', '/merchant/settlements/*', '查询当前认证商户交易结算批次详情'
@@ -173,10 +173,10 @@ JOIN (
            '交易结算明细导出', 'BUTTON', 'POST', '/merchant/settlements/transaction-items/export',
            '导出当前认证商户真实交易逐笔结算明细'
     UNION ALL SELECT 'merchant_settlement_reserve_v1', 'merchant:settlement:reserve-item:list',
-           '保证金结算查询', 'MENU', 'POST', '/merchant/settlements/reserve-items/search',
+           '保证金结算明细查询', 'BUTTON', 'POST', '/merchant/settlements/reserve-items/search',
            '查询当前认证商户保证金不可变动作和当前责任'
     UNION ALL SELECT 'merchant_settlement_reserve_export_v1', 'merchant:settlement:reserve-item:export',
-           '保证金结算导出', 'BUTTON', 'POST', '/merchant/settlements/reserve-items/export',
+           '保证金结算明细导出', 'BUTTON', 'POST', '/merchant/settlements/reserve-items/export',
            '导出当前认证商户保证金不可变动作'
 ) item
 JOIN sys_menu menu ON menu.app_id = app.id AND menu.menu_code = item.menu_code AND menu.deleted = 0
@@ -190,7 +190,7 @@ UPDATE sys_permission permission
 JOIN sys_app app ON app.id = permission.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
 JOIN (
     SELECT 'merchant_settlement_batch_v1' menu_code, 'merchant:settlement:batch:list' permission_code,
-           '交易结算查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
+           '交易结算查询' permission_name, 'BUTTON' permission_type, 'POST' resource_method,
            '/merchant/settlements/search' resource_path, '查询当前认证商户正式交易结算批次' description
     UNION ALL SELECT 'merchant_settlement_batch_detail_v1', 'merchant:settlement:batch:detail',
            '交易结算详情', 'BUTTON', 'GET', '/merchant/settlements/*', '查询当前认证商户交易结算批次详情'
@@ -228,10 +228,10 @@ JOIN (
            '交易结算明细导出', 'BUTTON', 'POST', '/merchant/settlements/transaction-items/export',
            '导出当前认证商户真实交易逐笔结算明细'
     UNION ALL SELECT 'merchant_settlement_reserve_v1', 'merchant:settlement:reserve-item:list',
-           '保证金结算查询', 'MENU', 'POST', '/merchant/settlements/reserve-items/search',
+           '保证金结算明细查询', 'BUTTON', 'POST', '/merchant/settlements/reserve-items/search',
            '查询当前认证商户保证金不可变动作和当前责任'
     UNION ALL SELECT 'merchant_settlement_reserve_export_v1', 'merchant:settlement:reserve-item:export',
-           '保证金结算导出', 'BUTTON', 'POST', '/merchant/settlements/reserve-items/export',
+           '保证金结算明细导出', 'BUTTON', 'POST', '/merchant/settlements/reserve-items/export',
            '导出当前认证商户保证金不可变动作'
 ) item ON item.permission_code = permission.permission_code
 JOIN sys_menu menu ON menu.app_id = permission.app_id
@@ -266,6 +266,9 @@ JOIN sys_permission permission ON permission.app_id = role.app_id
                               AND (permission.permission_code LIKE 'merchant:settlement:%'
                                    OR permission.permission_code = 'merchant:clearing:record:detail'
                                    OR permission.permission_code = 'merchant:reconciliation:record:detail')
+                              AND permission.permission_code NOT LIKE 'merchant:settlement:reserve-batch:%'
+                              AND permission.permission_code NOT IN ('merchant:settlement:batch:voucher:view',
+                                  'merchant:settlement:transaction-item:detail', 'merchant:settlement:reserve-item:detail')
                               AND permission.deleted = 0
 WHERE role.role_type = 'SYSTEM'
   AND (role.role_code = 'MERCHANT_ADMIN' OR role.role_code LIKE 'MERCHANT_ADMIN\_%')
@@ -295,6 +298,9 @@ JOIN sys_permission permission ON permission.app_id = app.id
                               AND (permission.permission_code LIKE 'merchant:settlement:%'
                                    OR permission.permission_code = 'merchant:clearing:record:detail'
                                    OR permission.permission_code = 'merchant:reconciliation:record:detail')
+                              AND permission.permission_code NOT LIKE 'merchant:settlement:reserve-batch:%'
+                              AND permission.permission_code NOT IN ('merchant:settlement:batch:voucher:view',
+                                  'merchant:settlement:transaction-item:detail', 'merchant:settlement:reserve-item:detail')
                               AND permission.deleted = 0
 WHERE merchant.deleted = 0;
 

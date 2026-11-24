@@ -30,6 +30,9 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
 
     private final TransactionCallbackInboxService inboxService;
     private final TransactionCallbackService callbackService;
+
+    @Autowired(required = false)
+    private CheckoutWalletSimulationService walletSimulation;
     private final long processingTimeoutSeconds;
 
     /**
@@ -107,8 +110,10 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
             command.setRequestBodyLength(inbox.getRequestBodyLength());
             command.setRequestBodySha256(inbox.getRequestBodySha256());
             // 回调服务自身必须按渠道事件号幂等，Worker 重试不能重复推进交易状态或重复发事件。
-            callbackService.recordChannelCallback(command);
-            boolean updated = inboxService.markProcessed(inbox, currentBusinessTime(now));
+            String callbackId = walletSimulation != null && walletSimulation.acceptCallback(command)
+                    ? inbox.getInboxId()
+                    : callbackService.recordChannelCallback(command).getCallbackId();
+            boolean updated = inboxService.markProcessed(inbox, callbackId, currentBusinessTime(now));
             if (!updated) {
                 log.warn("渠道回调Inbox完成状态更新竞争失败, event: PAYMENT_CALLBACK_INBOX_MARK_PROCESSED_CAS_FAILED, traceId: {}, inboxId: {}, channelCode: {}, expectedVersion: {}",
                         TraceContext.getTraceId(), inbox.getInboxId(), inbox.getChannelCode(), inbox.getVersion());

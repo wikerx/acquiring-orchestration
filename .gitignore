@@ -62,6 +62,10 @@ reports/
 outputs/
 docs/sql/*
 !docs/sql/20261116_channel_logo_migration.sql
+!docs/sql/20261121_01_transaction_callback_delivery.sql
+!docs/sql/20261121_02_transaction_callback_delivery_payload.sql
+!docs/sql/20261121_12_scott_channel_request_identity.sql
+!docs/sql/20261124_01_reserve_action_query_index.sql
 !docs/sql/20261117_01_payment_link_schema.sql
 !docs/sql/20261117_02_payment_link_mail.sql
 !docs/sql/20261117_03_payment_link_permissions.sql
@@ -182,6 +186,7 @@ docs/sql/*
 !docs/sql/20261120_05_database_chinese_comments_online.sql
 !docs/sql/20261120_06_database_chinese_comments_copy_pending.sql
 !docs/sql/20261120_07_database_chinese_comments_postcheck.sql
+!docs/sql/20261121_11_req001_job_and_notification_text_repair.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md

@@ -14,8 +14,9 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackComm
 import com.scott.payment.payment.domain.callback.TransactionCallbackInboxStatusEnum;
 import com.scott.payment.payment.entity.TransactionCallbackInboxDO;
 import com.scott.payment.payment.mapper.TransactionCallbackInboxMapper;
+import com.scott.payment.payment.mapper.TransactionCallbackDeliveryMapper;
+import com.scott.payment.payment.api.internal.dto.CallbackDeliveryResponseCommand;
 import com.scott.payment.payment.service.TransactionCallbackInboxService;
-import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -77,21 +78,25 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
     private static final String SHA256_HEX_PATTERN = "[0-9a-fA-F]{64}";
 
     private final TransactionCallbackInboxMapper inboxMapper;
+    private final TransactionCallbackDeliveryMapper deliveryMapper;
     private final Clock clock;
 
     /**
      * 创建生产环境使用的 Inbox 服务。
      */
     @Autowired
-    public DefaultTransactionCallbackInboxService(TransactionCallbackInboxMapper inboxMapper) {
-        this(inboxMapper, Clock.system(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID)));
+    public DefaultTransactionCallbackInboxService(TransactionCallbackInboxMapper inboxMapper,
+                                                   TransactionCallbackDeliveryMapper deliveryMapper) {
+        this(inboxMapper, deliveryMapper, Clock.system(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID)));
     }
 
     /**
      * 测试可注入固定时钟，确保重试时间断言稳定。
      */
-    DefaultTransactionCallbackInboxService(TransactionCallbackInboxMapper inboxMapper, Clock clock) {
+    DefaultTransactionCallbackInboxService(TransactionCallbackInboxMapper inboxMapper,
+                                           TransactionCallbackDeliveryMapper deliveryMapper, Clock clock) {
         this.inboxMapper = inboxMapper;
+        this.deliveryMapper = deliveryMapper;
         this.clock = clock;
     }
 
@@ -126,7 +131,21 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         if (persisted == null) {
             throw new IllegalStateException("callback inbox upsert did not return a persisted record");
         }
-        return result(persisted, inboxId.equals(persisted.getInboxId()) ? ACCEPTED : DUPLICATE);
+        String acceptResult = inboxId.equals(persisted.getInboxId()) ? ACCEPTED : DUPLICATE;
+        if (commandDTO.getDeliveryId() != null) {
+            deliveryMapper.record(commandDTO.getDeliveryId(), persisted.getInboxId(), inbox.getTraceId(),
+                    inbox.getReceivedTime(), commandDTO.getSignatureValid(), acceptResult, inbox.getRequestBodySha256(),
+                    commandDTO.getDeliveryRequestBodyMasked());
+        }
+        return result(persisted, acceptResult);
+    }
+
+    /** 记录 OpenAPI 实际生成的应答；重复提交保留首次观测。 */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    @Transactional(rollbackFor = Exception.class)
+    public boolean completeDelivery(CallbackDeliveryResponseCommand command) {
+        return deliveryMapper.complete(command) == 1;
     }
 
     /**
@@ -176,13 +195,14 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
-    public boolean markProcessed(TransactionCallbackInboxDO inbox, LocalDateTime now) {
+    public boolean markProcessed(TransactionCallbackInboxDO inbox, String callbackId, LocalDateTime now) {
         validatePersistedInbox(inbox);
         LocalDateTime actualNow = now == null ? LocalDateTime.now(clock) : now;
         return inboxMapper.markProcessed(
                 inbox.getId(),
                 inbox.getVersion(),
                 actualNow,
+                callbackId,
                 TransactionCallbackInboxStatusEnum.PROCESSING.name(),
                 TransactionCallbackInboxStatusEnum.PROCESSED.name()) == 1;
     }
@@ -276,6 +296,7 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         TransactionChannelCallbackCommandDTO copy = JsonUtils.parseObject(
                 JsonUtils.toJsonString(source), TransactionChannelCallbackCommandDTO.class);
         copy.setRequestHeaders(null);
+        copy.setDeliveryRequestBodyMasked(null);
         String payload = JsonUtils.toJsonString(copy);
         if (payload == null || payload.length() > MAX_PAYLOAD_LENGTH) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
@@ -328,7 +349,10 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
                 || commandDTO.getRequestBodyLength() == null
                 || commandDTO.getRequestBodyLength() < 0
                 || !StringUtils.hasText(commandDTO.getRequestBodySha256())
-                || !commandDTO.getRequestBodySha256().matches(SHA256_HEX_PATTERN)) {
+                || !commandDTO.getRequestBodySha256().matches(SHA256_HEX_PATTERN)
+                || (commandDTO.getDeliveryId() != null && !commandDTO.getDeliveryId().matches("[a-f0-9]{32}"))
+                || (commandDTO.getDeliveryRequestBodyMasked() != null
+                    && commandDTO.getDeliveryRequestBodyMasked().length() > 4096)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }

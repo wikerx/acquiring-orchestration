@@ -1,6 +1,7 @@
 package com.scott.payment.job.api.internal;
 
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.job.api.internal.dto.JobExecutorNodeResponse;
 import com.scott.payment.job.application.JobExecutorNodeApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,7 @@ public class JobExecutorNodeInternalController {
      * @return 执行节点列表
      */
     @GetMapping
+    @RequiresPermission("monitor:jobNode:list")
     public CommonResult<List<JobExecutorNodeResponse>> listNodes() {
         return success(jobExecutorNodeApplicationService.listNodes());
     }

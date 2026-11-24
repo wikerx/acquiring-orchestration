@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static com.scott.payment.data.service.export.DataExportTaskService.ADMIN_SETTLEMENT_BATCH_SUMMARY;
 
@@ -105,7 +106,14 @@ public class SettlementBatchSummaryExportProcessor implements ExportTaskProcesso
         SettlementBatchSummaryExportRow row = new SettlementBatchSummaryExportRow();
         row.setPaymentType(label("paymentType", source.getPaymentType(), locale));
         row.setPaymentMethod(label("paymentMethod", source.getPaymentMethod(), locale));
-        row.setTransactionType(label("transactionType", source.getTransactionType(), locale));
+        List<String> originalTypes = source.getOriginalTransactionTypes();
+        if (originalTypes == null) {
+            row.setTransactionType(label("transactionType", source.getTransactionType(), locale));
+        } else {
+            row.setTransactionType(originalTypes.isEmpty() ? "-" : originalTypes.stream()
+                    .map(type -> label("transactionType", type, locale))
+                    .collect(Collectors.joining(" / ")));
+        }
         row.setResultItemType(label("resultItemType", source.getResultItemType(), locale));
         row.setFeeCategory(label("feeCategory", source.getFeeCategory(), locale));
         row.setDirection(label("direction", source.getDirection(), locale));

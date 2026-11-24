@@ -4,12 +4,20 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;
+import org.apache.ibatis.mapping.Environment;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -286,6 +294,56 @@ class ClearingPersistenceMapperContractTest {
                 .contains("version = #{expectedVersion}")
                 .contains("version = version + 1")
                 .contains("deleted = 0");
+    }
+
+    @Test
+    void clearingCannotLoadOrRecoverSuccessfulWalletSimulations() {
+        var dataSource = new UnpooledDataSource("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID()
+                + ";MODE=MySQL;DB_CLOSE_DELAY=-1", "sa", "");
+        var jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("""
+                CREATE TABLE transaction_operation (
+                    id BIGINT PRIMARY KEY, transaction_id VARCHAR(64), operation_id VARCHAR(64),
+                    merchant_id VARCHAR(64), merchant_order_no VARCHAR(64), source_transaction_id VARCHAR(64),
+                    transaction_type VARCHAR(32), transaction_status VARCHAR(32), label_currency VARCHAR(3),
+                    label_amount DECIMAL(20,6), label_currency_exponent INT, approved_currency VARCHAR(3),
+                    approved_amount DECIMAL(20,6), transaction_currency VARCHAR(3), transaction_amount DECIMAL(20,6),
+                    currency_exponent INT, transaction_date_time TIMESTAMP(3), transaction_utc_time TIMESTAMP(3),
+                    transaction_time_zone VARCHAR(32), version INT, clearing_status VARCHAR(32), deleted INT,
+                    channel_code VARCHAR(32), channel_order_no VARCHAR(64)
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE transaction_finance_state (
+                    id BIGINT, transaction_id VARCHAR(64), transaction_date_time TIMESTAMP(3), deleted INT,
+                    finance_state_id VARCHAR(64), clearing_status VARCHAR(32), clearing_revision INT,
+                    clearing_retry_count INT, next_retry_time TIMESTAMP(3), last_failure_code VARCHAR(32),
+                    processing_deadline TIMESTAMP(3), version INT, clearing_request_time TIMESTAMP(3),
+                    create_time TIMESTAMP(3)
+                )
+                """);
+        var time = LocalDateTime.of(2026, 11, 24, 11, 0);
+        String insert = """
+                INSERT INTO transaction_operation (id, transaction_id, transaction_status, transaction_date_time,
+                    clearing_status, deleted, channel_code, channel_order_no)
+                VALUES (?, ?, 'SUCCESS', ?, 'NOT_CLEARED', 0, ?, ?)
+                """;
+        jdbc.update(insert, 1, "WALLET", time, "SCOTT_CHANNEL_A", "DEV-IW-2611241101233460000013");
+        jdbc.update(insert, 2, "CARD", time, "SCOTT_CHANNEL_A", "CMA-REAL-CARD");
+        jdbc.update(insert, 3, "NO_ROUTE", time, null, null);
+        var configuration = new Configuration(new Environment("wallet-test", new JdbcTransactionFactory(), dataSource));
+        configuration.setMapUnderscoreToCamelCase(true);
+        configuration.addMapper(ClearingCompensationMapper.class);
+        configuration.addMapper(ClearingTransactionOperationMapper.class);
+        try (var session = new SqlSessionFactoryBuilder().build(configuration).openSession()) {
+            var lookup = session.getMapper(ClearingTransactionOperationMapper.class);
+            assertThat(lookup.selectByTransaction("WALLET", time)).isNull();
+            assertThat(lookup.selectByTransaction("CARD", time)).isNotNull();
+            var compensation = session.getMapper(ClearingCompensationMapper.class);
+            assertThat(compensation.selectCandidates(time.minusHours(1), time.plusHours(1), null, null,
+                    time, time, 20)).extracting(candidate -> candidate.getTransactionId())
+                    .containsExactly("CARD", "NO_ROUTE");
+        }
     }
 
     @Test

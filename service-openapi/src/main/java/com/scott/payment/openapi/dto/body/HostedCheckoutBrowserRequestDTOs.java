@@ -46,6 +46,23 @@ public final class HostedCheckoutBrowserRequestDTOs {
         private ClientContextDTO clientContext;
     }
 
+    /** 钱包渠道浏览器动作；不收集钱包凭证或由浏览器提交订单金额。 */
+    public record WalletSimulationRequest(@NotBlank String opaqueToken,
+                                          @NotBlank String checkoutSessionId,
+                                          @NotBlank @Pattern(regexp = "APPLE_PAY|GOOGLE_PAY") String paymentMethod,
+                                          @NotBlank @Pattern(regexp = "PREPARE|OPEN|STATUS") String action) {
+    }
+
+    /** 渠道回跳凭据只允许衔接已启动且与渠道交易号绑定的钱包尝试。 */
+    public record WalletSimulationReturnRequest(
+            @NotBlank @Pattern(regexp = "[0-9]{16,32}\\.[a-f0-9]{64}") String returnToken,
+            @NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{8,40}") String transactionId) {
+        @Override
+        public String toString() {
+            return "WalletSimulationReturnRequest";
+        }
+    }
+
     /**
      * 付款人提交 Hosted Checkout 支付的请求。
      */

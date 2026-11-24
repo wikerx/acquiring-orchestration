@@ -286,7 +286,7 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         String channelCode = plannedRoute == null ? null : plannedRoute.getChannelCode();
         TransactionOperationDO refundSource = plan.sourceOperationDO();
         if (plannedRoute != null && !plan.routeResolution().rejected()
-                && "SCOTT_CHANNEL_A".equalsIgnoreCase(channelCode)) {
+                && ("MPGS".equalsIgnoreCase(channelCode) || "SCOTT_CHANNEL_A".equalsIgnoreCase(channelCode))) {
             refundSource = resolveRefundFundingAction(sourceOrderDO, refundSource, operations);
             if (!channelCode.equalsIgnoreCase(refundSource.getChannelCode())
                     || !Objects.equals(plannedRoute.getMidConfigId(), refundSource.getChannelMidConfigId())) {

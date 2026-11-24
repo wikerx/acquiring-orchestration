@@ -186,6 +186,10 @@ internal-service:
           # 路径说明：精确放行两个 Job 编排命令，禁止扩大到其他管理接口或使用通配符。
           - /internal/admin/exchange/alerts/evaluate
           - /internal/admin/operations/work-items/sync
+          # 参数说明：允许 Job 触发全系统的自然生效、到期及配置边界复核，按来源游标分批处理。
+          - /internal/admin/payment-capability-operations/boundaries
+          # 参数说明：允许 Job 恢复全系统到期的支付方式 Outbox 与邮件意图，复用原投递标识和行级抢占。
+          - /internal/admin/payment-capability-operations/delivery-recovery
       service-data:
         # 参数说明：Data 回调 Admin 权威导出源时使用的独立验签密钥。
         active-secret: ${acquiring.internal-auth.edges.data-admin.active-secret}

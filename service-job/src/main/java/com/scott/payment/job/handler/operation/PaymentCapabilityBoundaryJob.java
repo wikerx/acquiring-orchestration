@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,31 +77,46 @@ public class PaymentCapabilityBoundaryJob implements JobHandler {
             saveWindows(context, epoch, version, windows);
             version++;
         }
+        long deadline = context.getExecutionDeadline().toEpochMilli() - 250;
         int processed = 0;
-        int failures = 0;
-        for (String source : SOURCES) {
+        List<String> completed = new ArrayList<>();
+        List<String> failed = new ArrayList<>();
+        List<String> deferred = new ArrayList<>();
+        boolean budgetExhausted = false;
+        for (int index = 0; index < SOURCES.size(); index++) {
+            long nowMillis = System.currentTimeMillis();
+            long requestBudget = (deadline - nowMillis) / (SOURCES.size() - index);
+            if (requestBudget < 2) {
+                deferred.addAll(SOURCES.subList(index, SOURCES.size()));
+                budgetExhausted = true;
+                break;
+            }
+            String source = SOURCES.get(index);
             Window window = windows.get(source);
             LocalDateTime through = window.through() == null ? now : window.through();
             if (window.after().time().isAfter(through)) {
+                deferred.add(source);
                 continue;
             }
             Cursor after = window.after();
-            if (window.through() == null && (source.endsWith("_CHANGE"))) {
+            if (window.through() == null && source.endsWith("_CHANGE")) {
                 // 配置写事务可能略晚于 update_time 提交，重复区间由来源版本幂等消化。
                 after = new Cursor(after.time().minusSeconds(2), 0L);
             }
             BoundaryResponse response;
             try {
-                response = admin.scanPaymentCapabilityBoundaries(new BoundaryRequest(source, after, through, LIMIT));
+                long requestDeadline = nowMillis + requestBudget;
+                response = admin.scanPaymentCapabilityBoundaries(
+                        new BoundaryRequest(source, after, through, LIMIT, requestDeadline));
+                if (response == null || response.processed() < 0 || response.processed() > LIMIT
+                        || (response.hasMore() && !advances(after, response.next(), through))) {
+                    throw new IllegalStateException("payment capability boundary returned invalid checkpoint");
+                }
             } catch (RuntimeException exception) {
-                failures++;
+                failed.add(source);
                 log.warn("支付方式来源复核待补偿, event: JOB_PAYMENT_CAPABILITY_SOURCE_PENDING, runId: {}, source: {}, errorType: {}",
                         context.getRunId(), source, exception.getClass().getSimpleName());
                 continue;
-            }
-            if (response == null || response.processed() < 0 || response.processed() > LIMIT
-                    || (response.hasMore() && !advances(after, response.next(), through))) {
-                throw new IllegalStateException("payment capability boundary returned invalid checkpoint");
             }
             Window next = response.hasMore() ? new Window(response.next(), through)
                     : new Window(new Cursor(through, Long.MAX_VALUE), null);
@@ -108,11 +124,18 @@ public class PaymentCapabilityBoundaryJob implements JobHandler {
             saveWindows(context, epoch, version, windows);
             version++;
             processed += response.processed();
+            if (response.hasMore()) {
+                deferred.add(source);
+            } else {
+                completed.add(source);
+            }
         }
-        if (failures > 0) {
-            return JobExecuteResult.failed("PAYMENT_CAPABILITY_SOURCE_PENDING", "pending sources: " + failures);
+        String summary = "processed=" + processed + ", completed=" + completed
+                + ", failed=" + failed + ", deferred=" + deferred + ", budgetExhausted=" + budgetExhausted;
+        if (budgetExhausted || !failed.isEmpty()) {
+            return JobExecuteResult.failed("PAYMENT_CAPABILITY_SOURCE_PENDING", summary);
         }
-        return JobExecuteResult.success("payment capability boundaries processed: " + processed, null);
+        return JobExecuteResult.success(summary);
     }
 
     private void saveWindows(JobExecuteContext context, Long epoch, long version, Map<String, Window> windows) {

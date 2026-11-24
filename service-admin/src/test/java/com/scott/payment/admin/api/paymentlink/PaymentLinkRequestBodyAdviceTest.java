@@ -1,5 +1,9 @@
 package com.scott.payment.admin.api.paymentlink;
 import com.scott.payment.admin.application.paymentlink.AdminPaymentLinkApplicationService;
+import com.scott.payment.admin.dto.paymentlink.PaymentLinkDTOs.Create;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.web.servlet.MockMvc;
+import static org.assertj.core.api.Assertions.assertThat;
 import com.scott.payment.component.web.config.FastJsonWebMvcConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -14,14 +18,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PaymentLinkRequestBodyAdviceTest {
  @Test void rejectsUnapprovedFieldsBeforeCallingTheApplication() throws Exception {
   var app=mock(AdminPaymentLinkApplicationService.class);
-  var converters=new java.util.ArrayList<HttpMessageConverter<?>>();new FastJsonWebMvcConfig().extendMessageConverters(converters);
-  var mvc=MockMvcBuilders.standaloneSetup(new AdminPaymentLinkController(app)).setControllerAdvice(new PaymentLinkRequestBodyAdvice())
-      .setMessageConverters(converters.toArray(HttpMessageConverter<?>[]::new)).build();
+  var mvc = mvc(app);
   for(String field:java.util.List.of("allowMultipleSuccess","amountMode","actor")) {
    mvc.perform(post("/admin/transactions/payment-links").param("merchantId","QA")
      .contentType(MediaType.APPLICATION_JSON).content("{\"requestId\":\"qa\",\""+field+"\":true}"))
      .andExpect(status().isBadRequest());
   }
   verifyNoInteractions(app);
+ }
+
+ @Test void passesApprovedPaymentMethodKeysToTheApplication() throws Exception {
+  var app = mock(AdminPaymentLinkApplicationService.class);
+  mvc(app).perform(post("/admin/transactions/payment-links").param("merchantId", "200046")
+      .contentType(MediaType.APPLICATION_JSON)
+      .content("""
+          {
+            "requestId": "req001-keys",
+            "currency": "USD",
+            "amount": "7.00",
+            "paymentMethodKeys": ["CARD_BRAND:VISA", "METHOD:APPLE_PAY"]
+          }
+          """))
+      .andExpect(status().isOk());
+
+  var request = ArgumentCaptor.forClass(Create.class);
+  verify(app).create(eq("200046"), request.capture());
+  assertThat(request.getValue().getPaymentMethodKeys())
+      .containsExactly("CARD_BRAND:VISA", "METHOD:APPLE_PAY");
+ }
+
+ private MockMvc mvc(AdminPaymentLinkApplicationService app) {
+  var converters = new java.util.ArrayList<HttpMessageConverter<?>>();
+  new FastJsonWebMvcConfig().extendMessageConverters(converters);
+  return MockMvcBuilders.standaloneSetup(new AdminPaymentLinkController(app))
+      .setControllerAdvice(new PaymentLinkRequestBodyAdvice())
+      .setMessageConverters(converters.toArray(HttpMessageConverter<?>[]::new))
+      .build();
  }
 }

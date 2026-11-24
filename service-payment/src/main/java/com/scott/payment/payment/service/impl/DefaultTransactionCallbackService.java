@@ -123,6 +123,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      */
     private static final String PROCESS_RESULT_TERMINAL_IGNORED = "TERMINAL_IGNORED";
 
+    /** 相反的终态回调已登记待渠道查询，平台终态不变。 */
+    private static final String PROCESS_RESULT_CHANNEL_MATCH_QUEUED = "CHANNEL_MATCH_QUEUED";
+
     /**
      * 回调来源安全校验失败处理结果。
      */
@@ -364,17 +367,44 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         logDO.setHttpMethod(commandDTO.getHttpMethod());
         logDO.setSourceIp(commandDTO.getSourceIp());
         logDO.setRequestHeaderJsonMasked(maskedJson(commandDTO.getRequestHeaders()));
-        logDO.setRequestBodyJsonMasked(JsonUtils.toJsonString(Map.of(
-                "length", commandDTO.getRequestBodyLength(),
-                "sha256", commandDTO.getRequestBodySha256())));
-        logDO.setSignatureValid(Boolean.TRUE.equals(commandDTO.getSignatureValid()) ? 1 : 0);
-        logDO.setIpAllowed(Boolean.TRUE.equals(commandDTO.getIpAllowed()) ? 1 : 0);
-        logDO.setPlatformResponseCode("ACCEPTED");
-        logDO.setPlatformResponseBody("{\"result\":\"ACCEPTED\"}");
+        boolean signatureValid = Boolean.TRUE.equals(commandDTO.getSignatureValid());
+        boolean ipAllowed = Boolean.TRUE.equals(commandDTO.getIpAllowed());
+        boolean verifiedScottCallback = "SCOTT_CHANNEL_A".equals(logDO.getChannelCode()) && signatureValid && ipAllowed;
+        logDO.setRequestBodyJsonMasked(callbackAuditBody(commandDTO, verifiedScottCallback));
+        logDO.setSignatureValid(signatureValid ? 1 : 0);
+        logDO.setIpAllowed(ipAllowed ? 1 : 0);
+        if (verifiedScottCallback && Integer.valueOf(200).equals(commandDTO.getGatewayAckHttpStatus())
+                && "SUCCESS".equals(commandDTO.getGatewayAckBody())) {
+            logDO.setPlatformResponseCode(commandDTO.getGatewayAckHttpStatus().toString());
+            logDO.setPlatformResponseBody(commandDTO.getGatewayAckBody());
+        } else {
+            logDO.setPlatformResponseCode("ACCEPTED");
+            logDO.setPlatformResponseBody("{\"result\":\"ACCEPTED\"}");
+        }
         logDO.setCallbackReceivedTime(receivedTime);
         fillTransactionTime(logDO, context.transactionDateTime());
         logDO.setCreateTime(now);
         return logDO;
+    }
+
+    /** 按固定字段保存已验签业务摘要，排除任意扩展、描述、凭据及原文。 */
+    private String callbackAuditBody(TransactionChannelCallbackCommandDTO command, boolean verifiedScottCallback) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("length", command.getRequestBodyLength());
+        body.put("sha256", command.getRequestBodySha256());
+        if (verifiedScottCallback) {
+            Map<String, Object> fields = new java.util.LinkedHashMap<>();
+            fields.put("callbackKind", command.getCallbackKind());
+            fields.put("channelTradeStatus", command.getChannelTradeStatus());
+            fields.put("amount", command.getAmount());
+            fields.put("currency", command.getCurrency());
+            String responseCode = command.getChannelResponseCode();
+            if (responseCode != null && responseCode.matches("[a-zA-Z0-9_-]{1,12}")) {
+                fields.put("channelResponseCode", responseCode);
+            }
+            body.put("verifiedFields", fields);
+        }
+        return JsonUtils.toJsonString(body);
     }
 
     /**
@@ -440,6 +470,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                              LocalDateTime now) {
         String securityFailReason = callbackSecurityFailReason(commandDTO);
         boolean scottCallback = "SCOTT_CHANNEL_A".equals(normalizeChannelCode(commandDTO.getChannelCode()));
+        if (securityFailReason == null && context.operationDO() != null
+                && CheckoutWalletSimulationService.isSimulationOrder(
+                    context.operationDO().getChannelCode(), context.operationDO().getChannelOrderNo())) {
+            securityFailReason = "wallet simulation requires its dedicated callback handler";
+        }
         if (securityFailReason == null && scottCallback && context.operationDO() != null
                 && !"SCOTT_CHANNEL_A".equals(normalizeChannelCode(context.operationDO().getChannelCode()))) {
             securityFailReason = "callback channel does not match the transaction channel";
@@ -554,6 +589,13 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 parsedStatus.channelResponseCode());
         if (changed) {
             saveCallbackProcessedEvent(context, parsedStatus, callbackId, now);
+        } else if (scottCallback && !parsedStatus.targetStatus().equals(context.operationDO().getTransactionStatus())
+                && transactionRecordService.enqueueTerminalCallbackMatch(
+                context.operationDO(), context.orderDO(), parsedStatus.targetStatus(), now)) {
+            return updateCallbackProcessResult(callbackTable, context.transactionDateTime(), callbackId,
+                    CALLBACK_STATUS_PROCESSED, parsedStatus.targetStatus(),
+                    context.operationDO().getTransactionStatus(), parsedStatus.targetStatus(),
+                    PROCESS_RESULT_CHANNEL_MATCH_QUEUED, "conflicting terminal result awaits channel query match", now);
         }
         return updateCallbackProcessResult(callbackTable,
                 context.transactionDateTime(),

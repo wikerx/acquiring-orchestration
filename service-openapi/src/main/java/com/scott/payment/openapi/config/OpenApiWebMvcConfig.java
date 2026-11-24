@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.config;
 
 import com.scott.payment.openapi.support.OpenApiHeaderInterceptor;
+import com.scott.payment.openapi.support.CallbackDeliveryAuditInterceptor;
 import com.scott.payment.openapi.support.OpenApiRequestArgumentResolver;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,7 @@ public class OpenApiWebMvcConfig implements WebMvcConfigurer {
      * 开放 API 参数解析器，用于把解密后的 DTO 注入控制器方法参数。
      */
     private final OpenApiRequestArgumentResolver requestArgumentResolver;
+    private final CallbackDeliveryAuditInterceptor callbackDeliveryAuditInterceptor;
 
     /**
      * 创建开放接口 Web MVC 配置。
@@ -36,9 +38,11 @@ public class OpenApiWebMvcConfig implements WebMvcConfigurer {
      * @param requestArgumentResolver 参数解析器
      */
     public OpenApiWebMvcConfig(OpenApiHeaderInterceptor headerInterceptor,
-                               OpenApiRequestArgumentResolver requestArgumentResolver) {
+                               OpenApiRequestArgumentResolver requestArgumentResolver,
+                               CallbackDeliveryAuditInterceptor callbackDeliveryAuditInterceptor) {
         this.headerInterceptor = headerInterceptor;
         this.requestArgumentResolver = requestArgumentResolver;
+        this.callbackDeliveryAuditInterceptor = callbackDeliveryAuditInterceptor;
     }
 
     /**
@@ -49,6 +53,7 @@ public class OpenApiWebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(headerInterceptor).addPathPatterns("/openapi/**", "/channel/**", "/api/rest/**");
+        registry.addInterceptor(callbackDeliveryAuditInterceptor).addPathPatterns("/channel/v1/callbacks/**");
     }
 
     /**

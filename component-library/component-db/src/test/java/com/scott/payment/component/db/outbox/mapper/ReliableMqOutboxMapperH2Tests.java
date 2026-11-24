@@ -144,7 +144,7 @@ class ReliableMqOutboxMapperH2Tests {
     }
 
     @Test
-    void capabilityJobRecoversBothApplicationOwnersWithoutTakingOverOtherEvents() {
+    void capabilityJobAndNormalRelayCanDiscoverTheSameRowButOnlyOneCanClaimIt() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
             ReliableMqOutboxMapper mapper = session.getMapper(ReliableMqOutboxMapper.class);
             LocalDateTime now = LocalDateTime.of(2026, 11, 20, 19, 0);
@@ -165,12 +165,16 @@ class ReliableMqOutboxMapperH2Tests {
             mapper.insert(oldAdmin);
 
             assertThat(mapper.selectDue("service-admin", now, 10))
-                    .extracting(ReliableMqOutboxDO::getEventId).containsExactly("old-admin");
-            assertThat(mapper.selectDue("service-merchant", now, 10)).isEmpty();
+                    .extracting(ReliableMqOutboxDO::getEventId).containsExactly("job-scope", "job-mail", "old-admin");
+            ReliableMqOutboxDO normal = mapper.selectDue("service-merchant", now, 10).get(0);
+            assertThat(normal.getEventId()).isEqualTo("merchant-application");
             assertThat(mapper.selectDue("service-payment", now, 10))
                     .extracting(ReliableMqOutboxDO::getEventId).containsExactly("same-tag-other-owner");
             assertThat(mapper.selectPaymentCapabilityDue(now, 10))
                     .extracting(ReliableMqOutboxDO::getEventId).containsExactly("job-scope", "job-mail", "merchant-application");
+            ReliableMqOutboxDO dedicated = mapper.selectPaymentCapabilityDue(now, 10).get(2);
+            assertThat(mapper.claim(dedicated.getId(), dedicated.getVersion(), now)).isOne();
+            assertThat(mapper.claim(normal.getId(), normal.getVersion(), now)).isZero();
         }
     }
 

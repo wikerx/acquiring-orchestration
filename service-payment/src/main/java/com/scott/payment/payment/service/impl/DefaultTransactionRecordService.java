@@ -548,6 +548,12 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO, riskDecisionEnum, currencyExponent, now);
         TransactionOperationDO operationDO = buildOperation(commandDTO, routeResultDTO, channelInvokeResultDTO,
                 channelResponse, resultDTO, currencyExponent, now);
+        boolean walletSimulation = CheckoutWalletSimulationService.isSimulationOrder(
+                operationDO.getChannelCode(), operationDO.getChannelOrderNo());
+        if (walletSimulation) {
+            orderDO.setChannelMatchStatus(CHANNEL_MATCH_NOT_REQUIRED);
+            operationDO.setChannelMatchStatus(CHANNEL_MATCH_NOT_REQUIRED);
+        }
         TransactionStatusHistoryDO orderHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_ORDER, commandDTO.getTransactionDateTime(), now);
         TransactionStatusHistoryDO operationHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_OPERATION, commandDTO.getTransactionDateTime(), now);
 
@@ -555,7 +561,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         int operationRows = transactionOperationMapper.insert(operationDO);
         int locatorRows = insertTransactionLocator(operationDO, resultDTO.getTransactionId(),
                 commandDTO.getTransactionDateTime(), now);
-        if (merchantTransactionSnapshotService != null) {
+        if (merchantTransactionSnapshotService != null && !walletSimulation) {
             merchantTransactionSnapshotService.recordInitialSnapshots(commandDTO, resultDTO, now);
         }
         int orderHistoryRows = transactionStatusHistoryMapper.insertLogical(orderHistoryDO);
@@ -670,7 +676,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 isTerminal(resultDTO),
                 now);
         if (isTerminal(resultDTO)) {
-            activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
+            String walletMethod = CheckoutWalletSimulationService.isSimulationOrder(
+                    operationDO.getChannelCode(), operationDO.getChannelOrderNo()) ? commandDTO.getPaymentMethod() : null;
+            activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(),
+                    resultDTO.getFailReasonMessage(), now, walletMethod);
         }
         updateMerchantApiFinalResult(commandDTO, resultDTO, now);
         synchronizeTerminalIdempotencyStatus(resultDTO.getTransactionId(), resultDTO.getStatus());
@@ -1831,6 +1840,25 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 在回调事务内登记终态冲突，勾兑任务随后使用原渠道与 MID 查询。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public boolean enqueueTerminalCallbackMatch(TransactionOperationDO operationDO,
+                                                 TransactionOrderDO orderDO,
+                                                 String callbackStatus,
+                                                 LocalDateTime now) {
+        if (transactionOperationMapper.enqueueTerminalCallbackMatch(
+                operationDO.getId(), operationDO.getTransactionDateTime(), operationDO.getChannelCode(),
+                callbackStatus, now) != 1) {
+            return false;
+        }
+        transactionOrderMapper.enqueueLatestTerminalCallbackMatch(
+                orderDO.getOperationId(), orderDO.getTransactionDateTime(), operationDO.getTransactionId(), now);
+        return true;
+    }
+
+    /**
      * 优先使用交易定位表保存的根主单时间，避免后续动作用自身时间定位生命周期主单。
      */
     @Override
@@ -2299,7 +2327,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return;
         }
         operationDO.setChannelCode(firstText(operationDO.getChannelCode(), invokeResultDTO.getChannelRequest().getChannelCode()));
-        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(invokeResultDTO.getChannelRequest().getChannelCode())) {
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(invokeResultDTO.getChannelRequest().getChannelCode())
+                && !CheckoutWalletSimulationService.isSimulationOrder(invokeResultDTO.getChannelRequest().getChannelCode(),
+                        invokeResultDTO.getChannelRequest().getChannelOrderNo())) {
             return;
         }
         operationDO.setChannelOrderNo(firstText(operationDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
@@ -2315,7 +2345,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return;
         }
         orderDO.setChannelCode(firstText(orderDO.getChannelCode(), invokeResultDTO.getChannelRequest().getChannelCode()));
-        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(invokeResultDTO.getChannelRequest().getChannelCode())) {
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(invokeResultDTO.getChannelRequest().getChannelCode())
+                && !CheckoutWalletSimulationService.isSimulationOrder(invokeResultDTO.getChannelRequest().getChannelCode(),
+                        invokeResultDTO.getChannelRequest().getChannelOrderNo())) {
             return;
         }
         orderDO.setChannelOrderNo(firstText(orderDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
@@ -3319,12 +3351,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                               String failReasonCode,
                                               String failReasonMessage,
                                               LocalDateTime now) {
+        activateMerchantNotification(operationDO, targetTransactionStatus, failReasonCode, failReasonMessage, now, null);
+    }
+
+    private void activateMerchantNotification(TransactionOperationDO operationDO,
+                                              String targetTransactionStatus,
+                                              String failReasonCode,
+                                              String failReasonMessage,
+                                              LocalDateTime now,
+                                              String walletMethod) {
         TransactionMerchantNotificationDO pendingNotification =
                 transactionMerchantNotificationMapper.selectPendingActivation(
                         operationDO.getTransactionId(), operationDO.getTransactionDateTime(), INITIAL_VERSION);
         // 通知载荷只使用商户受众投影，禁止携带渠道原始 message、内部异常或管理端诊断细节。
-        String callbackPayloadJson = JsonUtils.toJsonString(
-                merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode));
+        MerchantNotificationPayload payload = merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode);
+        if (StringUtils.hasText(walletMethod)) {
+            payload.getTransactionInfo().setPaymentMethod(walletMethod);
+        }
+        String callbackPayloadJson = JsonUtils.toJsonString(payload);
         LocalDateTime firstDeliveryTime = now.plusSeconds(
                 MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS);
         // 初始版本条件保证通知只激活一次；调度器仅在激活成功后登记提交后发送任务。
@@ -3983,11 +4027,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         insertFlowEvent(commandDTO, resultDTO, "API_ACCEPTED", "API", "SUCCESS",
                 "API受理", "交易请求已进入支付核心", null, resultDTO.getStatus(), "MERCHANT",
                 commandDTO.getMerchantId(), "TRANSACTION", resultDTO.getTransactionId(), null, null, now);
-        insertFlowEvent(commandDTO, resultDTO, "RISK_CHECKED", "RISK",
-                PaymentRiskDecisionSupport.flowEventStatus(riskDecisionEnum),
-                "内风控检查", riskFlowEventContent(commandDTO, riskDecisionEnum),
-                null, resultDTO.getStatus(), "SYSTEM", null, "TRANSACTION", resultDTO.getTransactionId(),
-                resultDTO.getFailReasonCode(), null, now);
+        ChannelPaymentResponse response = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+        if (response == null || !CheckoutWalletSimulationService.isSimulationOrder(
+                response.getChannelCode(), response.getChannelOrderNo())) {
+            insertFlowEvent(commandDTO, resultDTO, "RISK_CHECKED", "RISK",
+                    PaymentRiskDecisionSupport.flowEventStatus(riskDecisionEnum),
+                    "内风控检查", riskFlowEventContent(commandDTO, riskDecisionEnum),
+                    null, resultDTO.getStatus(), "SYSTEM", null, "TRANSACTION", resultDTO.getTransactionId(),
+                    resultDTO.getFailReasonCode(), null, now);
+        }
         if (routeResultDTO != null) {
             insertFlowEvent(commandDTO, resultDTO, "ROUTE_SELECTED", "ROUTE", "SUCCESS",
                     "渠道路由", "命中渠道：" + routeResultDTO.getChannelCode(), null, resultDTO.getStatus(),

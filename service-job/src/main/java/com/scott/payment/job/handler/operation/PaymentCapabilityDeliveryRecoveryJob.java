@@ -34,11 +34,29 @@ public class PaymentCapabilityDeliveryRecoveryJob implements JobHandler {
      */
     @Override
     public JobExecuteResult execute(JobExecuteContext context) {
-        RecoveryResponse result = admin.recoverPaymentCapabilityDelivery(new RecoveryRequest(100));
-        if (result == null) {
-            throw new IllegalStateException("payment capability delivery recovery response is empty");
+        long deadline = context.getExecutionDeadline().toEpochMilli() - 250;
+        if (deadline - System.currentTimeMillis() < 2) {
+            return JobExecuteResult.failed("PAYMENT_CAPABILITY_DELIVERY_PENDING",
+                    "budgetExhausted=true, recovery not started");
         }
-        return JobExecuteResult.success("payment capability delivery recovery: requeued=" + result.requeued()
-                + ", relayed=" + result.relayed(), result);
+        RecoveryResponse result;
+        try {
+            result = admin.recoverPaymentCapabilityDelivery(new RecoveryRequest(100, deadline));
+        } catch (RuntimeException exception) {
+            return JobExecuteResult.failed("PAYMENT_CAPABILITY_DELIVERY_PENDING",
+                    "result=unknown, errorType=" + exception.getClass().getSimpleName());
+        }
+        if (result == null || result.selected() == null || result.failed() == null
+                || result.deferred() == null || result.budgetExhausted() == null) {
+            return JobExecuteResult.failed("PAYMENT_CAPABILITY_DELIVERY_PENDING",
+                    "payment capability delivery recovery result is incomplete");
+        }
+        String summary = "requeued=" + result.requeued() + ", selected=" + result.selected()
+                + ", relayed=" + result.relayed() + ", failed=" + result.failed()
+                + ", deferred=" + result.deferred() + ", budgetExhausted=" + result.budgetExhausted();
+        if (result.failed() > 0 || result.deferred() > 0 || result.budgetExhausted()) {
+            return JobExecuteResult.failed("PAYMENT_CAPABILITY_DELIVERY_PENDING", summary);
+        }
+        return JobExecuteResult.success(summary, result);
     }
 }

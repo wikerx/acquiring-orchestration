@@ -444,6 +444,8 @@ public class JobDispatchService {
         context.setParamsJson(paramsJson);
         context.setScheduledTime(task.getNextTriggerTime());
         context.setActualTriggerTime(LocalDateTime.now());
+        context.setExecutionDeadline(Instant.now().plusSeconds(
+                task.getTimeoutSeconds() == null ? 30 : task.getTimeoutSeconds()));
         context.setRetryIndex(retryIndex);
         context.setMaxRetryCount(task.getRetryCount());
         context.setShardIndex(0);

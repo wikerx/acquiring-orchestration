@@ -151,7 +151,6 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
               AND send_status = 4
               AND next_retry_time <= #{now}
               AND deleted = 0
-              AND (biz_type IS NULL OR biz_type <> 'MERCHANT_PAYMENT_CAPABILITY')
             ORDER BY next_retry_time ASC, id ASC
             LIMIT #{limit}
             """)
@@ -201,7 +200,6 @@ public interface EmailSendRecordMapper extends BaseMapper<EmailSendRecordDO> {
               AND send_status = 1
               AND send_start_time < #{staleBefore}
               AND deleted = 0
-              AND (biz_type IS NULL OR biz_type <> 'MERCHANT_PAYMENT_CAPABILITY')
             """)
     int recoverStaleDelivery(@Param("appCode") String appCode,
                              @Param("staleBefore") LocalDateTime staleBefore,

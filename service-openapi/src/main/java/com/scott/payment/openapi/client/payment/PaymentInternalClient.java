@@ -7,6 +7,7 @@ import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackCl
 import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
+import com.scott.payment.openapi.dto.body.HostedCheckoutBrowserRequestDTOs;
 
 /**
  * service-payment 内部交易调用客户端，位于 service-openapi 客户端层，为每个收单交易动作提供独立方法并封装内部签名。
@@ -152,4 +153,15 @@ public interface PaymentInternalClient {
      */
     PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
             PaymentCheckoutClientDTOs.CardBinRequest requestDTO);
+
+    /** 签名调用支付服务受理钱包渠道回跳并签发正常收银台地址。 */
+    default PaymentCheckoutClientDTOs.SessionCreateResponse handleCheckoutWalletReturn(
+            HostedCheckoutBrowserRequestDTOs.WalletSimulationReturnRequest request) {
+        throw new UnsupportedOperationException("Checkout wallet return client is unavailable");
+    }
+
+    /** 签名调用支付服务准备或打开钱包渠道授权。 */
+    default java.util.Map<String, String> simulateCheckoutWallet(PaymentCheckoutClientDTOs.WalletSimulationRequest request) {
+        throw new UnsupportedOperationException("Checkout wallet authorization client is unavailable");
+    }
 }

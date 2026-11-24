@@ -2,6 +2,8 @@ package com.scott.payment.admin.service.impl;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.TypeReference;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackDeliveryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackResponse;
@@ -102,6 +104,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private static final String DETAIL_RECORD_CHANNEL_INTERACTION = "CHANNEL_INTERACTION";
     private static final String DETAIL_RECORD_CHANNEL_CALLBACK = "CHANNEL_CALLBACK";
     private static final String DETAIL_RECORD_CHANNEL_CALLBACK_LOG = "CHANNEL_CALLBACK_LOG";
+    private static final String DETAIL_RECORD_CHANNEL_CALLBACK_DELIVERY = "CHANNEL_CALLBACK_DELIVERY";
+
+    private static final String CALLBACK_DELIVERY_COLUMNS = """
+            d.delivery_id, d.received_time, d.signature_valid, d.accept_result, d.http_status,
+            d.response_body, d.duration_millis, d.request_body_masked, d.request_body_sha256
+            """;
     private static final String DETAIL_RECORD_MERCHANT_NOTIFICATION = "MERCHANT_NOTIFICATION";
     private static final String DETAIL_RECORD_MERCHANT_NOTIFICATION_LOG = "MERCHANT_NOTIFICATION_LOG";
     private static final String DETAIL_RECORD_MERCHANT_API = "MERCHANT_API";
@@ -116,6 +124,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private static final Set<String> DETAIL_PAYLOAD_RECORD_TYPES = Set.of(
             DETAIL_RECORD_CHANNEL_INTERACTION,
             DETAIL_RECORD_CHANNEL_CALLBACK_LOG,
+            DETAIL_RECORD_CHANNEL_CALLBACK_DELIVERY,
             DETAIL_RECORD_MERCHANT_NOTIFICATION,
             DETAIL_RECORD_MERCHANT_NOTIFICATION_LOG,
             DETAIL_RECORD_MERCHANT_API);
@@ -1010,7 +1019,62 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 "callback_received_time", DETAIL_RECORD_CHANNEL_CALLBACK_LOG, true, scanLimit,
                 channelCallbackLogMapper(), ChannelCallbackLogResponse::getCallbackLogId,
                 ChannelCallbackLogResponse::getCallbackReceivedTime);
-        return total;
+        List<String> callbackIds = detailCallbackIds(context);
+        if (callbackIds.isEmpty()) {
+            return total;
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource("callbackIds", callbackIds).addValue("limit", scanLimit);
+        Long deliveryCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM transaction_callback_inbox i
+                JOIN transaction_callback_delivery d ON d.inbox_id = i.inbox_id
+                WHERE i.callback_id IN (:callbackIds)
+                """, params, Long.class);
+        if (deliveryCount == null || deliveryCount == 0L) {
+            return total;
+        }
+        jdbcTemplate.query("""
+                SELECT d.delivery_id, d.received_time, d.signature_valid, d.accept_result, d.http_status,
+                       NULL AS response_body, d.duration_millis,
+                       NULL AS request_body_masked, d.request_body_sha256
+                FROM transaction_callback_inbox i
+                JOIN transaction_callback_delivery d ON d.inbox_id = i.inbox_id
+                WHERE i.callback_id IN (:callbackIds)
+                ORDER BY d.received_time DESC, d.delivery_id
+                LIMIT :limit
+                """, params, this::callbackDelivery).forEach(delivery ->
+                target.add(detailRecord(DETAIL_RECORD_CHANNEL_CALLBACK_DELIVERY,
+                        delivery.deliveryId(), delivery.receivedTime(), true, delivery)));
+        return total + deliveryCount;
+    }
+
+    private List<String> detailCallbackIds(DetailContext context) {
+        return jdbcTemplate.queryForList("""
+                SELECT callback_id
+                FROM transaction_channel_callback
+                WHERE deleted = 0
+                  AND operation_id = :operationId
+                  AND transaction_date_time >= :beginTime
+                  AND transaction_date_time < :endTime
+                """, detailParams(context), String.class);
+    }
+
+    private TransactionDetailRecordResponse detailCallbackDelivery(DetailContext context, String deliveryId) {
+        List<String> callbackIds = detailCallbackIds(context);
+        if (callbackIds.isEmpty()) {
+            throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource("callbackIds", callbackIds)
+                .addValue("deliveryId", deliveryId);
+        ChannelCallbackDeliveryResponse delivery = jdbcTemplate.query("""
+                SELECT %s
+                FROM transaction_callback_inbox i
+                JOIN transaction_callback_delivery d ON d.inbox_id = i.inbox_id
+                WHERE i.callback_id IN (:callbackIds) AND d.delivery_id = :deliveryId
+                LIMIT 1
+                """.formatted(CALLBACK_DELIVERY_COLUMNS), params, this::callbackDelivery)
+                .stream().findFirst().orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
+        return detailRecord(DETAIL_RECORD_CHANNEL_CALLBACK_DELIVERY, deliveryId, delivery.receivedTime(), false, delivery);
     }
 
     private long appendNotificationRecords(List<TransactionDetailRecordResponse> target,
@@ -1076,6 +1140,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                     "interaction_log_id", recordId, DETAIL_RECORD_CHANNEL_INTERACTION,
                     channelInteractionLogMapper(), ChannelInteractionLogResponse::getInteractionLogId,
                     ChannelInteractionLogResponse::getInteractionTime);
+            case DETAIL_RECORD_CHANNEL_CALLBACK_DELIVERY -> detailCallbackDelivery(context, recordId);
             case DETAIL_RECORD_CHANNEL_CALLBACK_LOG -> payloadRecord(context,
                     TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, TRANSACTION_CHANNEL_CALLBACK_LOG_DETAIL_PROJECTION,
                     "callback_log_id", recordId, DETAIL_RECORD_CHANNEL_CALLBACK_LOG,
@@ -1435,18 +1500,121 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             return emptyPage(safeQuery);
         }
-        return executeRead(false,
-                () -> pageRecords(
-                        TRANSACTION_CHANNEL_CALLBACK_TABLE,
-                        TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION,
-                        channelCallbackWhereSql(safeQuery),
-                        channelCallbackParams(safeQuery),
-                        safeQuery,
-                        channelCallbackMapper()));
+        return executeRead(false, () -> {
+            PageResult<ChannelCallbackResponse> page = pageRecords(
+                    TRANSACTION_CHANNEL_CALLBACK_TABLE,
+                    TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION,
+                    channelCallbackWhereSql(safeQuery),
+                    channelCallbackParams(safeQuery),
+                    safeQuery,
+                    channelCallbackMapper());
+            loadCallbackDeliverySummaries(page.getRecords());
+            return page;
+        });
+    }
+
+    /** 查询已授权单条回调及关联脱敏报文，按列表返回的分片时间定位。 */
+    @Override
+    public ChannelCallbackDetailResponse channelCallbackDetail(String callbackId, LocalDateTime transactionDateTime,
+                                                               int deliveryPage, AdminMerchantDataScope dataScope) {
+        if (!StringUtils.hasText(callbackId) || transactionDateTime == null) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+        AdminMerchantDataScope scope = requireExportScope(dataScope);
+        if (scope.empty()) {
+            throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        return executeRead(true, () -> {
+            MapSqlParameterSource params = new MapSqlParameterSource()
+                    .addValue("callbackId", callbackId.trim())
+                    .addValue("transactionDateTime", transactionDateTime);
+            ChannelCallbackResponse callback = jdbcTemplate.query("""
+                    SELECT %s
+                    FROM transaction_channel_callback
+                    WHERE callback_id = :callbackId
+                      AND transaction_date_time = :transactionDateTime
+                      AND deleted = 0
+                    LIMIT 1
+                    """.formatted(TRANSACTION_CHANNEL_CALLBACK_ADMIN_PROJECTION), params, channelCallbackMapper())
+                    .stream().findFirst().orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
+            if (!scope.allMerchants()) {
+                TransactionOperationResponse operation = selectOperationByTransactionId(
+                        TRANSACTION_OPERATION_TABLE, callback.getTransactionId(), transactionDateTime);
+                if (operation == null || !scope.merchantIds().contains(operation.getMerchantId())) {
+                    throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+                }
+            }
+            params.addValue("callbackLogId", callback.getCallbackLogId())
+                    .addValue("transactionId", callback.getTransactionId())
+                    .addValue("channelCode", callback.getChannelCode());
+            ChannelCallbackLogResponse log = jdbcTemplate.query("""
+                    SELECT %s
+                    FROM transaction_channel_callback_log
+                    WHERE callback_log_id = :callbackLogId
+                      AND transaction_id = :transactionId
+                      AND channel_code = :channelCode
+                      AND transaction_date_time = :transactionDateTime
+                    LIMIT 1
+                    """.formatted(TRANSACTION_CHANNEL_CALLBACK_LOG_DETAIL_PROJECTION),
+                    params, channelCallbackLogMapper()).stream().findFirst().orElse(null);
+            loadCallbackDeliverySummaries(List.of(callback));
+            return new ChannelCallbackDetailResponse(
+                    callback, log, pageCallbackDeliveries(callback, deliveryPage));
+        });
+    }
+
+    private void loadCallbackDeliverySummaries(List<ChannelCallbackResponse> callbacks) {
+        if (callbacks.isEmpty()) {
+            return;
+        }
+        Map<String, ChannelCallbackResponse> byId = new LinkedHashMap<>();
+        callbacks.forEach(callback -> byId.put(callback.getCallbackId(), callback));
+        jdbcTemplate.query("""
+                SELECT i.callback_id, COUNT(*) AS delivery_count, MAX(d.received_time) AS latest_delivery_time
+                FROM transaction_callback_inbox i
+                JOIN transaction_callback_delivery d ON d.inbox_id = i.inbox_id
+                WHERE i.callback_id IN (:callbackIds)
+                GROUP BY i.callback_id
+                """, new MapSqlParameterSource("callbackIds", byId.keySet()), rs -> {
+            ChannelCallbackResponse callback = byId.get(rs.getString("callback_id"));
+            callback.setDeliveryCount(rs.getLong("delivery_count"));
+            callback.setLatestDeliveryTime(rs.getObject("latest_delivery_time", LocalDateTime.class));
+        });
+    }
+
+    private PageResult<ChannelCallbackDeliveryResponse> pageCallbackDeliveries(
+            ChannelCallbackResponse callback, int pageNo) {
+        long total = callback.getDeliveryCount() == null ? 0 : callback.getDeliveryCount();
+        int pageSize = 20;
+        long offset = (Math.max(1L, pageNo) - 1) * pageSize;
+        if (offset >= total) {
+            return PageResult.of(total, Math.max(1, pageNo), pageSize, List.of());
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource("callbackId", callback.getCallbackId())
+                .addValue("pageSize", pageSize)
+                .addValue("offset", offset);
+        List<ChannelCallbackDeliveryResponse> records = jdbcTemplate.query("""
+                SELECT %s
+                FROM transaction_callback_inbox i
+                JOIN transaction_callback_delivery d ON d.inbox_id = i.inbox_id
+                WHERE i.callback_id = :callbackId
+                ORDER BY d.received_time, d.delivery_id
+                LIMIT :pageSize OFFSET :offset
+                """.formatted(CALLBACK_DELIVERY_COLUMNS), params, this::callbackDelivery);
+        return PageResult.of(total, Math.max(1, pageNo), pageSize, records);
+    }
+
+    private ChannelCallbackDeliveryResponse callbackDelivery(ResultSet rs, int rowNum) throws SQLException {
+        return new ChannelCallbackDeliveryResponse(
+                rs.getString("delivery_id"), rs.getObject("received_time", LocalDateTime.class),
+                rs.getBoolean("signature_valid"), rs.getString("accept_result"),
+                rs.getObject("http_status", Integer.class), rs.getString("response_body"),
+                rs.getObject("duration_millis", Long.class), rs.getString("request_body_masked"),
+                rs.getString("request_body_sha256"));
     }
 
     /**
-     * 分页查询向商户发送的交易通知任务。
+     * 分页查询向商户发送的交易通知任务.
      *
      * @param query 商户通知筛选和分页条件
      * @return ShardingSphere 归并后的商户通知分页结果
@@ -2315,7 +2483,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         append(sql, query.getTransactionType(), "AND o.transaction_type = :transactionType");
         append(sql, query.getTransactionStatus(), "AND o.transaction_status = :transactionStatus");
         append(sql, query.getChannelCode(), "AND o.channel_code = :channelCode");
-        append(sql, query.getChannelOrderNo(), "AND o.channel_order_no = :channelOrderNo");
+        append(sql, query.getChannelOrderNo(), """
+                AND (o.channel_order_no = :channelOrderNo
+                     OR (o.channel_code = 'SCOTT_CHANNEL_A' AND o.transaction_type = 'PAYMENT'
+                         AND (o.channel_order_no = o.transaction_id OR o.channel_order_no LIKE 'DEV-IW-%')
+                         AND o.channel_transaction_id LIKE 'CMT%'
+                         AND o.channel_transaction_id = :channelOrderNo))
+                """);
         append(sql, query.getChannelResponseCode(), "AND o.channel_response_code = :channelResponseCode");
         append(sql, query.getAuthCode(), "AND o.auth_code = :authCode");
         append(sql, query.getAcquirerReferenceNo(), "AND o.acquirer_reference_no = :acquirerReferenceNo");
@@ -2376,7 +2550,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getChannelCode(), "AND channel_code = :channelCode");
         append(sql, query.getTransactionId(), "AND transaction_id = :transactionId");
-        append(sql, query.getChannelOrderNo(), "AND channel_order_no = :channelOrderNo");
+        append(sql, query.getChannelOrderNo(), """
+                AND (channel_order_no = :channelOrderNo
+                     OR (channel_code = 'SCOTT_CHANNEL_A'
+                         AND (channel_order_no = transaction_id OR channel_order_no LIKE 'DEV-IW-%')
+                         AND channel_transaction_id LIKE 'CMT%' AND channel_transaction_id = :channelOrderNo))
+                """);
         append(sql, query.getChannelTransactionId(), "AND channel_transaction_id = :channelTransactionId");
         append(sql, query.getCallbackStatus(), "AND callback_status = :callbackStatus");
         return sql.toString();
@@ -2828,8 +3007,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setAvailableCaptureAmount(getBigDecimalIfExists(rs, "lifecycle_available_capture_amount"));
             row.setAvailableRefundAmount(getBigDecimalIfExists(rs, "lifecycle_available_refund_amount"));
             row.setChannelCode(rs.getString("channel_code"));
-            row.setChannelOrderNo(rs.getString("channel_order_no"));
             row.setChannelTransactionId(rs.getString("channel_transaction_id"));
+            String orderNo = rs.getString("channel_order_no");
+            row.setChannelOrderNo("PAYMENT".equals(row.getTransactionType())
+                    ? displayScottPayinOrder(row.getChannelCode(), row.getTransactionId(), orderNo, row.getChannelTransactionId())
+                    : orderNo);
             row.setChannelResponseCode(rs.getString("channel_response_code"));
             row.setChannelResponseMessage(rs.getString("channel_response_message"));
             row.setAuthCode(rs.getString("auth_code"));
@@ -3068,6 +3250,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         };
     }
 
+    /** Scott 直连和开发钱包保留请求参考号，交易查询优先显示渠道系统订单号。 */
+    private String displayScottPayinOrder(String channelCode, String transactionId, String orderNo, String providerId) {
+        if (!"SCOTT_CHANNEL_A".equals(channelCode)) {
+            return orderNo;
+        }
+        if (providerId != null && providerId.startsWith("CMT")
+                && (Objects.equals(transactionId, orderNo) || (orderNo != null && orderNo.startsWith("DEV-IW-")))) {
+            return providerId;
+        }
+        return orderNo != null && orderNo.matches("CR[0-9]{21}") ? null : orderNo;
+    }
+
     /**
      * 映射管理端渠道回调处理记录。
      *
@@ -3082,8 +3276,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             response.setTransactionId(resultSet.getString("transaction_id"));
             response.setOperationId(resultSet.getString("operation_id"));
             response.setChannelCode(resultSet.getString("channel_code"));
-            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
             response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setChannelOrderNo(displayScottPayinOrder(response.getChannelCode(), response.getTransactionId(),
+                    resultSet.getString("channel_order_no"), response.getChannelTransactionId()));
             response.setCallbackType(resultSet.getString("callback_type"));
             response.setChannelEventType(resultSet.getString("channel_event_type"));
             response.setCallbackStatus(resultSet.getString("callback_status"));
@@ -3122,8 +3317,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             response.setOperationId(resultSet.getString("operation_id"));
             response.setChannelCode(resultSet.getString("channel_code"));
             response.setCallbackType(resultSet.getString("callback_type"));
-            response.setChannelOrderNo(resultSet.getString("channel_order_no"));
             response.setChannelTransactionId(resultSet.getString("channel_transaction_id"));
+            response.setChannelOrderNo(displayScottPayinOrder(response.getChannelCode(), response.getTransactionId(),
+                    resultSet.getString("channel_order_no"), response.getChannelTransactionId()));
             response.setRequestUri(resultSet.getString("request_uri"));
             response.setHttpMethod(resultSet.getString("http_method"));
             response.setSourceIp(resultSet.getString("source_ip"));

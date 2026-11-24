@@ -1,5 +1,7 @@
 package com.scott.payment.payment.api.internal;
 
+import com.scott.payment.payment.api.internal.dto.CheckoutWalletSimulationCommand;
+
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceAuthInterceptor;
 import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
@@ -29,6 +31,8 @@ import com.scott.payment.payment.api.internal.dto.TradeBlackTransactionFactsDTO;
 import com.scott.payment.payment.api.internal.dto.TradeBlackTransactionResolveCommandDTO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import com.scott.payment.payment.api.internal.dto.CallbackDeliveryResponseCommand;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -39,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
+import java.util.Map;
 
 /**
  * 支付内部控制器，负责收银台、交易命令、渠道回调、渠道勾兑与商户交互审计回写，不承载管理端或商户端列表统计查询。
@@ -115,6 +120,20 @@ public class PaymentInternalController {
     public CommonResult<PaymentCheckoutSessionQueryResultDTO> queryCheckoutSession(
             @Valid @RequestBody PaymentCheckoutSessionQueryCommandDTO commandDTO) {
         return success(paymentCheckoutApplicationService.querySession(commandDTO));
+    }
+
+    /** 钱包渠道回跳只使用该尝试专用令牌，成功受理后签发正常收银台结果页地址。 */
+    @PostMapping("/checkout/wallet/authorization/return")
+    public CommonResult<com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateResultDTO> walletReturn(
+            @Valid @RequestBody com.scott.payment.payment.api.internal.dto.WalletSimulationReturnCommand command) {
+        return success(paymentCheckoutApplicationService.handleWalletReturn(command));
+    }
+
+    /** 准备或打开 Hosted Checkout 钱包渠道授权。 */
+    @PostMapping("/checkout/wallet/authorization")
+    public CommonResult<Map<String, String>> simulateWallet(
+            @Valid @RequestBody CheckoutWalletSimulationCommand command) {
+        return success(paymentCheckoutApplicationService.simulateWallet(command));
     }
 
     /**
@@ -302,6 +321,12 @@ public class PaymentInternalController {
     public CommonResult<TransactionCallbackInboxAcceptResultDTO> acceptChannelCallback(
             @Valid @RequestBody TransactionChannelCallbackCommandDTO commandDTO) {
         return success(callbackInboxApplicationService.accept(commandDTO));
+    }
+
+    /** 沿用回调 Inbox 路径的内部签名授权，记录入口实际生成的应答。 */
+    @PutMapping("/channel-callback/inbox")
+    public CommonResult<Boolean> completeCallbackDelivery(@Valid @RequestBody CallbackDeliveryResponseCommand command) {
+        return success(callbackInboxApplicationService.completeDelivery(command));
     }
 
     /**

@@ -2059,6 +2059,22 @@ public final class AdminTransactionDTOs {
         private String channelResponseMessage;
     }
 
+    /** 渠道回调业务事实、脱敏报文及逐次投递分页。 */
+    public record ChannelCallbackDetailResponse(ChannelCallbackResponse callback, ChannelCallbackLogResponse log,
+                                                PageResult<ChannelCallbackDeliveryResponse> deliveries) {
+    }
+
+    /** 经过现有回调详情权限校验后返回的逐次投递审计。 */
+    public record ChannelCallbackDeliveryResponse(String deliveryId, LocalDateTime receivedTime,
+                                                  boolean signatureValid, String acceptResult,
+                                                  Integer httpStatus, String responseBody, Long durationMillis,
+                                                  String requestBodyMasked, String requestBodySha256) implements Serializable {
+    }
+
+    /** 渠道回调菜单使用的筛选项。 */
+    public record ChannelCallbackChannelOption(String channelCode, String channelName) {
+    }
+
     /**
      * 管理后台渠道回调处理记录。
      */
@@ -2166,6 +2182,12 @@ public final class AdminTransactionDTOs {
          * 回调接收时间。
          */
         private LocalDateTime callbackReceivedTime;
+
+        /** 已留存的实际投递次数，历史事件可能为空。 */
+        private Long deliveryCount;
+
+        /** 已留存的最近一次投递时间。 */
+        private LocalDateTime latestDeliveryTime;
 
         /**
          * 回调处理完成时间。

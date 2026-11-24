@@ -29,6 +29,7 @@ final class OriginalTransactionRouteResolver {
     static PaymentRouteResultDTO restore(PaymentChannelRouteService routeService,
                                          TransactionOrderDO sourceOrder,
                                          TransactionOperationDO sourceOperation) {
+        requireFinancialSource(sourceOrder, sourceOperation);
         PaymentRouteResultDTO snapshot = snapshot(sourceOrder, sourceOperation);
         if (snapshot == null || !StringUtils.hasText(snapshot.getChannelCode()) || snapshot.getMidConfigId() == null) {
             throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
@@ -59,6 +60,8 @@ final class OriginalTransactionRouteResolver {
     static Resolution plan(PaymentChannelRouteService routeService,
                            TransactionOrderDO sourceOrder,
                            TransactionOperationDO sourceOperation) {
+        // 模拟支付不可生成后续资金动作，连普通渠道拒绝所落的失败交易也不应创建。
+        requireFinancialSource(sourceOrder, sourceOperation);
         try {
             return Resolution.routed(restore(routeService, sourceOrder, sourceOperation));
         } catch (ServiceException exception) {
@@ -72,6 +75,15 @@ final class OriginalTransactionRouteResolver {
             return Resolution.failed(exception);
         } catch (RuntimeException exception) {
             return Resolution.failed(exception);
+        }
+    }
+
+    private static void requireFinancialSource(TransactionOrderDO order, TransactionOperationDO operation) {
+        if ((order != null && CheckoutWalletSimulationService.isSimulationOrder(
+                order.getChannelCode(), order.getChannelOrderNo()))
+                || (operation != null && CheckoutWalletSimulationService.isSimulationOrder(
+                operation.getChannelCode(), operation.getChannelOrderNo()))) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
         }
     }
 

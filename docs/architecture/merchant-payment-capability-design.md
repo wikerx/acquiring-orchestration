@@ -521,7 +521,7 @@ T-02 以实际 MySQL、驱动、连接池和 ShardingSphere 拓扑验证，记�
 
 候选运行断点采用现有 `sys_job_task` 的可空任务检查点扩展，和任务参数、Cron 分开，限定当前租约持有者及检查点版本写入。自然时间扫描按来源划分流，固定上界后按有效边界时间及稳定主键顺序分页；仅推进已持久化或已确认无需处理的连续区间，重复事件按来源版本和边界去重。配置变更同事务记录可靠事件，负责游标之后补录、改期等变更；跨越游标的晚到数据由补漏复核，不能丢弃。待办和通知以持久业务结果作为回执，失败或未知时 Job 保留可重跑状态。运行日志用于观测，不承担检查点或唯一约束。
 
-内置定时器切换须按业务范围互斥。当前 Risk 预占对账由 `MerchantLimitReservationReconciliationScheduler` 调度，迁移时以同一归属范围切换到 Job。Admin 当前邮件恢复及公共 MQ 中继也有本地定时入口，本期邮件/事件范围须在现有恢复能力上可隔离后交由 Job 调度，保留原有行级领取和 CAS，不让两个定时入口处理同一范围；其他业务和公共指标采集沿用原范围。先验证新 Job 和路由，再按授权窗口切换；有积压时用原身份续跑。文档阶段不变更任务或开关配置。[现有运营待办 Job](../../service-job/src/main/java/com/scott/payment/job/handler/operation/OperationalWorkItemSyncJob.java) · [Risk 当前对账调度](../../service-risk/src/main/java/com/scott/payment/risk/schedule/MerchantLimitReservationReconciliationScheduler.java) · [Admin 当前邮件恢复](../../service-admin/src/main/java/com/scott/payment/admin/mq/AdminEmailDeliveryRecoveryScheduler.java)
+Risk 预占对账由 `MerchantLimitReservationReconciliationScheduler` 调度，迁移时以同一归属范围切换到 Job。Admin 常规邮件恢复和公共 MQ 中继继续覆盖支付方式投递，独立 Job 可补扫同一范围，并通过已有的状态与版本条件实现逐条互斥。积压和接管沿用原事件号或邮件记录，确保 Job 禁用或未接通时仍有兜底。启用前先验证各任务归属服务和内部调用。详见[任务调度与补偿运行说明](job-scheduling-and-recovery.md)。[现有运营待办 Job](../../service-job/src/main/java/com/scott/payment/job/handler/operation/OperationalWorkItemSyncJob.java) · [Risk 当前对账调度](../../service-risk/src/main/java/com/scott/payment/risk/schedule/MerchantLimitReservationReconciliationScheduler.java) · [Admin 当前邮件恢复](../../service-admin/src/main/java/com/scott/payment/admin/mq/AdminEmailDeliveryRecoveryScheduler.java)
 
 ### 11.7 一分钟验证方案
 
@@ -539,7 +539,7 @@ T-02 以实际 MySQL、驱动、连接池和 ShardingSphere 拓扑验证，记�
 | 单次、边界与优先级 | 费率切换、授权变更、MID 关闭、授权/MID 同时到期。每个应处理样本 60 秒内得出正确结果；页面和真实新受理在读到新事实时即可判定 |
 | 常态和峰值 | 本机 dev 先验证渠道停用的扇出、同秒批量到期及事件与定时重叠。面向正式发布的容量验证在等价环境按 T-04 的真实并发及批量基线执行。记录目标数量、事务时延、池和积压，逐项核对时限、无漏项、无重复；保留每轮配置及抽样原始时间线 |
 | 故障与接管 | 注入 Job 节点退出、租约过期、重复派发、分页中断、MQ 延迟、通知提交后 ACK 丢失、事实读取 UNKNOWN。证明旧节点不能越权推进检查点、单个失败不跳过未确认项、持久结果可重跑、故障有告警和补偿、重投不重复生成业务任务 |
-| 切换与回退 | 验证原本地定时入口与 Job 对同一范围互斥，新入口能补回切换窗口内的漏项。验证禁用、手工重跑权限及审计，回退不得恢复双调度 |
+| 切换与回退 | 验证通知常规扫描与专用 Job 逐条互斥，Job 禁用或失联后可继续补投，旧世代不能提交检查点。验证 Risk 定时入口切换、手工重跑权限及审计 |
 
 输出每轮候选版本、环境、数据规模、故障注入点、时钟偏差、T0–T3 对账清单（含超时和缺项）、Job 证据、待办与邮件去重结果及池/延迟指标。仅通过即时路径、Job 控制台显示成功或读取测试 Mock 均不足以验收。
 
@@ -553,7 +553,7 @@ T-02 以实际 MySQL、驱动、连接池和 ShardingSphere 拓扑验证，记�
 | 自然生效、到期及漏触发补偿 | 在 `service-job` 注册 `MERCHANT_PAYMENT_CAPABILITY_BOUNDARY`（候选），以 5 秒 Cron 起测。源服务提供有签名、按环境和来源限定的分批复核命令。分别扫描每类可靠来源的生效/到期时间和主键。每轮冻结扫描上界，连续位置确认后才推进。改期/补录走提交事件，补漏按更新时间和有界历史扫描交叉校验游标前遗漏。 | 边界身份包含来源、主键、事实版本、边界类型和时刻。同一配置转移通过现有待办行及历史请求唯一键收敛为一个结果。未读全或结果未知时保留待办并等待重试。新请求校验和页面读取按当前事实重算。 |
 | 可靠事件及邮件恢复 | 在 `service-job` 注册 `MERCHANT_PAYMENT_CAPABILITY_DELIVERY_RECOVERY`（候选），以 10 秒 Cron 起测。调用消息和邮件所属服务的现有有界恢复能力，按业务范围领取未完成记录。若已有任务可独占承接本范围，复用登记，避免重复调度。 | 复用 `sys_mq_outbox.event_id` 唯一键。邮件增加可空 `business_notification_key BINARY(32)` 及唯一索引 `uk_email_send_record_biz_notif`，键由事件、通知类型和稳定受众分组派生。保留载荷校验，邮件任务与投递意图在既有事务保存，回执丢失使用原有业务通知键重试。 |
 
-调度复用 `sys_job_task`、`sys_job_run_log` 和 Job 执行节点。范围内的周期触发、接管和重跑只由 Job 负责。旧每分钟第 30 秒统一待办同步继续服务原范围，新增来源在启用前验证与旧全量缺席关闭逻辑、既有邮件/MQ 恢复入口的互斥。当前源码的扫描缺省值是 5 秒，实际还叠加任务队列、同轮任务耗时与执行池等待。以秒级 Cron 和当前扫描配置作为起测值，验证最坏相位，按真实触发时间调整；长批次须有界派发，避免阻塞扫描线程。
+调度复用 `sys_job_task`、`sys_job_run_log` 和 Job 执行节点。Job 负责新增周期任务的触发、接管和重跑。旧每分钟第 30 秒统一待办同步继续服务原范围，新增来源在启用前验证与旧全量缺席关闭逻辑的隔离。邮件/MQ 的常规恢复保留，单条投递由已有的状态及版本条件保护。当前源码的扫描缺省值是 5 秒，实际还叠加任务队列、同轮任务耗时与执行池等待。以秒级 Cron 和当前扫描配置作为起测值，验证最坏相位，按真实触发时间调整；长批次须有界派发，避免阻塞扫描线程。
 
 自然扫描候选在原任务表增加可空 `checkpoint_json JSON`，以及 `checkpoint_version BIGINT DEFAULT 0`、`lease_epoch BIGINT DEFAULT 0`。检查点按来源保存固定上界和已确认的 `(boundary_time, source_id)`，设置大小上限，运行日志只保留追踪和诊断。现有抢占已校验行版本，现有续租只校验节点身份，本范围需要补执行世代保护。每次抢占递增世代，续租、完成和检查点 CAS 同时比较任务、归属、世代及有效租约，检查点更新再比较其版本。过期执行只允许通过源服务的幂等业务复核得到同一结果，无法用旧世代清锁或推进游标。Job 接口以环境、来源、截止时间和原业务命令键控制批次，`runId` 仅用于追踪。
 
@@ -568,7 +568,7 @@ T-02 以实际 MySQL、驱动、连接池和 ShardingSphere 拓扑验证，记�
 | 正常触发及边界相位（A34、A45） | 分别执行审批、费用切换、绑定禁用、自然生效和自然到期，覆盖扫描前后及整秒边缘。至少包含一次同秒生效/到期扇出，以及提交事件与 Job 命中同一转移。逐项对齐来源键、事实版本、待办、通知和 T0–T3，无遗漏、无重复，所有正常样本均在 60 秒内。 |
 | 待办闭环（A35） | 初始同时缺费率及 MID，验证单条待分派事项包含全部缺项。依次修复、配齐后关闭，再让一项退化并验证同一任务按新世代重开。只读取部分来源或人工标完成时，未满足的事实继续保留。 |
 | 接管和消息重投（A33、A45） | 使用隔离环境模拟 Job 中断、租约过期后同节点身份重抢、旧世代迟到、分页中断、提交结果未知、通知落库前中断或落库后丢 ACK。分别验证告警、原键续跑、只推进连续确认区间、相同转移/通知只提交一次。超过 60 秒的未处理项进入可追踪告警，记录影响、恢复时间和尾部积压。 |
-| 容量、切换与回退（A45） | 单条探针、小批正反例后，按目标环境可验证的峰值规模执行同秒到期和共享渠道停用。核对逐项时延、最大值、P95/P99、Hikari 等待、队列和 Job 积压。验证新旧调度范围互斥、停用后受控续跑、切换期间窗口能补回。保存原始时间线和漏项、超时、重复数。 |
+| 容量、切换与回退（A45） | 单条探针、小批正反例后，按目标环境可验证的峰值规模执行同秒到期和共享渠道停用。核对逐项时延、最大值、P95/P99、Hikari 等待、队列和 Job 积压。验证通知入口逐条排他抢占、停用后常规入口续跑、切换期间积压可恢复，单来源故障及整轮截止可追踪。保存原始时间线和漏项、超时、重复数。 |
 
 [当前 Job 扫描配置](../../service-job/src/main/java/com/scott/payment/job/config/JobSchedulerProperties.java) · [现有租约读写](../../service-job/src/main/java/com/scott/payment/job/mapper/SysJobTaskMapper.java) · [统一待办现有任务定义](../../service-admin/src/main/resources/sql/operational-work-item-migration.sql)
 

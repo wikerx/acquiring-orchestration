@@ -84,20 +84,22 @@ public class ReliableMqOutboxRelayService {
      */
     public boolean relayEvent(String eventId) {
         ReliableMqOutboxDO event = outboxStore.findByEventId(eventId);
-        return event != null && producerService.equals(event.getProducerService()) && dispatch(event);
+        return event != null && producerService.equals(event.getProducerService())
+                && dispatch(event) == DispatchOutcome.RELAYED;
     }
 
-    private boolean dispatch(ReliableMqOutboxDO event) {
+    private DispatchOutcome dispatch(ReliableMqOutboxDO event) {
         if ("CLOSED".equals(event.getEventStatus())) {
-            return false;
+            return DispatchOutcome.FAILED;
         }
         String eventId = event.getEventId();
         if ("SENT".equals(event.getEventStatus())) {
-            return true;
+            return DispatchOutcome.RELAYED;
         }
         LocalDateTime now = LocalDateTime.now();
         if (outboxStore.claim(event.getId(), event.getVersion(), now) != 1) {
-            return alreadySent(eventId);
+            return alreadySent(eventId, event.getProducerService())
+                    ? DispatchOutcome.RELAYED : DispatchOutcome.DEFERRED;
         }
         int claimedVersion = event.getVersion() + 1;
         try {
@@ -108,16 +110,21 @@ public class ReliableMqOutboxRelayService {
                     event.getTraceId(),
                     event.getRetryCount(),
                     event.getPayloadJson());
+        } catch (RuntimeException exception) {
+            return recordFailure(event, claimedVersion, exception);
+        }
+        try {
             boolean sent = outboxStore.markSent(event.getId(), claimedVersion, LocalDateTime.now()) == 1
-                    || alreadySent(eventId);
+                    || alreadySent(eventId, event.getProducerService());
             if (!sent) {
                 log.error("可靠消息发送成功状态 CAS 更新失败, event: RELIABLE_MQ_MARK_SENT_CAS_FAILED, eventId: {}, topic: {}, expectedVersion: {}",
                         event.getEventId(), event.getTopic(), claimedVersion);
             }
-            return sent;
+            return sent ? DispatchOutcome.RELAYED : DispatchOutcome.DEFERRED;
         } catch (RuntimeException exception) {
-            recordFailure(event, claimedVersion, exception);
-            return false;
+            log.error("可靠消息成功回执持久化待确认, event: RELIABLE_MQ_MARK_SENT_UNCERTAIN, eventId: {}, topic: {}, errorType: {}",
+                    eventId, event.getTopic(), exception.getClass().getSimpleName());
+            return DispatchOutcome.DEFERRED;
         }
     }
 
@@ -157,23 +164,43 @@ public class ReliableMqOutboxRelayService {
         return outboxStore.recoverStale(producerService, staleBefore, now);
     }
 
-    /** Job 通过消息归属服务恢复本功能范围，原定时中继排除此范围。 */
-    public int recoverPaymentCapabilityDelivery(int requestedLimit) {
+    /** 专用 Job 与常规中继共用消息行的状态和版本抢占。 */
+    public CapabilityRecovery recoverPaymentCapabilityDelivery(int requestedLimit, long deadlineEpochMillis) {
         if (!"service-admin".equals(producerService)) {
             throw new IllegalStateException("payment capability relay is owned by service-admin");
         }
         int limit = Math.max(1, Math.min(100, requestedLimit));
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime staleBefore = now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L));
+        if (System.currentTimeMillis() >= deadlineEpochMillis) {
+            return new CapabilityRecovery(0, 0, 0, 0, true);
+        }
         outboxStore.recoverPaymentCapabilityStale(staleBefore, now, limit);
+        if (System.currentTimeMillis() >= deadlineEpochMillis) {
+            return new CapabilityRecovery(0, 0, 0, 0, true);
+        }
+        List<ReliableMqOutboxDO> due = outboxStore.findPaymentCapabilityDue(now, limit);
         int relayed = 0;
-        for (ReliableMqOutboxDO event : outboxStore.findPaymentCapabilityDue(now, limit)) {
-            // 查询范围只包含两端的支付方式业务事件及 Admin 的能力邮件。
-            if (dispatch(event)) {
-                relayed++;
+        int failed = 0;
+        for (ReliableMqOutboxDO event : due) {
+            if (System.currentTimeMillis() >= deadlineEpochMillis) {
+                break;
+            }
+            switch (dispatch(event)) {
+                case RELAYED -> relayed++;
+                case FAILED -> failed++;
+                case DEFERRED -> { }
             }
         }
-        return relayed;
+        return new CapabilityRecovery(due.size(), relayed, failed, due.size() - relayed - failed,
+                System.currentTimeMillis() >= deadlineEpochMillis);
+    }
+
+    public record CapabilityRecovery(int selected, int relayed, int failed, int deferred, boolean budgetExhausted) {
+    }
+
+    private enum DispatchOutcome {
+        RELAYED, FAILED, DEFERRED
     }
 
     /**
@@ -211,7 +238,7 @@ public class ReliableMqOutboxRelayService {
     /**
      * 根据当前失败次数推进 RETRY_WAIT 或 CLOSED。
      */
-    private void recordFailure(ReliableMqOutboxDO event,
+    private DispatchOutcome recordFailure(ReliableMqOutboxDO event,
                                int claimedVersion,
                                RuntimeException exception) {
         int nextRetryCount = event.getRetryCount() + 1;
@@ -233,6 +260,7 @@ public class ReliableMqOutboxRelayService {
         log.warn("可靠消息投递失败, event: RELIABLE_MQ_RELAY_FAILED, eventId: {}, topic: {}, retryCount: {}, closed: {}, exceptionType: {}, stateRecorded: {}",
                 event.getEventId(), event.getTopic(), nextRetryCount, exhausted,
                 exception.getClass().getSimpleName(), affectedRows == 1);
+        return affectedRows == 1 ? DispatchOutcome.FAILED : DispatchOutcome.DEFERRED;
     }
 
     /**
@@ -247,10 +275,10 @@ public class ReliableMqOutboxRelayService {
     /**
      * CAS 冲突后确认消息是否已由其他实例投递成功。
      */
-    private boolean alreadySent(String eventId) {
+    private boolean alreadySent(String eventId, String expectedProducer) {
         ReliableMqOutboxDO latest = outboxStore.findByEventId(eventId);
         return latest != null
-                && producerService.equals(latest.getProducerService())
+                && expectedProducer.equals(latest.getProducerService())
                 && "SENT".equals(latest.getEventStatus());
     }
 }

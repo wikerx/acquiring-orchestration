@@ -1,5 +1,9 @@
 # service-risk 配置源模板：内部 HMAC 身份和路径由应用基线固定，发布时与 payment-risk 密钥合并为加密服务 DataId。
 risk:
+  payment-preparation:
+    # 参数说明：Risk 向 Payment 复核原准备代次，只有明确允许释放的结果才能取消受保护预占。
+    internal-secret: ${acquiring.internal-auth.edges.risk-payment.active-secret}
+
   evaluation:
     # 并发执行 AML、黑白名单和单笔限额三个无副作用只读规则组；累计限额、频控和 3DS 始终留在请求线程。
     # 环境说明：环境变量：RISK_READ_ONLY_PARALLEL_ENABLED，dev 默认值为 "true"；其他环境启用前需完成线程池、数据库连接池和 Redis 容量压测。
@@ -58,9 +62,9 @@ risk:
     # 消费 payment 终态事件并驱动 RESERVED -> CONFIRMED/CANCELLED。
     # 环境说明：环境变量：RISK_RESERVATION_EVENT_CONSUMER_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     reservation-event-consumer-enabled: ${RISK_RESERVATION_EVENT_CONSUMER_ENABLED:true}
-    # 扫描进程中断、MQ 丢失或 payment 本地事务失败后遗留的 PREPARING/RESERVED。
-    # 环境说明：环境变量：RISK_RESERVATION_RECONCILE_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
-    reservation-reconcile-enabled: ${RISK_RESERVATION_RECONCILE_ENABLED:true}
+    # 参数说明：true 由 Risk 内置定时器复核所有商户的累计限额预占，false 由 service-job 调度该复核。
+    # 常用 dev 由 service-job 调度。回滚时停用预占复核 Job、等待在途运行结束，设为 true 后重启 Risk。
+    reservation-reconcile-enabled: false
     # 参数说明：配置风控预占对账单批数量，必须为正整数。
     # 环境说明：环境变量：RISK_RESERVATION_RECONCILE_BATCH_SIZE，dev 配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     reservation-reconcile-batch-size: ${RISK_RESERVATION_RECONCILE_BATCH_SIZE:100}
@@ -86,6 +90,14 @@ internal-service:
   auth:
     # enabled 安全门禁固定在本地，实时风控只接受 service-payment 调用。
     callers:
+      service-job:
+        # 参数说明：累计限额预占调度调用边当前的 HMAC 验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.job-risk.active-secret}
+        # 参数说明：滚动换钥时验证上一版签名；常态使用空值。
+        previous-secret: ${acquiring.internal-auth.edges.job-risk.previous-secret:}
+        # 参数说明：明确授权的唯一内部 POST 路径，其他路径使用各自独立调用边。
+        allowed-paths:
+          - /internal/risk/merchant-limit-reservations/reconcile
       service-payment:
         # 参数说明：Payment 调用实时风控评估时使用的当前验签密钥引用。
         active-secret: ${acquiring.internal-auth.edges.payment-risk.active-secret}

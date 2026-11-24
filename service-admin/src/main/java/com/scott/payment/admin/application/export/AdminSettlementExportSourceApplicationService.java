@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.export;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReservePageRequest;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReservePageResponse;
 import com.scott.payment.admin.dto.exporttask.AdminSettlementExportInternalDTOs.SettlementReserveRow;
@@ -88,13 +89,20 @@ public class AdminSettlementExportSourceApplicationService {
      * 按冻结条件和商户范围读取一页保证金结算安全投影。
      */
     public SettlementReservePageResponse pageReserves(SettlementReservePageRequest request) {
-        PageResult<ReserveItemSummary> page = reportingQueryService.searchReserveItems(
-                toReserveQuery(request), dataScope(request.isAllMerchants(), request.getMerchantIds()));
+        ReserveItemSearchRequest query = toReserveQuery(request);
+        AdminMerchantDataScope scope = dataScope(request.isAllMerchants(), request.getMerchantIds());
+        PageResult<ReserveItemSummary> page = request.getAfterAction() == null
+                ? reportingQueryService.searchReserveItems(query, scope)
+                : reportingQueryService.readReserveExportPage(query, scope, request.getAfterAction());
         SettlementReservePageResponse response = new SettlementReservePageResponse();
         response.setTotal(page.getTotal());
         response.setPageNo(page.getPageNo());
         response.setPageSize(page.getPageSize());
         response.setRecords(page.getRecords().stream().map(this::toReserveRow).toList());
+        if (!page.getRecords().isEmpty()) {
+            ReserveItemSummary last = page.getRecords().get(page.getRecords().size() - 1);
+            response.setNextAction(new ReserveActionCursor(last.getActionTime(), last.getActionId()));
+        }
         return response;
     }
 
@@ -250,6 +258,7 @@ public class AdminSettlementExportSourceApplicationService {
         row.setPaymentType(source.getPaymentType());
         row.setPaymentMethod(source.getPaymentMethod());
         row.setTransactionType(source.getTransactionType());
+        row.setOriginalTransactionTypes(source.getOriginalTransactionTypes());
         row.setResultItemType(source.getResultItemType());
         row.setFeeCategory(source.getFeeCategory());
         row.setDirection(source.getDirection());

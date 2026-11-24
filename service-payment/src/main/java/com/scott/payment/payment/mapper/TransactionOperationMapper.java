@@ -372,7 +372,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               AND o.transaction_date_time &gt;= #{beginTime}
               AND o.transaction_date_time &lt; #{endTimeExclusive}
               AND o.channel_match_status = 'PENDING'
-              AND o.transaction_status NOT IN ('SUCCESS', 'FAILED')
+              AND (o.transaction_status NOT IN ('SUCCESS', 'FAILED')
+                   OR o.channel_code = 'SCOTT_CHANNEL_A')
               AND o.channel_code IS NOT NULL
               AND COALESCE(o.create_time, o.operation_time, o.transaction_date_time)
                     &lt;= DATE_SUB(#{now}, INTERVAL 5 MINUTE)
@@ -390,6 +391,31 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
             @Param("now") LocalDateTime now,
             @Param("limit") int limit);
+
+    /**
+     * 将与回调结果冲突的终态动作重新加入勾兑。以写入时的状态为准，兼容回调先读取到非终态的情况。
+     *
+     * @return 影响行数；已在勾兑或待复核的动作不会重复入队
+     */
+    @Update("""
+            UPDATE transaction_operation
+            SET channel_match_status = 'PENDING',
+                next_channel_match_time = #{now},
+                version = version + 1,
+                update_time = #{now}
+            WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
+              AND channel_code = #{channelCode}
+              AND transaction_status IN ('SUCCESS', 'FAILED')
+              AND transaction_status <> #{callbackStatus}
+              AND channel_match_status IN ('NOT_REQUIRED', 'MATCHED')
+              AND deleted = 0
+            """)
+    int enqueueTerminalCallbackMatch(@Param("id") Long id,
+                                     @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                     @Param("channelCode") String channelCode,
+                                     @Param("callbackStatus") String callbackStatus,
+                                     @Param("now") LocalDateTime now);
 
     /**
      * 使用分片时间和版本 CAS 标记渠道勾兑结果。

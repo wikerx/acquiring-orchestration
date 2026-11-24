@@ -11,6 +11,8 @@ import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.CreateRequ
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.DispatchRequest;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.DispatchResult;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.DownloadRequest;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantSettlementBatchQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantSettlementSummaryQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.SearchRequest;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.TaskRequest;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.TaskSummary;
@@ -879,6 +881,7 @@ public class DataExportTaskService {
         TaskSummary summary = new TaskSummary();
         summary.setTaskNo(task.getTaskNo());
         summary.setTaskType(task.getTaskType());
+        summary.setSettlementBatchDomain(settlementBatchDomain(task));
         summary.setTaskName(task.getTaskName());
         summary.setStatus(task.getStatus());
         summary.setProgressPercent(task.getProgressPercent());
@@ -897,6 +900,25 @@ public class DataExportTaskService {
         summary.setStartedAt(task.getStartedAt());
         summary.setFinishedAt(task.getFinishedAt());
         return summary;
+    }
+
+    /**
+     * 仅投影商户任务的已冻结域。历史快照缺少域时按混合授权处理。
+     */
+    private String settlementBatchDomain(DataExportTaskDO task) {
+        try {
+            if (MERCHANT_SETTLEMENT_BATCH.equals(task.getTaskType())) {
+                var query = JsonUtils.parseObject(task.getQuerySnapshot(), MerchantSettlementBatchQuery.class);
+                return query == null ? null : query.getBatchDomain();
+            }
+            if (MERCHANT_SETTLEMENT_SUMMARY.equals(task.getTaskType())) {
+                var query = JsonUtils.parseObject(task.getQuerySnapshot(), MerchantSettlementSummaryQuery.class);
+                return query == null ? null : query.getBatchDomain();
+            }
+        } catch (com.alibaba.fastjson2.JSONException exception) {
+            return null;
+        }
+        return null;
     }
 
     /**

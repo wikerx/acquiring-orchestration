@@ -121,4 +121,34 @@ public interface TransactionChannelInteractionLogMapper extends BaseMapper<Trans
                                  @Param("durationMillis") Integer durationMillis,
                                  @Param("interactionTime") LocalDateTime interactionTime);
 
+    /** 将旧版开发钱包的待授权占位恢复为待回填记录，只接受与本次交易匹配且没有实际响应证据的占位。 */
+    @Update("""
+            UPDATE transaction_channel_interaction_log
+            SET interaction_type = 'REQUEST', response_body_json_masked = NULL
+            WHERE request_id = #{requestId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND transaction_id = #{transactionId}
+              AND channel_code = 'SCOTT_CHANNEL_A'
+              AND interaction_type = 'REQUEST_RESPONSE'
+              AND request_url_masked IS NULL
+              AND http_status IS NULL
+              AND response_header_json_masked IS NULL
+              AND exception_type IS NULL
+              AND exception_message IS NULL
+              AND duration_millis IS NULL
+              AND CASE WHEN JSON_VALID(response_body_json_masked) THEN
+                    JSON_UNQUOTE(JSON_EXTRACT(response_body_json_masked, '$.rawChannelStatus')) = 'PROCESSING'
+                    AND JSON_UNQUOTE(JSON_EXTRACT(response_body_json_masked, '$.channelOrderNo')) = #{channelOrderNo}
+                    AND #{channelOrderNo} REGEXP '^DEV-IW-[0-9]{16,32}$'
+                    AND JSON_UNQUOTE(JSON_EXTRACT(response_body_json_masked, '$.channelTransactionId')) = #{channelTransactionId}
+                    AND JSON_LENGTH(JSON_EXTRACT(response_body_json_masked, '$.rawResponse')) = 0
+                    AND JSON_LENGTH(response_body_json_masked) = 7
+                  ELSE FALSE END
+            """)
+    int resetWalletPreparationPlaceholder(@Param("requestId") String requestId,
+                                          @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                          @Param("transactionId") String transactionId,
+                                          @Param("channelOrderNo") String channelOrderNo,
+                                          @Param("channelTransactionId") String channelTransactionId);
+
 }

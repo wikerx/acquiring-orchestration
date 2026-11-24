@@ -31,6 +31,8 @@ public interface ClearingTransactionOperationMapper extends BaseMapper<ClearingT
             WHERE transaction_id = #{transactionId}
               AND transaction_date_time = #{transactionDateTime}
               AND deleted = 0
+              AND NOT (COALESCE(channel_code, '') = 'SCOTT_CHANNEL_A'
+                       AND COALESCE(channel_order_no, '') LIKE 'DEV-IW-%')
             LIMIT 1
             """)
     ClearingTransactionOperationDO selectByTransaction(

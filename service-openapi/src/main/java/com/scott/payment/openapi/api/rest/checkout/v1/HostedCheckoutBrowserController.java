@@ -15,17 +15,22 @@ import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.Map;
 
 /**
  * 付款人浏览器 Hosted Checkout API 控制器。
@@ -79,6 +84,37 @@ public class HostedCheckoutBrowserController {
     public CommonResult<HostedCheckoutSessionVO> querySession(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.SessionQueryRequest requestDTO) {
         return payerSuccess(hostedCheckoutApplicationService.querySession(requestDTO));
+    }
+
+    /**
+     * 受理钱包渠道浏览器回跳；支付核心确认并落库后，以 303 跳回正常收银台结果页。
+     */
+    @GetMapping("/wallet/authorization/return")
+    public ResponseEntity<Void> walletReturn(
+            @RequestParam("returnToken") String returnToken,
+            @RequestParam("transactionId") String transactionId) {
+        HostedCheckoutBrowserRequestDTOs.WalletSimulationReturnRequest request =
+                new HostedCheckoutBrowserRequestDTOs.WalletSimulationReturnRequest(returnToken, transactionId);
+        String checkoutUrl = hostedCheckoutApplicationService.handleWalletReturn(request);
+        String baseUrl = urlPolicy.normalizePlatformBaseUrl(
+                systemConfigService.requiredEnabledValue(CHECKOUT_FRONTEND_BASE_URL_CONFIG_KEY));
+        if (!StringUtils.hasText(checkoutUrl) || !checkoutUrl.startsWith(baseUrl + "/checkout/")) {
+            throw new com.scott.payment.component.core.exception.ApiException(
+                    com.scott.payment.component.core.openapi.result.OpenApiResultCode.SYSTEM_ERROR,
+                    "wallet return target is not a platform checkout URL");
+        }
+        return ResponseEntity.status(HttpStatus.SEE_OTHER)
+                .location(URI.create(checkoutUrl))
+                .header("Cache-Control", "no-store")
+                .header("Referrer-Policy", "no-referrer")
+                .build();
+    }
+
+    /** 准备或打开 Hosted Checkout 钱包渠道授权。 */
+    @PostMapping("/wallet/authorization")
+    public CommonResult<Map<String, String>> simulateWallet(
+            @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.WalletSimulationRequest request) {
+        return payerSuccess(hostedCheckoutApplicationService.simulateWallet(request));
     }
 
     /**

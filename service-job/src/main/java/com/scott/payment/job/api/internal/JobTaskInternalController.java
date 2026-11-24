@@ -1,7 +1,12 @@
 package com.scott.payment.job.api.internal;
 
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.job.api.internal.dto.JobHandlerOptionResponse;
 import com.scott.payment.job.api.internal.dto.JobManualTriggerRequest;
 import com.scott.payment.job.api.internal.dto.JobTaskQueryRequest;
@@ -47,6 +52,7 @@ public class JobTaskInternalController {
      * @return 处理器选项列表
      */
     @GetMapping("/handlers")
+    @RequiresPermission("monitor:job:list")
     public CommonResult<List<JobHandlerOptionResponse>> listHandlers() {
         return success(jobTaskApplicationService.listHandlers());
     }
@@ -58,6 +64,7 @@ public class JobTaskInternalController {
      * @return 任务分页列表
      */
     @PostMapping("/search")
+    @RequiresPermission("monitor:job:list")
     public CommonResult<PageResult<JobTaskResponse>> pageTasks(@RequestBody(required = false) @Valid JobTaskQueryRequest request) {
         return success(jobTaskApplicationService.pageTasks(request));
     }
@@ -69,6 +76,7 @@ public class JobTaskInternalController {
      * @return 保存结果
      */
     @PostMapping
+    @RequiresPermission("monitor:job:add")
     public CommonResult<JobTaskResponse> createTask(@RequestBody @Valid JobTaskSaveRequest request) {
         return success(jobTaskApplicationService.createTask(request));
     }
@@ -81,6 +89,7 @@ public class JobTaskInternalController {
      * @return 更新结果
      */
     @PutMapping("/{taskId}")
+    @RequiresPermission("monitor:job:edit")
     public CommonResult<JobTaskResponse> updateTask(@PathVariable("taskId") Long taskId,
                                                     @RequestBody @Valid JobTaskSaveRequest request) {
         return success(jobTaskApplicationService.updateTask(taskId, request));
@@ -95,9 +104,16 @@ public class JobTaskInternalController {
      * @return 更新结果
      */
     @PutMapping("/{taskId}/status")
+    @RequiresPermission("monitor:job:list")
     public CommonResult<JobTaskResponse> changeStatus(@PathVariable("taskId") Long taskId,
                                                       @RequestParam("status") String status,
                                                       @RequestParam("operator") String operator) {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        String permission = "ENABLED".equalsIgnoreCase(status) ? "monitor:job:start" : "monitor:job:stop";
+        if (account == null || (!account.getPermissions().contains(permission)
+                && !account.getPermissions().contains("*:*:*"))) {
+            throw new ServiceException(ApiResultEnum.FORBIDDEN);
+        }
         return success(jobTaskApplicationService.changeStatus(taskId, status, operator));
     }
 
@@ -109,6 +125,7 @@ public class JobTaskInternalController {
      * @return 本次执行生成的 runId
      */
     @PostMapping("/{taskId}/trigger")
+    @RequiresPermission("monitor:job:run")
     public CommonResult<String> trigger(@PathVariable("taskId") Long taskId,
                                         @RequestBody @Valid JobManualTriggerRequest request) {
         return success(jobTaskApplicationService.trigger(taskId, request));
@@ -122,6 +139,7 @@ public class JobTaskInternalController {
      * @return 删除结果
      */
     @DeleteMapping("/{taskId}")
+    @RequiresPermission("monitor:job:remove")
     public CommonResult<Void> deleteTask(@PathVariable("taskId") Long taskId,
                                          @RequestParam("operator") String operator) {
         jobTaskApplicationService.deleteTask(taskId, operator);

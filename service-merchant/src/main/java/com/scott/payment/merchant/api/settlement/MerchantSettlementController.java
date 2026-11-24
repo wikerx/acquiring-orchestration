@@ -14,6 +14,7 @@ import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.Clearing
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingTransactionLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReconciliationRecord;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItem;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemListRow;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.SummaryLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.TransactionItem;
@@ -88,6 +89,15 @@ public class MerchantSettlementController {
     }
 
     /**
+     * 读取正式交易结算单预览数据，由独立的预览权限控制。
+     */
+    @GetMapping("/{settlementBatchNo}/voucher/preview")
+    @RequiresPermission("merchant:settlement:batch:voucher:view")
+    public CommonResult<BatchDetail> voucherPreview(@PathVariable("settlementBatchNo") String settlementBatchNo) {
+        return success(applicationService.getVoucher(settlementBatchNo));
+    }
+
+    /**
      * 分页读取当前商户指定正式批次的结算汇总。
      */
     @GetMapping("/{settlementBatchNo}/summaries")
@@ -114,6 +124,77 @@ public class MerchantSettlementController {
     }
 
     /**
+     * 读取当前商户保证金释放、调整及其冲正批次。
+     */
+    @PostMapping("/reserve-batches/search")
+    @RequiresPermission("merchant:settlement:reserve-batch:list")
+    public CommonResult<PageResult<BatchSummary>> searchReserveBatches(@RequestBody(required = false) BatchQuery query) {
+        return success(applicationService.searchBatches(query, "RESERVE"));
+    }
+
+    /**
+     * 读取指定保证金批次概览及锁定汇率。
+     */
+    @GetMapping("/reserve-batches/{settlementBatchNo}")
+    @RequiresPermission("merchant:settlement:reserve-batch:detail")
+    public CommonResult<BatchDetail> reserveBatchDetail(@PathVariable("settlementBatchNo") String settlementBatchNo) {
+        return success(applicationService.getBatch(settlementBatchNo, "RESERVE"));
+    }
+
+    /**
+     * 分页读取指定保证金批次的交易类型拆分汇总。
+     */
+    @GetMapping("/reserve-batches/{settlementBatchNo}/summaries")
+    @RequiresPermission("merchant:settlement:reserve-batch:summary:list")
+    public CommonResult<PageResult<SummaryLine>> reserveBatchSummaries(
+            @PathVariable("settlementBatchNo") String settlementBatchNo,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchResultSummaries(settlementBatchNo, pageNo, pageSize, "RESERVE"));
+    }
+
+    /**
+     * 读取正式保证金结算单预览数据。
+     */
+    @GetMapping("/reserve-batches/{settlementBatchNo}/voucher/preview")
+    @RequiresPermission("merchant:settlement:reserve-batch:voucher:view")
+    public CommonResult<BatchDetail> reserveVoucherPreview(@PathVariable("settlementBatchNo") String settlementBatchNo) {
+        return success(applicationService.getVoucher(settlementBatchNo, "RESERVE"));
+    }
+
+    /**
+     * 校验下载权限后重新读取正式保证金结算单快照。
+     */
+    @GetMapping("/reserve-batches/{settlementBatchNo}/voucher")
+    @RequiresPermission("merchant:settlement:reserve-batch:voucher-download")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.EXPORT,
+            operation = "下载保证金结算单")
+    public CommonResult<BatchDetail> reserveVoucherDownload(@PathVariable("settlementBatchNo") String settlementBatchNo) {
+        return success(applicationService.getVoucher(settlementBatchNo, "RESERVE"));
+    }
+
+    /**
+     * 保证金批次同步导出的兼容入口，固定按保证金域查询。
+     */
+    @PostMapping("/reserve-batches/export")
+    @RequiresPermission("merchant:settlement:reserve-batch:export")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.EXPORT, operation = "导出保证金批次")
+    public void exportReserveBatches(@RequestBody(required = false) BatchQuery query, HttpServletResponse response) {
+        applicationService.exportBatches(query, response, "RESERVE");
+    }
+
+    /**
+     * 保证金批次汇总同步导出的兼容入口。
+     */
+    @PostMapping("/reserve-batches/{settlementBatchNo}/summaries/export")
+    @RequiresPermission("merchant:settlement:reserve-batch:summary:export")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.EXPORT, operation = "导出保证金汇总")
+    public void exportReserveBatchSummaries(@PathVariable("settlementBatchNo") String settlementBatchNo,
+                                             HttpServletResponse response) {
+        applicationService.exportResultSummaries(settlementBatchNo, response, "RESERVE");
+    }
+
+    /**
      * 分页查询批次内可追溯到真实 transactionId 的结算财务行。
      *
      * @param query 可空交易明细过滤和分页条件
@@ -131,7 +212,7 @@ public class MerchantSettlementController {
      * 分页查询当前商户正式批次内一笔交易的结算财务组件。
      */
     @GetMapping("/transaction-items/batches/{settlementBatchNo}/transactions/{transactionId}")
-    @RequiresPermission("merchant:settlement:transaction-item:list")
+    @RequiresPermission("merchant:settlement:transaction-item:detail")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
             operation = "查询交易结算组件")
     public CommonResult<PageResult<TransactionItem>> transactionComponents(
@@ -233,9 +314,26 @@ public class MerchantSettlementController {
     @PostMapping("/reserve-items/search")
     @RequiresPermission("merchant:settlement:reserve-item:list")
     @OperationLog(moduleName = "结算账单", businessType = OperationTypeConstants.QUERY, operation = "查询保证金结算明细")
-    public CommonResult<PageResult<ReserveItem>> searchReserveItems(
+    public CommonResult<PageResult<ReserveItemListRow>> searchReserveItems(
             @RequestBody(required = false) ReserveItemQuery query) {
-        return success(applicationService.searchReserveItems(query));
+        return success(toReserveList(applicationService.searchReserveItems(query)));
+    }
+
+    /**
+     * 按保证金动作号读取累计扣留、释放及调整详情。
+     */
+    @GetMapping("/reserve-items/{reserveActionNo}")
+    @RequiresPermission("merchant:settlement:reserve-item:detail")
+    public CommonResult<ReserveItem> reserveItemDetail(@PathVariable("reserveActionNo") String reserveActionNo) {
+        return success(applicationService.getReserveItem(reserveActionNo));
+    }
+
+    /**
+     * 两个列表入口共用精简字段，避免列表权限返回完整动作详情。
+     */
+    private PageResult<ReserveItemListRow> toReserveList(PageResult<ReserveItem> page) {
+        return PageResult.of(page.getTotal(), page.getPageNo(), page.getPageSize(),
+                page.getRecords().stream().map(ReserveItemListRow::from).toList());
     }
 
     /**
@@ -245,14 +343,14 @@ public class MerchantSettlementController {
     @RequiresPermission("merchant:settlement:reserve-item:transaction-detail")
     @OperationLog(moduleName = "结算账单", businessType = OperationTypeConstants.QUERY,
             operation = "按交易查询保证金明细")
-    public CommonResult<PageResult<ReserveItem>> reserveItemsByTransaction(
+    public CommonResult<PageResult<ReserveItemListRow>> reserveItemsByTransaction(
             @PathVariable("transactionId") String transactionId,
             @RequestParam("transactionDateTime")
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
             @RequestParam(value = "pageNo", required = false) Integer pageNo,
             @RequestParam(value = "pageSize", required = false) Integer pageSize) {
-        return success(applicationService.searchReserveItemsByTransaction(
-                transactionId, transactionDateTime, pageNo, pageSize));
+        return success(toReserveList(applicationService.searchReserveItemsByTransaction(
+                transactionId, transactionDateTime, pageNo, pageSize)));
     }
 
     /**

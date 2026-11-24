@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.dto.settlement;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -32,6 +33,8 @@ public final class MerchantSettlementDTOs {
          * 批次类型，可空，仅允许服务端白名单值。
          */
         private String batchType;
+        /** 保证金批次入口使用 RESERVE 限定查询及导出范围。 */
+        private String batchDomain;
         /**
          * 批次状态，可空，商户侧仅可查询 POSTED 或 REVERSED。
          */
@@ -784,8 +787,33 @@ public final class MerchantSettlementDTOs {
     /**
      * 保证金不可变动作及动作后的当前责任快照；保证金币种始终为原标签币种。
      */
+    /**
+     * 保证金明细列表的可见字段，累计变动仅从独立详情接口返回。
+     */
+    public record ReserveItemListRow(String reserveActionNo, String reserveNo, String settlementBatchNo,
+                                     LocalDate businessDate, String sourceTransactionId, String merchantOrderNo,
+                                     LocalDateTime sourceTransactionDateTime, String actionType, String direction,
+                                     String currency, Integer currencyExponent, BigDecimal amount,
+                                     BigDecimal remainingAmount, String reserveStatus, LocalDate expectedReleaseDate,
+                                     LocalDateTime actionTime) {
+
+        /**
+         * 保留列表及精确跳转所需数据，累计变动由详情权限控制。
+         */
+        public static ReserveItemListRow from(ReserveItem item) {
+            return new ReserveItemListRow(item.getReserveActionNo(), item.getReserveNo(), item.getSettlementBatchNo(),
+                    item.getBusinessDate(), item.getSourceTransactionId(), item.getMerchantOrderNo(),
+                    item.getSourceTransactionDateTime(), item.getActionType(), item.getDirection(), item.getCurrency(),
+                    item.getCurrencyExponent(), item.getAmount(), item.getRemainingAmount(), item.getReserveStatus(),
+                    item.getExpectedReleaseDate(), item.getActionTime());
+        }
+    }
+
     @Data
     public static class ReserveItem {
+        /** 保证金动作主键，用于在相同动作时间内续读。 */
+        @JsonIgnore
+        private Long actionId;
         /**
          * 不可变保证金动作编号。
          */

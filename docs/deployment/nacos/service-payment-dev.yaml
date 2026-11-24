@@ -107,8 +107,8 @@ payment:
       # 环境说明：环境变量 PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT；当前协议只允许 5。
       max-retry-count: ${PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT:5}
     callback-inbox:
-      # 执行 transaction_callback_inbox 迁移并完成回滚评审前必须保持 false。
-      worker-enabled: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_WORKER_ENABLED:false}
+      # 开发库已部署回调收件箱，随 Payment 服务启动消费。需要暂停时可显式配置为 false。
+      worker-enabled: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_WORKER_ENABLED:true}
       # 单次到期扫描和超时恢复的记录上限，服务端强制限制为 1 至 500。
       batch-size: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_BATCH_SIZE:100}
       # PROCESSING 租约必须覆盖单条支付回调事务的最长正常耗时。
@@ -196,6 +196,14 @@ internal-service:
   auth:
     # enabled 安全门禁固定在本地；外部入口、后台、商户后台和任务服务分别按最小路径授权。
     callers:
+      service-risk:
+        # 参数说明：支付准备归属复核调用边当前的 HMAC 验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.risk-payment.active-secret}
+        # 参数说明：滚动换钥时验证上一版签名；常态使用空值。
+        previous-secret: ${acquiring.internal-auth.edges.risk-payment.previous-secret:}
+        # 参数说明：明确授权的唯一内部 POST 路径，其他路径使用各自独立调用边。
+        allowed-paths:
+          - /internal/payment/preparation-ownership/reconcile-cancellation
       service-openapi:
         # 参数说明：OpenAPI 调用支付受理和查询内部协议时使用的当前验签密钥引用。
         active-secret: ${acquiring.internal-auth.edges.openapi-payment.active-secret}

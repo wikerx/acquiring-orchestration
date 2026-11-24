@@ -1,9 +1,12 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
+import com.scott.payment.channel.payment.api.HostedWalletSimulator.State;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.component.core.id.LuhnMod10Utils;
+import com.scott.payment.component.core.id.GlobalIdGenerator;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -17,6 +20,8 @@ import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
+import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.entity.TransactionAmountChangeLogDO;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
@@ -40,7 +45,9 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.mapper.TransactionLocatorMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
+import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.mockito.ArgumentCaptor;
@@ -70,6 +77,119 @@ import static org.mockito.Mockito.when;
  * 交易事实记录服务单元测试，验证逻辑表写入携带 transaction_date_time，并保护金额、状态和通知语义。
  */
 class DefaultTransactionRecordServiceTests {
+
+    @Test
+    void walletLedgerWritesStandardFactsAndActivatesOneMerchantNotificationWithThePlatformNumber() {
+        var orderMapper = mock(TransactionOrderMapper.class);
+        var operations = mock(TransactionOperationMapper.class);
+        var requests = mock(TransactionChannelRequestMapper.class);
+        var interactions = mock(TransactionChannelInteractionLogMapper.class);
+        var notifications = mock(TransactionMerchantNotificationMapper.class);
+        var locators = mock(TransactionLocatorMapper.class);
+        var flowEvents = mock(TransactionFlowEventMapper.class);
+        var delivery = mock(MerchantNotificationInitialDeliveryService.class);
+        var records = new DefaultTransactionRecordService(orderMapper, operations,
+                mock(TransactionStatusHistoryMapper.class), requests, interactions,
+                flowEvents, mock(TransactionAmountChangeLogMapper.class), notifications,
+                mock(TransactionMerchantApiInteractionLogMapper.class), mock(TransactionPaymentMethodInfoMapper.class),
+                locators, new TransactionShardingKeyParser(), logicalShardingProperties());
+        ReflectionTestUtils.setField(records, "merchantNotificationInitialDeliveryService", delivery);
+        var ids = mock(GlobalIdGenerator.class);
+        String platformId = fixtureGlobalId("261124110123346000001");
+        when(ids.nextId()).thenReturn(platformId, fixtureGlobalId("261124110123346000002"));
+        var idempotency = mock(TransactionIdempotencyService.class);
+        when(idempotency.tryBegin(any())).thenReturn(true);
+        var ledger = new CheckoutWalletTransactionLedger(ids, records, idempotency, interactions);
+        var time = LocalDateTime.of(2026, 11, 24, 11, 1, 23, 346_000_000);
+        var checkout = new PaymentCheckoutSessionDO();
+        checkout.setMerchantRequestId("MERCHANT-REQUEST");
+        checkout.setMerchantNotifyUrl("https://example.test/notify");
+        var attempt = new PaymentCheckoutAttemptDO();
+        attempt.setCheckoutAttemptId("2611241101233460000013");
+        attempt.setMerchantId("200099");
+        attempt.setMerchantOrderNo("SDKHC-WALLET-TEST");
+        attempt.setPaymentMethod("APPLE_PAY");
+        attempt.setLabelAmount(new BigDecimal("92.28"));
+        attempt.setLabelCurrency("CAD");
+        attempt.setChannelRequestAmount(new BigDecimal("65.730000"));
+        attempt.setChannelRequestCurrency("USD");
+        attempt.setChannelCode("SCOTT_CHANNEL_A");
+        attempt.setChannelOrderNo("DEV-IW-" + attempt.getCheckoutAttemptId());
+        attempt.setChannelTransactionId("CMT-WALLET-TEST");
+        attempt.setTransactionDateTime(time);
+        var quote = new CheckoutWalletTransactionLedger.Quote(2, 2, new BigDecimal("0.71231"), "TEST_RATE", time);
+        attempt.setResultSnapshot(JsonUtils.toJsonString(quote));
+        var route = PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A");
+        route.setChannelId(5L);
+        route.setMidConfigId(10L);
+        route.setMetadataValues(Map.of("apiKey", "test-key-must-not-be-stored"));
+
+        var identity = ledger.open(checkout, attempt, route, quote);
+
+        var order = ArgumentCaptor.forClass(TransactionOrderDO.class);
+        var operation = ArgumentCaptor.forClass(TransactionOperationDO.class);
+        var locator = ArgumentCaptor.forClass(TransactionLocatorDO.class);
+        var notification = ArgumentCaptor.forClass(TransactionMerchantNotificationDO.class);
+        var interaction = ArgumentCaptor.forClass(TransactionChannelInteractionLogDO.class);
+        verify(orderMapper).insert(order.capture());
+        verify(operations).insert(operation.capture());
+        verify(locators).insert(locator.capture());
+        verify(notifications).insertLogical(notification.capture());
+        verify(interactions).insertLogical(interaction.capture());
+        assertThat(interaction.getValue().getInteractionType()).isEqualTo("REQUEST");
+        assertThat(interaction.getValue().getResponseBodyJsonMasked()).isNull();
+        assertThat(order.getValue().getRootTransactionId()).isEqualTo(platformId);
+        assertThat(order.getValue().getChannelOrderNo()).isEqualTo(attempt.getChannelOrderNo());
+        assertThat(order.getValue().getTransactionRate()).isEqualByComparingTo("0.71231");
+        assertThat(operation.getValue().getChannelTransactionId()).isEqualTo(attempt.getChannelTransactionId());
+        assertThat(operation.getValue().getChannelMatchStatus()).isEqualTo("NOT_REQUIRED");
+        assertThat(operation.getValue().getChannelRouteSnapshotJson()).doesNotContain("test-key-must-not-be-stored");
+        assertThat(locator.getValue().getTransactionId()).isEqualTo(platformId);
+        assertThat(locator.getValue().getMerchantOrderNo()).isEqualTo(attempt.getMerchantOrderNo());
+        assertThat(notification.getValue().getTransactionId()).isEqualTo(platformId);
+        assertThat(notification.getValue().getNextRetryTime()).isNull();
+        verify(delivery, never()).schedule(any(), any(Integer.class), any());
+        var routes = mock(PaymentChannelRouteService.class);
+        assertThatThrownBy(() -> OriginalTransactionRouteResolver.plan(routes, order.getValue(), operation.getValue()))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class);
+        verify(routes, never()).restore(any(), any(), any(), any());
+
+        attempt.setTransactionId(identity.transactionId());
+        attempt.setOperationId(identity.operationId());
+        attempt.setChannelRequestId(identity.requestId());
+        operation.getValue().setId(11L);
+        notification.getValue().setId(51L);
+        when(operations.selectByTransactionId(platformId, time)).thenReturn(operation.getValue());
+        when(orderMapper.selectByOperationId(identity.operationId(), time)).thenReturn(order.getValue());
+        when(requests.selectByRequestId(identity.requestId(), time)).thenReturn(channelRequestFact("SENT", 0));
+        when(requests.updateStatusLogical(any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(interactions.updateByRequestIdLogical(any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(operations.completeStatus(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any())).thenReturn(1);
+        when(orderMapper.markInitialSuccess(any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(notifications.selectPendingActivation(platformId, time, 0)).thenReturn(notification.getValue());
+        when(notifications.activateByTransactionId(eq(51L), eq(platformId), eq(time), eq(0),
+                any(), any(), any(), any())).thenReturn(1);
+
+        ledger.complete(checkout, attempt, route, State.SUCCESS, null, null);
+
+        var auditOrder = org.mockito.Mockito.inOrder(interactions);
+        auditOrder.verify(interactions).resetWalletPreparationPlaceholder(identity.requestId(), time, platformId,
+                attempt.getChannelOrderNo(), attempt.getChannelTransactionId());
+        auditOrder.verify(interactions).updateByRequestIdLogical(eq(identity.requestId()), eq(time), eq("REQUEST_RESPONSE"),
+                any(), any(), any(), any(), any(), any(), contains("SUCCESS"), any(), any(), any(), any());
+
+        var payload = ArgumentCaptor.forClass(String.class);
+        verify(notifications).activateByTransactionId(eq(51L), eq(platformId), eq(time), eq(0),
+                payload.capture(), any(), any(), any());
+        assertThat(payload.getValue()).contains("\"transactionId\":\"" + platformId + "\"",
+                "\"transactionStatus\":\"SUCCESS\"", "\"paymentMethod\":\"APPLE_PAY\"",
+                "\"currency\":\"CAD\"", "\"amount\":92.28")
+                .doesNotContain(attempt.getChannelOrderNo(), attempt.getChannelTransactionId());
+        verify(delivery).schedule(eq(notification.getValue()), eq(1), any());
+    }
 
     @Test
     void globalTransactionNumberUsesLocatorTimeEvenWhenIssuedInTheNextQuarter() {

@@ -27,6 +27,12 @@ public interface HostedCheckoutService {
      */
     HostedCheckoutPaymentResultVO submitPayment(HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest requestDTO);
 
+    String handleWalletReturn(
+            HostedCheckoutBrowserRequestDTOs.WalletSimulationReturnRequest request);
+
+    /** 准备或打开钱包渠道授权。 */
+    java.util.Map<String, String> simulateWallet(HostedCheckoutBrowserRequestDTOs.WalletSimulationRequest request);
+
     /**
      * 查询付款尝试结果，供处理中页面轮询展示使用。
      */

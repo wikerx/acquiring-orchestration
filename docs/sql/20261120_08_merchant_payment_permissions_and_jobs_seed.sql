@@ -1,5 +1,8 @@
 -- REQ-001 双端菜单与独立动作权限，不向现有角色自动分配。
 -- 正式环境先核对父菜单及 HMAC 调用范围。新增任务默认禁用。
+-- 中文种子数据按 UTF-8 解码，执行时同时指定 mysql --default-character-set=utf8mb4。
+SET NAMES utf8mb4;
+
 START TRANSACTION;
 
 INSERT INTO sys_menu (app_id,parent_id,menu_code,menu_name,menu_type,route_path,component_path,permission_code,icon,visible,keep_alive,external_link,sort_no,status,deleted)

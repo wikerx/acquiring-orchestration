@@ -1,5 +1,6 @@
 package com.scott.payment.admin.dto.exporttask;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -114,6 +115,7 @@ public final class AdminSettlementExportInternalDTOs {
         @Min(1)
         @Max(100)
         private Integer pageSize;
+        private ReserveActionCursor afterAction;
     }
 
     /**
@@ -139,6 +141,7 @@ public final class AdminSettlementExportInternalDTOs {
         private long pageNo;
         private long pageSize;
         private List<SettlementReserveRow> records = new ArrayList<>();
+        private ReserveActionCursor nextAction;
     }
 
     /**
@@ -173,6 +176,7 @@ public final class AdminSettlementExportInternalDTOs {
         private String paymentType;
         private String paymentMethod;
         private String transactionType;
+        private List<String> originalTransactionTypes;
         private String resultItemType;
         private String feeCategory;
         private String direction;

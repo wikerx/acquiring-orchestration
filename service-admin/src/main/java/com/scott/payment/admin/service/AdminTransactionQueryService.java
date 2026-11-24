@@ -1,5 +1,6 @@
 package com.scott.payment.admin.service;
 
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
@@ -166,6 +167,11 @@ public interface AdminTransactionQueryService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     PageResult<ChannelCallbackResponse> pageChannelCallbacks(ChannelCallbackQuery query);
+
+    /** 按回调业务号、分片时间和操作员商户范围查询单条脱敏记录。 */
+    ChannelCallbackDetailResponse channelCallbackDetail(String callbackId, LocalDateTime transactionDateTime,
+                                                        int deliveryPage,
+                                                        AdminMerchantDataScope dataScope);
 
     /**
      * 查询商户通知任务；筛选条件、分页上限和数据范围由方法参数共同限定。

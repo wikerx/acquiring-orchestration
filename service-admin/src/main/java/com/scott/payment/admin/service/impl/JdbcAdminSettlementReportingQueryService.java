@@ -13,6 +13,7 @@ import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -257,7 +258,16 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                                                              AdminMerchantDataScope dataScope) {
         ReserveItemSearchRequest query = normalizeReserveQuery(request);
         AdminMerchantDataScope scope = requireScope(dataScope);
-        return readExecutor.read(() -> reservePage(query, scope));
+        return readExecutor.read(() -> reservePage(query, scope, true, null));
+    }
+
+    @Override
+    public PageResult<ReserveItemSummary> readReserveExportPage(ReserveItemSearchRequest request,
+                                                               AdminMerchantDataScope dataScope,
+                                                               ReserveActionCursor afterAction) {
+        ReserveItemSearchRequest query = normalizeReserveQuery(request);
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        return readExecutor.read(() -> reservePage(query, scope, false, afterAction));
     }
 
     /**
@@ -288,8 +298,6 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 WHERE batch.business_date BETWEEN :beginDate AND :endDate
                   AND candidate.source_type = 'CLEARING_REVISION'
                   AND candidate.source_transaction_id IS NOT NULL
-                  AND item.source_detail_type = 'TRANSACTION_CLEARING'
-                  AND item.result_role = 'FINANCIAL_COMPONENT'
                 """);
         if (query.getSettlementBatchNo() != null) where.append(" AND candidate.settlement_batch_no = :batchNo\n");
         if (query.getMerchantId() != null) where.append(" AND candidate.merchant_id = :merchantId\n");
@@ -313,18 +321,24 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 .addValue("direction", query.getDirection())
                 .addValue("currency", query.getTargetCurrency())
                 .addValue("permittedMerchantIds", scope.merchantIds());
-        String from = """
+        String candidateFrom = """
                 FROM settlement_candidate candidate
                 JOIN settlement_batch batch
                   ON batch.settlement_batch_no = candidate.settlement_batch_no
                  AND batch.merchant_id = candidate.merchant_id
+                """;
+        String locatorJoin = """
+                LEFT JOIN transaction_locator locator
+                  ON locator.transaction_id = candidate.source_transaction_id
+                 AND locator.merchant_id = candidate.merchant_id
+                """;
+        String componentJoin = """
                 JOIN settlement_result_item item
                   ON item.settlement_batch_no = candidate.settlement_batch_no
                  AND item.candidate_id = candidate.id
                  AND item.merchant_id = candidate.merchant_id
-                LEFT JOIN transaction_locator locator
-                  ON locator.transaction_id = candidate.source_transaction_id
-                 AND locator.merchant_id = candidate.merchant_id
+                 AND item.source_detail_type = 'TRANSACTION_CLEARING'
+                 AND item.result_role = 'FINANCIAL_COMPONENT'
                 """;
         String groupBy = """
                 GROUP BY batch.settlement_batch_no, batch.business_date, batch.batch_status,
@@ -333,14 +347,37 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                          candidate.source_transaction_id, locator.transaction_date_time,
                          candidate.source_transaction_date_time, locator.transaction_type
                 """;
+        // 财务组件用于确认候选可见性，分页后再读取当前页的完整组件以计算金额。
+        String eligible = """
+                 AND EXISTS (
+                     SELECT 1 FROM settlement_result_item component
+                     WHERE component.settlement_batch_no = candidate.settlement_batch_no
+                       AND component.candidate_id = candidate.id
+                       AND component.merchant_id = candidate.merchant_id
+                       AND component.source_detail_type = 'TRANSACTION_CLEARING'
+                       AND component.result_role = 'FINANCIAL_COMPONENT'
+                 )
+                """;
+        boolean filtersOnLocator = query.getMerchantOrderNo() != null
+                || query.getBeginTransactionTime() != null || query.getEndTransactionTime() != null;
+        String countFrom = filtersOnLocator ? candidateFrom + locatorJoin : candidateFrom;
         Long count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT candidate.id) " + from + where,
-                parameters, Long.class);
+                "SELECT COUNT(1) " + countFrom + where + eligible, parameters, Long.class);
         long total = count == null ? 0L : count;
         long offset = (long) (query.getPageNo() - 1) * query.getPageSize();
+        String pageFrom = """
+                 JOIN (
+                     SELECT candidate.id,
+                            COALESCE(locator.transaction_date_time, candidate.source_transaction_date_time)
+                                AS source_transaction_date_time
+                """ + candidateFrom + locatorJoin + where + eligible + """
+                     ORDER BY source_transaction_date_time DESC, candidate.id DESC
+                     LIMIT :offset, :limit
+                 ) selected ON selected.id = candidate.id
+                """;
         List<TransactionSettlementSummary> rows = offset < total ? jdbcTemplate.query(
-                "SELECT " + TRANSACTION_SETTLEMENT_COLUMNS + from + where + groupBy
-                        + " ORDER BY source_transaction_date_time DESC, candidate.id DESC LIMIT :offset, :limit",
+                "SELECT " + TRANSACTION_SETTLEMENT_COLUMNS + candidateFrom + pageFrom + locatorJoin + componentJoin + groupBy
+                        + " ORDER BY source_transaction_date_time DESC, candidate.id DESC",
                 new MapSqlParameterSource(parameters.getValues())
                         .addValue("offset", offset).addValue("limit", query.getPageSize()),
                 BeanPropertyRowMapper.newInstance(TransactionSettlementSummary.class)) : List.of();
@@ -457,7 +494,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
      * 查询原标签币种保证金动作，并按扣留 + 借方调整 - 返还 - 释放 - 贷方调整 - 冲正计算当前责任。
      */
     private PageResult<ReserveItemSummary> reservePage(ReserveItemSearchRequest query,
-                                                       AdminMerchantDataScope scope) {
+                                                       AdminMerchantDataScope scope,
+                                                       boolean includeTotal,
+                                                       ReserveActionCursor afterAction) {
         if (scope.empty() || query.getBeginBusinessDate().isAfter(query.getEndBusinessDate())
                 || query.getBeginTransactionTime() != null && query.getBeginTransactionTime().isAfter(query.getEndTransactionTime())) {
             return emptyPage(query.getPageNo(), query.getPageSize());
@@ -499,26 +538,63 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 .addValue("beginExpectedReleaseDate", query.getBeginExpectedReleaseDate())
                 .addValue("endExpectedReleaseDate", query.getEndExpectedReleaseDate())
                 .addValue("permittedMerchantIds", scope.merchantIds());
-        String from = """
+        String reserveFrom = """
                 FROM merchant_reserve_action action
                 JOIN merchant_reserve_item reserve
                   ON reserve.id = action.reserve_item_id AND reserve.reserve_no = action.reserve_no
                 JOIN settlement_candidate candidate
                   ON candidate.id = action.candidate_id AND candidate.merchant_id = reserve.merchant_id
                 JOIN settlement_batch batch ON batch.settlement_batch_no = action.settlement_batch_no
+                """;
+        String locatorJoin = """
+                LEFT JOIN transaction_locator locator
+                  ON locator.transaction_id = reserve.source_transaction_id
+                 AND locator.merchant_id = reserve.merchant_id
+                """;
+        String displayJoins = """
                 LEFT JOIN merchant_fund_account fund_account
                   ON fund_account.id = reserve.account_id
                  AND fund_account.merchant_id = reserve.merchant_id
                  AND fund_account.deleted = 0
-                LEFT JOIN transaction_locator locator
-                  ON locator.transaction_id = reserve.source_transaction_id
-                 AND locator.merchant_id = reserve.merchant_id
                 LEFT JOIN base_iso_currency currency
                   ON currency.alpha3_code = action.currency AND currency.deleted = 0
                 """;
-        return page(RESERVE_COLUMNS, from, where.toString(), parameters,
-                "action.action_time DESC, action.id DESC", query.getPageNo(), query.getPageSize(),
-                ReserveItemSummary.class);
+        boolean filtersOnLocator = query.getMerchantOrderNo() != null || query.getBeginTransactionTime() != null;
+        String countFrom = filtersOnLocator ? reserveFrom + locatorJoin : reserveFrom;
+        String from = reserveFrom + locatorJoin + displayJoins;
+        boolean preferOrderedScan = !filtersOnLocator && query.getSettlementBatchNo() == null
+                && query.getReserveActionNo() == null && query.getReserveNo() == null
+                && query.getSourceTransactionId() == null && query.getBeginExpectedReleaseDate() == null
+                && query.getReserveStatus() == null && query.getActionType() == null && query.getCurrency() == null;
+        long offset = includeTotal ? (long) (query.getPageNo() - 1) * query.getPageSize() : 0;
+        if (afterAction != null) {
+            where.append("""
+                     AND (action.action_time < :afterTime
+                          OR (action.action_time = :afterTime AND action.id < :afterId))
+                    """);
+            parameters.addValue("afterTime", afterAction.actionTime()).addValue("afterId", afterAction.actionId());
+        }
+        parameters.addValue("offset", offset).addValue("limit", query.getPageSize());
+        // 范围扫描优先走动作时间索引，精确筛选仍交给优化器选择索引。
+        String select = preferOrderedScan && offset == 0
+                ? "SELECT /*+ ORDER_INDEX(action idx_reserve_action_time) */ " : "SELECT ";
+        List<ReserveItemSummary> rows = jdbcTemplate.query(
+                select + RESERVE_COLUMNS + from + where
+                        + " ORDER BY action.action_time DESC, action.id DESC LIMIT :offset, :limit",
+                parameters, BeanPropertyRowMapper.newInstance(ReserveItemSummary.class));
+        long total = 0;
+        if (includeTotal) {
+            // 首页不足一页时，结果行数就是精确总数。
+            if (offset == 0 && rows.size() < query.getPageSize()) {
+                total = rows.size();
+            } else {
+                String countSelect = preferOrderedScan ? "SELECT /*+ JOIN_PREFIX(action) */ " : "SELECT ";
+                Long count = jdbcTemplate.queryForObject(countSelect + "COUNT(1) " + countFrom + where,
+                        parameters, Long.class);
+                total = count == null ? 0 : count;
+            }
+        }
+        return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
     /**
@@ -568,7 +644,13 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                                    int pageNo,
                                    int pageSize,
                                    Class<T> type) {
-        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) " + from + where, parameters, Long.class);
+        return page(columns, from, from, where, parameters, orderBy, pageNo, pageSize, type);
+    }
+
+    private <T> PageResult<T> page(String columns, String from, String countFrom, String where,
+                                   MapSqlParameterSource parameters, String orderBy,
+                                   int pageNo, int pageSize, Class<T> type) {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) " + countFrom + where, parameters, Long.class);
         long total = count == null ? 0L : count;
         long offset = (long) (pageNo - 1) * pageSize;
         List<T> rows = offset < total ? jdbcTemplate.query(

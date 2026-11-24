@@ -3,6 +3,7 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.entity.TransactionCallbackInboxDO;
 import com.scott.payment.payment.service.TransactionCallbackInboxService;
 import com.scott.payment.payment.service.TransactionCallbackService;
@@ -45,14 +46,17 @@ class DefaultTransactionCallbackInboxWorkerTests {
             inbox.setVersion(1);
             return true;
         });
-        when(inboxService.markProcessed(eq(inbox), any())).thenReturn(true);
+        var result = new TransactionChannelCallbackResultDTO();
+        result.setCallbackId("CCB-1");
+        when(callbackService.recordChannelCallback(any())).thenReturn(result);
+        when(inboxService.markProcessed(eq(inbox), eq("CCB-1"), any())).thenReturn(true);
         DefaultTransactionCallbackInboxWorker worker =
                 new DefaultTransactionCallbackInboxWorker(inboxService, callbackService);
 
         assertThat(worker.processDue(NOW, 100)).isEqualTo(1);
 
         verify(callbackService).recordChannelCallback(any(TransactionChannelCallbackCommandDTO.class));
-        verify(inboxService).markProcessed(eq(inbox), any());
+        verify(inboxService).markProcessed(eq(inbox), eq("CCB-1"), any());
         verify(inboxService, never()).markFailed(eq(inbox), any(), any());
         assertThat(TraceContext.getTraceId()).isNull();
     }
@@ -74,7 +78,7 @@ class DefaultTransactionCallbackInboxWorkerTests {
 
         assertThat(worker.processDue(NOW, 50)).isZero();
 
-        verify(inboxService, never()).markProcessed(eq(inbox), any());
+        verify(inboxService, never()).markProcessed(eq(inbox), any(), any());
         verify(inboxService).markFailed(eq(inbox), any(IllegalStateException.class), any());
         assertThat(TraceContext.getTraceId()).isNull();
     }

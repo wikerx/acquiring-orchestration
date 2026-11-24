@@ -17,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.IntFunction;
 
@@ -46,6 +47,8 @@ class SettlementBatchSummaryExportProcessorTest {
         properties.setPageSize(73);
         SettlementBatchSummaryRow source = new SettlementBatchSummaryRow();
         source.setPaymentMethod("VISA");
+        source.setTransactionType("RESERVE_RELEASE");
+        source.setOriginalTransactionTypes(List.of("PAYMENT", "PRE_AUTH_COMPLETION"));
         source.setSourceCurrency("EUR");
         source.setSourceAmount(new BigDecimal("80.12340000"));
         source.setTargetCurrency("USD");
@@ -56,6 +59,10 @@ class SettlementBatchSummaryExportProcessorTest {
         response.setSummaryRecords(List.of(source));
         when(sourceClient.loadSettlementBatchSummaryPage(any())).thenReturn(response);
         when(resolver.resolve(anyString(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(resolver.resolve("excel.settlement.enum.transactionType.PAYMENT", Locale.SIMPLIFIED_CHINESE))
+                .thenReturn("支付");
+        when(resolver.resolve("excel.settlement.enum.transactionType.PRE_AUTH_COMPLETION", Locale.SIMPLIFIED_CHINESE))
+                .thenReturn("预授权完成");
         ExportArtifact artifact = new ExportArtifact("settlement-summary.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "exports/admin/settlement-summary.xlsx", 1024L, "a".repeat(64), 1L, 1L,
@@ -67,6 +74,7 @@ class SettlementBatchSummaryExportProcessorTest {
             assertThat(page.total()).isEqualTo(1L);
             assertThat(page.records()).singleElement().satisfies(row -> {
                 assertThat(row.getPaymentMethod()).isEqualTo("VISA");
+                assertThat(row.getTransactionType()).isEqualTo("支付 / 预授权完成");
                 assertThat(row.getSourceAmount()).isEqualByComparingTo("80.12340000");
                 assertThat(row.getTargetAmount()).isEqualByComparingTo("88.13574000");
                 assertThat(row.getTransactionCount()).isEqualTo(4L);

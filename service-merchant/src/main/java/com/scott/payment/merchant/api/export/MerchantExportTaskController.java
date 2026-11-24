@@ -91,6 +91,30 @@ public class MerchantExportTaskController {
     }
 
     /**
+     * 冻结保证金批次范围并提交异步导出。
+     */
+    @PostMapping("/reserve-settlement-batches")
+    @RequiresPermission("merchant:settlement:reserve-batch:export")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.EXPORT,
+            operation = "提交保证金批次异步导出")
+    public CommonResult<TaskSummary> submitReserveSettlementBatches(
+            @Valid @RequestBody SettlementBatchSubmitRequest request) {
+        return success(applicationService.submitSettlementBatches(request, "RESERVE"));
+    }
+
+    /**
+     * 校验保证金批次归属并提交保证金汇总异步导出。
+     */
+    @PostMapping("/reserve-settlement-summaries")
+    @RequiresPermission("merchant:settlement:reserve-batch:summary:export")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.EXPORT,
+            operation = "提交保证金汇总异步导出")
+    public CommonResult<TaskSummary> submitReserveSettlementSummaries(
+            @Valid @RequestBody SettlementSummarySubmitRequest request) {
+        return success(applicationService.submitSettlementSummaries(request, "RESERVE"));
+    }
+
+    /**
      * 提交商户交易结算明细异步导出任务。
      */
     @PostMapping("/settlement-transactions")

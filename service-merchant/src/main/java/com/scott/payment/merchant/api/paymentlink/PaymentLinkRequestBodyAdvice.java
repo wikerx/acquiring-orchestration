@@ -37,7 +37,8 @@ public class PaymentLinkRequestBodyAdvice extends RequestBodyAdviceAdapter {
                                           Class<? extends HttpMessageConverter<?>> converterType) throws IOException {
         byte[] body = input.getBody().readAllBytes();
         Set<String> allowed = Set.of("requestId", "linkName", "merchantOrderNo", "description", "currency",
-                "amount", "expireMinutes", "expireTime", "locale", "cardBrands", "notifyUrl", "redirectUrl");
+                "amount", "expireMinutes", "expireTime", "locale", "cardBrands", "paymentMethodKeys",
+                "notifyUrl", "redirectUrl");
         try {
             var object = JSON.parseObject(body);
             if (object == null || !allowed.containsAll(object.keySet())) {

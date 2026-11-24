@@ -55,6 +55,9 @@ import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.util.StringUtils;
 
@@ -823,6 +826,33 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getCardBin()).isEqualTo("512345****0008");
     }
 
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = "VISA")
+    void simulatedWalletResultPreservesMethodAndOptionalConfirmedCardBrand(String channelBrand) {
+        ChannelPaymentResponse response = channelResponse(ChannelTradeStatus.SUCCESS);
+        var summary = new ChannelPaymentResponse.PaymentMethodSummary();
+        summary.setPaymentMethod("APPLE_PAY");
+        summary.setPaymentBrand(channelBrand);
+        response.setPaymentMethodSummary(summary);
+        var simulator = new CapturingPaymentChannelInvokeService(response);
+        var records = new CapturingTransactionRecordService();
+        var service = newService(riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(), new CapturingTransactionEventOutboxService(),
+                records, List.of(), simulator);
+        var wallet = baseCommand();
+        wallet.setMerchantId("200046");
+        wallet.setPaymentMethod("APPLE_PAY");
+
+        var result = service.createPayment(wallet);
+
+        assertThat(simulator.commandDTO.getPaymentMethod()).isEqualTo("APPLE_PAY");
+        assertThat(result.getStatus()).isEqualTo("SUCCESS");
+        assertThat(result.getPaymentMethod()).isEqualTo("APPLE_PAY");
+        assertThat(result.getPaymentBrand()).isEqualTo(channelBrand);
+        assertThat(result.getCardBin()).isNull();
+    }
+
     /**
      * 预授权入口应把交易类型传递为 PRE_AUTHORIZATION，并复用首次交易受理骨架。
      */
@@ -912,6 +942,7 @@ class PaymentTransactionServiceImplTests {
     @Test
     void shouldRefundWithSourceTransactionIdOnlyForOptionalCurrencyAndMerchantOrderNo() {
         CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
@@ -1015,12 +1046,14 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldRejectRefundWhenAmountExceedsAvailableRefundAmount() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new InMemoryTransactionIdempotencyService(),
                 new CapturingTransactionEventOutboxService(),
-                new CapturingTransactionRecordService(),
+                transactionRecordService,
                 List.of(),
                 channelInvokeService);
 

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -101,6 +102,8 @@ class AdminSettlementExportSourceApplicationServiceTest {
     void shouldPageSettlementReservesWithoutCurrencyConversion() {
         AdminSettlementReportingQueryService queryService = mock(AdminSettlementReportingQueryService.class);
         ReserveItemSummary source = new ReserveItemSummary();
+        source.setActionId(7001L);
+        source.setActionTime(java.time.LocalDateTime.of(2026, 11, 8, 2, 15));
         source.setSettlementBatchNo("STB2001");
         source.setMerchantId("M2001");
         source.setReserveNo("RSV2001");
@@ -135,6 +138,14 @@ class AdminSettlementExportSourceApplicationServiceTest {
         verify(queryService).searchReserveItems(queryCaptor.capture(), scopeCaptor.capture());
         assertThat(queryCaptor.getValue().getPageNo()).isEqualTo(2);
         assertThat(scopeCaptor.getValue().merchantIds()).containsExactly("M2001");
+        assertThat(response.getNextAction().actionId()).isEqualTo(7001L);
+        assertThat(response.getNextAction().actionTime()).isEqualTo(source.getActionTime());
+        request.setAfterAction(response.getNextAction());
+        when(queryService.readReserveExportPage(any(), any(), eq(response.getNextAction())))
+                .thenReturn(PageResult.of(0, 3, 100, List.of()));
+        request.setPageNo(3);
+        assertThat(service.pageReserves(request).getNextAction()).isNull();
+        verify(queryService).readReserveExportPage(any(), eq(scopeCaptor.getValue()), eq(response.getNextAction()));
         assertThat(response.getRecords()).singleElement().satisfies(row -> {
             assertThat(row.getCurrency()).isEqualTo("EUR");
             assertThat(row.getAmount()).isEqualByComparingTo("8.00");
@@ -223,6 +234,7 @@ class AdminSettlementExportSourceApplicationServiceTest {
         ResultSummaryLine source = new ResultSummaryLine();
         source.setPaymentType("CARD");
         source.setPaymentMethod("VISA");
+        source.setOriginalTransactionTypes(List.of("CAPTURE", "PAYMENT"));
         source.setSourceCurrency("EUR");
         source.setSourceAmount(new BigDecimal("80.00"));
         source.setTargetCurrency("USD");
@@ -255,6 +267,7 @@ class AdminSettlementExportSourceApplicationServiceTest {
         assertThat(scopeCaptor.getValue().merchantIds()).containsExactly("M8001");
         assertThat(response.getRecords()).isEmpty();
         assertThat(response.getSummaryRecords()).singleElement().satisfies(row -> {
+            assertThat(row.getOriginalTransactionTypes()).containsExactly("CAPTURE", "PAYMENT");
             assertThat(row.getSourceAmount()).isEqualByComparingTo("80.00");
             assertThat(row.getTargetAmount()).isEqualByComparingTo("88.00");
             assertThat(row.getTransactionCount()).isEqualTo(4L);

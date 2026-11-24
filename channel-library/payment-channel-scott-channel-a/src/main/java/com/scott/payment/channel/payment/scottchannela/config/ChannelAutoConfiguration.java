@@ -1,5 +1,7 @@
 package com.scott.payment.channel.payment.scottchannela.config;
 
+import com.scott.payment.channel.payment.api.HostedWalletSimulator;
+import com.scott.payment.channel.payment.scottchannela.client.HostedWalletSimulationClient;
 import com.scott.payment.channel.payment.scottchannela.adapter.PaymentChannelAdapter;
 import com.scott.payment.channel.payment.scottchannela.callback.CallbackHandler;
 import com.scott.payment.channel.payment.scottchannela.callback.CallbackVerifier;
@@ -12,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 
 /**
@@ -22,6 +25,12 @@ import org.springframework.core.env.Environment;
 @ConditionalOnProperty(prefix = "payment.channel.scott-channel-a", name = "enabled",
         havingValue = "true", matchIfMissing = true)
 public class ChannelAutoConfiguration {
+
+    @Bean
+    @Profile("dev & !test & !uat & !prod & !live-regression")
+    HostedWalletSimulator scottChannelAHostedWalletSimulator() {
+        return new HostedWalletSimulationClient();
+    }
 
     /**
      * 创建 ScottChannelA 收单 HTTP 客户端。

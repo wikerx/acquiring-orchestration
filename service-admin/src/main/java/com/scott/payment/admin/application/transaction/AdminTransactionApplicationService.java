@@ -5,6 +5,7 @@ import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClient
 import com.scott.payment.admin.dto.export.TransactionMerchantNotificationExportRow;
 import com.scott.payment.admin.dto.export.TransactionOperationExportRow;
 import com.scott.payment.admin.dto.export.TransactionOrderExportRow;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
@@ -526,6 +527,13 @@ public class AdminTransactionApplicationService {
      */
     public PageResult<ChannelCallbackResponse> pageChannelCallbacks(ChannelCallbackQuery query) {
         return transactionQueryService.pageChannelCallbacks(query);
+    }
+
+    /** 使用当前操作员的商户权限读取渠道回调详情。 */
+    public ChannelCallbackDetailResponse channelCallbackDetail(String callbackId, LocalDateTime transactionDateTime,
+                                                               int deliveryPage) {
+        return transactionQueryService.channelCallbackDetail(callbackId, transactionDateTime, deliveryPage,
+                merchantDataScopeResolver.resolve(InternalAuthContextHolder.get()));
     }
 
     /**

@@ -15,6 +15,12 @@ import java.util.Map;
 @Data
 public class TransactionChannelCallbackCommandDTO implements Serializable {
 
+    /** OpenAPI 为本次实际 HTTP 投递生成的编号。 */
+    private String deliveryId;
+
+    /** 本次已验签投递的脱敏渠道正文，保留渠道原字段名。 */
+    private String deliveryRequestBodyMasked;
+
     private static final long serialVersionUID = 1L;
 
     /**
@@ -121,6 +127,12 @@ public class TransactionChannelCallbackCommandDTO implements Serializable {
      * 回调原始报文的 SHA-256 十六进制摘要，用于审计关联和完整性排查。
      */
     private String requestBodySha256;
+
+    /** OpenAPI 在可靠受理后使用的 HTTP 确认状态码，历史回调允许为空。 */
+    private Integer gatewayAckHttpStatus;
+
+    /** 已知渠道协议的非敏感确认正文，历史回调允许为空。 */
+    private String gatewayAckBody;
 
     /**
      * 签名校验是否通过。

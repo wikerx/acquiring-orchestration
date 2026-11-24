@@ -2,6 +2,7 @@ package com.scott.payment.job.api.internal;
 
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.job.api.internal.dto.JobRunLogQueryRequest;
 import com.scott.payment.job.api.internal.dto.JobRunLogResponse;
 import com.scott.payment.job.api.internal.dto.JobExecutionTrendResponse;
@@ -44,6 +45,7 @@ public class JobRunLogInternalController {
      * @return 分页日志结果
      */
     @PostMapping("/search")
+    @RequiresPermission("monitor:jobLog:list")
     public CommonResult<PageResult<JobRunLogResponse>> pageLogs(@RequestBody(required = false) @Valid JobRunLogQueryRequest request) {
         return success(jobRunLogApplicationService.pageLogs(request));
     }
@@ -70,6 +72,7 @@ public class JobRunLogInternalController {
      * @return 执行日志列表
      */
     @PostMapping("/list")
+    @RequiresPermission("monitor:jobLog:export")
     public CommonResult<List<JobRunLogResponse>> listLogs(@RequestBody(required = false) @Valid JobRunLogQueryRequest request) {
         return success(jobRunLogApplicationService.listLogs(request));
     }
@@ -80,6 +83,7 @@ public class JobRunLogInternalController {
      * @return 固定七个日期点的成功与失败数量
      */
     @GetMapping("/trend")
+    @RequiresPermission("monitor:job:list")
     public CommonResult<JobExecutionTrendResponse> executionTrend() {
         return success(jobRunLogApplicationService.executionTrend());
     }
@@ -91,6 +95,7 @@ public class JobRunLogInternalController {
      * @return 空响应
      */
     @DeleteMapping("/{id}")
+    @RequiresPermission("monitor:jobLog:remove")
     public CommonResult<Void> removeLog(@PathVariable("id") Long id) {
         jobRunLogApplicationService.removeLog(id);
         return success();
@@ -103,6 +108,7 @@ public class JobRunLogInternalController {
      * @return 删除数量
      */
     @PostMapping("/clean")
+    @RequiresPermission("monitor:jobLog:clean")
     public CommonResult<Integer> cleanLogs(@RequestBody(required = false) @Valid JobRunLogQueryRequest request) {
         return success(jobRunLogApplicationService.cleanLogs(request));
     }

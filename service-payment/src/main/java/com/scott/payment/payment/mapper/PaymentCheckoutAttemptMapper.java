@@ -46,6 +46,61 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
     PaymentCheckoutAttemptDO selectByAttemptRequest(@Param("checkoutSessionId") String checkoutSessionId,
                                                     @Param("attemptRequestId") String attemptRequestId);
 
+    /** 读取会话内同一钱包方式的最近一次挡板渠道尝试，供继续和失败后重试使用。 */
+    @Select("""
+            SELECT *
+            FROM payment_checkout_attempt
+            WHERE checkout_session_id = #{checkoutSessionId}
+              AND payment_method = #{paymentMethod}
+              AND attempt_request_id LIKE 'DEV-INTERACTIVE-%'
+              AND deleted = 0
+            ORDER BY attempt_no DESC, id DESC
+            LIMIT 1
+            """)
+    PaymentCheckoutAttemptDO selectLatestWalletAttempt(@Param("checkoutSessionId") String checkoutSessionId,
+                                                       @Param("paymentMethod") String paymentMethod);
+
+    /** 模拟授权页地址不落库，只绑定挡板签发的交易号。 */
+    @Update("""
+            UPDATE payment_checkout_attempt
+            SET channel_transaction_id = #{channelTransactionId}, version = version + 1, update_time = #{now}
+            WHERE checkout_attempt_id = #{attemptId} AND channel_transaction_id IS NULL
+              AND attempt_request_id LIKE 'DEV-INTERACTIVE-%' AND deleted = 0
+            """)
+    int bindWalletChannelTransaction(@Param("attemptId") String attemptId,
+                                     @Param("channelTransactionId") String channelTransactionId,
+                                     @Param("now") LocalDateTime now);
+
+    /** 在打开模拟钱包的同一事务内绑定平台交易事实，旧终态和其他支付方式不能绑定。 */
+    @Update("""
+            UPDATE payment_checkout_attempt
+            SET transaction_id = #{transactionId}, operation_id = #{operationId}, transaction_date_time = #{now},
+                channel_request_id = #{requestId}, version = version + 1, update_time = #{now}
+            WHERE checkout_attempt_id = #{attemptId}
+              AND attempt_request_id LIKE 'DEV-INTERACTIVE-%'
+              AND attempt_status = 'PROCESSING' AND channel_transaction_id IS NOT NULL
+              AND transaction_id IS NULL AND operation_id IS NULL AND channel_request_id IS NULL
+              AND version = #{version} AND deleted = 0
+            """)
+    int bindWalletCoreIdentity(@Param("attemptId") String attemptId,
+                               @Param("transactionId") String transactionId,
+                               @Param("operationId") String operationId,
+                               @Param("requestId") String requestId,
+                               @Param("version") Integer version,
+                               @Param("now") LocalDateTime now);
+
+    /** 凭原渠道单状态申请一次提交；租约到期也必须重新查原单后才能重试。 */
+    @Update("""
+            UPDATE payment_checkout_attempt
+            SET channel_submit_time = #{now}, version = version + 1, update_time = #{now}
+            WHERE checkout_attempt_id = #{attemptId} AND attempt_status = 'PROCESSING'
+              AND attempt_request_id LIKE 'DEV-INTERACTIVE-%' AND deleted = 0
+              AND (channel_submit_time IS NULL OR channel_submit_time < #{previousClaimDeadline})
+            """)
+    int claimWalletSubmission(@Param("attemptId") String attemptId,
+                              @Param("previousClaimDeadline") LocalDateTime previousClaimDeadline,
+                              @Param("now") LocalDateTime now);
+
     /**
      * 查询会话当前最大尝试序号。
      *

@@ -35,6 +35,32 @@ public class PaymentLinkMethodScope {
         return resolve(snapshot(merchantId), currency, keys, requireAll);
     }
 
+    /**
+     * 从复用快照选出通过目录、授权和费用检查的非卡方式，由 Payment 按订单实际条件检查路由。
+     */
+    public List<String> hostedNonCardMethods(Snapshot facts, Set<String> frozenMethods) {
+        return facts.authority().items().entrySet().stream()
+                .filter(entry -> entry.getKey().startsWith("METHOD:") && MerchantAdmissionPolicy.isItemKey(entry.getKey()))
+                .filter(entry -> facts.directory().contains(entry.getKey()))
+                .filter(entry -> permitsHostedDisplay(facts, entry.getValue()))
+                .map(entry -> entry.getKey().substring("METHOD:".length()))
+                .filter(method -> frozenMethods == null || frozenMethods.contains(method))
+                .filter(method -> facts.fees().stream().filter(fee -> fee.covers("PAYMENT", method, "ALL"))
+                        .limit(2).count() == 1)
+                .sorted()
+                .toList();
+    }
+
+    private boolean permitsHostedDisplay(Snapshot facts, MerchantAdmissionReader.ItemAuthority item) {
+        if (facts.authority().mode() == null && item.grant() != null
+                && "APPLICATION".equals(item.grant().source())) {
+            // 未迁移商户可展示已正式审批的非卡选项，实际交易仍需经过原有准入门禁。
+            return MerchantAdmissionPolicy.state(item.grant(), facts.evaluatedAt()) == MerchantAdmissionPolicy.State.ACTIVE;
+        }
+        return MerchantAdmissionPolicy.permits(
+                facts.authority().mode(), item.grant(), item.frozenLegacyScope(), facts.evaluatedAt());
+    }
+
     /** 创建预览按一次主库取数绘制各币种，不按方式或币种反复查询数据库。 */
     public Snapshot snapshot(String merchantId) {
         return new Snapshot(authorityReader.read(merchantId), authorityReader.transactionFeeCoverage(merchantId),

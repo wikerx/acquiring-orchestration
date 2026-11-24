@@ -29,6 +29,7 @@ import com.scott.payment.merchant.dto.exporttask.MerchantExportTaskDTOs.Transact
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.DetailQuery;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundAccountResponse;
 import com.scott.payment.merchant.service.MerchantFinanceService;
+import com.scott.payment.merchant.service.MerchantSettlementQueryService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -60,17 +61,21 @@ public class MerchantExportTaskApplicationService {
 
     private final MerchantDataExportTaskClient dataClient;
     private final MerchantFinanceService financeService;
+    private final MerchantSettlementQueryService settlementQueryService;
 
     /**
      * 创建商户异步导出应用服务。
      *
      * @param dataClient Data 异步导出内部客户端
      * @param financeService 商户资金账户只读服务
+     * @param settlementQueryService 正式批次域校验服务
      */
     public MerchantExportTaskApplicationService(MerchantDataExportTaskClient dataClient,
-                                                MerchantFinanceService financeService) {
+                                                MerchantFinanceService financeService,
+                                                MerchantSettlementQueryService settlementQueryService) {
         this.dataClient = dataClient;
         this.financeService = financeService;
+        this.settlementQueryService = settlementQueryService;
     }
 
     /**
@@ -97,9 +102,18 @@ public class MerchantExportTaskApplicationService {
      * 冻结当前商户账号和结算批次条件并幂等创建异步任务。
      */
     public TaskSummary submitSettlementBatches(SettlementBatchSubmitRequest request) {
+        return submitSettlementBatches(request, "TRANSACTION");
+    }
+
+    /**
+     * 导出范围固定在请求入口授权的结算域，覆盖客户端可传的筛选值。
+     */
+    public TaskSummary submitSettlementBatches(SettlementBatchSubmitRequest request, String batchDomain) {
         InternalAuthAccount account = currentAccount();
         CreateRequest command = createRequest(request.getRequestId(), MERCHANT_SETTLEMENT_BATCH, account);
-        command.setMerchantSettlementBatchQuery(toSettlementBatchQuery(request.getQuery()));
+        MerchantSettlementBatchQuery query = toSettlementBatchQuery(request.getQuery());
+        query.setBatchDomain(batchDomain);
+        command.setMerchantSettlementBatchQuery(query);
         return dataClient.submit(command);
     }
 
@@ -107,10 +121,19 @@ public class MerchantExportTaskApplicationService {
      * 冻结当前商户账号和指定结算批次并幂等创建汇总导出任务。
      */
     public TaskSummary submitSettlementSummaries(SettlementSummarySubmitRequest request) {
+        return submitSettlementSummaries(request, "TRANSACTION");
+    }
+
+    /**
+     * 创建任务前校验正式批次归属与结算域，并冻结到任务快照。
+     */
+    public TaskSummary submitSettlementSummaries(SettlementSummarySubmitRequest request, String batchDomain) {
         InternalAuthAccount account = currentAccount();
         CreateRequest command = createRequest(request.getRequestId(), MERCHANT_SETTLEMENT_SUMMARY, account);
         MerchantSettlementSummaryQuery query = new MerchantSettlementSummaryQuery();
         query.setSettlementBatchNo(request.getSettlementBatchNo().trim());
+        settlementQueryService.requireBatchDomain(account.getMerchantId(), query.getSettlementBatchNo(), batchDomain);
+        query.setBatchDomain(batchDomain);
         command.setMerchantSettlementSummaryQuery(query);
         return dataClient.submit(command);
     }
@@ -180,7 +203,9 @@ public class MerchantExportTaskApplicationService {
      * 使用版本条件重新排队当前商户账号的失败任务。
      */
     public TaskSummary retry(String taskNo, RetryRequest request) {
-        return dataClient.retry(taskRequest(taskNo, request.getExpectedVersion()));
+        TaskRequest command = taskRequest(taskNo, request.getExpectedVersion());
+        requireSettlementExportGrant(currentAccount(), dataClient.detail(command));
+        return dataClient.retry(command);
     }
 
     /**
@@ -190,6 +215,7 @@ public class MerchantExportTaskApplicationService {
                          HttpServletRequest servletRequest,
                          HttpServletResponse servletResponse) {
         InternalAuthAccount account = currentAccount();
+        requireSettlementExportGrant(account, dataClient.detail(taskRequest(taskNo, null)));
         DownloadRequest command = new DownloadRequest();
         command.setTaskNo(requireTaskNo(taskNo));
         command.setCreatorAccountId(account.getAccountId());
@@ -197,6 +223,43 @@ public class MerchantExportTaskApplicationService {
         command.setOperatorName(operatorName(account));
         command.setClientIp(servletRequest == null ? null : servletRequest.getRemoteAddr());
         dataClient.download(command, servletResponse);
+    }
+
+    /**
+     * 下载和重试重新检查原业务导出授权。旧的混合批次文件需同时持有两域权限。
+     */
+    private void requireSettlementExportGrant(InternalAuthAccount account, TaskSummary task) {
+        if (task == null || task.getTaskType() == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND);
+        }
+        switch (task.getTaskType()) {
+            case MERCHANT_SETTLEMENT_BATCH -> requireBatchTaskExportGrant(account, task, ":export");
+            case MERCHANT_SETTLEMENT_SUMMARY -> requireBatchTaskExportGrant(account, task, ":summary:export");
+            case MERCHANT_SETTLEMENT_TRANSACTION -> requirePermission(account, "merchant:settlement:transaction-item:export");
+            case MERCHANT_SETTLEMENT_RESERVE -> requirePermission(account, "merchant:settlement:reserve-item:export");
+            default -> {
+                // 其他任务沿用下载中心原有授权。
+            }
+        }
+    }
+
+    /**
+     * 按任务创建时的业务域选择角色权限，缺少域的历史任务按混合范围处理。
+     */
+    private void requireBatchTaskExportGrant(InternalAuthAccount account, TaskSummary task, String action) {
+        String domain = task.getSettlementBatchDomain();
+        if (!"RESERVE".equals(domain)) requirePermission(account, "merchant:settlement:batch" + action);
+        if (!"TRANSACTION".equals(domain)) requirePermission(account, "merchant:settlement:reserve-batch" + action);
+    }
+
+    /**
+     * 只信任当前认证账号的精确权限或系统全量授权。
+     */
+    private void requirePermission(InternalAuthAccount account, String permission) {
+        var permissions = account.getPermissions();
+        if (permissions == null || !(permissions.contains(permission) || permissions.contains("*:*:*"))) {
+            throw new ServiceException(ApiResultEnum.FORBIDDEN);
+        }
     }
 
     /**
@@ -270,6 +333,7 @@ public class MerchantExportTaskApplicationService {
         MerchantSettlementBatchQuery target = new MerchantSettlementBatchQuery();
         target.setSettlementBatchNo(source.getSettlementBatchNo());
         target.setBatchType(source.getBatchType());
+        target.setBatchDomain(source.getBatchDomain());
         target.setBatchStatus(source.getBatchStatus());
         target.setBeginBusinessDate(source.getBeginBusinessDate());
         target.setEndBusinessDate(source.getEndBusinessDate());

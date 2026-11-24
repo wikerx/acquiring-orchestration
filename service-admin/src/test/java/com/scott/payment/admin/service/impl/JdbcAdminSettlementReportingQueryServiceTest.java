@@ -1,5 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
@@ -7,15 +8,22 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSe
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import org.apache.shardingsphere.driver.api.ShardingSphereDataSourceFactory;
+import org.apache.shardingsphere.single.config.SingleRuleConfiguration;
+import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -91,6 +99,71 @@ class JdbcAdminSettlementReportingQueryServiceTest {
     }
 
     @Test
+    void pagedCandidatesRetainAllFinancialComponentsAndMerchantScopeThroughShardingSphere() throws Exception {
+        var physical = new JdbcDataSource();
+        physical.setURL("jdbc:h2:mem:transaction_settlement_paging;MODE=MySQL;DB_CLOSE_DELAY=-1");
+        var setup = new JdbcTemplate(physical);
+        setup.execute("""
+                CREATE TABLE settlement_batch (settlement_batch_no VARCHAR PRIMARY KEY, merchant_id VARCHAR,
+                    business_date DATE, batch_status VARCHAR, posted_time TIMESTAMP);
+                CREATE TABLE settlement_candidate (id BIGINT PRIMARY KEY, candidate_no VARCHAR,
+                    settlement_batch_no VARCHAR, merchant_id VARCHAR, source_type VARCHAR, source_transaction_id VARCHAR,
+                    source_transaction_date_time TIMESTAMP);
+                CREATE TABLE transaction_locator (transaction_id VARCHAR PRIMARY KEY, merchant_id VARCHAR,
+                    merchant_order_no VARCHAR, transaction_date_time TIMESTAMP, transaction_type VARCHAR);
+                CREATE TABLE settlement_result_item (id BIGINT PRIMARY KEY, settlement_batch_no VARCHAR,
+                    candidate_id BIGINT, merchant_id VARCHAR, source_detail_type VARCHAR, result_role VARCHAR,
+                    payment_type VARCHAR, payment_method VARCHAR, transaction_type VARCHAR, result_item_type VARCHAR,
+                    source_amount DECIMAL(20,2), source_currency VARCHAR, source_currency_exponent INT,
+                    direction VARCHAR, target_amount DECIMAL(20,2), target_currency VARCHAR,
+                    target_currency_exponent INT, create_time TIMESTAMP);
+                INSERT INTO settlement_batch VALUES
+                    ('SB20260831-00000001', 'M1001', '2026-08-31', 'POSTED', '2026-08-31 09:00:00'),
+                    ('SB20260831-00000002', 'M1002', '2026-08-31', 'POSTED', '2026-08-31 09:00:00');
+                INSERT INTO settlement_candidate VALUES
+                    (1, 'C1', 'SB20260831-00000001', 'M1001', 'CLEARING_REVISION', 'T1', '2026-08-30 09:00:00'),
+                    (2, 'C2', 'SB20260831-00000001', 'M1001', 'CLEARING_REVISION', 'T2', '2026-08-30 09:00:00'),
+                    (3, 'C3', 'SB20260831-00000002', 'M1002', 'CLEARING_REVISION', 'T3', '2026-08-30 10:00:00'),
+                    (4, 'C4', 'SB20260831-00000001', 'M1001', 'CLEARING_REVISION', 'T4', '2026-08-30 10:00:00');
+                INSERT INTO transaction_locator VALUES
+                    ('T1', 'M1001', 'ORDER1', '2026-08-30 09:00:00', 'PAYMENT'),
+                    ('T2', 'M1001', 'ORDER2', '2026-08-30 09:00:00', 'PAYMENT');
+                INSERT INTO settlement_result_item VALUES
+                    (1, 'SB20260831-00000001', 1, 'M1001', 'TRANSACTION_CLEARING', 'FINANCIAL_COMPONENT',
+                     'BANK_CARD', 'VISA', 'PAYMENT', 'PRINCIPAL', 50, 'USD', 2, 'CREDIT', 50, 'USD', 2, NULL),
+                    (2, 'SB20260831-00000001', 2, 'M1001', 'TRANSACTION_CLEARING', 'FINANCIAL_COMPONENT',
+                     'BANK_CARD', 'VISA', 'PAYMENT', 'PRINCIPAL', 100, 'USD', 2, 'CREDIT', 100, 'USD', 2, NULL),
+                    (3, 'SB20260831-00000001', 2, 'M1001', 'TRANSACTION_CLEARING', 'FINANCIAL_COMPONENT',
+                     'BANK_CARD', 'VISA', 'PAYMENT', 'FEE', 2.50, 'USD', 2, 'DEBIT', 2.50, 'USD', 2, NULL),
+                    (4, 'SB20260831-00000002', 3, 'M1002', 'TRANSACTION_CLEARING', 'FINANCIAL_COMPONENT',
+                     'BANK_CARD', 'VISA', 'PAYMENT', 'PRINCIPAL', 30, 'USD', 2, 'CREDIT', 30, 'USD', 2, NULL);
+                """);
+        var logical = ShardingSphereDataSourceFactory.createDataSource(
+                Map.of("master", physical), List.of(new SingleRuleConfiguration(List.of("master.*"), "master")),
+                new Properties());
+        try (var cleanup = (AutoCloseable) logical) {
+            var service = service(new NamedParameterJdbcTemplate(logical));
+            var scope = AdminMerchantDataScope.limited(Set.of("M1001"));
+            var request = resultRequest();
+            request.setDirection("CREDIT");
+            request.setPageNo(1);
+            request.setPageSize(1);
+
+            var firstPage = service.searchResultItems(request, scope);
+            assertThat(firstPage.getTotal()).isEqualTo(2L);
+            assertThat(firstPage.getRecords()).singleElement().satisfies(row -> {
+                assertThat(row.getSourceTransactionId()).isEqualTo("T2");
+                assertThat(row.getComponentCount()).isEqualTo(2L);
+                assertThat(row.getNetTargetAmount()).isEqualByComparingTo(new BigDecimal("97.50"));
+            });
+
+            request.setPageNo(2);
+            assertThat(service.searchResultItems(request, scope).getRecords())
+                    .extracting(TransactionSettlementSummary::getSourceTransactionId).containsExactly("T1");
+        }
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void postingSearchShouldUsePostedTimeStableOrderAndMerchantScope() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
@@ -147,6 +220,32 @@ class JdbcAdminSettlementReportingQueryServiceTest {
         assertThat(service.searchReserveItems(reserve, AdminMerchantDataScope.all()).getTotal()).isZero();
         assertThat(service.searchPostings(posting, AdminMerchantDataScope.all()).getTotal()).isZero();
         verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reserveExportContinuationShouldUseTheLastActionAndSkipTheCount() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class))).thenReturn(List.of());
+        ReserveItemSearchRequest request = new ReserveItemSearchRequest();
+        request.setBeginBusinessDate(LocalDate.of(2026, 8, 1));
+        request.setEndBusinessDate(LocalDate.of(2026, 8, 31));
+        request.setPageNo(200);
+        request.setPageSize(50);
+        ReserveActionCursor cursor = new ReserveActionCursor(LocalDateTime.of(2026, 8, 2, 2, 30), 450L);
+
+        assertThat(service(jdbc).readReserveExportPage(request, AdminMerchantDataScope.limited(Set.of("M1003")), cursor).getRecords()).isEmpty();
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertThat(sql.getValue()).contains("reserve.merchant_id IN (:permittedMerchantIds)",
+                "action.action_time < :afterTime", "action.action_time = :afterTime AND action.id < :afterId",
+                "ORDER BY action.action_time DESC, action.id DESC");
+        assertThat(parameters.getValue().getValue("offset")).isEqualTo(0L);
+        assertThat(parameters.getValue().getValue("afterTime")).isEqualTo(cursor.actionTime());
+        assertThat(parameters.getValue().getValue("afterId")).isEqualTo(cursor.actionId());
+        org.mockito.Mockito.verifyNoMoreInteractions(jdbc);
     }
 
     @Test

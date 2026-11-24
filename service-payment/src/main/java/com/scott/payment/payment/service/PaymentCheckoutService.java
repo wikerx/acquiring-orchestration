@@ -1,5 +1,8 @@
 package com.scott.payment.payment.service;
 
+import com.scott.payment.payment.api.internal.dto.CheckoutWalletSimulationCommand;
+import com.scott.payment.payment.api.internal.dto.WalletSimulationReturnCommand;
+
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -25,6 +28,14 @@ public interface PaymentCheckoutService {
      * @return 收银台会话号、付款 URL 和幂等命中标识
      */
     PaymentCheckoutSessionCreateResultDTO createSession(PaymentCheckoutSessionCreateCommandDTO commandDTO);
+
+    /** 准备或打开由当前收银台会话授权的钱包渠道页面。 */
+    java.util.Map<String, String> simulateWallet(CheckoutWalletSimulationCommand command);
+
+    /**
+     * 受理钱包渠道浏览器回跳，核对渠道权威状态并签发新的正常收银台结果页地址。
+     */
+    PaymentCheckoutSessionCreateResultDTO handleWalletReturn(WalletSimulationReturnCommand command);
 
     /**
      * 根据 URL token 摘要查询收银台展示数据；非法、过期或错绑 token 只返回拦截态。

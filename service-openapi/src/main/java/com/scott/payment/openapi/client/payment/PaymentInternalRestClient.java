@@ -22,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import com.scott.payment.openapi.client.payment.dto.CallbackDeliveryResponseRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -408,6 +410,18 @@ public class PaymentInternalRestClient implements PaymentInternalClient, Payment
         }
     }
 
+    /** 回写渠道回调 HTTP 应答，使用回调入箱接口原有的路径授权。 */
+    public boolean completeCallbackDelivery(CallbackDeliveryResponseRequest request) {
+        String targetUrl = servicePaymentUrl(CHANNEL_CALLBACK_INBOX_PATH);
+        HttpEntity<String> entity = buildSignedEntity(HttpMethod.PUT, URI.create(targetUrl), request);
+        String body = chooseRestTemplate(targetUrl)
+                .exchange(targetUrl, HttpMethod.PUT, entity, String.class).getBody();
+        CommonResult<Boolean> result = InternalServiceResponseParser.parse(
+                body, new TypeReference<CommonResult<Boolean>>() { },
+                "service-payment callback delivery response is invalid", true);
+        return CommonResult.isSuccess(result) && Boolean.TRUE.equals(result.getData());
+    }
+
     /**
      * 回写商户 OpenAPI 响应加密后的密文摘要。
      *
@@ -523,6 +537,22 @@ public class PaymentInternalRestClient implements PaymentInternalClient, Payment
                 new TypeReference<CommonResult<PaymentCheckoutClientDTOs.SessionQueryResponse>>() {
                 }
         );
+    }
+
+    @Override
+    public PaymentCheckoutClientDTOs.SessionCreateResponse handleCheckoutWalletReturn(
+            com.scott.payment.openapi.dto.body.HostedCheckoutBrowserRequestDTOs.WalletSimulationReturnRequest request) {
+        return postCheckout("CHECKOUT_WALLET_RETURN",
+                servicePaymentUrl("/internal/payment/checkout/wallet/authorization/return"),
+                request, true, new TypeReference<CommonResult<PaymentCheckoutClientDTOs.SessionCreateResponse>>() {
+                });
+    }
+
+    @Override
+    public java.util.Map<String, String> simulateCheckoutWallet(PaymentCheckoutClientDTOs.WalletSimulationRequest request) {
+        return postCheckout("CHECKOUT_WALLET_AUTHORIZATION", servicePaymentUrl("/internal/payment/checkout/wallet/authorization"),
+                request, true, new TypeReference<CommonResult<java.util.Map<String, String>>>() {
+                });
     }
 
     /**
@@ -803,12 +833,16 @@ public class PaymentInternalRestClient implements PaymentInternalClient, Payment
      * @return 带签名头的请求实体
      */
     private HttpEntity<String> buildSignedEntity(URI uri, Object requestDTO) {
+        return buildSignedEntity(HttpMethod.POST, uri, requestDTO);
+    }
+
+    private HttpEntity<String> buildSignedEntity(HttpMethod method, URI uri, Object requestDTO) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = paymentClientProperties.getInternalCaller();
         String requestBody = JsonUtils.toJsonString(requestDTO);
         String signature = InternalServiceSignature.sign(
-                "POST",
+                method.name(),
                 uri.getPath(),
                 timestamp,
                 nonce,

@@ -195,6 +195,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         if (operationDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
+        if (CheckoutWalletSimulationService.isSimulationOrder(operationDO.getChannelCode(), operationDO.getChannelOrderNo())) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+        }
         resultDTO.setScannedCount(1);
         String channelMatchStatus = operationDO.getChannelMatchStatus();
         if (!StringUtils.hasText(channelMatchStatus)
@@ -221,6 +224,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     private void processOne(TransactionOperationDO operationDO,
                             LocalDateTime now,
                             TransactionChannelMatchResultDTO resultDTO) {
+        if (CheckoutWalletSimulationService.isSimulationOrder(operationDO.getChannelCode(), operationDO.getChannelOrderNo())) {
+            return;
+        }
         TransactionChannelRequestDO originalRequestDO = transactionRecordService.findOriginalChannelRequestForQuery(operationDO);
         if (isUnsubmittedMpgsCheckout(operationDO, originalRequestDO)
                 || (originalRequestDO != null && !isQueryableOriginalRequest(originalRequestDO, now))) {
@@ -470,6 +476,18 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             return prepared;
         }
         if (PaymentTransactionTypeEnum.REFUND.getCode().equals(operationDO.getTransactionType())) {
+            if ("MPGS".equalsIgnoreCase(operationDO.getChannelCode())) {
+                if (StringUtils.hasText(operationDO.getSourceTransactionId())) {
+                    TransactionOperationDO source = refundQuerySource(operationDO);
+                    if (source != null && ("PAYMENT".equals(source.getTransactionType())
+                            || "CAPTURE".equals(source.getTransactionType())
+                            || "PRE_AUTH_COMPLETION".equals(source.getTransactionType()))
+                            && StringUtils.hasText(source.getChannelTransactionId())) {
+                        prepared.getExtension().put("targetTransactionId", source.getChannelTransactionId());
+                    }
+                }
+                return prepared;
+            }
             String merchantRefundNo = firstText(operationDO.getMerchantOrderId(), operationDO.getMerchantOperationNo());
             if (StringUtils.hasText(merchantRefundNo)) {
                 prepared.getExtension().put("merchantRefundNo", merchantRefundNo);

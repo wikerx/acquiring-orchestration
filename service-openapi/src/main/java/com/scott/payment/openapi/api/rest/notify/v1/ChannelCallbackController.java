@@ -11,6 +11,7 @@ import com.scott.payment.channel.payment.enums.ChannelCallbackScene;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
+import com.scott.payment.openapi.support.CallbackDeliveryAuditInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
@@ -118,7 +119,7 @@ public class ChannelCallbackController {
         TransactionChannelCallbackClientRequestDTO command = buildCallbackRequest(channelCode,
                 CHANNEL_CALLBACK_TYPE, null, request, rawBody, securityResult);
         command.setPathTransactionId(transactionId);
-        paymentInternalClient.acceptChannelCallback(command);
+        acceptDelivery(command, request);
         log.info("OpenAPI渠道回调接收完成, event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, signatureValid: {}, ipAllowed: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
@@ -153,8 +154,8 @@ public class ChannelCallbackController {
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(
                         channelCode, ChannelCallbackScene.THREE_DS, request, rawBody);
-        paymentInternalClient.acceptChannelCallback(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
-                THREE_DS_EVENT_TYPE, request, rawBody, securityResult));
+        acceptDelivery(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
+                THREE_DS_EVENT_TYPE, request, rawBody, securityResult), request);
         log.info("OpenAPI渠道3DS回调接收完成, event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, signatureValid: {}, ipAllowed: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
@@ -162,6 +163,18 @@ public class ChannelCallbackController {
                 securityResult.ipAllowed(),
                 elapsedMillis(startNanos));
         return callbackAcknowledgement(securityResult.acknowledgement());
+    }
+
+    private void acceptDelivery(TransactionChannelCallbackClientRequestDTO command, HttpServletRequest request) {
+        CallbackDeliveryAuditInterceptor.Delivery delivery = CallbackDeliveryAuditInterceptor.delivery(request);
+        if (delivery != null) {
+            command.setDeliveryId(delivery.id());
+            command.setReceivedTime(delivery.receivedTime());
+        }
+        paymentInternalClient.acceptChannelCallback(command);
+        if (delivery != null && "SUCCESS".equals(command.getGatewayAckBody())) {
+            delivery.recordSafeBody(command.getGatewayAckHttpStatus(), command.getGatewayAckBody());
+        }
     }
 
     /**
@@ -243,6 +256,16 @@ public class ChannelCallbackController {
         requestDTO.setRequestHeaders(headers(request));
         requestDTO.setRequestBodyLength(bodyLength(rawBody));
         requestDTO.setRequestBodySha256(sha256(rawBody));
+        ChannelCallbackAcknowledgement acknowledgement = securityResult.acknowledgement();
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(channelCode)
+                && acknowledgement.bodyMode() == ChannelCallbackAcknowledgement.BodyMode.RAW) {
+            requestDTO.setGatewayAckHttpStatus(acknowledgement.statusCode());
+            requestDTO.setGatewayAckBody(acknowledgement.body());
+        }
+        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(channelCode)
+                && securityResult.signatureValid() && securityResult.ipAllowed()) {
+            requestDTO.setDeliveryRequestBodyMasked(ScottCallbackAuditBody.mask(rawBody));
+        }
         requestDTO.setSignatureValid(securityResult.signatureValid());
         requestDTO.setIpAllowed(securityResult.ipAllowed());
         requestDTO.setReceivedTime(LocalDateTime.now(GlobalIdConstants.DEFAULT_ZONE_ID));

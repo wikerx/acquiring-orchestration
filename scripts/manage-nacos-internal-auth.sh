@@ -36,6 +36,8 @@ readonly EDGES=(
   data-merchant
   admin-job
   job-admin
+  job-risk
+  risk-payment
   admin-payment
   admin-clearing
   admin-settlement
@@ -198,7 +200,7 @@ service_edges() {
       printf '%s\n' gateway-checkout
       ;;
     service-job)
-      printf '%s\n' admin-job job-admin job-payment job-clearing job-data
+      printf '%s\n' admin-job job-admin job-payment job-clearing job-data job-risk
       ;;
     service-merchant)
       printf '%s\n' merchant-data data-merchant merchant-payment gateway-checkout
@@ -207,13 +209,13 @@ service_edges() {
       printf '%s\n' openapi-payment openapi-payout gateway-checkout
       ;;
     service-payment)
-      printf '%s\n' admin-payment job-payment merchant-payment openapi-payment payment-risk
+      printf '%s\n' admin-payment job-payment merchant-payment openapi-payment payment-risk risk-payment
       ;;
     service-payout)
       printf '%s\n' openapi-payout
       ;;
     service-risk)
-      printf '%s\n' payment-risk
+      printf '%s\n' payment-risk job-risk risk-payment
       ;;
     service-settlement)
       printf '%s\n' admin-settlement
@@ -231,7 +233,8 @@ edge_caller() {
     merchant-admin) printf '%s' '' ;;
     admin-data|admin-job|admin-payment|admin-clearing|admin-settlement) printf '%s' service-admin ;;
     data-admin|data-merchant) printf '%s' service-data ;;
-    job-admin|job-payment|job-clearing|job-data) printf '%s' service-job ;;
+    job-admin|job-payment|job-clearing|job-data|job-risk) printf '%s' service-job ;;
+    risk-payment) printf '%s' service-risk ;;
     merchant-data|merchant-payment) printf '%s' service-merchant ;;
     openapi-payment|openapi-payout) printf '%s' service-openapi ;;
     payment-risk) printf '%s' service-payment ;;
@@ -258,7 +261,8 @@ edge_receivers() {
     admin-settlement) printf '%s\n' service-settlement ;;
     job-data) printf '%s\n' service-data ;;
     openapi-payout) printf '%s\n' service-payout ;;
-    payment-risk) printf '%s\n' service-risk ;;
+    payment-risk|job-risk) printf '%s\n' service-risk ;;
+    risk-payment) printf '%s\n' service-payment ;;
     gateway-checkout) printf '%s\n' service-admin service-merchant service-openapi service-checkout ;;
     *)
       printf 'Unsupported internal-auth edge: %s\n' "$1" >&2
@@ -610,7 +614,9 @@ edge_description() {
     merchant-data) printf 'Merchant 调用 Data 商户异步导出任务接口时使用的凭据。' ;;
     data-merchant) printf 'Data 回调 Merchant 商户安全导出数据源时使用的凭据。' ;;
     admin-job) printf 'Admin 调用 Job 管理命令时使用的签名与验签凭据。' ;;
-    job-admin) printf 'Job 调用 Admin 汇率波动评估命令时使用的签名与验签凭据。' ;;
+    job-admin) printf 'Job 调用 Admin 汇率、待办和支付能力运维命令时使用的签名与验签凭据。' ;;
+    job-risk) printf 'Job 触发 Risk 的商户累计限额预占复核。' ;;
+    risk-payment) printf 'Risk 请求 Payment 复核原支付准备世代是否可安全释放。' ;;
     admin-payment) printf 'Admin 调用 Payment 状态变更和异常处置命令时使用的凭据。' ;;
     admin-clearing) printf 'Admin 调用 Clearing 人工清分执行与补偿命令时使用的凭据。' ;;
     admin-settlement) printf 'Admin 调用 Settlement 手工结算、审批、取消和冲正命令时使用的凭据。' ;;

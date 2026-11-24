@@ -1,6 +1,7 @@
 package com.scott.payment.payment.application;
 
 import com.scott.payment.payment.api.internal.dto.TransactionCallbackInboxAcceptResultDTO;
+import com.scott.payment.payment.api.internal.dto.CallbackDeliveryResponseCommand;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.service.TransactionCallbackInboxService;
 import org.springframework.stereotype.Service;
@@ -28,5 +29,10 @@ public class TransactionCallbackInboxApplicationService {
      */
     public TransactionCallbackInboxAcceptResultDTO accept(TransactionChannelCallbackCommandDTO commandDTO) {
         return inboxService.accept(commandDTO);
+    }
+
+    /** 记录入口实际生成的回调应答。 */
+    public boolean completeDelivery(CallbackDeliveryResponseCommand command) {
+        return inboxService.completeDelivery(command);
     }
 }

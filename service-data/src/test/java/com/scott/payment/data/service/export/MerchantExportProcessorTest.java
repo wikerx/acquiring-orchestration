@@ -1,10 +1,12 @@
 package com.scott.payment.data.service.export;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantRefundQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantFundLedgerQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantSettlementReserveQuery;
+import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantSettlementSummaryQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantSettlementTransactionQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantTransactionQuery;
 import com.scott.payment.data.client.merchant.MerchantExportSourceClient;
@@ -17,6 +19,8 @@ import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.FundL
 import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementReservePageRequest;
 import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementReservePageResponse;
 import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementReserveRow;
+import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementSummaryPageResponse;
+import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementSummaryRow;
 import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementTransactionPageRequest;
 import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementTransactionPageResponse;
 import com.scott.payment.data.client.merchant.dto.MerchantExportSourceDTOs.SettlementTransactionRow;
@@ -29,6 +33,7 @@ import com.scott.payment.data.infrastructure.export.ExportObjectStorageService;
 import com.scott.payment.data.service.export.impl.MerchantRefundExportProcessor;
 import com.scott.payment.data.service.export.impl.MerchantFundLedgerExportProcessor;
 import com.scott.payment.data.service.export.impl.MerchantSettlementReserveExportProcessor;
+import com.scott.payment.data.service.export.impl.MerchantSettlementSummaryExportProcessor;
 import com.scott.payment.data.service.export.impl.MerchantSettlementTransactionExportProcessor;
 import com.scott.payment.data.service.export.impl.MerchantTransactionExportProcessor;
 import org.junit.jupiter.api.Test;
@@ -37,6 +42,7 @@ import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.IntFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -202,6 +208,60 @@ class MerchantExportProcessorTest {
     }
 
     /**
+     * 商户结算汇总导出保留上游的拆分行和精确金额，来源缺失时保留金额并显示占位。
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldKeepSplitSettlementSummaryRowsAndMissingTypeInExport() {
+        MerchantExportSourceClient sourceClient = mock(MerchantExportSourceClient.class);
+        ExcelExportArtifactWriter writer = mock(ExcelExportArtifactWriter.class);
+        ExcelI18nMessageResolver resolver = mock(ExcelI18nMessageResolver.class);
+        ExportObjectStorageService storage = mock(ExportObjectStorageService.class);
+        ExportProgressListener listener = mock(ExportProgressListener.class);
+        SettlementSummaryRow capture = new SettlementSummaryRow();
+        capture.setTransactionType("CAPTURE");
+        capture.setTransactionCount(3L);
+        capture.setTargetAmount(new BigDecimal("53.72"));
+        SettlementSummaryRow unlinked = new SettlementSummaryRow();
+        unlinked.setTransactionCount(1L);
+        unlinked.setTargetAmount(new BigDecimal("1.04"));
+        SettlementSummaryPageResponse response = new SettlementSummaryPageResponse();
+        response.setTotal(2L);
+        response.setRecords(List.of(capture, unlinked));
+        when(sourceClient.loadSettlementSummaryPage(any())).thenReturn(response);
+        when(resolver.resolve(anyString(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(resolver.resolve("excel.settlement.enum.transactionType.CAPTURE", Locale.SIMPLIFIED_CHINESE))
+                .thenReturn("请款");
+        ExportArtifact artifact = artifact("merchant-settlement-summary.xlsx");
+        when(writer.write(any(), same(storage), same(listener), any(), anyString(), anyString(), anyString(),
+                eq(MerchantSettlementSummaryExportRow.class), any())).thenAnswer(invocation -> {
+            IntFunction<ExportPage<MerchantSettlementSummaryExportRow>> loader = invocation.getArgument(8);
+            ExportPage<MerchantSettlementSummaryExportRow> page = loader.apply(1);
+            assertThat(page.total()).isEqualTo(2L);
+            assertThat(page.records()).satisfiesExactly(first -> {
+                assertThat(first.getTransactionType()).isEqualTo("请款");
+                assertThat(first.getTransactionCount()).isEqualTo(3L);
+                assertThat(first.getTargetAmount()).isEqualByComparingTo("53.72");
+            }, second -> {
+                assertThat(second.getTransactionType()).isEqualTo("-");
+                assertThat(second.getTransactionCount()).isEqualTo(1L);
+                assertThat(second.getTargetAmount()).isEqualByComparingTo("1.04");
+            });
+            return artifact;
+        });
+        MerchantSettlementSummaryQuery query = new MerchantSettlementSummaryQuery();
+        query.setSettlementBatchNo("SB20261124-00000003");
+        var processor = new MerchantSettlementSummaryExportProcessor(sourceClient, writer, resolver, properties(20));
+
+        var result = processor.process(task("M100001", query), storage, listener, LocalDateTime.of(2026, 11, 24, 10, 0));
+
+        assertThat(result).isSameAs(artifact);
+        verify(sourceClient).loadSettlementSummaryPage(org.mockito.ArgumentMatchers.argThat(request ->
+                "M100001".equals(request.getMerchantId())
+                        && "SB20261124-00000003".equals(request.getQuery().getSettlementBatchNo())));
+    }
+
+    /**
      * 保证金导出必须保持标签币种和责任余额，不得按结算币种重新换汇或舍入。
      */
     @Test
@@ -218,15 +278,21 @@ class MerchantExportProcessorTest {
         source.setAmount(new BigDecimal("7.12340000"));
         source.setRemainingAmount(new BigDecimal("5.00340000"));
         SettlementReservePageResponse response = new SettlementReservePageResponse();
-        response.setTotal(1L);
+        ReserveActionCursor cursor = new ReserveActionCursor(LocalDateTime.of(2026, 11, 10, 15, 52), 334L);
+        response.setTotal(98L);
+        response.setNextAction(cursor);
         response.setRecords(List.of(source));
-        when(sourceClient.loadSettlementReservePage(any())).thenReturn(response);
+        SettlementReservePageResponse continuation = new SettlementReservePageResponse();
+        continuation.setRecords(List.of(source));
+        when(sourceClient.loadSettlementReservePage(any())).thenReturn(response, continuation);
         when(resolver.resolve(anyString(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         ExportArtifact artifact = artifact("merchant-settlement-reserve.xlsx");
         when(writer.write(any(), same(storage), same(listener), any(), anyString(), anyString(), anyString(),
                 eq(MerchantSettlementReserveExportRow.class), any())).thenAnswer(invocation -> {
             IntFunction<ExportPage<MerchantSettlementReserveExportRow>> loader = invocation.getArgument(8);
+            assertThat(loader.apply(1).total()).isEqualTo(98L);
             ExportPage<MerchantSettlementReserveExportRow> page = loader.apply(2);
+            assertThat(page.total()).isEqualTo(98L);
             assertThat(page.records()).singleElement().satisfies(row -> {
                 assertThat(row.getCurrency()).isEqualTo("EUR");
                 assertThat(row.getAmount()).isEqualByComparingTo("7.12340000");
@@ -243,7 +309,9 @@ class MerchantExportProcessorTest {
 
         ArgumentCaptor<SettlementReservePageRequest> captor =
                 ArgumentCaptor.forClass(SettlementReservePageRequest.class);
-        verify(sourceClient).loadSettlementReservePage(captor.capture());
+        verify(sourceClient, org.mockito.Mockito.times(2)).loadSettlementReservePage(captor.capture());
+        assertThat(captor.getAllValues().get(0).getAfterAction()).isNull();
+        assertThat(captor.getValue().getAfterAction()).isEqualTo(cursor);
         assertThat(captor.getValue().getMerchantId()).isEqualTo("M100001");
         assertThat(captor.getValue().getPageNo()).isEqualTo(2);
         assertThat(captor.getValue().getPageSize()).isEqualTo(97);

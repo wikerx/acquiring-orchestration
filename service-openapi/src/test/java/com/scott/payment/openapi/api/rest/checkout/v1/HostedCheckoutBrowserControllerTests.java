@@ -7,6 +7,10 @@ import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
+import java.net.URI;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -96,11 +100,59 @@ class HostedCheckoutBrowserControllerTests {
         assertThat(html).contains("window.top.postMessage(payload, \"http://127.0.0.1:5175\")");
     }
 
+    /**
+     * 钱包渠道回跳必须先由网关收敛支付状态，再以新的普通收银台令牌返回同一前端。
+     */
+    @Test
+    void shouldRedirectWalletReturnToNormalHostedCheckoutResult() {
+        OpenApiHostedCheckoutApplicationService applicationService =
+                mock(OpenApiHostedCheckoutApplicationService.class);
+        OpenApiSystemConfigService systemConfigService = mock(OpenApiSystemConfigService.class);
+        when(systemConfigService.requiredEnabledValue("platform.checkout.frontend-base-url"))
+                .thenReturn("http://127.0.0.1:5175");
+        when(applicationService.handleWalletReturn(org.mockito.ArgumentMatchers.any()))
+                .thenReturn("http://127.0.0.1:5175/checkout/new-token/new-cover");
+
+        ResponseEntity<Void> response = controller(applicationService, systemConfigService)
+                .walletReturn("1234567890123456." + "a".repeat(64), "CHANNEL_TX_001");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SEE_OTHER);
+        assertThat(response.getHeaders().getLocation())
+                .isEqualTo(URI.create("http://127.0.0.1:5175/checkout/new-token/new-cover"));
+        assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+        assertThat(response.getHeaders().getFirst("Referrer-Policy")).isEqualTo("no-referrer");
+    }
+
+    /**
+     * 支付核心返回的跳转地址即使可访问，也不能把付款人送离平台收银台。
+     */
+    @Test
+    void shouldRejectWalletReturnTargetOutsidePlatformCheckout() {
+        OpenApiHostedCheckoutApplicationService applicationService =
+                mock(OpenApiHostedCheckoutApplicationService.class);
+        OpenApiSystemConfigService systemConfigService = mock(OpenApiSystemConfigService.class);
+        when(systemConfigService.requiredEnabledValue("platform.checkout.frontend-base-url"))
+                .thenReturn("http://127.0.0.1:5175");
+        when(applicationService.handleWalletReturn(org.mockito.ArgumentMatchers.any()))
+                .thenReturn("http://127.0.0.1:58090/simulate/result");
+
+        assertThatThrownBy(() -> controller(applicationService, systemConfigService)
+                .walletReturn("1234567890123456." + "a".repeat(64), "CHANNEL_TX_001"))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("not a platform checkout URL");
+    }
+
     private HostedCheckoutBrowserController controller(OpenApiSystemConfigService systemConfigService) {
+        return controller(mock(OpenApiHostedCheckoutApplicationService.class), systemConfigService);
+    }
+
+    private HostedCheckoutBrowserController controller(
+            OpenApiHostedCheckoutApplicationService applicationService,
+            OpenApiSystemConfigService systemConfigService) {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("test");
         return new HostedCheckoutBrowserController(
-                mock(OpenApiHostedCheckoutApplicationService.class),
+                applicationService,
                 systemConfigService,
                 new HostedCheckoutUrlPolicy(environment));
     }

@@ -60,7 +60,7 @@ class AdminPaymentCapabilityConsumerTests {
     @Test
     void preventsOtherInternalCallersFromRunningPaymentCapabilityJobs() {
         var controller = new AdminPaymentCapabilityOperationsInternalController(operations);
-        assertThatThrownBy(() -> controller.recover("service-payment", new RecoveryRequest(100)))
+        assertThatThrownBy(() -> controller.recover("service-payment", new RecoveryRequest(100, 0)))
                 .isInstanceOf(ServiceException.class);
         verifyNoInteractions(operations);
     }

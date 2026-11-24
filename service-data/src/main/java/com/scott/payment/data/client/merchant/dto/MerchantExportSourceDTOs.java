@@ -1,5 +1,6 @@
 package com.scott.payment.data.client.merchant.dto;
 
+import com.scott.payment.component.core.model.ReserveActionCursor;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantRefundQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantFundLedgerQuery;
 import com.scott.payment.data.api.internal.dto.ExportTaskInternalDTOs.MerchantSettlementBatchQuery;
@@ -97,6 +98,7 @@ public final class MerchantExportSourceDTOs {
         private MerchantSettlementReserveQuery query;
         private Integer pageNo;
         private Integer pageSize;
+        private ReserveActionCursor afterAction;
     }
 
     /**
@@ -320,6 +322,7 @@ public final class MerchantExportSourceDTOs {
         private static final long serialVersionUID = 1L;
         private long total;
         private List<SettlementReserveRow> records = new ArrayList<>();
+        private ReserveActionCursor nextAction;
     }
 
     /**

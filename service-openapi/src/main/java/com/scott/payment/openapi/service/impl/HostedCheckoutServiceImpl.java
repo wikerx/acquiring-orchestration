@@ -205,6 +205,18 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return toSessionVO(response);
     }
 
+    @Override
+    public String handleWalletReturn(
+            HostedCheckoutBrowserRequestDTOs.WalletSimulationReturnRequest request) {
+        return paymentInternalClient.handleCheckoutWalletReturn(request).getCheckoutUrl();
+    }
+
+    @Override
+    public java.util.Map<String, String> simulateWallet(HostedCheckoutBrowserRequestDTOs.WalletSimulationRequest request) {
+        return paymentInternalClient.simulateCheckoutWallet(new PaymentCheckoutClientDTOs.WalletSimulationRequest(
+                tokenHash(request.opaqueToken()), request.checkoutSessionId(), request.paymentMethod(), request.action()));
+    }
+
     /**
      * 提交一次 Hosted Checkout 付款尝试。
      *
@@ -323,6 +335,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         bankCardMethod.setPaymentMethod(PAYMENT_METHOD_BANK_CARD);
         bankCardMethod.setBrands(List.of());
         target.setAllowedPaymentMethods(List.of(bankCardMethod));
+        target.setIncludeConfiguredNonCardOptions(true);
         target.setCheckoutDomain(resolveCheckoutFrontendBaseUrl());
         target.setLocale(transactionInfo == null ? null : transactionInfo.getLanguage());
         target.setMerchantDisplayName(resolveMerchantDisplayName(requestDTO));
