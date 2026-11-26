@@ -41,9 +41,30 @@ public class PaymentLinkPolicy extends PaymentLinkManagementPolicy {
     }
     /** 仅使用冻结的规范方式并按主库现行能力重新收窄。 */
     public List<AllowedPaymentMethodDTO> currentExplicitMethods(String merchant, String currency, String scopeJson) {
-        List<String> keys = PaymentLinkMethodScope.deserialize(scopeJson);
-        return resolveMethodScope(merchant, currency, keys, false).stream().map(PaymentLinkPolicy::checkout).toList();
+        var scope = PaymentLinkMethodScope.readScope(scopeJson);
+        boolean developmentLinkScope = developmentLinkScopeEnabled() && scope.developmentLinkScope();
+        return resolveMethodScope(merchant, currency, scope.itemKeys(), false).stream()
+                .map(method -> {
+                    var option = checkout(method);
+                    option.setDevelopmentLinkScope(developmentLinkScope);
+                    return option;
+                }).toList();
     }
+    /** 会话保留原链接选择，用于展示；每次查询和提交再复核当前付款能力。 */
+    public List<AllowedPaymentMethodDTO> frozenCheckoutMethods(String scopeJson) {
+        var scope = PaymentLinkMethodScope.readScope(scopeJson);
+        boolean developmentLinkScope = developmentLinkScopeEnabled() && scope.developmentLinkScope();
+        return scope.itemKeys().stream().map(key -> {
+            var option = new AllowedPaymentMethodDTO();
+            boolean card = key.startsWith("CARD_BRAND:");
+            String code = key.substring(key.indexOf(':') + 1);
+            option.setPaymentMethod(card ? "BANK_CARD" : code);
+            option.setBrands(card ? List.of(code) : List.of());
+            option.setDevelopmentLinkScope(developmentLinkScope);
+            return option;
+        }).toList();
+    }
+
     /** 在操作者商户范围内返回支付域兼容的创建选项，不授予额外付款能力。 */
     public Options options(Actor actor, String merchant) { return options(actor, merchant, Options::new); }
     private static AllowedMethod management(AllowedPaymentMethodDTO value) {

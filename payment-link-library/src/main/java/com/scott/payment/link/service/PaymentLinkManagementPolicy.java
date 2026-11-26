@@ -13,6 +13,7 @@ import com.scott.payment.link.config.PaymentLinkSettings;
 import jakarta.validation.Validator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -29,6 +30,7 @@ public class PaymentLinkManagementPolicy {
     private final Validator validator;
     private final OutboundHttpUrlPolicy urlPolicy;
     private final PaymentLinkMethodScope methodScope;
+    private final boolean developmentLinkScopeEnabled;
 
     public PaymentLinkManagementPolicy(PaymentLinkSettings properties, MerchantRuntimeProfileCacheService merchants,
                              IsoDictionaryService currencies, PaymentLinkCapabilities capabilities,
@@ -47,6 +49,7 @@ public class PaymentLinkManagementPolicy {
         this.validator = validator;
         this.urlPolicy = new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles()));
         this.methodScope = methodScope;
+        this.developmentLinkScopeEnabled = environment.acceptsProfiles(Profiles.of(PaymentLinkMethodScope.DEVELOPMENT_PROFILE));
     }
 
     /** 链接入口与存储必须同时就绪，否则以配置不可用拒绝管理操作。 */
@@ -130,6 +133,10 @@ public class PaymentLinkManagementPolicy {
         return methodScope.resolve(merchantId, currency, keys, requireAll);
     }
 
+    public boolean developmentLinkScopeEnabled() {
+        return developmentLinkScopeEnabled;
+    }
+
     private List<AllowedMethod> resolveMethods(
             String merchantId, String currency, List<String> brands, boolean requireAll) {
         if (methodScope != null) {
@@ -179,8 +186,9 @@ public class PaymentLinkManagementPolicy {
         for (IsoCurrencyInfo currency : currencies.listCurrencies()) {
             if (currency.defaultFractionDigits() < 0 || currency.defaultFractionDigits() > 6) continue;
             exponents.put(currency.alphabeticCode(), currency.defaultFractionDigits());
-            if (governed != null && governed.authority().mode() != null) {
-                keysByCurrency.put(currency.alphabeticCode(), methodScope.enabledKeys(governed, currency.alphabeticCode()));
+            if (governed != null) {
+                keysByCurrency.put(currency.alphabeticCode(),
+                        methodScope.enabledKeys(governed, currency.alphabeticCode()));
             }
             var allowed = snapshot.resolve(merchantId, null, currency.alphabeticCode());
             methodsByCurrency.put(currency.alphabeticCode(), allowed.stream()
@@ -192,7 +200,8 @@ public class PaymentLinkManagementPolicy {
             if (!brands.isEmpty()) { byCurrency.put(currency.alphabeticCode(), brands); }
         }
         result.setPaymentMethodsByCurrency(methodsByCurrency);
-        if (governed != null && governed.authority().mode() != null) {
+        if (governed != null && (governed.authority().mode() != null || keysByCurrency.values().stream()
+                .flatMap(List::stream).anyMatch(key -> key.startsWith("METHOD:")))) {
             result.setPaymentMethodKeysByCurrency(keysByCurrency);
         }
         result.setCardBrandsByCurrency(byCurrency);

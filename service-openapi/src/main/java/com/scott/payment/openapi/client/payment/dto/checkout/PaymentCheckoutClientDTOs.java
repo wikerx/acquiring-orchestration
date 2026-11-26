@@ -323,6 +323,7 @@ public final class PaymentCheckoutClientDTOs {
          * 付款页状态。
          */
         private String pageState;
+        private Boolean paymentLink;
 
         /**
          * 可公开展示的商户资料。
@@ -1157,6 +1158,11 @@ public final class PaymentCheckoutClientDTOs {
     }
 
     /** 本机钱包模拟的签名内部请求，浏览器令牌转为摘要后才允许转发。 */
-    public record WalletSimulationRequest(String tokenHash, String checkoutSessionId, String paymentMethod, String action) {
+    public record WalletSimulationRequest(String tokenHash, String checkoutSessionId, String paymentMethod,
+                                          String action, BillingCardHolderInfo billingCardHolderInfo) {
+        @Override
+        public String toString() {
+            return "WalletSimulationRequest";
+        }
     }
 }

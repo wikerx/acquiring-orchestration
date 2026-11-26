@@ -47,6 +47,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -78,12 +79,14 @@ class CheckoutWalletSimulationServiceTests {
     private final TransactionChannelInteractionLogMapper interactionLogs = mock(TransactionChannelInteractionLogMapper.class);
     private final PaymentCheckoutProperties properties = new PaymentCheckoutProperties();
     private final SystemConfigReadService configs = mock(SystemConfigReadService.class);
+    private final com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard linkGuard =
+            mock(com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard.class);
     private final CheckoutWalletSimulationService service = new CheckoutWalletSimulationService(
             routes, exchangeRates, isoDictionary, Optional.of(simulator), attempts, sessions, ids,
             properties, configs,
             TransactionOperations.withoutTransaction(), notifications, delivery,
             new MerchantNotificationProperties(), new CheckoutWalletTransactionLedger(ids, records, idempotency,
-                    interactionLogs, lifecycleEvents));
+                    interactionLogs, lifecycleEvents), linkGuard);
 
     @BeforeEach
     void setUpCurrencyDictionary() {
@@ -150,6 +153,48 @@ class CheckoutWalletSimulationServiceTests {
         assertThat(inserted.get().getLabelCurrency()).isEqualTo("EUR");
         assertThat(inserted.get().getChannelRequestCurrency()).isEqualTo("EUR");
         verifyNoInteractions(exchangeRates);
+    }
+
+    @Test
+    void linkWalletOpenStoresBillingOnceAndPassesItToTheTransaction() {
+        var session = session(MERCHANT, "7.25");
+        var issuedAttempt = stubInsertedAttempt(session);
+        stubCoreActivation(session, issuedAttempt);
+        stubPreparationRoute(route(MID, "USD", "USD", false));
+        stubRestoredRoute();
+        when(sessions.saveWalletBilling(eq(session.getCheckoutSessionId()), anyString(), eq(0), any()))
+                .thenReturn(1);
+        var billing = new PaymentCreateCommandDTO.BillingCardHolderInfoDTO();
+        billing.setFirstName("QA");
+        billing.setLastName("Payer");
+        billing.setEmail("payer@example.test");
+        billing.setCountry("CAN");
+
+        service.execute(session, "GOOGLE_PAY", "PREPARE", true, billing);
+        when(attempts.selectLatestWalletAttempt(session.getCheckoutSessionId(), "GOOGLE_PAY"))
+                .thenReturn(issuedAttempt.get());
+        service.execute(session, "GOOGLE_PAY", "OPEN", true, billing);
+        service.execute(session, "GOOGLE_PAY", "OPEN", true, billing);
+
+        var recorded = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
+        verify(records).recordInitialTransaction(recorded.capture(), any(), any(), any(), eq(null), eq(2));
+        assertThat(recorded.getValue().getBillingCardHolderInfo().getCountry()).isEqualTo("CAN");
+        assertThat(recorded.getValue().getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.test");
+        verify(sessions).saveWalletBilling(eq(session.getCheckoutSessionId()), anyString(), eq(0), any());
+    }
+
+    @Test
+    void stoppedLinkCannotPrepareANewWalletAttempt() {
+        stubPreparationRoute(route(MID, "USD", "USD", false));
+        var session = session(MERCHANT, "7.25");
+        doThrow(new com.scott.payment.component.core.exception.ServiceException(
+                com.scott.payment.component.core.enums.ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED))
+                .when(linkGuard).requireNewSubmissionAllowed(eq(session.getCheckoutSessionId()), any());
+
+        assertThatThrownBy(() -> service.execute(session, "APPLE_PAY", "PREPARE", true, null))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class);
+        verifyNoInteractions(attempts, sessions);
+        verify(simulator, never()).prepare(any(), anyString(), anyString());
     }
 
     @Test

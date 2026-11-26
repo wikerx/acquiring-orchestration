@@ -55,6 +55,25 @@ class PaymentLinkMethodScopeTest {
     }
 
     @Test
+    void legacyMerchantCanSelectConfiguredNonCardMethodWithoutWalletAdapter() {
+        String paypal = "METHOD:PAYPAL";
+        configure(Set.of(), List.of(new FeeCoverage("PAYMENT", "PAYPAL", "ALL")),
+                option(1, "PAYPAL", "USD", 10));
+        var approved = new ItemAuthority(new Grant("ACTIVE", "APPLICATION", 1L,
+                LocalDateTime.now().minusDays(1), null), false);
+        when(authority.read(MERCHANT)).thenReturn(new MerchantAuthority(null, Map.of(paypal, approved)));
+        when(authority.enabledDirectory()).thenReturn(Set.of(paypal));
+
+        var facts = methodScope.snapshot(MERCHANT);
+        assertThat(methodScope.enabledKeys(facts, "USD")).containsExactly(paypal);
+        assertThat(methodScope.enabledKeys(facts, "JPY")).isEmpty();
+        assertThat(methodScope.resolve(MERCHANT, "USD", List.of(paypal), true))
+                .extracting(AllowedMethod::getPaymentMethod).containsExactly("PAYPAL");
+        assertThat(PaymentLinkMethodScope.readScope(PaymentLinkMethodScope.serialize(List.of(paypal), true))
+                .includesImplementedMethod()).isFalse();
+    }
+
+    @Test
     void separatesCurrenciesAndUsesTheUniqueHighestPriorityCandidate() {
         var eur = option(2, "BANK_CARD", "EUR", 10);
         var usd = option(1, "BANK_CARD", "USD", 10);
@@ -90,6 +109,40 @@ class PaymentLinkMethodScopeTest {
         wallet.setBindingExpireTime(LocalDateTime.now().minusSeconds(1));
         assertThat(methodScope.resolve(MERCHANT, "USD", keys, false)).isEmpty();
         assertUnavailable(APPLE_PAY);
+    }
+
+    @Test
+    void legacyLinkRetainsEligibleCardsAndApprovedNonCardsInConfiguredCurrencies() {
+        var now = LocalDateTime.now().minusDays(1);
+        var approved = new ItemAuthority(new Grant("ACTIVE", "APPLICATION", 1L, now, null), false);
+        var terminated = new ItemAuthority(new Grant("TERMINATED", "APPLICATION", 1L, now, null), false);
+        String googlePay = "METHOD:GOOGLE_PAY";
+        var wallet = option(4, "APPLE_PAY", "USD", 10);
+        var googleWallet = option(5, "GOOGLE_PAY", "USD", 10);
+        var payoutOnly = option(6, "GOOGLE_PAY", "USD", 10);
+        payoutOnly.setTransactionTypeScope("PAYOUT,CANCEL");
+        configure(Set.of(), List.of(new FeeCoverage("PAYMENT", "BANK_CARD", "ALL"),
+                new FeeCoverage("PAYMENT", "APPLE_PAY", "ALL"), new FeeCoverage("PAYMENT", "GOOGLE_PAY", "ALL")),
+                wallet, googleWallet, payoutOnly, option(1, "BANK_CARD", "USD", 10));
+        when(authority.read(MERCHANT)).thenReturn(new MerchantAuthority(null, Map.of(
+                APPLE_PAY, approved, googlePay, approved, MASTERCARD, terminated)));
+        when(authority.enabledDirectory()).thenReturn(Set.of(VISA, MASTERCARD, APPLE_PAY, googlePay));
+
+        assertThat(methodScope.enabledKeys(methodScope.snapshot(MERCHANT), "USD"))
+                .containsExactly(VISA, APPLE_PAY, googlePay);
+        assertThat(methodScope.enabledKeys(methodScope.snapshot(MERCHANT), "JPY")).isEmpty();
+        assertThat(methodScope.resolve(MERCHANT, "USD", List.of(APPLE_PAY, MASTERCARD), false))
+                .extracting(AllowedMethod::getPaymentMethod).containsExactly("APPLE_PAY");
+        assertUnavailable(MASTERCARD);
+    }
+
+    @Test
+    void onlyNewDevelopmentScopeCanExecuteItsFrozenWallet() {
+        var oldScope = PaymentLinkMethodScope.readScope("{\"version\":1,\"itemKeys\":[\"METHOD:APPLE_PAY\"]}");
+        var developmentScope = PaymentLinkMethodScope.readScope(PaymentLinkMethodScope.serialize(List.of(APPLE_PAY), true));
+        assertThat(oldScope.itemKeys()).isEqualTo(developmentScope.itemKeys());
+        assertThat(oldScope.includesImplementedMethod()).isFalse();
+        assertThat(developmentScope.includesImplementedMethod()).isTrue();
     }
 
     private void configure(Set<String> approved, List<FeeCoverage> fees, RouteOption... candidates) {

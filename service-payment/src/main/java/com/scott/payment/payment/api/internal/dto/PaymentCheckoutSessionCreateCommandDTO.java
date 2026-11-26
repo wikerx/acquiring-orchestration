@@ -190,5 +190,7 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
         private boolean linkScopeVerified;
         /** 仅标记 Payment 已核验并冻结到 Hosted Checkout 会话的非卡展示方式。 */
         private boolean hostedNonCardVerified;
+        /** 新建开发环境链接的冻结范围标记。普通会话和历史数据默认为 false。 */
+        private boolean developmentLinkScope;
     }
 }

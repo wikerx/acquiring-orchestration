@@ -111,7 +111,8 @@ public class PaymentCheckoutCardCapabilityService {
                         ? method.getBrands().stream().map(brand -> "CARD_BRAND:" + brand)
                         : java.util.stream.Stream.of("METHOD:" + method.getPaymentMethod()))
                 .distinct().toList();
-        return linkMethodScope.resolve(merchantId, currency, keys, false).stream().map(this::checkoutMethod).toList();
+        return linkMethodScope.resolve(merchantId, currency, keys, false).stream()
+                .map(this::checkoutMethod).toList();
     }
 
     /** 在独立主库只读事务内核验非卡展示，避免会话回读沿用交易库连接。 */

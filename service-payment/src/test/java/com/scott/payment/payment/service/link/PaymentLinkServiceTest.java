@@ -18,6 +18,7 @@ import com.scott.payment.payment.config.PaymentLinkProperties;
 import com.scott.payment.payment.entity.*;
 import com.scott.payment.payment.mapper.*;
 import com.scott.payment.payment.service.PaymentCheckoutService;
+import com.scott.payment.payment.service.impl.CheckoutWalletSimulationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -97,6 +98,45 @@ class PaymentLinkServiceTest {
         assertThat(JsonUtils.toJsonString(result)).doesNotContain("notifyUrl","redirectUrl","createdBy","cardNumber","email");
         verifyNoInteractions(checkout, collections, events);
     }
+    @Test void walletOnlyLinkRequiresTheFrozenDevelopmentScopeAndAnAvailableAdapter() {
+        when(links.selectOne(any())).thenReturn(row);
+        row.setAllowedMethodsJson("frozen-wallet-scope");
+        var method = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        method.setPaymentMethod("GOOGLE_PAY");
+        when(policy.currentExplicitMethods("m1", "USD", row.getAllowedMethodsJson())).thenReturn(List.of(method));
+        var adapter = mock(CheckoutWalletSimulationService.class);
+        when(adapter.supportsLink("m1", "USD", row.getAmount(), properties.getFrontendBaseUrl(), "GOOGLE_PAY"))
+                .thenReturn(true);
+        service.setDevelopmentWalletAdapter(adapter);
+
+        assertThat(service.resolve(raw).isPayable()).isFalse();
+        method.setDevelopmentLinkScope(true);
+        assertThat(service.resolve(raw).isPayable()).isTrue();
+        verifyNoInteractions(checkout, collections, events);
+    }
+    @Test void linkWithNoCurrentlyExecutableMethodStillOpensItsFrozenSelection() {
+        when(links.selectOne(any())).thenReturn(row);
+        row.setAllowedMethodsJson("frozen-paypal-scope");
+        when(policy.currentExplicitMethods("m1", "USD", row.getAllowedMethodsJson())).thenReturn(List.of());
+        var paypal = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        paypal.setPaymentMethod("PAYPAL");
+        paypal.setBrands(List.of());
+        when(policy.frozenCheckoutMethods(row.getAllowedMethodsJson())).thenReturn(List.of(paypal));
+        var checkoutResult = new PaymentCheckoutSessionCreateResultDTO();
+        checkoutResult.setCheckoutSessionId("session");
+        when(checkout.createSession(any())).thenReturn(checkoutResult);
+
+        var publicView = service.resolve(raw);
+        assertThat(publicView.isCheckoutAvailable()).isTrue();
+        assertThat(publicView.isPayable()).isFalse();
+        service.start(raw, "inspect-paypal");
+
+        var command = ArgumentCaptor.forClass(PaymentCheckoutSessionCreateCommandDTO.class);
+        verify(checkout).createSession(command.capture());
+        assertThat(command.getValue().isExplicitLinkMethodScope()).isTrue();
+        assertThat(command.getValue().getAllowedPaymentMethods()).containsExactly(paypal);
+    }
+
     @Test void tokenTamperingCannotReadOrStart() {
         when(tokens.matches(raw,PaymentLinkTokenService.hash(raw))).thenReturn(false);
         assertThatThrownBy(()->service.resolve(raw)).isInstanceOf(ServiceException.class);

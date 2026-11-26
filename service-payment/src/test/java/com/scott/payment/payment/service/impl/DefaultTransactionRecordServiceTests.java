@@ -129,7 +129,7 @@ class DefaultTransactionRecordServiceTests {
         route.setMidConfigId(10L);
         route.setMetadataValues(Map.of("apiKey", "test-key-must-not-be-stored"));
 
-        var identity = ledger.open(checkout, attempt, route, quote);
+        var identity = ledger.open(checkout, attempt, route, quote, false);
 
         verify(snapshots).recordInitialSnapshots(argThat(command -> "APPLE_PAY".equals(command.getPaymentMethod())),
                 argThat(result -> platformId.equals(result.getTransactionId())), any());
@@ -180,7 +180,7 @@ class DefaultTransactionRecordServiceTests {
         when(notifications.activateByTransactionId(eq(51L), eq(platformId), eq(time), eq(0),
                 any(), any(), any(), any())).thenReturn(1);
 
-        ledger.complete(checkout, attempt, route, State.SUCCESS, null, null);
+        ledger.complete(checkout, attempt, route, State.SUCCESS, null, null, false);
 
         verify(lifecycleEvents).saveStatusChanged(platformId, identity.operationId(), "200099", "SDKHC-WALLET-TEST",
                 "PAYMENT", "SUCCESS", time);

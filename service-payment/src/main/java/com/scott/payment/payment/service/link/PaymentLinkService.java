@@ -20,6 +20,8 @@ import com.scott.payment.link.model.PaymentLinkStatus;
 import com.scott.payment.payment.entity.*;
 import com.scott.payment.payment.mapper.*;
 import com.scott.payment.payment.service.PaymentCheckoutService;
+import com.scott.payment.payment.service.impl.CheckoutWalletSimulationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +46,7 @@ public class PaymentLinkService {
     private final com.scott.payment.link.service.PaymentLinkManagementService management;
     private final PaymentLinkProperties properties;
     private final GlobalIdGenerator ids;
+    private CheckoutWalletSimulationService developmentWalletAdapter;
 
     public PaymentLinkService(PaymentLinkMapper links, PaymentLinkAccessMapper access,
                                PaymentLinkCollectionMapper collections, PaymentLinkCheckoutBindingMapper bindings,
@@ -56,6 +59,11 @@ public class PaymentLinkService {
         this.links = links; this.access = access; this.collections = collections; this.bindings = bindings;
         this.events = events; this.sessions = sessions; this.checkout = checkout;
         this.policy = policy; this.queries = queries; this.tokens = tokens; this.properties = properties; this.ids = ids;
+    }
+
+    @Autowired(required = false)
+    void setDevelopmentWalletAdapter(CheckoutWalletSimulationService adapter) {
+        this.developmentWalletAdapter = adapter;
     }
 
     /** 兼容旧内部入口；与双端本地管理操作共用唯一规则实现。 */
@@ -88,8 +96,11 @@ public class PaymentLinkService {
                 && sessionPayable(link.getLinkId()) && merchantAvailable(link.getMerchantId());
         if (entryAvailable && link.getAllowedMethodsJson() != null) {
             var eligible = policy.currentExplicitMethods(link.getMerchantId(), link.getCurrency(), link.getAllowedMethodsJson());
-            result.setCheckoutAvailable(!eligible.isEmpty());
-            result.setPayable(eligible.stream().anyMatch(method -> "BANK_CARD".equals(method.getPaymentMethod())));
+            result.setCheckoutAvailable(true);
+            result.setPayable(eligible.stream().anyMatch(method -> "BANK_CARD".equals(method.getPaymentMethod())
+                    || method.isDevelopmentLinkScope() && developmentWalletAdapter != null
+                    && developmentWalletAdapter.supportsLink(link.getMerchantId(), link.getCurrency(), link.getAmount(),
+                            properties.getFrontendBaseUrl(), method.getPaymentMethod())));
         } else {
             result.setCheckoutAvailable(entryAvailable);
             result.setPayable(entryAvailable);
@@ -126,7 +137,7 @@ public class PaymentLinkService {
         policy.merchant(link.getMerchantId());
         boolean explicitScope = link.getAllowedMethodsJson() != null;
         var methods = explicitScope
-                ? policy.currentExplicitMethods(link.getMerchantId(), link.getCurrency(), link.getAllowedMethodsJson())
+                ? policy.frozenCheckoutMethods(link.getAllowedMethodsJson())
                 : policy.currentMethods(link.getMerchantId(), link.getCurrency(), JsonUtils.parseArray(link.getAllowedBrandsJson(), String.class));
         if (methods.isEmpty()) {
             throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE);

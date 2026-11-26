@@ -23,6 +23,7 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -53,10 +54,10 @@ class CheckoutWalletTransactionLedger {
     }
 
     Identity open(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route,
-                  Quote quote) {
+                  Quote quote, boolean linked) {
         var identity = new Identity(ids.nextId(), "OP" + ids.nextId(),
                 PaymentOrderNoGenerator.nextOrderNo("CRQ", attempt.getTransactionDateTime()));
-        var command = command(session, attempt, identity, quote);
+        var command = command(session, attempt, identity, quote, linked);
         var result = result(command, identity, PaymentTransactionStatusEnum.PROCESSING,
                 PaymentProcessStageEnum.WAITING_CALLBACK, null, null);
         String flowKey = idempotency.buildMerchantOrderFlowKey(command.getMerchantId(), command.getMerchantOrderNo());
@@ -86,10 +87,10 @@ class CheckoutWalletTransactionLedger {
     }
 
     void complete(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route,
-                  State terminal, String failureCode, String failureMessage) {
+                  State terminal, String failureCode, String failureMessage, boolean linked) {
         var identity = new Identity(attempt.getTransactionId(), attempt.getOperationId(), attempt.getChannelRequestId());
         Quote quote = JsonUtils.parseObject(attempt.getResultSnapshot(), Quote.class);
-        var command = command(session, attempt, identity, quote);
+        var command = command(session, attempt, identity, quote, linked);
         var status = terminal == State.SUCCESS ? PaymentTransactionStatusEnum.SUCCESS : PaymentTransactionStatusEnum.FAILED;
         var result = result(command, identity, status, PaymentProcessStageEnum.FINISHED, failureCode, failureMessage);
         // 旧版待授权占位与本次终态在同一个事务中替换，失败时原占位随事务一起恢复。
@@ -107,7 +108,7 @@ class CheckoutWalletTransactionLedger {
     }
 
     private PaymentCreateCommandDTO command(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt,
-                                             Identity identity, Quote quote) {
+                                             Identity identity, Quote quote, boolean linked) {
         var command = new PaymentCreateCommandDTO();
         command.setTransactionId(identity.transactionId());
         command.setMerchantId(attempt.getMerchantId());
@@ -118,6 +119,10 @@ class CheckoutWalletTransactionLedger {
         command.setTransactionType(PAYMENT);
         command.setTransactionDateTime(attempt.getTransactionDateTime());
         command.setCallbackUrl(session.getMerchantNotifyUrl());
+        if (linked && StringUtils.hasText(session.getBillingInfoJson())) {
+            command.setBillingCardHolderInfo(JsonUtils.parseObject(session.getBillingInfoJson(),
+                    PaymentCreateCommandDTO.BillingCardHolderInfoDTO.class));
+        }
         command.setAmount(attempt.getLabelAmount());
         command.setCurrency(attempt.getLabelCurrency());
         command.setLabelAmount(attempt.getLabelAmount());

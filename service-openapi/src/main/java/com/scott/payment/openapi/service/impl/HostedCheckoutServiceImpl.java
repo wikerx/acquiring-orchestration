@@ -214,7 +214,8 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     @Override
     public java.util.Map<String, String> simulateWallet(HostedCheckoutBrowserRequestDTOs.WalletSimulationRequest request) {
         return paymentInternalClient.simulateCheckoutWallet(new PaymentCheckoutClientDTOs.WalletSimulationRequest(
-                tokenHash(request.opaqueToken()), request.checkoutSessionId(), request.paymentMethod(), request.action()));
+                tokenHash(request.opaqueToken()), request.checkoutSessionId(), request.paymentMethod(), request.action(),
+                toClientBillingInfo(request.billingCardHolderInfo())));
     }
 
     /**
@@ -448,6 +449,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         HostedCheckoutSessionVO vo = new HostedCheckoutSessionVO();
         vo.setCheckoutSessionId(response.getCheckoutSessionId());
         vo.setPageState(response.getPageState());
+        vo.setPaymentLink(response.getPaymentLink());
         vo.setMerchant(toMerchantVO(response.getMerchant()));
         vo.setOrder(toOrderVO(response.getOrder()));
         vo.setPaymentMethods(response.getPaymentMethods() == null ? List.of() : response.getPaymentMethods().stream()

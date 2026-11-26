@@ -7,6 +7,9 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
+import com.scott.payment.payment.api.internal.dto.CheckoutWalletSimulationCommand;
+import com.scott.payment.payment.api.internal.dto.WalletSimulationReturnCommand;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
@@ -42,6 +45,7 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.service.PaymentCheckoutThreeDsService;
 import com.scott.payment.payment.service.PaymentTransactionService;
 import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService;
+import com.scott.payment.payment.service.link.PaymentLinkCheckoutGuard;
 import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.CheckoutRecovery;
 import com.scott.payment.payment.service.capability.PaymentPreparationOwnershipService.CheckoutRecoveryState;
 import com.scott.payment.payment.service.PaymentAuthenticationRecordService;
@@ -834,6 +838,122 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(result.getMerchant().getSupportedPaymentMethods()).containsExactly("APPLE_PAY");
         assertThat(result.getCardEncryption()).isNull();
         verify(capabilities, never()).resolveAllowedMethods(anyString(), anyList(), anyString());
+    }
+
+    @Test
+    void linkDisplaysOnlyFrozenMethodsAndBlocksUnavailablePayment() {
+        var session = payableSession();
+        session.setAllowedPaymentMethodsJson("""
+                [{"paymentMethod":"BANK_CARD","brands":["VISA"],"linkScopeVerified":true},
+                 {"paymentMethod":"PAYPAL","linkScopeVerified":true}]
+                """);
+        session.setBillingInfoJson("{\"email\":\"previous-payer@example.test\"}");
+        var guard = mock(PaymentLinkCheckoutGuard.class);
+        var capabilities = mock(PaymentCheckoutCardCapabilityService.class);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        ReflectionTestUtils.setField(service, "cardCapabilityService", capabilities);
+        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(true);
+        when(guard.allowsNewSubmissionRead(eq(session.getCheckoutSessionId()), any())).thenReturn(true);
+        when(capabilities.revalidateLinkScope(eq(session.getMerchantId()), eq(session.getLabelCurrency()), anyList()))
+                .thenAnswer(invocation -> invocation.<List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO>>
+                        getArgument(2).stream().filter(method -> "BANK_CARD".equals(method.getPaymentMethod())).toList());
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        var query = new PaymentCheckoutSessionQueryCommandDTO();
+        query.setTokenHash("token-hash");
+
+        var result = service.querySession(query);
+
+        assertThat(result.getPaymentLink()).isTrue();
+        assertThat(result.getBillingInfo()).isNull();
+        assertThat(result.getPaymentMethods()).singleElement().satisfies(card -> {
+            assertThat(card.getBrands()).containsExactly("VISA");
+            assertThat(card.isServerSubmitAllowed()).isTrue();
+        });
+        assertThat(result.getPaymentOptions()).hasSize(2);
+        var display = result.getPaymentOptions().get(1);
+        assertThat(display.getPaymentMethod()).isEqualTo("PAYPAL");
+        assertThat(display.getExecutionStatus()).isEqualTo("COMPONENT_UNAVAILABLE");
+        assertThat(display.isServerSubmitAllowed()).isFalse();
+        assertThat(result.getMerchant().getSupportedPaymentMethods()).containsExactly("BANK_CARD", "PAYPAL");
+
+        when(capabilities.revalidateLinkScope(eq(session.getMerchantId()), eq(session.getLabelCurrency()), anyList()))
+                .thenReturn(List.of());
+        var unavailable = service.querySession(query);
+        assertThat(unavailable.getPageState()).isEqualTo("PAYABLE");
+        assertThat(unavailable.getCheckout().getRetryAllowed()).isFalse();
+        assertThat(unavailable.getPaymentOptions()).extracting(PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO::getPaymentMethod)
+                .containsExactly("BANK_CARD", "PAYPAL");
+        assertThat(unavailable.getPaymentOptions()).noneMatch(PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO::isServerSubmitAllowed);
+    }
+
+    @Test
+    void linkWalletRequiresBillingForNewAuthorizationAndAllowsStatusWithoutIt() {
+        var session = payableSession();
+        session.setAllowedPaymentMethodsJson("""
+                [{"paymentMethod":"APPLE_PAY","linkScopeVerified":true,"developmentLinkScope":true}]
+                """);
+        var guard = mock(PaymentLinkCheckoutGuard.class);
+        var wallet = mock(CheckoutWalletSimulationService.class);
+        var capabilities = mock(PaymentCheckoutCardCapabilityService.class);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        ReflectionTestUtils.setField(service, "walletSimulation", wallet);
+        ReflectionTestUtils.setField(service, "cardCapabilityService", capabilities);
+        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(true);
+        when(wallet.supports(session, "APPLE_PAY")).thenReturn(true);
+        var option = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        option.setPaymentMethod("APPLE_PAY");
+        when(capabilities.resolveHostedNonCardMethods(eq(session.getMerchantId()), eq(session.getLabelCurrency()),
+                any(), eq(Set.of("APPLE_PAY")))).thenReturn(List.of(option));
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+
+        for (String action : List.of("PREPARE", "OPEN")) {
+            assertThatThrownBy(() -> service.simulateWallet(new CheckoutWalletSimulationCommand(
+                    "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", action, null)))
+                    .isInstanceOfSatisfying(ServiceException.class,
+                            error -> assertThat(error.getCode()).isEqualTo(ApiResultEnum.PARAM_INVALID.getCode()));
+        }
+        verify(wallet, never()).execute(any(), anyString(), anyString(), eq(true), any());
+
+        service.simulateWallet(new CheckoutWalletSimulationCommand(
+                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "STATUS", null));
+        verify(wallet).execute(session, "APPLE_PAY", "STATUS", true, null);
+
+        session.setBillingInfoJson("{\"country\":\"USA\"}");
+        var billing = new PaymentCheckoutPaymentSubmitCommandDTO.BillingCardHolderInfoDTO();
+        billing.setFirstName("QA");
+        billing.setLastName("Payer");
+        billing.setEmail("payer@example.test");
+        billing.setCountry("CAN");
+        service.simulateWallet(new CheckoutWalletSimulationCommand(
+                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "PREPARE", billing));
+        verify(capabilities).resolveHostedNonCardMethods(
+                session.getMerchantId(), session.getLabelCurrency(), "CAN", Set.of("APPLE_PAY"));
+    }
+
+    @Test
+    void oldLinkWalletReturnUsesPlatformResultOriginAfterCheckingChannel() {
+        var session = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
+        session.setCheckoutDomain("http://localhost:5175");
+        var guard = mock(PaymentLinkCheckoutGuard.class);
+        var wallet = mock(CheckoutWalletSimulationService.class);
+        var configs = mock(SystemConfigReadService.class);
+        ReflectionTestUtils.setField(service, "paymentLinkGuard", guard);
+        ReflectionTestUtils.setField(service, "walletSimulation", wallet);
+        service.setSystemConfigReadService(configs);
+        when(wallet.returned("return-token", "CHANNEL_TX_001")).thenReturn(session.getCheckoutSessionId());
+        when(guard.isLinkedSession(session.getCheckoutSessionId())).thenReturn(true);
+        when(sessionMapper.selectByCheckoutSessionIdForUpdate(session.getCheckoutSessionId())).thenReturn(session);
+        when(configs.findEnabledValue("platform.checkout.frontend-base-url"))
+                .thenReturn(java.util.Optional.of("http://127.0.0.1:5175/"));
+
+        var result = service.handleWalletReturn(new WalletSimulationReturnCommand("return-token", "CHANNEL_TX_001"));
+
+        assertThat(result.getCheckoutStatus()).isEqualTo("SUCCESS");
+        assertThat(result.getCheckoutUrl()).startsWith("http://127.0.0.1:5175/checkout/");
+        assertThat(session.getCheckoutDomain()).isEqualTo("http://localhost:5175");
+        verify(wallet).returned("return-token", "CHANNEL_TX_001");
     }
 
     @Test

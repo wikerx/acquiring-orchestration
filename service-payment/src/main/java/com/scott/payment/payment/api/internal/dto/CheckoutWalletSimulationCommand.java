@@ -8,5 +8,10 @@ public record CheckoutWalletSimulationCommand(
         @NotBlank String tokenHash,
         @NotBlank String checkoutSessionId,
         @Pattern(regexp = "APPLE_PAY|GOOGLE_PAY") @NotBlank String paymentMethod,
-        @Pattern(regexp = "PREPARE|OPEN|STATUS") @NotBlank String action) {
+        @Pattern(regexp = "PREPARE|OPEN|STATUS") @NotBlank String action,
+        PaymentCheckoutPaymentSubmitCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo) {
+    @Override
+    public String toString() {
+        return "CheckoutWalletSimulationCommand";
+    }
 }

@@ -22,6 +22,8 @@ import java.util.Set;
 @Service
 public class PaymentLinkMethodScope {
 
+    public static final String DEVELOPMENT_PROFILE = "dev & !test & !uat & !prod & !live-regression";
+    private static final Set<String> DEVELOPMENT_WALLETS = Set.of("APPLE_PAY", "GOOGLE_PAY");
     private final PaymentLinkDatabaseCapabilities capabilities;
     private final MerchantAdmissionReader authorityReader;
 
@@ -35,6 +37,10 @@ public class PaymentLinkMethodScope {
         return resolve(snapshot(merchantId), currency, keys, requireAll);
     }
 
+    public static boolean supportsDevelopmentWallet(String method) {
+        return method != null && DEVELOPMENT_WALLETS.contains(method);
+    }
+
     /**
      * 从复用快照选出通过目录、授权和费用检查的非卡方式，由 Payment 按订单实际条件检查路由。
      */
@@ -42,7 +48,7 @@ public class PaymentLinkMethodScope {
         return facts.authority().items().entrySet().stream()
                 .filter(entry -> entry.getKey().startsWith("METHOD:") && MerchantAdmissionPolicy.isItemKey(entry.getKey()))
                 .filter(entry -> facts.directory().contains(entry.getKey()))
-                .filter(entry -> permitsHostedDisplay(facts, entry.getValue()))
+                .filter(entry -> permitsHostedDisplay(facts.authority().mode(), facts.evaluatedAt(), entry.getValue()))
                 .map(entry -> entry.getKey().substring("METHOD:".length()))
                 .filter(method -> frozenMethods == null || frozenMethods.contains(method))
                 .filter(method -> facts.fees().stream().filter(fee -> fee.covers("PAYMENT", method, "ALL"))
@@ -51,14 +57,12 @@ public class PaymentLinkMethodScope {
                 .toList();
     }
 
-    private boolean permitsHostedDisplay(Snapshot facts, MerchantAdmissionReader.ItemAuthority item) {
-        if (facts.authority().mode() == null && item.grant() != null
-                && "APPLICATION".equals(item.grant().source())) {
-            // 未迁移商户可展示已正式审批的非卡选项，实际交易仍需经过原有准入门禁。
-            return MerchantAdmissionPolicy.state(item.grant(), facts.evaluatedAt()) == MerchantAdmissionPolicy.State.ACTIVE;
+    private boolean permitsHostedDisplay(String mode, LocalDateTime evaluatedAt, MerchantAdmissionReader.ItemAuthority item) {
+        if (mode == null && item.grant() != null && "APPLICATION".equals(item.grant().source())) {
+            // 未迁移商户也可展示已正式审批的方式，交易仍需经过准入门禁。
+            return MerchantAdmissionPolicy.state(item.grant(), evaluatedAt) == MerchantAdmissionPolicy.State.ACTIVE;
         }
-        return MerchantAdmissionPolicy.permits(
-                facts.authority().mode(), item.grant(), item.frozenLegacyScope(), facts.evaluatedAt());
+        return MerchantAdmissionPolicy.permits(mode, item.grant(), item.frozenLegacyScope(), evaluatedAt);
     }
 
     /** 创建预览按一次主库取数绘制各币种，不按方式或币种反复查询数据库。 */
@@ -71,7 +75,14 @@ public class PaymentLinkMethodScope {
      * 从支付链接的允许范围提取启用的标准支付方式键。
      */
     public List<String> enabledKeys(Snapshot snapshot, String currency) {
-        var keys = snapshot.authority().items().keySet().stream().sorted().toList();
+        Set<String> configuredKeys = new LinkedHashSet<>(snapshot.authority().items().keySet());
+        if (snapshot.authority().mode() == null) {
+            new PaymentLinkCapabilityResolver().resolve(snapshot.profile(), null, currency, snapshot.evaluatedAt())
+                    .stream().filter(option -> "BANK_CARD".equals(option.getPaymentMethod()))
+                    .flatMap(option -> option.getBrands().stream())
+                    .map(brand -> "CARD_BRAND:" + brand).forEach(configuredKeys::add);
+        }
+        var keys = configuredKeys.stream().sorted().toList();
         if (keys.isEmpty()) {
             return List.of();
         }
@@ -83,21 +94,23 @@ public class PaymentLinkMethodScope {
         }).sorted().toList();
     }
 
-    private List<AllowedMethod> resolve(Snapshot snapshot, String currency, List<String> keys, boolean requireAll) {
+    private List<AllowedMethod> resolve(Snapshot snapshot, String currency, List<String> keys,
+                                        boolean requireAll) {
         if (keys == null || keys.isEmpty() || keys.stream().anyMatch(key -> !MerchantAdmissionPolicy.isItemKey(key))) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
         LocalDateTime now = snapshot.evaluatedAt();
         var authority = snapshot.authority();
         var fees = snapshot.fees();
+        boolean legacy = authority.mode() == null;
         List<AllowedMethod> result = new ArrayList<>();
         for (String key : new LinkedHashSet<>(keys)) {
             var fact = authority.items().get(key);
-            boolean allowed = snapshot.directory().contains(key) && fact != null && MerchantAdmissionPolicy.permits(
-                    authority.mode(), fact.grant(), fact.frozenLegacyScope(), now);
             boolean card = key.startsWith("CARD_BRAND:");
             String code = key.substring(key.indexOf(':') + 1);
             String method = card ? "BANK_CARD" : code;
+            boolean allowed = snapshot.directory().contains(key)
+                    && permitsLinkMethod(snapshot, fact, card, legacy);
             if (!allowed || fees.stream().noneMatch(fee -> fee.covers("PAYMENT", method, card ? code : "ALL"))) {
                 if (requireAll) {
                     throw unavailable();
@@ -107,7 +120,10 @@ public class PaymentLinkMethodScope {
             AllowedMethod requested = new AllowedMethod();
             requested.setPaymentMethod(method);
             requested.setBrands(card ? List.of(code) : List.of());
-            AllowedMethod candidate = selectCandidate(snapshot.profile(), requested, currency, now);
+            AllowedMethod candidate = legacy && card
+                    ? new PaymentLinkCapabilityResolver().resolve(snapshot.profile(), List.of(requested), currency, now)
+                            .stream().findFirst().orElse(null)
+                    : selectCandidate(snapshot.profile(), requested, currency, now);
             if (candidate == null) {
                 if (requireAll) {
                     throw unavailable();
@@ -119,6 +135,18 @@ public class PaymentLinkMethodScope {
             result.add(requested);
         }
         return List.copyOf(result);
+    }
+
+    private boolean permitsLinkMethod(Snapshot snapshot, MerchantAdmissionReader.ItemAuthority fact,
+                                      boolean card, boolean legacy) {
+        if (legacy && card) {
+            var state = MerchantAdmissionPolicy.state(fact == null ? null : fact.grant(), snapshot.evaluatedAt());
+            return state == MerchantAdmissionPolicy.State.NOT_GRANTED || state == MerchantAdmissionPolicy.State.ACTIVE;
+        }
+        if (fact == null) {
+            return false;
+        }
+        return permitsHostedDisplay(snapshot.authority().mode(), snapshot.evaluatedAt(), fact);
     }
 
     /** 链接尚未知道付款人地区。初筛只接受当前币种有明确优先目标的配置。 */
@@ -159,17 +187,25 @@ public class PaymentLinkMethodScope {
 
     /** 只存版本和方式键。后续换 MID 不改变创建时的授权边界。 */
     public static String serialize(List<String> keys) {
-        return JsonUtils.toJsonString(new FrozenScope(1, List.copyOf(keys)));
+        return serialize(keys, false);
+    }
+
+    public static String serialize(List<String> keys, boolean developmentLinkScope) {
+        return JsonUtils.toJsonString(new FrozenScope(1, List.copyOf(keys), developmentLinkScope));
     }
 
     /** 已持久化的语义未知时拒绝降级到所有品牌。 */
     public static List<String> deserialize(String json) {
+        return readScope(json).itemKeys();
+    }
+
+    public static FrozenScope readScope(String json) {
         FrozenScope scope = JsonUtils.parseObject(json, FrozenScope.class);
         if (scope == null || scope.version() != 1 || scope.itemKeys() == null || scope.itemKeys().isEmpty()
                 || scope.itemKeys().stream().anyMatch(key -> !MerchantAdmissionPolicy.isItemKey(key))) {
             throw unavailable();
         }
-        return scope.itemKeys();
+        return scope;
     }
 
     private static ServiceException unavailable() {
@@ -177,6 +213,11 @@ public class PaymentLinkMethodScope {
     }
 
     /** 链接冻结范围的持久化契约。 */
-    public record FrozenScope(int version, List<String> itemKeys) {
+    public record FrozenScope(int version, List<String> itemKeys, boolean developmentLinkScope) {
+        public boolean includesImplementedMethod() {
+            return itemKeys.stream().anyMatch(key -> key.startsWith("CARD_BRAND:")
+                    || developmentLinkScope && key.startsWith("METHOD:")
+                    && supportsDevelopmentWallet(key.substring("METHOD:".length())));
+        }
     }
 }

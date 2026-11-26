@@ -164,6 +164,19 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                          @Param("version") Integer version,
                          @Param("now") LocalDateTime now);
 
+    /** 钱包 OPEN 在会话行锁内保存当次账单，与交易准备和状态 CAS 同事务提交。 */
+    @Update("""
+            UPDATE payment_checkout_session
+            SET billing_info_json = #{billingJson}, update_time = #{now}
+            WHERE checkout_session_id = #{checkoutSessionId}
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int saveWalletBilling(@Param("checkoutSessionId") String checkoutSessionId,
+                          @Param("billingJson") String billingJson,
+                          @Param("version") Integer version,
+                          @Param("now") LocalDateTime now);
+
     /**
      * 核心准备完成后，用当前尝试绑定的预生成标识 CAS 替换为核心权威标识。
      *

@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.vo.checkout;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -24,6 +25,9 @@ public class HostedCheckoutSessionVO implements Serializable {
      * 付款页状态，用于前端选择展示、过期或结果页面。
      */
     private String pageState;
+    /** 仅支付链接收银台使用的付款人流程标志。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean paymentLink;
 
     /**
      * 付款页可公开展示的商户资料。

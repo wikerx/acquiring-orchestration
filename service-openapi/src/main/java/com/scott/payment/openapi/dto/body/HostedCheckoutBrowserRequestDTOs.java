@@ -50,7 +50,12 @@ public final class HostedCheckoutBrowserRequestDTOs {
     public record WalletSimulationRequest(@NotBlank String opaqueToken,
                                           @NotBlank String checkoutSessionId,
                                           @NotBlank @Pattern(regexp = "APPLE_PAY|GOOGLE_PAY") String paymentMethod,
-                                          @NotBlank @Pattern(regexp = "PREPARE|OPEN|STATUS") String action) {
+                                          @NotBlank @Pattern(regexp = "PREPARE|OPEN|STATUS") String action,
+                                          @Valid BillingCardHolderInfoDTO billingCardHolderInfo) {
+        @Override
+        public String toString() {
+            return "WalletSimulationRequest";
+        }
     }
 
     /** 渠道回跳凭据只允许衔接已启动且与渠道交易号绑定的钱包尝试。 */

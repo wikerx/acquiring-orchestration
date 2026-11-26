@@ -75,7 +75,7 @@ public class PaymentLinkManagementService {
         link.setCurrency(input.getCurrency()); link.setAmount(amount); link.setCurrencyExponent(policy.exponent(input.getCurrency()));
         link.setAllowedBrandsJson(JsonUtils.toJsonString(methods.stream().flatMap(method -> method.getBrands().stream()).distinct().sorted().toList()));
         if (explicitKeys != null) {
-            link.setAllowedMethodsJson(PaymentLinkMethodScope.serialize(explicitKeys));
+            link.setAllowedMethodsJson(PaymentLinkMethodScope.serialize(explicitKeys, policy.developmentLinkScopeEnabled()));
         }
         link.setMerchantDisplayName(merchant.getMerchantName()); link.setLocale(input.getLocale());
         link.setNotifyUrl(blankToNull(input.getNotifyUrl())); link.setRedirectUrl(blankToNull(input.getRedirectUrl()));

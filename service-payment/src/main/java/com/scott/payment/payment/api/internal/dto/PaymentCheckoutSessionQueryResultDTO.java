@@ -23,6 +23,8 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
      * 前端页面状态，用于选择付款、处理中或终态页面。
      */
     private String pageState;
+    /** 支付链接持有人可能不同，前端仅按此标志启用链接钱包付款人流程。 */
+    private Boolean paymentLink;
     /**
      * 付款页可公开展示的商户资料。
      */
