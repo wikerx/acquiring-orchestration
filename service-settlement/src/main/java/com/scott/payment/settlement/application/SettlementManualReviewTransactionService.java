@@ -163,7 +163,7 @@ public class SettlementManualReviewTransactionService {
         SettlementManualReviewTaskDO replay = taskMapper.selectByRequestKeyForUpdate(command.requestKey());
         if (replay != null) {
             verifyPreviewReplay(replay, command);
-            return result(replay);
+            return result(replay, knownPlatformFees(replay));
         }
         SettlementManualReviewProfileDO profile = taskMapper.selectProfile(
                 command.settlementProfileId(), command.merchantId());
@@ -213,7 +213,7 @@ public class SettlementManualReviewTransactionService {
         taskMapper.insertIdempotent(task);
         SettlementManualReviewTaskDO stored = taskMapper.selectByRequestKeyForUpdate(command.requestKey());
         verifyStoredTask(stored, task);
-        return result(stored);
+        return result(stored, knownPlatformFees(previewRows));
     }
 
     /**
@@ -267,7 +267,7 @@ public class SettlementManualReviewTransactionService {
         requireReviewType(expectedReviewType);
         SettlementManualReviewTaskDO task = requireTask(taskMapper.selectByTaskNo(taskNo.trim()));
         requireTaskReviewType(task, expectedReviewType);
-        return result(task);
+        return result(task, knownPlatformFees(task));
     }
 
     /**
@@ -776,6 +776,30 @@ public class SettlementManualReviewTransactionService {
     }
 
     private TaskResult result(SettlementManualReviewTaskDO task) {
+        return result(task, Map.of());
+    }
+
+    /** 仅对仍可预览的任务读取部分费用小计，不修改已保存的预览快照。 */
+    private Map<String, BigDecimal> knownPlatformFees(SettlementManualReviewTaskDO task) {
+        if (!"REGULAR".equals(task.getReviewType()) || !"PREVIEWED".equals(task.getTaskStatus())) {
+            return Map.of();
+        }
+        List<SettlementManualReviewPreviewLineDO> rows = safe(taskMapper.selectPreviewLines(
+                task.getMerchantId(), task.getSettlementProfileId(), task.getTargetCurrency(),
+                task.getBusinessDate(), task.getCutoffEndTime(), value(task.getSnapshotMaxCandidateId()),
+                task.getReviewType(), task.getPaymentType(), task.getPaymentMethod()));
+        long count = rows.stream().mapToLong(row -> value(row.getTransactionCount())).sum();
+        return count == safeInt(task.getExpectedCandidateCount()) ? knownPlatformFees(rows) : Map.of();
+    }
+
+    private Map<String, BigDecimal> knownPlatformFees(List<SettlementManualReviewPreviewLineDO> rows) {
+        return rows.stream()
+                .filter(row -> row.getPlatformFeeAmount() == null && row.getKnownPlatformFeeAmount() != null)
+                .collect(Collectors.toMap(SettlementManualReviewPreviewLineDO::getSourceCurrency,
+                        SettlementManualReviewPreviewLineDO::getKnownPlatformFeeAmount));
+    }
+
+    private TaskResult result(SettlementManualReviewTaskDO task, Map<String, BigDecimal> knownPlatformFees) {
         List<PreviewLine> preview = task.getPreviewJson() == null
                 ? List.of() : JsonUtils.parseArray(task.getPreviewJson(), PreviewLine.class);
         int expected = safeInt(task.getExpectedCandidateCount());
@@ -792,7 +816,7 @@ public class SettlementManualReviewTransactionService {
                 processed, safeInt(task.getLockedCandidateCount()), progress,
                 task.getInitialDelayUnit(), safeInt(task.getInitialDelayDays()),
                 safeInt(task.getRegularDelayDays()), task.getSettlementFrequency(),
-                task.getFrequencyDay(), preview, safeInt(task.getRetryCount()),
+                task.getFrequencyDay(), preview, knownPlatformFees, safeInt(task.getRetryCount()),
                 task.getLastFailureCode(), task.getLastFailureMessage(), task.getStartedTime(),
                 task.getCompletedTime(), value(task.getVersion()));
     }

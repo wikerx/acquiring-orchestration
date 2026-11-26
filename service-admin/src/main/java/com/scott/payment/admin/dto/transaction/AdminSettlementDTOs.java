@@ -666,6 +666,16 @@ public final class AdminSettlementDTOs {
          * 当前分组目标币种金额合计。
          */
         private BigDecimal targetAmount;
+
+        /** 原币金额的完整十进制文本。 */
+        public String getSourceAmountExact() {
+            return sourceAmount == null ? null : sourceAmount.toPlainString();
+        }
+
+        /** 结算币种金额的完整十进制文本。 */
+        public String getTargetAmountExact() {
+            return targetAmount == null ? null : targetAmount.toPlainString();
+        }
     }
 
     /**
@@ -1478,6 +1488,26 @@ public final class AdminSettlementDTOs {
          * 按目标币种 exponent 最终舍入后的金额。
          */
         private BigDecimal targetAmount;
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getSourceAmountExact() {
+            return sourceAmount == null ? null : sourceAmount.toPlainString();
+        }
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getDirectRateExact() {
+            return directRate == null ? null : directRate.toPlainString();
+        }
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getUnroundedTargetAmountExact() {
+            return unroundedTargetAmount == null ? null : unroundedTargetAmount.toPlainString();
+        }
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getTargetAmountExact() {
+            return targetAmount == null ? null : targetAmount.toPlainString();
+        }
         /**
          * 批次目标结算币种。
          */
@@ -2516,6 +2546,8 @@ public final class AdminSettlementDTOs {
         private Long transactionCount;
         private BigDecimal grossAmount;
         private BigDecimal platformFeeAmount;
+        /** 预览中已有的同币种费用小计，仅用于显示。 */
+        private String knownPlatformFeeAmount;
         private BigDecimal reserveAmount;
         private BigDecimal releasedReserveAmount;
         private BigDecimal netSettlementAmount;

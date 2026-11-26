@@ -5,6 +5,7 @@ import com.scott.payment.component.db.settlement.SettlementSummaryProjection;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.settlement.TransactionFeeFactQuery;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -105,7 +106,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
             item.source_detail_no, item.result_item_type, item.payment_type,
             item.payment_method, item.transaction_type, item.fee_category, item.direction,
             item.source_amount, item.source_currency, item.source_currency_exponent,
-            rate.direct_rate, item.target_amount, item.target_currency,
+            rate.direct_rate, item.result_role, item.unrounded_target_amount, item.target_amount, item.target_currency,
             item.target_currency_exponent, item.applied_limit, item.create_time
             """;
     private static final String TRANSACTION_SETTLEMENT_COLUMNS = """
@@ -147,6 +148,7 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
             """;
     private static final String CLEARING_SUMMARY_COLUMNS = """
             finance.transaction_id, finance.transaction_type, finance.label_currency,
+            finance.source_transaction_id, finance.clearing_revision, finance.fee_evaluation_status,
             operation.label_amount AS label_amount, finance.clearing_status,
             finance.gross_label_amount, finance.platform_fee_amount,
             finance.reserve_amount, finance.settlement_status,
@@ -777,7 +779,11 @@ public class JdbcMerchantSettlementQueryService implements MerchantSettlementQue
             return null;
         }
         ClearingDetail detail = new ClearingDetail();
-        detail.setSummary(summaries.get(0));
+        ClearingSummary summary = summaries.get(0);
+        detail.setSummary(summary);
+        int revision = summary.getClearingRevision() == null ? 0 : summary.getClearingRevision();
+        detail.setFeeFacts(TransactionFeeFactQuery.read(jdbcTemplate, merchantId, query.transactionId(),
+                query.transactionDateTime(), revision, summary.getSourceTransactionId(), maxResultRows));
         return detail;
     }
 

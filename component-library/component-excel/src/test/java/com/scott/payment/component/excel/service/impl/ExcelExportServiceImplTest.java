@@ -73,6 +73,37 @@ class ExcelExportServiceImplTest {
                 resolver.resolve("excel.exchange.enum.alertStatus.NORMAL", Locale.US));
     }
 
+    @Test
+    void keepsOrdinaryFeeCellsNumericAndPreservesExactLargeDecimals() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        String exact = "123456780.60823332212345678901";
+        service.export(ExcelExportRequest.<ExactFeeExportRow>builder()
+                .fileName("fee").sheetName("fee").titleKey("excel.settlement.targetAmount")
+                .locale(Locale.US).rowClass(ExactFeeExportRow.class)
+                .dataList(List.of(new ExactFeeExportRow(new BigDecimal("3.61")),
+                        new ExactFeeExportRow(new BigDecimal(exact)))).build(), response);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(response.body.toByteArray()))) {
+            var sheet = workbook.getSheetAt(0);
+            var ordinary = sheet.getRow(sheet.getLastRowNum() - 1).getCell(0);
+            var precise = sheet.getRow(sheet.getLastRowNum()).getCell(0);
+            Assertions.assertEquals(3.61, ordinary.getNumericCellValue());
+            Assertions.assertEquals(exact, precise.getStringCellValue());
+        }
+    }
+
+    private static final class ExactFeeExportRow {
+        @ExcelExportColumn(order = 1, headerKey = "excel.settlement.targetAmount", exactDecimal = true)
+        private final BigDecimal amount;
+        @ExcelExportColumn(order = 2, headerKey = "excel.settlement.targetCurrency")
+        private final String currency = "USD";
+
+        private ExactFeeExportRow(BigDecimal amount) {
+            this.amount = amount;
+        }
+    }
+
     /**
      * 验证导出结果同时包含标题、表头和数据。
      *

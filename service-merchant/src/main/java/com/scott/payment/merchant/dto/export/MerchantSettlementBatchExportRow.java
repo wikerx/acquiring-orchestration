@@ -55,7 +55,7 @@ public class MerchantSettlementBatchExportRow {
     /**
      * 目标结算币种净入账金额。
      */
-    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.targetAmount", width = 20)
+    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.targetAmount", width = 20, exactDecimal = true)
     private BigDecimal netAmount;
     /**
      * 批次成功入账时间。

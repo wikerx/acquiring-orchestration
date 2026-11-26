@@ -28,7 +28,7 @@ public class SettlementReviewExportRow {
     private Integer candidateCount;
     @ExcelExportColumn(order = 8, headerKey = "excel.settlement.netDirection", width = 14)
     private String netDirection;
-    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.netAmount", width = 20)
+    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.netAmount", width = 20, exactDecimal = true)
     private BigDecimal netAmount;
     @ExcelExportColumn(order = 10, headerKey = "excel.settlement.reviewStatus", width = 18)
     private String reviewStatus;

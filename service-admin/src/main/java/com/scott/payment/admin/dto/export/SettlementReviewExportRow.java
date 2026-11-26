@@ -55,7 +55,7 @@ public class SettlementReviewExportRow {
     /**
      * 目标结算币种预审净额。
      */
-    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.netAmount", width = 20)
+    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.netAmount", width = 20, exactDecimal = true)
     private BigDecimal netAmount;
     /**
      * 已本地化的预审状态。

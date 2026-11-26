@@ -55,7 +55,7 @@ public class SettlementTransactionExportRow {
     @ExcelExportColumn(order = 10, headerKey = "excel.settlement.transactionType", width = 18)
     private String transactionType;
 
-    @ExcelExportColumn(order = 11, headerKey = "excel.settlement.sourceAmount", width = 20)
+    @ExcelExportColumn(order = 11, headerKey = "excel.settlement.sourceAmount", width = 20, exactDecimal = true)
     private BigDecimal sourceAmount;
 
     @ExcelExportColumn(order = 12, headerKey = "excel.settlement.sourceCurrency", width = 14)
@@ -67,7 +67,7 @@ public class SettlementTransactionExportRow {
     @ExcelExportColumn(order = 14, headerKey = "excel.settlement.direction", width = 12)
     private String netDirection;
 
-    @ExcelExportColumn(order = 15, headerKey = "excel.settlement.netAmount", width = 20)
+    @ExcelExportColumn(order = 15, headerKey = "excel.settlement.netAmount", width = 20, exactDecimal = true)
     private BigDecimal netTargetAmount;
 
     @ExcelExportColumn(order = 16, headerKey = "excel.settlement.targetCurrency", width = 14)

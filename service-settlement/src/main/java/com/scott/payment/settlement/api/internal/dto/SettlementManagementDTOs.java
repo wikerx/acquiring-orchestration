@@ -484,6 +484,9 @@ public final class SettlementManagementDTOs {
 
         private BigDecimal platformFeeAmount;
 
+        /** 预览中已确定的同币种费用精确小计。 */
+        private String knownPlatformFeeAmount;
+
         private BigDecimal reserveAmount;
 
         private BigDecimal releasedReserveAmount;

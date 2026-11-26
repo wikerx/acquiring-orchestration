@@ -28,7 +28,7 @@ public class MerchantSettlementBatchExportRow {
     private Integer settlementItemCount;
     @ExcelExportColumn(order = 8, headerKey = "excel.settlement.direction", width = 12)
     private String netDirection;
-    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.targetAmount", width = 20)
+    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.targetAmount", width = 20, exactDecimal = true)
     private BigDecimal netAmount;
     @ExcelExportColumn(order = 10, headerKey = "excel.settlement.postedTime", width = 22)
     private LocalDateTime postedTime;

@@ -58,7 +58,7 @@ public class MerchantSettlementTransactionSummaryExportRow {
     /**
      * 原交易金额。
      */
-    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.sourceAmount", width = 20)
+    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.sourceAmount", width = 20, exactDecimal = true)
     private BigDecimal sourceAmount;
 
     /**
@@ -73,7 +73,7 @@ public class MerchantSettlementTransactionSummaryExportRow {
     @ExcelExportColumn(order = 12, headerKey = "excel.settlement.direction", width = 12)
     private String netDirection;
 
-    @ExcelExportColumn(order = 13, headerKey = "excel.settlement.netAmount", width = 20)
+    @ExcelExportColumn(order = 13, headerKey = "excel.settlement.netAmount", width = 20, exactDecimal = true)
     private BigDecimal netTargetAmount;
 
     @ExcelExportColumn(order = 14, headerKey = "excel.settlement.targetCurrency", width = 14)

@@ -51,4 +51,7 @@ public @interface ExcelExportColumn {
      * @return true 表示使用 Excel 文本格式
      */
     boolean forceText() default false;
+
+    /** 精确十进制超出 Excel 数值单元格可可靠表示的位数时，改用纯文本。 */
+    boolean exactDecimal() default false;
 }

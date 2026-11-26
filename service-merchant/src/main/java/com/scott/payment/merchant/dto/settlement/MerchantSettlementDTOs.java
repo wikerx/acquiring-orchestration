@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.dto.settlement;
 
+import com.scott.payment.component.db.settlement.TransactionFeeFactQuery;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
@@ -220,6 +221,16 @@ public final class MerchantSettlementDTOs {
          * 当前聚合组目标结算币种金额合计。
          */
         private BigDecimal targetAmount;
+
+        /** 原币金额的完整十进制文本。 */
+        public String getSourceAmountExact() {
+            return sourceAmount == null ? null : sourceAmount.toPlainString();
+        }
+
+        /** 结算币种金额的完整十进制文本。 */
+        public String getTargetAmountExact() {
+            return targetAmount == null ? null : targetAmount.toPlainString();
+        }
     }
 
     /**
@@ -305,6 +316,12 @@ public final class MerchantSettlementDTOs {
          * 当前清分状态。
          */
         private String clearingStatus;
+        /** 当前有效清分修订。 */
+        private Integer clearingRevision;
+        /** 同一订单的上游交易动作。 */
+        private String sourceTransactionId;
+        /** 清分阶段记录的费用求值状态。 */
+        private String feeEvaluationStatus;
         /**
          * 参与本金结算的标签币种毛额。
          */
@@ -466,6 +483,8 @@ public final class MerchantSettlementDTOs {
          * 清分摘要。
          */
         private ClearingSummary summary;
+        /** 当前修订的清分和已入账费用事实，金额为精确十进制文本。 */
+        private TransactionFeeFactQuery.Facts feeFacts;
         /**
          * 本金、费用和返费清分行。
          */
@@ -695,6 +714,30 @@ public final class MerchantSettlementDTOs {
          * 使用批次汇率折算后的目标币种金额。
          */
         private BigDecimal targetAmount;
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getSourceAmountExact() {
+            return sourceAmount == null ? null : sourceAmount.toPlainString();
+        }
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getDirectRateExact() {
+            return directRate == null ? null : directRate.toPlainString();
+        }
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getUnroundedTargetAmountExact() {
+            return unroundedTargetAmount == null ? null : unroundedTargetAmount.toPlainString();
+        }
+
+        /** 保留数据库十进制精度供查询及对账客户端使用。 */
+        public String getTargetAmountExact() {
+            return targetAmount == null ? null : targetAmount.toPlainString();
+        }
+        /** 换汇后、结算舍入前保留的金额。 */
+        private BigDecimal unroundedTargetAmount;
+        /** 标识计算跟踪、财务组件或入账项。 */
+        private String resultRole;
         /**
          * 批次目标结算币种。
          */

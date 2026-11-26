@@ -369,7 +369,7 @@ public class ExcelExportServiceImpl implements ExcelExportService {
     private List<ExcelExportColumnDefinition> toColumnDefinitions(List<ExcelDynamicColumnDefinition> columns) {
         return columns.stream()
                 .map(column -> new ExcelExportColumnDefinition(
-                        null, 0, "", column.width(), column.align(), column.forceText()))
+                        null, 0, "", column.width(), column.align(), column.forceText(), false))
                 .toList();
     }
 
@@ -384,7 +384,9 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         Field field = column.field();
         try {
             Object value = formatValue(field.get(data), locale);
-            return column.forceText() ? toPlainText(value) : value;
+            boolean exceedsExcelPrecision = column.exactDecimal() && value instanceof BigDecimal decimal
+                    && decimal.stripTrailingZeros().precision() > 15;
+            return column.forceText() || exceedsExcelPrecision ? toPlainText(value) : value;
         } catch (IllegalAccessException exception) {
             throw new IllegalStateException("read export field failed: " + field.getName(), exception);
         }

@@ -242,7 +242,7 @@ class SettlementReviewInternalControllerContractTest {
                 null, "VISA", "settle all matured reserve releases",
                 LocalDate.of(2026, 9, 8), LocalDateTime.of(2026, 9, 8, 0, 0),
                 101L, 3, 0, 0, 0, null, 0, 0, null, null,
-                List.of(), 0, null, null, null, null, 0L);
+                List.of(), java.util.Map.of(), 0, null, null, null, null, 0L);
     }
 
     private String manualTaskNo() {

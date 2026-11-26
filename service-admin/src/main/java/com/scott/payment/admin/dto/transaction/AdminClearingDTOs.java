@@ -1,5 +1,6 @@
 package com.scott.payment.admin.dto.transaction;
 
+import com.scott.payment.component.db.settlement.TransactionFeeFactQuery;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -438,6 +439,8 @@ public final class AdminClearingDTOs {
          * 清分主摘要。
          */
         private Summary summary;
+        /** 当前修订的清分和已入账费用事实，金额为精确十进制文本。 */
+        private TransactionFeeFactQuery.Facts feeFacts;
         /**
          * 交易费用和本金清分明细。
          */

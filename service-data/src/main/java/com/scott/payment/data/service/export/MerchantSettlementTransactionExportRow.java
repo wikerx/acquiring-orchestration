@@ -28,7 +28,7 @@ public class MerchantSettlementTransactionExportRow {
     private String paymentMethod;
     @ExcelExportColumn(order = 8, headerKey = "excel.settlement.transactionType", width = 18)
     private String transactionType;
-    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.sourceAmount", width = 20)
+    @ExcelExportColumn(order = 9, headerKey = "excel.settlement.sourceAmount", width = 20, exactDecimal = true)
     private BigDecimal sourceAmount;
     @ExcelExportColumn(order = 10, headerKey = "excel.settlement.sourceCurrency", width = 14)
     private String sourceCurrency;
@@ -36,7 +36,7 @@ public class MerchantSettlementTransactionExportRow {
     private Long componentCount;
     @ExcelExportColumn(order = 12, headerKey = "excel.settlement.direction", width = 12)
     private String netDirection;
-    @ExcelExportColumn(order = 13, headerKey = "excel.settlement.netAmount", width = 20)
+    @ExcelExportColumn(order = 13, headerKey = "excel.settlement.netAmount", width = 20, exactDecimal = true)
     private BigDecimal netTargetAmount;
     @ExcelExportColumn(order = 14, headerKey = "excel.settlement.targetCurrency", width = 14)
     private String targetCurrency;

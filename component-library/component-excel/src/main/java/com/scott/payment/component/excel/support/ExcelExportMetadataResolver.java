@@ -44,7 +44,8 @@ public class ExcelExportMetadataResolver {
                 column.headerKey(),
                 column.width(),
                 column.align(),
-                column.forceText()
+                column.forceText(),
+                column.exactDecimal()
         );
     }
 }

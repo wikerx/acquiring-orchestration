@@ -338,6 +338,8 @@ public class SettlementReviewInternalController {
             value.setTransactionCount(line.transactionCount());
             value.setGrossAmount(line.grossAmount());
             value.setPlatformFeeAmount(line.platformFeeAmount());
+            var knownFee = result.knownPlatformFees().get(line.sourceCurrency());
+            value.setKnownPlatformFeeAmount(knownFee == null ? null : knownFee.toPlainString());
             value.setReserveAmount(line.reserveAmount());
             value.setReleasedReserveAmount(line.releasedReserveAmount());
             value.setNetSettlementAmount(line.netSettlementAmount());

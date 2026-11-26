@@ -239,7 +239,8 @@ public class AdminFeeSimulationCalculator {
      * 按管理端精度格式化高精度数值。
      */
     private String displayDecimal(BigDecimal value) {
-        return zero(value).setScale(DISPLAY_SCALE, RoundingMode.HALF_UP).toPlainString();
+        BigDecimal decimal = zero(value).stripTrailingZeros();
+        return decimal.setScale(Math.max(DISPLAY_SCALE, decimal.scale())).toPlainString();
     }
 
     /**

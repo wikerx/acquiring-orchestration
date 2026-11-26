@@ -10,6 +10,7 @@ import com.scott.payment.admin.service.AdminClearingQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.settlement.TransactionFeeFactQuery;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -217,7 +218,11 @@ public class JdbcAdminClearingQueryService implements AdminClearingQueryService 
     private DetailResponse detailNormalized(String transactionId,
                                             LocalDateTime transactionDateTime) {
         DetailResponse response = new DetailResponse();
-        response.setSummary(findSummary(transactionId, transactionDateTime));
+        Summary summary = findSummary(transactionId, transactionDateTime);
+        response.setSummary(summary);
+        int revision = summary.getClearingRevision() == null ? 0 : summary.getClearingRevision();
+        response.setFeeFacts(TransactionFeeFactQuery.read(jdbcTemplate, summary.getMerchantId(), transactionId,
+                transactionDateTime, revision, summary.getSourceTransactionId(), maxResultRows));
         return response;
     }
 

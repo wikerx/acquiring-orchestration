@@ -52,7 +52,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -1134,7 +1133,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
      * 将金额按受控精度转换为展示文本。
      */
     private String decimalText(BigDecimal value) {
-        return zero(value).setScale(2, RoundingMode.HALF_UP).toPlainString();
+        BigDecimal decimal = zero(value).stripTrailingZeros();
+        return decimal.setScale(Math.max(2, decimal.scale())).toPlainString();
     }
 
     /**

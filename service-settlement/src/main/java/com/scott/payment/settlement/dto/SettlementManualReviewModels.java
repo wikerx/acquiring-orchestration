@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -82,6 +83,7 @@ public final class SettlementManualReviewModels {
                              String settlementFrequency,
                              Integer frequencyDay,
                              List<PreviewLine> preview,
+                             Map<String, BigDecimal> knownPlatformFees,
                              int retryCount,
                              String failureCode,
                              String failureMessage,
@@ -90,6 +92,7 @@ public final class SettlementManualReviewModels {
                              long version) {
         public TaskResult {
             preview = preview == null ? List.of() : List.copyOf(preview);
+            knownPlatformFees = Map.copyOf(knownPlatformFees);
         }
     }
 

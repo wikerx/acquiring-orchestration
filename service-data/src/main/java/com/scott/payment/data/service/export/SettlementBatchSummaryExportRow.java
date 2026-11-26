@@ -24,11 +24,11 @@ public class SettlementBatchSummaryExportRow {
     private String direction;
     @ExcelExportColumn(order = 7, headerKey = "excel.settlement.sourceCurrency", width = 14)
     private String sourceCurrency;
-    @ExcelExportColumn(order = 8, headerKey = "excel.settlement.sourceAmount", width = 20)
+    @ExcelExportColumn(order = 8, headerKey = "excel.settlement.sourceAmount", width = 20, exactDecimal = true)
     private BigDecimal sourceAmount;
     @ExcelExportColumn(order = 9, headerKey = "excel.settlement.targetCurrency", width = 14)
     private String targetCurrency;
-    @ExcelExportColumn(order = 10, headerKey = "excel.settlement.targetAmount", width = 20)
+    @ExcelExportColumn(order = 10, headerKey = "excel.settlement.targetAmount", width = 20, exactDecimal = true)
     private BigDecimal targetAmount;
     @ExcelExportColumn(order = 11, headerKey = "excel.settlement.transactionCount", width = 14)
     private Long transactionCount;

@@ -20,6 +20,9 @@ public class SettlementManualReviewPreviewLineDO {
 
     private BigDecimal platformFeeAmount;
 
+    /** 只用于回显预览中已有同币种金额的费用小计。 */
+    private BigDecimal knownPlatformFeeAmount;
+
     private BigDecimal reserveAmount;
 
     private BigDecimal releasedReserveAmount;

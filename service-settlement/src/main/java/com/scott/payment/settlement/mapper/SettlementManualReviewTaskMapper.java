@@ -204,6 +204,7 @@ public interface SettlementManualReviewTaskMapper {
                        COALESCE(SUM(finance.gross_label_amount), 0) AS gross_amount,
                        CASE WHEN SUM(finance.platform_fee_amount IS NULL) = 0
                             THEN COALESCE(SUM(finance.platform_fee_amount), 0) ELSE NULL END AS platform_fee_amount,
+                       SUM(finance.platform_fee_amount) AS known_platform_fee_amount,
                        COALESCE(SUM(finance.reserve_amount), 0) AS reserve_amount,
                        CAST(0 AS DECIMAL(24,8)) AS released_reserve_amount,
                        CASE WHEN SUM(finance.net_settlement_amount IS NULL) = 0
@@ -246,6 +247,7 @@ public interface SettlementManualReviewTaskMapper {
                        COUNT(DISTINCT candidate.id) AS transaction_count,
                        CAST(0 AS DECIMAL(24,8)) AS gross_amount,
                        CAST(NULL AS DECIMAL(24,8)) AS platform_fee_amount,
+                       CAST(NULL AS DECIMAL(24,8)) AS known_platform_fee_amount,
                        CAST(0 AS DECIMAL(24,8)) AS reserve_amount,
                        COALESCE(SUM(reserve_detail.released_amount), 0) AS released_reserve_amount,
                        CAST(NULL AS DECIMAL(24,8)) AS net_settlement_amount,

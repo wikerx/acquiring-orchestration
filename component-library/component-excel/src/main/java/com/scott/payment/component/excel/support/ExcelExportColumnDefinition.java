@@ -13,6 +13,7 @@ public record ExcelExportColumnDefinition(
         String headerKey,
         int width,
         HorizontalAlignment align,
-        boolean forceText
+        boolean forceText,
+        boolean exactDecimal
 ) {
 }
