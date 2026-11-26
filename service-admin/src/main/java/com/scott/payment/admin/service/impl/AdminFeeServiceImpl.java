@@ -45,6 +45,7 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.finance.fee.model.DisputeEventFee;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -679,6 +680,10 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     public FeeSimulationResponse simulate(FeeSimulationRequest request,
                                           Long operatorId,
                                           String operatorName) {
+        String feeCategory = upper(request.getFeeCategory());
+        if (DisputeEventFee.isCategory(feeCategory)) {
+            throw invalid("拒付预警事件费用不参与交易费用试算");
+        }
         FeePlanDO plan = planMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
                 .eq(FeePlanDO::getPlanType, MERCHANT)
                 .eq(FeePlanDO::getMerchantId, request.getMerchantId().trim())
@@ -692,7 +697,6 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         if (!ACTIVE.equals(version.getVersionStatus())) {
             throw conflict("商户当前费率版本未生效");
         }
-        String feeCategory = upper(request.getFeeCategory());
         List<String> selectedRiskServiceTypes = selectedRiskServiceTypes(request, feeCategory);
         ResolvedSettlementRate resolvedRate = settlementRateResolver.resolve(
                 request.getLabelCurrency(), LocalDateTime.now());
@@ -1549,12 +1553,15 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             throw invalid("费用规则不能为空");
         }
         String category = upper(rule.getFeeCategory());
-        if (!Set.of("TRANSACTION_FEE", "REFUND_FEE", RISK_FEE,
+        boolean disputeEventFee = DisputeEventFee.isCategory(category);
+        if (!disputeEventFee && !Set.of("TRANSACTION_FEE", "REFUND_FEE", RISK_FEE,
                 DISPUTE_FEE, SETTLEMENT_PROCESSING_FEE, SETTLEMENT_FX_FEE).contains(category)) {
             throw invalid("不支持的费用分类");
         }
         rule.setFeeCategory(category);
-        if (SETTLEMENT_FX_FEE.equals(category)) {
+        if (disputeEventFee) {
+            normalizeDisputeEventRule(rule);
+        } else if (SETTLEMENT_FX_FEE.equals(category)) {
             normalizeSettlementFxRule(rule);
         } else if (!StringUtils.hasText(rule.getTransactionType())
                 || !StringUtils.hasText(rule.getPaymentType())) {
@@ -1577,7 +1584,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             rule.setTiers(new ArrayList<>());
             return;
         }
-        if (SETTLEMENT_FX_FEE.equals(category)) {
+        if (disputeEventFee || SETTLEMENT_FX_FEE.equals(category)) {
             return;
         }
         String mode = upper(rule.getFeeMode());
@@ -1594,6 +1601,28 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
         rule.setTierMetric(metric);
         validateTiers(rule.getTiers(), metric);
+    }
+
+    /**
+     * 预警事件费每种只保存一个固定 USD 金额，交易维度使用不参与匹配的占位值。
+     */
+    private void normalizeDisputeEventRule(FeeRuleRequest rule) {
+        BigDecimal amount = rule.getFixedAmountUsd();
+        if (amount == null || amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 8
+                || amount.precision() - amount.scale() > 16) {
+            throw invalid("预警事件固定费用须大于零，最多支持 16 位整数和 8 位小数");
+        }
+        if (!"STANDARD".equals(upper(rule.getFeeMode()))) {
+            throw invalid("预警事件费用仅支持固定金额");
+        }
+        rule.setRuleName(rule.getFeeCategory());
+        rule.setPercentageRate(BigDecimal.ZERO);
+        rule.setMinimumAmountUsd(null);
+        rule.setMaximumAmountUsd(null);
+        rule.setFeeMode("STANDARD");
+        rule.setTierMetric(null);
+        rule.setTierPeriod(null);
+        rule.setTiers(new ArrayList<>());
     }
 
     /**
@@ -1625,7 +1654,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private String normalizeRiskRule(FeeRuleRequest rule, String category) {
         if (!RISK_FEE.equals(category)) {
             rule.setRiskServiceType(NONE);
-            rule.setChargeTrigger(NOT_APPLICABLE);
+            rule.setChargeTrigger(DisputeEventFee.isCategory(category) ? "NO_CHARGE" : NOT_APPLICABLE);
             return NONE;
         }
         String riskServiceType = upper(rule.getRiskServiceType());
@@ -1681,6 +1710,11 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 throw invalid("费用规则不能为空");
             }
             String ruleGroupCode = generateCode("FRG");
+            if (DisputeEventFee.isCategory(request.getFeeCategory())) {
+                expanded.add(copyAtomicRule(request, NONE, NONE, ALL, ruleGroupCode));
+                validateExpandedRuleLimit(expanded);
+                continue;
+            }
             if (SETTLEMENT_FX_FEE.equals(upper(request.getFeeCategory()))) {
                 for (String transactionType : transactionTypes(request)) {
                     FeeRuleRequest settlementFxRule = copyAtomicRule(

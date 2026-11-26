@@ -110,7 +110,7 @@ public final class AdminFeeDTOs {
     @Data
     public static class FeeRuleRequest {
         /**
-         * 费用分类：交易、退款、风控、争议或结算货币兑换费。
+         * 费用分类，预警事件费用使用 RDR_FEE 或 ETHOCA_ALERT_FEE。
          */
         @NotBlank
         private String feeCategory = "TRANSACTION_FEE";
@@ -584,6 +584,13 @@ public final class AdminFeeDTOs {
         private Integer sortNo;
         private String remark;
         private List<FeeRuleTierResponse> tiers = new ArrayList<>();
+
+        /**
+         * 返回固定费用的完整十进制文本，供管理端回显及重新提交。
+         */
+        public String getFixedAmountUsdExact() {
+            return fixedAmountUsd == null ? null : fixedAmountUsd.toPlainString();
+        }
     }
 
     /**

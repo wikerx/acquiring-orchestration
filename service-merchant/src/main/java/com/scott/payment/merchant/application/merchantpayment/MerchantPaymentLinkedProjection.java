@@ -65,6 +65,7 @@ public class MerchantPaymentLinkedProjection {
         // 原费率结果跨请求缓存，只装饰本次返回的副本，避免把授权状态写进费用缓存。
         CurrentFeeResponse response = new CurrentFeeResponse();
         BeanUtils.copyProperties(source, response);
+        response.setRules(source.getRules().stream().map(MerchantPaymentLinkedProjection::copyFeeRuleForDisplay).toList());
         try {
             return reads.read(merchant, scope -> {
                 var authority = governance.feeAuthorizations(scope, merchant);
@@ -80,7 +81,7 @@ public class MerchantPaymentLinkedProjection {
                     response.setAuthorizationAssessmentStatus(UNAVAILABLE);
                     return response;
                 }
-                response.setRules(source.getRules().stream().map(rule ->
+                response.setRules(response.getRules().stream().map(rule ->
                         decorate(rule, dimensions.get(String.valueOf(rule.getId())), authority.methods())).toList());
                 return response;
             });
@@ -97,6 +98,18 @@ public class MerchantPaymentLinkedProjection {
             response.setAuthorizationAssessmentStatus(UNAVAILABLE);
             return response;
         }
+    }
+
+    /**
+     * 在请求级副本中补充精确金额，避免把展示字段写回跨版本费率缓存。
+     */
+    private static FeeRuleResponse copyFeeRuleForDisplay(FeeRuleResponse source) {
+        FeeRuleResponse rule = new FeeRuleResponse();
+        BeanUtils.copyProperties(source, rule);
+        if (source.getFixedAmountUsd() != null) {
+            rule.setFixedAmountUsdExact(source.getFixedAmountUsd().toPlainString());
+        }
+        return rule;
     }
 
     private Map<String, List<AtomicFeeDimension>> activeFeeDimensions(String merchant, Integer versionNo) {

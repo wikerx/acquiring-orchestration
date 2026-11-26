@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.dto;
 
+import com.alibaba.fastjson2.JSON;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,21 @@ class MerchantFinanceDTOsSerializationTests {
     private static final BigDecimal NEGATIVE_AMOUNT = new BigDecimal("-123456789012345678.90");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * 商户端 HTTP 响应保留预警费的小数精度，同时缓存结构沿用既有金额字段。
+     */
+    @Test
+    void shouldWriteExactFixedFeeInHttpResponseWithoutChangingCacheShape() {
+        var rule = new MerchantFinanceDTOs.FeeRuleResponse();
+        rule.setFeeCategory("RDR_FEE");
+        rule.setFixedAmountUsd(new BigDecimal("1234567890123456.12345678"));
+
+        assertThat(objectMapper.valueToTree(rule).has("fixedAmountUsdExact")).isFalse();
+        rule.setFixedAmountUsdExact("1234567890123456.12345678");
+        assertThat(JSON.parseObject(JSON.toJSONString(rule)).get("fixedAmountUsdExact"))
+                .isEqualTo("1234567890123456.12345678");
+    }
 
     /**
      * 账户余额和流水金额必须以字符串形式交付商户前端。

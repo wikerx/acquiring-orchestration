@@ -779,6 +779,58 @@ class AdminFeeVersioningServiceTests {
     }
 
     /**
+     * 预警规则可与普通交易规则一起保存，且不会继承交易维度或触发普通清分。
+     */
+    @Test
+    void shouldSaveIndependentFixedDisputeEventFees() {
+        Fixture fixture = new Fixture();
+        FeePlanDO plan = templatePlan(1L, "ENABLED", 20L, 3);
+        AtomicReference<FeePlanVersionDO> insertedVersion = new AtomicReference<>();
+        List<FeeRuleDO> insertedRules = new ArrayList<>();
+        when(fixture.planMapper.selectByIdForUpdate(1L)).thenReturn(plan);
+        when(fixture.versionMapper.selectCount(any())).thenReturn(0L);
+        when(fixture.versionMapper.selectOne(any()))
+                .thenReturn(version(20L, 1L, 3, "ACTIVE"))
+                .thenAnswer(invocation -> insertedVersion.get());
+        when(fixture.versionMapper.selectList(any())).thenAnswer(invocation -> List.of(insertedVersion.get()));
+        doAnswer(invocation -> {
+            FeePlanVersionDO row = invocation.getArgument(0);
+            row.setId(21L);
+            insertedVersion.set(row);
+            return 1;
+        }).when(fixture.versionMapper).insert(any(FeePlanVersionDO.class));
+        doAnswer(invocation -> {
+            FeeRuleDO row = invocation.getArgument(0);
+            row.setId(31L + insertedRules.size());
+            insertedRules.add(row);
+            return 1;
+        }).when(fixture.ruleMapper).insert(any(FeeRuleDO.class));
+        when(fixture.ruleMapper.selectList(any())).thenReturn(List.of());
+
+        FeeRuleRequest rdr = new FeeRuleRequest();
+        rdr.setFeeCategory("RDR_FEE");
+        rdr.setFixedAmountUsd(new BigDecimal("15.00000001"));
+        FeeRuleRequest ethoca = standardRule();
+        ethoca.setFeeCategory("ETHOCA_ALERT_FEE");
+        ethoca.setFixedAmountUsd(new BigDecimal("15.00000000"));
+        FeeVersionSaveRequest request = standardVersionRequest();
+        request.setRules(List.of(standardRule(), rdr, ethoca));
+
+        fixture.service.createTemplateVersion(1L, request, 8L, "提交人");
+
+        assertThat(insertedRules).extracting(FeeRuleDO::getFeeCategory)
+                .containsExactly("TRANSACTION_FEE", "RDR_FEE", "ETHOCA_ALERT_FEE");
+        assertThat(insertedRules.subList(1, 3)).allSatisfy(rule -> {
+            assertThat(rule.getTransactionType()).isEqualTo("NONE");
+            assertThat(rule.getPaymentType()).isEqualTo("NONE");
+            assertThat(rule.getChargeTrigger()).isEqualTo("NO_CHARGE");
+            assertThat(rule.getPercentageRate()).isEqualByComparingTo("0");
+        });
+        assertThat(insertedRules.get(1).getFixedAmountUsd()).isEqualByComparingTo("15.00000001");
+        assertThat(insertedRules.get(2).getFixedAmountUsd()).isEqualByComparingTo("15");
+    }
+
+    /**
      * 新费用配置省略交易类型时，服务端必须按费用分类生成受控的原子交易动作。
      */
     @Test

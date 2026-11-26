@@ -1,6 +1,7 @@
 package com.scott.payment.clearing.domain.service;
 
 import com.scott.payment.clearing.domain.model.ClearingOperationFacts;
+import com.scott.payment.finance.fee.model.DisputeEventFee;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeRuleConfigurationSnapshot;
 
 import java.util.Locale;
@@ -43,6 +44,9 @@ public final class ClearingFeeRuleMatcher {
                                   FeeRuleConfigurationSnapshot rule) {
         Objects.requireNonNull(operation, "clearing operation is required");
         Objects.requireNonNull(rule, "fee rule is required");
+        if (DisputeEventFee.isCategory(rule.feeCategory())) {
+            return false;
+        }
         Set<String> riskServices = occurredRiskServices == null ? Set.of() : occurredRiskServices;
         if ("SETTLEMENT_FX_FEE".equalsIgnoreCase(rule.feeCategory())) {
             if (!SETTLEMENT_BEARING_TRANSACTION_TYPES.contains(operation.transactionType())) {

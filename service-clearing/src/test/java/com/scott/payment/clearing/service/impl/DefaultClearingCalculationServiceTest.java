@@ -76,6 +76,31 @@ class DefaultClearingCalculationServiceTest {
     }
 
     @Test
+    void calculateShouldNeverChargeDisputeEventFeesForTransactions() {
+        ClearingCalculationCommand base = command("SUCCESS");
+        FeeVersionSnapshot original = base.feeSnapshot();
+        FeeRuleSnapshot eventAmount = new FeeRuleSnapshot(201L, FeeMode.STANDARD, BigDecimal.ZERO,
+                new Money(new BigDecimal("15.00"), "USD", 2), null, null, null);
+        FeeRuleConfigurationSnapshot rdr = new FeeRuleConfigurationSnapshot(
+                201L, "RDR_FEE", "ALL", "ALL", "ALL", "NONE", "SUCCESS", eventAmount, List.of());
+        FeeRuleConfigurationSnapshot ethoca = new FeeRuleConfigurationSnapshot(
+                202L, "ETHOCA_ALERT_FEE", "NONE", "NONE", "ALL", "NONE", "NO_CHARGE",
+                new FeeRuleSnapshot(202L, FeeMode.STANDARD, BigDecimal.ZERO, eventAmount.fixedFeeUsd(),
+                        null, null, null), List.of());
+        FeeVersionSnapshot snapshot = new FeeVersionSnapshot(
+                original.schemaVersion(), original.merchantId(), original.feePlanId(), original.feePlanVersionId(),
+                original.feePlanVersionNo(), original.pricingLockTime(), original.settlementCurrency(),
+                original.percentageBasis(), original.feeCurrencyPolicy(), original.roundingMode(), original.reserve(),
+                original.refundFeeReturnPolicy(), List.of(original.rules().get(0), rdr, ethoca), original.snapshotHash());
+
+        ClearingCalculationResult result = service.calculate(new ClearingCalculationCommand(
+                base.operation(), snapshot, base.paymentType(), base.paymentMethod(),
+                base.occurredRiskServices(), base.tierContexts(), null, null));
+
+        assertThat(result.fees()).extracting(fee -> fee.rule().feeCategory()).containsExactly("TRANSACTION_FEE");
+    }
+
+    @Test
     void calculateShouldNotChargeSuccessOnlyRuleForFailedPayment() {
         ClearingCalculationResult result = service.calculate(command("FAILED"));
 

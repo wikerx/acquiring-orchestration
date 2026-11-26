@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
@@ -175,6 +176,12 @@ public final class MerchantFinanceDTOs {
         private List<FeeTierResponse> tiers = new ArrayList<>();
         /** 与原始原子费率维度匹配的方式及独立授权事实。 */
         private List<AuthorizationCoverage> paymentMethodCoverage;
+
+        /**
+         * 固定费用的精确文本，由 HTTP 投影填充；缓存中只保存原始 decimal 字段。
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private String fixedAmountUsdExact;
     }
 
     /**
