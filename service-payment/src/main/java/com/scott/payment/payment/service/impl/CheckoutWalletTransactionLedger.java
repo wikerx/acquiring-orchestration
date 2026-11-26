@@ -18,6 +18,7 @@ import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.mapper.TransactionChannelInteractionLogMapper;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.context.annotation.Profile;
@@ -26,7 +27,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** 开发钱包复用交易事实和标准商户通知，调用方持有收银台会话行锁及交易数据源事务。 */
+/** 开发钱包复用交易事实、终态事件和商户通知，调用方持有收银台会话行锁及交易数据源事务。 */
 @Service
 @Profile("dev & !test & !uat & !prod & !live-regression")
 class CheckoutWalletTransactionLedger {
@@ -38,14 +39,17 @@ class CheckoutWalletTransactionLedger {
     private final TransactionRecordService records;
     private final TransactionIdempotencyService idempotency;
     private final TransactionChannelInteractionLogMapper interactionLogs;
+    private final TransactionLifecycleEventService lifecycleEvents;
 
     CheckoutWalletTransactionLedger(GlobalIdGenerator ids, TransactionRecordService records,
                                     TransactionIdempotencyService idempotency,
-                                    TransactionChannelInteractionLogMapper interactionLogs) {
+                                    TransactionChannelInteractionLogMapper interactionLogs,
+                                    TransactionLifecycleEventService lifecycleEvents) {
         this.ids = ids;
         this.records = records;
         this.idempotency = idempotency;
         this.interactionLogs = interactionLogs;
+        this.lifecycleEvents = lifecycleEvents;
     }
 
     Identity open(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route,
@@ -98,6 +102,8 @@ class CheckoutWalletTransactionLedger {
                 evidence(command, attempt, identity, terminal), result, null, quote.channelExponent())) {
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
         }
+        lifecycleEvents.saveStatusChanged(identity.transactionId(), identity.operationId(), command.getMerchantId(),
+                command.getMerchantOrderNo(), PAYMENT, status.getCode(), command.getTransactionDateTime());
     }
 
     private PaymentCreateCommandDTO command(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt,

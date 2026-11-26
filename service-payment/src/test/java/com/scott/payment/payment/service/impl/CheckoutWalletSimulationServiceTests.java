@@ -22,6 +22,7 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
@@ -72,6 +73,7 @@ class CheckoutWalletSimulationServiceTests {
     private final TransactionMerchantNotificationMapper notifications = mock(TransactionMerchantNotificationMapper.class);
     private final MerchantNotificationInitialDeliveryService delivery = mock(MerchantNotificationInitialDeliveryService.class);
     private final TransactionRecordService records = mock(TransactionRecordService.class);
+    private final TransactionLifecycleEventService lifecycleEvents = mock(TransactionLifecycleEventService.class);
     private final TransactionIdempotencyService idempotency = mock(TransactionIdempotencyService.class);
     private final TransactionChannelInteractionLogMapper interactionLogs = mock(TransactionChannelInteractionLogMapper.class);
     private final PaymentCheckoutProperties properties = new PaymentCheckoutProperties();
@@ -80,7 +82,8 @@ class CheckoutWalletSimulationServiceTests {
             routes, exchangeRates, isoDictionary, Optional.of(simulator), attempts, sessions, ids,
             properties, configs,
             TransactionOperations.withoutTransaction(), notifications, delivery,
-            new MerchantNotificationProperties(), new CheckoutWalletTransactionLedger(ids, records, idempotency, interactionLogs));
+            new MerchantNotificationProperties(), new CheckoutWalletTransactionLedger(ids, records, idempotency,
+                    interactionLogs, lifecycleEvents));
 
     @BeforeEach
     void setUpCurrencyDictionary() {
@@ -303,6 +306,9 @@ class CheckoutWalletSimulationServiceTests {
         assertThat(command.getValue().getCallbackUrl()).isEqualTo(session.getMerchantNotifyUrl());
         assertThat(outcome.getValue().getTransactionId()).isEqualTo(TRANSACTION_ID);
         assertThat(outcome.getValue().getStatus()).isEqualTo(success ? "SUCCESS" : "FAILED");
+        verify(lifecycleEvents).saveStatusChanged(eq(TRANSACTION_ID), eq(persisted.getOperationId()), eq(MERCHANT),
+                eq(persisted.getMerchantOrderNo()), eq("PAYMENT"), eq(success ? "SUCCESS" : "FAILED"),
+                eq(persisted.getTransactionDateTime()));
         verifyNoInteractions(notifications, delivery);
     }
 

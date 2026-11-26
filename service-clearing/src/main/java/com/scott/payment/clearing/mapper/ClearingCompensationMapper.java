@@ -50,8 +50,7 @@ public interface ClearingCompensationMapper {
               AND o.transaction_date_time &lt; #{endTime}
               AND o.transaction_status IN ('SUCCESS', 'FAILED')
               AND o.deleted = 0
-              AND NOT (COALESCE(o.channel_code, '') = 'SCOTT_CHANNEL_A'
-                       AND COALESCE(o.channel_order_no, '') LIKE 'DEV-IW-%')
+            """ + ClearingTransactionOperationMapper.WALLET_FEE_SNAPSHOT_GUARD + """
               AND (
                    f.id IS NULL
                    OR f.clearing_status = 'NOT_CLEARED'

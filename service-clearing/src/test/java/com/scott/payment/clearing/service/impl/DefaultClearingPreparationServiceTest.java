@@ -6,6 +6,7 @@ import com.scott.payment.clearing.domain.model.ClearingOperationFacts;
 import com.scott.payment.clearing.dto.ClearingClaimResult;
 import com.scott.payment.clearing.entity.ClearingPaymentMethodInfoDO;
 import com.scott.payment.clearing.entity.ClearingTransactionLocatorDO;
+import com.scott.payment.clearing.exception.ClearingProcessingException;
 import com.scott.payment.clearing.mapper.ClearingTransactionContextMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionOperationMapper;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +101,16 @@ class DefaultClearingPreparationServiceTest {
         assertThat(result.paymentMethod()).isEqualTo("VISA");
         assertThat(result.occurredRiskServices()).containsExactlyInAnyOrder("INTERNAL", "THREE_DS");
         assertThat(result.currentLocator().rootTransactionDateTime()).isEqualTo(rootTime);
+
+        method.setPaymentBrand(null);
+        assertThatThrownBy(() -> service.prepare(message, claim, "worker-1"))
+                .isInstanceOf(ClearingProcessingException.class);
+        for (String wallet : List.of("APPLE_PAY", "GOOGLE_PAY")) {
+            method.setPaymentMethod(wallet);
+            CompletionCommand walletResult = service.prepare(message, claim, "worker-1");
+            assertThat(walletResult.paymentType()).isEqualTo(wallet);
+            assertThat(walletResult.paymentMethod()).isEqualTo("ALL");
+        }
     }
 
     private ClearingTransactionLocatorDO locator(String transactionId,

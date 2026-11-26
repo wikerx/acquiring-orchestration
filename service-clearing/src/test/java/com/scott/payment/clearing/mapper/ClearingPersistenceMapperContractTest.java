@@ -297,7 +297,7 @@ class ClearingPersistenceMapperContractTest {
     }
 
     @Test
-    void clearingCannotLoadOrRecoverSuccessfulWalletSimulations() {
+    void clearingLoadsAndRecoversWalletsWithFrozenFees() {
         var dataSource = new UnpooledDataSource("org.h2.Driver", "jdbc:h2:mem:" + UUID.randomUUID()
                 + ";MODE=MySQL;DB_CLOSE_DELAY=-1", "sa", "");
         var jdbc = new JdbcTemplate(dataSource);
@@ -331,6 +331,16 @@ class ClearingPersistenceMapperContractTest {
         jdbc.update(insert, 1, "WALLET", time, "SCOTT_CHANNEL_A", "DEV-IW-2611241101233460000013");
         jdbc.update(insert, 2, "CARD", time, "SCOTT_CHANNEL_A", "CMA-REAL-CARD");
         jdbc.update(insert, 3, "NO_ROUTE", time, null, null);
+        jdbc.update(insert, 4, "WALLET-FROZEN", time, "SCOTT_CHANNEL_A", "DEV-IW-2611241101233460000014");
+        jdbc.update("UPDATE transaction_operation SET operation_id = 'OP-4', merchant_id = '200045' WHERE id = 4");
+        jdbc.execute("""
+                CREATE TABLE transaction_merchant_snapshot (
+                    transaction_id VARCHAR(64), transaction_date_time TIMESTAMP(3), operation_id VARCHAR(64),
+                    merchant_id VARCHAR(64), fee_plan_version_id BIGINT, fee_snapshot_hash VARCHAR(64)
+                )
+                """);
+        jdbc.update("INSERT INTO transaction_merchant_snapshot VALUES (?, ?, 'OP-4', '200045', 11, 'digest')",
+                "WALLET-FROZEN", time);
         var configuration = new Configuration(new Environment("wallet-test", new JdbcTransactionFactory(), dataSource));
         configuration.setMapUnderscoreToCamelCase(true);
         configuration.addMapper(ClearingCompensationMapper.class);
@@ -338,11 +348,12 @@ class ClearingPersistenceMapperContractTest {
         try (var session = new SqlSessionFactoryBuilder().build(configuration).openSession()) {
             var lookup = session.getMapper(ClearingTransactionOperationMapper.class);
             assertThat(lookup.selectByTransaction("WALLET", time)).isNull();
+            assertThat(lookup.selectByTransaction("WALLET-FROZEN", time)).isNotNull();
             assertThat(lookup.selectByTransaction("CARD", time)).isNotNull();
             var compensation = session.getMapper(ClearingCompensationMapper.class);
             assertThat(compensation.selectCandidates(time.minusHours(1), time.plusHours(1), null, null,
                     time, time, 20)).extracting(candidate -> candidate.getTransactionId())
-                    .containsExactly("CARD", "NO_ROUTE");
+                    .containsExactly("CARD", "NO_ROUTE", "WALLET-FROZEN");
         }
     }
 

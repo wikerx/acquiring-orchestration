@@ -155,7 +155,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         LocatorFacts currentLocator = validateLocator(locatorRow, operation);
         ClearingPaymentMethodInfoDO paymentMethod = contextMapper.selectPaymentMethod(
                 currentLocator.rootTransactionId(), currentLocator.rootTransactionDateTime());
-        validatePaymentMethod(paymentMethod);
+        String feePaymentMethod = feePaymentMethod(paymentMethod);
 
         Set<String> riskServices = new LinkedHashSet<>();
         if (contextMapper.existsInternalRiskCall(operation.transactionId(), operation.transactionDateTime())) {
@@ -171,7 +171,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                 operation.merchantId(), operation.transactionDateTime().toLocalDate(), currentSnapshot);
         LocalDate expectedReserveReleaseDate = reserveReleaseDate(operation, currentSnapshot.reserve());
         return new CompletionCommand(message, claim, processingOwner, currentSnapshot, currentLocator,
-                paymentMethod.getPaymentMethod(), paymentMethod.getPaymentBrand(), riskServices, source,
+                paymentMethod.getPaymentMethod(), feePaymentMethod, riskServices, source,
                 settlementEligibleDate, expectedReserveReleaseDate);
     }
 
@@ -215,14 +215,21 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
     }
 
     /**
-     * 费用维度只读取非敏感支付方式和品牌，缺失时不猜测默认值。
+     * 钱包无底层卡品牌时只匹配该方式的通配费率。银行卡仍要求真实卡品牌。
      */
-    private void validatePaymentMethod(ClearingPaymentMethodInfoDO paymentMethod) {
-        if (paymentMethod == null || !StringUtils.hasText(paymentMethod.getPaymentMethod())
-                || !StringUtils.hasText(paymentMethod.getPaymentBrand())) {
+    private String feePaymentMethod(ClearingPaymentMethodInfoDO paymentMethod) {
+        if (paymentMethod == null || !StringUtils.hasText(paymentMethod.getPaymentMethod())) {
             throw failure(ClearingFailureCodeEnum.TRANSACTION_NOT_FOUND,
                     "root payment method dimensions are unavailable");
         }
+        if (StringUtils.hasText(paymentMethod.getPaymentBrand())) {
+            return paymentMethod.getPaymentBrand();
+        }
+        if ("APPLE_PAY".equals(paymentMethod.getPaymentMethod()) || "GOOGLE_PAY".equals(paymentMethod.getPaymentMethod())) {
+            return "ALL";
+        }
+        throw failure(ClearingFailureCodeEnum.TRANSACTION_NOT_FOUND,
+                "root payment method dimensions are unavailable");
     }
 
     /**

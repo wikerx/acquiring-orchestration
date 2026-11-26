@@ -47,6 +47,7 @@ import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
@@ -64,6 +65,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -94,12 +96,15 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionMerchantApiInteractionLogMapper.class), mock(TransactionPaymentMethodInfoMapper.class),
                 locators, new TransactionShardingKeyParser(), logicalShardingProperties());
         ReflectionTestUtils.setField(records, "merchantNotificationInitialDeliveryService", delivery);
+        var snapshots = mock(MerchantTransactionSnapshotService.class);
+        ReflectionTestUtils.setField(records, "merchantTransactionSnapshotService", snapshots);
         var ids = mock(GlobalIdGenerator.class);
         String platformId = fixtureGlobalId("261124110123346000001");
         when(ids.nextId()).thenReturn(platformId, fixtureGlobalId("261124110123346000002"));
         var idempotency = mock(TransactionIdempotencyService.class);
         when(idempotency.tryBegin(any())).thenReturn(true);
-        var ledger = new CheckoutWalletTransactionLedger(ids, records, idempotency, interactions);
+        var lifecycleEvents = mock(TransactionLifecycleEventService.class);
+        var ledger = new CheckoutWalletTransactionLedger(ids, records, idempotency, interactions, lifecycleEvents);
         var time = LocalDateTime.of(2026, 11, 24, 11, 1, 23, 346_000_000);
         var checkout = new PaymentCheckoutSessionDO();
         checkout.setMerchantRequestId("MERCHANT-REQUEST");
@@ -126,6 +131,8 @@ class DefaultTransactionRecordServiceTests {
 
         var identity = ledger.open(checkout, attempt, route, quote);
 
+        verify(snapshots).recordInitialSnapshots(argThat(command -> "APPLE_PAY".equals(command.getPaymentMethod())),
+                argThat(result -> platformId.equals(result.getTransactionId())), any());
         var order = ArgumentCaptor.forClass(TransactionOrderDO.class);
         var operation = ArgumentCaptor.forClass(TransactionOperationDO.class);
         var locator = ArgumentCaptor.forClass(TransactionLocatorDO.class);
@@ -175,6 +182,8 @@ class DefaultTransactionRecordServiceTests {
 
         ledger.complete(checkout, attempt, route, State.SUCCESS, null, null);
 
+        verify(lifecycleEvents).saveStatusChanged(platformId, identity.operationId(), "200099", "SDKHC-WALLET-TEST",
+                "PAYMENT", "SUCCESS", time);
         var auditOrder = org.mockito.Mockito.inOrder(interactions);
         auditOrder.verify(interactions).resetWalletPreparationPlaceholder(identity.requestId(), time, platformId,
                 attempt.getChannelOrderNo(), attempt.getChannelTransactionId());

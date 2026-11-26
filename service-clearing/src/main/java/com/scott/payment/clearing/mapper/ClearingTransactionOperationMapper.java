@@ -13,6 +13,19 @@ import java.time.LocalDateTime;
  */
 public interface ClearingTransactionOperationMapper extends BaseMapper<ClearingTransactionOperationDO> {
 
+    /** 旧钱包单只有在冻结费率补齐后才具备清分输入，正常交易继续按原条件读取。 */
+    String WALLET_FEE_SNAPSHOT_GUARD = """
+              AND (NOT (COALESCE(o.channel_code, '') = 'SCOTT_CHANNEL_A'
+                        AND COALESCE(o.channel_order_no, '') LIKE 'DEV-IW-%')
+                   OR EXISTS (SELECT 1 FROM transaction_merchant_snapshot ms
+                              WHERE ms.transaction_id = o.transaction_id
+                                AND ms.transaction_date_time = o.transaction_date_time
+                                AND ms.operation_id = o.operation_id
+                                AND ms.merchant_id = o.merchant_id
+                                AND ms.fee_plan_version_id IS NOT NULL
+                                AND ms.fee_snapshot_hash IS NOT NULL))
+            """;
+
     /**
      * 精确读取当前动作事实，调用方必须另外校验消息中的商户和生命周期身份。
      *
@@ -27,12 +40,11 @@ public interface ClearingTransactionOperationMapper extends BaseMapper<ClearingT
                    approved_currency, approved_amount,
                    transaction_currency, transaction_amount, currency_exponent,
                    transaction_date_time, transaction_utc_time, transaction_time_zone, version
-            FROM transaction_operation
-            WHERE transaction_id = #{transactionId}
-              AND transaction_date_time = #{transactionDateTime}
-              AND deleted = 0
-              AND NOT (COALESCE(channel_code, '') = 'SCOTT_CHANNEL_A'
-                       AND COALESCE(channel_order_no, '') LIKE 'DEV-IW-%')
+            FROM transaction_operation o
+            WHERE o.transaction_id = #{transactionId}
+              AND o.transaction_date_time = #{transactionDateTime}
+              AND o.deleted = 0
+            """ + WALLET_FEE_SNAPSHOT_GUARD + """
             LIMIT 1
             """)
     ClearingTransactionOperationDO selectByTransaction(

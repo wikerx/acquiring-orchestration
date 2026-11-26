@@ -561,7 +561,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         int operationRows = transactionOperationMapper.insert(operationDO);
         int locatorRows = insertTransactionLocator(operationDO, resultDTO.getTransactionId(),
                 commandDTO.getTransactionDateTime(), now);
-        if (merchantTransactionSnapshotService != null && !walletSimulation) {
+        if (merchantTransactionSnapshotService != null) {
             merchantTransactionSnapshotService.recordInitialSnapshots(commandDTO, resultDTO, now);
         }
         int orderHistoryRows = transactionStatusHistoryMapper.insertLogical(orderHistoryDO);
