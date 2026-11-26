@@ -21,6 +21,19 @@ class ManagedImageStoreTest {
         String key = store.write("channel/2", new byte[]{1}); store.deleteAfterCommit(key); verify(backend, never()).delete(any());
         for (var callback : TransactionSynchronizationManager.getSynchronizations()) callback.afterCommit(); verify(backend).delete(key);
     }
+    @Test
+    void disputeAlertPlatformImageCannotBeReadAsChannelOrAnotherPlatform() {
+        byte[] content = {1, 2};
+        String key = store.write("dispute-alert-platform/2", content);
+        when(backend.get(key)).thenReturn(content);
+
+        assertThat(ManagedImageReference.version(key)).hasSize(32);
+        assertThatThrownBy(() -> store.read(key, "channel/2")).hasMessageContaining("不可访问");
+        assertThatThrownBy(() -> store.read(key, "dispute-alert-platform/3")).hasMessageContaining("不可访问");
+        verify(backend, never()).get(any());
+        assertThat(store.read(key, "dispute-alert-platform/2")).isEqualTo(content);
+    }
+
     @Test void referenceTamperingAndWrongOwnershipAreRejected() {
         String key = store.write("avatar/1", new byte[]{1});
         assertThatThrownBy(() -> store.read(key, "avatar/2")).hasMessageContaining("不可访问");

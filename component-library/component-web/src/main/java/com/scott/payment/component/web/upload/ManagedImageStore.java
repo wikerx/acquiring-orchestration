@@ -21,7 +21,7 @@ public class ManagedImageStore {
 
     /** 只在活动事务中写入有界图片，注册回滚清理，返回由随机版本和正文摘要组成的内部键。 */
     public String write(String scope, byte[] content) {
-        if (!scope.matches("(avatar|channel)/[0-9]+") || content.length == 0 || content.length > 2097152
+        if (!scope.matches("(avatar|channel|dispute-alert-platform)/[0-9]+") || content.length == 0 || content.length > 2097152
                 || !TransactionSynchronizationManager.isSynchronizationActive()) {
             throw new IllegalStateException("managed image writes require a transaction and bounded content");
         }

@@ -1054,3 +1054,51 @@ public CommonResult<SysConfigDTO> saveConfig(@RequestBody SysConfigSaveRequest r
 | 权限控制 | 接入后台用户、角色、菜单、按钮权限 |
 | 敏感字段脱敏增强 | 持续扩展脱敏字段，覆盖 token、密钥指纹、证件号、手机号等更多字段 |
 | 接口导出 | 支持操作日志导出、字典导出 |
+
+## 8. 拒付预警配置
+
+接口前缀为 `/admin/risk/dispute-alert`。登录账号须具备相应功能权限及平台全量商户数据范围。配置读取使用主库，写入记录操作人。修改请求携带最近读取的 `version`，过期版本返回冲突。账号资料、账号产品和凭据共用账号版本，客户端收到成功响应后使用最新版本继续操作。
+
+| 方法与路径 | 业务 | 权限 |
+| --- | --- | --- |
+| `GET /platforms`、`GET /platforms/{id}` | 查询平台类型、产品、卡品牌和 Logo 版本 | `channel:alert-platform:list` |
+| `POST /platforms`、`POST /platforms/with-logo` | 新增平台及平台产品，可同时上传 Logo | `channel:alert-platform:add` |
+| `PUT /platforms/{id}`、`PUT /platforms/{id}/with-logo` | 维护平台资料和产品，可替换或移除 Logo | `channel:alert-platform:edit` |
+| `GET /platforms/card-brand-options` | 查询启用的卡品牌字典项，`locale` 支持中文与英文 | `channel:alert-platform:list` |
+| `GET /platforms/{id}/logo` | 读取平台私有 PNG | `channel:alert-platform:list` |
+| `GET /accounts`、`GET /accounts/{id}` | 查询账号、产品及凭据登记状态 | `channel:alert-platform:list` |
+| `POST /accounts`、`PUT /accounts/{id}`、`PUT /accounts/{id}/products/{product}` | 新增、维护和按产品启停 | `channel:alert-platform:account` |
+| `POST /accounts/provider`、`PUT /accounts/{id}/provider` | 保存或启用 Austreme、Nuvei、Chargeflow、Chargebackhit 的账号、产品和专用接入配置 | `channel:alert-platform:account`，提交新密钥还需 `channel:alert-platform:credential` |
+| `PUT /accounts/{id}/credentials` | 登记或替换 Verxa Shield 账号的共用公私钥 | `channel:alert-platform:credential` |
+| `GET /mids/channels`、`GET /mids`、`GET /source-options` | 查询收单渠道、按渠道和关键词查询银行卡收单 MID，以及指定产品和环境的可用来源账号 | `channel:dispute-alert:list` |
+| `GET /mid-bindings`、`GET /mid-bindings/{id}` | 查询绑定、多条标识和共享标识提示 | `channel:dispute-alert:list` |
+| `POST /mid-bindings`、`PUT /mid-bindings/{id}` | 登记或维护开通范围和对应标识 | 分别为 `channel:dispute-alert:add`、`channel:dispute-alert:edit` |
+| `PUT /mid-bindings/{id}/status` | 确认上游开通和有效映射后启用，或停用绑定 | `channel:dispute-alert:status` |
+
+### 8.1 平台、产品及 Logo
+
+平台用稳定编码标识，类型支持 `AGGREGATOR`、`ACQUIRER_PSP`、`NETWORK_DIRECT`。每项平台产品独立维护覆盖确认状态、卡品牌和启用状态。Logo 表单采用 `multipart/form-data`，`metadata` 为 JSON，`file` 为可选 PNG 或 JPEG，更新时可传 `removeLogo=true`。平台资料和图片引用一起提交。列表和详情返回 `logoVersion`，Logo GET 返回受保护的 `image/png`。图片文件沿用渠道 Logo 的校验、扫描及私有对象存储。
+
+### 8.2 接入账号和凭据
+
+当前部署内，同一平台以商户号区分接入账号。账号列表和新增请求使用 Admin 启动环境自动确定归属，账号与绑定来源的响应使用平台名和商户号标识账号。一个账号可登记多个平台产品，各产品独立启停并保存交付参数。Verxa Shield 建议先以草稿登记商户号与产品，再通过凭据接口提交 `version`、`publicKey`、`privateKey`，然后按需启用账号及产品。首次需同时登记公钥和私钥，后续允许只替换其中一项。凭据写入返回登记状态及凭据版本，更新后的账号版本从账号查询获取。
+
+Admin 使用已配置的持久化风控主密钥（`payment.risk.secret`）加密公私钥，将密文及版本信息写入凭据版本表。AES-GCM 密文绑定账号、材料引用和公钥或私钥类型。仅替换一项时，沿用另一项的密文和材料引用。凭据写入与更新账号当前版本指针在同一数据库事务中完成。凭据接口仅返回登记状态，操作日志不采集凭据接口的请求正文或响应正文。
+
+已有一期表的部署先执行 [凭据密文列迁移](../../../service-admin/src/main/resources/sql/dispute-alert-credential-cipher-migration.sql)。历史版本仅有外部引用时，后台保留其账号和版本记录，并要求在原账号中重新登记公钥和私钥。
+
+#### 四家平台专用接入配置
+
+账号写入使用 `merchantNumber`、`status`、`products`、`settings` 和仅写的 `credentials`。新增提供 `platformId`，维护提供最近读取的账号 `version`。产品项包含 `product` 和各自的 `status`。草稿需要账号标识和至少一个关联产品。启用按平台、对接用途和 API 版本校验已登记凭据及必要设置。Austreme 的交付和认证待确认项可留空。已登记的产品通过停用维护，保留已有 MID 引用。
+
+`settings` 接受各平台普通字段，`credentials` 接受当前配置对应的密钥字段。密钥原文复用 Admin 风控主密钥进行认证加密，密文按账号、平台与字段隔离保存。缺省和留空沿用原密文。仅在填写新凭据时创建新版本，同时更新账号的当前版本指针。账号、各产品及平台配置在同一事务提交。读取和保存响应的 `providerConfig` 包含普通参数 `values`、已登记的凭据字段名 `registered` 和启用校验结果 `activationValidated`。写入日志排除请求体和响应体。
+
+部署新版 Admin 前执行 [平台接入配置建表脚本](../../../service-admin/src/main/resources/sql/dispute-alert-provider-account-migration.sql)。脚本复用现有接入账号和凭据版本表，已有账号、公私钥版本及 MID 绑定记录保留。历史上已启用的这四家账号须打开新表单校验启用，之后其已启用产品才可作为可用来源。回退应用版本时保留现有表内新增字段的配置和密文。上线前保持旧版应用和现有表结构即可继续原有流程。
+
+### 8.3 渠道 MID 绑定和部署状态
+
+Admin 根据当前 Spring Profile 自动选择同环境来源账号。`dev`、`test`、`uat` 和 `sample` 使用 `TEST` 来源，`prod` 使用 `PRODUCTION` 来源。直接沿用 Admin 的部署环境即可。无法识别部署环境或同时激活生产和非生产 Profile 时，可查看已有绑定，来源查询为空，新增和启用绑定会被拒绝。
+
+绑定现有渠道 MID 主键与已启用的账号产品，外部商户范围用于标识同一来源内的隔离范围。当前支持 Ethoca 和 RDR。每条绑定保存多条真实收单 MID 或账单描述。RDR 还可登记收单机构 BIN 与 CAID，两个字段均为字符串。绑定新增为草稿，启用前须确认上游开通、留下依据并登记至少一条启用的标识。上游停用会影响绑定有效性，原绑定及开通资料仍可查询。详情返回同来源、同外部商户范围下共享有效标识的其他已启用 MID，供运营核对。
+
+建表与凭据密文列分别见 [一期建表脚本](../../sql/20261125_dispute_alert_configuration_review.sql) 和 [凭据密文列迁移](../../../service-admin/src/main/resources/sql/dispute-alert-credential-cipher-migration.sql)。管理端通过上述接口配置平台、账号、凭据和 MID 绑定。平台 Logo 使用私有对象存储。
