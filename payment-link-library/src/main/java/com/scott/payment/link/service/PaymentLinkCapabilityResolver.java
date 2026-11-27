@@ -52,9 +52,12 @@ public final class PaymentLinkCapabilityResolver {
                     continue;
                 }
             }
+            Set<String> selectedBrands = intersectRequestedBrands(requestedMethods, paymentMethod, option.getChannelCode(), brands);
+            if ("BANK_CARD".equals(paymentMethod) && selectedBrands.isEmpty()) {
+                continue;
+            }
             String methodKey = paymentMethod + "|" + normalize(option.getChannelCode());
-            brandsByMethod.computeIfAbsent(methodKey, ignored -> new LinkedHashSet<>())
-                    .addAll(intersectRequestedBrands(requestedMethods, paymentMethod, option.getChannelCode(), brands));
+            brandsByMethod.computeIfAbsent(methodKey, ignored -> new LinkedHashSet<>()).addAll(selectedBrands);
             supports3dsByMethod.merge(
                     methodKey,
                     Integer.valueOf(1).equals(option.getCapabilitySupport3ds()),

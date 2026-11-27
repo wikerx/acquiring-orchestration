@@ -282,6 +282,7 @@ public class MerchantRouteProfileCacheReader {
         option.setTransactionTypeScope(mid.getTransactionTypeScope());
         option.setCurrencyScope(mid.getCurrencyScope());
         option.setAllowedCountryScope(mid.getAllowedCountryScope());
+        option.setCapabilityAllowedCountryScope(capability.getAllowedCountryScope());
         option.setMidStatus(mid.getMidStatus());
         option.setMidEffectiveTime(mid.getEffectiveTime());
         option.setMidExpireTime(mid.getExpireTime());
@@ -306,7 +307,8 @@ public class MerchantRouteProfileCacheReader {
         option.setCapabilityStatus(capability.getCapabilityStatus());
         option.setCapabilitySortOrder(capability.getSortOrder());
         option.setSupportedCurrencies(new ArrayList<>(supportedCurrencies));
-        option.setDefaultTransactionCurrency(normalize(mid.getDefaultTransactionCurrency()));
+        option.setDefaultTransactionCurrency(normalize(Integer.valueOf(ENABLED).equals(mid.getInheritTransactionCurrency())
+                ? capability.getDefaultTransactionCurrency() : mid.getDefaultTransactionCurrency()));
         return option;
     }
 

@@ -53,6 +53,8 @@ import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -80,8 +82,9 @@ import static org.mockito.Mockito.when;
  */
 class DefaultTransactionRecordServiceTests {
 
-    @Test
-    void walletLedgerWritesStandardFactsAndActivatesOneMerchantNotificationWithThePlatformNumber() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void walletLedgerWritesStandardFactsAndActivatesOneMerchantNotificationWithThePlatformNumber(boolean legacy) {
         var orderMapper = mock(TransactionOrderMapper.class);
         var operations = mock(TransactionOperationMapper.class);
         var requests = mock(TransactionChannelRequestMapper.class);
@@ -99,8 +102,11 @@ class DefaultTransactionRecordServiceTests {
         var snapshots = mock(MerchantTransactionSnapshotService.class);
         ReflectionTestUtils.setField(records, "merchantTransactionSnapshotService", snapshots);
         var ids = mock(GlobalIdGenerator.class);
-        String platformId = fixtureGlobalId("261124110123346000001");
-        when(ids.nextId()).thenReturn(platformId, fixtureGlobalId("261124110123346000002"));
+        String attemptId = fixtureGlobalId("261124110123345000001");
+        String legacyPlatformId = fixtureGlobalId("261124110123346000001");
+        String operationId = fixtureGlobalId("261124110123346000002");
+        String platformId = legacy ? legacyPlatformId : attemptId;
+        when(ids.nextId()).thenReturn(legacy ? legacyPlatformId : operationId, operationId);
         var idempotency = mock(TransactionIdempotencyService.class);
         when(idempotency.tryBegin(any())).thenReturn(true);
         var lifecycleEvents = mock(TransactionLifecycleEventService.class);
@@ -110,7 +116,7 @@ class DefaultTransactionRecordServiceTests {
         checkout.setMerchantRequestId("MERCHANT-REQUEST");
         checkout.setMerchantNotifyUrl("https://example.test/notify");
         var attempt = new PaymentCheckoutAttemptDO();
-        attempt.setCheckoutAttemptId("2611241101233460000013");
+        attempt.setCheckoutAttemptId(attemptId);
         attempt.setMerchantId("200099");
         attempt.setMerchantOrderNo("SDKHC-WALLET-TEST");
         attempt.setPaymentMethod("APPLE_PAY");
@@ -119,10 +125,13 @@ class DefaultTransactionRecordServiceTests {
         attempt.setChannelRequestAmount(new BigDecimal("65.730000"));
         attempt.setChannelRequestCurrency("USD");
         attempt.setChannelCode("SCOTT_CHANNEL_A");
-        attempt.setChannelOrderNo("DEV-IW-" + attempt.getCheckoutAttemptId());
+        String simulationMarker = "DEV-IW-" + attemptId;
+        attempt.setChannelOrderNo(legacy ? simulationMarker : platformId);
         attempt.setChannelTransactionId("CMT-WALLET-TEST");
         attempt.setTransactionDateTime(time);
-        var quote = new CheckoutWalletTransactionLedger.Quote(2, 2, new BigDecimal("0.71231"), "TEST_RATE", time, null);
+        var endpoints = new CheckoutWalletTransactionLedger.WalletEndpoints(
+                "http://127.0.0.1:58090", "http://127.0.0.1:8000", "http://127.0.0.1:8000");
+        var quote = new CheckoutWalletTransactionLedger.Quote(2, 2, new BigDecimal("0.71231"), "TEST_RATE", time, endpoints);
         attempt.setResultSnapshot(JsonUtils.toJsonString(quote));
         var route = PaymentRouteResultDTO.routed("SCOTT_CHANNEL_A");
         route.setChannelId(5L);
@@ -137,16 +146,18 @@ class DefaultTransactionRecordServiceTests {
         var operation = ArgumentCaptor.forClass(TransactionOperationDO.class);
         var locator = ArgumentCaptor.forClass(TransactionLocatorDO.class);
         var notification = ArgumentCaptor.forClass(TransactionMerchantNotificationDO.class);
+        var request = ArgumentCaptor.forClass(TransactionChannelRequestDO.class);
         var interaction = ArgumentCaptor.forClass(TransactionChannelInteractionLogDO.class);
         verify(orderMapper).insert(order.capture());
         verify(operations).insert(operation.capture());
         verify(locators).insert(locator.capture());
         verify(notifications).insertLogical(notification.capture());
+        verify(requests).insertLogical(request.capture());
         verify(interactions).insertLogical(interaction.capture());
         assertThat(interaction.getValue().getInteractionType()).isEqualTo("REQUEST");
         assertThat(interaction.getValue().getResponseBodyJsonMasked()).isNull();
         assertThat(order.getValue().getRootTransactionId()).isEqualTo(platformId);
-        assertThat(order.getValue().getChannelOrderNo()).isEqualTo(attempt.getChannelOrderNo());
+        assertThat(order.getValue().getChannelOrderNo()).isEqualTo(simulationMarker);
         assertThat(order.getValue().getTransactionRate()).isEqualByComparingTo("0.71231");
         assertThat(operation.getValue().getChannelTransactionId()).isEqualTo(attempt.getChannelTransactionId());
         assertThat(operation.getValue().getChannelMatchStatus()).isEqualTo("NOT_REQUIRED");
@@ -155,6 +166,10 @@ class DefaultTransactionRecordServiceTests {
         assertThat(locator.getValue().getMerchantOrderNo()).isEqualTo(attempt.getMerchantOrderNo());
         assertThat(notification.getValue().getTransactionId()).isEqualTo(platformId);
         assertThat(notification.getValue().getNextRetryTime()).isNull();
+        assertThat(request.getValue().getChannelMerchantReference()).isEqualTo(attempt.getChannelOrderNo());
+        assertThat(request.getValue().getChannelNotifyUrl())
+                .isEqualTo("http://127.0.0.1:8000/channel/v1/callbacks/SCOTT_CHANNEL_A");
+        assertThat(request.getValue().getChannelTransactionId()).isEqualTo(attempt.getChannelTransactionId());
         verify(delivery, never()).schedule(any(), any(Integer.class), any());
         var routes = mock(PaymentChannelRouteService.class);
         assertThatThrownBy(() -> OriginalTransactionRouteResolver.plan(routes, order.getValue(), operation.getValue()))
@@ -185,8 +200,8 @@ class DefaultTransactionRecordServiceTests {
         verify(lifecycleEvents).saveStatusChanged(platformId, identity.operationId(), "200099", "SDKHC-WALLET-TEST",
                 "PAYMENT", "SUCCESS", time);
         var auditOrder = org.mockito.Mockito.inOrder(interactions);
-        auditOrder.verify(interactions).resetWalletPreparationPlaceholder(identity.requestId(), time, platformId,
-                attempt.getChannelOrderNo(), attempt.getChannelTransactionId());
+        auditOrder.verify(interactions, times(legacy ? 1 : 0)).resetWalletPreparationPlaceholder(
+                identity.requestId(), time, platformId, attempt.getChannelOrderNo(), attempt.getChannelTransactionId());
         auditOrder.verify(interactions).updateByRequestIdLogical(eq(identity.requestId()), eq(time), eq("REQUEST_RESPONSE"),
                 any(), any(), any(), any(), any(), any(), contains("SUCCESS"), any(), any(), any(), any());
 
@@ -196,7 +211,7 @@ class DefaultTransactionRecordServiceTests {
         assertThat(payload.getValue()).contains("\"transactionId\":\"" + platformId + "\"",
                 "\"transactionStatus\":\"SUCCESS\"", "\"paymentMethod\":\"APPLE_PAY\"",
                 "\"currency\":\"CAD\"", "\"amount\":92.28")
-                .doesNotContain(attempt.getChannelOrderNo(), attempt.getChannelTransactionId());
+                .doesNotContain(simulationMarker, attempt.getChannelTransactionId());
         verify(delivery).schedule(eq(notification.getValue()), eq(1), any());
     }
 

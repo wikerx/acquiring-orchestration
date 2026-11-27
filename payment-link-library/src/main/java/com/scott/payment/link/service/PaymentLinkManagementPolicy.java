@@ -7,6 +7,7 @@ import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.db.route.model.MerchantRouteProfile;
 import com.scott.payment.link.model.PaymentLinkManagementModels.AllowedMethod;
 import com.scott.payment.link.model.PaymentLinkManagementModels.*;
 import com.scott.payment.link.config.PaymentLinkSettings;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Objects;
 
 /** 固定金额、商户身份、数据范围和真实收单能力校验，不触碰资金事实。 */
 @Service("paymentLinkManagementPolicy")
@@ -211,6 +213,60 @@ public class PaymentLinkManagementPolicy {
                 ? merchant.getSettlementCurrency() : null);
         result.setCardBrands(byCurrency.values().stream().flatMap(List::stream).distinct().sorted().toList());
         return result;
+    }
+
+    public List<String> amountUnavailableMethods(Actor actor, String merchantId, AmountCheck input,
+                                                 ChannelSingleAmountLimits limits) {
+        requireEnabled();
+        requireScope(actor, merchantId);
+        merchant(merchantId);
+        var amount = new BigDecimal(input.amount());
+        if (amount.signum() <= 0 || !currencies.isCurrencyFractionValid(amount, input.currency())) {
+            return List.of();
+        }
+        var snapshot = methodScope.snapshot(merchantId);
+        var eligibleKeys = methodScope.enabledKeys(snapshot, input.currency());
+        var routeOptions = snapshot.profile().getRouteOptions();
+        var rules = limits.load(routeOptions.stream().map(
+                MerchantRouteProfile.RouteOption::getChannelId)
+                .filter(Objects::nonNull).distinct().toList(), input.currency());
+        return input.paymentMethodKeys().stream().distinct().filter(eligibleKeys::contains)
+                .filter(key -> rejectsEveryCandidate(key, input.currency(), amount, snapshot, rules))
+                .toList();
+    }
+
+    private boolean rejectsEveryCandidate(String key, String currency, BigDecimal amount,
+                                          PaymentLinkMethodScope.Snapshot snapshot,
+                                          ChannelSingleAmountLimits.Rules rules) {
+        boolean card = key.startsWith("CARD_BRAND:");
+        String code = key.substring(key.indexOf(':') + 1);
+        String method = card ? "BANK_CARD" : code;
+        var requested = new AllowedMethod();
+        requested.setPaymentMethod(method);
+        requested.setBrands(card ? List.of(code) : List.of());
+        var resolver = new PaymentLinkCapabilityResolver();
+        boolean found = false;
+        for (var route : snapshot.profile().getRouteOptions()) {
+            var candidate = new MerchantRouteProfile();
+            candidate.setRouteOptions(List.of(route));
+            if (resolver.resolve(candidate, List.of(requested), null, snapshot.evaluatedAt()).isEmpty()) {
+                continue;
+            }
+            // 创建链接时没有付款国家及换汇报价。存在不确定的候选时由付款时的实际路由判断。
+            if (resolver.resolve(candidate, List.of(requested), currency, snapshot.evaluatedAt()).isEmpty()
+                    || (route.getDefaultTransactionCurrency() != null
+                        && !currency.equalsIgnoreCase(route.getDefaultTransactionCurrency()))) {
+                return false;
+            }
+            boolean developmentWallet = developmentLinkScopeEnabled && PaymentLinkMethodScope.supportsDevelopmentWallet(method)
+                    && "SCOTT_CHANNEL_A".equals(route.getChannelCode());
+            if (!(developmentWallet && ChannelSingleAmountLimits.exceedsDevelopmentWalletMaximum(amount))
+                    && !rules.rejects(route.getChannelId(), method, card ? code : null, amount)) {
+                return false;
+            }
+            found = true;
+        }
+        return found;
     }
 
     private void validateUrl(String url) {

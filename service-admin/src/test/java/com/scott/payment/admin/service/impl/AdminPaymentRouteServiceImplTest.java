@@ -23,6 +23,9 @@ import com.scott.payment.admin.entity.channel.PaymentRouteEntities.PaymentRouteR
 import com.scott.payment.admin.entity.channel.PaymentRouteEntities.PaymentRouteStrategyDO;
 import com.scott.payment.admin.entity.channel.PaymentRouteEntities.PaymentRouteTransactionTypeDO;
 import com.scott.payment.admin.mapper.ChannelInfoMapper;
+import com.scott.payment.admin.mapper.ChannelCapabilityCardBrandMapper;
+import com.scott.payment.admin.mapper.ChannelCapabilityCurrencyMapper;
+import com.scott.payment.admin.mapper.ChannelPaymentCapabilityMapper;
 import com.scott.payment.admin.mapper.ChannelMidConfigMapper;
 import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import com.scott.payment.admin.mapper.PaymentRouteCandidateMapper;
@@ -109,7 +112,10 @@ class AdminPaymentRouteServiceImplTest {
                 changeLogMapper,
                 channelInfoMapper,
                 midConfigMapper,
-                midBindingMapper);
+                midBindingMapper, new AcquiringMidCapabilityProjection(
+                        org.mockito.Mockito.mock(ChannelPaymentCapabilityMapper.class),
+                        org.mockito.Mockito.mock(ChannelCapabilityCurrencyMapper.class),
+                        org.mockito.Mockito.mock(ChannelCapabilityCardBrandMapper.class)));
 
         InternalAuthAccount account = new InternalAuthAccount();
         account.setAccountId(99L);

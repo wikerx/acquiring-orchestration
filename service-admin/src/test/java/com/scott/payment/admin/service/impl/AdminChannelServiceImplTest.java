@@ -3,6 +3,8 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.scott.payment.component.db.iso.entity.IsoCountryDO;
+import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
@@ -47,6 +49,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -96,6 +99,9 @@ class AdminChannelServiceImplTest {
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
+    @Mock
+    private IsoCountryMapper isoCountryMapper;
+
     private AdminChannelServiceImpl service;
 
     @BeforeEach
@@ -103,6 +109,9 @@ class AdminChannelServiceImplTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), "admin-channel-test"),
                 ChannelCapabilityCurrencyDO.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "admin-channel-country-test"),
+                IsoCountryDO.class);
         service = new AdminChannelServiceImpl(
                 channelInfoMapper,
                 metadataSchemaMapper,
@@ -113,7 +122,9 @@ class AdminChannelServiceImplTest {
                 midConfigMapper,
                 midBindingMapper,
                 dictDataMapper,
-                cacheInvalidationCoordinator
+                cacheInvalidationCoordinator,
+                new AcquiringMidCapabilityProjection(capabilityMapper, capabilityCurrencyMapper, capabilityCardBrandMapper),
+                isoCountryMapper
         );
     }
 
@@ -172,21 +183,17 @@ class AdminChannelServiceImplTest {
     }
 
     @Test
-    void shouldCreateBankCardCapabilityWithCardBrands() {
+    void shouldCreateOneCapabilityPerCardBrand() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(capabilityMapper.selectCount(any())).thenReturn(0L);
         when(capabilityMapper.insert(any(ChannelPaymentCapabilityDO.class))).thenAnswer(invocation -> {
             ChannelPaymentCapabilityDO row = invocation.getArgument(0);
-            row.setId(101L);
+            row.setId("VISA".equals(row.getCardBrand()) ? 101L : 102L);
             return 1;
         });
         when(capabilityCurrencyMapper.selectList(any()))
-                .thenReturn(List.of())
-                .thenReturn(List.of(currency("USD")));
-        when(capabilityCardBrandMapper.selectList(any()))
-                .thenReturn(List.of())
-                .thenReturn(List.of(cardBrand("VISA", 1), cardBrand("MASTERCARD", 2)));
+                .thenReturn(List.of(), List.of(), List.of(currency("USD")));
 
         CapabilityResponse response = service.createCapability(bankCardCapabilityRequest(List.of("visa", "mastercard")));
 
@@ -194,13 +201,16 @@ class AdminChannelServiceImplTest {
         assertThat(response.getTransactionType()).isEqualTo("PAYMENT,AUTHORIZATION");
         assertThat(response.getTransactionTypes()).containsExactly("PAYMENT", "AUTHORIZATION");
         assertThat(response.getSupportIncrementalAuthorization()).isEqualTo(1);
-        assertThat(response.getCardBrands()).containsExactly("VISA", "MASTERCARD");
+        assertThat(response.getCardBrands()).containsExactly("VISA");
         assertThat(response.getCurrencyCodes()).containsExactly("USD");
         assertThat(response.getDefaultTransactionCurrency()).isEqualTo("USD");
         ArgumentCaptor<ChannelPaymentCapabilityDO> capabilityCaptor =
                 ArgumentCaptor.forClass(ChannelPaymentCapabilityDO.class);
-        verify(capabilityMapper).insert(capabilityCaptor.capture());
-        assertThat(capabilityCaptor.getValue().getDefaultTransactionCurrency()).isEqualTo("USD");
+        verify(capabilityMapper, times(2)).insert(capabilityCaptor.capture());
+        assertThat(capabilityCaptor.getAllValues()).extracting(ChannelPaymentCapabilityDO::getCardBrand)
+                .containsExactly("VISA", "MASTERCARD");
+        assertThat(capabilityCaptor.getAllValues()).extracting(ChannelPaymentCapabilityDO::getDefaultTransactionCurrency)
+                .containsOnly("USD");
         verify(capabilityCardBrandMapper, times(2)).insert(any(ChannelCapabilityCardBrandDO.class));
     }
 
@@ -264,6 +274,7 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldInvalidateMerchantRouteBeforeUpdatingDefaultTransactionCurrency() {
         ChannelPaymentCapabilityDO existing = enabledCapability();
+        existing.setCardBrand("VISA");
         existing.setDefaultTransactionCurrency("EUR");
         when(capabilityMapper.selectOne(any())).thenReturn(existing);
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
@@ -278,14 +289,19 @@ class AdminChannelServiceImplTest {
         when(capabilityCurrencyMapper.selectList(any()))
                 .thenReturn(List.of(currency("EUR")))
                 .thenReturn(List.of(currency("USD")));
-        when(capabilityCardBrandMapper.selectList(any()))
-                .thenReturn(List.of(cardBrand("VISA", 1)))
-                .thenReturn(List.of(cardBrand("VISA", 1)));
         CapabilitySaveRequest request = bankCardCapabilityRequest(List.of("VISA"));
+        request.setAllowedCountryScope("usa");
+        request.setCapabilityStatus(0);
+        when(isoCountryMapper.selectCount(any())).thenReturn(1L);
 
         CapabilityResponse response = service.updateCapability(101L, request);
 
         assertThat(response.getDefaultTransactionCurrency()).isEqualTo("USD");
+        assertThat(response.getAllowedCountryScope()).isEqualTo("USA");
+        assertThat(response.getCapabilityStatus()).isZero();
+        assertThat(response.getCardBrands()).containsExactly("VISA");
+        verify(capabilityMapper, times(1)).updateById(any(ChannelPaymentCapabilityDO.class));
+        verify(capabilityCardBrandMapper, never()).updateById(any(ChannelCapabilityCardBrandDO.class));
         org.mockito.InOrder mutationOrder = inOrder(cacheInvalidationCoordinator, capabilityMapper);
         mutationOrder.verify(cacheInvalidationCoordinator)
                 .prepare(PaymentCacheNames.MERCHANT_ROUTE, "200001");
@@ -298,6 +314,7 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldSynchronizeMidTransactionTypesAfterUpdatingCapability() {
         ChannelPaymentCapabilityDO existing = enabledCapability();
+        existing.setCardBrand("VISA");
         ChannelMidConfigDO mid = enabledMid();
         mid.setPaymentMethodScope("BANK_CARD");
         mid.setTransactionTypeScope("PAYMENT,REFUND");
@@ -308,7 +325,6 @@ class AdminChannelServiceImplTest {
         when(midConfigMapper.selectList(any())).thenReturn(List.of(mid));
         when(capabilityMapper.selectList(any())).thenAnswer(invocation -> List.of(existing));
         when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency("USD")));
-        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         CapabilitySaveRequest request = bankCardCapabilityRequest(List.of("VISA"));
         request.setTransactionTypes(List.of("PAYMENT", "REFUND", "AUTHORIZATION", "CAPTURE"));
 
@@ -410,7 +426,7 @@ class AdminChannelServiceImplTest {
 
         assertThatThrownBy(() -> service.createCapability(bankCardCapabilityRequest(List.of("VISA"))))
                 .isInstanceOf(ServiceException.class)
-                .hasMessageContaining("同一渠道、业务类型和支付方式不能重复");
+                .hasMessageContaining("同一渠道和业务类型下不能重复配置支付方式或卡品牌");
     }
 
     @Test
@@ -461,8 +477,8 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldCreateLimitRuleWithoutTransactionType() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(limitRuleMapper.selectCount(any())).thenReturn(0L);
         when(limitRuleMapper.insert(any(ChannelLimitRuleDO.class))).thenAnswer(invocation -> {
@@ -486,8 +502,7 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldRejectLimitWhenCardBrandIsNotEnabledByCapability() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(0L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
 
         assertThatThrownBy(() -> service.createLimit(limitRequest()))
@@ -498,7 +513,7 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldRejectLimitWhenNonCardPaymentBindsCardBrand() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(paypalCapability());
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(paypalCapability()));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
 
         LimitSaveRequest request = limitRequest();
@@ -513,8 +528,8 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldRejectLimitAmountLessThanMinimum() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
 
         LimitSaveRequest request = limitRequest();
@@ -528,8 +543,8 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldRejectDuplicateLimitScopeRegardlessOfStatus() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(limitRuleMapper.selectCount(any())).thenReturn(1L);
 
@@ -541,8 +556,8 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldRejectWeeklyLimitGreaterThanSevenTimesDailyLimit() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(limitRuleMapper.selectCount(any())).thenReturn(0L);
         when(limitRuleMapper.selectList(any())).thenReturn(List.of(existingLimit("DAILY", "100.00")));
@@ -555,8 +570,8 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldRejectMonthlyLimitGreaterThanFourTimesWeeklyLimit() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(limitRuleMapper.selectCount(any())).thenReturn(0L);
         when(limitRuleMapper.selectList(any())).thenReturn(List.of(existingLimit("WEEKLY", "700.00")));
@@ -569,8 +584,8 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldCreateLimitRulesInBatch() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(limitRuleMapper.selectCount(any())).thenReturn(0L);
         when(limitRuleMapper.insert(any(ChannelLimitRuleDO.class))).thenAnswer(invocation -> {
@@ -601,8 +616,8 @@ class AdminChannelServiceImplTest {
                 .thenReturn(existing)
                 .thenReturn(null);
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(limitRuleMapper.selectCount(any())).thenReturn(0L);
         when(limitRuleMapper.insert(any(ChannelLimitRuleDO.class))).thenAnswer(invocation -> {
@@ -664,13 +679,40 @@ class AdminChannelServiceImplTest {
      * 新增 MID 时应把范围字段归一化为大写，并按渠道模板保存真实 MID 元数据。
      */
     @Test
+    void shouldRejectNewAndEditedMidsWithoutValidMcc() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(midConfigMapper.selectOne(any())).thenReturn(enabledMid());
+        ChannelMidConfigSaveRequest request = midRequest();
+        request.setMcc(" ");
+        assertThatThrownBy(() -> service.createMid(request)).isInstanceOf(ServiceException.class).hasMessageContaining("MCC");
+
+        request.setMcc("ABC1");
+        assertThatThrownBy(() -> service.updateMid(501L, request)).isInstanceOf(ServiceException.class).hasMessageContaining("MCC");
+        verify(midConfigMapper, never()).insert(any(ChannelMidConfigDO.class));
+        verify(midConfigMapper, never()).updateById(any(ChannelMidConfigDO.class));
+    }
+
+    @Test
+    void shouldRejectChangingVisaCapabilityIntoMastercard() {
+        ChannelPaymentCapabilityDO visa = enabledCapability();
+        visa.setCardBrand("VISA");
+        when(capabilityMapper.selectOne(any())).thenReturn(visa);
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectCount(any())).thenReturn(0L);
+
+        assertThatThrownBy(() -> service.updateCapability(101L, bankCardCapabilityRequest(List.of("MASTERCARD"))))
+                .isInstanceOf(ServiceException.class).hasMessageContaining("不能修改");
+        verify(capabilityMapper, never()).updateById(any(ChannelPaymentCapabilityDO.class));
+    }
+
+    @Test
     void shouldCreateMidConfigWithNormalizedScopes() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
         when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency(101L, "USD")));
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1), cardBrand("MASTERCARD", 2)));
         when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
         when(midConfigMapper.selectCount(any())).thenReturn(0L);
         when(midConfigMapper.insert(any(ChannelMidConfigDO.class))).thenAnswer(invocation -> {
@@ -705,9 +747,8 @@ class AdminChannelServiceImplTest {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
         when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency(101L, "USD")));
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1), cardBrand("MASTERCARD", 2)));
         when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
         when(midConfigMapper.selectCount(any())).thenReturn(0L);
         ChannelMidConfigSaveRequest request = midRequest();
@@ -720,15 +761,46 @@ class AdminChannelServiceImplTest {
         assertThat(captor.getValue().getMidName()).isEqualTo("TESTDEVMER031");
     }
 
+    @Test
+    void shouldCreateAcquiringMidWithSelectedMethodsAndIndependentChannelDefaults() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        ChannelPaymentCapabilityDO applePay = paypalCapability();
+        applePay.setPaymentMethod("APPLE_PAY");
+        applePay.setTransactionType("PAYMENT");
+        ChannelPaymentCapabilityDO googlePay = paypalCapability();
+        googlePay.setId(102L);
+        googlePay.setPaymentMethod("GOOGLE_PAY");
+        googlePay.setDefaultTransactionCurrency("EUR");
+        googlePay.setTransactionType("PAYMENT,REFUND");
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(applePay, googlePay));
+        when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
+        when(midConfigMapper.selectCount(any())).thenReturn(0L);
+        ChannelMidConfigSaveRequest request = midRequest();
+        request.setPaymentMethodScope("apple_pay,google_pay");
+        request.setCurrencyScope(null);
+        request.setAllowedCountryScope(null);
+        request.setDefaultTransactionCurrency(null);
+
+        service.createMid(request);
+
+        ArgumentCaptor<ChannelMidConfigDO> saved = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
+        verify(midConfigMapper).insert(saved.capture());
+        assertThat(saved.getValue().getPaymentMethodScope()).isEqualTo("APPLE_PAY,GOOGLE_PAY");
+        assertThat(saved.getValue().getTransactionTypeScope()).isEqualTo("PAYMENT,REFUND");
+        assertThat(saved.getValue().getCardBrandScope()).isEqualTo("NONE");
+        assertThat(saved.getValue().getCurrencyScope()).isEqualTo("ALL");
+        assertThat(saved.getValue().getAllowedCountryScope()).isEqualTo("ALL");
+        assertThat(saved.getValue().getInheritTransactionCurrency()).isEqualTo(1);
+    }
+
     /** Settlement currency is an independent required configuration and need not equal the MID transaction scope. */
     @Test
     void shouldKeepMidSettlementCurrencyIndependentFromTransactionCurrency() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
         when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency(101L, "USD")));
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1), cardBrand("MASTERCARD", 2)));
         when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
         when(midConfigMapper.selectCount(any())).thenReturn(0L);
         ChannelMidConfigSaveRequest request = midRequest();
@@ -746,10 +818,8 @@ class AdminChannelServiceImplTest {
     @Test
     void shouldRejectMidDefaultTransactionCurrencyOutsideTransactionScope() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
-        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
-        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1), cardBrand("MASTERCARD", 2)));
         ChannelMidConfigSaveRequest request = midRequest();
         request.setDefaultTransactionCurrency("jpy");
 
@@ -853,6 +923,7 @@ class AdminChannelServiceImplTest {
         request.setChannelId(1L);
         request.setChannelMid("");
         request.setMidName("MPGS TEST MID");
+        request.setMcc("5311");
         request.setBusinessType("acquiring");
         request.setPaymentMethodScope("bank_card");
         request.setCardBrandScope("visa,mastercard");

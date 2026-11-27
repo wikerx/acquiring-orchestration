@@ -6,6 +6,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 查询 Hosted Checkout 会话内部结果。
@@ -39,6 +40,9 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
     private List<PaymentMethodDTO> paymentMethods;
     /** 付款人可查看的真实选项，未适配的方式保留名称和禁止提交状态。 */
     private List<PaymentMethodDTO> paymentOptions;
+
+    /** 本单付款国家展示范围。按方式或卡品牌键给出 ALL 默认值和具体国家例外，空值兼容旧版本。 */
+    private Map<String, Map<String, Boolean>> paymentCountryScopes;
     /**
      * 会话有效期、重试次数和轮询配置。
      */
@@ -262,6 +266,7 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
         /** 服务端已接通、组件暂未接通或当前状态不允许提交。 */
         private String executionStatus;
     }
+
 
     /**
      * 付款页会话行为配置。

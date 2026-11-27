@@ -84,6 +84,10 @@ public final class OpenApiTransactionResultProjector {
                     "CHANNEL_DECLINED",
                     merchantMessage(OpenApiResultCode.CHANNEL_RETURNED_ERROR));
         }
+        if ("SINGLE_AMOUNT_LIMIT_EXCEEDED".equals(failureReasonCode)) {
+            return failure(OpenApiResultCode.SINGLE_AMOUNT_LIMIT_EXCEEDED, failureReasonCode,
+                    merchantMessage(OpenApiResultCode.SINGLE_AMOUNT_LIMIT_EXCEEDED));
+        }
         if (RISK_REJECTED.equals(failureReasonCode)) {
             return failure(OpenApiResultCode.PLATFORM_RISK_REJECTED,
                     "PLATFORM_RISK_REJECTED",

@@ -51,7 +51,14 @@ public final class HostedCheckoutBrowserRequestDTOs {
                                           @NotBlank String checkoutSessionId,
                                           @NotBlank @Pattern(regexp = "APPLE_PAY|GOOGLE_PAY") String paymentMethod,
                                           @NotBlank @Pattern(regexp = "PREPARE|OPEN|STATUS") String action,
-                                          @Valid BillingCardHolderInfoDTO billingCardHolderInfo) {
+                                          @Valid BillingCardHolderInfoDTO billingCardHolderInfo,
+                                          @Pattern(regexp = "[A-Z]{3}") String payerCountry,
+            @Pattern(regexp = "[A-Za-z0-9_-]{1,40}") String attemptRequestId) {
+        public WalletSimulationRequest(String token, String checkoutSessionId, String paymentMethod, String action,
+                BillingCardHolderInfoDTO billing, String payerCountry) {
+            this(token, checkoutSessionId, paymentMethod, action, billing, payerCountry, null);
+        }
+
         @Override
         public String toString() {
             return "WalletSimulationRequest";

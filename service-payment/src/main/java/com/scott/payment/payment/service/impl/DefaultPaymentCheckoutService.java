@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.link.service.ChannelSingleAmountLimits;
 import com.scott.payment.payment.api.internal.dto.CheckoutWalletSimulationCommand;
 import com.scott.payment.payment.api.internal.dto.WalletSimulationReturnCommand;
 
@@ -606,14 +607,26 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE);
         }
         var requestedMethod = Set.of(command.paymentMethod());
+        if ("STATUS".equals(command.action())) {
+            // 已发起尝试继续使用原渠道回读，不受付款页筛选或后续国家配置影响。
+            return walletSimulation.execute(session, command.paymentMethod(), command.action(), linked, null);
+        }
         if (!linked) {
-            if (resolveHostedNonCardMethods(session, requestedMethod).isEmpty()) {
+            var prefill = parseCheckoutSnapshot(session.getBillingInfoJson(),
+                    PaymentCreateCommandDTO.BillingCardHolderInfoDTO.class);
+            String country = firstText(command.payerCountry(),
+                    firstText(prefill == null ? null : prefill.getCountry(), session.getPayerCountry()));
+            if (resolveHostedNonCardMethods(session, requestedMethod, () -> country).isEmpty()) {
                 throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE);
             }
-            return walletSimulation.execute(session, command.paymentMethod(), command.action());
-        }
-        if ("STATUS".equals(command.action())) {
-            return walletSimulation.execute(session, command.paymentMethod(), command.action(), true, null);
+            if (command.payerCountry() == null && command.attemptRequestId() == null) {
+                return walletSimulation.execute(session, command.paymentMethod(), command.action());
+            }
+            var billing = prefill == null ? new PaymentCreateCommandDTO.BillingCardHolderInfoDTO() : prefill;
+            billing.setCountry(country);
+            return command.attemptRequestId() == null
+                    ? walletSimulation.execute(session, command.paymentMethod(), command.action(), false, billing)
+                    : walletSimulation.execute(session, command.paymentMethod(), command.action(), false, billing, command.attemptRequestId());
         }
         var billing = command.billingCardHolderInfo();
         if (billing == null || !StringUtils.hasText(billing.getFirstName())
@@ -625,7 +638,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (resolveHostedNonCardMethods(session, requestedMethod, billing::getCountry).isEmpty()) {
             throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE);
         }
-        return walletSimulation.execute(session, command.paymentMethod(), command.action(), true, toCoreBillingInfo(billing));
+        if (command.attemptRequestId() == null) {
+            return walletSimulation.execute(session, command.paymentMethod(), command.action(), true, toCoreBillingInfo(billing));
+        }
+        return walletSimulation.execute(session, command.paymentMethod(), command.action(), true,
+                toCoreBillingInfo(billing), command.attemptRequestId());
     }
 
     @Override
@@ -1175,7 +1192,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 && PaymentTransactionTypeEnum.PAYMENT.getCode().equals(normalizePaymentAction(sessionDO.getPaymentAction()));
         sessionDO.setChannelCode(explicitLinkScope ? null : resolveChannelCode(allowedMethods));
         if (discoverNonCard) {
-            var nonCardMethods = resolveHostedNonCardMethods(sessionDO, null);
+            var nonCardMethods = discoverHostedNonCardScopes(sessionDO, null).keySet().stream()
+                    .map(this::hostedNonCardMethod).toList();
             if (!nonCardMethods.isEmpty()) {
                 nonCardMethods.forEach(method -> method.setHostedNonCardVerified(true));
                 var sessionMethods = new ArrayList<>(allowedMethods);
@@ -1979,18 +1997,15 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         List<PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO> options =
                 resolvePaymentOptions(sessionDO, methodSnapshot, explicitScope);
         Set<String> hostedNonCardScope = walletScope(methodSnapshot, false);
+        Set<String> walletScope = explicitScope ? walletScope(methodSnapshot, true) : hostedNonCardScope;
+        var walletCountryScopes = walletScope.isEmpty() || (explicitScope && (!newSubmissionAllowed || walletSimulation == null))
+                ? Map.<String, Map<String, Boolean>>of() : discoverHostedNonCardScopes(sessionDO, walletScope);
         if (!explicitScope && !hostedNonCardScope.isEmpty()) {
             options = new ArrayList<>(options);
-            resolveHostedNonCardMethods(sessionDO, hostedNonCardScope).stream()
+            walletCountryScopes.keySet().stream().map(this::hostedNonCardMethod)
                     .map(this::toPaymentOption).forEach(options::add);
         }
         boolean governedOptions = explicitScope || requiresCurrentCardAdmission(sessionDO);
-        Set<String> walletScope = explicitScope ? walletScope(methodSnapshot, true) : hostedNonCardScope;
-        if (explicitScope && newSubmissionAllowed && walletSimulation != null && !walletScope.isEmpty()) {
-            walletScope = resolveHostedNonCardMethods(sessionDO, walletScope, () -> null).stream()
-                    .map(PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO::getPaymentMethod)
-                    .collect(Collectors.toSet());
-        }
         boolean showFrozenMethods = linked && explicitScope && newSubmissionAllowed;
         if (governedOptions && options.isEmpty()) {
             newSubmissionAllowed = false;
@@ -2005,7 +2020,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 option.setExecutionStatus(newSubmissionAllowed ? "READY" : "UNAVAILABLE");
             } else {
                 boolean simulate = newSubmissionAllowed && walletSimulation != null
-                        && walletScope.contains(option.getPaymentMethod())
+                        && walletCountryScopes.containsKey(option.getPaymentMethod())
                         && walletSimulation.supports(sessionDO, option.getPaymentMethod());
                 option.setExecutionStatus(simulate ? "REDIRECT_AVAILABLE" : "COMPONENT_UNAVAILABLE");
             }
@@ -2014,6 +2029,19 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 .filter(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod())).toList());
         var displayOptions = showFrozenMethods ? withFrozenLinkOptions(methodSnapshot, options) : options;
         resultDTO.setPaymentOptions(displayOptions);
+        if (basePayable) {
+            resultDTO.setPaymentCountryScopes(Map.of());
+        }
+        if (basePayable && !displayOptions.isEmpty() && cardCapabilityService != null) {
+            try {
+                resultDTO.setPaymentCountryScopes(cardCapabilityService.checkoutCountryScopes(
+                        sessionDO.getMerchantId(), sessionDO.getLabelCurrency(), normalizePaymentAction(sessionDO.getPaymentAction()),
+                        displayOptions, walletCountryScopes, serverTime));
+            } catch (RuntimeException exception) {
+                log.warn("收银台付款国家范围暂不可用, event: CHECKOUT_COUNTRY_SCOPE_UNAVAILABLE, exceptionType: {}",
+                        exception.getClass().getSimpleName());
+            }
+        }
         if (linked || governedOptions || !hostedNonCardScope.isEmpty()) {
             merchantDTO.setSupportedPaymentMethods(displayOptions.stream()
                     .map(PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO::getPaymentMethod).distinct().toList());
@@ -3055,16 +3083,30 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return option;
     }
 
-    /** 额外展示方式核验失败时隐藏非卡选项，保留原银行卡处理。 */
-    private List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> resolveHostedNonCardMethods(
-            PaymentCheckoutSessionDO session, Set<String> frozenMethods) {
-        return resolveHostedNonCardMethods(session, frozenMethods, () -> {
-            var billing = parseCheckoutSnapshot(
-                    session.getBillingInfoJson(), PaymentCheckoutSessionQueryResultDTO.BillingInfoDTO.class);
-            return billing == null ? null : billing.getCountry();
-        });
+    private PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO hostedNonCardMethod(String code) {
+        var method = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        method.setPaymentMethod(code);
+        method.setBrands(List.of());
+        return method;
     }
 
+    /** 以配置与商户授权为限保留钱包候选，预填国家仅用于付款页筛选。 */
+    private Map<String, Map<String, Boolean>> discoverHostedNonCardScopes(
+            PaymentCheckoutSessionDO session, Set<String> frozenMethods) {
+        if (cardCapabilityService == null) {
+            return Map.of();
+        }
+        try {
+            return cardCapabilityService.resolveHostedNonCardCountryScopes(
+                    session.getMerchantId(), session.getLabelCurrency(), frozenMethods);
+        } catch (RuntimeException exception) {
+            log.warn("收银台非卡选项暂不可核验, event: CHECKOUT_NON_CARD_SCOPE_UNAVAILABLE, exceptionType: {}",
+                    exception.getClass().getSimpleName());
+            return Map.of();
+        }
+    }
+
+    /** 钱包提交按本次实际付款国家复核商户授权和路由。 */
     private List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> resolveHostedNonCardMethods(
             PaymentCheckoutSessionDO session, Set<String> frozenMethods, java.util.function.Supplier<String> country) {
         if (cardCapabilityService == null) {

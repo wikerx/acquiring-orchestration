@@ -9,7 +9,14 @@ public record CheckoutWalletSimulationCommand(
         @NotBlank String checkoutSessionId,
         @Pattern(regexp = "APPLE_PAY|GOOGLE_PAY") @NotBlank String paymentMethod,
         @Pattern(regexp = "PREPARE|OPEN|STATUS") @NotBlank String action,
-        PaymentCheckoutPaymentSubmitCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo) {
+        PaymentCheckoutPaymentSubmitCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo,
+        @Pattern(regexp = "[A-Z]{3}") String payerCountry,
+        @Pattern(regexp = "[A-Za-z0-9_-]{1,40}") String attemptRequestId) {
+    public CheckoutWalletSimulationCommand(String token, String checkoutSessionId, String paymentMethod, String action,
+            PaymentCheckoutPaymentSubmitCommandDTO.BillingCardHolderInfoDTO billing, String payerCountry) {
+        this(token, checkoutSessionId, paymentMethod, action, billing, payerCountry, null);
+    }
+
     @Override
     public String toString() {
         return "CheckoutWalletSimulationCommand";

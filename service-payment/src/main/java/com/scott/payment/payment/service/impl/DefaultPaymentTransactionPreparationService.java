@@ -13,6 +13,7 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.link.service.ChannelSingleAmountLimits;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
@@ -175,6 +176,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     private final TransactionOperations transactionOperations;
     private PaymentAdmissionExecutionGuard admissionGuard;
     private PaymentPreparationOwnershipService preparationOwnership;
+
+    @Autowired
+    private ChannelSingleAmountLimits singleAmountLimits;
 
     @Autowired
     void setAdmissionGuard(PaymentAdmissionExecutionGuard admissionGuard) {
@@ -473,6 +477,12 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                         commandDTO.getLabelAmount(),
                         resultDTO.getStatus(),
                         resultDTO.getFailReasonCode());
+            } else if (rejectsCheckoutAmount(commandDTO, routeResultDTO)) {
+                resultDTO.setCurrency(commandDTO.getTransactionCurrency());
+                resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
+                resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+                resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+                resultDTO.setFailReasonCode(ChannelSingleAmountLimits.FAILURE_CODE);
             } else {
                 resultDTO.setCurrency(commandDTO.getTransactionCurrency());
                 resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
@@ -886,6 +896,16 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     /**
      * 已有渠道身份表示上游完成过路由，准备阶段必须恢复同一 MID。
      */
+    private boolean rejectsCheckoutAmount(PaymentCreateCommandDTO command, PaymentRouteResultDTO route) {
+        if (singleAmountLimits == null || route == null || route.getChannelId() == null
+                || !"HOSTED_CHECKOUT".equals(command.getRequestSource())) {
+            return false;
+        }
+        String brand = command.getTransactionInfo() == null ? null : command.getTransactionInfo().getCardBrand();
+        return singleAmountLimits.load(java.util.List.of(route.getChannelId()), command.getTransactionCurrency())
+                .rejects(route.getChannelId(), command.getPaymentMethod(), brand, command.getTransactionAmount());
+    }
+
     private PaymentRouteResultDTO resolveInitialRoute(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.ChannelIdentityDTO identity = commandDTO.getChannelIdentity();
         if (identity == null) {

@@ -8,6 +8,8 @@ import com.scott.payment.component.db.reference.model.CardBinLookupCacheEntry;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
+import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -124,10 +127,7 @@ public class PaymentCheckoutCardCapabilityService {
             return List.of();
         }
         var facts = linkMethodScope.snapshot(merchantId);
-        var command = new PaymentCreateCommandDTO();
-        command.setMerchantId(merchantId);
-        command.setCurrency(currency);
-        command.setTransactionType("PAYMENT");
+        var command = checkoutRouteCommand(merchantId, currency, "PAYMENT");
         if (StringUtils.hasText(billingCountry)) {
             var billing = new PaymentCreateCommandDTO.BillingCardHolderInfoDTO();
             billing.setCountry(billingCountry);
@@ -140,11 +140,8 @@ public class PaymentCheckoutCardCapabilityService {
             var route = channelRoutes.assessCandidates(facts.profile(), command, facts.evaluatedAt());
             if (route.status() == DefaultPaymentChannelRouteService.CandidateStatus.UNIQUE_DIRECT
                     || (route.status() == DefaultPaymentChannelRouteService.CandidateStatus.UNIQUE_EDC
-                    && usableRates.computeIfAbsent(route.routedCurrency(), target ->
-                    exchangeRates.findTransactionRate(currency, target, facts.evaluatedAt())
-                            .filter(rate -> rate.getRateId() != null && rate.getRateId() > 0
-                                    && rate.getFinalRate() != null && rate.getFinalRate().signum() > 0)
-                            .isPresent()))) {
+                    && usableRates.computeIfAbsent(route.routedCurrency(),
+                    target -> hasCheckoutRate(currency, target, facts.evaluatedAt())))) {
                 var option = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
                 option.setPaymentMethod(method);
                 option.setBrands(List.of());
@@ -152,6 +149,80 @@ public class PaymentCheckoutCardCapabilityService {
             }
         }
         return options;
+    }
+
+    /**
+     * 一次读取商户授权、费率和路由快照，计算各冻结钱包在任意付款国家下的可用性。
+     * 读取结果用于建会话和展示。真正发起付款仍按提交国家重新核验。
+     */
+    @DS(DataSourceName.MASTER)
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public Map<String, Map<String, Boolean>> resolveHostedNonCardCountryScopes(
+            String merchantId, String currency, Set<String> frozenMethods) {
+        if (linkMethodScope == null) {
+            return Map.of();
+        }
+        var facts = linkMethodScope.snapshot(merchantId);
+        var command = checkoutRouteCommand(merchantId, currency, "PAYMENT");
+        Map<String, Boolean> usableRates = new HashMap<>();
+        Map<String, Map<String, Boolean>> scopes = new LinkedHashMap<>();
+        for (String method : linkMethodScope.hostedNonCardMethods(facts, frozenMethods)) {
+            command.setPaymentMethod(method);
+            var coverage = channelRoutes.checkoutCountryCoverage(facts.profile(), command, facts.evaluatedAt(),
+                    target -> usableRates.computeIfAbsent(target,
+                            code -> hasCheckoutRate(currency, code, facts.evaluatedAt())));
+            if (coverage.containsValue(true)) {
+                scopes.put(method, coverage);
+            }
+        }
+        return scopes;
+    }
+
+    /** 仅投影本单候选；使用受失效门禁保护的路由快照，复用同一批配置计算全部品牌。 */
+    public Map<String, Map<String, Boolean>> checkoutCountryScopes(
+            String merchantId, String currency, String action,
+            List<PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO> options,
+            Map<String, Map<String, Boolean>> walletScopes, LocalDateTime now) {
+        MerchantRouteProfile profile = routeProfileCacheService.findRouteProfile(merchantId);
+        var command = checkoutRouteCommand(merchantId, currency, action);
+        var transaction = new PaymentCreateCommandDTO.TransactionInfoDTO();
+        command.setTransactionInfo(transaction);
+        Map<String, Map<String, Boolean>> scopes = new LinkedHashMap<>();
+        for (var option : options) {
+            String method = option.getPaymentMethod();
+            command.setPaymentMethod(method);
+            if ("BANK_CARD".equals(method)) {
+                if (option.getBrands() == null) {
+                    continue;
+                }
+                for (String brand : option.getBrands()) {
+                    transaction.setCardBrand(brand);
+                    scopes.computeIfAbsent("CARD_BRAND:" + brand, ignored ->
+                            channelRoutes.checkoutCountryCoverage(profile, command, now, null));
+                }
+            } else {
+                transaction.setCardBrand(null);
+                scopes.computeIfAbsent("METHOD:" + method, ignored -> walletScopes.containsKey(method)
+                        ? walletScopes.get(method) : channelRoutes.checkoutCountryCoverage(profile, command, now, null));
+            }
+        }
+        return scopes;
+    }
+
+
+    private PaymentCreateCommandDTO checkoutRouteCommand(String merchantId, String currency, String action) {
+        var command = new PaymentCreateCommandDTO();
+        command.setMerchantId(merchantId);
+        command.setCurrency(currency);
+        command.setTransactionType(action);
+        return command;
+    }
+
+    private boolean hasCheckoutRate(String currency, String target, LocalDateTime evaluatedAt) {
+        return exchangeRates.findTransactionRate(currency, target, evaluatedAt)
+                .filter(rate -> rate.getRateId() != null && rate.getRateId() > 0
+                        && rate.getFinalRate() != null && rate.getFinalRate().signum() > 0)
+                .isPresent();
     }
 
     /**

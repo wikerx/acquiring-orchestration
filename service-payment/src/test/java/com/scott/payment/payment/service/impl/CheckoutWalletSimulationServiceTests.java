@@ -46,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -60,7 +61,7 @@ class CheckoutWalletSimulationServiceTests {
     private static final String CHANNEL_TRANSACTION = "CMT20261122190612115010008WPLF";
     private static final String MERCHANT = "200047";
     private static final String MID = "VEXRA-HOSTED-TEST-200047";
-    private static final String TRANSACTION_ID = "2611241101233460000021";
+    private static final String TRANSACTION_ID = ATTEMPT_ID;
     private static final String OPERATION_KEY = "2611241101233460000022";
     private static final String OPERATION_ID = "OP" + OPERATION_KEY;
 
@@ -128,7 +129,7 @@ class CheckoutWalletSimulationServiceTests {
         assertThat(order.getValue().amount()).isEqualTo(new BigDecimal("7.00"));
         assertThat(order.getValue().currency()).isEqualTo("USD");
         assertThat(order.getValue().channelMerchantId()).isEqualTo(MID);
-        assertThat(order.getValue().number()).isEqualTo(CHANNEL_ORDER);
+        assertThat(order.getValue().number()).isEqualTo(TRANSACTION_ID);
         assertThat(routeCommand.getValue().getMerchantId()).isEqualTo(MERCHANT);
         assertThat(routeCommand.getValue().getCurrency()).isEqualTo("USD");
         assertThat(routeCommand.getValue().getBillingCardHolderInfo().getCountry()).isEqualTo("USA");
@@ -176,6 +177,11 @@ class CheckoutWalletSimulationServiceTests {
         service.execute(session, "GOOGLE_PAY", "OPEN", true, billing);
         service.execute(session, "GOOGLE_PAY", "OPEN", true, billing);
 
+        var order = ArgumentCaptor.forClass(HostedWalletSimulator.Order.class);
+        verify(simulator, times(3)).prepare(order.capture(), anyString(), anyString());
+        assertThat(order.getAllValues()).extracting(HostedWalletSimulator.Order::number)
+                .containsExactly(TRANSACTION_ID, TRANSACTION_ID, TRANSACTION_ID);
+        assertThat(issuedAttempt.get().getTransactionId()).isEqualTo(TRANSACTION_ID);
         var recorded = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
         verify(records).recordInitialTransaction(recorded.capture(), any(), any(), any(), eq(null), eq(2));
         assertThat(recorded.getValue().getBillingCardHolderInfo().getCountry()).isEqualTo("CAN");
@@ -237,6 +243,54 @@ class CheckoutWalletSimulationServiceTests {
 
     @ParameterizedTest
     @CsvSource({
+            "USD, 10000.00, , 10000.00, false",
+            "USD, 10000.01, , 10000.01, true",
+            "EUR, 8000.00, 1.25, 10000.00, false",
+            "EUR, 8000.01, 1.25, 10000.01, true",
+            "EUR, 10000.01, 0.50, 5000.01, false",
+            "EUR, 9999.99, 1.000001, 10000.00, false"
+    })
+    void persistsLimitFailureOnRoundedChannelAmount(String labelCurrency, String amount, String fx,
+                                                        String channelAmount, boolean exceeded) {
+        var session = session(MERCHANT, amount, labelCurrency);
+        var route = route(MID, labelCurrency, "USD", fx != null);
+        stubPreparationRoute(route);
+        var inserted = stubInsertedAttempt(session);
+        if (fx != null) {
+            when(exchangeRates.findTransactionRate(eq(labelCurrency), eq("USD"), any()))
+                    .thenReturn(Optional.of(rate(labelCurrency, "USD", fx)));
+        }
+
+        if (exceeded) {
+            when(ids.nextId()).thenReturn(ATTEMPT_ID, OPERATION_KEY);
+            when(idempotency.tryBegin(any())).thenReturn(true);
+            when(sessions.markSubmittedCas(eq(session.getCheckoutSessionId()), eq("FAILED"), eq("RESULT_RENDERED"),
+                    eq(ATTEMPT_ID), eq(OPERATION_ID), any(), eq(ATTEMPT_ID), eq(0), any())).thenReturn(1);
+            String requestId = "ATT-WALLET-LIMIT";
+            assertThat(service.execute(session, "GOOGLE_PAY", "PREPARE", false, null, requestId))
+                    .containsEntry("state", "FAILED").containsEntry("reasonCode", "T4001")
+                    .containsEntry("transactionId", ATTEMPT_ID);
+            when(attempts.selectByAttemptRequest(session.getCheckoutSessionId(),
+                    "DEV-INTERACTIVE-GOOGLE_PAY-R-" + requestId)).thenReturn(inserted.get());
+            assertThat(service.execute(session, "GOOGLE_PAY", "PREPARE", false, null, requestId))
+                    .containsEntry("transactionId", ATTEMPT_ID);
+            verify(attempts).insert(any(PaymentCheckoutAttemptDO.class));
+            assertThat(inserted.get().getAttemptStatus()).isEqualTo("FAILED");
+            assertThat(inserted.get().getChannelRequestAmount()).isEqualByComparingTo(channelAmount);
+            assertThat(inserted.get().getChannelTransactionId()).isNull();
+            var result = ArgumentCaptor.forClass(com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO.class);
+            verify(records).recordInitialTransaction(any(), any(), isNull(), result.capture(), isNull(), eq(2));
+            assertThat(result.getValue().getStatus()).isEqualTo("FAILED");
+            assertThat(result.getValue().getFailReasonCode()).isEqualTo("SINGLE_AMOUNT_LIMIT_EXCEEDED");
+            verify(simulator, never()).prepare(any(), anyString(), anyString());
+        } else {
+            assertThat(service.execute(session, "GOOGLE_PAY", "PREPARE")).containsEntry("state", "READY");
+            assertThat(inserted.get().getChannelRequestAmount()).isEqualByComparingTo(channelAmount);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
             "GOOGLE_PAY, CAD, 101.71, USD, 0.71231, 72.45",
             "APPLE_PAY, HKD, 100.00, EUR, 0.12, 12.00",
             "APPLE_PAY, USD, 7.00, USD, , 7.00",
@@ -275,7 +329,7 @@ class CheckoutWalletSimulationServiceTests {
         HostedWalletSimulator.Order original = orders.getAllValues().get(0);
         assertThat(original.amount().toPlainString()).isEqualTo(channelAmount);
         assertThat(original.currency()).isEqualTo(channelCurrency);
-        assertThat(original.number()).isEqualTo(CHANNEL_ORDER);
+        assertThat(original.number()).isEqualTo(TRANSACTION_ID);
         assertThat(orders.getAllValues()).containsExactly(original, original, original);
         assertThat(persisted.getChannelTransactionId()).isEqualTo(CHANNEL_TRANSACTION);
         assertThat(persisted.getTransactionId()).isEqualTo(TRANSACTION_ID);
@@ -289,6 +343,10 @@ class CheckoutWalletSimulationServiceTests {
         assertThat(coreResult.getValue().getStatus()).isEqualTo("PROCESSING");
         assertThat(coreRoute.getValue().getMetadataValues()).isEmpty();
         assertThat(evidence.getValue().getChannelRequest().getChannelTransactionId()).isEqualTo(CHANNEL_TRANSACTION);
+        assertThat(evidence.getValue().getChannelRequest().getExtension())
+                .containsEntry("channelMerchantReference", TRANSACTION_ID);
+        assertThat(evidence.getValue().getChannelRequest().getChannelCallbackUrl())
+                .isEqualTo("http://127.0.0.1:8000/channel/v1/callbacks/SCOTT_CHANNEL_A");
         assertThat(evidence.getValue().getChannelResponse()).isNull();
         assertThat(evidence.getValue().getRequestStatus()).isEqualTo("SENT");
         assertThat(coreCommand.getValue().getLabelAmount()).isEqualByComparingTo(labelAmount);
@@ -338,11 +396,11 @@ class CheckoutWalletSimulationServiceTests {
                     eq(0), any())).thenReturn(1);
         }
 
-        var callback = callback(callbackStatus, MID);
+        var callback = callback(callbackStatus, MID, TRANSACTION_ID);
         callback.setChannelResponseCode(responseCode);
         assertThat(service.acceptCallback(callback)).isTrue();
         assertThat(service.acceptCallback(callback)).isTrue();
-        assertThat(service.acceptCallback(callback(success ? "failed" : "succeeded", MID))).isTrue();
+        assertThat(service.acceptCallback(callback(success ? "failed" : "succeeded", MID, TRANSACTION_ID))).isTrue();
 
         var command = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
         var outcome = ArgumentCaptor.forClass(PaymentCreateResultDTO.class);
@@ -400,7 +458,7 @@ class CheckoutWalletSimulationServiceTests {
     }
 
     private void stubCoreActivation(PaymentCheckoutSessionDO session, AtomicReference<PaymentCheckoutAttemptDO> inserted) {
-        when(ids.nextId()).thenReturn(ATTEMPT_ID, TRANSACTION_ID, OPERATION_KEY);
+        when(ids.nextId()).thenReturn(ATTEMPT_ID, OPERATION_KEY);
         when(idempotency.tryBegin(any())).thenReturn(true);
         when(attempts.bindWalletCoreIdentity(eq(ATTEMPT_ID), eq(TRANSACTION_ID), eq(OPERATION_ID),
                 anyString(), eq(0), any())).thenAnswer(invocation -> {
@@ -612,6 +670,43 @@ class CheckoutWalletSimulationServiceTests {
     }
 
     @Test
+    void queriesAnActiveLegacyWalletWithItsOriginalProviderReference() {
+        var session = session(MERCHANT, "7.00");
+        session.setLastAttemptId(ATTEMPT_ID);
+        var legacy = attempt(MERCHANT, null);
+        stubRestoredRoute();
+        when(attempts.selectLatestWalletAttempt(session.getCheckoutSessionId(), "APPLE_PAY")).thenReturn(legacy);
+        when(attempts.selectByCheckoutAttemptId(ATTEMPT_ID)).thenReturn(legacy);
+        when(simulator.query(any())).thenReturn(new HostedWalletSimulator.Result(
+                HostedWalletSimulator.State.PROCESSING, CHANNEL_TRANSACTION, null, null));
+
+        assertThat(service.execute(session, "APPLE_PAY", "STATUS")).containsEntry("state", "PROCESSING");
+
+        var order = ArgumentCaptor.forClass(HostedWalletSimulator.Order.class);
+        verify(simulator).query(order.capture());
+        assertThat(order.getValue().number()).isEqualTo(CHANNEL_ORDER);
+        verifyNoInteractions(records, notifications, delivery);
+    }
+
+    @Test
+    void numericCallbackUsesTheWalletHandlerOnlyForAPersistedMatchingWallet() {
+        var command = callback("succeeded", MID, TRANSACTION_ID);
+        assertThat(service.acceptCallback(command)).isFalse();
+        var current = attempt(MERCHANT, "SUCCESS");
+        current.setChannelOrderNo(TRANSACTION_ID);
+        when(attempts.selectByCheckoutAttemptId(TRANSACTION_ID)).thenReturn(current);
+        stubRestoredRoute();
+        command.setChannelTransactionId("CMT-DIFFERENT");
+        assertThatThrownBy(() -> service.acceptCallback(command)).isInstanceOf(ServiceException.class);
+        command.setChannelTransactionId(CHANNEL_TRANSACTION);
+        command.setSignatureValid(false);
+        assertThatThrownBy(() -> service.acceptCallback(command)).isInstanceOf(ServiceException.class);
+        command.setExtension(Map.of("merchantOrderNo", TRANSACTION_ID, "paymentMethod", "BANK_CARD"));
+        assertThat(service.acceptCallback(command)).isFalse();
+        verifyNoInteractions(records, notifications, delivery);
+    }
+
+    @Test
     void successfulConfiguredMerchantCallbackUpdatesCheckoutAndUsesItsNotificationUrl() {
         var session = session(MERCHANT, "7.00");
         session.setLastAttemptId(ATTEMPT_ID);
@@ -683,13 +778,17 @@ class CheckoutWalletSimulationServiceTests {
     }
 
     private static TransactionChannelCallbackCommandDTO callback(String status, String mid) {
+        return callback(status, mid, CHANNEL_ORDER);
+    }
+
+    private static TransactionChannelCallbackCommandDTO callback(String status, String mid, String reference) {
         var command = new TransactionChannelCallbackCommandDTO();
         command.setChannelCode("SCOTT_CHANNEL_A");
         command.setChannelCredentialHint(mid);
         command.setSignatureValid(true);
         command.setIpAllowed(true);
         command.setCallbackKind("FINANCIAL_TRANSACTION");
-        command.setExtension(Map.of("merchantOrderNo", CHANNEL_ORDER, "paymentMethod", "APPLE_PAY"));
+        command.setExtension(Map.of("merchantOrderNo", reference, "paymentMethod", "APPLE_PAY"));
         command.setChannelTransactionId(CHANNEL_TRANSACTION);
         command.setCurrency("USD");
         command.setAmount(new BigDecimal("7.00"));

@@ -9,6 +9,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * service-openapi 调用 service-payment Hosted Checkout 内部接口 DTO。
@@ -340,6 +341,9 @@ public final class PaymentCheckoutClientDTOs {
          */
         private List<PaymentMethod> paymentMethods;
         private List<PaymentMethod> paymentOptions;
+
+        /** 本单各方式或卡品牌的国家可用范围，包含 ALL 默认值与具体国家例外。 */
+        private Map<String, Map<String, Boolean>> paymentCountryScopes;
 
         /**
          * 有效期、重试次数和轮询配置。
@@ -829,6 +833,7 @@ public final class PaymentCheckoutClientDTOs {
         private String executionStatus;
     }
 
+
     /**
      * 收银台会话展示和轮询配置。
      */
@@ -1159,7 +1164,8 @@ public final class PaymentCheckoutClientDTOs {
 
     /** 本机钱包模拟的签名内部请求，浏览器令牌转为摘要后才允许转发。 */
     public record WalletSimulationRequest(String tokenHash, String checkoutSessionId, String paymentMethod,
-                                          String action, BillingCardHolderInfo billingCardHolderInfo) {
+                                          String action, BillingCardHolderInfo billingCardHolderInfo, String payerCountry,
+                                          String attemptRequestId) {
         @Override
         public String toString() {
             return "WalletSimulationRequest";

@@ -260,17 +260,14 @@ public final class ChannelDTOs {
         /**
          * 支持交易币种，ALL 或 ISO 4217 三位币种逗号分隔。
          */
-        @NotBlank(message = "currencyScope is required")
         private String currencyScope;
         /**
          * 允许交易国家，ALL 或 ISO 国家码逗号分隔。
          */
-        @NotBlank(message = "allowedCountryScope is required")
         private String allowedCountryScope;
         /**
          * 默认交易币种；必须属于 MID 允许交易币种并被所选渠道能力支持。
          */
-        @NotBlank(message = "defaultTransactionCurrency is required")
         private String defaultTransactionCurrency;
         /**
          * 默认结算币种。
@@ -294,6 +291,7 @@ public final class ChannelDTOs {
         /**
          * 渠道 MID 对应的 MCC，用于渠道商户号能力和路由约束。
          */
+        @NotBlank(message = "MCC is required")
         private String mcc;
         /**
          * 账单描述。
@@ -349,6 +347,10 @@ public final class ChannelDTOs {
         private String transactionTypeScope;
         private String currencyScope;
         private String allowedCountryScope;
+        private Boolean inheritTransactionCurrency;
+        private List<MidPaymentCapability> paymentCapabilities;
+        private List<String> effectiveCurrencyCodes;
+        private List<String> effectiveDefaultTransactionCurrencies;
         private String defaultTransactionCurrency;
         private String defaultSettlementCurrency;
         private String settlementCycle;
@@ -378,6 +380,13 @@ public final class ChannelDTOs {
          * 记录最后更新时间，持久化精度为毫秒。
          */
         private LocalDateTime updateTime;
+    }
+
+    /** 按已选支付方式展示实际能力，币种和交易类型已与 MID 范围取交集。 */
+    public record MidPaymentCapability(
+            String paymentMethod, List<String> cardBrands, List<String> transactionTypes,
+            List<String> currencyCodes, String defaultTransactionCurrency, String allowedCountryScope,
+            String legacyAllowedCountryScope, boolean enabled) {
     }
 
     /**
@@ -530,6 +539,7 @@ public final class ChannelDTOs {
          */
         @NotBlank(message = "defaultTransactionCurrency is required")
         private String defaultTransactionCurrency;
+        private String allowedCountryScope;
         private List<String> cardBrands = new ArrayList<>();
         private Integer support3ds;
         private Integer supportIncrementalAuthorization;
@@ -581,6 +591,7 @@ public final class ChannelDTOs {
          * 默认交易币种，渠道不直接支持请求币种时用于交易换汇路由。
          */
         private String defaultTransactionCurrency;
+        private String allowedCountryScope;
         private List<String> cardBrands = new ArrayList<>();
         private Integer support3ds;
         private Integer supportIncrementalAuthorization;

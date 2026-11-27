@@ -7,6 +7,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 付款人浏览器查询收银台展示响应。
@@ -45,6 +46,9 @@ public class HostedCheckoutSessionVO implements Serializable {
     private List<PaymentMethodVO> paymentMethods;
     /** 区分可展示选项与服务端实际允许提交的方式。 */
     private List<PaymentMethodVO> paymentOptions;
+
+    /** 仅供付款页展示筛选，键为 METHOD:方式或 CARD_BRAND:品牌，ALL 为默认值。 */
+    private Map<String, Map<String, Boolean>> paymentCountryScopes;
 
     /**
      * 会话有效期、重试次数和轮询配置。
@@ -268,6 +272,7 @@ public class HostedCheckoutSessionVO implements Serializable {
         private Boolean serverSubmitAllowed;
         private String executionStatus;
     }
+
 
     /**
      * 付款页会话行为配置。

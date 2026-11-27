@@ -78,9 +78,13 @@ class MerchantRouteProfileCacheReaderTests {
         PaymentChannelCapabilityCardBrandMapper cardBrandMapper =
                 mock(PaymentChannelCapabilityCardBrandMapper.class);
         when(bindingMapper.selectList(any())).thenReturn(List.of(binding()));
-        when(midMapper.selectList(any())).thenReturn(List.of(mid()));
+        ChannelMidConfigDO midRow = mid();
+        ChannelPaymentCapabilityDO capabilityRow = capability();
+        capabilityRow.setDefaultTransactionCurrency("USD");
+        capabilityRow.setAllowedCountryScope("ALL");
+        when(midMapper.selectList(any())).thenReturn(List.of(midRow));
         when(channelMapper.selectList(any())).thenReturn(List.of(channel()));
-        when(capabilityMapper.selectList(any())).thenReturn(List.of(capability()));
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(capabilityRow));
         when(currencyMapper.selectList(any())).thenReturn(List.of(currency(40L, "USD"), currency(41L, "EUR")));
         when(cardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand()));
         MerchantRouteProfileCacheReader reader = new MerchantRouteProfileCacheReader(
@@ -105,8 +109,9 @@ class MerchantRouteProfileCacheReaderTests {
             assertThat(option.getCapabilitySupportIncrementalAuthorization()).isZero();
             assertThat(option.getSupportedCurrencies()).containsExactly("USD", "EUR");
             assertThat(option.getDefaultTransactionCurrency()).isEqualTo("EUR");
+            assertThat(option.getCapabilityAllowedCountryScope()).isEqualTo("ALL");
         });
-        assertThat(profile.getSchemaVersion()).isEqualTo(4);
+        assertThat(profile.getSchemaVersion()).isEqualTo(MerchantRouteProfile.CURRENT_SCHEMA_VERSION);
         assertThat(List.of(MerchantRouteProfile.RouteOption.class.getDeclaredFields()))
                 .extracting(Field::getName)
                 .doesNotContain("metadataValueJson");
@@ -116,6 +121,13 @@ class MerchantRouteProfileCacheReaderTests {
         verify(capabilityMapper).selectList(any());
         verify(currencyMapper).selectList(any());
         verify(cardBrandMapper).selectList(any());
+
+        midRow.setInheritTransactionCurrency(1);
+        midRow.setCurrencyScope("EUR");
+        assertThat(reader.findFresh("200045").getRouteOptions()).singleElement().satisfies(option -> {
+            assertThat(option.getDefaultTransactionCurrency()).isEqualTo("USD");
+            assertThat(option.getSupportedCurrencies()).containsExactly("EUR");
+        });
     }
 
     /**

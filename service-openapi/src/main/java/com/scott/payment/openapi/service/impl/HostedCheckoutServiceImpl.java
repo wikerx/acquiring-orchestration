@@ -40,6 +40,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -215,7 +216,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     public java.util.Map<String, String> simulateWallet(HostedCheckoutBrowserRequestDTOs.WalletSimulationRequest request) {
         return paymentInternalClient.simulateCheckoutWallet(new PaymentCheckoutClientDTOs.WalletSimulationRequest(
                 tokenHash(request.opaqueToken()), request.checkoutSessionId(), request.paymentMethod(), request.action(),
-                toClientBillingInfo(request.billingCardHolderInfo())));
+                toClientBillingInfo(request.billingCardHolderInfo()), request.payerCountry(), request.attemptRequestId()));
     }
 
     /**
@@ -458,6 +459,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         vo.setPaymentOptions(response.getPaymentOptions() == null ? null : response.getPaymentOptions().stream()
                 .map(this::toPaymentMethodVO)
                 .toList());
+        vo.setPaymentCountryScopes(response.getPaymentCountryScopes());
         vo.setCheckout(toCheckoutVO(response.getCheckout()));
         vo.setPayerInfo(toPayerInfoVO(response.getPayerInfo()));
         vo.setBillingInfo(toBillingInfoVO(response.getBillingInfo()));

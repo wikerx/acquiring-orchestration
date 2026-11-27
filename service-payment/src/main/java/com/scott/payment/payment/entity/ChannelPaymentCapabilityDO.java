@@ -50,6 +50,9 @@ public class ChannelPaymentCapabilityDO {
     @TableField("default_transaction_currency")
     private String defaultTransactionCurrency;
 
+    /** 收单渠道能力允许的账单国家范围。 */
+    private String allowedCountryScope;
+
     /**
      * 是否支持 3DS：0 不支持，1 支持。
      */

@@ -42,6 +42,7 @@ class PaymentLinkManagementIntegrationTest {
     AnnotationConfigApplicationContext context;
     PaymentLinkManagementService service;
     PaymentLinkManagementPolicy policy;
+    PaymentLinkDatabaseCapabilities capabilities;
     PaymentLinkManagementMapper mapper;
     PaymentLinkSettings settings;
     DataSourceTransactionManager transactions;
@@ -51,7 +52,7 @@ class PaymentLinkManagementIntegrationTest {
         source = new HikariDataSource(); source.setJdbcUrl("jdbc:h2:mem:link_commands_"+UUID.randomUUID()+";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000");
         source.setUsername("sa"); source.setPassword(""); source.setMaximumPoolSize(6); db = new JdbcTemplate(source);
         String canonical = Files.readString(Path.of("../docs/sql/payment_acquiring_表结构.sql"));
-        for (var table : List.of("payment_checkout_session", "transaction_idempotency", "channel_info", "channel_mid_config", "merchant_channel_mid_binding", "channel_payment_capability", "channel_capability_currency", "channel_capability_card_brand")) ddl(canonical, table);
+        for (var table : List.of("payment_checkout_session", "transaction_idempotency", "channel_info", "channel_limit_rule", "channel_mid_config", "merchant_channel_mid_binding", "channel_payment_capability", "channel_capability_currency", "channel_capability_card_brand")) ddl(canonical, table);
         for (var table : List.of("payment_link", "payment_link_access", "payment_link_event", "payment_link_collection", "payment_link_checkout_binding")) ddl(canonical, table);
         var config = new MybatisConfiguration(); config.setMapUnderscoreToCamelCase(true);
         config.setEnvironment(new Environment("isolated", new SpringManagedTransactionFactory(), source));
@@ -65,7 +66,7 @@ class PaymentLinkManagementIntegrationTest {
         when(iso.getCurrency("USD")).thenReturn(Optional.of(usd)); when(iso.isCurrencyFractionValid(any(), eq("USD"))).thenReturn(true); when(iso.listCurrencies()).thenReturn(List.of(usd));
         var merchants = mock(MerchantRuntimeProfileCacheService.class); var profile = new MerchantRuntimeProfile();
         profile.setMerchantStatus(1); profile.setActivationStatus("ACTIVE"); profile.setMerchantName("Merchant"); profile.setSettlementCurrency("USD"); when(merchants.findRuntimeProfile("m1")).thenReturn(profile);
-        var capabilities = new PaymentLinkDatabaseCapabilities(template.getMapper(PaymentLinkCapabilityMapper.class));
+        capabilities = new PaymentLinkDatabaseCapabilities(template.getMapper(PaymentLinkCapabilityMapper.class));
         policy = new PaymentLinkManagementPolicy(settings, merchants, iso, capabilities, Validation.buildDefaultValidatorFactory().getValidator(), new MockEnvironment());
         transactions = new DataSourceTransactionManager(source);
         context = new AnnotationConfigApplicationContext(); context.register(Transactions.class);
@@ -81,6 +82,29 @@ class PaymentLinkManagementIntegrationTest {
         seedCapabilities();
     }
     @AfterEach void close() { if (context != null) context.close(); if (source != null) source.close(); }
+    @Test void channelSingleBoundsIgnoreInactiveCumulativeAndOtherCurrencyRules() {
+        for (Object[] values : List.of(
+                new Object[]{101L, "BANK_CARD", "VISA", "SINGLE_MIN", "USD", new BigDecimal("10"), 1},
+                new Object[]{101L, "BANK_CARD", "VISA", "SINGLE_MAX", "USD", new BigDecimal("20"), 1},
+                new Object[]{101L, "BANK_CARD", "MASTERCARD", "SINGLE_MAX", "USD", new BigDecimal("20"), 0},
+                new Object[]{101L, "BANK_CARD", "ALL", "DAILY", "USD", BigDecimal.ONE, 1},
+                new Object[]{101L, "APPLE_PAY", "ALL", "SINGLE_MAX", "EUR", BigDecimal.ONE, 1})) {
+            db.update("""
+                    INSERT INTO channel_limit_rule
+                        (channel_id, channel_code, business_type, payment_method, card_brand,
+                         limit_type, limit_currency, limit_amount, rule_status, deleted)
+                    VALUES (?, 'SCOTT_CHANNEL_A', 'ACQUIRING', ?, ?, ?, ?, ?, ?, 0)
+                    """, values);
+        }
+        var rules = new ChannelSingleAmountLimits(db).load(List.of(101L), "USD");
+        assertThat(rules.rejects(101L, "BANK_CARD", "VISA", new BigDecimal("9.99"))).isTrue();
+        assertThat(rules.rejects(101L, "BANK_CARD", "VISA", new BigDecimal("10.00"))).isFalse();
+        assertThat(rules.rejects(101L, "BANK_CARD", "VISA", new BigDecimal("20.00"))).isFalse();
+        assertThat(rules.rejects(101L, "BANK_CARD", "VISA", new BigDecimal("20.01"))).isTrue();
+        assertThat(rules.rejects(101L, "BANK_CARD", "MASTERCARD", new BigDecimal("20.01"))).isFalse();
+        assertThat(rules.rejects(101L, "APPLE_PAY", null, new BigDecimal("20.01"))).isFalse();
+        assertThat(rules.rejects(102L, "BANK_CARD", "VISA", new BigDecimal("20.01"))).isFalse();
+    }
     @Test void createOptionsShareAndDisableWorkLocallyAndKeepOnlyLinkFacts() {
         var choices = policy.options(admin, "m1", Options::new);
         assertThat(choices.getCardBrandsByCurrency()).containsEntry("USD", List.of("VISA"));
@@ -177,13 +201,58 @@ class PaymentLinkManagementIntegrationTest {
         assertThat(db.queryForObject("SELECT status FROM payment_link WHERE link_id=?",String.class,link)).isEqualTo("ACTIVE");
     }
 
+    @Test
+    void readsMethodCountryAndDefaultWithoutExpandingTheMidCurrencyScope() {
+        db.update("UPDATE channel_mid_config SET inherit_transaction_currency=1 WHERE id=1");
+        db.update("UPDATE channel_payment_capability SET default_transaction_currency='EUR', allowed_country_scope='ALL' WHERE id=1");
+        db.update("INSERT INTO channel_capability_currency(capability_id,channel_id,channel_code,currency_code,currency_status) VALUES(1,1,'QA','EUR',1)");
+
+        assertThat(capabilities.profile("m1").getRouteOptions()).singleElement().satisfies(option -> {
+            assertThat(option.getAllowedCountryScope()).isEqualTo("ALL");
+            assertThat(option.getCapabilityAllowedCountryScope()).isEqualTo("ALL");
+            assertThat(option.getDefaultTransactionCurrency()).isEqualTo("EUR");
+            assertThat(option.getSupportedCurrencies()).containsExactly("USD");
+        });
+        assertThat(capabilities.resolve("m1", null, "EUR")).isEmpty();
+        assertThat(capabilities.resolve("m1", null, "USD")).singleElement();
+    }
+
+    @Test void keepsBrandCurrencyAndThreeDsIsolatedOnTheSameMid() {
+        db.update("UPDATE channel_mid_config SET card_brand_scope='VISA,MASTERCARD', currency_scope='USD,EUR'");
+        db.update("""
+                INSERT INTO channel_payment_capability
+                    (id,channel_id,channel_code,business_type,payment_method,card_brand,transaction_type,
+                     default_transaction_currency,capability_status,support_3ds)
+                VALUES (2,1,'QA','ACQUIRING','BANK_CARD','MASTERCARD','PAYMENT','EUR',1,0)
+                """);
+        db.update("INSERT INTO channel_capability_currency(capability_id,channel_id,channel_code,currency_code) VALUES(2,1,'QA','EUR')");
+        db.update("INSERT INTO channel_capability_card_brand(capability_id,channel_id,channel_code,card_brand) VALUES(2,1,'QA','MASTERCARD')");
+
+        assertThat(policy.options(admin, "m1", Options::new).getCardBrandsByCurrency())
+                .containsEntry("USD", List.of("VISA"));
+        assertThat(capabilities.resolve("m1", null, "EUR")).singleElement()
+                .satisfies(method -> assertThat(method.getBrands()).containsExactly("MASTERCARD"));
+        assertThatThrownBy(() -> policy.allowedMethods("m1", "USD", List.of("MASTERCARD")))
+                .isInstanceOf(ServiceException.class);
+
+        db.update("INSERT INTO channel_capability_currency(capability_id,channel_id,channel_code,currency_code) VALUES(2,1,'QA','USD')");
+        assertThat(policy.allowedMethods("m1", "USD", List.of("MASTERCARD"))).singleElement()
+                .satisfies(method -> {
+                    assertThat(method.getBrands()).containsExactly("MASTERCARD");
+                    assertThat(method.getThreeDsMode()).isEqualTo("OFF");
+                });
+        db.update("UPDATE channel_payment_capability SET capability_status=0 WHERE id=1");
+        assertThat(policy.options(admin, "m1", Options::new).getCardBrandsByCurrency())
+                .containsEntry("USD", List.of("MASTERCARD"));
+    }
+
     private static Actor actor(String app,String id,String merchant) { var a=new Actor();a.setAppCode(app);a.setActorId(id);a.setMerchantIds(Set.of(merchant));return a; }
     private Create input(String request,String order) { var c=new Create();c.setRequestId(request);c.setMerchantOrderNo(order);c.setCurrency("USD");c.setAmount("10.00");c.setCardBrands(List.of("VISA"));return c; }
     private void seedCapabilities() {
         db.update("INSERT INTO channel_info(id,channel_code,channel_cn_name,channel_en_name,channel_status,support_acquiring) VALUES(1,'QA','测试','Test',1,1)");
-        db.update("INSERT INTO channel_mid_config(id,channel_id,channel_code,channel_mid,mid_name,business_type,payment_method_scope,card_brand_scope,transaction_type_scope,currency_scope,allowed_country_scope,default_transaction_currency,default_settlement_currency,settlement_cycle,settlement_time_zone,mid_status) VALUES(1,1,'QA','QA-MID','Test','ACQUIRING','BANK_CARD','VISA','PAYMENT','USD','ALL','USD','USD','T1','Asia/Shanghai',1)");
+        db.update("INSERT INTO channel_mid_config(id,channel_id,channel_code,channel_mid,mid_name,business_type,payment_method_scope,card_brand_scope,transaction_type_scope,currency_scope,allowed_country_scope,default_transaction_currency,default_settlement_currency,settlement_cycle,settlement_time_zone,mid_status,mcc) VALUES(1,1,'QA','QA-MID','Test','ACQUIRING','BANK_CARD','VISA','PAYMENT','USD','ALL','USD','USD','T1','Asia/Shanghai',1,'5311')");
         db.update("INSERT INTO merchant_channel_mid_binding(merchant_id,channel_id,channel_code,mid_config_id,channel_mid,binding_status) VALUES('m1',1,'QA',1,'QA-MID',1)");
-        db.update("INSERT INTO channel_payment_capability(id,channel_id,channel_code,business_type,payment_method,transaction_type,default_transaction_currency,capability_status,support_3ds) VALUES(1,1,'QA','ACQUIRING','BANK_CARD','PAYMENT','USD',1,1)");
+        db.update("INSERT INTO channel_payment_capability(id,channel_id,channel_code,business_type,payment_method,card_brand,transaction_type,default_transaction_currency,capability_status,support_3ds) VALUES(1,1,'QA','ACQUIRING','BANK_CARD','VISA','PAYMENT','USD',1,1)");
         db.update("INSERT INTO channel_capability_currency(capability_id,channel_id,channel_code,currency_code,currency_status) VALUES(1,1,'QA','USD',1)");
         db.update("INSERT INTO channel_capability_card_brand(capability_id,channel_id,channel_code,card_brand,brand_status) VALUES(1,1,'QA','VISA',1)");
     }

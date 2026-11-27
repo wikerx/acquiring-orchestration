@@ -81,6 +81,12 @@ public final class PaymentLinkManagementModels {
     }
 
     /** 能力查询只含可展示配置，禁止带入 MID 密钥、卡号或付款人资料。 */
+    public record AmountCheck(
+            @NotBlank @Pattern(regexp = "[A-Z]{3}") String currency,
+            @NotBlank @Pattern(regexp = "[0-9]{1,6}(\\.[0-9]{1,2})?") String amount,
+            @jakarta.validation.constraints.NotEmpty @Size(max = 32)
+            List<@NotBlank @Pattern(regexp = "(CARD_BRAND|METHOD):[A-Z][A-Z0-9_]{0,51}") String> paymentMethodKeys) { }
+
     @Data
     public static class AllowedMethod {
         private String paymentMethod;

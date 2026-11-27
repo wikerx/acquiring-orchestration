@@ -1,5 +1,7 @@
 package com.scott.payment.admin.api.channel;
 
+import com.scott.payment.admin.application.base.AdminBaseMccApplicationService;
+import com.scott.payment.admin.dto.base.MccVO;
 import com.scott.payment.admin.application.channel.AdminChannelApplicationService;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigResponse;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
@@ -30,14 +34,25 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 public class AdminChannelMidController {
 
     private final AdminChannelApplicationService channelApplicationService;
+    private final AdminBaseMccApplicationService baseMccService;
 
     /**
      * 创建渠道 MID 配置管理控制器。
      *
      * @param channelApplicationService 渠道配置应用服务
+     * @param baseMccService MCC 目录应用服务
      */
-    public AdminChannelMidController(AdminChannelApplicationService channelApplicationService) {
+    public AdminChannelMidController(AdminChannelApplicationService channelApplicationService,
+                                     AdminBaseMccApplicationService baseMccService) {
         this.channelApplicationService = channelApplicationService;
+        this.baseMccService = baseMccService;
+    }
+
+    /** 查询渠道 MID 新增和编辑使用的 MCC 选项。 */
+    @GetMapping("/mcc-options")
+    @RequiresPermission("channel:mid:list")
+    public CommonResult<List<MccVO.MccOptionVO>> listMccOptions() {
+        return success(baseMccService.mccCodeOptions());
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.scott.payment.admin.api.channel;
 
+import com.scott.payment.admin.application.base.AdminBaseCountryApplicationService;
+import com.scott.payment.admin.dto.base.IsoCountryDTOs;
 import com.scott.payment.admin.application.channel.AdminChannelApplicationService;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
@@ -21,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
@@ -31,14 +35,25 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 public class AdminChannelCapabilityController {
 
     private final AdminChannelApplicationService channelApplicationService;
+    private final AdminBaseCountryApplicationService baseCountryService;
 
     /**
      * 创建渠道能力管理控制器。
      *
      * @param channelApplicationService 渠道配置应用服务
+     * @param baseCountryService 国家地区目录应用服务
      */
-    public AdminChannelCapabilityController(AdminChannelApplicationService channelApplicationService) {
+    public AdminChannelCapabilityController(AdminChannelApplicationService channelApplicationService,
+                                            AdminBaseCountryApplicationService baseCountryService) {
         this.channelApplicationService = channelApplicationService;
+        this.baseCountryService = baseCountryService;
+    }
+
+    /** 查询可用于配置渠道能力的启用国家地区。 */
+    @GetMapping("/country-options")
+    @RequiresPermission("channel:capability:list")
+    public CommonResult<List<IsoCountryDTOs.Response>> listCountryOptions() {
+        return success(baseCountryService.pageCountries(1, 1000, null, null, 1).getRecords());
     }
 
     /**

@@ -365,7 +365,7 @@ public class PaymentTransactionLogicalMapperPocTest {
                     + "channel_match_fail_reason VARCHAR(512), settlement_batch_no VARCHAR(19), "
                     + "settlement_transaction_id VARCHAR(64), settlement_transaction_date_time TIMESTAMP(3), "
                     + "reconciliation_batch_no VARCHAR(64), channel_id BIGINT, channel_code VARCHAR(32), "
-                    + "channel_mid_config_id BIGINT, channel_merchant_id VARCHAR(128), channel_order_no VARCHAR(128), "
+                    + "channel_mid_config_id BIGINT, channel_merchant_id VARCHAR(128), channel_order_no VARCHAR(128), channel_authorization_id VARCHAR(128), "
                     + "internal_risk_decision VARCHAR(32), internal_risk_record_no VARCHAR(64), "
                     + "merchant_website VARCHAR(512), callback_url VARCHAR(512), redirect_url VARCHAR(512), "
                     + "language VARCHAR(20), transaction_date_time TIMESTAMP(3) NOT NULL, "

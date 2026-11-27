@@ -15,6 +15,7 @@ import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.link.service.ChannelSingleAmountLimits;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.config.MerchantNotificationProperties;
@@ -48,10 +49,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /** dev 专用钱包渠道适配，使用渠道路由接入挡板并隔离资金交易。 */
 @Service
@@ -61,13 +64,13 @@ public class CheckoutWalletSimulationService {
     private static final String CHANNEL = "SCOTT_CHANNEL_A";
     private static final String ATTEMPT_PREFIX = "DEV-INTERACTIVE-";
     private static final String CHANNEL_ORDER_PREFIX = "DEV-IW-";
+    private static final Pattern ORDER_NUMBER = Pattern.compile("[0-9]{16,32}");
     private static final String CHANNEL_NOTIFY_PATH = "/channel/v1/callbacks/SCOTT_CHANNEL_A";
     private static final String CHANNEL_RETURN_PATH = "/checkout/api/v1/wallet/authorization/return";
     private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
     // 旧尝试创建时只支持同机挡板，须沿用原请求参数才能向挡板幂等查单、提交。
     private static final String LEGACY_CHANNEL_BASE_URL = "http://127.0.0.1:58090";
     private static final String LEGACY_CALLBACK_BASE_URL = "http://127.0.0.1:8000";
-    private static final BigDecimal MAX_AMOUNT = new BigDecimal("10000.00");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final PaymentChannelRouteService routes;
@@ -85,6 +88,9 @@ public class CheckoutWalletSimulationService {
     private final MerchantNotificationProperties notificationProperties;
     private final CheckoutWalletTransactionLedger ledger;
     private final PaymentLinkCheckoutGuard linkGuard;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private ChannelSingleAmountLimits singleAmountLimits;
 
     public CheckoutWalletSimulationService(PaymentChannelRouteService routes, PaymentExchangeRateService exchangeRates,
             IsoDictionaryService isoDictionary, Optional<HostedWalletSimulator> channel,
@@ -137,11 +143,18 @@ public class CheckoutWalletSimulationService {
     /** 试单身份命名空间与银行卡、旧模拟模式和正式渠道相互隔离。 */
     public boolean isSimulationAttempt(PaymentCheckoutAttemptDO attempt) {
         return attempt != null && StringUtils.hasText(attempt.getMerchantId())
+                && StringUtils.hasText(attempt.getCheckoutAttemptId())
                 && CHANNEL.equals(attempt.getChannelCode())
                 && PaymentLinkMethodScope.supportsDevelopmentWallet(attempt.getPaymentMethod())
                 && attempt.getAttemptRequestId() != null
                 && attempt.getAttemptRequestId().startsWith(ATTEMPT_PREFIX + attempt.getPaymentMethod())
-                && (CHANNEL_ORDER_PREFIX + attempt.getCheckoutAttemptId()).equals(attempt.getChannelOrderNo());
+                && (simulationOrderMarker(attempt).equals(attempt.getChannelOrderNo())
+                    || Objects.equals(attempt.getCheckoutAttemptId(), attempt.getChannelOrderNo()));
+    }
+
+    /** 交易记录沿用内部挡板标识，继续执行钱包专用回调、清分和后续资金动作限制。 */
+    static String simulationOrderMarker(PaymentCheckoutAttemptDO attempt) {
+        return CHANNEL_ORDER_PREFIX + attempt.getCheckoutAttemptId();
     }
 
     static boolean isSimulationOrder(String channelCode, String channelOrderNo) {
@@ -155,6 +168,11 @@ public class CheckoutWalletSimulationService {
 
     public Map<String, String> execute(PaymentCheckoutSessionDO session, String method, String action, boolean linked,
                                        PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing) {
+        return execute(session, method, action, linked, billing, null);
+    }
+
+    public Map<String, String> execute(PaymentCheckoutSessionDO session, String method, String action, boolean linked,
+                                       PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing, String requestId) {
         if (!supports(session, method)) {
             throw unavailable();
         }
@@ -165,7 +183,7 @@ public class CheckoutWalletSimulationService {
             String callbackGateway = resolveCallbackGateway(route);
             attempt = transactions.execute(tx -> {
                 if (linked) linkGuard.requireNewSubmissionAllowed(session.getCheckoutSessionId(), now());
-                return reserveAttempt(session, method, route, callbackGateway);
+                return reserveAttempt(session, method, route, callbackGateway, linked, billing, requestId);
             });
         } else {
             attempt = attempts.selectLatestWalletAttempt(session.getCheckoutSessionId(), method);
@@ -175,13 +193,17 @@ public class CheckoutWalletSimulationService {
                 || !Objects.equals(attempt.getChannelMidConfigId(), route.getMidConfigId())) {
             throw unavailable();
         }
+        if (ChannelSingleAmountLimits.FAILURE_CODE.equals(attempt.getFailureReasonCode())) {
+            return Map.of("state", "FAILED", "reasonCode", ChannelSingleAmountLimits.PUBLIC_CODE,
+                    "transactionId", attempt.getTransactionId());
+        }
         if ("OPEN".equals(action) && !StringUtils.hasText(attempt.getChannelTransactionId())) {
             throw unavailable();
         }
         if ("STATUS".equals(action)) {
             return synchronize(session, attempt);
         }
-        if (linked && "OPEN".equals(action) && !isActive(session, attempt)) {
+        if ((linked || billing != null) && "OPEN".equals(action) && !isActive(session, attempt)) {
             requireRoute(route(session, method, billing), attempt.getChannelMidConfigId());
         }
         WalletEndpoints endpoints = walletEndpoints(session, attempt);
@@ -190,7 +212,7 @@ public class CheckoutWalletSimulationService {
         Result result;
         try {
             // 同一订单号、相同参数重试，渠道回读原订单及授权页。
-            result = channel.prepare(order, returnUrl, endpoints.callbackBaseUrl() + CHANNEL_NOTIFY_PATH);
+            result = channel.prepare(order, returnUrl, channelNotifyUrl(endpoints));
         } catch (RuntimeException exception) {
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
         }
@@ -203,7 +225,7 @@ public class CheckoutWalletSimulationService {
             PaymentCheckoutAttemptDO current = attempt;
             transactions.executeWithoutResult(tx -> {
                 if (linked) linkGuard.requireNewSubmissionAllowed(session.getCheckoutSessionId(), now());
-                activateAttempt(current, route, billing);
+                activateAttempt(current, route, billing, linked);
             });
         }
         State state = result.state() == State.APPROVED ? State.PROCESSING : result.state();
@@ -232,25 +254,35 @@ public class CheckoutWalletSimulationService {
 
     /** 使用已验签且可靠入箱的渠道事件；回调、提交及查单共享同一终态写入。 */
     public boolean acceptCallback(TransactionChannelCallbackCommandDTO command) {
-        String order = command.getExtension() == null ? null : command.getExtension().get("merchantOrderNo");
-        if (!CHANNEL.equals(command.getChannelCode())
-                || order == null || !order.matches(CHANNEL_ORDER_PREFIX + "[0-9]{16,32}")) {
+        var extension = command.getExtension();
+        if (!CHANNEL.equals(command.getChannelCode()) || extension == null) {
+            return false;
+        }
+        String order = extension.get("merchantOrderNo");
+        String method = extension.get("paymentMethod");
+        boolean legacy = isSimulationOrder(CHANNEL, order);
+        String attemptId = legacy ? order.substring(CHANNEL_ORDER_PREFIX.length()) : order;
+        if (attemptId == null || !ORDER_NUMBER.matcher(attemptId).matches()
+                || (!legacy && !PaymentLinkMethodScope.supportsDevelopmentWallet(method))) {
+            return false;
+        }
+        PaymentCheckoutAttemptDO attempt = attempts.selectByCheckoutAttemptId(attemptId);
+        if (!legacy && !isSimulationAttempt(attempt)) {
             return false;
         }
         if (!Boolean.TRUE.equals(command.getSignatureValid()) || !Boolean.TRUE.equals(command.getIpAllowed())
                 || !"FINANCIAL_TRANSACTION".equals(command.getCallbackKind())) {
             throw unauthorized();
         }
-        PaymentCheckoutAttemptDO attempt = attempts.selectByCheckoutAttemptId(order.substring(CHANNEL_ORDER_PREFIX.length()));
         PaymentRouteResultDTO route = restoreRoute(attempt);
         if (!Objects.equals(route.getMidNo(), command.getChannelCredentialHint())) {
             throw unauthorized();
         }
-        if (!isSimulationAttempt(attempt) || !order.equals(attempt.getChannelOrderNo())
+        if (!order.equals(attempt.getChannelOrderNo())
                 || !Objects.equals(attempt.getChannelTransactionId(), command.getChannelTransactionId())
                 || !Objects.equals(attempt.getChannelRequestCurrency(), command.getCurrency())
                 || command.getAmount() == null || attempt.getChannelRequestAmount().compareTo(command.getAmount()) != 0
-                || !attempt.getPaymentMethod().equals(command.getExtension().get("paymentMethod"))) {
+                || !attempt.getPaymentMethod().equals(method)) {
             throw unavailable();
         }
         State terminal = switch (Objects.toString(command.getRawChannelStatus(), "")) {
@@ -264,12 +296,25 @@ public class CheckoutWalletSimulationService {
     }
 
     private PaymentCheckoutAttemptDO reserveAttempt(PaymentCheckoutSessionDO source, String method,
-                                                     PaymentRouteResultDTO route, String callbackGateway) {
+                                                     PaymentRouteResultDTO route, String callbackGateway, boolean linked,
+                                                     PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing,
+                                                     String requestId) {
         PaymentCheckoutSessionDO session = sessions.selectByCheckoutSessionIdForUpdate(source.getCheckoutSessionId());
         if (!supports(session, method)) {
             throw unavailable();
         }
+        String requestKey = requestId == null ? null : ATTEMPT_PREFIX + method + "-R-" + requestId;
+        if (requestKey != null) {
+            var previousRequest = attempts.selectByAttemptRequest(session.getCheckoutSessionId(), requestKey);
+            if (previousRequest != null && belongsTo(session, previousRequest)) {
+                return previousRequest;
+            }
+        }
         PaymentCheckoutAttemptDO existing = attempts.selectLatestWalletAttempt(session.getCheckoutSessionId(), method);
+        if (requestKey == null && existing != null
+                && ChannelSingleAmountLimits.FAILURE_CODE.equals(existing.getFailureReasonCode())) {
+            return existing;
+        }
         if (existing != null && persistedState(existing) == State.PROCESSING) {
             if (!belongsTo(session, existing)
                     || (!PaymentCheckoutPayability.mayStart(session, now()) && !isActive(session, existing))) {
@@ -289,7 +334,7 @@ public class CheckoutWalletSimulationService {
         Integer previous = attempts.selectMaxAttemptNo(session.getCheckoutSessionId());
         int attemptNo = previous == null ? 1 : previous + 1;
         attempt.setAttemptNo(attemptNo);
-        attempt.setAttemptRequestId(ATTEMPT_PREFIX + method + "-" + attemptNo);
+        attempt.setAttemptRequestId(requestKey == null ? ATTEMPT_PREFIX + method + "-" + attemptNo : requestKey);
         attempt.setRequestFingerprint(ATTEMPT_PREFIX + method + "-" + attemptNo);
         attempt.setAttemptStatus("PROCESSING");
         attempt.setProcessStage("WAITING_PAYER");
@@ -297,13 +342,22 @@ public class CheckoutWalletSimulationService {
         attempt.setLabelAmount(session.getLabelAmount());
         attempt.setLabelCurrency(normalizeCurrency(session.getLabelCurrency()));
         var endpoints = configuredWalletEndpoints(session, route, callbackGateway);
-        ChannelAmountPlan amountPlan = channelAmountPlan(session, route, now, endpoints);
+        String routedCurrency = normalizeCurrency(route.getRoutedCurrency());
+        if (!StringUtils.hasText(routedCurrency) && route.isEdcRequired()) {
+            throw unavailable();
+        }
+        ChannelAmountPlan amountPlan = channelAmountPlan(session,
+                firstText(routedCurrency, normalizeCurrency(session.getLabelCurrency())), now, endpoints);
+        if (!validOrderAmount(amountPlan.amount(), amountPlan.currency())) {
+            throw unavailable();
+        }
         attempt.setChannelRequestAmount(amountPlan.amount());
         attempt.setChannelRequestCurrency(amountPlan.currency());
         attempt.setResultSnapshot(JsonUtils.toJsonString(amountPlan.quote()));
         attempt.setChannelCode(route.getChannelCode());
         attempt.setChannelMidConfigId(route.getMidConfigId());
-        attempt.setChannelOrderNo(CHANNEL_ORDER_PREFIX + attempt.getCheckoutAttemptId());
+        // 预留的全局号同时定位收银台尝试，OPEN 时才作为平台交易号正式建单。
+        attempt.setChannelOrderNo(attempt.getCheckoutAttemptId());
         attempt.setSubmitTime(now);
         attempt.setTransactionDateTime(now);
         attempt.setThreeDsRequired(0);
@@ -311,12 +365,44 @@ public class CheckoutWalletSimulationService {
         attempt.setDeleted(0);
         attempt.setCreateTime(now);
         attempt.setUpdateTime(now);
-        attempts.insert(attempt);
+        if (rejectsAmount(route, method, amountPlan)) {
+            recordAmountRejection(session, attempt, route, amountPlan.quote(), linked, billing, now);
+        } else {
+            attempts.insert(attempt);
+        }
         return attempt;
     }
 
+    private boolean rejectsAmount(PaymentRouteResultDTO route, String method, ChannelAmountPlan plan) {
+        return ChannelSingleAmountLimits.exceedsDevelopmentWalletMaximum(plan.amount())
+                || (singleAmountLimits != null && route.getChannelId() != null
+                && singleAmountLimits.load(List.of(route.getChannelId()), plan.currency())
+                        .rejects(route.getChannelId(), method, null, plan.amount()));
+    }
+
+    private void recordAmountRejection(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt,
+                                       PaymentRouteResultDTO route, CheckoutWalletTransactionLedger.Quote quote,
+                                       boolean linked, PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing,
+                                       LocalDateTime now) {
+        var identity = ledger.rejectAmount(session, attempt, route, quote, linked, billing);
+        attempt.setTransactionId(identity.transactionId());
+        attempt.setOperationId(identity.operationId());
+        attempt.setAttemptStatus("FAILED");
+        attempt.setProcessStage("RESULT_RENDERED");
+        attempt.setChannelStatus("FAILED");
+        attempt.setFailureReasonCode(ChannelSingleAmountLimits.FAILURE_CODE);
+        attempt.setFailureReasonMessage(ChannelSingleAmountLimits.FAILURE_MESSAGE);
+        attempt.setCompleteTime(now);
+        attempt.setResultSnapshot(null);
+        if (attempts.insert(attempt) != 1 || sessions.markSubmittedCas(session.getCheckoutSessionId(),
+                "FAILED", "RESULT_RENDERED", identity.transactionId(), identity.operationId(),
+                now, attempt.getCheckoutAttemptId(), session.getVersion(), now) != 1) {
+            throw unavailable();
+        }
+    }
+
     private void activateAttempt(PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route,
-                                 PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing) {
+                                 PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing, boolean linked) {
         PaymentCheckoutSessionDO session = sessions.selectByCheckoutSessionIdForUpdate(attempt.getCheckoutSessionId());
         PaymentCheckoutAttemptDO current = attempts.selectByCheckoutAttemptId(attempt.getCheckoutAttemptId());
         if (!supports(session, attempt.getPaymentMethod()) || !isSimulationAttempt(current)
@@ -341,9 +427,9 @@ public class CheckoutWalletSimulationService {
         CheckoutWalletTransactionLedger.Identity identity = null;
         if (StringUtils.hasText(current.getResultSnapshot())) {
             var quote = JsonUtils.parseObject(current.getResultSnapshot(), CheckoutWalletTransactionLedger.Quote.class);
-            // OPEN 才正式建单，分片时间必须与这次生成的平台交易号处于同一业务窗口。
+            // OPEN 才正式建单，交易定位表保存实际分片时间，预留编号不改变交易发生时间。
             current.setTransactionDateTime(now);
-            identity = ledger.open(session, current, route, quote, billing != null);
+            identity = ledger.open(session, current, route, quote, linked);
             if (attempts.bindWalletCoreIdentity(current.getCheckoutAttemptId(), identity.transactionId(),
                     identity.operationId(), identity.requestId(), current.getVersion(), now) != 1) {
                 throw unavailable();
@@ -569,17 +655,11 @@ public class CheckoutWalletSimulationService {
                 "amount", formatAmount(attempt.getLabelAmount(), attempt.getLabelCurrency()));
     }
 
+
     /** 钱包沿用支付核心 EDC 方向：标签币种乘以交易汇率，且只在渠道目标币种精度处舍入一次。 */
-    private ChannelAmountPlan channelAmountPlan(PaymentCheckoutSessionDO session, PaymentRouteResultDTO route,
+    private ChannelAmountPlan channelAmountPlan(PaymentCheckoutSessionDO session, String routedCurrency,
                                                 LocalDateTime rateTime, WalletEndpoints endpoints) {
         String labelCurrency = normalizeCurrency(session.getLabelCurrency());
-        String routedCurrency = normalizeCurrency(route.getRoutedCurrency());
-        if (!StringUtils.hasText(routedCurrency)) {
-            if (route.isEdcRequired()) {
-                throw unavailable();
-            }
-            routedCurrency = labelCurrency;
-        }
         BigDecimal channelAmount = session.getLabelAmount();
         int labelExponent = currencyExponent(labelCurrency);
         int channelExponent = labelCurrency.equals(routedCurrency) ? labelExponent : currencyExponent(routedCurrency);
@@ -600,17 +680,11 @@ public class CheckoutWalletSimulationService {
         } else {
             channelAmount = channelAmount.setScale(channelExponent, RoundingMode.UNNECESSARY);
         }
-        if (!validChannelAmount(channelAmount, routedCurrency)) {
-            throw unavailable();
-        }
         return new ChannelAmountPlan(routedCurrency, channelAmount,
                 new CheckoutWalletTransactionLedger.Quote(
                         labelExponent, channelExponent, lockedRate, rateSource, lockedRateTime, endpoints));
     }
 
-    private boolean validChannelAmount(BigDecimal amount, String currency) {
-        return validOrderAmount(amount, currency) && amount.compareTo(MAX_AMOUNT) <= 0;
-    }
 
     private boolean validOrderAmount(BigDecimal amount, String currency) {
         return amount != null && amount.signum() > 0
@@ -687,6 +761,10 @@ public class CheckoutWalletSimulationService {
                 ? JsonUtils.parseObject(attempt.getResultSnapshot(), CheckoutWalletTransactionLedger.Quote.class) : null;
         return quote != null && quote.walletEndpoints() != null ? quote.walletEndpoints()
                 : new WalletEndpoints(LEGACY_CHANNEL_BASE_URL, checkoutGatewayBase(session), LEGACY_CALLBACK_BASE_URL);
+    }
+
+    static String channelNotifyUrl(WalletEndpoints endpoints) {
+        return endpoints.callbackBaseUrl() + CHANNEL_NOTIFY_PATH;
     }
 
     private String normalizeGatewayBase(String value) {

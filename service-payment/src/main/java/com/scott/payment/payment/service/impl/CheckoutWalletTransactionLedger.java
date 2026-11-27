@@ -8,6 +8,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.link.service.ChannelSingleAmountLimits;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
@@ -53,16 +54,40 @@ class CheckoutWalletTransactionLedger {
         this.lifecycleEvents = lifecycleEvents;
     }
 
+    /** 钱包在调用渠道前被单笔限额拒绝时，仍记录失败交易、商户幂等和状态事件。 */
+    Identity rejectAmount(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route,
+                          Quote quote, boolean linked, PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing) {
+        var identity = new Identity(attempt.getCheckoutAttemptId(), "OP" + ids.nextId(), null);
+        var command = command(session, attempt, identity, quote, linked);
+        if (billing != null) {
+            command.setBillingCardHolderInfo(billing);
+        }
+        var stopped = result(command, identity, PaymentTransactionStatusEnum.FAILED, PaymentProcessStageEnum.FINISHED,
+                ChannelSingleAmountLimits.FAILURE_CODE, ChannelSingleAmountLimits.FAILURE_MESSAGE);
+        String flowKey = idempotency.buildMerchantOrderFlowKey(command.getMerchantId(), command.getMerchantOrderNo());
+        reserveMerchantOrderFlow(command, attempt.getCheckoutAttemptId(), flowKey);
+        records.recordInitialTransaction(command, auditRoute(route), null, stopped, null, quote.channelExponent());
+        idempotency.complete(ORDER_FLOW_SCOPE, flowKey, identity.operationId(), identity.transactionId(),
+                stopped.getStatus(), command.getTransactionAmount(), command.getTransactionCurrency(),
+                JsonUtils.toJsonString(stopped));
+        lifecycleEvents.saveStatusChanged(identity.transactionId(), identity.operationId(), command.getMerchantId(),
+                command.getMerchantOrderNo(), PAYMENT, stopped.getStatus(), command.getTransactionDateTime());
+        return identity;
+    }
+
     Identity open(PaymentCheckoutSessionDO session, PaymentCheckoutAttemptDO attempt, PaymentRouteResultDTO route,
                   Quote quote, boolean linked) {
-        var identity = new Identity(ids.nextId(), "OP" + ids.nextId(),
+        boolean legacy = CheckoutWalletSimulationService.isSimulationOrder(
+                attempt.getChannelCode(), attempt.getChannelOrderNo());
+        String transactionId = legacy ? ids.nextId() : attempt.getChannelOrderNo();
+        var identity = new Identity(transactionId, "OP" + ids.nextId(),
                 PaymentOrderNoGenerator.nextOrderNo("CRQ", attempt.getTransactionDateTime()));
         var command = command(session, attempt, identity, quote, linked);
         var result = result(command, identity, PaymentTransactionStatusEnum.PROCESSING,
                 PaymentProcessStageEnum.WAITING_CALLBACK, null, null);
         String flowKey = idempotency.buildMerchantOrderFlowKey(command.getMerchantId(), command.getMerchantOrderNo());
         reserveMerchantOrderFlow(command, attempt.getCheckoutAttemptId(), flowKey);
-        records.recordInitialTransaction(command, auditRoute(route), evidence(command, attempt, identity, null),
+        records.recordInitialTransaction(command, auditRoute(route), evidence(command, attempt, identity, quote, null),
                 result, null, quote.channelExponent());
         idempotency.complete(ORDER_FLOW_SCOPE, flowKey, identity.operationId(), identity.transactionId(),
                 result.getStatus(), command.getTransactionAmount(), command.getTransactionCurrency(),
@@ -93,14 +118,16 @@ class CheckoutWalletTransactionLedger {
         var command = command(session, attempt, identity, quote, linked);
         var status = terminal == State.SUCCESS ? PaymentTransactionStatusEnum.SUCCESS : PaymentTransactionStatusEnum.FAILED;
         var result = result(command, identity, status, PaymentProcessStageEnum.FINISHED, failureCode, failureMessage);
-        // 旧版待授权占位与本次终态在同一个事务中替换，失败时原占位随事务一起恢复。
-        int reset = interactionLogs.resetWalletPreparationPlaceholder(identity.requestId(), attempt.getTransactionDateTime(),
-                identity.transactionId(), attempt.getChannelOrderNo(), attempt.getChannelTransactionId());
-        if (reset > 1) {
-            throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
+        if (CheckoutWalletSimulationService.isSimulationOrder(attempt.getChannelCode(), attempt.getChannelOrderNo())) {
+            // 旧版待授权占位与本次终态在同一个事务中替换。
+            int reset = interactionLogs.resetWalletPreparationPlaceholder(identity.requestId(), attempt.getTransactionDateTime(),
+                    identity.transactionId(), attempt.getChannelOrderNo(), attempt.getChannelTransactionId());
+            if (reset > 1) {
+                throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
+            }
         }
         if (!records.completeInitialChannelResultAndReport(command, auditRoute(route),
-                evidence(command, attempt, identity, terminal), result, null, quote.channelExponent())) {
+                evidence(command, attempt, identity, quote, terminal), result, null, quote.channelExponent())) {
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
         }
         lifecycleEvents.saveStatusChanged(identity.transactionId(), identity.operationId(), command.getMerchantId(),
@@ -164,13 +191,17 @@ class CheckoutWalletTransactionLedger {
     }
 
     private PaymentChannelInvokeResultDTO evidence(PaymentCreateCommandDTO command, PaymentCheckoutAttemptDO attempt,
-                                                    Identity identity, State terminal) {
+                                                    Identity identity, Quote quote, State terminal) {
         var request = new ChannelPaymentRequest();
         request.setTransactionId(identity.transactionId());
         request.setOperationId(identity.operationId());
         request.setChannelCode(attempt.getChannelCode());
-        request.setChannelOrderNo(attempt.getChannelOrderNo());
+        request.setChannelOrderNo(CheckoutWalletSimulationService.simulationOrderMarker(attempt));
         request.setChannelTransactionId(attempt.getChannelTransactionId());
+        request.getExtension().put("channelMerchantReference", attempt.getChannelOrderNo());
+        if (quote.walletEndpoints() != null) {
+            request.setChannelCallbackUrl(CheckoutWalletSimulationService.channelNotifyUrl(quote.walletEndpoints()));
+        }
         request.setMerchantId(command.getMerchantId());
         request.setMerchantOrderNo(command.getMerchantOrderNo());
         request.setMerchantOrderId(command.getMerchantOrderId());

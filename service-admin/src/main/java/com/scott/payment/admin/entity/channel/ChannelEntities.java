@@ -138,6 +138,8 @@ public final class ChannelEntities {
          * 允许交易国家，ALL 或 ISO 国家码逗号分隔。
          */
         private String allowedCountryScope;
+        /** 收单路由按本次渠道能力取默认交易币种。 */
+        private Integer inheritTransactionCurrency;
         /**
          * 默认交易币种；标签币种不被渠道支持时，未来初始交易转换为该币种。
          */
@@ -364,6 +366,8 @@ public final class ChannelEntities {
     @Data
     @TableName("channel_payment_capability")
     public static class ChannelPaymentCapabilityDO {
+        /** 收单渠道能力允许的账单国家范围，首批为 ALL。 */
+        private String allowedCountryScope;
         @TableId(type = IdType.AUTO)
         private Long id;
         private Long channelId;
@@ -376,6 +380,8 @@ public final class ChannelEntities {
          */
         private String businessType;
         private String paymentMethod;
+        /** 收单卡品牌配置键，其他能力使用 NONE。 */
+        private String cardBrand;
         /**
          * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
          */

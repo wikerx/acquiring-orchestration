@@ -66,6 +66,9 @@ docs/sql/*
 !docs/sql/20261121_02_transaction_callback_delivery_payload.sql
 !docs/sql/20261121_12_scott_channel_request_identity.sql
 !docs/sql/20261124_01_reserve_action_query_index.sql
+!docs/sql/20261127_01_acquiring_channel_method_scope_migration.sql
+!docs/sql/20261127_02_acquiring_card_brand_capabilities.sql
+!docs/sql/20261127_03_transaction_chinese_comments_repair.sql
 !docs/sql/20261117_01_payment_link_schema.sql
 !docs/sql/20261117_02_payment_link_mail.sql
 !docs/sql/20261117_03_payment_link_permissions.sql

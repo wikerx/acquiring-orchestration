@@ -117,6 +117,7 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
     private final ChannelInfoMapper channelInfoMapper;
     private final ChannelMidConfigMapper midConfigMapper;
     private final MerchantChannelMidBindingMapper midBindingMapper;
+    private final AcquiringMidCapabilityProjection midCapabilities;
 
     public AdminPaymentRouteServiceImpl(PaymentRouteRuleMapper ruleMapper,
                                         PaymentRouteRuleMerchantMapper ruleMerchantMapper,
@@ -127,7 +128,8 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
                                         PaymentRouteChangeLogMapper changeLogMapper,
                                         ChannelInfoMapper channelInfoMapper,
                                         ChannelMidConfigMapper midConfigMapper,
-                                        MerchantChannelMidBindingMapper midBindingMapper) {
+                                        MerchantChannelMidBindingMapper midBindingMapper,
+                                        AcquiringMidCapabilityProjection midCapabilities) {
         this.ruleMapper = ruleMapper;
         this.ruleMerchantMapper = ruleMerchantMapper;
         this.strategyMapper = strategyMapper;
@@ -138,6 +140,7 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
         this.channelInfoMapper = channelInfoMapper;
         this.midConfigMapper = midConfigMapper;
         this.midBindingMapper = midBindingMapper;
+        this.midCapabilities = midCapabilities;
     }
 
     /** 查询规则列表，并批量装配策略和候选，避免按行重复访问数据库。 */
@@ -1291,7 +1294,7 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
     /** 候选展示名称来自现有渠道和 MID 主数据，不在路由表重复保存。 */
     private CandidateReferenceMaps loadCandidateReferences(List<PaymentRouteCandidateDO> candidates) {
         if (candidates == null || candidates.isEmpty()) {
-            return new CandidateReferenceMaps(Map.of(), Map.of());
+            return new CandidateReferenceMaps(Map.of(), Map.of(), midCapabilities.load(Set.of()));
         }
         Set<Long> channelIds = candidates.stream().map(PaymentRouteCandidateDO::getChannelId).collect(Collectors.toSet());
         Set<Long> midIds = candidates.stream().map(PaymentRouteCandidateDO::getMidConfigId).collect(Collectors.toSet());
@@ -1303,7 +1306,7 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
                         .in(ChannelMidConfigDO::getId, midIds)
                         .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED))
                 .stream().collect(Collectors.toMap(ChannelMidConfigDO::getId, Function.identity()));
-        return new CandidateReferenceMaps(channels, mids);
+        return new CandidateReferenceMaps(channels, mids, midCapabilities.load(channelIds));
     }
 
     private RouteRuleResponse toResponse(PaymentRouteRuleDO rule,
@@ -1395,7 +1398,8 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
                                 Comparator.nullsLast(String::compareTo))
                         .thenComparing(PaymentRouteCandidateDO::getCardBrand, Comparator.nullsLast(String::compareTo))
                         .thenComparing(PaymentRouteCandidateDO::getCandidatePriority))
-                .map(item -> toCandidateResponse(item, references.channels().get(item.getChannelId()), references.mids().get(item.getMidConfigId())))
+                .map(item -> toCandidateResponse(item, references.channels().get(item.getChannelId()),
+                        references.mids().get(item.getMidConfigId()), references.capabilities()))
                 .toList());
         return response;
     }
@@ -1414,7 +1418,8 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
 
     private RouteCandidateResponse toCandidateResponse(PaymentRouteCandidateDO candidate,
                                                        ChannelInfoDO channel,
-                                                       ChannelMidConfigDO mid) {
+                                                       ChannelMidConfigDO mid,
+                                                       AcquiringMidCapabilityProjection.Snapshot capabilities) {
         RouteCandidateResponse response = new RouteCandidateResponse();
         response.setId(candidate.getId());
         response.setPaymentMethod(candidate.getPaymentMethod());
@@ -1426,8 +1431,16 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
         response.setChannelMid(mid == null ? null : mid.getChannelMid());
         response.setMidName(mid == null ? null : mid.getMidName());
         response.setPaymentMethodScope(mid == null ? null : mid.getPaymentMethodScope());
-        response.setCurrencyScope(mid == null ? null : mid.getCurrencyScope());
-        response.setDefaultTransactionCurrency(mid == null ? null : mid.getDefaultTransactionCurrency());
+        if (mid != null) {
+            var matches = capabilities.describe(mid, normalize(candidate.getPaymentMethod())).stream()
+                    .filter(capability -> AcquiringMidCapabilityProjection.Snapshot.includesBrand(capability, response.getCardBrand()))
+                    .toList();
+            response.setCurrencyScope(String.join(",", matches.stream()
+                    .flatMap(capability -> capability.currencyCodes().stream()).distinct().toList()));
+            List<String> defaults = matches.stream().map(capability -> capability.defaultTransactionCurrency())
+                    .filter(Objects::nonNull).distinct().toList();
+            response.setDefaultTransactionCurrency(defaults.size() == 1 ? defaults.get(0) : null);
+        }
         response.setMidStatus(mid == null ? null : mid.getMidStatus());
         response.setCandidatePriority(candidate.getCandidatePriority());
         response.setCandidateWeight(toPlainString(candidate.getCandidateWeight()));
@@ -1740,7 +1753,8 @@ public class AdminPaymentRouteServiceImpl implements AdminPaymentRouteService {
     }
 
     private record CandidateReferenceMaps(Map<Long, ChannelInfoDO> channels,
-                                          Map<Long, ChannelMidConfigDO> mids) {
+                                          Map<Long, ChannelMidConfigDO> mids,
+                                          AcquiringMidCapabilityProjection.Snapshot capabilities) {
     }
 
     private record PaymentScopeKey(String paymentMethod, String cardBrand) {

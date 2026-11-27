@@ -108,6 +108,35 @@ class DefaultPaymentTransactionPreparationServiceTests {
     }
 
     @Test
+    void shouldPersistHostedCardAmountRejectionBeforePreparingAnyChannelRequest() {
+        PreparationFixture fixture = new PreparationFixture();
+        fixture.allowFreshRequest();
+        var limits = mock(com.scott.payment.link.service.ChannelSingleAmountLimits.class);
+        var rules = mock(com.scott.payment.link.service.ChannelSingleAmountLimits.Rules.class);
+        when(limits.load(java.util.List.of(101L), "USD")).thenReturn(rules);
+        when(rules.rejects(eq(101L), eq("BANK_CARD"), eq("VISA"),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(amount -> amount != null
+                        && amount.compareTo(new BigDecimal("11.00")) == 0))).thenReturn(true);
+        org.springframework.test.util.ReflectionTestUtils.setField(fixture.service, "singleAmountLimits", limits);
+        var command = fixture.command();
+        command.setRequestSource("HOSTED_CHECKOUT");
+        var card = new PaymentCreateCommandDTO.TransactionInfoDTO();
+        card.setCardBrand("VISA");
+        command.setTransactionInfo(card);
+
+        var result = fixture.service.prepareInitialTransaction(command, "PAYMENT");
+
+        assertThat(result.isCallChannel()).isFalse();
+        var persisted = org.mockito.ArgumentCaptor.forClass(
+                com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO.class);
+        verify(fixture.recordService).recordInitialTransaction(eq(command), any(),
+                org.mockito.ArgumentMatchers.isNull(), persisted.capture(), any(), eq(2));
+        assertThat(persisted.getValue().getStatus()).isEqualTo("FAILED");
+        assertThat(persisted.getValue().getFailReasonCode()).isEqualTo("SINGLE_AMOUNT_LIMIT_EXCEEDED");
+        assertThat(fixture.transactionManager.commitCount).isEqualTo(1);
+    }
+
+    @Test
     void shouldReturnExistingDuplicateBeforeRiskAndTransactionStart() {
         PreparationFixture fixture = new PreparationFixture();
         TransactionIdempotencyDO existing = existingResult();

@@ -292,8 +292,10 @@ class DefaultPaymentCheckoutServiceTests {
         // 再由独立的 Hosted 非卡核验结果写入钱包，避免未核验方式或重复项混入页面。
         when(capabilities.resolveAllowedMethods(command.getMerchantId(), command.getAllowedPaymentMethods()))
                 .thenReturn(List.of(card, applePay, payPal));
-        when(capabilities.resolveHostedNonCardMethods(command.getMerchantId(), "HKD", null, null))
-                .thenReturn(List.of(applePay, payPal));
+        command.setBillingInfoJson("{\"country\":\"USA\"}");
+        when(capabilities.resolveHostedNonCardCountryScopes(command.getMerchantId(), "HKD", null))
+                .thenReturn(Map.of("APPLE_PAY", Map.of("ALL", false, "DEU", true),
+                        "PAYPAL", Map.of("ALL", true)));
         var sessionCaptor = ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
 
         service.createSession(command);
@@ -302,17 +304,15 @@ class DefaultPaymentCheckoutServiceTests {
         var session = sessionCaptor.getValue();
         assertThat(session.getChannelCode()).isEqualTo("MOCK_CARD_CHANNEL");
         assertThat(session.getSelectedPaymentMethod()).isEqualTo("BANK_CARD");
-        assertThat(applePay.isHostedNonCardVerified()).isTrue();
-        assertThat(payPal.isHostedNonCardVerified()).isTrue();
         assertThat(card.isHostedNonCardVerified()).isFalse();
-        assertThat(session.getAllowedPaymentMethodsJson()).contains("APPLE_PAY", "PAYPAL");
+        assertThat(session.getAllowedPaymentMethodsJson()).contains("APPLE_PAY", "PAYPAL", "\"hostedNonCardVerified\":true");
         assertThat(org.apache.commons.lang3.StringUtils.countMatches(
                 session.getAllowedPaymentMethodsJson(), "APPLE_PAY")).isEqualTo(1);
         assertThat(org.apache.commons.lang3.StringUtils.countMatches(
                 session.getAllowedPaymentMethodsJson(), "PAYPAL")).isEqualTo(1);
 
-        when(capabilities.resolveHostedNonCardMethods(command.getMerchantId(), "HKD", null, Set.of("APPLE_PAY", "PAYPAL")))
-                .thenReturn(List.of(payPal));
+        when(capabilities.resolveHostedNonCardCountryScopes(command.getMerchantId(), "HKD", Set.of("APPLE_PAY", "PAYPAL")))
+                .thenReturn(Map.of("PAYPAL", Map.of("ALL", true)));
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
         when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
         var query = new PaymentCheckoutSessionQueryCommandDTO();
@@ -331,8 +331,8 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(result.getMerchant().getSupportedPaymentMethods()).containsExactly("BANK_CARD", "PAYPAL");
         when(sessionMapper.selectByMerchantRequest(command.getMerchantId(), command.getMerchantRequestId())).thenReturn(session);
         assertThat(service.createSession(command).getIdempotentHit()).isTrue();
-        verify(capabilities).resolveHostedNonCardMethods(command.getMerchantId(), "HKD", null, null);
-        verify(capabilities).resolveHostedNonCardMethods(command.getMerchantId(), "HKD", null, Set.of("APPLE_PAY", "PAYPAL"));
+        verify(capabilities).resolveHostedNonCardCountryScopes(command.getMerchantId(), "HKD", null);
+        verify(capabilities).resolveHostedNonCardCountryScopes(command.getMerchantId(), "HKD", Set.of("APPLE_PAY", "PAYPAL"));
     }
 
     @Test
@@ -350,7 +350,7 @@ class DefaultPaymentCheckoutServiceTests {
 
         assertThat(service.querySession(query).getPaymentOptions()).singleElement()
                 .satisfies(option -> assertThat(option.getPaymentMethod()).isEqualTo("BANK_CARD"));
-        verify(capabilities, never()).resolveHostedNonCardMethods(anyString(), anyString(), any(), any());
+        verify(capabilities, never()).resolveHostedNonCardCountryScopes(anyString(), anyString(), any());
     }
 
     @Test
@@ -910,14 +910,14 @@ class DefaultPaymentCheckoutServiceTests {
 
         for (String action : List.of("PREPARE", "OPEN")) {
             assertThatThrownBy(() -> service.simulateWallet(new CheckoutWalletSimulationCommand(
-                    "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", action, null)))
+                    "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", action, null, null)))
                     .isInstanceOfSatisfying(ServiceException.class,
                             error -> assertThat(error.getCode()).isEqualTo(ApiResultEnum.PARAM_INVALID.getCode()));
         }
         verify(wallet, never()).execute(any(), anyString(), anyString(), eq(true), any());
 
         service.simulateWallet(new CheckoutWalletSimulationCommand(
-                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "STATUS", null));
+                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "STATUS", null, null));
         verify(wallet).execute(session, "APPLE_PAY", "STATUS", true, null);
 
         session.setBillingInfoJson("{\"country\":\"USA\"}");
@@ -927,9 +927,42 @@ class DefaultPaymentCheckoutServiceTests {
         billing.setEmail("payer@example.test");
         billing.setCountry("CAN");
         service.simulateWallet(new CheckoutWalletSimulationCommand(
-                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "PREPARE", billing));
+                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "PREPARE", billing, null));
         verify(capabilities).resolveHostedNonCardMethods(
                 session.getMerchantId(), session.getLabelCurrency(), "CAN", Set.of("APPLE_PAY"));
+    }
+
+    @Test
+    void hostedWalletRoutesWithTheCurrentPayerCountryAndRejectsUnsupportedCountry() {
+        var session = payableSession();
+        session.setBillingInfoJson("{\"country\":\"USA\"}");
+        session.setAllowedPaymentMethodsJson("""
+                [{"paymentMethod":"APPLE_PAY","hostedNonCardVerified":true}]
+                """);
+        var wallet = mock(CheckoutWalletSimulationService.class);
+        var capabilities = mock(PaymentCheckoutCardCapabilityService.class);
+        ReflectionTestUtils.setField(service, "walletSimulation", wallet);
+        ReflectionTestUtils.setField(service, "cardCapabilityService", capabilities);
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(session));
+        when(sessionMapper.selectByCheckoutSessionId(session.getCheckoutSessionId())).thenReturn(session);
+        when(wallet.supports(session, "APPLE_PAY")).thenReturn(true);
+        var option = new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
+        option.setPaymentMethod("APPLE_PAY");
+        when(capabilities.resolveHostedNonCardMethods(session.getMerchantId(), session.getLabelCurrency(),
+                "DEU", Set.of("APPLE_PAY"))).thenReturn(List.of(option));
+
+        assertThatThrownBy(() -> service.simulateWallet(new CheckoutWalletSimulationCommand(
+                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "PREPARE", null, "CAN")))
+                .isInstanceOfSatisfying(ServiceException.class,
+                        error -> assertThat(error.getCode()).isEqualTo(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE.getCode()));
+        verify(wallet, never()).execute(eq(session), anyString(), anyString(), eq(false), any());
+
+        service.simulateWallet(new CheckoutWalletSimulationCommand(
+                "token-hash", session.getCheckoutSessionId(), "APPLE_PAY", "PREPARE", null, "DEU"));
+        var billing = ArgumentCaptor.forClass(PaymentCreateCommandDTO.BillingCardHolderInfoDTO.class);
+        verify(wallet).execute(eq(session), eq("APPLE_PAY"), eq("PREPARE"), eq(false), billing.capture());
+        assertThat(billing.getValue().getCountry()).isEqualTo("DEU");
+        assertThat(session.getBillingInfoJson()).contains("USA");
     }
 
     @Test

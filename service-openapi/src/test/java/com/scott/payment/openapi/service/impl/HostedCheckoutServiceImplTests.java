@@ -306,6 +306,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(responseVO.getCardEncryption().getPublicKey()).isEqualTo("public-key-base64");
         assertThat(responseVO.getCardEncryption().getNonce()).isEqualTo("checkout-nonce");
         assertThat(responseVO.getCheckout().getServerTime().toLocalDateTime()).isEqualTo(CHECKOUT_SERVER_TIME);
+        assertThat(responseVO.getPaymentCountryScopes()).containsEntry("CARD_BRAND:VISA", Map.of("ALL", false, "USA", true));
         assertThat(JsonUtils.toJsonString(captured)).doesNotContain(RAW_OPAQUE_TOKEN);
         log.info("用例结果：Token 仅以下游摘要传输，serverTime 已转换为带偏移时间返回浏览器");
     }
@@ -811,6 +812,10 @@ class HostedCheckoutServiceImplTests {
             cardEncryption.setPublicKey("public-key-base64");
             cardEncryption.setNonce("checkout-nonce");
             responseDTO.setCardEncryption(cardEncryption);
+            responseDTO.setPaymentCountryScopes(Map.of("CARD_BRAND:VISA", Map.of("ALL", false, "USA", true)));
+            var wallet = new PaymentCheckoutClientDTOs.PaymentMethod();
+            wallet.setPaymentMethod("APPLE_PAY");
+            responseDTO.setPaymentOptions(List.of(wallet));
             return responseDTO;
         }
 

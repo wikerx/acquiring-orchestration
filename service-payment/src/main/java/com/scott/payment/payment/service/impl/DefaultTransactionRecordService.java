@@ -3820,8 +3820,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         requestDO.setRequestScene(invokeResultDTO.getRequestScene());
         requestDO.setChannelMatchFlag(0);
         requestDO.setRequestStatus(invokeResultDTO.getRequestStatus());
-        if ("SCOTT_CHANNEL_A".equalsIgnoreCase(requestDO.getChannelCode())
-                && "INIT".equals(requestDO.getRequestStatus())) {
+        boolean walletSimulation = CheckoutWalletSimulationService.isSimulationOrder(
+                requestDO.getChannelCode(), invokeResultDTO.getChannelRequest().getChannelOrderNo());
+        boolean scottInitialRequest = "SCOTT_CHANNEL_A".equalsIgnoreCase(requestDO.getChannelCode())
+                && "INIT".equals(requestDO.getRequestStatus());
+        if (walletSimulation) {
+            requestDO.setChannelMerchantReference(invokeResultDTO.getChannelRequest().getExtension().get("channelMerchantReference"));
+            requestDO.setChannelNotifyUrl(invokeResultDTO.getChannelRequest().getChannelCallbackUrl());
+        } else if (scottInitialRequest) {
             requestDO.setChannelMerchantReference(resultDTO.getTransactionId());
         }
         requestDO.setHttpMethod(resolveChannelHttpMethod(invokeResultDTO));
@@ -3830,7 +3836,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         requestDO.setRequestAmount(invokeResultDTO.getChannelRequest().getAmount());
         requestDO.setChannelOrderNo(response == null ? invokeResultDTO.getChannelRequest().getChannelOrderNo() : response.getChannelOrderNo());
         requestDO.setChannelTransactionId(response == null ? invokeResultDTO.getChannelRequest().getChannelTransactionId() : response.getChannelTransactionId());
-        if (requestDO.getChannelMerchantReference() != null && response == null) {
+        if (scottInitialRequest && response == null) {
             requestDO.setChannelOrderNo(null);
             requestDO.setChannelTransactionId(null);
         }

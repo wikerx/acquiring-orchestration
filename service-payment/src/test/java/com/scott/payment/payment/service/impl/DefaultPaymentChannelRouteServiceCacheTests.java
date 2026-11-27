@@ -4,6 +4,7 @@ import com.scott.payment.component.db.route.model.MerchantRouteProfile;
 import com.scott.payment.component.db.route.model.MerchantRouteProfile.RouteOption;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
 import com.scott.payment.payment.entity.ChannelMidConfigDO;
 import com.scott.payment.payment.mapper.PaymentChannelInfoMapper;
 import com.scott.payment.payment.mapper.PaymentChannelMidConfigMapper;
@@ -15,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -82,6 +84,150 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         assertThat(result.getRequestedCurrency()).isEqualTo("CNY");
         assertThat(result.getRoutedCurrency()).isEqualTo("USD");
         assertThat(result.isEdcRequired()).isTrue();
+    }
+
+    @Test
+    void shouldApplyCountryAndCurrencyToTheSameCapabilityCandidate() {
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                mock(PaymentChannelMidConfigMapper.class), mock(PaymentChannelInfoMapper.class),
+                mock(MerchantRouteProfileCacheService.class), mock(PaymentChannelMidMetadataCache.class));
+        LocalDateTime now = LocalDateTime.of(2026, 8, 1, 15, 40);
+        MerchantRouteProfile profile = profile(now);
+        RouteOption option = profile.getRouteOptions().get(0);
+        option.setAllowedCountryScope("ALL");
+        option.setCapabilityAllowedCountryScope("USA");
+        option.setSupportedCurrencies(new ArrayList<>(List.of("EUR")));
+        option.setDefaultTransactionCurrency("USD");
+        PaymentCreateCommandDTO command = command();
+        command.setCurrency("EUR");
+
+        assertThat(service.assessCandidates(profile, command, now).status())
+                .isEqualTo(DefaultPaymentChannelRouteService.CandidateStatus.NO_TARGET);
+        PaymentCreateCommandDTO.BillingCardHolderInfoDTO billing = new PaymentCreateCommandDTO.BillingCardHolderInfoDTO();
+        billing.setCountry("USA");
+        command.setBillingCardHolderInfo(billing);
+        assertThat(service.assessCandidates(profile, command, now).status())
+                .isEqualTo(DefaultPaymentChannelRouteService.CandidateStatus.UNIQUE_DIRECT);
+        command.setCurrency("GBP");
+        assertThat(service.assessCandidates(profile, command, now).status())
+                .isEqualTo(DefaultPaymentChannelRouteService.CandidateStatus.NO_TARGET);
+    }
+
+    @Test
+    void shouldMatchTwoCardBrandCapabilitiesIndependentlyOnTheSameMid() {
+        var profileCache = mock(MerchantRouteProfileCacheService.class);
+        var metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        var service = new DefaultPaymentChannelRouteService(
+                mock(PaymentChannelMidConfigMapper.class), mock(PaymentChannelInfoMapper.class), profileCache, metadataCache);
+        LocalDateTime now = LocalDateTime.of(2026, 8, 1, 15, 40);
+        MerchantRouteProfile visaProfile = profile(now);
+        RouteOption visa = visaProfile.getRouteOptions().get(0);
+        visa.setCapabilityId(101L);
+        visa.setCardBrandScope("VISA,MASTERCARD");
+        visa.setCapabilitySupportedCardBrands(new ArrayList<>(List.of("VISA")));
+        visa.setCapabilityAllowedCountryScope("USA");
+        visa.setSupportedCurrencies(new ArrayList<>(List.of("USD")));
+        visa.setDefaultTransactionCurrency("USD");
+
+        RouteOption mastercard = profile(now).getRouteOptions().get(0);
+        mastercard.setCapabilityId(102L);
+        mastercard.setCardBrandScope("VISA,MASTERCARD");
+        mastercard.setCapabilitySupportedCardBrands(new ArrayList<>(List.of("MASTERCARD")));
+        mastercard.setCapabilityAllowedCountryScope("DEU");
+        mastercard.setSupportedCurrencies(new ArrayList<>(List.of("EUR")));
+        mastercard.setDefaultTransactionCurrency("EUR");
+        visaProfile.setRouteOptions(new ArrayList<>(List.of(visa, mastercard)));
+        when(profileCache.findRouteProfile("200045")).thenReturn(visaProfile);
+        when(metadataCache.getMetadataJson(10L, visa.getMidModifiedTime())).thenReturn("{}");
+
+        PaymentCreateCommandDTO command = command();
+        var billing = new PaymentCreateCommandDTO.BillingCardHolderInfoDTO();
+        command.setBillingCardHolderInfo(billing);
+        billing.setCountry("USA");
+        assertThat(service.route(command).getCapabilityId()).isEqualTo(101L);
+        billing.setCountry("DEU");
+        command.setCurrency("EUR");
+        assertThat(service.assessCandidates(visaProfile, command, now).status())
+                .isEqualTo(DefaultPaymentChannelRouteService.CandidateStatus.NO_TARGET);
+
+        command.getTransactionInfo().setCardBrand("MASTERCARD");
+        assertThat(service.route(command).getCapabilityId()).isEqualTo(102L);
+        command.setCurrency("GBP");
+        assertThat(service.route(command).getRoutedCurrency()).isEqualTo("EUR");
+        visa.setCapabilityStatus(0);
+        billing.setCountry("USA");
+        command.getTransactionInfo().setCardBrand("VISA");
+        command.setCurrency("USD");
+        assertThat(service.assessCandidates(visaProfile, command, now).status())
+                .isEqualTo(DefaultPaymentChannelRouteService.CandidateStatus.NO_TARGET);
+        billing.setCountry("DEU");
+        command.getTransactionInfo().setCardBrand("MASTERCARD");
+        command.setCurrency("EUR");
+        assertThat(service.route(command).getCapabilityId()).isEqualTo(102L);
+    }
+
+    @Test
+    void checkoutCountryProjectionUsesSameMidAndCapabilityAndPreservesBrandIsolation() {
+        var profileCache = mock(MerchantRouteProfileCacheService.class);
+        var metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        var routeService = new DefaultPaymentChannelRouteService(
+                mock(PaymentChannelMidConfigMapper.class), mock(PaymentChannelInfoMapper.class), profileCache, metadataCache);
+        var capabilities = new PaymentCheckoutCardCapabilityService(profileCache, null, null, routeService, null);
+        var now = LocalDateTime.of(2026, 8, 1, 15, 40);
+        var profile = profile(now);
+        var visa = profile.getRouteOptions().get(0);
+        visa.setCapabilitySupportedCardBrands(List.of("VISA"));
+        visa.setAllowedCountryScope("USA,CAN");
+        visa.setCapabilityAllowedCountryScope("USA,DEU");
+        var mastercard = routeOption(now, 10L, 20L, 32L, "MPGS", 1);
+        mastercard.setCardBrandScope("MASTERCARD");
+        mastercard.setCapabilitySupportedCardBrands(List.of("MASTERCARD"));
+        mastercard.setAllowedCountryScope("ALL");
+        mastercard.setCapabilityAllowedCountryScope("DEU");
+        profile.setRouteOptions(List.of(visa, mastercard));
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        var card = new PaymentCheckoutSessionQueryResultDTO.PaymentMethodDTO();
+        card.setPaymentMethod("BANK_CARD");
+        card.setBrands(List.of("VISA", "MASTERCARD"));
+
+        assertThat(capabilities.checkoutCountryScopes("200045", "USD", "PAYMENT", List.of(card), Map.of(), now))
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        "CARD_BRAND:VISA", Map.of("ALL", false, "USA", true),
+                        "CARD_BRAND:MASTERCARD", Map.of("ALL", false, "DEU", true)));
+        card.setBrands(List.of("MASTERCARD"));
+        assertThat(capabilities.checkoutCountryScopes("200045", "USD", "PAYMENT", List.of(card), Map.of(), now))
+                .containsOnlyKeys("CARD_BRAND:MASTERCARD");
+        verifyNoInteractions(metadataCache);
+    }
+
+    @Test
+    void walletCountryProjectionPreservesAmbiguityAndExchangeRateRules() {
+        var service = new DefaultPaymentChannelRouteService(
+                mock(PaymentChannelMidConfigMapper.class), mock(PaymentChannelInfoMapper.class),
+                mock(MerchantRouteProfileCacheService.class), mock(PaymentChannelMidMetadataCache.class));
+        var now = LocalDateTime.of(2026, 8, 1, 15, 40);
+        var profile = profile(now);
+        var first = profile.getRouteOptions().get(0);
+        var second = routeOption(now, 11L, 21L, 31L, "WORLDPAY", first.getCapabilitySortOrder());
+        for (var option : List.of(first, second)) {
+            option.setCapabilityPaymentMethod("APPLE_PAY");
+            option.setPaymentMethodScope("APPLE_PAY");
+            option.setAllowedCountryScope("ALL");
+        }
+        second.setCapabilityAllowedCountryScope("DEU");
+        profile.setRouteOptions(List.of(first, second));
+        var command = command();
+        command.setPaymentMethod("APPLE_PAY");
+
+        assertThat(service.checkoutCountryCoverage(profile, command, now, currency -> true))
+                .containsExactlyInAnyOrderEntriesOf(Map.of("ALL", true, "DEU", false));
+        command.setCurrency("GBP");
+        assertThat(service.checkoutCountryCoverage(profile, command, now, currency -> false))
+                .containsExactlyEntriesOf(Map.of("ALL", false));
+        assertThat(service.checkoutCountryCoverage(profile, command, now, currency -> "USD".equals(currency)))
+                .containsExactlyInAnyOrderEntriesOf(Map.of("ALL", true, "DEU", false));
+        second.setSupportedCurrencies(List.of("GBP", "USD"));
+        second.setCurrencyScope("GBP,USD");
     }
 
     @Test

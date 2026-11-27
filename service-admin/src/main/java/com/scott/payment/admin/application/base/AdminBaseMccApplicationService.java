@@ -457,7 +457,7 @@ public class AdminBaseMccApplicationService {
         MccVO.MccOptionsVO result = new MccVO.MccOptionsVO();
         result.setLevel1(level1Mapper.selectList(baseLevel1Query()).stream().map(row -> option(row.getId(), row.getLevel1Code(), row.getNameCn(), row.getNameEn(), LEVEL1, null)).toList());
         result.setLevel2(level2Mapper.selectList(baseLevel2Query()).stream().map(row -> option(row.getId(), row.getLevel2Code(), row.getNameCn(), row.getNameEn(), LEVEL2, row.getLevel1Id())).toList());
-        result.setMccCodes(codeMapper.selectList(baseCodeQuery().orderByAsc(MccEntities.BaseMccCodeDO::getMccCode)).stream().map(row -> option(row.getId(), row.getMccCode(), row.getNameCn(), row.getNameEn(), MCC_CODE, row.getLevel2Id())).toList());
+        result.setMccCodes(mccCodeOptions());
         result.setCardSchemes(cardBrandDictRows().stream().map(row -> option(row.getId(), row.getDictValue(), row.getDictLabel(), row.getDictLabel(), CARD_BRAND_DICT, null)).toList());
         result.setCountries(isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
                         .eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED)
@@ -465,6 +465,14 @@ public class AdminBaseMccApplicationService {
                         .orderByAsc(IsoCountryDO::getAlpha2Code))
                 .stream().map(row -> option(row.getId(), row.getAlpha2Code(), row.getChineseName(), row.getEnglishName(), "COUNTRY", null)).toList());
         return result;
+    }
+
+    /** 查询渠道 MID 和基础数据页面使用的 MCC 选项。 */
+    @DS(DataSourceName.SLAVE)
+    public List<MccVO.MccOptionVO> mccCodeOptions() {
+        return codeMapper.selectList(baseCodeQuery().orderByAsc(MccEntities.BaseMccCodeDO::getMccCode)).stream()
+                .map(row -> option(row.getId(), row.getMccCode(), row.getNameCn(), row.getNameEn(), MCC_CODE, row.getLevel2Id()))
+                .toList();
     }
 
     /**

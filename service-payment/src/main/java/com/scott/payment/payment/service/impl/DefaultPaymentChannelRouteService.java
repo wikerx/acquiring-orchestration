@@ -23,9 +23,15 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * 根据商户绑定、MID 范围和渠道能力选择收单路由。
@@ -292,6 +298,71 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     public record CandidateAssessment(CandidateStatus status, Long channelId, Long midId, String routedCurrency) {
     }
 
+    /**
+     * 投影收银台候选的付款国家范围。只枚举配置中过滤结果可能不同的国家，其余国家共用 ALL。
+     * 钱包需保留原币优先、候选唯一及换汇检查。普通展示只需存在匹配的配置。
+     */
+    Map<String, Boolean> checkoutCountryCoverage(MerchantRouteProfile profile, PaymentCreateCommandDTO command,
+                                                 LocalDateTime checkedAt, Predicate<String> usableEdcCurrency) {
+        return checkoutCountryProjection(profile, command, checkedAt, routes -> {
+            if (usableEdcCurrency == null) {
+                return routes.findAny().isPresent();
+            }
+            RouteCandidate selected = selectCandidate(routes.toList());
+            return selected != null && (!selected.edcRequired() || usableEdcCurrency.test(selected.routedCurrency()));
+        });
+    }
+
+
+    private <T> Map<String, T> checkoutCountryProjection(MerchantRouteProfile profile, PaymentCreateCommandDTO command,
+                                                        LocalDateTime checkedAt, Function<Stream<RouteCandidate>, T> project) {
+        if (profile == null || profile.getRouteOptions() == null) {
+            T empty = project.apply(Stream.empty());
+            return empty == null ? Map.of() : Map.of(ALL, empty);
+        }
+        List<CountryCandidate> candidates = new ArrayList<>();
+        Set<String> configuredCountries = new LinkedHashSet<>();
+        for (RouteOption option : profile.getRouteOptions()) {
+            RouteCandidate candidate = toCandidate(option, command, checkedAt, false);
+            if (candidate == null) {
+                continue;
+            }
+            candidates.add(new CountryCandidate(option, candidate));
+            collectCountryCodes(option.getAllowedCountryScope(), configuredCountries);
+            collectCountryCodes(option.getCapabilityAllowedCountryScope(), configuredCountries);
+        }
+        T defaultValue = project.apply(checkoutCountryCandidates(candidates, null));
+        Map<String, T> coverage = new LinkedHashMap<>();
+        coverage.put(ALL, defaultValue);
+        for (String country : configuredCountries) {
+            T value = project.apply(checkoutCountryCandidates(candidates, country));
+            if (!Objects.equals(value, defaultValue)) {
+                coverage.put(country, value);
+            }
+        }
+        return coverage;
+    }
+
+    private void collectCountryCodes(String scope, Set<String> countries) {
+        if (StringUtils.hasText(scope) && !ALL.equalsIgnoreCase(scope.trim())) {
+            for (String item : scope.split(SCOPE_SEPARATOR)) {
+                String code = normalize(item);
+                if (!ALL.equals(code) && !"NONE".equals(code) && code.matches("[A-Z]{3}")) {
+                    countries.add(code);
+                }
+            }
+        }
+    }
+
+    private Stream<RouteCandidate> checkoutCountryCandidates(List<CountryCandidate> candidates, String country) {
+        return candidates.stream()
+                .filter(candidate -> matchesCountry(candidate.option(), country))
+                .map(CountryCandidate::route);
+    }
+
+    private record CountryCandidate(RouteOption option, RouteCandidate route) {
+    }
+
     static final class RouteUnavailableException extends ServiceException {
         private static final long serialVersionUID = 1L;
 
@@ -387,6 +458,11 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     private RouteCandidate toCandidate(RouteOption option,
                                        PaymentCreateCommandDTO commandDTO,
                                        LocalDateTime now) {
+        return toCandidate(option, commandDTO, now, true);
+    }
+
+    private RouteCandidate toCandidate(RouteOption option, PaymentCreateCommandDTO commandDTO,
+                                       LocalDateTime now, boolean requireCountry) {
         if (!Integer.valueOf(ENABLED).equals(option.getBindingStatus())
                 || !isActive(now, option.getBindingEffectiveTime(), option.getBindingExpireTime())
                 || !Integer.valueOf(ENABLED).equals(option.getMidStatus())
@@ -420,7 +496,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
             return null;
         }
         String payerCountry = commandDTO.getBillingCardHolderInfo() == null ? null : commandDTO.getBillingCardHolderInfo().getCountry();
-        if (!matchesScope(option.getAllowedCountryScope(), payerCountry)
+        if ((requireCountry && !matchesCountry(option, payerCountry))
                 || !matchesTransactionType(option.getCapabilityTransactionType(), commandDTO.getTransactionType())) {
             return null;
         }
@@ -446,6 +522,11 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 routedCurrency,
                 !directCurrencySupported
         );
+    }
+
+    private boolean matchesCountry(RouteOption option, String payerCountry) {
+        return matchesScope(option.getAllowedCountryScope(), payerCountry)
+                && matchesScope(option.getCapabilityAllowedCountryScope(), payerCountry);
     }
 
     /**

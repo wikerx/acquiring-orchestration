@@ -9,6 +9,8 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.component.db.iso.entity.IsoCountryDO;
+import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
@@ -20,6 +22,7 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelOption;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MidPaymentCapability;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
@@ -183,6 +186,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * 渠道基础信息数据访问对象。
      */
     private final ChannelInfoMapper channelInfoMapper;
+    private final AcquiringMidCapabilityProjection midCapabilities;
+    private final IsoCountryMapper isoCountryMapper;
     /**
      * 渠道 MID 参数模板数据访问对象。
      */
@@ -239,12 +244,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                                    ChannelMidConfigMapper midConfigMapper,
                                    MerchantChannelMidBindingMapper midBindingMapper,
                                    SysDictDataMapper dictDataMapper,
-                                   ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+                                   ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+                                   AcquiringMidCapabilityProjection midCapabilities,
+                                   IsoCountryMapper isoCountryMapper) {
         this.channelInfoMapper = channelInfoMapper;
         this.metadataSchemaMapper = metadataSchemaMapper;
         this.capabilityMapper = capabilityMapper;
         this.capabilityCurrencyMapper = capabilityCurrencyMapper;
         this.capabilityCardBrandMapper = capabilityCardBrandMapper;
+        this.midCapabilities = midCapabilities;
+        this.isoCountryMapper = isoCountryMapper;
         this.limitRuleMapper = limitRuleMapper;
         this.midConfigMapper = midConfigMapper;
         this.midBindingMapper = midBindingMapper;
@@ -444,16 +453,18 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         ChannelPaymentCapabilityDO firstEntity = null;
         for (String paymentMethod : request.getPaymentMethods()) {
             request.setPaymentMethod(paymentMethod);
-            ChannelPaymentCapabilityDO entity = new ChannelPaymentCapabilityDO();
-            fillCapability(entity, request, channel, now);
-            entity.setCreateTime(entity.getUpdateTime());
-            entity.setDeleted(NOT_DELETED);
-            capabilityMapper.insert(entity);
-            replaceCapabilityCurrencies(entity, request.getCurrencyCodes());
-            replaceCapabilityCardBrands(entity,
-                    PAYMENT_BANK_CARD.equals(paymentMethod) ? request.getCardBrands() : List.of());
-            if (firstEntity == null) {
-                firstEntity = entity;
+            for (String brand : capabilityBrands(request.getBusinessType(), paymentMethod, request.getCardBrands())) {
+                ChannelPaymentCapabilityDO entity = new ChannelPaymentCapabilityDO();
+                entity.setCardBrand(brand);
+                fillCapability(entity, request, channel, now);
+                entity.setCreateTime(now);
+                entity.setDeleted(NOT_DELETED);
+                capabilityMapper.insert(entity);
+                replaceCapabilityCurrencies(entity, request.getCurrencyCodes());
+                replaceCapabilityCardBrands(entity, capabilityBrandRelations(entity, request.getCardBrands()));
+                if (firstEntity == null) {
+                    firstEntity = entity;
+                }
             }
         }
         synchronizeMidTransactionTypeScopes(channel.getId(), request.getBusinessType());
@@ -474,6 +485,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         Long previousChannelId = entity.getChannelId();
         String previousBusinessType = entity.getBusinessType();
         ChannelInfoDO channel = validateCapabilityRequest(request, id);
+        if (BUSINESS_ACQUIRING.equals(entity.getBusinessType()) || BUSINESS_ACQUIRING.equals(request.getBusinessType())) {
+            List<String> brands = capabilityBrands(request.getBusinessType(), request.getPaymentMethod(), request.getCardBrands());
+            if (!Objects.equals(entity.getChannelId(), channel.getId())
+                    || !Objects.equals(entity.getBusinessType(), request.getBusinessType())
+                    || !Objects.equals(entity.getPaymentMethod(), request.getPaymentMethod())
+                    || !brands.equals(List.of(capabilityBrandKey(entity)))) {
+                throw badRequest("收单支付能力的渠道、业务类型和支付方式不能修改");
+            }
+        }
         prepareRouteInvalidationByChannel(entity.getChannelId());
         if (!Objects.equals(entity.getChannelId(), channel.getId())) {
             prepareRouteInvalidationByChannel(channel.getId());
@@ -481,7 +501,9 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         fillCapability(entity, request, channel, LocalDateTime.now());
         capabilityMapper.updateById(entity);
         replaceCapabilityCurrencies(entity, request.getCurrencyCodes());
-        replaceCapabilityCardBrands(entity, request.getCardBrands());
+        if (!hasIndependentCardBrand(entity)) {
+            replaceCapabilityCardBrands(entity, capabilityBrandRelations(entity, request.getCardBrands()));
+        }
         synchronizeMidTransactionTypeScopes(previousChannelId, previousBusinessType);
         if (!Objects.equals(previousChannelId, entity.getChannelId())
                 || !Objects.equals(previousBusinessType, entity.getBusinessType())) {
@@ -730,8 +752,26 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 buildMidQuery(query)
         );
         Map<Long, ChannelInfoDO> channelMap = channelMap(page.getRecords().stream().map(ChannelMidConfigDO::getChannelId).toList());
+        var capabilitySnapshot = midCapabilities.load(page.getRecords().stream()
+                .filter(row -> BUSINESS_ACQUIRING.equals(row.getBusinessType()))
+                .map(ChannelMidConfigDO::getChannelId).distinct().toList());
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
-                page.getRecords().stream().map(row -> toMidResponse(row, channelMap.get(row.getChannelId()))).toList());
+                page.getRecords().stream().map(row -> {
+                    var response = toMidResponse(row, channelMap.get(row.getChannelId()));
+                    if (BUSINESS_ACQUIRING.equals(row.getBusinessType())) {
+                        var methodCapabilities = capabilitySnapshot.describe(row, normalizeCode(query.getPaymentMethod())).stream()
+                                .filter(method -> AcquiringMidCapabilityProjection.Snapshot.includesBrand(method, normalizeCode(query.getCardBrand())))
+                                .toList();
+                        if (StringUtils.hasText(query.getPaymentMethod())) {
+                            response.setPaymentCapabilities(methodCapabilities);
+                        }
+                        response.setEffectiveCurrencyCodes(methodCapabilities.stream().filter(MidPaymentCapability::enabled)
+                                .flatMap(method -> method.currencyCodes().stream()).distinct().toList());
+                        response.setEffectiveDefaultTransactionCurrencies(methodCapabilities.stream().filter(MidPaymentCapability::enabled)
+                                .map(MidPaymentCapability::defaultTransactionCurrency).filter(Objects::nonNull).distinct().toList());
+                    }
+                    return response;
+                }).toList());
     }
 
     /**
@@ -744,7 +784,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @DS(DataSourceName.SLAVE)
     public ChannelMidConfigResponse getMid(Long id) {
         ChannelMidConfigDO entity = findMid(id);
-        return toMidResponse(entity, findChannel(entity.getChannelId()));
+        ChannelMidConfigResponse response = toMidResponse(entity, findChannel(entity.getChannelId()));
+        if (BUSINESS_ACQUIRING.equals(entity.getBusinessType())) {
+            response.setPaymentCapabilities(midCapabilities.load(List.of(entity.getChannelId())).describe(entity, ""));
+        }
+        return response;
     }
 
     /**
@@ -756,9 +800,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ChannelMidConfigResponse createMid(ChannelMidConfigSaveRequest request) {
+        boolean inheritCurrency = BUSINESS_ACQUIRING.equals(normalizeCode(request.getBusinessType()))
+                && !StringUtils.hasText(request.getDefaultTransactionCurrency());
         ChannelInfoDO channel = validateMidRequest(request, null);
         ChannelMidConfigDO entity = new ChannelMidConfigDO();
         fillMid(entity, request, channel, LocalDateTime.now());
+        entity.setInheritTransactionCurrency(inheritCurrency ? ENABLED : DISABLED);
         entity.setCreateTime(entity.getUpdateTime());
         entity.setDeleted(NOT_DELETED);
         midConfigMapper.insert(entity);
@@ -777,7 +824,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public ChannelMidConfigResponse updateMid(Long id, ChannelMidConfigSaveRequest request) {
         ChannelMidConfigDO entity = findMid(id);
         mergeMetadataValuesForUpdate(entity, request);
-        ChannelInfoDO channel = validateMidRequest(request, id);
+        if ((BUSINESS_ACQUIRING.equals(entity.getBusinessType())
+                || BUSINESS_ACQUIRING.equals(normalizeCode(request.getBusinessType())))
+                && (!Objects.equals(entity.getChannelId(), request.getChannelId())
+                || !Objects.equals(entity.getBusinessType(), normalizeCode(request.getBusinessType())))) {
+            throw badRequest("渠道和业务类型在创建 MID 后不可修改");
+        }
+        ChannelInfoDO channel = validateMidRequest(request, entity);
         prepareRouteInvalidationByMid(entity.getId());
         fillMid(entity, request, channel, LocalDateTime.now());
         midConfigMapper.updateById(entity);
@@ -989,7 +1042,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     /**
      * 校验并规范化渠道 MID 配置请求。
      */
-    private ChannelInfoDO validateMidRequest(ChannelMidConfigSaveRequest request, Long id) {
+    private ChannelInfoDO validateMidRequest(ChannelMidConfigSaveRequest request, ChannelMidConfigDO existing) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
         String businessType = normalizeCode(request.getBusinessType());
         validateBusinessType(businessType);
@@ -997,22 +1050,20 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateStatus(request.getMidStatus());
         request.setBusinessType(businessType);
         request.setChannelMid(resolveChannelMid(request));
+        String mcc = trim(request.getMcc());
+        if (mcc == null || !mcc.matches("[0-9]{4}")) {
+            throw badRequest("MCC 必须填写 4 位数字");
+        }
+        request.setMcc(mcc);
         request.setPaymentMethodScope(normalizeScope(request.getPaymentMethodScope(), "支付方式"));
-        request.setTransactionTypeScope(resolveMidTransactionTypeScope(channel.getId(), businessType, request.getPaymentMethodScope()));
-        request.setCardBrandScope(resolveMidCardBrandScope(channel.getId(), businessType, request.getPaymentMethodScope(), request.getCardBrandScope()));
-        request.setCurrencyScope(normalizeScope(request.getCurrencyScope(), "交易币种范围"));
-        request.setAllowedCountryScope(normalizeScope(request.getAllowedCountryScope(), "允许交易国家范围"));
-        validatePaymentMethodScope(channel.getId(), businessType, request.getPaymentMethodScope());
-        validateCurrencyScope(request.getCurrencyScope());
-        request.setDefaultTransactionCurrency(normalizeCode(request.getDefaultTransactionCurrency()));
-        assertDictValue("iso_currency", request.getDefaultTransactionCurrency(), true);
-        validateDefaultTransactionCurrency(
-                channel.getId(),
-                businessType,
-                request.getPaymentMethodScope(),
-                request.getCurrencyScope(),
-                request.getDefaultTransactionCurrency()
-        );
+        if (BUSINESS_ACQUIRING.equals(businessType)) {
+            validateAcquiringMidScopes(request, existing);
+        } else {
+            request.setTransactionTypeScope(resolveMidTransactionTypeScope(channel.getId(), businessType, request.getPaymentMethodScope()));
+            request.setCardBrandScope(resolveMidCardBrandScope(channel.getId(), businessType, request.getPaymentMethodScope(), request.getCardBrandScope()));
+            validateLegacyMidCurrency(request);
+            request.setAllowedCountryScope(normalizeScope(request.getAllowedCountryScope(), "允许交易国家范围"));
+        }
         request.setDefaultSettlementCurrency(normalizeCode(request.getDefaultSettlementCurrency()));
         assertDictValue("iso_currency", request.getDefaultSettlementCurrency(), true);
         request.setSettlementCycle(normalizeSettlementCycle(request.getSettlementCycle()));
@@ -1025,11 +1076,91 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
                 .eq(ChannelMidConfigDO::getChannelId, channel.getId())
                 .eq(ChannelMidConfigDO::getChannelMid, trim(request.getChannelMid()))
-                .ne(id != null, ChannelMidConfigDO::getId, id));
+                .ne(existing != null, ChannelMidConfigDO::getId, existing == null ? null : existing.getId()));
         if (count > 0) {
             throw badRequest("同一渠道下 MID 不能重复");
         }
         return channel;
+    }
+
+    /** 收单 MID 保存选定方式，存量范围继续参与计算。 */
+    private void validateAcquiringMidScopes(ChannelMidConfigSaveRequest request, ChannelMidConfigDO existing) {
+        List<ChannelPaymentCapabilityDO> enabled = listEnabledCapabilities(request.getChannelId(), BUSINESS_ACQUIRING);
+        Set<String> enabledMethods = enabled.stream().map(ChannelPaymentCapabilityDO::getPaymentMethod)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<String> selected = ALL.equals(request.getPaymentMethodScope())
+                ? List.copyOf(enabledMethods) : splitScope(request.getPaymentMethodScope());
+        if (selected.isEmpty()) {
+            throw badRequest("至少选择一个渠道支付方式");
+        }
+        for (String method : selected) {
+            if (!enabledMethods.contains(method)
+                    && (existing == null || !allowsMidValue(existing.getPaymentMethodScope(), method))) {
+                throw badRequest("该渠道支付方式不存在启用中的支付能力：" + method);
+            }
+        }
+        request.setPaymentMethodScope(String.join(TRANSACTION_TYPE_SEPARATOR, selected));
+        request.setCardBrandScope(resolveAcquiringMidBrands(request, existing, enabled));
+        List<ChannelPaymentCapabilityDO> selectedEnabled = selectMidCapabilities(
+                enabled, request.getPaymentMethodScope(), request.getCardBrandScope());
+        request.setTransactionTypeScope(deriveTransactionTypeScope(BUSINESS_ACQUIRING, selectedEnabled));
+
+        if (existing != null) {
+            request.setCurrencyScope(existing.getCurrencyScope());
+            request.setAllowedCountryScope(existing.getAllowedCountryScope());
+            request.setDefaultTransactionCurrency(existing.getDefaultTransactionCurrency());
+            return;
+        }
+        if (StringUtils.hasText(request.getAllowedCountryScope())
+                && !ALL.equals(normalizeCode(request.getAllowedCountryScope()))) {
+            throw badRequest("新收单 MID 的交易国家由渠道支付能力确定");
+        }
+        request.setAllowedCountryScope(ALL);
+        if (StringUtils.hasText(request.getDefaultTransactionCurrency())) {
+            // 兼容旧的管理端调用，显式提供的币种范围和默认值仍按旧约束校验。
+            validateLegacyMidCurrency(request);
+            return;
+        }
+        request.setCurrencyScope(ALL);
+        if (selectedEnabled.isEmpty()) {
+            throw badRequest("至少选择一个启用中的渠道支付方式");
+        }
+        request.setDefaultTransactionCurrency(selectedEnabled.get(0).getDefaultTransactionCurrency());
+    }
+
+    private String resolveAcquiringMidBrands(ChannelMidConfigSaveRequest request, ChannelMidConfigDO existing,
+                                             List<ChannelPaymentCapabilityDO> capabilities) {
+        if (!splitScope(request.getPaymentMethodScope()).contains(PAYMENT_BANK_CARD)) {
+            return NONE;
+        }
+        String scope = normalizeScope(request.getCardBrandScope(), "卡品牌范围");
+        List<String> enabled = enabledCardBrands(capabilities);
+        List<String> selected = ALL.equals(scope) ? enabled : splitScope(scope);
+        if (selected.isEmpty() || selected.contains(NONE)) {
+            throw badRequest("银行卡支付方式必须选择至少一个卡品牌");
+        }
+        for (String brand : selected) {
+            if (!enabled.contains(brand) && (existing == null
+                    || !allowsMidValue(existing.getPaymentMethodScope(), PAYMENT_BANK_CARD)
+                    || !allowsMidValue(existing.getCardBrandScope(), brand))) {
+                throw badRequest("该银行卡支付能力未绑定启用的卡品牌：" + brand);
+            }
+        }
+        return String.join(TRANSACTION_TYPE_SEPARATOR, selected);
+    }
+
+    private void validateLegacyMidCurrency(ChannelMidConfigSaveRequest request) {
+        request.setCurrencyScope(normalizeScope(request.getCurrencyScope(), "交易币种范围"));
+        validateCurrencyScope(request.getCurrencyScope());
+        request.setDefaultTransactionCurrency(normalizeCode(request.getDefaultTransactionCurrency()));
+        assertDictValue("iso_currency", request.getDefaultTransactionCurrency(), true);
+        validateDefaultTransactionCurrency(request.getChannelId(), request.getBusinessType(),
+                request.getPaymentMethodScope(), request.getCardBrandScope(),
+                request.getCurrencyScope(), request.getDefaultTransactionCurrency());
+    }
+
+    private boolean allowsMidValue(String scope, String value) {
+        return ALL.equals(scope) || splitScope(scope).contains(value);
     }
 
     /**
@@ -1150,14 +1281,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
             throw badRequest("非银行卡支付方式不能绑定卡品牌");
         }
         for (String paymentMethod : paymentMethods) {
-            Long count = capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
-                    .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
-                    .eq(ChannelPaymentCapabilityDO::getChannelId, request.getChannelId())
-                    .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
-                    .eq(ChannelPaymentCapabilityDO::getPaymentMethod, paymentMethod)
-                    .ne(id != null, ChannelPaymentCapabilityDO::getId, id));
-            if (count > 0) {
-                throw badRequest("同一渠道、业务类型和支付方式不能重复，请在同一条能力中维护交易类型");
+            for (String brand : capabilityBrands(businessType, paymentMethod, cardBrands)) {
+                Long count = capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
+                        .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
+                        .eq(ChannelPaymentCapabilityDO::getChannelId, request.getChannelId())
+                        .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
+                        .eq(ChannelPaymentCapabilityDO::getPaymentMethod, paymentMethod)
+                        .eq(ChannelPaymentCapabilityDO::getCardBrand, brand)
+                        .ne(id != null, ChannelPaymentCapabilityDO::getId, id));
+                if (count > 0) {
+                    throw badRequest("同一渠道和业务类型下不能重复配置支付方式或卡品牌");
+                }
             }
         }
         request.setBusinessType(businessType);
@@ -1167,8 +1301,45 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         request.setTransactionTypes(transactionTypes);
         request.setCurrencyCodes(currencies);
         request.setDefaultTransactionCurrency(defaultTransactionCurrency);
+        if (StringUtils.hasText(request.getAllowedCountryScope()) && BUSINESS_ACQUIRING.equals(businessType)) {
+            String scope = normalizeScope(request.getAllowedCountryScope(), "允许交易国家");
+            if (!ALL.equals(scope)) {
+                if (!paymentMethods.equals(List.of(PAYMENT_BANK_CARD))) {
+                    throw badRequest("当前仅支持为收单卡品牌配置允许交易国家");
+                }
+                List<String> codes = splitScope(scope);
+                if (scope.length() > 512 || codes.contains(ALL) || codes.contains(NONE)
+                        || isoCountryMapper.selectCount(Wrappers.<IsoCountryDO>lambdaQuery()
+                                .in(IsoCountryDO::getAlpha3Code, codes)
+                                .eq(IsoCountryDO::getDeleted, 0)
+                                .eq(IsoCountryDO::getStatus, ENABLED)) != codes.size()) {
+                    throw badRequest("允许交易国家必须使用启用的三字母国家代码");
+                }
+            }
+            request.setAllowedCountryScope(scope);
+        }
         request.setCardBrands(cardBrands);
         return channel;
+    }
+
+    private List<String> capabilityBrands(String businessType, String paymentMethod, List<String> cardBrands) {
+        return BUSINESS_ACQUIRING.equals(businessType) && PAYMENT_BANK_CARD.equals(paymentMethod)
+                ? cardBrands : List.of(NONE);
+    }
+
+    private static String capabilityBrandKey(ChannelPaymentCapabilityDO capability) {
+        return StringUtils.hasText(capability.getCardBrand()) ? capability.getCardBrand() : NONE;
+    }
+
+    private static boolean hasIndependentCardBrand(ChannelPaymentCapabilityDO capability) {
+        return !NONE.equals(capabilityBrandKey(capability));
+    }
+
+    private List<String> capabilityBrandRelations(ChannelPaymentCapabilityDO capability, List<String> requested) {
+        if (hasIndependentCardBrand(capability)) {
+            return List.of(capability.getCardBrand());
+        }
+        return PAYMENT_BANK_CARD.equals(capability.getPaymentMethod()) ? requested : List.of();
     }
 
     /**
@@ -1376,27 +1547,20 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
 
         validatePaymentMethod(businessType, paymentMethod);
-        ChannelPaymentCapabilityDO capability = findEnabledCapability(channelId, businessType, paymentMethod);
-        if (capability == null) {
+        List<ChannelPaymentCapabilityDO> capabilities = listEnabledCapabilities(channelId, businessType).stream()
+                .filter(capability -> paymentMethod.equals(capability.getPaymentMethod())).toList();
+        if (capabilities.isEmpty()) {
             throw badRequest("该渠道支付方式不存在启用中的支付能力");
         }
         if (!PAYMENT_BANK_CARD.equals(paymentMethod)) {
             if (!ALL.equals(cardBrand)) {
                 throw badRequest("非银行卡支付方式不能绑定卡品牌");
             }
-            return;
-        }
-        if (ALL.equals(cardBrand)) {
-            return;
-        }
-        assertDictValue("card_brand", cardBrand, true);
-        Long count = capabilityCardBrandMapper.selectCount(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
-                .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
-                .eq(ChannelCapabilityCardBrandDO::getCapabilityId, capability.getId())
-                .eq(ChannelCapabilityCardBrandDO::getCardBrand, cardBrand)
-                .eq(ChannelCapabilityCardBrandDO::getBrandStatus, ENABLED));
-        if (count <= 0) {
-            throw badRequest("该银行卡支付能力未绑定启用的卡品牌：" + cardBrand);
+        } else if (!ALL.equals(cardBrand)) {
+            assertDictValue("card_brand", cardBrand, true);
+            if (!enabledCardBrands(capabilities).contains(cardBrand)) {
+                throw badRequest("该银行卡支付能力未绑定启用的卡品牌：" + cardBrand);
+            }
         }
     }
 
@@ -1488,6 +1652,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setPaymentMethod(request.getPaymentMethod());
         entity.setTransactionType(request.getTransactionType());
         entity.setDefaultTransactionCurrency(request.getDefaultTransactionCurrency());
+        if (BUSINESS_ACQUIRING.equals(request.getBusinessType())) {
+            if (StringUtils.hasText(request.getAllowedCountryScope())) {
+                entity.setAllowedCountryScope(request.getAllowedCountryScope());
+            } else if (!StringUtils.hasText(entity.getAllowedCountryScope())) {
+                entity.setAllowedCountryScope(ALL);
+            }
+        }
         entity.setSupport3ds(defaultZero(request.getSupport3ds()));
         entity.setSupportIncrementalAuthorization(defaultZero(request.getSupportIncrementalAuthorization()));
         entity.setCapabilityStatus(request.getCapabilityStatus());
@@ -1565,6 +1736,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         response.setTransactionTypeScope(entity.getTransactionTypeScope());
         response.setCurrencyScope(entity.getCurrencyScope());
         response.setAllowedCountryScope(entity.getAllowedCountryScope());
+        response.setInheritTransactionCurrency(Integer.valueOf(ENABLED).equals(entity.getInheritTransactionCurrency()));
         response.setDefaultTransactionCurrency(entity.getDefaultTransactionCurrency());
         response.setDefaultSettlementCurrency(entity.getDefaultSettlementCurrency());
         response.setSettlementCycle(entity.getSettlementCycle());
@@ -1622,7 +1794,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         response.setTransactionTypes(splitTransactionTypes(entity.getBusinessType(), entity.getTransactionType()));
         response.setCurrencyCodes(listCapabilityCurrencies(entity.getId(), entity.getDefaultTransactionCurrency()));
         response.setDefaultTransactionCurrency(entity.getDefaultTransactionCurrency());
-        response.setCardBrands(listCapabilityCardBrands(entity.getId()));
+        if (BUSINESS_ACQUIRING.equals(entity.getBusinessType())) {
+            response.setAllowedCountryScope(StringUtils.hasText(entity.getAllowedCountryScope())
+                    ? entity.getAllowedCountryScope() : ALL);
+        }
+        response.setCardBrands(hasIndependentCardBrand(entity) ? List.of(entity.getCardBrand())
+                : listCapabilityCardBrands(entity.getId()));
         response.setSupport3ds(entity.getSupport3ds());
         response.setSupportIncrementalAuthorization(entity.getSupportIncrementalAuthorization());
         response.setCapabilityStatus(entity.getCapabilityStatus());
@@ -1952,6 +2129,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     /**
      * 查询指定渠道能力关联的卡品牌编码。
      */
+    private List<String> enabledCardBrands(List<ChannelPaymentCapabilityDO> capabilities) {
+        return capabilities.stream().filter(row -> PAYMENT_BANK_CARD.equals(row.getPaymentMethod()))
+                .flatMap(row -> hasIndependentCardBrand(row) ? java.util.stream.Stream.of(row.getCardBrand())
+                        : listCapabilityCardBrands(row.getId()).stream())
+                .distinct().toList();
+    }
+
     private List<String> listCapabilityCardBrands(Long capabilityId) {
         return capabilityCardBrandMapper.selectList(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
                         .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
@@ -2176,11 +2360,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * 查询渠道已启用的能力集合。
      */
     private List<ChannelPaymentCapabilityDO> listEnabledCapabilities(Long channelId, String businessType) {
+        return listMidChannelCapabilities(channelId, businessType, true);
+    }
+
+    private List<ChannelPaymentCapabilityDO> listMidChannelCapabilities(Long channelId, String businessType, boolean enabledOnly) {
         return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
                 .eq(ChannelPaymentCapabilityDO::getChannelId, channelId)
                 .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
-                .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)
+                .eq(enabledOnly, ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)
                 .orderByAsc(ChannelPaymentCapabilityDO::getSortOrder)
                 .orderByAsc(ChannelPaymentCapabilityDO::getId));
     }
@@ -2208,7 +2396,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         String operatorName = currentOperatorName();
         for (ChannelMidConfigDO mid : mids) {
             List<ChannelPaymentCapabilityDO> selectedCapabilities = selectMidCapabilities(
-                    capabilities, mid.getPaymentMethodScope());
+                    capabilities, mid.getPaymentMethodScope(), mid.getCardBrandScope());
             String transactionTypeScope = deriveTransactionTypeScope(businessType, selectedCapabilities);
             if (Objects.equals(transactionTypeScope, mid.getTransactionTypeScope())) {
                 continue;
@@ -2226,13 +2414,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * 查询渠道 MID 继承的能力集合。
      */
     private List<ChannelPaymentCapabilityDO> selectMidCapabilities(
-            List<ChannelPaymentCapabilityDO> capabilities, String paymentMethodScope) {
-        if (ALL.equalsIgnoreCase(trim(paymentMethodScope))) {
-            return capabilities;
-        }
-        Set<String> paymentMethods = new LinkedHashSet<>(splitScope(paymentMethodScope));
+            List<ChannelPaymentCapabilityDO> capabilities, String paymentMethodScope, String cardBrandScope) {
         return capabilities.stream()
-                .filter(capability -> paymentMethods.contains(normalizeCode(capability.getPaymentMethod())))
+                .filter(capability -> allowsMidValue(paymentMethodScope, normalizeCode(capability.getPaymentMethod())))
+                .filter(capability -> !hasIndependentCardBrand(capability)
+                        || !StringUtils.hasText(cardBrandScope) || allowsMidValue(cardBrandScope, capability.getCardBrand()))
                 .toList();
     }
 
@@ -2302,18 +2488,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         if (ALL.equals(paymentMethodScope)) {
             return capabilities;
         }
-        Map<String, ChannelPaymentCapabilityDO> capabilityMap = capabilities.stream()
-                .collect(Collectors.toMap(ChannelPaymentCapabilityDO::getPaymentMethod, item -> item, (left, right) -> left, LinkedHashMap::new));
-        List<ChannelPaymentCapabilityDO> selected = new ArrayList<>();
-        for (String paymentMethod : splitScope(paymentMethodScope)) {
-            validatePaymentMethod(businessType, paymentMethod);
-            ChannelPaymentCapabilityDO capability = capabilityMap.get(paymentMethod);
-            if (capability == null) {
-                throw badRequest("该渠道支付方式不存在启用中的支付能力：" + paymentMethod);
+        List<String> methods = splitScope(paymentMethodScope);
+        for (String method : methods) {
+            validatePaymentMethod(businessType, method);
+            if (capabilities.stream().noneMatch(capability -> method.equals(capability.getPaymentMethod()))) {
+                throw badRequest("该渠道支付方式不存在启用中的支付能力：" + method);
             }
-            selected.add(capability);
         }
-        return selected;
+        return selectMidCapabilities(capabilities, paymentMethodScope, ALL);
     }
 
     /**
@@ -2387,13 +2569,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验支付方式范围。
-     */
-    private void validatePaymentMethodScope(Long channelId, String businessType, String scope) {
-        filterMidCapabilities(channelId, businessType, scope);
-    }
-
-    /**
      * 校验币种范围。
      */
     private void validateCurrencyScope(String scope) {
@@ -2411,15 +2586,19 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     private void validateDefaultTransactionCurrency(Long channelId,
                                                     String businessType,
                                                     String paymentMethodScope,
+                                                    String cardBrandScope,
                                                     String currencyScope,
                                                     String defaultTransactionCurrency) {
         if (!ALL.equals(currencyScope) && !splitScope(currencyScope).contains(defaultTransactionCurrency)) {
             throw badRequest("默认交易币种必须属于允许交易币种");
         }
         List<ChannelPaymentCapabilityDO> capabilities = filterMidCapabilities(channelId, businessType, paymentMethodScope);
-        Set<Long> capabilityIds = capabilities.stream()
+        Set<Long> capabilityIds = selectMidCapabilities(capabilities, paymentMethodScope, cardBrandScope).stream()
                 .map(ChannelPaymentCapabilityDO::getId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (capabilityIds.isEmpty()) {
+            throw badRequest("所选支付方式不存在启用中的支付能力");
+        }
         Set<Long> supportedCapabilityIds = capabilityCurrencyMapper.selectList(
                         Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
                                 .select(ChannelCapabilityCurrencyDO::getCapabilityId)

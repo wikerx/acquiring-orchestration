@@ -2,6 +2,8 @@ package com.scott.payment.merchant.api.paymentlink;
 
 import com.scott.payment.merchant.application.paymentlink.MerchantPaymentLinkApplicationService;
 import com.scott.payment.merchant.dto.paymentlink.PaymentLinkDTOs.*;
+import com.scott.payment.link.model.PaymentLinkManagementModels.AmountCheck;
+import java.util.List;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -37,6 +39,13 @@ public class MerchantPaymentLinkController {
     @PostMapping("/options")
     @RequiresPermission("merchant:transaction:payment-link:add")
     public CommonResult<Options> options(@RequestParam(value = "merchantId", required = false) String merchantId) { return CommonResult.success(application.options(merchantId)); }
+
+    /** 创建表单只返回受影响的支付方式标识。 */
+    @PostMapping("/amount-check")
+    @RequiresPermission("merchant:transaction:payment-link:add")
+    public CommonResult<List<String>> amountCheck(@Valid @RequestBody AmountCheck input) {
+        return CommonResult.success(application.amountUnavailableMethods(input));
+    }
 
     /** 校验创建请求并进入本端幂等管理流程，金额与订单发布后固定。 */
     @PostMapping

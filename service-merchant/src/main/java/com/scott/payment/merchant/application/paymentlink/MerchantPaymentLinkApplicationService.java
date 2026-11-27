@@ -5,9 +5,13 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.link.service.PaymentLinkManagementService;
+import com.scott.payment.link.model.PaymentLinkManagementModels.AmountCheck;
+import com.scott.payment.link.service.ChannelSingleAmountLimits;
 import com.scott.payment.link.service.PaymentLinkManagementPolicy;
 import com.scott.payment.merchant.dto.paymentlink.PaymentLinkDTOs.*;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /** 管理查询和链接操作由本服务执行，共用链接规则；实际付款仍由 Payment 执行。 */
 @Service
@@ -16,6 +20,8 @@ public class MerchantPaymentLinkApplicationService {
     private final PaymentLinkManagementPolicy policy;
     private final MerchantPaymentLinkQueryService queries;
     private final MerchantPaymentLinkOperatorProjection operators;
+    @org.springframework.beans.factory.annotation.Autowired
+    private ChannelSingleAmountLimits singleAmountLimits;
 
     public MerchantPaymentLinkApplicationService(PaymentLinkManagementService management, PaymentLinkManagementPolicy policy, MerchantPaymentLinkOperatorProjection operators, MerchantPaymentLinkQueryService queries) {
         this.queries = queries; this.management = management; this.policy = policy; this.operators = operators;
@@ -37,6 +43,10 @@ public class MerchantPaymentLinkApplicationService {
     public Options options(String merchantId) {
         Actor actor = actor(); return policy.options(actor, target(merchantId), Options::new);
     }
+    public List<String> amountUnavailableMethods(AmountCheck input) {
+        return policy.amountUnavailableMethods(actor(), target(null), input, singleAmountLimits);
+    }
+
     /** 使用当前会话身份查询可见链接，不能由请求指定其他操作者范围。 */
     public PageResult<View> search(Query query) {
         return queries.search(actor(), query);
